@@ -179,6 +179,14 @@ export default function BeautyOS() {
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0});
   const [newWaitlist, setNewWaitlist] = useState({client_id:"",client_name:"",phone:"",service:"",preferred_date:"",notes:""});
 
+  // === WHATSAPP CENTER STATE ===
+  const [waSentToday, setWaSentToday] = useState({});       // {clientId: true} - marks who got a message today
+  const [waBroadcastMsg, setWaBroadcastMsg] = useState(""); // free broadcast text
+  const [waBroadcastAudience, setWaBroadcastAudience] = useState("all"); // all|vip|active|cold
+  const [waFreeClient, setWaFreeClient] = useState(null);   // selected client for free message
+  const [waFreeSearch, setWaFreeSearch] = useState("");
+  const [waFreeMsg, setWaFreeMsg] = useState("");
+
   // === UX SYSTEMS: Toasts, Confirm, Busy ===
   const [toasts, setToasts] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -684,6 +692,33 @@ export default function BeautyOS() {
     toast("הקובץ ירד");
   };
 
+  // === WHATSAPP CENTER HANDLERS ===
+  // Opens a WhatsApp link for one client and marks them as "sent today"
+  const waSendOne = (clientId, phone, message) => {
+    if(!phone){toast("אין מספר טלפון ללקוחה","error");return;}
+    const link=waMsg(phone,message);
+    if(link)window.open(link,"_blank");
+    if(clientId)setWaSentToday(prev=>({...prev,[clientId]:true}));
+  };
+
+  // Opens WhatsApp links for a whole group, one after another with a small delay
+  const waSendGroup = (items) => {
+    const targets=items.filter(it=>it.phone);
+    if(targets.length===0){toast("אין נמענים עם טלפון","error");return;}
+    askConfirm({
+      title:"שליחה קבוצתית",
+      message:`ייפתחו ${targets.length} חלונות וואטסאפ — אחד לכל לקוחה. לאשר?`,
+      confirmText:"שלחי",
+      onConfirm:async()=>{
+        for(const t of targets){
+          waSendOne(t.clientId,t.phone,t.message);
+          await new Promise(r=>setTimeout(r,700));
+        }
+        toast(`נפתחו ${targets.length} הודעות`);
+      },
+    });
+  };
+
   const openEditClient = (client) => {
     setEditingClient(client);
     setNewClient({name:client.name||"",phone:client.phone||"",birthday:client.birthday||"",skinType:client.skinType||"",allergies:client.allergies||"",medical:client.medical||"",notes:client.notes||"",status:client.status||"active"});
@@ -803,6 +838,7 @@ export default function BeautyOS() {
           {id:"clients",  label:"👤 לקוחות"},
           {id:"leads",    label:`🎯 לידים${newLeadsCount>0?` (${newLeadsCount})`:""}`},
           {id:"cashier",  label:"💰 קופה"},
+          {id:"whatsapp", label:"📱 וואטסאפ"},
           {id:"campaigns",label:"📈 קמפיינים"},
           {id:"packages", label:"🎁 חבילות"},
         ].map(tab=>(
@@ -889,6 +925,30 @@ export default function BeautyOS() {
 
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
+            {/* GOOD MORNING SMART BANNER */}
+            {(()=>{
+              const hour=now.getHours();
+              const greeting=hour<12?"בוקר טוב":hour<17?"צהריים טובים":hour<21?"ערב טוב":"לילה טוב";
+              const todayRevenueExpected=todayAppts.reduce((s,a)=>s+(Number(a.price)||0),0);
+              const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
+              return(
+                <div style={{background:`linear-gradient(135deg, ${pc} 0%, #2C1A1A 100%)`,borderRadius:13,padding:"15px 18px",marginBottom:13,color:"#fff"}}>
+                  <p style={{fontSize:15,fontWeight:800,marginBottom:6}}>{greeting}, {settings.therapist_name}! ☀️</p>
+                  <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+                    <span style={{fontSize:11}}>📅 <b>{todayAppts.length}</b> תורים היום</span>
+                    <span style={{fontSize:11}}>💰 צפי <b>₪{todayRevenueExpected.toLocaleString()}</b></span>
+                    {tomorrowAppts.length>0&&<span style={{fontSize:11}}>🔔 <b>{tomorrowAppts.length}</b> מחר</span>}
+                    {newLeadsCount>0&&<span style={{fontSize:11}}>🎯 <b>{newLeadsCount}</b> לידים חדשים</span>}
+                    {coldClients.length>0&&<span style={{fontSize:11}}>❄️ <b>{coldClients.length}</b> לא חזרו</span>}
+                  </div>
+                  {bdToday.length>0&&(
+                    <div style={{marginTop:8,background:"rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px",fontSize:11}}>
+                      🎂 היום יום הולדת ל{bdToday.map(c=>c.name).join(", ")}! אל תשכחי לברך 🎉
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <h2 style={{fontSize:13,fontWeight:800,color:"#2C1A1A",marginBottom:11}}>{MONTHS_HE[thisMonth]} {thisYear} — סקירה כללית</h2>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(115px,1fr))",gap:7,marginBottom:12}}>
               {[
@@ -1215,6 +1275,151 @@ export default function BeautyOS() {
                 ))}
             </div>
           </>)}
+
+          {/* WHATSAPP CENTER */}
+          {activeTab==="whatsapp"&&(()=>{
+            // Build the 4 automatic groups
+            const reminderTargets=tomorrowAppts.map(a=>{
+              const cl=clients.find(c=>String(c.id)===String(a.client_id));
+              return {clientId:a.client_id,name:a.name,phone:cl?.phone,
+                message:`שלום ${a.name}! 💎\nתזכורת לתור מחר:\n✨ ${a.service}\n📅 בשעה ${a.hour}:00\n\nמחכים לך! 😊`};
+            });
+            const birthdayTargets=upcomingBirthdays.map(c=>{
+              const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());
+              if(bd<now)bd.setFullYear(now.getFullYear()+1);
+              const days=Math.floor((bd-now)/(1000*60*60*24));
+              return {clientId:c.id,name:c.name,phone:c.phone,days,
+                message:`שלום ${c.name}! 🎂\nיום הולדת שמח! 🎉\nמ${settings.business_name} אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך 🎁\nנחכה לך! 💎`};
+            });
+            const coldTargets=coldClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
+              message:`שלום ${c.name}! 🌸\nמתגעגעים אלייך ב${settings.business_name}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול 💆‍♀️\nרוצה לקבוע תור? פשוט תכתבי לנו 💕`}));
+            // Review: clients with an appointment in the last 7 days
+            const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
+            const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
+            const reviewTargets=reviewClientIds.map(cid=>{
+              const c=clients.find(cl=>String(cl.id)===cid);
+              if(!c)return null;
+              return {clientId:c.id,name:c.name,phone:c.phone,
+                message:`שלום ${c.name}! 🌸\nתודה שביקרת אצלנו ב${settings.business_name}!\nנשמח מאוד אם תשאירי לנו ביקורת ❤️\nזה לוקח רק דקה ועוזר לנו מאוד! 🙏`};
+            }).filter(Boolean);
+
+            // Broadcast audience
+            const audienceClients=clients.filter(c=>{
+              if(!c.phone)return false;
+              if(waBroadcastAudience==="all")return true;
+              if(waBroadcastAudience==="vip")return c.status==="VIP";
+              if(waBroadcastAudience==="active")return getDaysSince(c.id)<=60;
+              if(waBroadcastAudience==="cold")return getDaysSince(c.id)>60;
+              return true;
+            });
+
+            const groups=[
+              {key:"reminders",icon:"📅",title:"תזכורות לתורי מחר",color:"#FF9800",bg:"#FFF3E0",targets:reminderTargets,
+                empty:"אין תורים מחר"},
+              {key:"birthdays",icon:"🎂",title:"ברכות יום הולדת",color:"#E91E63",bg:"#FCE4EC",targets:birthdayTargets,
+                empty:"אין ימי הולדת ב-30 הימים הקרובים"},
+              {key:"cold",icon:"❄️",title:"לקוחות שלא חזרו (60+ יום)",color:"#5580C4",bg:"#EBF3FF",targets:coldTargets,
+                empty:"כל הלקוחות פעילות! 🎉"},
+              {key:"review",icon:"🌸",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",bg:"#F3E5F5",targets:reviewTargets,
+                empty:"אין ביקורים בשבוע האחרון"},
+            ];
+
+            return(<>
+              <h2 style={{fontSize:13,fontWeight:800,color:"#2C1A1A",marginBottom:4}}>📱 מרכז וואטסאפ</h2>
+              <p style={{fontSize:10,color:"#888",marginBottom:12}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
+
+              {/* 4 AUTOMATIC GROUPS */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:9,marginBottom:14}}>
+                {groups.map(g=>{
+                  const withPhone=g.targets.filter(t=>t.phone);
+                  return(
+                    <div key={g.key} style={{background:"#fff",borderRadius:11,border:`1px solid ${g.color}33`,overflow:"hidden"}}>
+                      <div style={{background:g.bg,padding:"10px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <span style={{fontSize:16}}>{g.icon}</span>
+                          <div>
+                            <p style={{fontSize:11,fontWeight:700,color:"#2C1A1A"}}>{g.title}</p>
+                            <p style={{fontSize:9,color:g.color,fontWeight:600}}>{withPhone.length} נמענים</p>
+                          </div>
+                        </div>
+                        {withPhone.length>0&&(
+                          <button onClick={()=>waSendGroup(g.targets)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:7,padding:"6px 10px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>שלחי לכולן</button>
+                        )}
+                      </div>
+                      <div style={{padding:"8px 10px",maxHeight:200,overflowY:"auto"}}>
+                        {g.targets.length===0?<p style={{fontSize:10,color:"#BBB",padding:"6px 0"}}>{g.empty}</p>
+                          :g.targets.map((t,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 4px",borderBottom:i<g.targets.length-1?"1px solid #F5F0EC":"none"}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <p style={{fontSize:10,fontWeight:600,color:"#2C1A1A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {waSentToday[t.clientId]&&<span style={{color:"#4CAF50"}}>✓ </span>}{t.name}
+                                </p>
+                                <p style={{fontSize:8,color:"#999"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
+                              </div>
+                              {t.phone?(
+                                <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"3px 7px",fontSize:9}}>📱 שלחי</button>
+                              ):<span style={{fontSize:8,color:"#CCC"}}>—</span>}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* BROADCAST TO A GROUP */}
+              <div style={{background:"#fff",borderRadius:11,border:"1px solid #EEE8E2",padding:14,marginBottom:11}}>
+                <h3 style={{fontSize:11,fontWeight:700,color:"#2C1A1A",marginBottom:9}}>📢 שליחת מבצע / הודעה לקבוצה</h3>
+                <p style={{fontSize:9,color:"#888",marginBottom:5}}>בחרי קהל יעד</p>
+                <div style={{display:"flex",gap:4,marginBottom:9,flexWrap:"wrap"}}>
+                  {[{k:"all",l:"כל הלקוחות"},{k:"vip",l:"⭐ VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"❄️ לא חזרו"}].map(a=>(
+                    <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"5px 10px",border:"1.5px solid",borderColor:waBroadcastAudience===a.k?pc:"#EEE8E2",borderRadius:20,background:waBroadcastAudience===a.k?pc:"#FAF7F5",color:waBroadcastAudience===a.k?"#fff":"#555",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:waBroadcastAudience===a.k?700:400}}>{a.l}</button>
+                  ))}
+                </div>
+                <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
+                  placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים 💆‍♀️✨"
+                  style={{width:"100%",border:"1.5px solid #EEE8E2",borderRadius:8,padding:"9px 11px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FAF7F5",resize:"none",marginBottom:8}}/>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+                  <p style={{fontSize:10,color:"#888"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
+                  <button onClick={()=>{
+                    if(!waBroadcastMsg.trim()){toast("נא לכתוב הודעה","error");return;}
+                    waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:`שלום ${c.name}! ${waBroadcastMsg}`})));
+                  }} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📱 שלחי לקבוצה</button>
+                </div>
+              </div>
+
+              {/* FREE MESSAGE TO ONE CLIENT */}
+              <div style={{background:"#fff",borderRadius:11,border:"1px solid #EEE8E2",padding:14}}>
+                <h3 style={{fontSize:11,fontWeight:700,color:"#2C1A1A",marginBottom:9}}>✍️ הודעה ללקוחה בודדת</h3>
+                <div style={{position:"relative",marginBottom:8}}>
+                  <input value={waFreeSearch} onChange={e=>{setWaFreeSearch(e.target.value);if(!e.target.value)setWaFreeClient(null);}}
+                    placeholder="חיפוש לקוחה לפי שם או טלפון..."
+                    style={{width:"100%",border:`1.5px solid ${waFreeClient?"#4CAF50":"#EEE8E2"}`,borderRadius:8,padding:"9px 11px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:waFreeClient?"#F3FFF6":"#FAF7F5"}}/>
+                  {waFreeClient&&<span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13}}>✅</span>}
+                  {waFreeSearch.length>1&&!waFreeClient&&(
+                    <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#fff",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:99,overflow:"hidden",marginTop:3,maxHeight:180,overflowY:"auto"}}>
+                      {clients.filter(c=>c.name?.includes(waFreeSearch)||c.phone?.includes(waFreeSearch)).slice(0,6).map(c=>(
+                        <div key={c.id} onClick={()=>{setWaFreeClient(c);setWaFreeSearch(c.name);}} className="client-row" style={{padding:"8px 11px",borderBottom:"1px solid #F0EAE6",cursor:"pointer"}}>
+                          <p style={{fontSize:11,fontWeight:600,color:"#2C1A1A"}}>{c.name}</p>
+                          <p style={{fontSize:9,color:"#888"}}>{c.phone||"אין טלפון"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <textarea value={waFreeMsg} onChange={e=>setWaFreeMsg(e.target.value)} rows={3}
+                  placeholder="כתבי כאן את ההודעה..."
+                  style={{width:"100%",border:"1.5px solid #EEE8E2",borderRadius:8,padding:"9px 11px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FAF7F5",resize:"none",marginBottom:8}}/>
+                <button onClick={()=>{
+                  if(!waFreeClient){toast("נא לבחור לקוחה","error");return;}
+                  if(!waFreeClient.phone){toast("אין טלפון ללקוחה זו","error");return;}
+                  if(!waFreeMsg.trim()){toast("נא לכתוב הודעה","error");return;}
+                  waSendOne(waFreeClient.id,waFreeClient.phone,waFreeMsg);
+                  setWaFreeMsg("");
+                }} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:8,padding:"9px 16px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>📱 שלחי הודעה</button>
+              </div>
+            </>);
+          })()}
 
           {/* CAMPAIGNS */}
           {activeTab==="campaigns"&&(<>
@@ -1717,6 +1922,33 @@ export default function BeautyOS() {
                         <p style={{fontSize:16,fontWeight:800,color:days>60?"#F44336":"#4CAF50"}}>{days>900?"—":days}</p><p style={{fontSize:8,color:"#888"}}>ימים מביקור</p>
                       </div>
                     </div>
+                    {/* SMART INSIGHTS */}
+                    {(()=>{
+                      const sorted=[...appts].filter(a=>a.date).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+                      let avgGap=null;
+                      if(sorted.length>=2){
+                        let totalGap=0,count=0;
+                        for(let i=1;i<sorted.length;i++){
+                          const g=Math.floor((new Date(sorted[i].date)-new Date(sorted[i-1].date))/(1000*60*60*24));
+                          if(g>0){totalGap+=g;count++;}
+                        }
+                        if(count>0)avgGap=Math.round(totalGap/count);
+                      }
+                      const svcCount={};
+                      appts.forEach(a=>{if(a.service)svcCount[a.service]=(svcCount[a.service]||0)+1;});
+                      const favService=Object.entries(svcCount).sort((a,b)=>b[1]-a[1])[0];
+                      const insights=[];
+                      if(avgGap)insights.push(`מגיעה בערך כל ${avgGap} ימים`);
+                      if(favService)insights.push(`הכי אוהבת: ${favService[0]}`);
+                      if(avgGap&&days<900&&days>avgGap)insights.push(`⏰ עברו ${days} ימים — כדאי להזמין שוב!`);
+                      if(insights.length===0)return null;
+                      return(
+                        <div style={{background:`${pc}11`,borderRadius:9,padding:"10px 12px",border:`1px solid ${pc}33`}}>
+                          <p style={{fontSize:9,color:pc,fontWeight:700,marginBottom:4}}>💡 תובנות</p>
+                          {insights.map((t,i)=><p key={i} style={{fontSize:11,color:"#2C1A1A",marginBottom:2}}>• {t}</p>)}
+                        </div>
+                      );
+                    })()}
                     {c.birthday&&<div style={{background:"#fff",borderRadius:9,padding:"10px 12px",border:"1px solid #EEE8E2"}}><p style={{fontSize:9,color:"#888"}}>🎂 יום הולדת</p><p style={{fontSize:12,fontWeight:600,color:"#2C1A1A"}}>{c.birthday}</p></div>}
                     {c.skinType&&<div style={{background:"#fff",borderRadius:9,padding:"10px 12px",border:"1px solid #EEE8E2"}}><p style={{fontSize:9,color:"#888"}}>סוג עור</p><p style={{fontSize:12,fontWeight:600,color:"#2C1A1A"}}>{c.skinType}</p></div>}
                     {c.allergies&&<div style={{background:"#FFFAF7",borderRadius:9,padding:"10px 12px",border:"1px solid #FFDAC1"}}><p style={{fontSize:9,color:"#E07B39"}}>⚠️ אלרגיות</p><p style={{fontSize:11,color:"#2C1A1A"}}>{c.allergies}</p></div>}
@@ -1736,6 +1968,13 @@ export default function BeautyOS() {
                           </div>
                           <p style={{fontSize:9,color:"#888"}}>{a.date} · {a.hour}:00 {a.confirmation_status==="confirmed"?"· ✅":a.confirmation_status==="cancelled"?"· ❌":""}</p>
                           {a.note&&<p style={{fontSize:9,color:"#999",marginTop:3,fontStyle:"italic"}}>{a.note}</p>}
+                          <button onClick={()=>{
+                            const nd=new Date(a.date);nd.setDate(nd.getDate()+7);
+                            setNewAppt({clientId:c.id,name:c.name,service:a.service,duration:a.duration||60,date:formatDate(nd),hour:Number(a.hour),price:a.price||0});
+                            setApptNote(a.note||"");
+                            setSelectedClient(null);
+                            setShowModal(true);
+                          }} style={{background:"#FAF7F5",border:"1px solid #EEE8E2",borderRadius:5,padding:"3px 8px",fontSize:8,cursor:"pointer",fontFamily:"inherit",color:"#666",marginTop:5}}>🔁 שכפלי לשבוע הבא</button>
                         </div>
                       ))}
                   </div>
