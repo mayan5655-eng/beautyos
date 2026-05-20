@@ -1,0 +1,177 @@
+"use client";
+import { useState } from "react";
+
+type CampaignData = { name: string; goal: string; target_audience: string; service_type: string; };
+type CampaignStrategy = { strategy: string; tone: string; keyPoints: string[]; audienceInsights: string; };
+type PostVariation = { variationNumber: number; variationType: string; title: string; body: string; callToAction: string; hashtags: string[]; imageSuggestion: string; };
+type GroupSuggestion = { name: string; category: string; reasoning: string; };
+
+const STEPS = [
+  { number: 1, title: "פרטי קמפיין", emoji: "📝" },
+  { number: 2, title: "אסטרטגיה", emoji: "🎯" },
+  { number: 3, title: "פוסטים", emoji: "✍️" },
+  { number: 4, title: "קבוצות", emoji: "👥" },
+];
+
+export default function NewCampaignClient() {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [campaignData, setCampaignData] = useState<CampaignData>({ name: "", goal: "", target_audience: "", service_type: "" });
+  const [strategy, setStrategy] = useState<CampaignStrategy | null>(null);
+  const [variations, setVariations] = useState<PostVariation[]>([]);
+  const [groups, setGroups] = useState<GroupSuggestion[]>([]);
+  const [loadingStrategy, setLoadingStrategy] = useState(false);
+  const [loadingVariations, setLoadingVariations] = useState(false);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const goNext = () => { if (currentStep < 4) setCurrentStep(currentStep + 1); };
+  const goBack = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
+  const updateField = (field: keyof CampaignData, value: string) => { setCampaignData({ ...campaignData, [field]: value }); };
+
+  const handleGenerateStrategy = async () => {
+    setLoadingStrategy(true); setError(null);
+    try {
+      const res = await fetch("/api/marketing/strategy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: campaignData.goal, serviceType: campaignData.service_type, targetAudience: campaignData.target_audience }) });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setStrategy(data.strategy);
+    } catch (err) { setError("שגיאה ביצירת האסטרטגיה. נסי שוב."); console.error(err); }
+    finally { setLoadingStrategy(false); }
+  };
+
+  const handleGenerateVariations = async () => {
+    if (!strategy) return;
+    setLoadingVariations(true); setError(null);
+    try {
+      const res = await fetch("/api/marketing/variations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategy, count: 5 }) });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setVariations(data.variations);
+    } catch (err) { setError("שגיאה ביצירת הפוסטים. נסי שוב."); console.error(err); }
+    finally { setLoadingVariations(false); }
+  };
+
+  const handleSuggestGroups = async () => {
+    setLoadingGroups(true); setError(null);
+    try {
+      const res = await fetch("/api/marketing/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ count: 10 }) });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setGroups(data.groups);
+    } catch (err) { setError("שגיאה בהמלצת הקבוצות. נסי שוב."); console.error(err); }
+    finally { setLoadingGroups(false); }
+  };
+
+  const copyPost = (post: PostVariation) => {
+    const text = `${post.title}\n\n${post.body}\n\n${post.callToAction}\n\n${post.hashtags.join(" ")}`;
+    navigator.clipboard.writeText(text);
+    alert("הפוסט הועתק! 📋");
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="flex justify-between mb-8 border-b pb-4">
+        {STEPS.map((step) => (
+          <div key={step.number} className={`flex flex-col items-center ${currentStep === step.number ? "text-purple-600 font-bold" : currentStep > step.number ? "text-green-600" : "text-gray-400"}`}>
+            <div className="text-2xl">{step.emoji}</div>
+            <div className="text-xs mt-1">{step.number}. {step.title}</div>
+          </div>
+        ))}
+      </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded mb-4">⚠️ {error}</div>}
+
+      <div className="min-h-[300px]">
+        {currentStep === 1 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold mb-4">📝 פרטי הקמפיין</h2>
+            <div><label className="block text-sm font-medium mb-1">שם הקמפיין *</label><input type="text" value={campaignData.name} onChange={(e) => updateField("name", e.target.value)} placeholder="לדוגמה: קמפיין הסרת שיער קיץ" className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">מטרת הקמפיין *</label><textarea value={campaignData.goal} onChange={(e) => updateField("goal", e.target.value)} placeholder="לדוגמה: לקבל 20 לקוחות חדשות" rows={3} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">קהל יעד</label><input type="text" value={campaignData.target_audience} onChange={(e) => updateField("target_audience", e.target.value)} placeholder="לדוגמה: נשים גילאי 25-45" className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">סוג השירות</label><input type="text" value={campaignData.service_type} onChange={(e) => updateField("service_type", e.target.value)} placeholder="לדוגמה: הסרת שיער בלייזר" className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+        )}
+
+        {currentStep === 2 && (
+          <div>
+            <h2 className="text-xl font-bold mb-2">🎯 אסטרטגיית קמפיין</h2>
+            <p className="text-gray-600 mb-6">ה-AI ייצור עבורך אסטרטגיה</p>
+            {!strategy && !loadingStrategy && (
+              <div className="text-center py-4">
+                <button onClick={handleGenerateStrategy} disabled={!campaignData.goal} className="px-6 py-3 bg-purple-600 text-white rounded-lg disabled:opacity-50">✨ צור אסטרטגיה עם AI</button>
+                {!campaignData.goal && <p className="text-xs text-red-500 mt-2">יש למלא קודם מטרת קמפיין</p>}
+              </div>
+            )}
+            {loadingStrategy && <div className="text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div><p className="mt-2 text-gray-600">ה-AI חושב... ⏳</p></div>}
+            {strategy && (
+              <div className="space-y-3 bg-purple-50 p-4 rounded-lg">
+                <div><h3 className="font-bold text-purple-900">📋 הגישה:</h3><p>{strategy.strategy}</p></div>
+                <div><h3 className="font-bold text-purple-900">🎨 טון:</h3><p>{strategy.tone}</p></div>
+                <div><h3 className="font-bold text-purple-900">💡 מסרים מרכזיים:</h3><ul className="list-disc list-inside">{strategy.keyPoints.map((point, i) => (<li key={i}>{point}</li>))}</ul></div>
+                <div><h3 className="font-bold text-purple-900">👥 תובנות קהל:</h3><p>{strategy.audienceInsights}</p></div>
+                <button onClick={handleGenerateStrategy} className="text-sm text-purple-600">🔄 צור אסטרטגיה אחרת</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentStep === 3 && (
+          <div>
+            <h2 className="text-xl font-bold mb-2">✍️ יצירת פוסטים</h2>
+            <p className="text-gray-600 mb-6">ה-AI ייצור 5 וריאציות</p>
+            {variations.length === 0 && !loadingVariations && (
+              <div className="text-center py-4">
+                <button onClick={handleGenerateVariations} disabled={!strategy} className="px-6 py-3 bg-purple-600 text-white rounded-lg disabled:opacity-50">✨ צור פוסטים עם AI</button>
+                {!strategy && <p className="text-xs text-red-500 mt-2">צרי קודם אסטרטגיה בשלב 2</p>}
+              </div>
+            )}
+            {loadingVariations && <div className="text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div><p className="mt-2 text-gray-600">ה-AI כותב... ⏳</p></div>}
+            {variations.length > 0 && (
+              <div className="space-y-4">
+                {variations.map((post) => (
+                  <div key={post.variationNumber} className="border border-purple-200 rounded-lg p-4 bg-white">
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">וריאציה {post.variationNumber} - {post.variationType}</span>
+                    <h4 className="font-bold mb-2 mt-2">{post.title}</h4>
+                    <p className="text-gray-800 whitespace-pre-wrap mb-2">{post.body}</p>
+                    <p className="text-sm text-purple-700 font-medium">📢 {post.callToAction}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">{post.hashtags.map((tag, i) => (<span key={i} className="text-xs text-blue-600">{tag}</span>))}</div>
+                    <p className="text-xs text-gray-500 mt-2">💡 תמונה: {post.imageSuggestion}</p>
+                    <button onClick={() => copyPost(post)} className="mt-3 px-4 py-1 bg-purple-600 text-white text-sm rounded">📋 העתק פוסט</button>
+                  </div>
+                ))}
+                <button onClick={handleGenerateVariations} className="text-sm text-purple-600">🔄 צור פוסטים אחרים</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {currentStep === 4 && (
+          <div>
+            <h2 className="text-xl font-bold mb-2">👥 קבוצות פייסבוק</h2>
+            <p className="text-gray-600 mb-6">ה-AI ימליץ על קבוצות</p>
+            {groups.length === 0 && !loadingGroups && <div className="text-center py-4"><button onClick={handleSuggestGroups} className="px-6 py-3 bg-purple-600 text-white rounded-lg">✨ הצע קבוצות עם AI</button></div>}
+            {loadingGroups && <div className="text-center py-8"><div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div><p className="mt-2 text-gray-600">ה-AI מחפש... ⏳</p></div>}
+            {groups.length > 0 && (
+              <div className="space-y-2">
+                {groups.map((group, i) => (
+                  <div key={i} className="border border-purple-200 rounded-lg p-3 bg-white">
+                    <h4 className="font-bold">{group.name}</h4>
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">{group.category}</span>
+                    <p className="text-sm text-gray-600 mt-1">{group.reasoning}</p>
+                    <a href={`https://www.facebook.com/search/groups/?q=${encodeURIComponent(group.name)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600">🔍 חפש בפייסבוק</a>
+                  </div>
+                ))}
+                <button onClick={handleSuggestGroups} className="text-sm text-purple-600">🔄 הצע קבוצות אחרות</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between mt-6 pt-4 border-t">
+        <button onClick={goBack} disabled={currentStep === 1} className="px-6 py-2 bg-gray-200 rounded-lg disabled:opacity-50">← חזור</button>
+        <button onClick={goNext} disabled={currentStep === 4} className="px-6 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">הבא →</button>
+      </div>
+    </div>
+  );
+}
