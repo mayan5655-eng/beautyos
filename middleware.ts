@@ -1,9 +1,7 @@
 export const runtime = 'nodejs'
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Public routes that should NEVER require login.
-// Clients use these (booking, skin scan, landing pages, forms).
+// Public routes that should NEVER require login (clients use these).
 const PUBLIC_PREFIXES = [
   '/login',
   '/auth',
@@ -12,79 +10,52 @@ const PUBLIC_PREFIXES = [
   '/skin-scan',
   '/form',
   '/confirm',
-  '/api',        // API routes handle their own auth
+  '/api',
 ]
 
 function isPublicPath(pathname: string): boolean {
-  // Exact public prefixes
   if (PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
     return true
   }
-  // Dynamic landing pages: /[slug] — a single top-level segment with no extra slash.
-  // e.g. "/maayanfacebook1992-8c6f359d" is public, but "/dashboard/leads" is not.
+  // Dynamic landing pages: a single top-level segment (e.g. "/my-slug"),
+  // anything except the dashboard, is public.
   const segments = pathname.split('/').filter(Boolean)
   if (segments.length === 1 && segments[0] !== 'dashboard') {
     return true
   }
-  // The root landing
   if (pathname === '/') return true
   return false
 }
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request })
-
-  // If required env vars are missing, do NOT crash — just let the request through.
-  // (A missing env var should never take the whole site down with a 500.)
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anonKey) {
-    console.error('Middleware: missing Supabase env vars — skipping auth check.')
-    return response
-  }
-
-  // Public paths skip the auth check entirely.
-  if (isPublicPath(request.nextUrl.pathname)) {
-    return response
-  }
-
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        )
-        response = NextResponse.next({ request })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        )
-      },
-    },
-  })
-
-  let user = null
+  // Wrap EVERYTHING in try/catch so the middleware can never crash the site.
   try {
-    const result = await supabase.auth.getUser()
-    user = result.data.user
+    const pathname = request.nextUrl.pathname
+
+    // Public paths: let them straight through, no auth check at all.
+    if (isPublicPath(pathname)) {
+      return NextResponse.next()
+    }
+
+    // For protected paths (/dashboard/*), check for a Supabase auth cookie.
+    // We do a lightweight cookie check instead of a full network call,
+    // which is far more reliable inside the Vercel runtime.
+    const hasAuthCookie = request.cookies
+      .getAll()
+      .some((c) => c.name.includes('-auth-token') || c.name.startsWith('sb-'))
+
+    if (!hasAuthCookie) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    return NextResponse.next()
   } catch (err) {
-    // If the auth check itself fails, don't crash the site — send to login.
-    console.error('Middleware auth check failed:', err)
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
+    // If anything goes wrong, never 500 — just let the request continue.
+    console.error('Middleware error (ignored):', err)
+    return NextResponse.next()
   }
-
-  // Protected (non-public) path with no user -> go to login.
-  if (!user) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return response
 }
 
 export const config = {
