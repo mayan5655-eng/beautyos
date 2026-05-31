@@ -2,243 +2,293 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 
-const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+// ============================================================
+// PUBLIC BOOKING PAGE  —  /book
+// Clients book their own appointments, 24/7
+// ============================================================
+
+const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
+function formatDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export default function BookPage() {
+  // === DATA ===
+  const [settings, setSettings] = useState(null);
   const [services, setServices] = useState([]);
-  const [settings, setSettings] = useState({business_name:"BeautyOS",therapist_name:"רונית",primary_color:"#D4945A",working_hours_start:8,working_hours_end:19});
   const [appointments, setAppointments] = useState([]);
-  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  // === BOOKING FLOW STATE ===
+  const [step, setStep] = useState(1); // 1=service, 2=date+time, 3=details, 4=done
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedHour, setSelectedHour] = useState(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const now = new Date();
-  const pc = settings.primary_color || "#D4945A";
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const [sv, st, ap] = await Promise.all([
-      supabase.from("service_prices").select("*"),
-      supabase.from("settings").select("*"),
-      supabase.from("appointments").select("date,hour"),
-    ]);
-    if (sv.data && sv.data.length > 0) setServices(sv.data.filter(s => s.active !== false));
-    if (st.data && st.data.length > 0) setSettings(st.data[0]);
-    if (ap.data) setAppointments(ap.data);
-    setLoading(false);
-  };
-
-  // 14 ימים קדימה
-  const availableDates = Array.from({length:14}, (_,i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() + i + 1);
-    return d;
-  }).filter(d => d.getDay() !== 6); // ללא שבת
-
-  const formatDate = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth()+1).padStart(2,"0");
-    const d = String(date.getDate()).padStart(2,"0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const getAvailableHours = (date) => {
-    const hours = [];
-    for (let h = settings.working_hours_start; h < settings.working_hours_end; h++) {
-      const taken = appointments.some(a => a.date === formatDate(date) && Number(a.hour) === h);
-      if (!taken) hours.push(h);
+    try {
+      const [st, sv, ap] = await Promise.all([
+        supabase.from("settings").select("*"),
+        supabase.from("service_prices").select("*"),
+        supabase.from("appointments").select("date, hour"),
+      ]);
+      if (st.data && st.data.length > 0) setSettings(st.data[0]);
+      else setSettings({ business_name: "BeautyOS", therapist_name: "", primary_color: "#E91E63", working_hours_start: 9, working_hours_end: 19, working_days: "0,1,2,3,4,5" });
+      if (sv.data && sv.data.length > 0) setServices(sv.data.filter(s => s.active !== false));
+      if (ap.data) setAppointments(ap.data);
+    } catch (err) {
+      console.error("loadData error:", err);
+      setSettings({ business_name: "BeautyOS", primary_color: "#E91E63", working_hours_start: 9, working_hours_end: 19, working_days: "0,1,2,3,4,5" });
+    } finally {
+      setLoading(false);
     }
-    return hours;
   };
 
-  const handleSubmit = async () => {
-    if (!name.trim() || !phone.trim()) { alert("נא למלא שם וטלפון"); return; }
+  const pc = settings?.primary_color || "#E91E63";
+
+  // === Build next 14 available days (respecting working_days) ===
+  const workingDays = (settings?.working_days || "0,1,2,3,4,5").split(",").filter(x => x !== "").map(Number);
+  const availableDays = [];
+  for (let i = 0; i < 21 && availableDays.length < 14; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    if (workingDays.includes(d.getDay())) availableDays.push(d);
+  }
+
+  // === Build hours for selected day ===
+  const startH = settings?.working_hours_start || 9;
+  const endH = settings?.working_hours_end || 19;
+  const allHours = [];
+  for (let h = startH; h < endH; h++) allHours.push(h);
+
+  // Which hours are taken on the selected date
+  const takenHours = selectedDate
+    ? appointments.filter(a => a.date === formatDate(selectedDate)).map(a => Number(a.hour))
+    : [];
+
+  const handleConfirm = async () => {
+    setErrorMsg("");
+    if (!name.trim()) { setErrorMsg("נא להזין שם"); return; }
+    if (!phone.trim()) { setErrorMsg("נא להזין טלפון"); return; }
+    if (submitting) return;
     setSubmitting(true);
-
-    // מצאי או צרי לקוחה
-    let clientId = null;
-    const { data: existing } = await supabase.from("clients").select("id").eq("phone", phone).single();
-    if (existing) {
-      clientId = existing.id;
-    } else {
-      const { data: newClient } = await supabase.from("clients").insert([{
-        name, phone, status: "active", notes: notes || ""
-      }]).select();
-      if (newClient?.[0]) clientId = newClient[0].id;
+    try {
+      // Call the API: it saves the appointment AND sends WhatsApp
+      // messages to both the client and the business owner.
+      const res = await fetch("/api/book-appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          service: selectedService.name,
+          date: formatDate(selectedDate),
+          hour: selectedHour,
+          duration: selectedService.duration || 60,
+          price: selectedService.price || 0,
+          color: selectedService.color || pc,
+        }),
+      });
+      const result = await res.json();
+      if (!result.success) { setErrorMsg("אירעה שגיאה. נסי שוב."); setSubmitting(false); return; }
+      setStep(4);
+    } catch (err) {
+      setErrorMsg("אירעה שגיאה. נסי שוב.");
+    } finally {
+      setSubmitting(false);
     }
-
-    const appt = {
-      date: formatDate(selectedDate),
-      hour: selectedHour,
-      name,
-      service: selectedService.name,
-      duration: selectedService.duration,
-      color: selectedService.color || "#F4A7B9",
-      price: selectedService.price,
-      client_id: clientId,
-      client_phone: phone,
-      note: notes,
-      self_booked: true,
-    };
-
-    const { error } = await supabase.from("appointments").insert([appt]);
-    if (error) { alert("שגיאה: " + error.message); setSubmitting(false); return; }
-    setDone(true);
-    setSubmitting(false);
   };
 
-  if (loading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",fontSize:18}}>
-      💎 טוען...
-    </div>
-  );
-
-  if (done) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"#FAF7F5",padding:24,textAlign:"center"}}>
-      <div style={{fontSize:60,marginBottom:16}}>✅</div>
-      <h2 style={{fontSize:22,fontWeight:800,color:"#2C1A1A",marginBottom:8}}>התור נקבע בהצלחה!</h2>
-      <p style={{fontSize:15,color:"#888",marginBottom:4}}>{name}, התור שלך נקבע ל:</p>
-      <div style={{background:"#fff",borderRadius:14,padding:"16px 24px",border:"1px solid #EEE8E2",marginTop:8}}>
-        <p style={{fontSize:16,fontWeight:700,color:"#2C1A1A"}}>{selectedService?.name}</p>
-        <p style={{fontSize:14,color:"#888"}}>
-          {selectedDate&&`${DAYS_HE[selectedDate.getDay()]}, ${selectedDate.getDate()} ב${MONTHS_HE[selectedDate.getMonth()]}`}
-          {" · "}{selectedHour}:00
-        </p>
-        <p style={{fontSize:14,color:pc,fontWeight:700,marginTop:4}}>₪{selectedService?.price}</p>
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "#FFF0F6", fontSize: 18, color: "#E91E63" }}>
+        טוען... 💗
       </div>
-      <p style={{fontSize:13,color:"#BBB",marginTop:20}}>נשמח לראות אותך! 💎</p>
-    </div>
-  );
+    );
+  }
 
   return (
-    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"#FAF7F5",minHeight:"100vh"}}>
-      {/* Header */}
-      <div style={{background:"#2C1A1A",padding:"20px 24px",textAlign:"center"}}>
-        <p style={{color:"#C4A882",fontSize:12,marginBottom:4}}>קביעת תור אונליין</p>
-        <h1 style={{color:"#FAF7F5",fontSize:22,fontWeight:800,margin:0}}>💎 {settings.business_name}</h1>
-        <p style={{color:"#C4A882",fontSize:13,marginTop:4}}>{settings.therapist_name}</p>
+    <div dir="rtl" style={{ fontFamily: "'Heebo','Assistant',sans-serif", background: `linear-gradient(160deg, #FFF0F6 0%, #FFE3EF 100%)`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 40px" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
+        * { box-sizing: border-box; }
+        .bk-card { animation: bkIn 0.4s ease-out; }
+        @keyframes bkIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .bk-chip { transition: all 0.15s; cursor: pointer; }
+        .bk-chip:active { transform: scale(0.96); }
+        .bk-btn { transition: all 0.15s; cursor: pointer; border: none; font-family: inherit; }
+        .bk-btn:active:not(:disabled) { transform: scale(0.97); }
+        .bk-btn:disabled { opacity: 0.5; cursor: default; }
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{ width: "100%", maxWidth: 480, padding: "32px 20px 20px", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 6 }}>💗</div>
+        <h1 style={{ fontSize: 28, fontWeight: 900, color: pc, marginBottom: 4 }}>{settings?.business_name || "קביעת תור"}</h1>
+        <p style={{ fontSize: 13, color: "#B77", fontWeight: 500 }}>קביעת תור אונליין · 24/7</p>
       </div>
 
-      {/* Progress */}
-      <div style={{background:"#fff",padding:"14px 24px",display:"flex",gap:8,justifyContent:"center",borderBottom:"1px solid #EEE8E2"}}>
-        {[{n:1,label:"שירות"},{n:2,label:"תאריך"},{n:3,label:"פרטים"}].map(s=>(
-          <div key={s.n} style={{display:"flex",alignItems:"center",gap:6}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:step>=s.n?pc:"#EEE8E2",color:step>=s.n?"#fff":"#888",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{s.n}</div>
-            <span style={{fontSize:12,color:step>=s.n?"#2C1A1A":"#888",fontWeight:step===s.n?700:400}}>{s.label}</span>
-            {s.n<3&&<span style={{color:"#EEE8E2",fontSize:16}}>←</span>}
-          </div>
-        ))}
-      </div>
+      {/* PROGRESS BAR */}
+      {step < 4 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 18, padding: "0 20px" }}>
+          {[1, 2, 3].map(s => (
+            <div key={s} style={{ width: 44, height: 5, borderRadius: 4, background: step >= s ? pc : "#F5C9DC", transition: "background 0.3s" }} />
+          ))}
+        </div>
+      )}
 
-      <div style={{maxWidth:480,margin:"0 auto",padding:"20px 16px"}}>
+      <div style={{ width: "100%", maxWidth: 480, padding: "0 20px" }}>
 
-        {/* שלב 1 — בחירת שירות */}
-        {step===1&&(<>
-          <h2 style={{fontSize:17,fontWeight:800,color:"#2C1A1A",marginBottom:16,textAlign:"center"}}>איזה שירות תרצי?</h2>
-          {services.length===0?<p style={{textAlign:"center",color:"#BBB"}}>אין שירותים זמינים</p>
-            :services.map((svc,i)=>(
-              <div key={i} onClick={()=>{setSelectedService(svc);setStep(2);}}
-                style={{background:"#fff",borderRadius:14,padding:"16px 18px",marginBottom:10,border:`2px solid ${selectedService?.name===svc.name?pc:"#EEE8E2"}`,cursor:"pointer",display:"flex",alignItems:"center",gap:14,transition:"all 0.15s"}}>
-                <div style={{width:44,height:44,borderRadius:"50%",background:svc.color+"66",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>💅</div>
-                <div style={{flex:1}}>
-                  <p style={{fontWeight:700,fontSize:15,color:"#2C1A1A"}}>{svc.name}</p>
-                  <p style={{fontSize:12,color:"#888"}}>{svc.duration} דקות</p>
-                </div>
-                <p style={{fontSize:17,fontWeight:800,color:pc}}>₪{svc.price}</p>
+        {/* STEP 1 — CHOOSE SERVICE */}
+        {step === 1 && (
+          <div className="bk-card">
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: "#3A2A30", marginBottom: 14, textAlign: "center" }}>איזה טיפול מעניין אותך?</h2>
+            {services.length === 0 ? (
+              <p style={{ textAlign: "center", color: "#B77", fontSize: 13 }}>אין שירותים זמינים כרגע</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                {services.map((s, i) => (
+                  <div key={i} className="bk-chip" onClick={() => { setSelectedService(s); setStep(2); }}
+                    style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", boxShadow: "0 4px 16px rgba(233,30,99,0.08)", border: "2px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 14, height: 14, borderRadius: "50%", background: s.color || pc, flexShrink: 0 }} />
+                      <div>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: "#3A2A30" }}>{s.name}</p>
+                        <p style={{ fontSize: 12, color: "#B77" }}>{s.duration || 60} דקות</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "left" }}>
+                      <p style={{ fontSize: 17, fontWeight: 800, color: pc }}>₪{s.price}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-        </>)}
-
-        {/* שלב 2 — בחירת תאריך ושעה */}
-        {step===2&&(<>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <button onClick={()=>setStep(1)} style={{background:"none",border:"1px solid #EEE8E2",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#888"}}>← חזרה</button>
-            <h2 style={{fontSize:16,fontWeight:800,color:"#2C1A1A"}}>בחרי תאריך ושעה</h2>
-          </div>
-
-          {/* תאריכים */}
-          <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:16}}>
-            {availableDates.map((d,i)=>{
-              const hours = getAvailableHours(d);
-              const isSelected = selectedDate&&formatDate(d)===formatDate(selectedDate);
-              return(
-                <div key={i} onClick={()=>{if(hours.length>0){setSelectedDate(d);setSelectedHour(null);}}}
-                  style={{flexShrink:0,background:isSelected?pc:hours.length===0?"#FAF7F5":"#fff",borderRadius:12,padding:"10px 14px",border:`2px solid ${isSelected?pc:hours.length===0?"#EEE8E2":"#EEE8E2"}`,cursor:hours.length===0?"not-allowed":"pointer",textAlign:"center",opacity:hours.length===0?0.4:1,minWidth:70}}>
-                  <p style={{fontSize:10,color:isSelected?"#fff":"#888",marginBottom:2}}>{DAYS_HE[d.getDay()]}</p>
-                  <p style={{fontSize:18,fontWeight:800,color:isSelected?"#fff":"#2C1A1A"}}>{d.getDate()}</p>
-                  <p style={{fontSize:9,color:isSelected?"#fff88":"#888"}}>{MONTHS_HE[d.getMonth()].slice(0,3)}</p>
-                  {hours.length>0&&<p style={{fontSize:9,color:isSelected?"#fff":"#4CAF50",marginTop:2}}>{hours.length} פנויות</p>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* שעות */}
-          {selectedDate&&(<>
-            <h3 style={{fontSize:13,fontWeight:700,color:"#2C1A1A",marginBottom:10}}>
-              שעות פנויות — {DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()} ב{MONTHS_HE[selectedDate.getMonth()]}
-            </h3>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20}}>
-              {getAvailableHours(selectedDate).map(h=>(
-                <button key={h} onClick={()=>setSelectedHour(h)}
-                  style={{padding:"10px 0",border:"2px solid",borderColor:selectedHour===h?pc:"#EEE8E2",borderRadius:10,background:selectedHour===h?pc:"#fff",color:selectedHour===h?"#fff":"#2C1A1A",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-                  {String(h).padStart(2,"0")}:00
-                </button>
-              ))}
-              {getAvailableHours(selectedDate).length===0&&<p style={{gridColumn:"1/-1",color:"#BBB",textAlign:"center",fontSize:13}}>אין שעות פנויות ביום זה</p>}
-            </div>
-            {selectedHour!==null&&(
-              <button onClick={()=>setStep(3)} style={{width:"100%",background:pc,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                המשיכי →
-              </button>
             )}
-          </>)}
-        </>)}
-
-        {/* שלב 3 — פרטים אישיים */}
-        {step===3&&(<>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <button onClick={()=>setStep(2)} style={{background:"none",border:"1px solid #EEE8E2",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",color:"#888"}}>← חזרה</button>
-            <h2 style={{fontSize:16,fontWeight:800,color:"#2C1A1A"}}>הפרטים שלך</h2>
           </div>
+        )}
 
-          {/* סיכום */}
-          <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",marginBottom:16,border:`1.5px solid ${pc}44`,background:pc+"11"}}>
-            <p style={{fontSize:13,fontWeight:700,color:"#2C1A1A"}}>{selectedService?.name}</p>
-            <p style={{fontSize:12,color:"#888"}}>
-              {selectedDate&&`${DAYS_HE[selectedDate.getDay()]} ${selectedDate.getDate()} ב${MONTHS_HE[selectedDate.getMonth()]}`}
-              {" · "}{selectedHour}:00 · {selectedService?.duration} דקות
+        {/* STEP 2 — CHOOSE DATE + TIME */}
+        {step === 2 && (
+          <div className="bk-card">
+            <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pc, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }}>← חזרה</button>
+            <div style={{ background: "#fff", borderRadius: 14, padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 16px rgba(233,30,99,0.08)" }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: selectedService.color || pc }} />
+              <p style={{ fontSize: 14, fontWeight: 700, color: "#3A2A30", flex: 1 }}>{selectedService.name}</p>
+              <p style={{ fontSize: 14, fontWeight: 800, color: pc }}>₪{selectedService.price}</p>
+            </div>
+
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: "#3A2A30", marginBottom: 10 }}>בחרי יום</h2>
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 18 }}>
+              {availableDays.map((d, i) => {
+                const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
+                return (
+                  <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedHour(null); }}
+                    style={{ flexShrink: 0, width: 62, padding: "12px 0", borderRadius: 14, textAlign: "center", background: isSel ? pc : "#fff", color: isSel ? "#fff" : "#3A2A30", boxShadow: "0 4px 12px rgba(233,30,99,0.08)", border: isSel ? "none" : "2px solid #FCE0EC" }}>
+                    <p style={{ fontSize: 10, fontWeight: 600, opacity: 0.8 }}>{DAYS_HE[d.getDay()]}</p>
+                    <p style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>{d.getDate()}</p>
+                    <p style={{ fontSize: 9, opacity: 0.7 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {selectedDate && (
+              <>
+                <h2 style={{ fontSize: 15, fontWeight: 800, color: "#3A2A30", marginBottom: 10 }}>בחרי שעה</h2>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 10 }}>
+                  {allHours.map(h => {
+                    const taken = takenHours.includes(h);
+                    const isSel = selectedHour === h;
+                    return (
+                      <button key={h} disabled={taken} onClick={() => setSelectedHour(h)}
+                        className="bk-btn"
+                        style={{ padding: "11px 0", borderRadius: 12, fontSize: 14, fontWeight: 700, background: taken ? "#F2E3E9" : isSel ? pc : "#fff", color: taken ? "#C9A9B6" : isSel ? "#fff" : "#3A2A30", textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "0 3px 10px rgba(233,30,99,0.07)", border: isSel ? "none" : "2px solid #FCE0EC" }}>
+                        {h}:00
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedHour !== null && (
+                  <button onClick={() => setStep(3)} className="bk-btn"
+                    style={{ width: "100%", padding: "15px 0", borderRadius: 14, background: pc, color: "#fff", fontSize: 16, fontWeight: 800, marginTop: 8, boxShadow: `0 8px 20px ${pc}44` }}>
+                    המשך ←
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* STEP 3 — DETAILS */}
+        {step === 3 && (
+          <div className="bk-card">
+            <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pc, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }}>← חזרה</button>
+
+            <div style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", marginBottom: 18, boxShadow: "0 4px 16px rgba(233,30,99,0.08)" }}>
+              <p style={{ fontSize: 12, color: "#B77", marginBottom: 6 }}>סיכום התור שלך</p>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: "#888" }}>טיפול</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#3A2A30" }}>{selectedService.name}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: "#888" }}>תאריך</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#3A2A30" }}>{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: "#888" }}>שעה</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#3A2A30" }}>{selectedHour}:00</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #FCE0EC", paddingTop: 6, marginTop: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#3A2A30" }}>מחיר</span>
+                <span style={{ fontSize: 16, fontWeight: 900, color: pc }}>₪{selectedService.price}</span>
+              </div>
+            </div>
+
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: "#3A2A30", marginBottom: 12 }}>הפרטים שלך</h2>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="שם מלא"
+              style={{ width: "100%", border: "2px solid #FCE0EC", borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 10 }} />
+            <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
+              style={{ width: "100%", border: "2px solid #FCE0EC", borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 12 }} />
+
+            {errorMsg && <p style={{ color: "#D32F2F", fontSize: 13, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{errorMsg}</p>}
+
+            <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
+              style={{ width: "100%", padding: "16px 0", borderRadius: 14, background: pc, color: "#fff", fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55` }}>
+              {submitting ? "קובע תור..." : "✨ קבעי תור"}
+            </button>
+          </div>
+        )}
+
+        {/* STEP 4 — SUCCESS */}
+        {step === 4 && (
+          <div className="bk-card" style={{ textAlign: "center", paddingTop: 20 }}>
+            <div style={{ fontSize: 64, marginBottom: 12 }}>🎉</div>
+            <h2 style={{ fontSize: 24, fontWeight: 900, color: pc, marginBottom: 8 }}>התור נקבע!</h2>
+            <p style={{ fontSize: 14, color: "#3A2A30", lineHeight: 1.6, marginBottom: 20 }}>
+              נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {selectedHour}:00
             </p>
-            <p style={{fontSize:14,fontWeight:700,color:pc,marginTop:4}}>₪{selectedService?.price}</p>
+            <div style={{ background: "#fff", borderRadius: 16, padding: "18px 20px", boxShadow: "0 4px 16px rgba(233,30,99,0.08)", textAlign: "right", marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, color: "#888" }}>טיפול</span><span style={{ fontSize: 13, fontWeight: 700 }}>{selectedService.name}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><span style={{ fontSize: 13, color: "#888" }}>שם</span><span style={{ fontSize: 13, fontWeight: 700 }}>{name}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: "#888" }}>טלפון</span><span style={{ fontSize: 13, fontWeight: 700 }}>{phone}</span></div>
+            </div>
+            <p style={{ fontSize: 12, color: "#B77" }}>נשמח לראותך! 💗</p>
           </div>
+        )}
 
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="שם מלא *"
-              style={{width:"100%",border:"1.5px solid #EEE8E2",borderRadius:10,padding:"12px 14px",fontSize:14,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff"}}/>
-            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="טלפון *" type="tel"
-              style={{width:"100%",border:"1.5px solid #EEE8E2",borderRadius:10,padding:"12px 14px",fontSize:14,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff"}}/>
-            <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="הערות (אופציונלי)" rows={3}
-              style={{width:"100%",border:"1.5px solid #EEE8E2",borderRadius:10,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",resize:"none"}}/>
-          </div>
+      </div>
 
-          <button onClick={handleSubmit} disabled={submitting}
-            style={{width:"100%",background:pc,color:"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:16,opacity:submitting?0.7:1}}>
-            {submitting?"שולחת...":"קבעי תור ✓"}
-          </button>
-
-          <p style={{fontSize:11,color:"#BBB",textAlign:"center",marginTop:12}}>
-            בלחיצה על קבעי תור את מאשרת את פרטי ההזמנה
-          </p>
-        </>)}
+      {/* FOOTER */}
+      <div style={{ marginTop: "auto", paddingTop: 30, fontSize: 11, color: "#C9A9B6" }}>
+        מופעל ע"י BeautyOS 💎
       </div>
     </div>
   );
