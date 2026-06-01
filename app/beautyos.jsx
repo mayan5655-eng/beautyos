@@ -166,6 +166,8 @@ export default function BeautyOS() {
   const [marketingView,  setMarketingView]  = useState("campaigns"); // campaigns | ai
   const [activeTab,         setActiveTab]          = useState("dashboard");
   const [clientTab,         setClientTab]          = useState("info");
+  const [scanLoading,       setScanLoading]        = useState(false);
+  const [scanReport,        setScanReport]         = useState(null);
   const [settingsTab,       setSettingsTab]        = useState("general");
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
@@ -801,6 +803,46 @@ export default function BeautyOS() {
     setEditingLead(lead);
     setNewLead({name:lead.name||"",phone:lead.phone||"",source:lead.source||"פייסבוק",service_interest:lead.service_interest||"",status:lead.status||"new",notes:lead.notes||"",reminder_date:lead.reminder_date||""});
     setShowLeadModal(true);
+  };
+
+  // Scan a client's skin from the client card. Saves a short summary to the
+  // client's notes so it stays in her record.
+  const scanClientSkin = async (client, file) => {
+    if (!file || scanLoading) return;
+    setScanLoading(true); setScanReport(null);
+    try {
+      const reader = new FileReader();
+      const dataUrl = await new Promise((res, rej) => {
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const base64 = String(dataUrl).split(",")[1];
+      const mediaType = file.type || "image/jpeg";
+      const res = await fetch("/api/skin-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType }),
+      });
+      const data = await res.json();
+      if (!data.success) { toast(data.error || "הניתוח נכשל", "error"); setScanLoading(false); return; }
+      setScanReport(data.report);
+
+      // Save a short summary into the client's notes (keeps it in her record)
+      const stamp = new Date().toLocaleDateString("he-IL");
+      const line = `סריקת עור ${stamp}: ציון ${data.report.score}/100, ${data.report.skin_type}. מומלץ: ${data.report.clinical_treatment || "-"}`;
+      const newNotes = client.notes ? `${client.notes}\n${line}` : line;
+      const { data: upd } = await supabase.from("clients").update({ notes: newNotes }).eq("id", client.id).select();
+      if (upd && upd[0]) {
+        setClients(prev => prev.map(c => c.id === client.id ? upd[0] : c));
+        setSelectedClient(upd[0]);
+      }
+      toast("✦ הסריקה נשמרה לכרטיס");
+    } catch (err) {
+      toast("שגיאה בסריקה", "error");
+    } finally {
+      setScanLoading(false);
+    }
   };
 
   // Fetch live Facebook ad campaigns for the current tenant
@@ -2297,6 +2339,10 @@ export default function BeautyOS() {
                     {c.phone&&<a href={waLink(c.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"#fff",color:"#C77B92",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditClient(c)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"#fff",border:"none",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✎ עריכה</button>
  </div>
+ <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:"#C77B92",borderRadius:20,padding:"9px 0",fontSize:11,fontWeight:700,textAlign:"center",cursor:"pointer"}}>
+ {scanLoading?"סורקת...":"✦ סריקת עור AI"}
+ <input type="file" accept="image/*" capture="user" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
+ </label>
  </div>
 
                 {/* INSIGHTS */}
@@ -2407,6 +2453,44 @@ export default function BeautyOS() {
  </div>
  </>);
             })()}
+ </div>
+ </div>
+      )}
+
+      {/* SKIN SCAN RESULT MODAL */}
+      {scanReport&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={()=>setScanReport(null)}>
+ <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:420,width:"100%",maxHeight:"88vh",overflowY:"auto",padding:"22px 22px"}}>
+ <div style={{textAlign:"center",marginBottom:14}}>
+ <div style={{width:90,height:90,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",border:`6px solid ${scanReport.score>=75?"#388E3C":scanReport.score>=50?"#E8920C":"#C77B92"}`}}>
+ <span style={{fontSize:30,fontWeight:800,color:scanReport.score>=75?"#388E3C":scanReport.score>=50?"#E8920C":"#C77B92"}}>{scanReport.score}</span>
+ </div>
+ <p className="serif" style={{fontSize:16,fontWeight:600,color:"#2A2A2A",marginTop:10}}>{scanReport.skin_type}</p>
+ </div>
+ {scanReport.summary&&<p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,textAlign:"center",marginBottom:14}}>{scanReport.summary}</p>}
+ {scanReport.concerns?.length>0&&(
+ <div style={{marginBottom:12}}>
+ <p style={{fontSize:12,fontWeight:700,color:"#2A2A2A",marginBottom:6}}>ממצאים</p>
+ {scanReport.concerns.map((c,i)=>(<p key={i} style={{fontSize:11.5,color:"#6B6B6B",marginBottom:3}}>• {c}</p>))}
+ </div>
+ )}
+ {scanReport.clinical_treatment&&(
+ <div style={{background:"linear-gradient(135deg,#FBEEF2,#F6D9E2)",borderRadius:14,padding:"12px 16px",marginBottom:12}}>
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:2}}>טיפול מומלץ</p>
+ <p style={{fontSize:14,fontWeight:700,color:"#C77B92"}}>{scanReport.clinical_treatment}</p>
+ {scanReport.matched_service&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>אצלך: {scanReport.matched_service}</p>}
+ </div>
+ )}
+ {scanReport.therapist_notes&&(
+ <div style={{background:"#F8F3FC",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1px solid #E5D4F0"}}>
+ <p style={{fontSize:11,fontWeight:700,color:"#6B4A8C",marginBottom:6}}>הערות למטפלת</p>
+ {scanReport.therapist_notes.skin_assessment&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{scanReport.therapist_notes.skin_assessment}</p>}
+ {scanReport.therapist_notes.protocol&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5}}><b>פרוטוקול:</b> {scanReport.therapist_notes.protocol}</p>}
+ {scanReport.therapist_notes.cautions&&<p style={{fontSize:10.5,color:"#C0392B",lineHeight:1.5,marginTop:6}}>⚠️ {scanReport.therapist_notes.cautions}</p>}
+ </div>
+ )}
+ <button onClick={()=>setScanReport(null)} className="primary-btn" style={{width:"100%",padding:"12px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:13}}>סגירה ✓</button>
+ <p style={{fontSize:9.5,color:"#C9B8C2",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>
  </div>
  </div>
       )}
