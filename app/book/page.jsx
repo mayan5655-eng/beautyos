@@ -4,7 +4,12 @@ import { supabase } from "../supabase";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
-// Clients book their own appointments, 24/7
+// Clients book their own appointments, 24/7.
+//
+// MULTI-TENANT: this is a public page (no login), so the tenant is
+// identified from the ?t=<tenantId> URL param. Every data query below
+// is scoped to that tenant, so each cosmetician gets her own clean
+// booking page (her services, her hours, her booked slots only).
 // ============================================================
 
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -20,6 +25,8 @@ export default function BookPage() {
   const [services, setServices] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tenantId, setTenantId] = useState(null);
+  const [tenantError, setTenantError] = useState(false);
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=service, 2=date+time, 3=details, 4=done
@@ -31,22 +38,48 @@ export default function BookPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
+  // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
+  useEffect(() => {
+    let t = null;
     try {
+      const params = new URLSearchParams(window.location.search);
+      t = params.get("t");
+    } catch {}
+    if (!t) {
+      // No tenant in the URL - we cannot safely show any business's data.
+      setTenantError(true);
+      setLoading(false);
+      return;
+    }
+    setTenantId(t);
+    loadData(t);
+  }, []);
+
+  const loadData = async (t) => {
+    try {
+      // Every query is scoped to this tenant only.
       const [st, sv, ap] = await Promise.all([
-        supabase.from("settings").select("*"),
-        supabase.from("service_prices").select("*"),
-        supabase.from("appointments").select("date, hour"),
+        supabase.from("settings").select("*").eq("tenant_id", t).limit(1),
+        supabase.from("service_prices").select("*").eq("tenant_id", t),
+        supabase.from("appointments").select("date, hour").eq("tenant_id", t),
       ]);
-      if (st.data && st.data.length > 0) setSettings(st.data[0]);
-      else setSettings({ business_name: "BeautyOS", therapist_name: "", primary_color: "#E91E63", working_hours_start: 9, working_hours_end: 19, working_days: "0,1,2,3,4,5" });
-      if (sv.data && sv.data.length > 0) setServices(sv.data.filter(s => s.active !== false));
+
+      if (st.data && st.data.length > 0) {
+        setSettings(st.data[0]);
+      } else {
+        // Tenant has no settings row - treat as not found rather than guessing.
+        setTenantError(true);
+        setLoading(false);
+        return;
+      }
+
+      if (sv.data && sv.data.length > 0) {
+        setServices(sv.data.filter((s) => s.active !== false));
+      }
       if (ap.data) setAppointments(ap.data);
     } catch (err) {
       console.error("loadData error:", err);
-      setSettings({ business_name: "BeautyOS", primary_color: "#E91E63", working_hours_start: 9, working_hours_end: 19, working_days: "0,1,2,3,4,5" });
+      setTenantError(true);
     } finally {
       setLoading(false);
     }
@@ -55,7 +88,10 @@ export default function BookPage() {
   const pc = settings?.primary_color || "#E91E63";
 
   // === Build next 14 available days (respecting working_days) ===
-  const workingDays = (settings?.working_days || "0,1,2,3,4,5").split(",").filter(x => x !== "").map(Number);
+  const workingDays = (settings?.working_days || "0,1,2,3,4,5")
+    .split(",")
+    .filter((x) => x !== "")
+    .map(Number);
   const availableDays = [];
   for (let i = 0; i < 21 && availableDays.length < 14; i++) {
     const d = new Date();
@@ -69,9 +105,8 @@ export default function BookPage() {
   const allHours = [];
   for (let h = startH; h < endH; h++) allHours.push(h);
 
-  // Which hours are taken on the selected date
   const takenHours = selectedDate
-    ? appointments.filter(a => a.date === formatDate(selectedDate)).map(a => Number(a.hour))
+    ? appointments.filter((a) => a.date === formatDate(selectedDate)).map((a) => Number(a.hour))
     : [];
 
   const handleConfirm = async () => {
@@ -81,8 +116,9 @@ export default function BookPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Call the API: it saves the appointment AND sends WhatsApp
-      // messages to both the client and the business owner.
+      // The API saves the appointment AND sends WhatsApp messages to both
+      // the client and the business owner. We pass the tenantId so it lands
+      // in the right account.
       const res = await fetch("/api/book-appointment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -95,6 +131,7 @@ export default function BookPage() {
           duration: selectedService.duration || 60,
           price: selectedService.price || 0,
           color: selectedService.color || pc,
+          tenantId: tenantId,
         }),
       });
       const result = await res.json();
@@ -107,10 +144,24 @@ export default function BookPage() {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "#FFF0F6", fontSize: 18, color: "#E91E63" }}>
         טוען... 💗
+      </div>
+    );
+  }
+
+  // Invalid / missing tenant - show a friendly message instead of the wrong data
+  if (tenantError) {
+    return (
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "linear-gradient(160deg, #FFF0F6 0%, #FFE3EF 100%)", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 52, marginBottom: 14 }}>💔</div>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: "#E91E63", marginBottom: 8 }}>הקישור אינו תקין</h1>
+        <p style={{ fontSize: 14, color: "#B77", maxWidth: 320, lineHeight: 1.6 }}>
+          נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
+        </p>
       </div>
     );
   }
@@ -139,7 +190,7 @@ export default function BookPage() {
       {/* PROGRESS BAR */}
       {step < 4 && (
         <div style={{ display: "flex", gap: 6, marginBottom: 18, padding: "0 20px" }}>
-          {[1, 2, 3].map(s => (
+          {[1, 2, 3].map((s) => (
             <div key={s} style={{ width: 44, height: 5, borderRadius: 4, background: step >= s ? pc : "#F5C9DC", transition: "background 0.3s" }} />
           ))}
         </div>
@@ -204,7 +255,7 @@ export default function BookPage() {
               <>
                 <h2 style={{ fontSize: 15, fontWeight: 800, color: "#3A2A30", marginBottom: 10 }}>בחרי שעה</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 10 }}>
-                  {allHours.map(h => {
+                  {allHours.map((h) => {
                     const taken = takenHours.includes(h);
                     const isSel = selectedHour === h;
                     return (
@@ -253,9 +304,9 @@ export default function BookPage() {
             </div>
 
             <h2 style={{ fontSize: 15, fontWeight: 800, color: "#3A2A30", marginBottom: 12 }}>הפרטים שלך</h2>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="שם מלא"
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
               style={{ width: "100%", border: "2px solid #FCE0EC", borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 10 }} />
-            <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
               style={{ width: "100%", border: "2px solid #FCE0EC", borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 12 }} />
 
             {errorMsg && <p style={{ color: "#D32F2F", fontSize: 13, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{errorMsg}</p>}

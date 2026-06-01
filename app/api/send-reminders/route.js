@@ -1,5 +1,7 @@
 // app/api/send-reminders/route.js
-// Sends WhatsApp reminders for tomorrow's appointments
+// Sends WhatsApp reminders for tomorrow's appointments, for ALL tenants.
+// Runs via Vercel Cron once a day. Multi-tenant aware: each reminder uses
+// the correct business name for the tenant that owns that appointment.
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
@@ -28,10 +30,11 @@ export async function POST() {
     const tomorrow = getTomorrowDate();
     console.log("TOMORROW DATE:", tomorrow);
 
-    // Get all appointments for tomorrow
+    // Get all of tomorrow's appointments (across all tenants).
+    // We include tenant_id so we can label each message with the right business.
     const { data: appointments, error } = await supabase
       .from("appointments")
-      .select("id, name, service, date, hour, client_phone")
+      .select("id, name, service, date, hour, client_phone, tenant_id")
       .eq("date", tomorrow);
 
     if (error) {
@@ -42,9 +45,19 @@ export async function POST() {
       return Response.json({ success: true, sent: 0, message: "אין תורים מחר" });
     }
 
+    // Load all business names once, so we don't query settings per appointment.
+    // Map of tenant_id -> business_name.
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("tenant_id, business_name");
+    const businessNameByTenant = {};
+    (settingsRows || []).forEach((row) => {
+      businessNameByTenant[row.tenant_id] = row.business_name || "BeautyOS";
+    });
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-    // Send a reminder to each appointment
+    // Send a reminder to each appointment, using its tenant's business name.
     const results = [];
     for (const appt of appointments) {
       if (!appt.client_phone) {
@@ -52,11 +65,12 @@ export async function POST() {
         continue;
       }
 
+      const businessName = businessNameByTenant[appt.tenant_id] || "BeautyOS";
       const confirmLink = `${baseUrl}/confirm?id=${appt.id}&action=confirm`;
       const cancelLink = `${baseUrl}/confirm?id=${appt.id}&action=cancel`;
 
       const message =
-        `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-BeautyOS:\n` +
+        `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
         `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
         `✨ טיפול: ${appt.service}\n\n` +
         `✅ לאישור התור: ${confirmLink}\n` +
@@ -65,6 +79,7 @@ export async function POST() {
       const res = await sendWhatsApp(appt.client_phone, message, {
         name: appt.name,
         type: "reminder",
+        tenantId: appt.tenant_id,
       });
 
       results.push({ name: appt.name, status: res.ok ? "נשלח" : "נכשל" });
@@ -75,6 +90,7 @@ export async function POST() {
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }
 }
+
 // Allow Vercel Cron (which uses GET) to trigger the same logic
 export async function GET() {
   return POST();

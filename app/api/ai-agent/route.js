@@ -1,7 +1,12 @@
 // app/api/ai-agent/route.js
 // The "brain" of the WhatsApp AI agent.
-// Receives a client's message, gives the AI full business context,
-// and returns a smart Hebrew reply. Answers questions + points to booking.
+// Receives a client's message, gives the AI full business context for the
+// CORRECT tenant, and returns a smart Hebrew reply.
+//
+// MULTI-TENANT: the request must include a tenantId so the agent answers
+// with the right business's services, hours and name. When wired to
+// WhatsApp later, the tenantId will be resolved from the business number
+// the client messaged.
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -13,26 +18,28 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Public booking page URL (becomes the real Vercel URL after deploy)
-const BOOK_URL = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000") + "/book";
-
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 export async function POST(request) {
   try {
-    const { message, clientName } = await request.json();
+    const { message, clientName, tenantId } = await request.json();
 
     if (!message) {
       return Response.json({ success: false, error: "חסרה הודעה" }, { status: 400 });
     }
+    if (!tenantId) {
+      return Response.json({ success: false, error: "חסר מזהה עסק" }, { status: 400 });
+    }
 
-    // 1. Gather business context from Supabase
+    // 1. Gather business context for THIS tenant only
     const [settingsRes, servicesRes] = await Promise.all([
-      supabase.from("settings").select("*"),
-      supabase.from("service_prices").select("*"),
+      supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
+      supabase.from("service_prices").select("*").eq("tenant_id", tenantId),
     ]);
 
-    const settings = settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0] : {};
+    const settings =
+      settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0] : {};
     const services = servicesRes.data || [];
 
     const businessName = settings.business_name || "הסלון";
@@ -45,7 +52,9 @@ export async function POST(request) {
       .map((n) => DAYS_HE[Number(n)])
       .join(", ");
 
-    // Build a services list for the AI
+    // The booking link for THIS tenant (so the agent sends clients to the right page)
+    const bookUrl = `${APP_URL}/book?t=${tenantId}`;
+
     const servicesText =
       services.length > 0
         ? services
@@ -53,7 +62,7 @@ export async function POST(request) {
             .join("\n")
         : "אין רשימת שירותים זמינה";
 
-    // 2. Build the system prompt (the agent's "personality" + rules)
+    // 2. Build the system prompt (the agent's personality + rules)
     const systemPrompt = `את העוזרת הווירטואלית של "${businessName}"${therapistName ? ` (המטפלת: ${therapistName})` : ""}, עסק יופי/קוסמטיקה בישראל.
 
 תפקידך: לענות ללקוחות בוואטסאפ בעברית, בחום ובאדיבות, בקצרה וברור.
@@ -68,7 +77,7 @@ ${servicesText}
 כללים חשובים:
 1. עני בעברית בלבד, בטון חם ונעים, עם אימוג'ים מתאימים (לא יותר מדי).
 2. תשובות קצרות — משפט עד שלושה. זאת וואטסאפ, לא מייל.
-3. כשלקוחה רוצה לקבוע תור, או שואלת על זמינות/תורים פנויים — הפני אותה לקישור הקביעה: ${BOOK_URL}
+3. כשלקוחה רוצה לקבוע תור, או שואלת על זמינות/תורים פנויים — הפני אותה לקישור הקביעה: ${bookUrl}
 4. אם שואלים על מחיר או טיפול — עני לפי הרשימה למעלה.
 5. אל תמציאי מידע שאין לך. אם את לא יודעת, אמרי שתיצרי קשר בהקדם.
 6. אל תבטיחי תורים בעצמך — תמיד הפני לקישור הקביעה.`;

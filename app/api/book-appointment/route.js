@@ -1,6 +1,9 @@
 // app/api/book-appointment/route.js
 // Handles public self-booking: saves the appointment,
 // notifies the business owner AND confirms to the client (WhatsApp)
+// Multi-tenant: tenant is resolved from the `tenantId` sent by the /book page
+// (which reads it from the ?t= URL param). Owner phone + business name are
+// looked up per-tenant from settings.
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
@@ -10,15 +13,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// The business owner's phone (receives "new booking" alerts)
-const OWNER_PHONE = "0542845655";
-
-// The business/tenant ID (which salon this booking belongs to)
-const TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
+// Fallback tenant (Maayan's) - used only if no tenant is provided, so older
+// plain /book links keep working instead of breaking.
+const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
 
 export async function POST(request) {
   try {
-    const { name, phone, service, date, hour, duration, price, color } =
+    const { name, phone, service, date, hour, duration, price, color, tenantId } =
       await request.json();
 
     // Basic validation
@@ -29,11 +30,14 @@ export async function POST(request) {
       );
     }
 
+    // Resolve tenant from the request, or fall back
+    const activeTenantId = tenantId || FALLBACK_TENANT_ID;
+
     // 1. Save the appointment to Supabase
     const { data: appt, error } = await supabase
       .from("appointments")
       .insert({
-        tenant_id: TENANT_ID,
+        tenant_id: activeTenantId,
         name: name,
         client_phone: phone,
         service: service,
@@ -53,10 +57,16 @@ export async function POST(request) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // 2. Get business name for nicer messages
-    const { data: settingsRows } = await supabase.from("settings").select("business_name");
-    const businessName =
-      settingsRows && settingsRows.length > 0 ? settingsRows[0].business_name : "BeautyOS";
+    // 2. Get THIS tenant's business name + owner phone from settings
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("business_name, business_phone")
+      .eq("tenant_id", activeTenantId)
+      .limit(1);
+    const settingsRow =
+      settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    const businessName = settingsRow?.business_name || "BeautyOS";
+    const ownerPhone = settingsRow?.business_phone || "";
 
     // 3. Send confirmation to the CLIENT
     try {
@@ -67,23 +77,25 @@ export async function POST(request) {
         `📅 תאריך: ${date}\n` +
         `🕐 שעה: ${hour}:00\n\n` +
         `נשמח לראותך! 😊`;
-      await sendWhatsApp(phone, clientMsg, { name: name, type: "booking_confirm" });
+      await sendWhatsApp(phone, clientMsg, { name: name, type: "booking_confirm", tenantId: activeTenantId });
     } catch (waErr) {
       console.log("Client WhatsApp failed:", waErr.message);
     }
 
-    // 4. Send alert to the BUSINESS OWNER
-    try {
-      const ownerMsg =
-        `🔔 נקבע תור חדש!\n\n` +
-        `👤 ${name}\n` +
-        `📞 ${phone}\n` +
-        `✨ ${service}\n` +
-        `📅 ${date} בשעה ${hour}:00\n\n` +
-        `(נקבע דרך דף ההזמנות)`;
-      await sendWhatsApp(OWNER_PHONE, ownerMsg, { name: "בעלת העסק", type: "owner_alert" });
-    } catch (waErr) {
-      console.log("Owner WhatsApp failed:", waErr.message);
+    // 4. Send alert to the BUSINESS OWNER (only if she has a phone set)
+    if (ownerPhone) {
+      try {
+        const ownerMsg =
+          `🔔 נקבע תור חדש!\n\n` +
+          `👤 ${name}\n` +
+          `📞 ${phone}\n` +
+          `✨ ${service}\n` +
+          `📅 ${date} בשעה ${hour}:00\n\n` +
+          `(נקבע דרך דף ההזמנות)`;
+        await sendWhatsApp(ownerPhone, ownerMsg, { name: "בעלת העסק", type: "owner_alert", tenantId: activeTenantId });
+      } catch (waErr) {
+        console.log("Owner WhatsApp failed:", waErr.message);
+      }
     }
 
     return Response.json({ success: true, appointmentId: appt.id });

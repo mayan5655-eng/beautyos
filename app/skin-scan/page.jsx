@@ -1,9 +1,10 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // ============================================================
-// AI SKIN SCANNER PAGE  —  /skin-scan  (v3 — with WhatsApp send)
-// Dual report + "send to WhatsApp" (client gets report, owner gets lead).
+// AI SKIN SCANNER PAGE  —  /skin-scan  (v4 — multi-tenant)
+// Reads ?t=<tenantId> from the URL so each cosmetician gets her own
+// leads + WhatsApp alerts. Dual report + "send to WhatsApp".
 // ============================================================
 
 const PINK = "#E91E63";
@@ -24,7 +25,18 @@ export default function SkinScanPage() {
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState("");
 
+  // Multi-tenant: which cosmetician this scanner belongs to (from ?t= in URL)
+  const [tenantId, setTenantId] = useState("");
+
   const fileRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get("t");
+      if (t) setTenantId(t);
+    } catch {}
+  }, []);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -74,7 +86,7 @@ export default function SkinScanPage() {
       const res = await fetch("/api/skin-scan/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report, clientName: clientName.trim(), clientPhone: clientPhone.trim() }),
+        body: JSON.stringify({ report, clientName: clientName.trim(), clientPhone: clientPhone.trim(), tenantId }),
       });
       const data = await res.json();
       if (data.success) setSent(true);
@@ -226,7 +238,7 @@ export default function SkinScanPage() {
                 {report.matched_service && (
                   <p style={{ fontSize: 12.5, color: "#fff", opacity: 0.95, marginBottom: 12 }}>אצלנו: {report.matched_service}</p>
                 )}
-                <a href="/book" style={{ display: "inline-block", textDecoration: "none", background: "#fff", color: PINK, padding: "11px 26px", borderRadius: 12, fontSize: 14, fontWeight: 800 }}>
+                <a href={tenantId ? `/book?t=${tenantId}` : "/book"} style={{ display: "inline-block", textDecoration: "none", background: "#fff", color: PINK, padding: "11px 26px", borderRadius: 12, fontSize: 14, fontWeight: 800 }}>
                   ✨ לקביעת תור
                 </a>
               </div>
