@@ -1,135 +1,116 @@
-// app/api/skin-scan/send/route.js
-// Sends the skin report via WhatsApp to BOTH:
-//   * the client (her personal report)
-//   * the business owner (as a hot lead)
-// Multi-tenant: the tenant is resolved from the `tenantId` sent by the
-// scanner page (which reads it from the ?t= URL param). The owner's phone
-// and business name are looked up per-tenant from the settings table.
+// app/api/skin-scan/route.js
+// BeautyOS AI Skin Scanner — analyzes a client selfie and returns
+// a friendly Hebrew skin report (skin type, concerns, score, tips).
+// Uses Claude vision. Recommends one of the business's own services.
 
 import { createClient } from "@supabase/supabase-js";
-import { sendWhatsApp } from "../../../../lib/whatsapp";
+import Anthropic from "@anthropic-ai/sdk";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Fallback tenant (Maayan's) - used only if no tenant is provided in the request,
-// so the scanner keeps working from the old plain URL without breaking.
-const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
-
-function buildClientMessage(report, businessName) {
-  const lines = [];
-  lines.push(`✨ *דוח העור שלך* ✨`);
-  if (businessName) lines.push(`מ-${businessName}`);
-  lines.push("");
-  lines.push(`💯 *ציון העור:* ${report.score}/100`);
-  lines.push(`🧴 *סוג עור:* ${report.skin_type}`);
-  if (report.summary) { lines.push(""); lines.push(`💗 ${report.summary}`); }
-
-  if (report.concerns?.length) {
-    lines.push(""); lines.push(`🔍 *מה שזיהינו:*`);
-    report.concerns.forEach((c) => lines.push(`• ${c}`));
-  }
-  if (report.routine_morning?.length) {
-    lines.push(""); lines.push(`☀️ *שגרת בוקר:*`);
-    report.routine_morning.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
-  }
-  if (report.routine_evening?.length) {
-    lines.push(""); lines.push(`🌙 *שגרת ערב:*`);
-    report.routine_evening.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
-  }
-  if (report.clinical_treatment) {
-    lines.push(""); lines.push(`💉 *הטיפול המומלץ:* ${report.clinical_treatment}`);
-    if (report.matched_service) lines.push(`   (אצלנו: ${report.matched_service})`);
-  }
-  lines.push(""); lines.push(`⚠️ הערכה קוסמטית כללית בלבד, אינה תחליף לייעוץ מקצועי.`);
-  return lines.join("\n");
-}
-
-function buildOwnerMessage(report, clientName, clientPhone) {
-  const lines = [];
-  lines.push(`🔥 ליד חדש מסורק העור!`);
-  lines.push("");
-  if (clientName) lines.push(`👤 שם: ${clientName}`);
-  lines.push(`📞 טלפון: ${clientPhone}`);
-  lines.push(`💯 ציון עור: ${report.score}/100`);
-  lines.push(`🧴 סוג עור: ${report.skin_type}`);
-  if (report.clinical_treatment) lines.push(`💉 טיפול מומלץ: ${report.clinical_treatment}`);
-  lines.push("");
-  lines.push(`היא קיבלה את הדוח המלא לוואטסאפ. זה זמן מצוין ליצור קשר! 💗`);
-  return lines.join("\n");
-}
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request) {
   try {
-    const { report, clientName, clientPhone, tenantId } = await request.json();
+    const { image, mediaType } = await request.json();
 
-    if (!report || !clientPhone) {
-      return Response.json({ success: false, error: "חסרים פרטים" }, { status: 400 });
+    if (!image) {
+      return Response.json({ success: false, error: "חסרה תמונה" }, { status: 400 });
     }
 
-    // Resolve the tenant: use the one sent from the scanner page, or fall back.
-    const activeTenantId = tenantId || FALLBACK_TENANT_ID;
+    // 1. Load the business's services so the AI can recommend a real treatment
+    const servicesRes = await supabase.from("service_prices").select("*");
+    const services = servicesRes.data || [];
+    const servicesText =
+      services.length > 0
+        ? services.map((s) => `- ${s.name} (${s.price} ש"ח)`).join("\n")
+        : "אין רשימת שירותים";
 
-    // Look up THIS tenant's business name + owner phone from settings
-    const settingsRes = await supabase
-      .from("settings")
-      .select("business_name, business_phone")
-      .eq("tenant_id", activeTenantId)
-      .limit(1);
+    // 2. System prompt — defines the report format. We ask for JSON only.
+    const systemPrompt = `את קוסמטיקאית מקצועית ואדיבה. את מנתחת תמונת סלפי של לקוחה ומפיקה דוח עור חם, מעודד ומקצועי בעברית.
 
-    const settingsRow =
-      settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0] : null;
-    const businessName = settingsRow?.business_name || "";
-    const ownerPhone = settingsRow?.business_phone || "";
+השירותים הזמינים בעסק (להמלצה):
+${servicesText}
 
-    // 1. Send the full report to the CLIENT
-    const clientMsg = buildClientMessage(report, businessName);
-    const clientResult = await sendWhatsApp(clientPhone, clientMsg, {
-      name: clientName || "לקוחה",
-      type: "skin_report",
-      tenantId: activeTenantId,
+חוקים:
+1. דברי בטון חם, נעים ומעודד — לא מאיים. הלקוחה בבית, לא במרפאה.
+2. אל תאבחני מצבים רפואיים. תני הערכה קוסמטית כללית בלבד.
+3. אם התמונה לא ברורה / אין בה פנים — החזירי "valid": false.
+4. בחרי המלצת טיפול אחת מהרשימה למעלה אם רלוונטי. אם אין רשימה, השאירי "" ריק.
+5. החזירי JSON בלבד — בלי טקסט נוסף, בלי markdown, בלי backticks.
+
+מבנה ה-JSON המדויק:
+{
+  "valid": true,
+  "skin_type": "סוג העור (למשל: עור מעורב, נוטה לשומניות)",
+  "score": 78,
+  "concerns": ["בעיה 1", "בעיה 2", "בעיה 3"],
+  "tips": ["המלצת בית 1", "המלצת בית 2", "המלצת בית 3"],
+  "recommended_treatment": "שם טיפול מהרשימה או ריק",
+  "summary": "משפט חם ומעודד אחד שמסכם"
+}
+
+score = ציון עור כללי 0-100 (גבוה = עור במצב טוב). היי הוגנת ומעודדת.`;
+
+    // 3. Call Claude with vision
+    const aiResponse = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 800,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType || "image/jpeg",
+                data: image,
+              },
+            },
+            {
+              type: "text",
+              text: "נתחי את העור בתמונה הזו והחזירי את דוח ה-JSON.",
+            },
+          ],
+        },
+      ],
     });
 
-    // 2. Send a hot-lead notification to the OWNER (only if she has a phone set)
-    if (ownerPhone) {
-      const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
-      await sendWhatsApp(ownerPhone, ownerMsg, {
-        name: "בעלת העסק",
-        type: "skin_lead_alert",
-        tenantId: activeTenantId,
-      });
-    }
+    // 4. Extract + parse the JSON safely
+    const raw = aiResponse.content
+      .map((b) => (b.type === "text" ? b.text : ""))
+      .filter(Boolean)
+      .join("\n")
+      .trim();
 
-    // 3. Save the lead so it shows up in the leads list (best-effort).
+    const clean = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    let report;
     try {
-      await supabase.from("leads").insert({
-        tenant_id: activeTenantId,
-        name: clientName || "לקוחה מסורק העור",
-        raw_form_data: {
-          source: "skin_scanner",
-          phone: clientPhone,
-          score: report.score,
-          skin_type: report.skin_type,
-          recommended_treatment: report.clinical_treatment || "",
-        },
-        received_at: new Date().toISOString(),
-      });
-    } catch (leadErr) {
-      console.error("Lead save (non-fatal):", leadErr.message);
-    }
-
-    if (!clientResult.ok) {
+      report = JSON.parse(clean);
+    } catch (parseErr) {
+      console.error("Skin-scan JSON parse error:", parseErr, "RAW:", raw);
       return Response.json(
-        { success: false, error: "הדוח לא נשלח. בדקי שמספר הטלפון תקין." },
-        { status: 502 }
+        { success: false, error: "לא הצלחנו לנתח את התמונה. נסי תמונה ברורה יותר." },
+        { status: 422 }
       );
     }
 
-    return Response.json({ success: true });
+    if (report.valid === false) {
+      return Response.json(
+        { success: false, error: "לא זוהו פנים ברורות בתמונה. נסי סלפי באור טוב, בלי איפור כבד." },
+        { status: 422 }
+      );
+    }
+
+    return Response.json({ success: true, report });
   } catch (err) {
-    console.error("skin-scan/send error:", err);
+    console.error("Skin-scan error:", err);
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }
 }
