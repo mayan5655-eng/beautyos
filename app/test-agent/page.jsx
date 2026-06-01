@@ -1,9 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "../supabase";
 
 // ============================================================
 // AI AGENT TEST PAGE  —  /test-agent
-// Lets you chat with the AI agent locally, before Vercel
+// Lets you chat with the AI agent locally, before Vercel.
+// Internal testing page (not shown to clients).
+//
+// MULTI-TENANT: resolves the logged-in cosmetician's tenant via
+// get_user_tenant_id() and passes it to the agent, so the test chat
+// reflects YOUR business's real services, prices and hours.
 // ============================================================
 
 export default function TestAgentPage() {
@@ -12,6 +18,17 @@ export default function TestAgentPage() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tenantId, setTenantId] = useState(null);
+
+  // Resolve the current tenant once on load
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.rpc("get_user_tenant_id");
+        if (data) setTenantId(data);
+      } catch {}
+    })();
+  }, []);
 
   const send = async () => {
     if (!input.trim() || loading) return;
@@ -23,7 +40,7 @@ export default function TestAgentPage() {
       const res = await fetch("/api/ai-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg, clientName: "" }),
+        body: JSON.stringify({ message: userMsg, clientName: "", tenantId }),
       });
       const data = await res.json();
       if (data.success) {
