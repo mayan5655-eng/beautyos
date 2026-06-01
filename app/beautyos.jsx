@@ -805,20 +805,40 @@ export default function BeautyOS() {
     setShowLeadModal(true);
   };
 
+  // Downscale + compress an image file in the browser before sending it to
+  // the AI, so we never hit the server's request-size limit (413).
+  const compressImage = (file, maxDim = 1024, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+          else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", quality);
+          resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Scan a client's skin from the client card. Saves a short summary to the
   // client's notes so it stays in her record.
   const scanClientSkin = async (client, file) => {
     if (!file || scanLoading) return;
     setScanLoading(true); setScanReport(null);
     try {
-      const reader = new FileReader();
-      const dataUrl = await new Promise((res, rej) => {
-        reader.onload = () => res(reader.result);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const base64 = String(dataUrl).split(",")[1];
-      const mediaType = file.type || "image/jpeg";
+      // Compress in the browser first to avoid 413 (payload too large)
+      const { base64, mediaType } = await compressImage(file);
       const res = await fetch("/api/skin-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
