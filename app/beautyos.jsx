@@ -2501,6 +2501,23 @@ export default function BeautyOS() {
  {scanReport.matched_service&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>אצלך: {scanReport.matched_service}</p>}
  </div>
  )}
+ {scanReport.clinic_plan&&(
+ <div style={{background:"#fff",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1.5px solid #E8B5C4"}}>
+ <p style={{fontSize:12,fontWeight:700,color:"#C77B92",marginBottom:6}}>✦ תכנית טיפול בקליניקה</p>
+ {scanReport.clinic_plan.treatment_type&&<p style={{fontSize:11.5,color:"#2A2A2A",fontWeight:600,marginBottom:3}}>{scanReport.clinic_plan.treatment_type}</p>}
+ {scanReport.clinic_plan.sessions&&<p style={{fontSize:11,color:"#6B6B6B",marginBottom:6}}>{scanReport.clinic_plan.sessions}</p>}
+ {scanReport.clinic_plan.steps?.length>0&&scanReport.clinic_plan.steps.map((s,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {s}</p>))}
+ {scanReport.clinic_plan.expected_results&&<p style={{fontSize:10.5,color:"#388E3C",marginTop:6}}>תוצאה צפויה: {scanReport.clinic_plan.expected_results}</p>}
+ </div>
+ )}
+ {scanReport.home_plan&&(
+ <div style={{background:"#FCEEF3",borderRadius:14,padding:"12px 16px",marginBottom:12}}>
+ <p style={{fontSize:12,fontWeight:700,color:"#C77B92",marginBottom:6}}>✦ תכנית טיפוח לבית</p>
+ {scanReport.home_plan.summary&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{scanReport.home_plan.summary}</p>}
+ {scanReport.home_plan.products?.length>0&&scanReport.home_plan.products.map((p,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {p}</p>))}
+ {scanReport.home_plan.tips?.length>0&&scanReport.home_plan.tips.map((t,i)=>(<p key={i} style={{fontSize:10.5,color:"#8A8088",lineHeight:1.5,marginTop:i===0?6:2}}>טיפ: {t}</p>))}
+ </div>
+ )}
  {scanReport.therapist_notes&&(
  <div style={{background:"#F8F3FC",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1px solid #E5D4F0"}}>
  <p style={{fontSize:11,fontWeight:700,color:"#6B4A8C",marginBottom:6}}>הערות למטפלת</p>
