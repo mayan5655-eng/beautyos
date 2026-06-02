@@ -146,7 +146,7 @@ ${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     })
@@ -224,7 +224,7 @@ Tone: ${strategy.tone}
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     })
@@ -288,7 +288,7 @@ ${businessContext}
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 3072,
       messages: [{ role: 'user', content: prompt }],
     })
