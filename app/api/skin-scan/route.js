@@ -85,7 +85,7 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // 3. Call Claude with vision
     const aiResponse = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 2500,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: [
         {
