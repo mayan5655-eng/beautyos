@@ -991,6 +991,20 @@ export default function BeautyOS() {
     }
   };
 
+  // Copy a public link (scanner / booking) for the current tenant
+  const copyPublicLink = async (kind) => {
+    const t = settings.tenant_id;
+    if (!t) { toast("חסר מזהה עסק - נסי לרענן", "error"); return; }
+    const base = "https://beautyos-theta.vercel.app";
+    const url = kind === "scan" ? `${base}/skin-scan?t=${t}` : `${base}/book?t=${t}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(kind === "scan" ? "קישור הסורק הועתק" : "קישור קביעת התור הועתק");
+    } catch {
+      toast(url, "info");
+    }
+  };
+
   const copyPost = async (v) => {
     const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
     try {
@@ -998,6 +1012,49 @@ export default function BeautyOS() {
       toast("הפוסט הועתק - אפשר להדביק בפייסבוק/אינסטגרם");
     } catch {
       toast("לא ניתן להעתיק אוטומטית", "error");
+    }
+  };
+
+  // Open Facebook's share dialog. We also copy the post text to the clipboard
+  // so she can paste it straight into the Facebook composer.
+  const shareToFacebook = async (v) => {
+    const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
+    try { await navigator.clipboard.writeText(text); } catch {}
+    const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" +
+      encodeURIComponent("https://beautyos-theta.vercel.app") +
+      "&quote=" + encodeURIComponent(text);
+    window.open(shareUrl, "_blank", "width=640,height=640");
+    toast("הטקסט הועתק - הדביקי אותו בחלון של פייסבוק");
+  };
+
+  // Download the post image as a 1080x1080 square (Facebook/Instagram ready)
+  const downloadImage = async (url, idx) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const bitmap = await createImageBitmap(blob);
+      const SIZE = 1080;
+      const canvas = document.createElement("canvas");
+      canvas.width = SIZE; canvas.height = SIZE;
+      const ctx = canvas.getContext("2d");
+      // Cover-crop the source into a centered square
+      const scale = Math.max(SIZE / bitmap.width, SIZE / bitmap.height);
+      const w = bitmap.width * scale;
+      const h = bitmap.height * scale;
+      ctx.drawImage(bitmap, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+      canvas.toBlob((out) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(out);
+        link.download = `beautyos-post-${idx || 1}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        toast("התמונה הורדה בפורמט פוסט (1080x1080)");
+      }, "image/jpeg", 0.92);
+    } catch {
+      window.open(url, "_blank");
+      toast("התמונה נפתחה בחלון חדש - לחצי שמירה");
     }
   };
 
@@ -1934,7 +1991,7 @@ export default function BeautyOS() {
  <div key={i} style={{background:"#fff",borderRadius:18,border:"1px solid #EFE7EB",marginBottom:14,overflow:"hidden"}}>
  {v.image&&v.image.url&&(
  <div style={{position:"relative"}}>
- <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",display:"block"}}/>
+ <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
  {v.image.photographerName&&(
  <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"#fff",fontSize:8,padding:"2px 7px",borderRadius:10}}>צילום: {v.image.photographerName}</span>
  )}
@@ -1954,6 +2011,12 @@ export default function BeautyOS() {
  {v.hashtags&&v.hashtags.length>0&&(
  <p style={{fontSize:11,color:"#8A8088"}}>{v.hashtags.join(" ")}</p>
  )}
+ <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
+ <button onClick={()=>shareToFacebook(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#1877F2",color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>שיתוף לפייסבוק</button>
+ <button onClick={()=>copyPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת טקסט</button>
+ {v.image&&v.image.url&&<button onClick={()=>downloadImage(v.image.url,v.variationNumber)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הורדת תמונה</button>}
+ </div>
+ <p style={{fontSize:9,color:"#C9B8C2",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
  </div>
  </div>
  ))}
@@ -2325,6 +2388,11 @@ export default function BeautyOS() {
  <div><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FCEEF3"}}/></div>
  <div><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FCEEF3"}}/></div>
  <div><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["#C77B92","#D89AAE","#E8B5C4","#A86C82","#B85C7E","#9E6178","#CBA0B4"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:32,height:32,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #2A2A2A":"2px solid #EFE7EB",cursor:"pointer"}}/>)}</div></div>
+ <div style={{borderTop:"1px solid #EFE7EB",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
+ <button onClick={()=>copyPublicLink("scan")} style={{width:"100%",padding:"10px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>✦ העתקת קישור לסורק העור</button>
+ <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"10px 0",background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
+ </div>
  </div>
               )}
               {settingsTab==="services"&&(
