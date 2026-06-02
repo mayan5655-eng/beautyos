@@ -2470,6 +2470,8 @@ export default function BeautyOS() {
  </div>
                     ))
                   )}
+                  {clientTab==="receipts"&&(
+                    cReceipts.length===0?<p style={{fontSize:11,color:"#C9B8C2"}}>אין קבלות</p>
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:"#FCEEF3",borderRadius:10,marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:13}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
