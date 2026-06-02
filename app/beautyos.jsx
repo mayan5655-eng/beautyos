@@ -168,6 +168,9 @@ export default function BeautyOS() {
   const [clientTab,         setClientTab]          = useState("info");
   const [scanLoading,       setScanLoading]        = useState(false);
   const [scanReport,        setScanReport]         = useState(null);
+  const [clientScans,       setClientScans]        = useState([]);
+  const [scansLoading,      setScansLoading]       = useState(false);
+  const [viewScan,          setViewScan]           = useState(null);
   const [settingsTab,       setSettingsTab]        = useState("general");
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
@@ -282,6 +285,13 @@ export default function BeautyOS() {
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
+
+  // Load skin-scan history whenever a client card is opened
+  useEffect(() => {
+    if (selectedClient?.id) loadClientScans(selectedClient.id);
+    else setClientScans([]);
+    /* eslint-disable-next-line */
+  }, [selectedClient?.id]);
 
   // Load saved campaigns the first time the AI marketing view is opened
   useEffect(() => {
@@ -821,7 +831,10 @@ export default function BeautyOS() {
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
           const dataUrl = canvas.toDataURL("image/jpeg", quality);
-          resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+          canvas.toBlob(
+            (blob) => resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg", blob }),
+            "image/jpeg", quality
+          );
         };
         img.onerror = reject;
         img.src = reader.result;
@@ -831,14 +844,28 @@ export default function BeautyOS() {
     });
   };
 
-  // Scan a client's skin from the client card. Saves a short summary to the
-  // client's notes so it stays in her record.
+  // Load all saved skin scans for a client (newest first)
+  const loadClientScans = async (clientId) => {
+    setScansLoading(true);
+    try {
+      const { data } = await supabase
+        .from("skin_scans")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+      setClientScans(data || []);
+    } catch { setClientScans([]); }
+    finally { setScansLoading(false); }
+  };
+
+  // Scan a client's skin: analyze with AI, store the image, and save the full
+  // report to skin_scans so it builds a history per client.
   const scanClientSkin = async (client, file) => {
     if (!file || scanLoading) return;
     setScanLoading(true); setScanReport(null);
     try {
       // Compress in the browser first to avoid 413 (payload too large)
-      const { base64, mediaType } = await compressImage(file);
+      const { base64, mediaType, blob } = await compressImage(file);
       const res = await fetch("/api/skin-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -848,15 +875,31 @@ export default function BeautyOS() {
       if (!data.success) { toast(data.error || "הניתוח נכשל", "error"); setScanLoading(false); return; }
       setScanReport(data.report);
 
-      // Save a short summary into the client's notes (keeps it in her record)
-      const stamp = new Date().toLocaleDateString("he-IL");
-      const line = `סריקת עור ${stamp}: ציון ${data.report.score}/100, ${data.report.skin_type}. מומלץ: ${data.report.clinical_treatment || "-"}`;
-      const newNotes = client.notes ? `${client.notes}\n${line}` : line;
-      const { data: upd } = await supabase.from("clients").update({ notes: newNotes }).eq("id", client.id).select();
-      if (upd && upd[0]) {
-        setClients(prev => prev.map(c => c.id === client.id ? upd[0] : c));
-        setSelectedClient(upd[0]);
-      }
+      // Upload the scan image to storage (best-effort)
+      let imageUrl = null;
+      try {
+        const fileName = `${client.id}/scan_${Date.now()}.jpg`;
+        const { error: ue } = await supabase.storage.from("client-images").upload(fileName, blob, { contentType: "image/jpeg" });
+        if (!ue) {
+          const { data: urlData } = supabase.storage.from("client-images").getPublicUrl(fileName);
+          imageUrl = urlData.publicUrl;
+        }
+      } catch {}
+
+      // Save the full report to skin_scans (per-client history).
+      // tenant_id is set automatically by the column default (get_user_tenant_id()).
+      try {
+        await supabase.from("skin_scans").insert({
+          client_id: client.id,
+          image_url: imageUrl,
+          report: data.report,
+          score: data.report.score,
+          skin_type: data.report.skin_type,
+        });
+      } catch (e) { /* non-fatal */ }
+
+      // Refresh history if this client's card is open
+      loadClientScans(client.id);
       toast("✦ הסריקה נשמרה לכרטיס");
     } catch (err) {
       toast("שגיאה בסריקה", "error");
@@ -2388,7 +2431,7 @@ export default function BeautyOS() {
 
                 {/* TABS */}
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid #EFE7EB",overflowX:"auto"}}>
-                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
+                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#2A2A2A":"#8A8088",borderBottom:clientTab===t.k?"2.5px solid #C77B92":"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
                   ))}
  </div>
@@ -2413,8 +2456,20 @@ export default function BeautyOS() {
  </div>
                     ))
                   )}
-                  {clientTab==="receipts"&&(
-                    cReceipts.length===0?<p style={{fontSize:11,color:"#C9B8C2"}}>אין קבלות</p>
+                  {clientTab==="scans"&&(
+                    scansLoading?<p style={{fontSize:11,color:"#C9B8C2"}}>טוען סריקות...</p>
+                    :clientScans.length===0?<p style={{fontSize:11,color:"#C9B8C2"}}>אין סריקות עדיין. לחצי על "סריקת עור AI" למעלה.</p>
+                    :clientScans.map(s=>(
+ <div key={s.id} onClick={()=>setViewScan(s)} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid #F7F0F3",cursor:"pointer"}}>
+ {s.image_url?<img alt="" src={s.image_url} style={{width:46,height:46,borderRadius:10,objectFit:"cover",flexShrink:0}}/>:<div style={{width:46,height:46,borderRadius:10,background:"#FCEEF3",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}
+ <div style={{flex:1}}>
+ <p style={{fontSize:11.5,fontWeight:600,color:"#2A2A2A"}}>{s.skin_type||"סריקת עור"}</p>
+ <p style={{fontSize:9,color:"#8A8088"}}>{new Date(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
+ </div>
+ <div style={{width:34,height:34,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",border:`3px solid ${s.score>=75?"#388E3C":s.score>=50?"#E8920C":"#C77B92"}`,flexShrink:0}}><span style={{fontSize:12,fontWeight:800,color:s.score>=75?"#388E3C":s.score>=50?"#E8920C":"#C77B92"}}>{s.score}</span></div>
+ </div>
+                    ))
+                  )}
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:"#FCEEF3",borderRadius:10,marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:13}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
@@ -2478,59 +2533,60 @@ export default function BeautyOS() {
       )}
 
       {/* SKIN SCAN RESULT MODAL */}
-      {scanReport&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={()=>setScanReport(null)}>
+      {(scanReport||viewScan)&&(()=>{ const SR = scanReport || viewScan.report; const closeModal=()=>{setScanReport(null);setViewScan(null);}; return (
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={closeModal}>
  <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:420,width:"100%",maxHeight:"88vh",overflowY:"auto",padding:"22px 22px"}}>
+ {viewScan?.image_url&&<img alt="" src={viewScan.image_url} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:14,marginBottom:14}}/>}
  <div style={{textAlign:"center",marginBottom:14}}>
- <div style={{width:90,height:90,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",border:`6px solid ${scanReport.score>=75?"#388E3C":scanReport.score>=50?"#E8920C":"#C77B92"}`}}>
- <span style={{fontSize:30,fontWeight:800,color:scanReport.score>=75?"#388E3C":scanReport.score>=50?"#E8920C":"#C77B92"}}>{scanReport.score}</span>
+ <div style={{width:90,height:90,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",border:`6px solid ${SR.score>=75?"#388E3C":SR.score>=50?"#E8920C":"#C77B92"}`}}>
+ <span style={{fontSize:30,fontWeight:800,color:SR.score>=75?"#388E3C":SR.score>=50?"#E8920C":"#C77B92"}}>{SR.score}</span>
  </div>
- <p className="serif" style={{fontSize:16,fontWeight:600,color:"#2A2A2A",marginTop:10}}>{scanReport.skin_type}</p>
+ <p className="serif" style={{fontSize:16,fontWeight:600,color:"#2A2A2A",marginTop:10}}>{SR.skin_type}</p>
  </div>
- {scanReport.summary&&<p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,textAlign:"center",marginBottom:14}}>{scanReport.summary}</p>}
- {scanReport.concerns?.length>0&&(
+ {SR.summary&&<p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,textAlign:"center",marginBottom:14}}>{SR.summary}</p>}
+ {SR.concerns?.length>0&&(
  <div style={{marginBottom:12}}>
  <p style={{fontSize:12,fontWeight:700,color:"#2A2A2A",marginBottom:6}}>ממצאים</p>
- {scanReport.concerns.map((c,i)=>(<p key={i} style={{fontSize:11.5,color:"#6B6B6B",marginBottom:3}}>• {c}</p>))}
+ {SR.concerns.map((c,i)=>(<p key={i} style={{fontSize:11.5,color:"#6B6B6B",marginBottom:3}}>• {c}</p>))}
  </div>
  )}
- {scanReport.clinical_treatment&&(
+ {SR.clinical_treatment&&(
  <div style={{background:"linear-gradient(135deg,#FBEEF2,#F6D9E2)",borderRadius:14,padding:"12px 16px",marginBottom:12}}>
  <p style={{fontSize:10,color:"#8A8088",marginBottom:2}}>טיפול מומלץ</p>
- <p style={{fontSize:14,fontWeight:700,color:"#C77B92"}}>{scanReport.clinical_treatment}</p>
- {scanReport.matched_service&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>אצלך: {scanReport.matched_service}</p>}
+ <p style={{fontSize:14,fontWeight:700,color:"#C77B92"}}>{SR.clinical_treatment}</p>
+ {SR.matched_service&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>אצלך: {SR.matched_service}</p>}
  </div>
  )}
- {scanReport.clinic_plan&&(
+ {SR.clinic_plan&&(
  <div style={{background:"#fff",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1.5px solid #E8B5C4"}}>
  <p style={{fontSize:12,fontWeight:700,color:"#C77B92",marginBottom:6}}>✦ תכנית טיפול בקליניקה</p>
- {scanReport.clinic_plan.treatment_type&&<p style={{fontSize:11.5,color:"#2A2A2A",fontWeight:600,marginBottom:3}}>{scanReport.clinic_plan.treatment_type}</p>}
- {scanReport.clinic_plan.sessions&&<p style={{fontSize:11,color:"#6B6B6B",marginBottom:6}}>{scanReport.clinic_plan.sessions}</p>}
- {scanReport.clinic_plan.steps?.length>0&&scanReport.clinic_plan.steps.map((s,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {s}</p>))}
- {scanReport.clinic_plan.expected_results&&<p style={{fontSize:10.5,color:"#388E3C",marginTop:6}}>תוצאה צפויה: {scanReport.clinic_plan.expected_results}</p>}
+ {SR.clinic_plan.treatment_type&&<p style={{fontSize:11.5,color:"#2A2A2A",fontWeight:600,marginBottom:3}}>{SR.clinic_plan.treatment_type}</p>}
+ {SR.clinic_plan.sessions&&<p style={{fontSize:11,color:"#6B6B6B",marginBottom:6}}>{SR.clinic_plan.sessions}</p>}
+ {SR.clinic_plan.steps?.length>0&&SR.clinic_plan.steps.map((s,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {s}</p>))}
+ {SR.clinic_plan.expected_results&&<p style={{fontSize:10.5,color:"#388E3C",marginTop:6}}>תוצאה צפויה: {SR.clinic_plan.expected_results}</p>}
  </div>
  )}
- {scanReport.home_plan&&(
+ {SR.home_plan&&(
  <div style={{background:"#FCEEF3",borderRadius:14,padding:"12px 16px",marginBottom:12}}>
  <p style={{fontSize:12,fontWeight:700,color:"#C77B92",marginBottom:6}}>✦ תכנית טיפוח לבית</p>
- {scanReport.home_plan.summary&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{scanReport.home_plan.summary}</p>}
- {scanReport.home_plan.products?.length>0&&scanReport.home_plan.products.map((p,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {p}</p>))}
- {scanReport.home_plan.tips?.length>0&&scanReport.home_plan.tips.map((t,i)=>(<p key={i} style={{fontSize:10.5,color:"#8A8088",lineHeight:1.5,marginTop:i===0?6:2}}>טיפ: {t}</p>))}
+ {SR.home_plan.summary&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{SR.home_plan.summary}</p>}
+ {SR.home_plan.products?.length>0&&SR.home_plan.products.map((p,i)=>(<p key={i} style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:2}}>• {p}</p>))}
+ {SR.home_plan.tips?.length>0&&SR.home_plan.tips.map((t,i)=>(<p key={i} style={{fontSize:10.5,color:"#8A8088",lineHeight:1.5,marginTop:i===0?6:2}}>טיפ: {t}</p>))}
  </div>
  )}
- {scanReport.therapist_notes&&(
+ {SR.therapist_notes&&(
  <div style={{background:"#F8F3FC",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1px solid #E5D4F0"}}>
  <p style={{fontSize:11,fontWeight:700,color:"#6B4A8C",marginBottom:6}}>הערות למטפלת</p>
- {scanReport.therapist_notes.skin_assessment&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{scanReport.therapist_notes.skin_assessment}</p>}
- {scanReport.therapist_notes.protocol&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5}}><b>פרוטוקול:</b> {scanReport.therapist_notes.protocol}</p>}
- {scanReport.therapist_notes.cautions&&<p style={{fontSize:10.5,color:"#C0392B",lineHeight:1.5,marginTop:6}}>⚠️ {scanReport.therapist_notes.cautions}</p>}
+ {SR.therapist_notes.skin_assessment&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5,marginBottom:6}}>{SR.therapist_notes.skin_assessment}</p>}
+ {SR.therapist_notes.protocol&&<p style={{fontSize:11,color:"#4A3A52",lineHeight:1.5}}><b>פרוטוקול:</b> {SR.therapist_notes.protocol}</p>}
+ {SR.therapist_notes.cautions&&<p style={{fontSize:10.5,color:"#C0392B",lineHeight:1.5,marginTop:6}}>⚠️ {SR.therapist_notes.cautions}</p>}
  </div>
  )}
- <button onClick={()=>setScanReport(null)} className="primary-btn" style={{width:"100%",padding:"12px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:13}}>סגירה ✓</button>
- <p style={{fontSize:9.5,color:"#C9B8C2",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>
+ <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:13}}>סגירה ✓</button>
+ {!viewScan&&<p style={{fontSize:9.5,color:"#C9B8C2",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
  </div>
  </div>
-      )}
+      ); })()}
 
       {/* LEAD PROFILE DRAWER */}
       {selectedLead&&(
