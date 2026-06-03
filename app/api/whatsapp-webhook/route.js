@@ -1,14 +1,16 @@
 // app/api/whatsapp-webhook/route.js
-// Receives incoming WhatsApp messages from GreenAPI, asks the AI brain for a
-// reply (scoped to the correct tenant), and sends the reply back to the client.
+// Receives incoming WhatsApp messages from GreenAPI, generates a smart Hebrew
+// reply with the AI (scoped to the correct tenant), and sends it back.
 //
-// MULTI-TENANT NOTE:
-// Each cosmetician will eventually connect her OWN GreenAPI instance. The
-// incoming webhook includes instanceData.idInstance — we look up which tenant
-// owns that instance (settings.green_api_instance) and answer for her business.
-// Until a tenant connects her own instance, we fall back to the default tenant.
+// The AI logic is INLINE here (no internal fetch) so it can't fail on a bad
+// internal URL — this is more reliable and faster.
+//
+// MULTI-TENANT: each cosmetician will connect her own GreenAPI instance.
+// We resolve the tenant from instanceData.idInstance (settings.green_api_instance);
+// until she connects her own, we fall back to the default tenant.
 
 import { createClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 
 const supabase = createClient(
@@ -16,10 +18,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
 const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
 
-// Pull the text out of any GreenAPI incoming-message shape
 function extractText(messageData) {
   if (!messageData) return "";
   const t = messageData.typeMessage;
@@ -29,18 +32,74 @@ function extractText(messageData) {
   return "";
 }
 
-// Convert "79001234567@c.us" -> "0541234567"-style local number (best-effort)
 function senderToPhone(chatId) {
   const digits = (chatId || "").replace(/@c\.us$/, "").replace(/\D/g, "");
   if (digits.startsWith("972")) return "0" + digits.slice(3);
   return digits;
 }
 
+// Generate the AI reply directly (no network hop)
+async function generateReply({ message, clientName, tenantId }) {
+  const [settingsRes, servicesRes] = await Promise.all([
+    supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
+    supabase.from("service_prices").select("*").eq("tenant_id", tenantId).eq("active", true),
+  ]);
+
+  const settings =
+    settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0] : {};
+  const services = servicesRes.data || [];
+
+  const businessName = settings.business_name || "העסק";
+  const therapistName = settings.therapist_name || "";
+  const startH = settings.working_hours_start || 9;
+  const endH = settings.working_hours_end || 19;
+  const bookUrl = `${APP_URL}/book?t=${tenantId}`;
+
+  const servicesText =
+    services.length > 0
+      ? services.map((s) => `- ${s.name}${s.price ? ` (${s.price} ש"ח)` : ""}${s.duration ? `, ${s.duration} דקות` : ""}`).join("\n")
+      : "לא הוגדרו שירותים";
+
+  const systemPrompt = `את העוזרת הווירטואלית של "${businessName}"${therapistName ? ` (המטפלת: ${therapistName})` : ""}, עסק יופי/קוסמטיקה בישראל.
+
+תפקידך: לענות ללקוחות בוואטסאפ בעברית, בחמימות, בקצרה ובבהירות.
+
+ידע על העסק:
+שירותים ומחירים:
+${servicesText}
+
+שעות פעילות: ${startH}:00 עד ${endH}:00
+
+כללים:
+1. דברי תמיד בעברית, בנימה חמה ומקצועית (לא רובוטית).
+2. תשובות קצרות — משפט עד שלושה. זה וואטסאפ.
+3. כשלקוחה רוצה לקבוע תור או שואלת על זמינות, הפני אותה לקישור הקביעה: ${bookUrl}
+4. אל תמציאי מחיר או טיפול — עני רק לפי הרשימה למעלה.
+5. אם אינך יודעת משהו, אמרי שתעבירי את הפנייה למטפלת.`;
+
+  const aiResponse = await anthropic.messages.create({
+    model: "claude-sonnet-4-5",
+    max_tokens: 400,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`,
+      },
+    ],
+  });
+
+  return aiResponse.content
+    .map((b) => (b.type === "text" ? b.text : ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
 
-    // Only handle incoming text messages; acknowledge everything else.
     if (body.typeWebhook !== "incomingMessageReceived") {
       return Response.json({ ok: true, ignored: body.typeWebhook });
     }
@@ -54,7 +113,7 @@ export async function POST(request) {
       return Response.json({ ok: true, ignored: "no text" });
     }
 
-    // 1. Resolve the tenant from the instance that received the message.
+    // Resolve tenant from the instance that received the message
     let tenantId = FALLBACK_TENANT_ID;
     if (idInstance) {
       const { data } = await supabase
@@ -65,20 +124,14 @@ export async function POST(request) {
       if (data && data.length > 0) tenantId = data[0].tenant_id;
     }
 
-    // 2. Ask the AI brain for a reply (reuse the existing ai-agent route)
-    const aiRes = await fetch(`${APP_URL}/api/ai-agent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, clientName: senderName, tenantId }),
-    });
-    const aiData = await aiRes.json();
-    const reply = aiData?.reply;
+    // Generate the reply directly
+    const reply = await generateReply({ message: text, clientName: senderName, tenantId });
 
     if (!reply) {
       return Response.json({ ok: true, noReply: true });
     }
 
-    // 3. Send the reply back to the client
+    // Send the reply back to the client
     const phone = senderToPhone(senderChatId);
     await sendWhatsApp(phone, reply, {
       name: senderName || "לקוחה",
@@ -88,13 +141,11 @@ export async function POST(request) {
 
     return Response.json({ ok: true });
   } catch (err) {
-    // Always return 200 so GreenAPI doesn't retry endlessly on our errors.
     console.error("whatsapp-webhook error:", err);
     return Response.json({ ok: false, error: err.message });
   }
 }
 
-// GreenAPI may probe the URL with GET — respond OK.
 export async function GET() {
   return Response.json({ ok: true, status: "whatsapp webhook alive" });
 }
