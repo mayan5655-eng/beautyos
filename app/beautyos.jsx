@@ -171,6 +171,12 @@ export default function BeautyOS() {
   const [clientScans,       setClientScans]        = useState([]);
   const [scansLoading,      setScansLoading]       = useState(false);
   const [viewScan,          setViewScan]           = useState(null);
+  const [communityPosts,    setCommunityPosts]     = useState([]);
+  const [communityLoading,  setCommunityLoading]   = useState(false);
+  const [showPostModal,     setShowPostModal]      = useState(false);
+  const [newPost,           setNewPost]            = useState({title:"",body:"",post_type:"update",cta_label:"",image_url:""});
+  const [postImageUploading, setPostImageUploading] = useState(false);
+  const [savingPost,        setSavingPost]         = useState(false);
   const [settingsTab,       setSettingsTab]        = useState("general");
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
@@ -300,6 +306,11 @@ export default function BeautyOS() {
     }
     /* eslint-disable-next-line */
   }, [activeTab, marketingView]);
+
+  useEffect(() => {
+    if (activeTab === "community") loadCommunityPosts();
+    /* eslint-disable-next-line */
+  }, [activeTab]);
 
   const loadAll = async () => {
     try {
@@ -996,13 +1007,73 @@ export default function BeautyOS() {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק - נסי לרענן", "error"); return; }
     const base = "https://beautyos-theta.vercel.app";
-    const url = kind === "scan" ? `${base}/skin-scan?t=${t}` : `${base}/book?t=${t}`;
+    const url = kind === "scan" ? `${base}/skin-scan?t=${t}` : kind === "community" ? `${base}/community?t=${t}` : `${base}/book?t=${t}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : "קישור קביעת התור הועתק");
+      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
     } catch {
       toast(url, "info");
     }
+  };
+
+  // Load the community feed posts for this tenant (newest first)
+  const loadCommunityPosts = async () => {
+    setCommunityLoading(true);
+    try {
+      const { data } = await supabase
+        .from("community_posts")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setCommunityPosts(data || []);
+    } catch { setCommunityPosts([]); }
+    finally { setCommunityLoading(false); }
+  };
+
+  // Upload an image for a community post to the shared bucket
+  const uploadPostImage = async (file) => {
+    if (!file) return;
+    setPostImageUploading(true);
+    try {
+      const { base64, blob } = await compressImage(file, 1280, 0.82);
+      const fileName = `community/${Date.now()}.jpg`;
+      const { error: ue } = await supabase.storage.from("client-images").upload(fileName, blob, { contentType: "image/jpeg" });
+      if (!ue) {
+        const { data: urlData } = supabase.storage.from("client-images").getPublicUrl(fileName);
+        setNewPost(p => ({ ...p, image_url: urlData.publicUrl }));
+        toast("התמונה הועלתה");
+      } else { toast("שגיאה בהעלאת תמונה", "error"); }
+    } catch { toast("שגיאה בהעלאת תמונה", "error"); }
+    finally { setPostImageUploading(false); }
+  };
+
+  // Save a new community post
+  const saveCommunityPost = async () => {
+    if (savingPost) return;
+    if (!newPost.body && !newPost.title) { toast("כתבי תוכן לפוסט", "error"); return; }
+    setSavingPost(true);
+    try {
+      const { data, error } = await supabase.from("community_posts").insert([{
+        title: newPost.title || null,
+        body: newPost.body || null,
+        image_url: newPost.image_url || null,
+        post_type: newPost.post_type || "update",
+        cta_label: newPost.cta_label || null,
+      }]).select();
+      if (error) { handleDbError(error, "create community post"); return; }
+      if (data && data[0]) setCommunityPosts(prev => [data[0], ...prev]);
+      setNewPost({ title:"", body:"", post_type:"update", cta_label:"", image_url:"" });
+      setShowPostModal(false);
+      toast("הפוסט פורסם למרחב הלקוחות");
+    } finally { setSavingPost(false); }
+  };
+
+  // Delete a community post
+  const deleteCommunityPost = async (id) => {
+    try {
+      await supabase.from("community_posts").delete().eq("id", id);
+      setCommunityPosts(prev => prev.filter(p => p.id !== id));
+      toast("הפוסט נמחק");
+    } catch { toast("שגיאה במחיקה", "error"); }
   };
 
   const copyPost = async (v) => {
@@ -1232,6 +1303,7 @@ export default function BeautyOS() {
           {id:"cashier",  label:"תשלומים"},
           {id:"whatsapp", label:"הודעות"},
           {id:"campaigns",label:"שיווק"},
+          {id:"community",label:"קהילה"},
           {id:"packages", label:"מנויים"},
         ].map(tab=>(
  <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{background:"none",border:"none",padding:"14px 14px",fontSize:13,fontWeight:activeTab===tab.id?600:400,color:activeTab===tab.id?"#2A2A2A":"#8A8088",borderBottom:activeTab===tab.id?`2.5px solid #C77B92`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",letterSpacing:"0.3px"}}>{tab.label}</button>
@@ -2095,6 +2167,51 @@ export default function BeautyOS() {
  </div>
  </>)}
 
+          {/* COMMUNITY — clients feed for this tenant */}
+          {activeTab==="community"&&(<>
+ <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
+ <div>
+ <h2 className="serif" style={{fontSize:21,fontWeight:600,color:"#2A2A2A"}}>מרחב הלקוחות</h2>
+ <p style={{fontSize:11.5,color:"#8A8088",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים — הלקוחות שלך רואות הכל במקום אחד.</p>
+ </div>
+ <div style={{display:"flex",gap:7}}>
+ <button onClick={()=>copyPublicLink("community")} style={{padding:"9px 14px",background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:11,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת קישור לקהילה</button>
+ <button onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} className="primary-btn" style={{padding:"9px 16px",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:11.5}}>+ פוסט חדש</button>
+ </div>
+ </div>
+
+ {communityLoading?<p style={{fontSize:12,color:"#C9B8C2",marginTop:20}}>טוען...</p>
+ :communityPosts.length===0?(
+ <div style={{textAlign:"center",padding:"48px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:14}}>
+ <div style={{fontSize:34,marginBottom:10}}>💜</div>
+ <p style={{fontSize:14,fontWeight:600,color:"#2A2A2A",marginBottom:5}}>עוד אין פוסטים</p>
+ <p style={{fontSize:11.5,color:"#8A8088",maxWidth:360,margin:"0 auto"}}>פרסמי את הפוסט הראשון — מבצע, טיפ, או עדכון — והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
+ </div>
+ ):(
+ <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
+ {communityPosts.map(p=>(
+ <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",border:"1px solid #EFE7EB"}}>
+ {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
+ <div style={{padding:"14px 16px"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+ <span style={{fontSize:9.5,fontWeight:700,color:"#fff",background:p.post_type==="offer"?"#C77B92":p.post_type==="tip"?"#7BA88E":"#A89BB0",padding:"3px 9px",borderRadius:20}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
+ <span style={{fontSize:9,color:"#C9B8C2"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
+ </div>
+ {p.title&&<p style={{fontSize:14.5,fontWeight:700,color:"#2A2A2A",marginBottom:4}}>{p.title}</p>}
+ {p.body&&<p style={{fontSize:12.5,color:"#4A3A42",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
+ {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
+ <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}>
+ <button onClick={()=>deleteCommunityPost(p.id)} style={{background:"none",border:"none",color:"#C9B8C2",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
+ </div>
+ </div>
+ </div>
+ ))}
+ </div>
+ )}
+ </div>
+ </>)}
+
           {/* PACKAGES */}
           {activeTab==="packages"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -2371,6 +2488,42 @@ export default function BeautyOS() {
       )}
 
       {/* SETTINGS MODAL */}
+      {showPostModal&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={()=>setShowPostModal(false)}>
+ <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto",padding:"22px"}}>
+ <p className="serif" style={{fontSize:18,fontWeight:600,color:"#2A2A2A",marginBottom:14}}>פוסט חדש למרחב הלקוחות</p>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>סוג הפוסט</p>
+ <div style={{display:"flex",gap:6,marginBottom:13}}>
+ {[{k:"update",l:"עדכון"},{k:"offer",l:"מבצע"},{k:"tip",l:"טיפ"}].map(t=>(
+ <button key={t.k} onClick={()=>setNewPost({...newPost,post_type:t.k})} style={{flex:1,padding:"8px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:newPost.post_type===t.k?"2px solid #C77B92":"1px solid #E8B5C4",background:newPost.post_type===t.k?"#FCEEF3":"#fff",color:"#C77B92"}}>{t.l}</button>
+ ))}
+ </div>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>כותרת (לא חובה)</p>
+ <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב על טיפולי פנים" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #E8D5DD",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>תוכן</p>
+ <textarea value={newPost.body} onChange={e=>setNewPost({...newPost,body:e.target.value})} rows={4} placeholder="כתבי כאן את העדכון, המבצע או הטיפ..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #E8D5DD",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box",resize:"vertical"}}/>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>טקסט לכפתור (לא חובה)</p>
+ <input value={newPost.cta_label} onChange={e=>setNewPost({...newPost,cta_label:e.target.value})} placeholder="לדוגמה: לפרטים בוואטסאפ" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #E8D5DD",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>תמונה (לא חובה)</p>
+ {newPost.image_url&&<img alt="" src={newPost.image_url} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginBottom:8}}/>}
+ <label style={{display:"block",padding:"9px 0",textAlign:"center",borderRadius:10,border:"1px dashed #E8B5C4",fontSize:11.5,color:"#C77B92",cursor:"pointer",marginBottom:16,fontWeight:600}}>
+ {postImageUploading?"מעלה...":newPost.image_url?"החלפת תמונה":"+ הוספת תמונה"}
+ <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files&&e.target.files[0];if(f)uploadPostImage(f);}}/>
+ </label>
+
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={saveCommunityPost} disabled={savingPost} className="primary-btn" style={{flex:1,padding:"12px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:13,opacity:savingPost?0.6:1}}>{savingPost?"מפרסם...":"פרסום"}</button>
+ <button onClick={()=>setShowPostModal(false)} style={{padding:"12px 18px",background:"#fff",color:"#8A8088",border:"1px solid #E8D5DD",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+ </div>
+ </div>
+ </div>
+      )}
+
       {showSettings&&editSettings&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
