@@ -38,6 +38,51 @@ function senderToPhone(chatId) {
   return digits;
 }
 
+// Decide whether the bot should reply right now, based on the tenant's
+// settings: bot_active (master switch) and bot_mode ("always" or "after_hours").
+// In "after_hours" mode the bot stays quiet during working hours/days so the
+// cosmetician can answer herself, and answers only when she's off.
+async function shouldBotReply(tenantId) {
+  const { data } = await supabase
+    .from("settings")
+    .select("bot_active, bot_mode, working_hours_start, working_hours_end, working_days")
+    .eq("tenant_id", tenantId)
+    .limit(1);
+
+  const s = data && data.length > 0 ? data[0] : {};
+
+  // Master switch off -> never reply
+  if (s.bot_active === false) return false;
+
+  // Always-on mode (default) -> reply
+  if (!s.bot_mode || s.bot_mode === "always") return true;
+
+  // after_hours mode -> reply only OUTSIDE working hours/days (Israel time)
+  if (s.bot_mode === "after_hours") {
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+    const day = now.getDay(); // 0=Sunday ... 6=Saturday
+    const hour = now.getHours();
+
+    const startH = s.working_hours_start != null ? Number(s.working_hours_start) : 9;
+    const endH = s.working_hours_end != null ? Number(s.working_hours_end) : 19;
+
+    // working_days stored like "0,1,2,3,4" (Sun-Thu). Default Sun-Thu.
+    const workingDays = (s.working_days || "0,1,2,3,4")
+      .split(",")
+      .map((d) => parseInt(d.trim(), 10))
+      .filter((d) => !isNaN(d));
+
+    const isWorkingDay = workingDays.includes(day);
+    const isWorkingHour = hour >= startH && hour < endH;
+
+    // During working day AND working hour -> she answers; bot stays quiet
+    if (isWorkingDay && isWorkingHour) return false;
+    return true;
+  }
+
+  return true;
+}
+
 // Generate the AI reply directly (no network hop)
 async function generateReply({ message, clientName, tenantId }) {
   const [settingsRes, servicesRes] = await Promise.all([
@@ -122,6 +167,12 @@ export async function POST(request) {
         .eq("green_api_instance", String(idInstance))
         .limit(1);
       if (data && data.length > 0) tenantId = data[0].tenant_id;
+    }
+
+    // Respect the tenant's bot on/off switch and active hours
+    const active = await shouldBotReply(tenantId);
+    if (!active) {
+      return Response.json({ ok: true, botOff: true });
     }
 
     // Generate the reply directly

@@ -2389,6 +2389,25 @@ export default function BeautyOS() {
  <div><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FCEEF3"}}/></div>
  <div><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{["#C77B92","#D89AAE","#E8B5C4","#A86C82","#B85C7E","#9E6178","#CBA0B4"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:32,height:32,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #2A2A2A":"2px solid #EFE7EB",cursor:"pointer"}}/>)}</div></div>
  <div style={{borderTop:"1px solid #EFE7EB",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:8,fontWeight:600}}>בוט הוואטסאפ החכם</p>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+ <span style={{fontSize:12,color:"#2A2A2A"}}>הבוט פעיל</span>
+ <button onClick={()=>setEditSettings({...editSettings,bot_active:!(editSettings.bot_active!==false)})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:(editSettings.bot_active!==false)?"#C77B92":"#D8CEd3",position:"relative",transition:"background .2s"}}>
+ <span style={{position:"absolute",top:3,left:(editSettings.bot_active!==false)?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+ </button>
+ </div>
+ {(editSettings.bot_active!==false)&&(
+ <div>
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:6}}>מתי הבוט יענה?</p>
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={()=>setEditSettings({...editSettings,bot_mode:"always"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:(editSettings.bot_mode||"always")==="always"?"2px solid #C77B92":"1px solid #E8B5C4",background:(editSettings.bot_mode||"always")==="always"?"#FCEEF3":"#fff",color:"#C77B92"}}>תמיד</button>
+ <button onClick={()=>setEditSettings({...editSettings,bot_mode:"after_hours"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:editSettings.bot_mode==="after_hours"?"2px solid #C77B92":"1px solid #E8B5C4",background:editSettings.bot_mode==="after_hours"?"#FCEEF3":"#fff",color:"#C77B92"}}>רק מחוץ לשעות העבודה</button>
+ </div>
+ <p style={{fontSize:9,color:"#C9B8C2",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
+ </div>
+ )}
+ </div>
+ <div style={{borderTop:"1px solid #EFE7EB",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"#8A8088",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} style={{width:"100%",padding:"10px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>✦ העתקת קישור לסורק העור</button>
  <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"10px 0",background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
