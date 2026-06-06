@@ -8,7 +8,7 @@ import { supabase } from "./supabase";
 // ============================================================
 
 const DEFAULT_SERVICES = [
-  {name:"טיפול פנים",price:250,duration:60,color:pc,active:true},
+  {name:"טיפול פנים",price:250,duration:60,color:"#C77B92",active:true},
   {name:"הסרת שיער",price:180,duration:45,color:"#D89AAE",active:true},
   {name:"עיצוב גבות",price:80,duration:30,color:"#E8B5C4",active:true},
   {name:"מניקור",price:120,duration:45,color:"#CBA0B4",active:true},
@@ -24,7 +24,7 @@ const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:0
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
-const STATUS_COLORS = {"VIP":pc,"active":"#D89AAE","cold":"#C9B8C2","hot":"#B85C7E"};
+const STATUS_COLORS = {"VIP":"#C77B92","active":"#D89AAE","cold":"#C9B8C2","hot":"#B85C7E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
 const FORM_TYPES = [
   {key:"general",label:"הצהרת בריאות כללית"},
@@ -36,14 +36,14 @@ const FORM_TYPES = [
 const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטוק","המלצה","הליכה ברחוב","אחר"];
 const LEAD_STATUSES = {
  "new":       {label:"חדש",         color:"#5580C4",bg:"#EBF3FF"},
- "contacted": {label:"יצרתי קשר",  color:pc,bg:"#FBEEF2"},
+ "contacted": {label:"יצרתי קשר",  color:"#C77B92",bg:"#FBEEF2"},
  "scheduled": {label:"נקבע תור",   color:"#388E3C",bg:"#E8F5E9"},
  "closed":    {label:"נסגר",        color:"#7B1FA2",bg:"#F3E5F5"},
  "lost":      {label:"לא רלוונטי", color:"#C62828",bg:"#FEEBEE"},
 };
 const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","אחר":"◦"};
 const PAYMENT_METHODS = [
-  {key:"מזומן",icon:"◦",color:pc},
+  {key:"מזומן",icon:"◦",color:"#C77B92"},
   {key:"אשראי",icon:"◦",color:"#B98AA0"},
   {key:"ביט",icon:"◦",color:"#A86C82"},
   {key:"פייבוקס",icon:"◦",color:"#D193A8"},
@@ -129,7 +129,7 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState(DEFAULT_SERVICES);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
-  const [settings,     setSettings]     = useState({business_name:"BeautyOS",therapist_name:"רונית",primary_color:pc,working_hours_start:8,working_hours_end:19,business_phone:""});
+  const [settings,     setSettings]     = useState({business_name:"BeautyOS",therapist_name:"רונית",primary_color:"#C77B92",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
