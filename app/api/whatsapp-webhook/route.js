@@ -43,13 +43,19 @@ function senderToPhone(chatId) {
 // In "after_hours" mode the bot stays quiet during working hours/days so the
 // cosmetician can answer herself, and answers only when she's off.
 async function shouldBotReply(tenantId) {
-  const { data } = await supabase
-    .from("settings")
-    .select("bot_active, bot_mode, working_hours_start, working_hours_end, working_days")
-    .eq("tenant_id", tenantId)
-    .limit(1);
-
-  const s = data && data.length > 0 ? data[0] : {};
+  let s = {};
+  try {
+    const { data, error } = await supabase
+      .from("settings")
+      .select("bot_active, bot_mode, working_hours_start, working_hours_end, working_days")
+      .eq("tenant_id", tenantId)
+      .limit(1);
+    if (error) console.log("BOT_SETTINGS_ERROR", error.message);
+    if (data && data.length > 0) s = data[0];
+  } catch (e) {
+    console.log("BOT_SETTINGS_EXCEPTION", e.message);
+  }
+  console.log("BOT_SETTINGS", { bot_active: s.bot_active, bot_mode: s.bot_mode });
 
   // Master switch off -> never reply
   if (s.bot_active === false) return false;
@@ -158,19 +164,26 @@ export async function POST(request) {
       return Response.json({ ok: true, ignored: "no text" });
     }
 
-    // Resolve tenant from the instance that received the message
+    // Resolve tenant from the instance that received the message.
+    // If the green_api_instance column is missing or the lookup errors,
+    // we keep the fallback tenant (single-tenant safe).
     let tenantId = FALLBACK_TENANT_ID;
     if (idInstance) {
-      const { data } = await supabase
-        .from("settings")
-        .select("tenant_id")
-        .eq("green_api_instance", String(idInstance))
-        .limit(1);
-      if (data && data.length > 0) tenantId = data[0].tenant_id;
+      try {
+        const { data, error } = await supabase
+          .from("settings")
+          .select("tenant_id")
+          .eq("green_api_instance", String(idInstance))
+          .limit(1);
+        if (!error && data && data.length > 0 && data[0].tenant_id) {
+          tenantId = data[0].tenant_id;
+        }
+      } catch (_) { /* keep fallback */ }
     }
 
     // Respect the tenant's bot on/off switch and active hours
     const active = await shouldBotReply(tenantId);
+    console.log("BOT_DECISION", { tenantId, active });
     if (!active) {
       return Response.json({ ok: true, botOff: true });
     }
