@@ -135,6 +135,9 @@ export default function BeautyOS() {
   const [weekStart,         setWeekStart]         = useState(new Date());
   const [showModal,         setShowModal]          = useState(false);
   const [showClientModal,   setShowClientModal]    = useState(false);
+  const [showImportModal,   setShowImportModal]    = useState(false);
+  const [importText,        setImportText]         = useState("");
+  const [importing,         setImporting]          = useState(false);
   const [showLeadModal,     setShowLeadModal]      = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
@@ -532,6 +535,70 @@ export default function BeautyOS() {
       setShowClientModal(false);setEditingClient(null);setNewClient(emptyClient);
     } finally {
       setBusyKey("saveClient", false);
+    }
+  };
+
+  // Parse pasted text into {name, phone} rows. Accepts "name, phone" or
+  // "name <tab/space> phone", one per line.
+  const parseImportText = (text) => {
+    const rows = [];
+    (text || "").split("\n").forEach((line) => {
+      const raw = line.trim();
+      if (!raw) return;
+      // Split on comma, tab, or 2+ spaces
+      let parts = raw.split(/,|\t|\s{2,}/).map((p) => p.trim()).filter(Boolean);
+      if (parts.length === 1) {
+        // Try "name phone" with a single space before a phone-like token
+        const m = raw.match(/^(.*?)[\s]+([0-9\-+() ]{6,})$/);
+        if (m) parts = [m[1].trim(), m[2].trim()];
+      }
+      let name = parts[0] || "";
+      let phone = parts[1] || "";
+      // If the first token looks like a phone and second like a name, swap
+      if (/^[0-9\-+() ]{6,}$/.test(name) && phone && !/^[0-9\-+() ]{6,}$/.test(phone)) {
+        [name, phone] = [phone, name];
+      }
+      phone = phone.replace(/[^\d+]/g, "");
+      if (name) rows.push({ name, phone });
+    });
+    return rows;
+  };
+
+  // Open the device contact picker (works on Chrome/Android only)
+  const pickFromContacts = async () => {
+    if (!(navigator.contacts && navigator.contacts.select)) {
+      toast("המכשיר לא תומך בבחירה מאנשי קשר - השתמשי בהדבקה ידנית", "error");
+      return;
+    }
+    try {
+      const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
+      const lines = selected.map((c) => {
+        const nm = (c.name && c.name[0]) || "";
+        const tel = (c.tel && c.tel[0]) || "";
+        return `${nm}, ${tel}`;
+      });
+      setImportText((prev) => (prev ? prev + "\n" : "") + lines.join("\n"));
+    } catch {
+      // user cancelled - ignore
+    }
+  };
+
+  // Save all parsed contacts as new clients
+  const importContacts = async () => {
+    if (importing) return;
+    const rows = parseImportText(importText);
+    if (rows.length === 0) { toast("לא נמצאו אנשי קשר להוספה", "error"); return; }
+    setImporting(true);
+    try {
+      const toInsert = rows.map((r) => ({ ...emptyClient, name: r.name, phone: r.phone, status: "active" }));
+      const { data, error } = await supabase.from("clients").insert(toInsert).select();
+      if (error) { handleDbError(error, "import clients"); return; }
+      if (data) setClients((prev) => [...prev, ...data]);
+      setShowImportModal(false);
+      setImportText("");
+      toast(`${rows.length} לקוחות נוספו`);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -1585,7 +1652,10 @@ export default function BeautyOS() {
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:7}}>
  <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#2A2A2A"}}>לקוחות ({filteredClients.length})</h2>
+ <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+ <button onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"#fff",color:"#C77B92",border:"1px solid #E8B5C4",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>ייבוא לקוחות</button>
  <button onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",border:"none",borderRadius:24,padding:"9px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 6px 16px rgba(199,123,146,0.25)"}}>✦ מטופלת חדשה</button>
+ </div>
  </div>
  <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
  <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="שם או טלפון..." style={{flex:1,minWidth:140,border:"1px solid #EFE7EB",borderRadius:24,padding:"9px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff"}}/>
@@ -2287,6 +2357,29 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #EFE7EB",background:"#fff",fontSize:12,color:"#8A8088"}}>ביטול</button>
  <button onClick={handleSave} disabled={isBusy("saveAppt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:12}}>{isBusy("saveAppt")?"שומר...":"שמירה ✓"}</button>
+ </div>
+ </div>
+ </div>
+      )}
+
+      {/* IMPORT CONTACTS MODAL */}
+      {showImportModal&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+ <p className="serif" style={{fontSize:18,fontWeight:600,color:"#2A2A2A",marginBottom:6}}>ייבוא לקוחות</p>
+ <p style={{fontSize:11.5,color:"#8A8088",marginBottom:14,lineHeight:1.6}}>הוסיפי כמה לקוחות בבת אחת. כתבי כל לקוחה בשורה נפרדת, בפורמט: שם, טלפון</p>
+
+ <button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"#fff",color:"#C77B92",border:"1px dashed #E8B5C4",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
+ <p style={{fontSize:9,color:"#C9B8C2",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p>
+
+ <p style={{fontSize:10,color:"#8A8088",marginBottom:5}}>או הדביקי כאן (שורה לכל לקוחה):</p>
+ <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן, 0541234567\nמיכל לוי, 0529876543"} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #E8D5DD",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl"}}/>
+
+ {importText.trim()&&<p style={{fontSize:10.5,color:"#7BA88E",marginBottom:12}}>זוהו {parseImportText(importText).length} לקוחות</p>}
+
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={importContacts} disabled={importing} className="primary-btn" style={{flex:2,padding:"12px 0",background:"linear-gradient(90deg,#C77B92,#D89AAE)",color:"#fff",fontSize:13,opacity:importing?0.6:1}}>{importing?"מוסיף...":"הוספת הלקוחות"}</button>
+ <button onClick={()=>setShowImportModal(false)} style={{flex:1,padding:"12px 0",background:"#fff",color:"#8A8088",border:"1px solid #E8D5DD",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  </div>
  </div>
  </div>
