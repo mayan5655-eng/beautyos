@@ -277,11 +277,11 @@ export default function BeautyOS() {
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
   const lastMonthYear = thisMonth===0?thisYear-1:thisYear;
-  const pc = settings.primary_color||"#C77B92";
+  const pc = (settings&&settings.primary_color)||"#C77B92";
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = services.filter(s=>s.active!==false);
-  const workingHours = HOURS_ALL.slice(Math.max(settings.working_hours_start-7,0),Math.min(settings.working_hours_end-7,HOURS_ALL.length));
+  const workingHours = HOURS_ALL.slice(Math.max((settings?.working_hours_start||8)-7,0),Math.min((settings?.working_hours_end||19)-7,HOURS_ALL.length));
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
@@ -630,11 +630,11 @@ export default function BeautyOS() {
       if(settings.id){
         const {data,error}=await supabase.from("settings").update(editSettings).eq("id",settings.id).select();
         if(error){handleDbError(error, "update settings"); return;}
-        if(data)setSettings(data[0]);
+        if(data&&data[0])setSettings(data[0]);
       }else{
         const {data,error}=await supabase.from("settings").insert([editSettings]).select();
         if(error){handleDbError(error, "create settings"); return;}
-        if(data)setSettings(data[0]);
+        if(data&&data[0])setSettings(data[0]);
       }
       setEditSettings(null);
       toast("ההגדרות נשמרו");
