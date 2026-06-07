@@ -1383,7 +1383,7 @@ export default function BeautyOS() {
       )}
 
       {/* OMBRE PROMO BAR */}
- <div style={{background:"linear-gradient(90deg,#F6D9E2 0%,#FBEEF2 25%,#FFFFFF 50%,#FBEEF2 75%,#F6D9E2 100%)",textAlign:"center",padding:"8px",fontSize:11.5,letterSpacing:"1px",color:pc,fontWeight:600,flexShrink:0}}>
+ <div style={{background:pcTint,textAlign:"center",padding:"8px",fontSize:11.5,letterSpacing:"1px",color:pc,fontWeight:600,flexShrink:0}}>
         ✦ &nbsp; {settings.business_name} &nbsp; ✦
  </div>
 
@@ -1538,7 +1538,7 @@ export default function BeautyOS() {
  </p>
  <div style={{width:80,height:2,background:`linear-gradient(90deg,transparent,${pc},transparent)`,margin:"20px auto 0"}}/>
                   {bdToday.length>0&&(
- <div style={{marginTop:16,background:"linear-gradient(90deg,#FBEEF2,#F6D9E2)",borderRadius:14,padding:"9px 16px",fontSize:11.5,color:pc,display:"inline-block",fontWeight:500}}>
+ <div style={{marginTop:16,background:pcTint,borderRadius:14,padding:"9px 16px",fontSize:11.5,color:pc,display:"inline-block",fontWeight:500}}>
                       היום יום הולדת ל{bdToday.map(c=>c.name).join(", ")} — שווה לשלוח ברכה חמה
  </div>
                   )}
@@ -1559,9 +1559,9 @@ export default function BeautyOS() {
  <div style={{background:"#fff",borderRadius:20,padding:"24px 26px",border:"1px solid #EFE7EB",marginBottom:24,maxWidth:1180,marginLeft:"auto",marginRight:"auto",position:"relative",overflow:"hidden"}}>
  <div style={{position:"absolute",top:0,right:0,left:0,height:4,background:pcGrad}}/>
  <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,justifyContent:"center"}}>
- <span style={{width:40,height:1,background:"linear-gradient(90deg,transparent,#E8B5C4)"}}/>
+ <span style={{width:40,height:1,background:"linear-gradient(90deg,transparent,var(--pc))"}}/>
  <h3 className="serif" style={{fontSize:22,fontWeight:600,color:"#2A2A2A"}}>הכנסות 6 חודשים אחרונים</h3>
- <span style={{width:40,height:1,background:"linear-gradient(90deg,#E8B5C4,transparent)"}}/>
+ <span style={{width:40,height:1,background:"linear-gradient(90deg,var(--pc),transparent)"}}/>
  </div>
  <div style={{display:"flex",alignItems:"flex-end",gap:10,height:150,paddingBottom:4}}>
                     {monthlyData.map((m,i)=>{
@@ -1580,9 +1580,9 @@ export default function BeautyOS() {
 
                 {/* SECTION TITLE */}
  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,margin:"0 0 24px"}}>
- <span style={{width:50,height:1,background:"linear-gradient(90deg,transparent,#E8B5C4)"}}/>
+ <span style={{width:50,height:1,background:"linear-gradient(90deg,transparent,var(--pc))"}}/>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"#2A2A2A"}}>היום שלך</h2>
- <span style={{width:50,height:1,background:"linear-gradient(90deg,#E8B5C4,transparent)"}}/>
+ <span style={{width:50,height:1,background:"linear-gradient(90deg,var(--pc),transparent)"}}/>
  </div>
 
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:18,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -1618,7 +1618,7 @@ export default function BeautyOS() {
  <p style={{fontSize:13,fontWeight:600,color:"#2A2A2A"}}>{a.name}</p>
  <p style={{fontSize:10.5,color:"#8A8088",marginTop:1}}>{a.service}</p>
  </div>
- <span style={{fontSize:9.5,padding:"5px 13px",borderRadius:20,fontWeight:500,background:"linear-gradient(90deg,#FBEEF2,#F6D9E2)",color:pc}}>{a.confirmation_status==="confirmed"?"אושר":a.confirmation_status==="cancelled"?"בוטל":"ממתין"}</span>
+ <span style={{fontSize:9.5,padding:"5px 13px",borderRadius:20,fontWeight:500,background:pcTint,color:pc}}>{a.confirmation_status==="confirmed"?"אושר":a.confirmation_status==="cancelled"?"בוטל":"ממתין"}</span>
  </div>
                       ))}
  </div>
@@ -1636,7 +1636,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12.5,fontWeight:600,color:"#2A2A2A"}}>{c.name}</p>
  <p style={{fontSize:10,color:"#8A8088",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
  </div>
-                            {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" style={{fontSize:9.5,padding:"6px 14px",borderRadius:20,fontWeight:500,background:"linear-gradient(90deg,#FBEEF2,#F6D9E2)",color:pc,textDecoration:"none"}}>ברכה</a>}
+                            {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" style={{fontSize:9.5,padding:"6px 14px",borderRadius:20,fontWeight:500,background:pcTint,color:pc,textDecoration:"none"}}>ברכה</a>}
  </div>
                         );
                       })}
@@ -2189,7 +2189,7 @@ export default function BeautyOS() {
  )}
 
  {postStrategy&&!postLoading&&(
- <div style={{background:"linear-gradient(135deg,#FBEEF2,#F6D9E2)",borderRadius:18,padding:"18px 22px",marginBottom:18}}>
+ <div style={{background:pcTint,borderRadius:18,padding:"18px 22px",marginBottom:18}}>
  <p style={{fontSize:11,color:pc,fontWeight:700,marginBottom:6}}>האסטרטגיה של ה-AI</p>
  <p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,marginBottom:8}}>{postStrategy.strategy}</p>
  {postStrategy.keyPoints&&postStrategy.keyPoints.length>0&&(
@@ -2215,7 +2215,7 @@ export default function BeautyOS() {
  <div style={{padding:"20px 22px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
- <span className="serif" style={{fontSize:22,fontWeight:600,color:"#E8B5C4"}}>{i+1}</span>
+ <span className="serif" style={{fontSize:22,fontWeight:600,color:pc}}>{i+1}</span>
  <span style={{fontSize:9,background:"#FBEEF2",color:pc,padding:"3px 10px",borderRadius:20,fontWeight:600}}>{({emotional:"רגשי",educational:"חינוכי",urgency:"דחיפות",social_proof:"המלצות",engaging_question:"שאלה מעוררת"})[v.variationType]||v.variationType}</span>
  </div>
  <button onClick={()=>copyPost(v)} className="primary-btn" style={{padding:"6px 14px",background:pcGrad,color:"#fff",fontSize:10}}>העתיקי</button>
@@ -2282,7 +2282,7 @@ export default function BeautyOS() {
  )}
  {savedCampaigns&&savedCampaigns.length>0&&savedCampaigns.map(c=>(
  <div key={c.id} style={{background:"#fff",borderRadius:18,border:"1px solid #EFE7EB",marginBottom:14,overflow:"hidden"}}>
- <div style={{background:"linear-gradient(90deg,#FBEEF2,#F6D9E2)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+ <div style={{background:pcTint,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
  <div style={{flex:1,minWidth:0}}>
  <p className="serif" style={{fontSize:16,fontWeight:600,color:"#2A2A2A"}}>{c.name||c.goal}</p>
  <p style={{fontSize:10,color:"#8A8088",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
@@ -2568,7 +2568,7 @@ export default function BeautyOS() {
             {/* NOTE */}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לקבלה" rows={2} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
             {/* TOTAL */}
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:"linear-gradient(90deg,#FBEEF2,#F6D9E2)",borderRadius:14,marginBottom:14}}>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:pcTint,borderRadius:14,marginBottom:14}}>
  <span style={{fontSize:12,color:"#8A8088",fontWeight:600}}>סה״כ לתשלום</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{cashierTotal.toLocaleString()}</span>
  </div>
@@ -2966,14 +2966,14 @@ export default function BeautyOS() {
  </div>
  )}
  {SR.clinical_treatment&&(
- <div style={{background:"linear-gradient(135deg,#FBEEF2,#F6D9E2)",borderRadius:14,padding:"12px 16px",marginBottom:12}}>
+ <div style={{background:pcTint,borderRadius:14,padding:"12px 16px",marginBottom:12}}>
  <p style={{fontSize:10,color:"#8A8088",marginBottom:2}}>טיפול מומלץ</p>
  <p style={{fontSize:14,fontWeight:700,color:pc}}>{SR.clinical_treatment}</p>
  {SR.matched_service&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>אצלך: {SR.matched_service}</p>}
  </div>
  )}
  {SR.clinic_plan&&(
- <div style={{background:"#fff",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1.5px solid #E8B5C4"}}>
+ <div style={{background:"#fff",borderRadius:14,padding:"12px 16px",marginBottom:12,border:"1.5px solid #EFE7EB"}}>
  <p style={{fontSize:12,fontWeight:700,color:pc,marginBottom:6}}>✦ תכנית טיפול בקליניקה</p>
  {SR.clinic_plan.treatment_type&&<p style={{fontSize:11.5,color:"#2A2A2A",fontWeight:600,marginBottom:3}}>{SR.clinic_plan.treatment_type}</p>}
  {SR.clinic_plan.sessions&&<p style={{fontSize:11,color:"#6B6B6B",marginBottom:6}}>{SR.clinic_plan.sessions}</p>}
