@@ -144,6 +144,9 @@ export default function BeautyOS() {
   const [showReceipt,       setShowReceipt]        = useState(null);
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
+  const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
+  const [newProtocol,      setNewProtocol]      = useState(emptyProtocol);
+  const [showProtocolModal, setShowProtocolModal] = useState(false);
   const [editingClient,     setEditingClient]      = useState(null);
   const [editingLead,       setEditingLead]        = useState(null);
   const [selectedClient,    setSelectedClient]     = useState(null);
@@ -175,6 +178,8 @@ export default function BeautyOS() {
   const [scansLoading,      setScansLoading]       = useState(false);
   const [viewScan,          setViewScan]           = useState(null);
   const [communityPosts,    setCommunityPosts]     = useState([]);
+  const [protocols,         setProtocols]         = useState([]);
+  const [protocolsLoading,  setProtocolsLoading]   = useState(false);
   const [communityLoading,  setCommunityLoading]   = useState(false);
   const [showPostModal,     setShowPostModal]      = useState(false);
   const [newPost,           setNewPost]            = useState({title:"",body:"",post_type:"update",cta_label:"",image_url:""});
@@ -334,6 +339,7 @@ export default function BeautyOS() {
 
   useEffect(() => {
     if (activeTab === "community") loadCommunityPosts();
+    if (activeTab === "protocols") loadProtocols();
     /* eslint-disable-next-line */
   }, [activeTab]);
 
@@ -884,6 +890,13 @@ export default function BeautyOS() {
     if(data){setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");}
   };
 
+  const handleSaveProtocol = async () => {
+    if(!newProtocol.brand||!newProtocol.name){toast("נא למלא מותג ושם","error");return;}
+    const {data,error}=await supabase.from("treatment_protocols").insert([newProtocol]).select();
+    if(error){handleDbError(error, "save protocol"); return;}
+    if(data){setProtocols(prev=>[data[0],...prev]);setShowProtocolModal(false);setNewProtocol(emptyProtocol);toast("הפרוטוקול נשמר");}
+  };
+
   const handleExportCSV = () => {
     const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום"]];
     receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,r.created_at?.slice(0,10)||"",r.amount,r.payment_method]);});
@@ -1132,6 +1145,18 @@ export default function BeautyOS() {
       setCommunityPosts(data || []);
     } catch { setCommunityPosts([]); }
     finally { setCommunityLoading(false); }
+  };
+  // Load treatment protocols for the current tenant
+  const loadProtocols = async () => {
+    setProtocolsLoading(true);
+    try {
+      const { data } = await supabase
+        .from("treatment_protocols")
+        .select("*")
+        .order("created_at", { ascending: false });
+      setProtocols(data || []);
+    } catch { setProtocols([]); }
+    finally { setProtocolsLoading(false); }
   };
 
   // Upload an image for a community post to the shared bucket
@@ -1432,6 +1457,7 @@ export default function BeautyOS() {
           {id:"campaigns",label:"שיווק"},
           {id:"community",label:"קהילה"},
           {id:"packages", label:"מנויים"},
+          {id:"protocols",label:"פרוטוקולים"},
         ].map(tab=>(
  <button key={tab.id} onClick={()=>setActiveTab(tab.id)} style={{background:"none",border:"none",padding:"14px 14px",fontSize:13,fontWeight:activeTab===tab.id?600:400,color:activeTab===tab.id?"#2A2A2A":"#8A8088",borderBottom:activeTab===tab.id?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",letterSpacing:"0.3px"}}>{tab.label}</button>
         ))}
@@ -2359,6 +2385,46 @@ export default function BeautyOS() {
  </div>
  </>)}
 
+          {/* PROTOCOLS */}
+          {activeTab==="protocols"&&(<>
+            <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
+                <div>
+                  <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#2A2A2A"}}>פרוטוקולי טיפול</h2>
+                  <p style={{fontSize:11.5,color:"#8A8088",marginTop:2}}>ספריית הטיפולים שלך לפי מותג ובעיה.</p>
+                </div>
+                <button onClick={()=>{setNewProtocol(emptyProtocol);setShowProtocolModal(true);}} className="primary-btn" style={{padding:"9px 16px",background:pcGrad,color:"#fff",fontSize:12}}>+ פרוטוקול חדש</button>
+              </div>
+              {protocolsLoading?(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>{[0,1,2].map(i=><div key={i} className="skel" style={{width:"100%",height:74,borderRadius:14}}/>)}</div>
+              ):protocols.length===0?(
+                <div style={{textAlign:"center",padding:"48px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18}}>
+                  <div style={{fontSize:34,marginBottom:10}}>📋</div>
+                  <p style={{fontSize:14,fontWeight:600,color:"#2A2A2A",marginBottom:5}}>עוד אין פרוטוקולים</p>
+                  <p style={{fontSize:11.5,color:"#8A8088"}}>צרי פרוטוקול ראשון כדי לבנות את ספריית הטיפולים שלך.</p>
+                </div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {protocols.map(pr=>(
+                    <div key={pr.id} style={{background:"#fff",borderRadius:14,padding:"13px 15px",border:"1px solid #EFE7EB"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+                        <div>
+                          <span style={{fontSize:9.5,fontWeight:700,color:pc,background:pcTint,padding:"3px 9px",borderRadius:20}}>{pr.brand}</span>
+                          <h3 style={{fontSize:14,fontWeight:700,color:"#2A2A2A",marginTop:6}}>{pr.name}</h3>
+                          {pr.concern&&<p style={{fontSize:11,color:"#8A8088",marginTop:2}}>{pr.concern}</p>}
+                        </div>
+                        <div style={{textAlign:"left",fontSize:10,color:"#8A8088"}}>
+                          {pr.sessions_count?<div>{pr.sessions_count} מפגשים</div>:null}
+                          {pr.price?<div style={{fontWeight:700,color:"#2A2A2A"}}>₪{pr.price}</div>:null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>)}
+
           {/* PACKAGES */}
           {activeTab==="packages"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -2640,6 +2706,30 @@ export default function BeautyOS() {
       )}
 
       {/* WAITLIST MODAL */}
+      {showProtocolModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowProtocolModal(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:18,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
+            <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"#2A2A2A",marginBottom:14}}>פרוטוקול חדש</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <input value={newProtocol.brand} onChange={e=>setNewProtocol({...newProtocol,brand:e.target.value})} placeholder="מותג *" style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              <input value={newProtocol.name} onChange={e=>setNewProtocol({...newProtocol,name:e.target.value})} placeholder="שם הפרוטוקול *" style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              <input value={newProtocol.concern} onChange={e=>setNewProtocol({...newProtocol,concern:e.target.value})} placeholder="בעיה שהפרוטוקול פותר (אקנה, אנטי-אייג׳ינג...)" style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              <input value={newProtocol.frequency} onChange={e=>setNewProtocol({...newProtocol,frequency:e.target.value})} placeholder="תדירות (למשל: אחת לשבועיים)" style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              <div style={{display:"flex",gap:8}}>
+                <div style={{flex:1}}><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>מספר מפגשים</p><input type="number" value={newProtocol.sessions_count} onChange={e=>setNewProtocol({...newProtocol,sessions_count:Number(e.target.value)})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+                <div style={{flex:1}}><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>זמן (דקות)</p><input type="number" value={newProtocol.duration_minutes} onChange={e=>setNewProtocol({...newProtocol,duration_minutes:Number(e.target.value)})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+                <div style={{flex:1}}><p style={{fontSize:9,color:"#8A8088",marginBottom:3}}>מחיר ₪</p><input type="number" value={newProtocol.price} onChange={e=>setNewProtocol({...newProtocol,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+              </div>
+              <textarea value={newProtocol.notes} onChange={e=>setNewProtocol({...newProtocol,notes:e.target.value})} placeholder="הערות / התוויות נגד" rows={2} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
+              <div style={{display:"flex",gap:8,marginTop:4}}>
+                <button onClick={()=>setShowProtocolModal(false)} style={{flex:1,padding:"11px 0",background:"#fff",color:"#6B6B6B",border:"1px solid #EFE7EB",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+                <button onClick={handleSaveProtocol} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>שמירה ✓</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showWaitlistModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowWaitlistModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
