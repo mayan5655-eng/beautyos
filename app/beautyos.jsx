@@ -334,6 +334,13 @@ export default function BeautyOS() {
 
   const loadAll = async () => {
     try {
+      // Get the logged-in user and their tenant, to load the correct settings row
+      const { data: { user } } = await supabase.auth.getUser();
+      let myTenantId = null;
+      if (user) {
+        const { data: tm } = await supabase.from("tenant_members").select("tenant_id").eq("user_id", user.id).maybeSingle();
+        myTenantId = tm?.tenant_id || null;
+      }
       const [a,c,f,l,sv,st,r,pk,wl] = await Promise.all([
         supabase.from("appointments").select("*"),
         supabase.from("clients").select("*"),
@@ -351,7 +358,11 @@ export default function BeautyOS() {
       if(l.data)  setLeads(l.data);
       if(sv.data&&sv.data.length>0) setServices(sv.data);
       if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
-      if(st.data&&st.data.length>0) setSettings(st.data[0]);
+      if(st.data && st.data.length > 0) {
+        // Pick the settings row for this user tenant, not just the first row
+        const myRow = st.data.find(s => s.tenant_id === myTenantId) || st.data[0];
+        setSettings(myRow);
+      }
       if(r.data)  setReceipts(r.data);
       if(pk.data) setPackages(pk.data);
       if(wl.data) setWaitlist(wl.data);
