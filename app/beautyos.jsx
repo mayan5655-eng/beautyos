@@ -182,6 +182,8 @@ export default function BeautyOS() {
   const [protocolsLoading,  setProtocolsLoading]   = useState(false);
   const [communityLoading,  setCommunityLoading]   = useState(false);
   const [showPostModal,     setShowPostModal]      = useState(false);
+  const [designPost,        setDesignPost]         = useState(null);
+  const [designing,         setDesigning]          = useState(false);
   const [newPost,           setNewPost]            = useState({title:"",body:"",post_type:"update",cta_label:"",image_url:""});
   const [postImageUploading, setPostImageUploading] = useState(false);
   const [savingPost,        setSavingPost]         = useState(false);
@@ -1259,6 +1261,29 @@ export default function BeautyOS() {
     }
   };
 
+  // Render the styled post template (DOM node #post-design) to a 1080x1080 PNG
+  const downloadPostImage = async () => {
+    const node = document.getElementById("post-design");
+    if (!node) { toast("התבנית לא נמצאה", "error"); return; }
+    setDesigning(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(node, { backgroundColor: null, scale: 2, useCORS: true });
+      canvas.toBlob((out) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(out);
+        link.download = "beautyos-design-" + Date.now() + ".png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        toast("התמונה המעוצבת הורדה");
+      }, "image/png");
+    } catch (e) {
+      toast("שגיאה ביצירת התמונה", "error");
+    } finally { setDesigning(false); }
+  };
+
   // Save the current generated campaign + posts to the database
   const saveCampaign = async () => {
     if (!postVariations || postVariations.length === 0) return;
@@ -2255,6 +2280,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
  <button onClick={()=>shareToFacebook(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#1877F2",color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>שיתוף לפייסבוק</button>
  <button onClick={()=>copyPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:pc,border:"1px solid #EFE7EB",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת טקסט</button>
+                            <button onClick={()=>setDesignPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:pcGrad,color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🎨 עצבי כתמונה</button>
  {v.image&&v.image.url&&<button onClick={()=>downloadImage(v.image.url,v.variationNumber)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:pc,border:"1px solid #EFE7EB",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הורדת תמונה</button>}
  </div>
  <p style={{fontSize:9,color:"#C9B8C2",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
@@ -2706,6 +2732,23 @@ export default function BeautyOS() {
       )}
 
       {/* WAITLIST MODAL */}
+      {designPost&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14,overflowY:"auto"}} onClick={()=>setDesignPost(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{maxWidth:420,width:"100%"}}>
+            <div id="post-design" style={{width:380,height:380,marginLeft:"auto",marginRight:"auto",background:pcGrad,borderRadius:0,padding:34,display:"flex",flexDirection:"column",justifyContent:"center",position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",top:18,right:22,fontSize:11,color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||"BeautyOS"}</div>
+              {designPost.title&&<div className="serif" style={{fontSize:26,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:14,textShadow:"0 1px 6px rgba(0,0,0,0.18)"}}>{designPost.title}</div>}
+              <div style={{fontSize:14,color:"#fff",lineHeight:1.6,whiteSpace:"pre-wrap",textShadow:"0 1px 4px rgba(0,0,0,0.15)",maxHeight:170,overflow:"hidden"}}>{designPost.body}</div>
+              {designPost.callToAction&&<div style={{marginTop:16,display:"inline-block",alignSelf:"flex-start",background:"#fff",color:"#3A2A30",fontSize:12.5,fontWeight:700,padding:"8px 18px",borderRadius:30}}>{designPost.callToAction}</div>}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:14,maxWidth:380,marginLeft:"auto",marginRight:"auto"}}>
+              <button onClick={()=>setDesignPost(null)} style={{flex:1,padding:"12px 0",background:"#fff",color:"#6B6B6B",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סגירה</button>
+              <button onClick={downloadPostImage} disabled={designing} style={{flex:2,padding:"12px 0",background:"#2A2A2A",color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:designing?0.6:1}}>{designing?"מייצר...":"⬇ הורדת תמונה"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showProtocolModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowProtocolModal(false)}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:18,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
