@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import PostDesigner from './PostDesigner'
 
 type Campaign = {
   id: string
@@ -27,9 +28,16 @@ type Post = {
   variation_type: string
 }
 
-export default function CampaignClient({ campaign, posts }: { campaign: Campaign; posts: Post[] }) {
+export default function CampaignClient({ campaign, posts, settings }: { campaign: Campaign; posts: Post[]; settings: any }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  // Currently selected post to open in the designer modal (null = closed)
+  const [designPost, setDesignPost] = useState<Post | null>(null)
+
+  // Business branding pulled from settings (with safe fallbacks)
+  const primaryColor = settings?.primary_color || '#C77B92'
+  const businessName = settings?.business_name || 'BeautyOS'
+  const businessPhone = settings?.business_phone || ''
 
   const copyPost = (post: Post) => {
     const text = `${post.title}\n\n${post.body}\n\n${post.call_to_action}\n\n${post.hashtags?.join(' ') || ''}`
@@ -174,12 +182,20 @@ export default function CampaignClient({ campaign, posts }: { campaign: Campaign
                     </p>
                   </div>
                 )}
-                <button
-                  onClick={() => copyPost(post)}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl hover:scale-105 transition shadow-md"
-                >
-                  📋 העתק פוסט
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={() => copyPost(post)}
+                    className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl hover:scale-105 transition shadow-md"
+                  >
+                    📋 העתק פוסט
+                  </button>
+                  <button
+                    onClick={() => setDesignPost(post)}
+                    className="w-full py-3 bg-white border-2 border-purple-300 text-purple-700 font-bold rounded-xl hover:bg-purple-50 transition shadow-md"
+                  >
+                    🎨 צור פוסט מעוצב
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -191,6 +207,17 @@ export default function CampaignClient({ campaign, posts }: { campaign: Campaign
           <div className="text-6xl mb-4">📝</div>
           <p className="text-gray-600 text-lg">אין פוסטים בקמפיין הזה</p>
         </div>
+      )}
+
+      {/* Designed-post modal */}
+      {designPost && (
+        <PostDesigner
+          post={designPost}
+          primaryColor={primaryColor}
+          businessName={businessName}
+          phone={businessPhone}
+          onClose={() => setDesignPost(null)}
+        />
       )}
     </div>
   )

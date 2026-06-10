@@ -34,9 +34,18 @@ export default async function CampaignPage({
     .eq('campaign_id', id)
     .order('variation_number', { ascending: true })
 
+  // Load this tenant's settings (business color, name, phone for the designed post)
+  const { data: settingsRows } = await supabase
+    .from('settings')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .limit(1)
+
+  const settings = settingsRows && settingsRows.length > 0 ? settingsRows[0] : null
+
   return (
     <div dir="rtl">
-      <CampaignClient campaign={campaign} posts={posts || []} />
+      <CampaignClient campaign={campaign} posts={posts || []} settings={settings} />
     </div>
   )
 }
