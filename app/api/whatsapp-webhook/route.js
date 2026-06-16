@@ -2,10 +2,7 @@
 // Receives incoming WhatsApp messages from GreenAPI, generates a smart Hebrew
 // reply with the AI (scoped to the correct tenant), and sends it back.
 //
-// The AI logic is INLINE here (no internal fetch) so it can't fail on a bad
-// internal URL — this is more reliable and faster.
-//
-// MULTI-TENANT: each cosmetician will connect her own GreenAPI instance.
+// MULTI-TENANT: each cosmetician connects her own GreenAPI instance.
 // We resolve the tenant from instanceData.idInstance (settings.green_api_instance);
 // until she connects her own, we fall back to the default tenant.
 
@@ -23,6 +20,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
 const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
 
+// Extract the text body from a GreenAPI message payload
 function extractText(messageData) {
   if (!messageData) return "";
   const t = messageData.typeMessage;
@@ -32,6 +30,7 @@ function extractText(messageData) {
   return "";
 }
 
+// Convert a GreenAPI chatId back to an Israeli phone number
 function senderToPhone(chatId) {
   const digits = (chatId || "").replace(/@c\.us$/, "").replace(/\D/g, "");
   if (digits.startsWith("972")) return "0" + digits.slice(3);
@@ -40,8 +39,6 @@ function senderToPhone(chatId) {
 
 // Decide whether the bot should reply right now, based on the tenant's
 // settings: bot_active (master switch) and bot_mode ("always" or "after_hours").
-// In "after_hours" mode the bot stays quiet during working hours/days so the
-// cosmetician can answer herself, and answers only when she's off.
 async function shouldBotReply(tenantId) {
   let s = {};
   try {
@@ -55,7 +52,6 @@ async function shouldBotReply(tenantId) {
   } catch (e) {
     console.log("BOT_SETTINGS_EXCEPTION", e.message);
   }
-  console.log("BOT_SETTINGS", { bot_active: s.bot_active, bot_mode: s.bot_mode });
 
   // Master switch off -> never reply
   if (s.bot_active === false) return false;
@@ -88,8 +84,7 @@ async function shouldBotReply(tenantId) {
 
   return true;
 }
-
-// Generate the AI reply directly (no network hop)
+// Generate the AI reply directly (no network hop) - faster and more reliable
 async function generateReply({ message, clientName, tenantId }) {
   const [settingsRes, servicesRes] = await Promise.all([
     supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
@@ -123,10 +118,11 @@ ${servicesText}
 
 כללים:
 1. דברי תמיד בעברית, בנימה חמה ומקצועית (לא רובוטית).
-2. תשובות קצרות — משפט עד שלושה. זה וואטסאפ.
-3. כשלקוחה רוצה לקבוע תור או שואלת על זמינות, הפני אותה לקישור הקביעה: ${bookUrl}
+2. תשובות קצרות — עד שלושה משפטים. זה וואטסאפ, לא אימייל.
+3. כשלקוחה רוצה לקבוע תור, או שואלת על זמינות/תורים, הפני אותה לקישור הקביעה: ${bookUrl}
 4. אל תמציאי מחיר או טיפול — עני רק לפי הרשימה למעלה.
-5. אם אינך יודעת משהו, אמרי שתעבירי את הפנייה למטפלת.`;
+5. אם אינך יודעת משהו, אמרי שתעבירי את הפנייה למטפלת, ואל תמציאי.
+6. כדי לקבוע תור — תמיד הפני לקישור הקביעה.`;
 
   const aiResponse = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
@@ -164,9 +160,7 @@ export async function POST(request) {
       return Response.json({ ok: true, ignored: "no text" });
     }
 
-    // Resolve tenant from the instance that received the message.
-    // If the green_api_instance column is missing or the lookup errors,
-    // we keep the fallback tenant (single-tenant safe).
+    // Resolve tenant from the instance that received the message
     let tenantId = FALLBACK_TENANT_ID;
     if (idInstance) {
       try {
@@ -183,7 +177,6 @@ export async function POST(request) {
 
     // Respect the tenant's bot on/off switch and active hours
     const active = await shouldBotReply(tenantId);
-    console.log("BOT_DECISION", { tenantId, active });
     if (!active) {
       return Response.json({ ok: true, botOff: true });
     }
