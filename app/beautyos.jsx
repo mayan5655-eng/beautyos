@@ -175,6 +175,8 @@ export default function BeautyOS() {
   const [scanLoading,       setScanLoading]        = useState(false);
   const [scanReport,        setScanReport]         = useState(null);
   const [clientScans,       setClientScans]        = useState([]);
+  const [clientPhotos,      setClientPhotos]       = useState([]);
+  const [photoUploading,    setPhotoUploading]     = useState(false);
   const [scansLoading,      setScansLoading]       = useState(false);
   const [viewScan,          setViewScan]           = useState(null);
   const [communityPosts,    setCommunityPosts]     = useState([]);
@@ -327,8 +329,8 @@ export default function BeautyOS() {
 
   // Load skin-scan history whenever a client card is opened
   useEffect(() => {
-    if (selectedClient?.id) loadClientScans(selectedClient.id);
-    else setClientScans([]);
+   if (selectedClient?.id) { loadClientScans(selectedClient.id); loadClientPhotos(selectedClient.id); }
+    else { setClientScans([]); setClientPhotos([]); }
     /* eslint-disable-next-line */
   }, [selectedClient?.id]);
 
@@ -986,8 +988,53 @@ export default function BeautyOS() {
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
       setClientScans(data || []);
-    } catch { setClientScans([]); }
+} catch { setClientScans([]); }
     finally { setScansLoading(false); }
+  };
+
+  // Load all before/after photos for a client (newest first)
+  const loadClientPhotos = async (clientId) => {
+    try {
+      const { data } = await supabase
+        .from("client_photos")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false });
+setClientPhotos(data || []);
+    } catch { setClientPhotos([]); }
+  };
+
+  // Upload a before/after photo pair for a client
+  const uploadClientPhoto = async (beforeFile, afterFile, treatment, note, clientId) => {
+    if (!beforeFile && !afterFile) { toast("בחרי לפחות תמונה אחת", "error"); return; }
+    setPhotoUploading(true);
+    try {
+      let beforeUrl = null, afterUrl = null;
+      if (beforeFile) {
+        const { blob } = await compressImage(beforeFile, 1280, 0.82);
+        const fn = `photos/${clientId}/before-${Date.now()}.jpg`;
+        await supabase.storage.from("client-images").upload(fn, blob, { contentType: "image/jpeg" });
+        beforeUrl = supabase.storage.from("client-images").getPublicUrl(fn).data.publicUrl;
+      }
+      if (afterFile) {
+        const { blob } = await compressImage(afterFile, 1280, 0.82);
+        const fn = `photos/${clientId}/after-${Date.now()}.jpg`;
+        await supabase.storage.from("client-images").upload(fn, blob, { contentType: "image/jpeg" });
+        afterUrl = supabase.storage.from("client-images").getPublicUrl(fn).data.publicUrl;
+      }
+      const { error } = await supabase.from("client_photos").insert([{
+       tenant_id: settings.tenant_id,
+        client_id: clientId,
+        before_url: beforeUrl,
+        after_url: afterUrl,
+        treatment: treatment || null,
+        note: note || null,
+      }]);
+      if (error) { handleDbError(error, "save client photo"); return; }
+      toast("התמונות נשמרו");
+      loadClientPhotos(clientId);
+    } catch { toast("שגיאה בהעלאת התמונות", "error"); }
+    finally { setPhotoUploading(false); }
   };
 
   // Scan a client's skin: analyze with AI, store the image, and save the full
@@ -2987,8 +3034,8 @@ export default function BeautyOS() {
 
                 {/* TABS */}
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid #EFE7EB",overflowX:"auto"}}>
-                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#2A2A2A":"#8A8088",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
+{[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
+                  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#2A2A2A":"#8A8088",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -3066,10 +3113,51 @@ export default function BeautyOS() {
  </>}
  </div>
                   )}
+                {clientTab==="beforeafter"&&(
+ <div>
+ {(()=>{
+ let beforeFile=null, afterFile=null, taVal="", noteVal="";
+ return(
+ <div style={{background:pcTint,borderRadius:12,padding:"12px",marginBottom:14}}>
+ <p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:8}}>הוספת תמונות לפני/אחרי</p>
+ <div style={{display:"flex",gap:8,marginBottom:8}}>
+ <label style={{flex:1,padding:"22px 0",background:"#fff",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:10.5,color:pc,cursor:"pointer"}} id="ba-before-lbl">
+ לפני
+ <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{beforeFile=e.target.files?.[0]||null;const l=document.getElementById("ba-before-lbl");if(l&&beforeFile)l.style.borderStyle="solid";}}/>
+ </label>
+ <label style={{flex:1,padding:"22px 0",background:"#fff",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:10.5,color:pc,cursor:"pointer"}} id="ba-after-lbl">
+ אחרי
+ <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{afterFile=e.target.files?.[0]||null;const l=document.getElementById("ba-after-lbl");if(l&&afterFile)l.style.borderStyle="solid";}}/>
+ </label>
+ </div>
+ <input placeholder="שם הטיפול (לא חובה)" onChange={e=>{taVal=e.target.value;}} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",marginBottom:6,boxSizing:"border-box"}}/>
+ <input placeholder="הערה (לא חובה)" onChange={e=>{noteVal=e.target.value;}} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",marginBottom:8,boxSizing:"border-box"}}/>
+ <button disabled={photoUploading} onClick={()=>uploadClientPhoto(beforeFile,afterFile,taVal,noteVal,c.id)} className="primary-btn" style={{width:"100%",padding:"10px 0",background:pcGrad,color:"#fff",fontSize:12}}>{photoUploading?"מעלה...":"שמירת התמונות"}</button>
+ </div>
+ );
+ })()}
+ {clientPhotos.length===0?<p style={{fontSize:10,color:"#C9B8C2",textAlign:"center",marginTop:8}}>אין תמונות לפני/אחרי עדיין</p>
+ :clientPhotos.map(ph=>(
+ <div key={ph.id} style={{background:"#fff",border:"1px solid #EFE7EB",borderRadius:12,padding:"10px",marginBottom:8}}>
+ {(ph.treatment||ph.note)&&<p style={{fontSize:10.5,fontWeight:600,color:"#2A2A2A",marginBottom:6}}>{ph.treatment}{ph.treatment&&ph.note?" · ":""}<span style={{fontWeight:400,color:"#8A8088"}}>{ph.note}</span></p>}
+ <div style={{display:"flex",gap:6}}>
+ <div style={{flex:1,textAlign:"center"}}>
+ <p style={{fontSize:8.5,color:"#8A8088",marginBottom:3}}>לפני</p>
+ {ph.before_url?<img alt="" src={ph.before_url} style={{width:"100%",borderRadius:8,display:"block"}}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#C9B8C2"}}>—</div>}
+ </div>
+ <div style={{flex:1,textAlign:"center"}}>
+ <p style={{fontSize:8.5,color:"#8A8088",marginBottom:3}}>אחרי</p>
+ {ph.after_url?<img alt="" src={ph.after_url} style={{width:"100%",borderRadius:8,display:"block"}}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#C9B8C2"}}>—</div>}
+ </div>
+ </div>
+ <p style={{fontSize:8,color:"#C9B8C2",marginTop:5,textAlign:"left"}}>{new Date(ph.created_at).toLocaleDateString("he-IL")}</p>
+ </div>
+ ))}
+ </div>
+                  )}
                   {clientTab==="images"&&(
  <div>
- <label style={{display:"block",background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"14px 0",textAlign:"center",fontSize:11,color:pc,cursor:"pointer",marginBottom:10}}>
-                        {uploading?"מעלה...":"העלי תמונה"}
+ <label style={{display:"block",background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"14px 0",textAlign:"center",fontSize:11,color:pc,cursor:"pointer",marginBottom:10}}> {uploading?"מעלה...":"העלי תמונה"}
  <input type="file" accept="image/*" onChange={e=>handleUploadImage(e,c)} style={{display:"none"}} disabled={uploading}/>
  </label>
  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
