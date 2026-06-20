@@ -168,7 +168,12 @@ export default function BeautyOS() {
   const [groupsError,    setGroupsError]    = useState(null);
   const [savedCampaigns, setSavedCampaigns] = useState(null);
   const [savingCampaign, setSavingCampaign] = useState(false);
-  const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved
+  const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
+  // AI reel generator
+  const [reelTopic,   setReelTopic]   = useState("");
+  const [reelData,    setReelData]    = useState(null);
+  const [reelLoading, setReelLoading] = useState(false);
+  const [reelError,   setReelError]   = useState(null);
   const [marketingView,  setMarketingView]  = useState("campaigns"); // campaigns | ai
   const [activeTab,         setActiveTab]          = useState("dashboard");
   const [clientTab,         setClientTab]          = useState("info");
@@ -988,7 +993,7 @@ export default function BeautyOS() {
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
       setClientScans(data || []);
-} catch { setClientScans([]); }
+    } catch { setClientScans([]); }
     finally { setScansLoading(false); }
   };
 
@@ -1000,7 +1005,7 @@ export default function BeautyOS() {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
-setClientPhotos(data || []);
+      setClientPhotos(data || []);
     } catch { setClientPhotos([]); }
   };
 
@@ -1145,6 +1150,29 @@ setClientPhotos(data || []);
       setPostError(err.message);
     } finally {
       setPostLoading(false);
+    }
+  };
+
+  const generateReel = async () => {
+    if (!reelTopic.trim()) { toast("כתבי נושא לרילס", "error"); return; }
+    if (reelLoading) return;
+    setReelLoading(true); setReelError(null); setReelData(null);
+    try {
+      const res = await fetch("/api/marketing/reel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: reelTopic.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.reel) {
+        setReelData(data.reel);
+      } else {
+        setReelError(data.error || "יצירת הרילס נכשלה");
+      }
+    } catch (err) {
+      setReelError(err.message);
+    } finally {
+      setReelLoading(false);
     }
   };
 
@@ -2129,15 +2157,12 @@ setClientPhotos(data || []);
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#2A2A2A",marginBottom:16}}>שיווק</h2>
 
- {/* INNER SUB-TABS */}
  <div style={{display:"flex",gap:6,marginBottom:18}}>
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:12,background:marketingView==="campaigns"?pcGrad:"#fff",color:marketingView==="campaigns"?"#fff":"#8A8088",border:marketingView==="campaigns"?"none":"1px solid #EFE7EB"}}>קמפיינים בפייסבוק</button>
  <button onClick={()=>{setMarketingView("ai");if(savedCampaigns===null)loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 18px",fontSize:12,background:marketingView==="ai"?pcGrad:"#fff",color:marketingView==="ai"?"#fff":"#8A8088",border:marketingView==="ai"?"none":"1px solid #EFE7EB"}}>תוכן AI</button>
  </div>
 
  {marketingView==="campaigns"&&(<>
-
- {/* FACEBOOK LIVE CAMPAIGNS */}
  <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #EFE7EB",marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
  <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"#2A2A2A"}}>קמפיינים בפייסבוק ואינסטגרם</h3>
@@ -2252,23 +2277,22 @@ setClientPhotos(data || []);
 
  {marketingView==="ai"&&(<>
  <div style={{textAlign:"center",marginBottom:18}}>
- <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"#2A2A2A",marginBottom:6}}>תוכן AI לפוסטים</h2>
- <p style={{fontSize:12.5,color:"#8A8088"}}>כתבי מה תרצי לפרסם, וקבלי 5 פוסטים מוכנים לפייסבוק ואינסטגרם</p>
+ <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"#2A2A2A",marginBottom:6}}>תוכן AI</h2>
+ <p style={{fontSize:12.5,color:"#8A8088"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
  </div>
 
- {/* VIEW TOGGLE */}
- <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:22}}>
+ <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:22,flexWrap:"wrap"}}>
  <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="create"?pcGrad:"#fff",color:aiPostsView==="create"?"#fff":"#8A8088",border:aiPostsView==="create"?"none":"1px solid #EFE7EB"}}>יצירת פוסטים</button>
  <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="saved"?pcGrad:"#fff",color:aiPostsView==="saved"?"#fff":"#8A8088",border:aiPostsView==="saved"?"none":"1px solid #EFE7EB"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
+ <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="reels"?pcGrad:"#fff",color:aiPostsView==="reels"?"#fff":"#8A8088",border:aiPostsView==="reels"?"none":"1px solid #EFE7EB"}}>🎬 רילסים</button>
  </div>
 
  {aiPostsView==="create"&&(<>
-
  <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #EFE7EB",marginBottom:18,position:"relative",overflow:"hidden"}}>
  <div style={{position:"absolute",top:0,right:0,left:0,height:4,background:pcGrad}}/>
  <p style={{fontSize:11,color:"#8A8088",fontWeight:600,marginBottom:8}}>מה תרצי לפרסם?</p>
  <textarea value={postGoal} onChange={e=>setPostGoal(e.target.value)} rows={3}
- placeholder="לדוגמה: מבצע על טיפולי פנים לחודש הקרוב / להחזיר לקוחות שלא הגיעו מזמן / לפרסם טיפול חדש של הסרת שיער בלייזר"
+ placeholder="לדוגמה: מבצע על טיפולי פנים לחודש הקרוב / להחזיר לקוחות שלא הגיעו מזמן"
  style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:12}}/>
  <button onClick={generatePosts} disabled={postLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"#fff",fontSize:14}}>
  {postLoading?"יוצרת פוסטים... ✦":"✦ צרי לי 5 פוסטים"}
@@ -2328,7 +2352,7 @@ setClientPhotos(data || []);
  <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
  <button onClick={()=>shareToFacebook(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#1877F2",color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>שיתוף לפייסבוק</button>
  <button onClick={()=>copyPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:pc,border:"1px solid #EFE7EB",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת טקסט</button>
-                            <button onClick={()=>setDesignPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:pcGrad,color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🎨 עצבי כתמונה</button>
+ <button onClick={()=>setDesignPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:pcGrad,color:"#fff",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🎨 עצבי כתמונה</button>
  {v.image&&v.image.url&&<button onClick={()=>downloadImage(v.image.url,v.variationNumber)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#fff",color:pc,border:"1px solid #EFE7EB",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הורדת תמונה</button>}
  </div>
  <p style={{fontSize:9,color:"#C9B8C2",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
@@ -2346,7 +2370,6 @@ setClientPhotos(data || []);
  </button>
  )}
 
- {/* FACEBOOK GROUPS SECTION */}
  <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #EFE7EB",marginTop:24,position:"relative",overflow:"hidden"}}>
  <div style={{position:"absolute",top:0,right:0,left:0,height:4,background:pcGrad}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
@@ -2354,9 +2377,7 @@ setClientPhotos(data || []);
  <button onClick={loadGroups} disabled={groupsLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"#fff",fontSize:11}}>{groupsLoading?"מחפשת...":groups===null?"הציעי לי קבוצות":"רענני"}</button>
  </div>
  <p style={{fontSize:11,color:"#8A8088",marginBottom:groups?14:0}}>קבוצות שכדאי לחפש ולהצטרף אליהן כדי לפרסם בהן</p>
-
  {groupsError&&<p style={{fontSize:11,color:pc,fontWeight:600,marginTop:10}}>{groupsError}</p>}
-
  {groups&&groups.length>0&&groups.map((g,i)=>(
  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 0",borderBottom:i<groups.length-1?"1px solid #F7F0F3":"none"}}>
  <div style={{flex:1,minWidth:0}}>
@@ -2406,11 +2427,83 @@ setClientPhotos(data || []);
  </div>
  ))}
  </>)}
+
+ {aiPostsView==="reels"&&(<>
+ <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #EFE7EB",marginBottom:18,position:"relative",overflow:"hidden"}}>
+ <div style={{position:"absolute",top:0,right:0,left:0,height:4,background:pcGrad}}/>
+ <p style={{fontSize:11,color:"#8A8088",fontWeight:600,marginBottom:8}}>על מה הרילס?</p>
+ <textarea value={reelTopic} onChange={e=>setReelTopic(e.target.value)} rows={3}
+ placeholder="לדוגמה: טיפול פנים לכלות / 3 טיפים לעור זוהר / למה כדאי לעשות פילינג באביב"
+ style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:12}}/>
+ <button onClick={generateReel} disabled={reelLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"#fff",fontSize:14}}>
+ {reelLoading?"יוצרת רילס... 🎬":"🎬 צרי לי רילס"}
+ </button>
+ </div>
+
+ {reelError&&(
+ <div style={{background:"#FFFAF7",border:"1px solid #FFDAC1",borderRadius:14,padding:"12px 16px",marginBottom:16}}>
+ <p style={{fontSize:11.5,color:pc,fontWeight:600}}>{reelError}</p>
+ </div>
+ )}
+
+ {reelLoading&&(
+ <div style={{textAlign:"center",padding:"30px 0"}}>
+ <p style={{fontSize:13,color:pc,fontWeight:500}}>ה-AI כותב לך תסריט, הוראות צילום והכל... רגע אחד 🎬</p>
+ </div>
+ )}
+
+ {reelData&&!reelLoading&&(<div className="fade-in">
+ <div style={{background:pcGrad,borderRadius:18,padding:"20px 22px",marginBottom:14,color:"#fff",textAlign:"center"}}>
+ <p style={{fontSize:10,opacity:0.85,fontWeight:600,marginBottom:4}}>כותרת לכריכה</p>
+ <p className="serif" style={{fontSize:24,fontWeight:700,marginBottom:8}}>{reelData.cover_title}</p>
+ <p style={{fontSize:12,opacity:0.95}}>{reelData.hook}</p>
+ </div>
+
+ <button onClick={()=>{
+   const lines=[];
+   if(reelData.cover_title)lines.push("כותרת: "+reelData.cover_title);
+   if(reelData.hook)lines.push("פתיחה: "+reelData.hook);
+   lines.push("");
+   (reelData.scenes||[]).forEach((sc,i)=>{
+     lines.push("סצנה "+(sc.scene_number||i+1)+(sc.seconds?" ("+sc.seconds+" שניות)":""));
+     if(sc.spoken)lines.push("🗣️ "+sc.spoken);
+     if(sc.on_screen_text)lines.push("📱 "+sc.on_screen_text);
+     if(sc.filming)lines.push("🎥 "+sc.filming);
+     lines.push("");
+   });
+   if(reelData.call_to_action)lines.push("📣 "+reelData.call_to_action);
+   if(reelData.caption)lines.push("","תיאור: "+reelData.caption);
+   if(reelData.hashtags&&reelData.hashtags.length>0)lines.push(reelData.hashtags.join(" "));
+   if(reelData.music_vibe)lines.push("","🎵 "+reelData.music_vibe);
+   navigator.clipboard.writeText(lines.join("\n")).then(()=>toast("הרילס המלא הועתק")).catch(()=>toast("לא ניתן להעתיק","error"));
+ }} className="primary-btn" style={{width:"100%",padding:"11px 0",background:"#fff",color:pc,border:`1.5px solid ${pc}`,fontSize:12.5,marginBottom:14}}>📋 העתיקי את כל הרילס</button>
+
+ {reelData.scenes&&reelData.scenes.length>0&&reelData.scenes.map((sc,i)=>(
+ <div key={i} style={{background:"#fff",borderRadius:16,border:"1px solid #EFE7EB",padding:"16px 18px",marginBottom:10,position:"relative",overflow:"hidden"}}>
+ <div style={{position:"absolute",top:0,right:0,width:4,bottom:0,background:pcGrad}}/>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+ <span className="serif" style={{fontSize:20,fontWeight:700,color:pc}}>{sc.scene_number||i+1}</span>
+ <span style={{fontSize:9,background:pcTint,color:pc,padding:"3px 10px",borderRadius:20,fontWeight:600}}>סצנה{sc.seconds?` · ${sc.seconds} שניות`:""}</span>
+ </div>
+ <p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:2}}>🗣️ מה אומרים</p>
+ <p style={{fontSize:13,color:"#3A2A30",lineHeight:1.6,marginBottom:8}}>{sc.spoken}</p>
+ {sc.on_screen_text&&(<><p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:2}}>📱 טקסט על המסך</p><p style={{fontSize:12,color:"#3A2A30",lineHeight:1.5,marginBottom:8}}>{sc.on_screen_text}</p></>)}
+ {sc.filming&&(<><p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:2}}>🎥 איך לצלם</p><p style={{fontSize:12,color:"#6B6B6B",lineHeight:1.5}}>{sc.filming}</p></>)}
+ </div>
+ ))}
+
+ {reelData.call_to_action&&(<div style={{background:pcTint,borderRadius:14,padding:"14px 18px",marginBottom:10}}><p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:3}}>📣 קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:13,color:pc,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
+
+ {reelData.caption&&(<div style={{background:"#fff",borderRadius:14,border:"1px solid #EFE7EB",padding:"14px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:10,color:"#8A8088",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"#fff",fontSize:9}}>העתיקי</button></div><p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"#8A8088",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
+
+ {reelData.music_vibe&&(<div style={{background:"#fff",borderRadius:14,border:"1px solid #EFE7EB",padding:"12px 18px",marginBottom:10}}><p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"#3A2A30"}}>{reelData.music_vibe}</p></div>)}
+ </div>)}
+ </>)}
  </>)}
  </div>
  </>)}
 
-          {/* COMMUNITY — clients feed for this tenant */}
+          {/* COMMUNITY */}
           {activeTab==="community"&&(<>
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
@@ -2653,7 +2746,6 @@ setClientPhotos(data || []);
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowCashier(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:420,maxWidth:"100%",maxHeight:"92vh",overflowY:"auto"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#2A2A2A",marginBottom:14}}>קופה — תשלום חדש</h3>
-            {/* CLIENT SEARCH */}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"#4CAF50":"#EFE7EB"}`,borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"#F3FFF6":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
@@ -2666,7 +2758,6 @@ setClientPhotos(data || []);
  </div>
               )}
  </div>
-            {/* ITEMS */}
  <div style={{marginBottom:10}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
  <p style={{fontSize:10,color:"#8A8088",fontWeight:600}}>פריטים</p>
@@ -2685,19 +2776,16 @@ setClientPhotos(data || []);
  </div>
                 ))}
  </div>
-            {/* DISCOUNT */}
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
  <p style={{fontSize:11,color:"#8A8088",flex:1}}>הנחה (₪)</p>
  <input type="number" value={cashierDiscount||""} onChange={e=>setCashierDiscount(e.target.value)} placeholder="0" style={{width:80,border:"1px solid #EFE7EB",borderRadius:10,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
-            {/* PAYMENT METHOD */}
  <p style={{fontSize:10,color:"#8A8088",fontWeight:600,marginBottom:5}}>אמצעי תשלום</p>
  <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
               {PAYMENT_METHODS.map(pm=>(
  <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"#EFE7EB",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"#fff":"#6B6B6B",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
               ))}
  </div>
-            {/* BIT/PAYBOX/TRANSFER PAYMENT REQUEST BOX */}
             {["ביט","פייבוקס","העברה"].includes(paymentMethod)&&cashierClient?.phone&&(
  <div style={{background:"#F3E5F5",borderRadius:12,padding:"10px 12px",marginBottom:10}}>
  <p style={{fontSize:10,color:"#7B1FA2",fontWeight:600,marginBottom:6}}>שלחי בקשת תשלום ב-{paymentMethod}</p>
@@ -2705,9 +2793,7 @@ setClientPhotos(data || []);
                   className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:10}}>שלחי בקשת תשלום</a>
  </div>
             )}
-            {/* NOTE */}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לקבלה" rows={2} style={{width:"100%",border:"1px solid #EFE7EB",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
-            {/* TOTAL */}
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:pcTint,borderRadius:14,marginBottom:14}}>
  <span style={{fontSize:12,color:"#8A8088",fontWeight:600}}>סה״כ לתשלום</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{cashierTotal.toLocaleString()}</span>
@@ -2779,7 +2865,7 @@ setClientPhotos(data || []);
  </div>
       )}
 
-      {/* WAITLIST MODAL */}
+      {/* POST DESIGN MODAL */}
       {designPost&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14,overflowY:"auto"}} onClick={()=>setDesignPost(null)}>
           <div onClick={e=>e.stopPropagation()} style={{maxWidth:420,width:"100%"}}>
@@ -2806,6 +2892,7 @@ setClientPhotos(data || []);
         </div>
       )}
 
+      {/* PROTOCOL MODAL */}
       {showProtocolModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowProtocolModal(false)}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:18,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
@@ -2830,6 +2917,7 @@ setClientPhotos(data || []);
         </div>
       )}
 
+      {/* WAITLIST MODAL */}
       {showWaitlistModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowWaitlistModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
@@ -2848,7 +2936,7 @@ setClientPhotos(data || []);
  </div>
       )}
 
-      {/* SETTINGS MODAL */}
+      {/* COMMUNITY POST MODAL */}
       {showPostModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={()=>setShowPostModal(false)}>
  <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto",padding:"22px"}}>
@@ -2885,6 +2973,7 @@ setClientPhotos(data || []);
  </div>
       )}
 
+      {/* SETTINGS MODAL */}
       {showSettings&&editSettings&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
@@ -3011,7 +3100,6 @@ setClientPhotos(data || []);
  </label>
  </div>
 
-                {/* INSIGHTS */}
                 {(()=>{
                   const insights=[];
                   if(days>90)insights.push({icon:"",text:`לא ביקרה ${days} ימים — שווה הודעת התחדשות`,color:"#5580C4"});
@@ -3032,10 +3120,9 @@ setClientPhotos(data || []);
                   );
                 })()}
 
-                {/* TABS */}
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid #EFE7EB",overflowX:"auto"}}>
-{[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
-                  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#2A2A2A":"#8A8088",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
+                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#2A2A2A":"#8A8088",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
                   ))}
  </div>
 
