@@ -60,7 +60,7 @@ async function buildBusinessSnapshot(
       supabase.from('leads').select('status').eq('tenant_id', tenantId),
     ])
 
-  const settings = settingsRes.data?.[0] || {}
+  const settings: any = settingsRes.data?.[0] || {}
   const services = (servicesRes.data || []).filter((s: any) => s.active !== false)
   const clients = clientsRes.data || []
   const appts = apptsRes.data || []
