@@ -18,7 +18,6 @@ const supabase = createClient(
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
-const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
 
 // Extract the text body from a GreenAPI message payload
 function extractText(messageData) {
@@ -160,8 +159,10 @@ export async function POST(request) {
       return Response.json({ ok: true, ignored: "no text" });
     }
 
-    // Resolve tenant from the instance that received the message
-    let tenantId = FALLBACK_TENANT_ID;
+    // Resolve tenant strictly from the GreenAPI instance that received the
+    // message. We never fall back to a default tenant - replying under the
+    // wrong business would leak/derail another cosmetician's conversation.
+    let tenantId = null;
     if (idInstance) {
       try {
         const { data, error } = await supabase
@@ -172,7 +173,13 @@ export async function POST(request) {
         if (!error && data && data.length > 0 && data[0].tenant_id) {
           tenantId = data[0].tenant_id;
         }
-      } catch (_) { /* keep fallback */ }
+      } catch (_) { /* no tenant -> skip below */ }
+    }
+
+    // Unknown instance / no matching tenant: acknowledge the webhook (so it is
+    // not retried) but do NOT reply under anyone else's account.
+    if (!tenantId) {
+      return Response.json({ ok: true, ignored: "unknown tenant" });
     }
 
     // Respect the tenant's bot on/off switch and active hours

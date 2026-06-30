@@ -57,23 +57,25 @@ export async function POST(request) {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get("dryRun") === "1";
 
-    // Load all business names once: tenant_id -> business_name
+    // Load all business names + review links once, keyed by tenant_id
     const { data: settingsRows } = await supabase
       .from("settings")
-      .select("tenant_id, business_name");
+      .select("tenant_id, business_name, review_url");
     const businessNameByTenant = {};
+    const reviewUrlByTenant = {};
     (settingsRows || []).forEach((row) => {
       businessNameByTenant[row.tenant_id] = row.business_name || "BeautyOS";
+      if (row.review_url) reviewUrlByTenant[row.tenant_id] = row.review_url;
     });
 
-    // Load all clients once (we need phone + tenant + id)
+    // Load all clients once (we need phone + tenant + id + birthday)
     const { data: clients } = await supabase
       .from("clients")
-      .select("id, name, phone, tenant_id");
+      .select("id, name, phone, tenant_id, birthday");
     const clientById = {};
     (clients || []).forEach((c) => { clientById[c.id] = c; });
 
-    const results = { winback: [], package_done: [], review: [] };
+    const results = { winback: [], package_done: [], review: [], birthday: [] };
 
     // Helper: send (or preview) one reminder + log it
     async function handleReminder(client, type, referenceId, message) {
@@ -160,12 +162,51 @@ export async function POST(request) {
       const client = clientById[appt.client_id];
       if (!client) continue;
       const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const reviewUrl = reviewUrlByTenant[client.tenant_id];
       const message =
         `שלום ${client.name}! 💗\n` +
         `תודה שביקרת אצלנו ב${businessName}!\n` +
         `נשמח מאוד אם תשאירי לנו ביקורת ⭐\n` +
-        `זה לוקח רק דקה ועוזר לנו מאוד 🙏`;
+        `זה לוקח רק דקה ועוזר לנו מאוד 🙏` +
+        // Append the direct review link only if this tenant configured one.
+        (reviewUrl ? `\n\nנשמח אם תשאירי לנו ביקורת קצרה:\n${reviewUrl}` : "");
       await handleReminder(client, "review", appt.id, message);
+    }
+
+    // ============================================================
+    // 4. BIRTHDAY - clients whose birthday (month+day) is today
+    // ============================================================
+    const todayIsrael = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })
+    );
+    const todayMonth = todayIsrael.getMonth() + 1; // 1-12
+    const todayDay = todayIsrael.getDate();        // 1-31
+    const todayYear = String(todayIsrael.getFullYear());
+
+    for (const client of clients || []) {
+      if (!client.birthday) continue; // no birthday -> skip silently
+      // birthday is "YYYY-MM-DD" (HTML date input); parse month/day robustly.
+      let bMonth, bDay;
+      const m = String(client.birthday).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) {
+        bMonth = Number(m[2]);
+        bDay = Number(m[3]);
+      } else {
+        const d = new Date(client.birthday);
+        if (isNaN(d.getTime())) continue; // unparseable -> skip
+        bMonth = d.getMonth() + 1;
+        bDay = d.getDate();
+      }
+      if (bMonth !== todayMonth || bDay !== todayDay) continue; // not today
+
+      const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const message =
+        `שלום ${client.name}! 🎉\n` +
+        `יום הולדת שמח מ${businessName}! 💗\n` +
+        `שיהיה לך יום מתוק ומפנק — מגיע לך 🎂\n` +
+        `לרגל היום המיוחד נשמח לפנק אותך בטיפול ✨`;
+      // reference_id = year -> greet at most once per birthday, per year.
+      await handleReminder(client, "birthday", todayYear, message);
     }
 
     return Response.json({ success: true, dryRun, results });

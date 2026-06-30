@@ -1,30 +1,40 @@
 // app/api/messages/route.js
-// Returns WhatsApp messages from the log, for ONE tenant only.
+// Returns WhatsApp messages from the log, for the LOGGED-IN cosmetician's
+// tenant only.
 //
-// MULTI-TENANT: this endpoint uses the service-role key (which bypasses RLS),
-// so we MUST filter by tenant_id explicitly. The tenant is passed as ?t=<tenantId>.
-// Without this filter, one business could see another's client messages.
+// SECURITY: the tenant is resolved from the AUTHENTICATED session
+// (get_user_tenant_id() over the user's cookies) - never from a client-supplied
+// query param. This prevents one business from reading another's messages by
+// guessing a tenant id. The actual read uses the service-role key (to bypass
+// RLS), but is always filtered by the session-derived tenant_id.
 
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "../../../lib/supabase/server";
 
-const supabase = createClient(
+const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET(request) {
+export async function GET() {
   try {
-    const url = new URL(request.url);
-    const tenantId = url.searchParams.get("t");
-
-    if (!tenantId) {
-      return Response.json(
-        { success: false, error: "חסר מזהה עסק" },
-        { status: 400 }
-      );
+    // 1. Identify the caller from their session cookies.
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    // 2. Resolve THEIR tenant with the same RPC the RLS policies use.
+    const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
+    if (!tenantId) {
+      return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+    }
+
+    // 3. Read only this tenant's messages.
+    const { data, error } = await admin
       .from("whatsapp_messages")
       .select("*")
       .eq("tenant_id", tenantId)

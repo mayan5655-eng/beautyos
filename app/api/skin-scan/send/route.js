@@ -13,10 +13,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Business owner's phone (receives the hot leads). Same as book-appointment.
-const OWNER_PHONE = "0542845655";
-const TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
-
 // Build the client's nicely formatted report message
 function buildClientMessage(report, businessName) {
   const lines = [];
@@ -64,37 +60,53 @@ function buildOwnerMessage(report, clientName, clientPhone) {
 
 export async function POST(request) {
   try {
-    const { report, clientName, clientPhone } = await request.json();
+    const { report, clientName, clientPhone, tenantId } = await request.json();
 
     if (!report || !clientPhone) {
       return Response.json({ success: false, error: "חסרים פרטים" }, { status: 400 });
     }
+    // Tenant must be explicit (the public scanner page passes ?t=<tenantId>).
+    // No fallback: a scan with no tenant must fail rather than notify the wrong
+    // business owner or save the lead into someone else's account.
+    if (!tenantId) {
+      return Response.json(
+        { success: false, error: "קישור הסורק אינו תקין (חסר מזהה עסק)" },
+        { status: 400 }
+      );
+    }
 
-    // Business name (for the client's message header)
-    const settingsRes = await supabase.from("settings").select("business_name").limit(1);
-    const businessName =
-      settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0].business_name : "";
+    // Business name + owner phone for THIS tenant (per-tenant, from settings).
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("business_name, business_phone")
+      .eq("tenant_id", tenantId)
+      .limit(1);
+    const settingsRow = settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    const businessName = settingsRow?.business_name || "";
+    const ownerPhone = settingsRow?.business_phone || "";
 
     // 1. Send the full report to the CLIENT
     const clientMsg = buildClientMessage(report, businessName);
     const clientResult = await sendWhatsApp(clientPhone, clientMsg, {
       name: clientName || "לקוחה",
       type: "skin_report",
-      tenantId: TENANT_ID,
+      tenantId,
     });
 
-    // 2. Send a hot-lead notification to the OWNER
-    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
-    await sendWhatsApp(OWNER_PHONE, ownerMsg, {
-      name: "בעלת העסק",
-      type: "skin_lead_alert",
-      tenantId: TENANT_ID,
-    });
+    // 2. Send a hot-lead notification to the OWNER (only if she set a phone)
+    if (ownerPhone) {
+      const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
+      await sendWhatsApp(ownerPhone, ownerMsg, {
+        name: "בעלת העסק",
+        type: "skin_lead_alert",
+        tenantId,
+      });
+    }
 
     // 3. Save the lead so it shows up in the leads list (best-effort).
     try {
       await supabase.from("leads").insert({
-        tenant_id: TENANT_ID,
+        tenant_id: tenantId,
         name: clientName || "לקוחה מסורק העור",
         raw_form_data: {
           source: "skin_scanner",

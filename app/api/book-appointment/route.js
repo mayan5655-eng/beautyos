@@ -13,10 +13,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Fallback tenant (Maayan's) - used only if no tenant is provided, so older
-// plain /book links keep working instead of breaking.
-const FALLBACK_TENANT_ID = "448e9e45-2251-4572-b665-886c5bc7a4c8";
-
 export async function POST(request) {
   try {
     const { name, phone, service, date, hour, duration, price, color, tenantId } =
@@ -30,8 +26,16 @@ export async function POST(request) {
       );
     }
 
-    // Resolve tenant from the request, or fall back
-    const activeTenantId = tenantId || FALLBACK_TENANT_ID;
+    // Tenant must be explicit. We never fall back to a default business -
+    // a booking with no tenant must fail rather than land in someone else's
+    // account. The /book page passes ?t=<tenantId> through to here.
+    if (!tenantId) {
+      return Response.json(
+        { success: false, error: "קישור ההזמנה אינו תקין (חסר מזהה עסק)" },
+        { status: 400 }
+      );
+    }
+    const activeTenantId = tenantId;
 
     // 1. Save the appointment to Supabase
     const { data: appt, error } = await supabase
