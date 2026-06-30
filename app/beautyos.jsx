@@ -172,6 +172,9 @@ export default function BeautyOS() {
   const [advisorMessages, setAdvisorMessages] = useState(null); // null = not loaded yet
   const [advisorInput,    setAdvisorInput]    = useState("");
   const [advisorSending,  setAdvisorSending]  = useState(false);
+  // Subscription plan of the logged-in business: none | basic | pro | premium.
+  // Loaded in loadAll; NOT used to gate anything yet.
+  const [currentPlan,     setCurrentPlan]     = useState("none");
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
@@ -413,7 +416,7 @@ export default function BeautyOS() {
       // RLS and often returns null, which then mis-selects the settings row.
       const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
       const myTenantId = rpcTenant || null;
-      const [a,c,f,l,sv,st,r,pk,wl] = await Promise.all([
+      const [a,c,f,l,sv,st,r,pk,wl,tn] = await Promise.all([
         supabase.from("appointments").select("*"),
         supabase.from("clients").select("*"),
         supabase.from("forms").select("*"),
@@ -423,7 +426,13 @@ export default function BeautyOS() {
         supabase.from("receipts").select("*"),
         supabase.from("packages").select("*"),
         supabase.from("waitlist").select("*"),
+        // Subscription plan for this tenant (read-only; no gating yet).
+        supabase.from("tenants").select("plan").eq("id", myTenantId).maybeSingle(),
       ]);
+      // Safe default 'none' if the row/column is missing for any reason.
+      const plan = tn?.data?.plan || "none";
+      setCurrentPlan(plan);
+      console.log("[BeautyOS] current plan:", plan);
       if(a.data)  setAppointments(a.data);
       if(c.data)  setClients(c.data);
       if(f.data)  setForms(f.data);
