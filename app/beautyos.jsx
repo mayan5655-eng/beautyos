@@ -23,6 +23,47 @@ const DEFAULT_SERVICES = [
 const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+
+// שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
+const VAT_RATE = 0.18;
+// הסתייגות משפטית שמופיעה בכל דוח מס (מסך + הדפסה).
+const TAX_DISCLAIMER = "הדוח הוא לנוחותך בלבד. יש לבדוק את הנתונים מול רואה חשבון / יועץ מס לפני הגשה לרשויות. האחריות על הדיווח היא של בעל העסק.";
+
+// ─── Subscription plans (mapping only — NOT used to gate anything yet) ───
+//
+// ⚠️ תחזוקה: כשמוסיפים פיצ'ר חדש למערכת — מוסיפים אותו כאן לרמות שאמורות
+//    לקבל אותו. פיצ'ר שלא רשום בשום רמה = premium בלבד (ברירת מחדל).
+//    כלומר אם מוסיפים פיצ'ר ולא מעדכנים את המיפוי, basic/pro לא יקבלו אותו
+//    עד שיירשם להם במפורש — רק premium יקבל אותו.
+//
+// Feature keys (short, English) and what they mean:
+//   clients   - ניהול לקוחות      calendar  - יומן תורים
+//   cashier   - קופה              receipts  - קבלות
+//   marketing - שיווק / קמפיינים  leads     - ניהול לידים
+//   whatsapp  - בוט וואטסאפ אוטומטי
+//   birthdays - ברכות יום הולדת אוטומטיות
+//   reviews   - בקשות ביקורת אוטומטיות
+//   advisor   - יועץ עסקי AI       skinscan  - סריקת עור AI
+//   reels     - יוצר רילסים        community - קהילה
+// Tiers are cumulative: pro includes basic, premium includes pro.
+const _PLAN_BASIC   = ["clients","calendar","cashier","receipts"];
+const _PLAN_PRO     = [..._PLAN_BASIC, "marketing","leads","whatsapp","birthdays","reviews"];
+const _PLAN_PREMIUM = [..._PLAN_PRO, "advisor","skinscan","reels","community"];
+const PLAN_FEATURES = {
+  none:    [],            // עסק שעדיין לא בחר מנוי
+  basic:   _PLAN_BASIC,
+  pro:     _PLAN_PRO,
+  premium: _PLAN_PREMIUM,
+};
+
+// planAllows(plan, feature) -> true/false: האם לרמה יש גישה לפיצ'ר.
+//  • premium מקבל תמיד הכל — כולל פיצ'רים עתידיים שלא רשומים במיפוי
+//    (כך שמשתמשת premium לעולם לא תיחסם בטעות).
+//  • פיצ'ר שלא רשום במיפוי של basic/pro -> false עבורן (= premium-only כברירת מחדל).
+const planAllows = (plan, feature) => {
+  if (plan === "premium") return true;
+  return (PLAN_FEATURES[plan] || []).includes(feature);
+};
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
 const STATUS_COLORS = {"VIP":"#D4AF37","active":"#7BAE7F","cold":"#B8AFA0","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
@@ -175,6 +216,10 @@ export default function BeautyOS() {
   // Subscription plan of the logged-in business: none | basic | pro | premium.
   // Loaded in loadAll; NOT used to gate anything yet.
   const [currentPlan,     setCurrentPlan]     = useState("none");
+  // Tax-report screen controls
+  const [taxYear,        setTaxYear]       = useState(new Date().getFullYear());
+  const [taxPeriodMode,  setTaxPeriodMode] = useState("bimonthly"); // monthly | bimonthly
+  const [taxPeriodIdx,   setTaxPeriodIdx]  = useState(Math.floor(new Date().getMonth()/2));
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
@@ -1592,6 +1637,7 @@ export default function BeautyOS() {
     {id:"clients",  label:"לקוחות"},
     {id:"leads",    label:"לידים"},
     {id:"cashier",  label:"קופה"},
+    {id:"tax",      label:"דוחות מס"},
     {id:"whatsapp", label:"הודעות"},
     {id:"campaigns",label:"שיווק"},
     {id:"community",label:"קהילה"},
@@ -1608,6 +1654,7 @@ export default function BeautyOS() {
       case "clients":   return svg(<><circle cx="12" cy="8" r="3.4" {...p}/><path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" {...p}/></>);
       case "leads":     return svg(<><path d="M12 3l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 21l-5.2 3 1.2-5.6L3.8 14.6 9.6 8z" {...p}/></>);
       case "cashier":   return svg(<><rect x="3" y="6" width="18" height="13" rx="2.5" {...p}/><path d="M3 10h18M7 15h4" {...p}/></>);
+      case "tax":       return svg(<><path d="M6 3h9l4 4v14a0 0 0 0 1 0 0H6a0 0 0 0 1 0 0z" {...p}/><path d="M14 3v4h4M9 12h6M9 16h6M9 8h2" {...p}/></>);
       case "whatsapp":  return svg(<><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.6-4A8 8 0 1 1 20 11.5z" {...p}/></>);
       case "campaigns": return svg(<><path d="M4 9v6h3l8 4V5L7 9z" {...p}/><path d="M18 9.5a3 3 0 0 1 0 5" {...p}/></>);
       case "community": return svg(<><circle cx="9" cy="8" r="3" {...p}/><path d="M3 19c0-3 2.7-5 6-5s6 2 6 5" {...p}/><path d="M16 6.2A3 3 0 0 1 18 12M21 19c0-2.3-1.4-4-3.5-4.7" {...p}/></>);
@@ -1673,7 +1720,10 @@ export default function BeautyOS() {
           .modal-card{width:94%!important;max-width:380px!important}
           .client-drawer,.lead-drawer{width:100%!important}
         }
-        @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}}
+        @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
+          /* Tax report: print only the report card, clean A4, centered. */
+          #tax-report,#tax-report *{visibility:visible}
+          #tax-report{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:720px;box-shadow:none!important;border:none!important;padding:32px 28px}}
       `}</style>
 
       {/* TOASTS */}
@@ -2723,6 +2773,106 @@ export default function BeautyOS() {
  </div>
  </>)}
 
+          {/* TAX REPORTS */}
+          {activeTab==="tax"&&(()=>{
+            const status = settings.business_tax_status || "exempt";
+            const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
+            const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
+            const inYear = receipts.filter(r=>r.created_at && new Date(r.created_at).getFullYear()===taxYear);
+            let periodReceipts, rangeLabel;
+            if(status==="exempt"){
+              periodReceipts=inYear; rangeLabel=`שנת ${taxYear}`;
+            } else if(taxPeriodMode==="monthly"){
+              periodReceipts=inYear.filter(r=>new Date(r.created_at).getMonth()===taxPeriodIdx);
+              rangeLabel=`${MONTHS_HE[taxPeriodIdx]} ${taxYear}`;
+            } else {
+              periodReceipts=inYear.filter(r=>Math.floor(new Date(r.created_at).getMonth()/2)===taxPeriodIdx);
+              rangeLabel=`${MONTHS_HE[taxPeriodIdx*2]}–${MONTHS_HE[taxPeriodIdx*2+1]} ${taxYear}`;
+            }
+            const gross=periodReceipts.reduce((s,r)=>s+(Number(r.amount)||0),0);
+            const net=gross/(1+VAT_RATE);
+            const vatDue=gross*VAT_RATE/(1+VAT_RATE);
+            const count=periodReceipts.length;
+            const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
+            const Stat=({label,value,big,gold})=>(
+ <div style={{flex:1,minWidth:120,background:gold?pcTint:"#FBF8F4",border:`1px solid ${gold?pc:"#E8DED6"}`,borderRadius:14,padding:"16px 14px",textAlign:"center"}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:7,letterSpacing:"0.4px"}}>{label}</p>
+ <p className="serif" style={{fontSize:big?30:22,fontWeight:600,color:gold?pc:"#1C1C1C",lineHeight:1}}>{value}</p>
+ </div>
+            );
+            return (
+ <div style={{maxWidth:720,marginLeft:"auto",marginRight:"auto"}}>
+ <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6,justifyContent:"center"}}>
+ <span style={{width:38,height:1,background:`linear-gradient(90deg,transparent,${pc})`}}/>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"#1C1C1C"}}>דוחות מס</h2>
+ <span style={{width:38,height:1,background:`linear-gradient(90deg,${pc},transparent)`}}/>
+ </div>
+ <p style={{textAlign:"center",fontSize:11.5,color:"#7A716A",marginBottom:16}}>סטטוס העסק: <b style={{color:pc}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
+
+                {/* CONTROLS */}
+ <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {years.map(y=>(
+ <button key={y} onClick={()=>setTaxYear(y)} style={{padding:"7px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:taxYear===y?`2px solid ${pc}`:"1px solid #E8DED6",background:taxYear===y?pcTint:"#fff",color:taxYear===y?pc:"#7A716A"}}>{y}</button>
+                    ))}
+ </div>
+ </div>
+                {status!=="exempt"&&(
+ <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",alignItems:"center",marginBottom:16}}>
+ <div style={{display:"flex",gap:5,background:"#FBF8F4",border:"1px solid #E8DED6",borderRadius:20,padding:3}}>
+ <button onClick={()=>{setTaxPeriodMode("bimonthly");setTaxPeriodIdx(Math.floor(new Date().getMonth()/2));}} style={{padding:"6px 12px",borderRadius:18,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="bimonthly"?pcGrad:"transparent",color:taxPeriodMode==="bimonthly"?"#fff":"#7A716A"}}>דו-חודשי</button>
+ <button onClick={()=>{setTaxPeriodMode("monthly");setTaxPeriodIdx(new Date().getMonth());}} style={{padding:"6px 12px",borderRadius:18,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="monthly"?pcGrad:"transparent",color:taxPeriodMode==="monthly"?"#fff":"#7A716A"}}>חודשי</button>
+ </div>
+ <select value={taxPeriodIdx} onChange={e=>setTaxPeriodIdx(Number(e.target.value))} style={{border:"1px solid #E8DED6",borderRadius:20,padding:"7px 12px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",color:"#1C1C1C"}}>
+                      {taxPeriodMode==="monthly"
+                        ? MONTHS_HE.map((m,i)=><option key={i} value={i}>{m}</option>)
+                        : Array.from({length:6},(_,i)=><option key={i} value={i}>{MONTHS_HE[i*2]}–{MONTHS_HE[i*2+1]}</option>)}
+ </select>
+ </div>
+                )}
+
+                {/* PRINT / PDF */}
+ <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+ <button onClick={()=>window.print()} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"10px 22px",fontSize:12.5,display:"inline-flex",alignItems:"center",gap:8}}>
+ <svg viewBox="0 0 24 24" width="16" height="16" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
+                    הורד PDF / הדפס
+ </button>
+ </div>
+
+                {/* REPORT CARD */}
+ <div id="tax-report" style={{background:"#fff",borderRadius:20,border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",padding:"26px 24px"}}>
+ <div style={{textAlign:"center",marginBottom:18}}>
+ <p className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C"}}>{settings.business_name||"העסק"} — {statusLabel}</p>
+ <p style={{fontSize:12,color:"#7A716A",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
+ </div>
+                  {status==="exempt"?(
+ <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                      <Stat label={"מחזור שנתי (ללא מע\"מ)"} value={nis(gross)} big gold/>
+ <Stat label="מספר עסקאות" value={count}/>
+ </div>
+                  ):(
+ <>
+ <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:12}}>
+ <Stat label={"מחזור ברוטו (כולל מע\"מ)"} value={nis(gross)}/>
+ <Stat label={"מחזור נטו (לפני מע\"מ)"} value={nis(net)}/>
+ </div>
+ <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                        <Stat label={`מס עסקאות (מע\"מ ${Math.round(VAT_RATE*100)}%)`} value={nis(vatDue)} big gold/>
+ <Stat label="מספר עסקאות" value={count}/>
+ </div>
+ <p style={{fontSize:10.5,color:"#A89AA2",marginTop:14,lineHeight:1.6,textAlign:"center"}}>מס תשומות (קיזוז על הוצאות) = ₪0 כרגע — אין עדיין מעקב הוצאות במערכת. בעתיד נוכל להוסיף טבלת הוצאות ולחשב מע"מ לתשלום נטו (מס עסקאות פחות מס תשומות).</p>
+ </>
+                  )}
+
+                  {/* LEGAL DISCLAIMER */}
+ <div style={{marginTop:20,padding:"12px 14px",background:"#FBF3E2",border:"1px solid #EAD9B0",borderRadius:12}}>
+ <p style={{fontSize:10.5,color:"#8A6D2F",lineHeight:1.6,textAlign:"center"}}>⚠️ {TAX_DISCLAIMER}</p>
+ </div>
+ </div>
+ </div>
+            );
+          })()}
+
           {/* AI BUSINESS ADVISOR */}
           {activeTab==="advisor"&&(
  <div style={{maxWidth:840,marginLeft:"auto",marginRight:"auto",display:"flex",flexDirection:"column",height:"100%"}}>
@@ -3253,6 +3403,14 @@ export default function BeautyOS() {
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#D4AF37","#C9A227","#C68A5E","#B0764E","#A67C52","#8C6239","#CBA15E","#E0C068","#BC6B3F","#1C1C1C"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #1C1C1C":"2px solid #E8DED6",cursor:"pointer"}}/>)}</div></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
+ <div style={{display:"flex",gap:6}}>
+                  {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
+                    const sel=(editSettings.business_tax_status||"exempt")===o.k;
+                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid #E8DED6",background:sel?pcTint:"#fff",color:sel?pc:"#7A716A"}}>{o.l}</button>;
+                  })}
+ </div>
+ <p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>בוט הוואטסאפ החכם</p>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
