@@ -239,6 +239,8 @@ export default function BeautyOS() {
   const [voiceBooking,   setVoiceBooking]  = useState(null); // editable draft before confirm
   const [voiceInfo,      setVoiceInfo]     = useState(null); // read-only result (day / revenue)
   const [voiceCancel,    setVoiceCancel]   = useState(null); // { matches:[], selected: appt|null }
+  const [voiceCall,      setVoiceCall]     = useState(null); // { matches:[], selected: client|null }
+  const [voiceReceipt,   setVoiceReceipt]  = useState(null); // { clientName, amount, payment }
   const recognitionRef = useRef(null);
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
@@ -1086,6 +1088,8 @@ export default function BeautyOS() {
         else if (intent.action === "show_day") showDayInfo(intent);
         else if (intent.action === "revenue_summary") revenueInfo(intent);
         else if (intent.action === "cancel_appointment") prepareCancel(intent);
+        else if (intent.action === "call_client") prepareCall(intent);
+        else if (intent.action === "create_receipt") prepareReceipt(intent);
         else setVoiceStatus("result");
       } else { setVoiceErr(data.error || "לא הצלחתי להבין את הבקשה"); setVoiceStatus("error"); }
     } catch (err) {
@@ -1111,6 +1115,80 @@ export default function BeautyOS() {
     const total = rs.reduce((s,r) => s + (Number(r.amount)||0), 0);
     setVoiceInfo({ kind: "revenue", period, total, count: rs.length });
     setVoiceStatus("info");
+  };
+
+  // create_receipt: build an editable receipt draft (matching an existing client
+  // if any). Nothing is created here — only on explicit confirm.
+  const prepareReceipt = (intent) => {
+    const nameSpoken = (intent.client_name || "").trim();
+    let matched = null;
+    if (nameSpoken) {
+      const low = nameSpoken.toLowerCase();
+      matched = clients.find(c => (c.name||"").trim().toLowerCase() === low)
+             || clients.find(c => (c.name||"").toLowerCase().includes(low));
+    }
+    const payMap = { cash: "מזומן", card: "אשראי", bit: "ביט" };
+    setVoiceReceipt({
+      clientName: matched ? matched.name : nameSpoken,
+      amount: (intent.amount != null && intent.amount !== "") ? String(intent.amount) : "",
+      payment: payMap[intent.payment_method] || "מזומן",
+    });
+    setVoiceStatus("receipt");
+  };
+
+  // Create the receipt (and the client, if new) — ONLY on explicit confirm.
+  // Mirrors handleSaveReceipt's DB fields; tenant_id is filled by the DB default.
+  const handleVoiceReceipt = async () => {
+    const b = voiceReceipt;
+    if (!b) return;
+    if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
+    const amt = Number(b.amount);
+    if (!amt || amt <= 0) { toast("נא להזין סכום תקין", "error"); return; }
+    if (isBusy("voiceReceipt")) return;
+    setBusyKey("voiceReceipt", true);
+    try {
+      // Resolve the client: reuse an exact match, otherwise create a new one.
+      let clientId = null;
+      let clientName = b.clientName.trim();
+      const existing = clients.find(c => (c.name||"").trim().toLowerCase() === clientName.toLowerCase());
+      if (existing) { clientId = existing.id; clientName = existing.name; }
+      else {
+        const {data:nc,error:ce} = await supabase.from("clients")
+          .insert([{name:clientName,phone:"",skinType:"",notes:"",status:"active"}]).select();
+        if (ce) { handleDbError(ce, "create client (voice receipt)"); return; }
+        if (nc?.[0]) { clientId = nc[0].id; setClients(prev=>[...prev, nc[0]]); }
+      }
+      const receipt = {
+        client_id: clientId,
+        client_name: clientName,
+        appointment_id: null,
+        service: "תשלום",
+        amount: amt,
+        payment_method: b.payment,
+        note: "",
+        items: JSON.stringify([]),
+        discount: 0,
+      };
+      const {data,error} = await supabase.from("receipts").insert([receipt]).select();
+      if (error) { handleDbError(error, "create receipt (voice)"); return; }
+      if (data) setReceipts(prev=>[...prev, data[0]]);
+      closeVoice();
+      toast("הקבלה הופקה ✦");
+    } finally {
+      setBusyKey("voiceReceipt", false);
+    }
+  };
+
+  // call_client: find the client by name; the call itself just opens tel:.
+  const prepareCall = (intent) => {
+    const nameSpoken = (intent.client_name || "").trim();
+    if (!nameSpoken) { setVoiceErr("לא זוהה שם לקוחה לחיוג. נסי שוב."); setVoiceStatus("error"); return; }
+    const low = nameSpoken.toLowerCase();
+    let matches = clients.filter(c => (c.name||"").trim().toLowerCase() === low);
+    if (matches.length === 0) matches = clients.filter(c => (c.name||"").toLowerCase().includes(low));
+    if (matches.length === 0) { setVoiceErr(`לא מצאתי לקוחה בשם ${nameSpoken}`); setVoiceStatus("error"); return; }
+    setVoiceCall({ matches, selected: matches.length === 1 ? matches[0] : null });
+    setVoiceStatus("call");
   };
 
   // cancel_appointment: find matching appointments (by name, then date) — nothing
@@ -2166,6 +2244,79 @@ export default function BeautyOS() {
                 )}
  </div>
             )}
+
+            {voiceStatus==="call"&&voiceCall&&(
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}"</p>
+                {!voiceCall.selected?(
+ <div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C",marginBottom:10}}>נמצאו כמה לקוחות — בחרי למי לחייג:</p>
+                    {voiceCall.matches.map(c=>(
+ <button key={c.id} onClick={()=>setVoiceCall({...voiceCall,selected:c})} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,width:"100%",textAlign:"right",background:"#fff",border:"1px solid #E8DED6",borderRadius:12,padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{c.name}</span>
+ <span style={{fontSize:11,color:c.phone?"#7A716A":"#B8AFA0",direction:"ltr"}}>{c.phone||"אין מספר"}</span>
+ </button>
+                    ))}
+ <button onClick={closeVoice} className="primary-btn" style={{width:"100%",marginTop:6,padding:"10px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>סגירה</button>
+ </div>
+                ):(
+ <div>
+ <div style={{textAlign:"center",background:pcTint,border:`1px solid ${pc}`,borderRadius:16,padding:"20px 16px",marginBottom:14}}>
+ <p className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C"}}>{voiceCall.selected.name}</p>
+                      {voiceCall.selected.phone
+                        ? <p style={{fontSize:15,color:pc,marginTop:6,direction:"ltr",fontWeight:600}}>{voiceCall.selected.phone}</p>
+                        : <p style={{fontSize:12.5,color:"#B07F2A",marginTop:8}}>אין מספר טלפון שמור ל{voiceCall.selected.name}</p>}
+ </div>
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>סגירה</button>
+                      {voiceCall.selected.phone&&(
+ <button onClick={()=>{ window.location.href = `tel:${(voiceCall.selected.phone||"").replace(/[^\d+]/g,"")}`; }} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>📞 חייג</button>
+                      )}
+ </div>
+ </div>
+                )}
+ </div>
+            )}
+
+            {voiceStatus==="receipt"&&voiceReceipt&&(()=>{
+              const nameLow=(voiceReceipt.clientName||"").trim().toLowerCase();
+              const existsClient=nameLow?clients.find(c=>(c.name||"").trim().toLowerCase()===nameLow):null;
+              const isNew=voiceReceipt.clientName.trim()&&!existsClient;
+              const ready=voiceReceipt.clientName.trim()&&Number(voiceReceipt.amount)>0;
+              return (
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}". בדקי ואשרי הוצאת קבלה:</p>
+
+ <div style={{marginBottom:10}}>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לקוחה</p>
+ <input value={voiceReceipt.clientName} onChange={e=>setVoiceReceipt({...voiceReceipt,clientName:e.target.value})} placeholder="שם הלקוחה" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"9px 11px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+                  {voiceReceipt.clientName.trim()&&(isNew
+                    ? <p style={{fontSize:10,color:"#B07F2A",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceReceipt.clientName.trim()}" תיווצר עם האישור</p>
+                    : <p style={{fontSize:10,color:"#5C9460",marginTop:4}}>✓ לקוחה קיימת</p>)}
+ </div>
+
+ <div style={{marginBottom:10}}>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>סכום (₪)</p>
+ <input type="number" value={voiceReceipt.amount} onChange={e=>setVoiceReceipt({...voiceReceipt,amount:e.target.value})} placeholder="0" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"9px 11px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:pcTint}}/>
+ </div>
+
+ <div style={{marginBottom:12}}>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:4}}>אמצעי תשלום</p>
+ <div style={{display:"flex",gap:6}}>
+                    {["מזומן","אשראי","ביט"].map(pm=>{
+                      const sel=voiceReceipt.payment===pm;
+                      return <button key={pm} onClick={()=>setVoiceReceipt({...voiceReceipt,payment:pm})} style={{flex:1,padding:"8px 0",borderRadius:12,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid #E8DED6",background:sel?pcTint:"#fff",color:sel?pc:"#7A716A"}}>{pm}</button>;
+                    })}
+ </div>
+ </div>
+
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>ביטול</button>
+ <button onClick={handleVoiceReceipt} disabled={!ready||isBusy("voiceReceipt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>{isBusy("voiceReceipt")?"מפיקה...":"✦ אישור והפקת קבלה"}</button>
+ </div>
+ </div>
+              );
+            })()}
 
             {voiceStatus==="error"&&(
  <div style={{textAlign:"center",padding:"14px 0"}}>
