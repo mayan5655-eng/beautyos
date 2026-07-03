@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
 
@@ -230,6 +230,14 @@ export default function BeautyOS() {
   const [taxPeriodMode,  setTaxPeriodMode] = useState("bimonthly"); // monthly | bimonthly
   const [taxPeriodIdx,   setTaxPeriodIdx]  = useState(Math.floor(new Date().getMonth()/2));
   const [newExpense,     setNewExpense]    = useState({amount:"",expense_date:new Date().toISOString().slice(0,10),description:"",category:"materials"});
+  // Beauty Voice
+  const [showVoice,      setShowVoice]     = useState(false);
+  const [voiceStatus,    setVoiceStatus]   = useState("listening"); // listening|processing|result|error|unsupported
+  const [voiceTranscript,setVoiceTranscript]=useState("");
+  const [voiceIntent,    setVoiceIntent]   = useState(null);
+  const [voiceErr,       setVoiceErr]      = useState("");
+  const [voiceBooking,   setVoiceBooking]  = useState(null); // editable draft before confirm
+  const recognitionRef = useRef(null);
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
@@ -1053,6 +1061,133 @@ export default function BeautyOS() {
     });
   };
 
+  // ─── Beauty Voice: listen (Web Speech API) → understand (/api/voice-intent) ───
+  const stopRecognition = () => {
+    try { if (recognitionRef.current) recognitionRef.current.stop(); } catch {}
+    recognitionRef.current = null;
+  };
+  const closeVoice = () => { stopRecognition(); setShowVoice(false); };
+
+  const processVoice = async (transcript) => {
+    setVoiceStatus("processing");
+    try {
+      const res = await fetch("/api/voice-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript, today }),
+      });
+      const data = await res.json();
+      if (res.ok && data.intent) {
+        setVoiceIntent(data.intent);
+        if (data.intent.action === "book_appointment") prepareBooking(data.intent);
+        else setVoiceStatus("result");
+      } else { setVoiceErr(data.error || "לא הצלחתי להבין את הבקשה"); setVoiceStatus("error"); }
+    } catch (err) {
+      setVoiceErr(err.message); setVoiceStatus("error");
+    }
+  };
+
+  // Build an editable booking draft from the intent (matching against the
+  // tenant's own clients/services already in state). Nothing is created here.
+  const prepareBooking = (intent) => {
+    const nameSpoken = (intent.client_name || "").trim();
+    let matched = null;
+    if (nameSpoken) {
+      const low = nameSpoken.toLowerCase();
+      matched = clients.find(c => (c.name||"").trim().toLowerCase() === low)
+             || clients.find(c => (c.name||"").toLowerCase().includes(low));
+    }
+    const svcSpoken = (intent.service || "").trim();
+    let svc = null;
+    if (svcSpoken) {
+      const low = svcSpoken.toLowerCase();
+      svc = activeServices.find(s => (s.name||"").toLowerCase() === low)
+         || activeServices.find(s => (s.name||"").toLowerCase().includes(low) || low.includes((s.name||"").toLowerCase()));
+    }
+    setVoiceBooking({
+      clientName: matched ? matched.name : nameSpoken,
+      service: svc ? svc.name : "",
+      date: intent.date || today,
+      time: intent.time || "",
+    });
+    setVoiceStatus("confirm");
+  };
+
+  // Create the appointment (and the client, if new) — ONLY on explicit confirm.
+  // Mirrors the regular booking flow (same table, tenant_id filled by DB default).
+  const handleVoiceBook = async () => {
+    const b = voiceBooking;
+    if (!b) return;
+    if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
+    if (!b.service) { toast("נא לבחור שירות", "error"); return; }
+    if (!b.date || !b.time) { toast("נא לבחור תאריך ושעה", "error"); return; }
+    if (isBusy("voiceBook")) return;
+    setBusyKey("voiceBook", true);
+    try {
+      // Resolve client: reuse an exact-name match, otherwise create a new one.
+      let clientId = null;
+      const low = b.clientName.trim().toLowerCase();
+      const existing = clients.find(c => (c.name||"").trim().toLowerCase() === low);
+      if (existing) {
+        clientId = existing.id;
+      } else {
+        const {data:nc,error:ce} = await supabase.from("clients")
+          .insert([{name:b.clientName.trim(),phone:"",skinType:"",notes:"",status:"active"}]).select();
+        if (ce) { handleDbError(ce, "create client (voice)"); return; }
+        if (nc?.[0]) { clientId = nc[0].id; setClients(prev=>[...prev, nc[0]]); }
+      }
+      const svc = activeServices.find(s => s.name === b.service);
+      const hourNum = Number((b.time||"").split(":")[0]) || 0; // schema stores whole hours
+      const appt = {
+        date: b.date,
+        hour: hourNum,
+        name: b.clientName.trim(),
+        service: b.service,
+        duration: svc?.duration || 60,
+        color: svc?.color || "#D9B98C",
+        client_id: clientId,
+        note: "",
+        price: svc?.price || 0,
+        confirmation_status: "pending",
+        confirmation_sent: false,
+      };
+      const {data,error} = await supabase.from("appointments").insert([appt]).select();
+      if (error) { handleDbError(error, "create appointment (voice)"); return; }
+      if (data) setAppointments(prev=>[...prev, data[0]]);
+      closeVoice();
+      toast("התור נקבע ✦");
+    } finally {
+      setBusyKey("voiceBook", false);
+    }
+  };
+
+  const startVoice = () => {
+    const SR = (typeof window !== "undefined") && (window.SpeechRecognition || window.webkitSpeechRecognition);
+    setVoiceIntent(null); setVoiceTranscript(""); setVoiceErr("");
+    setShowVoice(true);
+    if (!SR) { setVoiceStatus("unsupported"); return; }
+    setVoiceStatus("listening");
+    const rec = new SR();
+    rec.lang = "he-IL";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => {
+      const t = (e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript) || "";
+      setVoiceTranscript(t);
+      if (t) processVoice(t);
+    };
+    rec.onerror = (e) => {
+      setVoiceErr(e.error === "not-allowed" || e.error === "service-not-allowed"
+        ? "אין הרשאת מיקרופון. אפשרי גישה בדפדפן ונסי שוב."
+        : "שגיאה בהאזנה. נסי שוב.");
+      setVoiceStatus("error");
+    };
+    // If listening ended with no result, surface a gentle retry state.
+    rec.onend = () => { setVoiceStatus(s => s === "listening" ? "error" : s); };
+    recognitionRef.current = rec;
+    try { rec.start(); } catch { setVoiceStatus("error"); setVoiceErr("לא ניתן להפעיל את המיקרופון"); }
+  };
+
   // Credit card payment via Grow - opens secure payment page
   const handleCreditPayment = async () => {
     if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
@@ -1759,6 +1894,8 @@ export default function BeautyOS() {
         .fade-in{animation:fade-in-up 0.32s ease-out both}
         @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:scale(1)}}
         .pop-in{animation:pop-in 0.22s ease-out both}
+        @keyframes voice-pulse{0%{box-shadow:0 0 0 0 rgba(212,175,55,0.45)}70%{box-shadow:0 0 0 16px rgba(212,175,55,0)}100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}}
+        .voice-pulse{animation:voice-pulse 1.4s infinite}
         .empty-cta{transition:transform 0.12s,box-shadow 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(212,175,55,0.22)}
         .mobile-only{display:none}
         @media (max-width:680px){
@@ -1806,6 +1943,122 @@ export default function BeautyOS() {
  <button onClick={()=>setConfirmDialog(null)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1.5px solid #E8DED6",borderRadius:24,background:"#fff",fontSize:12,color:"#7A716A"}}>{confirmDialog.cancelText}</button>
  <button onClick={()=>{const fn=confirmDialog.onConfirm;setConfirmDialog(null);if(fn)fn();}} className="primary-btn" style={{flex:2,padding:"11px 0",background:confirmDialog.danger?"#C62828":pcGrad,color:"#fff",fontSize:12}}>{confirmDialog.confirmText}</button>
  </div>
+ </div>
+ </div>
+      )}
+
+      {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
+ <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית — Beauty Voice" title="Beauty Voice"
+        style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"#fff",boxShadow:`0 8px 22px ${pcShadow}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
+ <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+ </button>
+
+      {/* BEAUTY VOICE — modal */}
+      {showVoice&&(
+ <div onClick={closeVoice} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:4200,padding:16}}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"#fff",borderRadius:22,padding:24,width:430,maxWidth:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.25)",marginBottom:84}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+ <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C"}}>Beauty Voice ✦</h3>
+ <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:16,cursor:"pointer",color:"#7A716A"}}>✕</button>
+ </div>
+
+            {voiceStatus==="listening"&&(
+ <div style={{textAlign:"center",padding:"16px 0"}}>
+ <div className="voice-pulse" style={{width:66,height:66,borderRadius:"50%",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:pc}}>
+ <svg viewBox="0 0 24 24" width="28" height="28" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+ </div>
+ <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C"}}>🎙️ מקשיבה...</p>
+ <p style={{fontSize:11.5,color:"#7A716A",marginTop:5,lineHeight:1.5}}>אמרי מה לעשות — למשל: "קבעי תור לרונית מחר בעשר וחצי לפילינג"</p>
+ </div>
+            )}
+
+            {voiceStatus==="processing"&&(
+ <div style={{textAlign:"center",padding:"18px 0"}}>
+ <p style={{fontSize:12.5,color:"#7A716A",marginBottom:6}}>שמעתי: "{voiceTranscript}"</p>
+ <p style={{fontSize:14,fontWeight:600,color:pc}}>מבינה את הבקשה…</p>
+ </div>
+            )}
+
+            {voiceStatus==="result"&&voiceIntent&&(
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:10}}>שמעתי: "{voiceIntent.raw||voiceTranscript}"</p>
+                {voiceIntent.action==="book_appointment"?(
+ <div style={{background:pcTint,border:`1px solid ${pc}`,borderRadius:14,padding:"14px 16px"}}>
+ <p style={{fontSize:12,fontWeight:700,color:pc,marginBottom:8}}>הבנתי — קביעת תור:</p>
+                    {[["לקוחה",voiceIntent.client_name],["תאריך",voiceIntent.date],["שעה",voiceIntent.time],["שירות",voiceIntent.service]].map(([l,v])=>(
+ <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid rgba(212,175,55,0.16)"}}>
+ <span style={{fontSize:11,color:"#7A716A"}}>{l}</span>
+ <span style={{fontSize:12,fontWeight:600,color:"#1C1C1C"}}>{v||"— לא צוין —"}</span>
+ </div>
+                    ))}
+ </div>
+                ):(
+ <p style={{fontSize:12.5,color:"#7A716A",lineHeight:1.6,textAlign:"center",padding:"8px 0"}}>לא זיהיתי פעולה נתמכת. כרגע נתמכת קביעת תור — נסי לומר "קבעי תור ל...".</p>
+                )}
+                {voiceIntent.clarification&&<p style={{fontSize:11,color:"#B07F2A",marginTop:10}}>ℹ️ {voiceIntent.clarification}</p>}
+ <p style={{fontSize:10,color:"#A89AA2",marginTop:12,textAlign:"center"}}>שלב 2 — הצגת ההבנה בלבד. יצירת התור בפועל תיווסף בשלב הבא.</p>
+ <div style={{display:"flex",gap:8,marginTop:14}}>
+ <button onClick={startVoice} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>🎙️ נסי שוב</button>
+ <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"10px 0",background:pcGrad,color:"#fff",fontSize:12}}>סגירה</button>
+ </div>
+ </div>
+            )}
+
+            {voiceStatus==="confirm"&&voiceBooking&&(()=>{
+              const nameLow=(voiceBooking.clientName||"").trim().toLowerCase();
+              const existsClient=nameLow?clients.find(c=>(c.name||"").trim().toLowerCase()===nameLow):null;
+              const isNew=voiceBooking.clientName.trim()&&!existsClient;
+              const mm=(voiceBooking.time||"").split(":")[1];
+              const ready=voiceBooking.clientName.trim()&&voiceBooking.service&&voiceBooking.date&&voiceBooking.time;
+              return (
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}". בדקי ואשרי:</p>
+
+                {/* client */}
+ <div style={{marginBottom:10}}>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לקוחה</p>
+ <input value={voiceBooking.clientName} onChange={e=>setVoiceBooking({...voiceBooking,clientName:e.target.value})} placeholder="שם הלקוחה" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"9px 11px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+                  {voiceBooking.clientName.trim()&&(isNew
+                    ? <p style={{fontSize:10,color:"#B07F2A",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceBooking.clientName.trim()}" תיווצר עם האישור</p>
+                    : <p style={{fontSize:10,color:"#5C9460",marginTop:4}}>✓ לקוחה קיימת</p>)}
+ </div>
+
+                {/* service picker */}
+ <div style={{marginBottom:10}}>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:4}}>שירות {voiceBooking.service?"":"— בחרי:"}</p>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {activeServices.map(s=>{
+                      const sel=voiceBooking.service===s.name;
+                      return <button key={s.id||s.name} onClick={()=>setVoiceBooking({...voiceBooking,service:s.name})} style={{padding:"6px 11px",borderRadius:16,fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid #E8DED6",background:sel?pcTint:"#fff",color:sel?pc:"#7A716A"}}>{s.name}</button>;
+                    })}
+ </div>
+ </div>
+
+                {/* date + time */}
+ <div style={{display:"flex",gap:8,marginBottom:6}}>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תאריך</p><input type="date" value={voiceBooking.date} onChange={e=>setVoiceBooking({...voiceBooking,date:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעה</p><input type="time" value={voiceBooking.time} onChange={e=>setVoiceBooking({...voiceBooking,time:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ </div>
+                {mm&&mm!=="00"&&<p style={{fontSize:9.5,color:"#A89AA2",marginBottom:8}}>הערה: התור יישמר על השעה העגולה ({(voiceBooking.time||"").split(":")[0]}:00) — הסכימה הנוכחית תומכת בשעות שלמות.</p>}
+
+ <div style={{display:"flex",gap:8,marginTop:8}}>
+ <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>ביטול</button>
+ <button onClick={handleVoiceBook} disabled={!ready||isBusy("voiceBook")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>{isBusy("voiceBook")?"קובעת...":"✦ אישור וקביעת תור"}</button>
+ </div>
+ </div>
+              );
+            })()}
+
+            {voiceStatus==="error"&&(
+ <div style={{textAlign:"center",padding:"14px 0"}}>
+ <p style={{fontSize:13,color:"#C62828",marginBottom:12,lineHeight:1.5}}>{voiceErr||"לא נקלט דיבור. נסי שוב."}</p>
+ <button onClick={startVoice} className="primary-btn" style={{padding:"10px 22px",background:pcGrad,color:"#fff",fontSize:12}}>🎙️ נסי שוב</button>
+ </div>
+            )}
+
+            {voiceStatus==="unsupported"&&(
+ <p style={{fontSize:12.5,color:"#7A716A",lineHeight:1.7,padding:"10px 0",textAlign:"center"}}>השליטה הקולית זמינה בדפדפני <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). נסי לפתוח את המערכת באחד מהם.</p>
+            )}
  </div>
  </div>
       )}
