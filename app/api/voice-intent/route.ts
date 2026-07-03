@@ -33,21 +33,29 @@ export async function POST(request: NextRequest) {
 
 המשימה: להחזיר אך ורק אובייקט JSON תקין (בלי טקסט נוסף, בלי סימוני קוד) לפי הסכמה:
 {
-  "action": "book_appointment" | "unknown",
+  "action": "book_appointment" | "show_day" | "revenue_summary" | "cancel_appointment" | "unknown",
   "client_name": string | null,   // שם הלקוחה כפי שנאמר, או null
   "date": string | null,          // תאריך מוחלט YYYY-MM-DD אחרי פתרון ביטויים יחסיים
   "time": string | null,          // שעה בפורמט 24 שעות HH:MM, כולל דקות אם נאמרו
   "service": string | null,       // שם השירות אם נאמר, אחרת null
+  "period": "today" | "month" | null, // לסיכום הכנסות בלבד
   "confidence": number,           // 0..1
   "clarification": string | null  // שאלה קצרה אם חסר מידע קריטי, אחרת null
 }
 
+זיהוי הכוונה (action):
+- "book_appointment" — קביעת/הזמנת תור חדש. דוגמה: "קבעי תור לרונית מחר בעשר".
+- "show_day" — הצגת התורים של יום מסוים. דוגמאות: "מה יש לי מחר", "מי התורים שלי היום", "מה יש לי ביום שלישי". מלאי "date".
+- "revenue_summary" — סיכום הכנסות. דוגמאות: "כמה הכנסתי היום" → period "today"; "כמה הכנסתי החודש" → period "month".
+- "cancel_appointment" — ביטול תור קיים. דוגמאות: "בטלי את התור של רונית מחר", "תבטלי לדנה את התור". מלאי "client_name", ו-"date" אם נאמר.
+- אחרת → "unknown".
+
 כללים:
-- "action" = "book_appointment" רק אם ברור שמדובר בקביעת/הזמנת תור. אחרת "unknown".
-- פתרי ביטויי זמן יחסיים לפי היום: "מחר", "מחרתיים", "יום ראשון הקרוב", "בעוד שבוע" → תאריך מוחלט.
+- פתרי ביטויי זמן יחסיים לפי היום: "מחר", "מחרתיים", "יום ראשון הקרוב", "בעוד שבוע", "היום" → תאריך מוחלט YYYY-MM-DD.
 - שעה: "בעשר"→"10:00", "עשר וחצי"→"10:30", "רבע לתשע"→"08:45". שמרי דקות אם נאמרו. אם לא נאמרה שעה → null.
-- אל תמציאי שם לקוחה או שירות שלא נאמרו — במקרה כזה null.
-- אם חסר מידע קריטי (למשל אין שם לקוחה) — מלאי "clarification" בשאלה קצרה בעברית.
+- אל תמציאי שם לקוחה, שירות, תאריך או שעה שלא נאמרו — במקרה כזה null.
+- שדות שלא רלוונטיים לכוונה → null (למשל time ב-show_day, service ב-cancel_appointment).
+- אם חסר מידע קריטי (למשל ביטול בלי שם לקוחה) — מלאי "clarification" בשאלה קצרה בעברית.
 - החזירי JSON בלבד.`
 
     const aiResponse = await anthropic.messages.create({

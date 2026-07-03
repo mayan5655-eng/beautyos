@@ -237,6 +237,8 @@ export default function BeautyOS() {
   const [voiceIntent,    setVoiceIntent]   = useState(null);
   const [voiceErr,       setVoiceErr]      = useState("");
   const [voiceBooking,   setVoiceBooking]  = useState(null); // editable draft before confirm
+  const [voiceInfo,      setVoiceInfo]     = useState(null); // read-only result (day / revenue)
+  const [voiceCancel,    setVoiceCancel]   = useState(null); // { matches:[], selected: appt|null }
   const recognitionRef = useRef(null);
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
@@ -1078,12 +1080,68 @@ export default function BeautyOS() {
       });
       const data = await res.json();
       if (res.ok && data.intent) {
-        setVoiceIntent(data.intent);
-        if (data.intent.action === "book_appointment") prepareBooking(data.intent);
+        const intent = data.intent;
+        setVoiceIntent(intent);
+        if (intent.action === "book_appointment") prepareBooking(intent);
+        else if (intent.action === "show_day") showDayInfo(intent);
+        else if (intent.action === "revenue_summary") revenueInfo(intent);
+        else if (intent.action === "cancel_appointment") prepareCancel(intent);
         else setVoiceStatus("result");
       } else { setVoiceErr(data.error || "לא הצלחתי להבין את הבקשה"); setVoiceStatus("error"); }
     } catch (err) {
       setVoiceErr(err.message); setVoiceStatus("error");
+    }
+  };
+
+  // show_day: read-only list of the requested day's appointments (from state).
+  const showDayInfo = (intent) => {
+    const d = intent.date || today;
+    const list = appointments.filter(a => a.date === d)
+      .sort((a,b) => (Number(a.hour)||0) - (Number(b.hour)||0));
+    setVoiceInfo({ kind: "day", date: d, items: list.map(a => ({ name: a.name, hour: a.hour, service: a.service })) });
+    setVoiceStatus("info");
+  };
+
+  // revenue_summary: sum receipts for today / this month (read-only).
+  const revenueInfo = (intent) => {
+    const period = intent.period === "today" ? "today" : "month";
+    const rs = period === "today"
+      ? receipts.filter(r => (r.created_at||"").slice(0,10) === today)
+      : receipts.filter(r => { const c = r.created_at && new Date(r.created_at); return c && c.getMonth() === thisMonth && c.getFullYear() === thisYear; });
+    const total = rs.reduce((s,r) => s + (Number(r.amount)||0), 0);
+    setVoiceInfo({ kind: "revenue", period, total, count: rs.length });
+    setVoiceStatus("info");
+  };
+
+  // cancel_appointment: find matching appointments (by name, then date) — nothing
+  // is deleted here; deletion happens only on explicit confirm.
+  const prepareCancel = (intent) => {
+    const nameSpoken = (intent.client_name || "").trim();
+    if (!nameSpoken) { setVoiceErr("לא זוהה שם לקוחה לביטול. נסי שוב."); setVoiceStatus("error"); return; }
+    const low = nameSpoken.toLowerCase();
+    let matches = appointments.filter(a => (a.name||"").trim().toLowerCase() === low);
+    if (matches.length === 0) matches = appointments.filter(a => (a.name||"").toLowerCase().includes(low));
+    if (intent.date) matches = matches.filter(a => a.date === intent.date);
+    if (matches.length === 0) { setVoiceErr(`לא מצאתי תור תואם ל${nameSpoken}`); setVoiceStatus("error"); return; }
+    matches = [...matches].sort((a,b) => String(a.date||"").localeCompare(String(b.date||"")) || (Number(a.hour)||0)-(Number(b.hour)||0));
+    setVoiceCancel({ matches, selected: matches.length === 1 ? matches[0] : null });
+    setVoiceStatus("cancel");
+  };
+
+  // Delete the selected appointment — ONLY on explicit confirm (same as handleDelete).
+  const handleVoiceCancel = async () => {
+    const appt = voiceCancel?.selected;
+    if (!appt) return;
+    if (isBusy("voiceCancel")) return;
+    setBusyKey("voiceCancel", true);
+    try {
+      const {error} = await supabase.from("appointments").delete().eq("id", appt.id);
+      if (error) { handleDbError(error, "cancel appointment (voice)"); return; }
+      setAppointments(prev => prev.filter(a => a.id !== appt.id));
+      closeVoice();
+      toast("התור בוטל");
+    } finally {
+      setBusyKey("voiceCancel", false);
     }
   };
 
@@ -2048,6 +2106,66 @@ export default function BeautyOS() {
  </div>
               );
             })()}
+
+            {voiceStatus==="info"&&voiceInfo&&(
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}"</p>
+                {voiceInfo.kind==="day"&&(
+ <div>
+ <h4 className="serif" style={{fontSize:17,fontWeight:600,color:"#1C1C1C",marginBottom:10}}>תורים ל-{(voiceInfo.date||"").split("-").reverse().join("/")}</h4>
+                    {voiceInfo.items.length===0?(
+ <p style={{fontSize:12.5,color:"#B8AFA0",textAlign:"center",padding:"16px 0"}}>אין תורים ביום הזה</p>
+                    ):voiceInfo.items.map((it,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",background:pcTint,borderRadius:12,marginBottom:6}}>
+ <span className="serif" style={{fontSize:16,fontWeight:600,color:pc,width:52,flexShrink:0}}>{it.hour}:00</span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{it.name}</p>
+ <p style={{fontSize:10.5,color:"#7A716A"}}>{it.service}</p>
+ </div>
+ </div>
+                    ))}
+ </div>
+                )}
+                {voiceInfo.kind==="revenue"&&(
+ <div style={{textAlign:"center",background:pcTint,border:`1px solid ${pc}`,borderRadius:16,padding:"22px 18px"}}>
+ <p style={{fontSize:12,color:"#7A716A",marginBottom:8}}>{voiceInfo.period==="today"?"הכנסות היום":"הכנסות החודש"}</p>
+ <p className="serif" style={{fontSize:38,fontWeight:600,color:"#1C1C1C",lineHeight:1}}>₪{Math.round(voiceInfo.total).toLocaleString()}</p>
+ <p style={{fontSize:11,color:pc,marginTop:8,fontWeight:500}}>{voiceInfo.count} עסקאות</p>
+ </div>
+                )}
+ <button onClick={closeVoice} className="primary-btn" style={{width:"100%",marginTop:14,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>סגירה</button>
+ </div>
+            )}
+
+            {voiceStatus==="cancel"&&voiceCancel&&(
+ <div>
+ <p style={{fontSize:11.5,color:"#7A716A",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}"</p>
+                {!voiceCancel.selected?(
+ <div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C",marginBottom:10}}>נמצאו כמה תורים — בחרי איזה לבטל:</p>
+                    {voiceCancel.matches.map(a=>(
+ <button key={a.id} onClick={()=>setVoiceCancel({...voiceCancel,selected:a})} style={{display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"right",background:"#fff",border:"1px solid #E8DED6",borderRadius:12,padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
+ <span className="serif" style={{fontSize:15,fontWeight:600,color:pc,width:78,flexShrink:0}}>{(a.date||"").split("-").reverse().slice(0,2).join("/")} · {a.hour}:00</span>
+ <span style={{flex:1,minWidth:0}}><span style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{a.name}</span> <span style={{fontSize:10.5,color:"#7A716A"}}>· {a.service}</span></span>
+ </button>
+                    ))}
+ <button onClick={closeVoice} className="primary-btn" style={{width:"100%",marginTop:6,padding:"10px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>ביטול</button>
+ </div>
+                ):(
+ <div>
+ <div style={{background:"#FEECEC",border:"1px solid #F3C6C6",borderRadius:14,padding:"16px 16px",textAlign:"center",marginBottom:14}}>
+ <p style={{fontSize:12.5,color:"#C62828",fontWeight:600,marginBottom:8}}>לבטל את התור?</p>
+ <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C"}}>{voiceCancel.selected.name}</p>
+ <p style={{fontSize:12,color:"#7A716A",marginTop:3}}>{voiceCancel.selected.service} · {(voiceCancel.selected.date||"").split("-").reverse().join("/")} בשעה {voiceCancel.selected.hour}:00</p>
+ </div>
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",color:"#7A716A",fontSize:12}}>לא, השאירי</button>
+ <button onClick={handleVoiceCancel} disabled={isBusy("voiceCancel")} className="primary-btn" style={{flex:2,padding:"11px 0",background:"#C62828",color:"#fff",fontSize:12}}>{isBusy("voiceCancel")?"מבטלת...":"כן, בטלי את התור"}</button>
+ </div>
+ </div>
+                )}
+ </div>
+            )}
 
             {voiceStatus==="error"&&(
  <div style={{textAlign:"center",padding:"14px 0"}}>
