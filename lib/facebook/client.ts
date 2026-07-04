@@ -18,6 +18,7 @@ export interface FacebookPage {
   access_token: string;
   category: string;
   tasks?: string[];
+  instagram_business_account?: { id: string };
 }
 
 export interface FacebookLeadField {
@@ -119,7 +120,7 @@ export class FacebookClient {
   async getUserPages(): Promise<FacebookPage[]> {
     const params = new URLSearchParams({
       access_token: this.accessToken,
-      fields: 'id,name,access_token,category,tasks',
+      fields: 'id,name,access_token,category,tasks,instagram_business_account{id}',
     });
 
     const url = `${FB_BASE_URL}/me/accounts?${params.toString()}`;

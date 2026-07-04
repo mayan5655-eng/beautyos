@@ -80,12 +80,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const encryptedUserToken = encryptToken(longLivedToken.access_token);
-
     const expiresAt = new Date();
     expiresAt.setSeconds(
       expiresAt.getSeconds() + (longLivedToken.expires_in || 5184000)
     );
+
+    let savedCount = 0;
+    let upsertFailed = false;
 
     for (const page of pages) {
       const encryptedPageToken = encryptToken(page.access_token);
@@ -95,28 +96,38 @@ export async function GET(request: NextRequest) {
         .upsert(
           {
             tenant_id: tenantId,
-            facebook_page_id: page.id,
+            page_id: page.id,
             page_name: page.name,
             page_category: page.category,
-            access_token_encrypted: encryptedPageToken,
-            user_access_token_encrypted: encryptedUserToken,
-            token_expires_at: expiresAt.toISOString(),
-            is_active: false,
-            connected_by: user.id,
-            connected_at: new Date().toISOString(),
+            instagram_business_id: page.instagram_business_account?.id ?? null,
+            page_access_token_encrypted: encryptedPageToken,
+            long_lived_token_expires_at: expiresAt.toISOString(),
+            connected_by_user_id: user.id,
           },
           {
-            onConflict: 'tenant_id,facebook_page_id',
+            onConflict: 'tenant_id,page_id',
           }
         );
 
       if (upsertError) {
         console.error('Failed to save page:', page.id, upsertError);
+        upsertFailed = true;
+      } else {
+        savedCount++;
       }
     }
 
+    // Surface failures instead of falsely reporting success.
+    if (upsertFailed) {
+      const response = NextResponse.redirect(
+        `${appUrl}/onboarding?fb_error=save_failed`
+      );
+      response.cookies.delete('fb_oauth_state');
+      return response;
+    }
+
     const response = NextResponse.redirect(
-      `${appUrl}/onboarding?fb_success=true&pages=${pages.length}`
+      `${appUrl}/onboarding?fb_success=true&pages=${savedCount}`
     );
     response.cookies.delete('fb_oauth_state');
 
