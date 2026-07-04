@@ -1003,19 +1003,13 @@ export default function BeautyOS() {
       const {data,error}=await supabase.from("receipts").insert([receipt]).select();
       if(error){handleDbError(error, "save receipt"); return;}
       setReceipts(prev=>[...prev,data[0]]);
-      // Send receipt to client via WhatsApp (GreenAPI)
-      if(cashierClient?.phone){
-        fetch("/api/create-receipt",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            client_name:cashierClient.name,
-            client_phone:cashierClient.phone,
-            service:serviceNames,
-            amount:cashierTotal,
-            payment_method:paymentMethod,
-          }),
-        }).then(()=>toast("הקבלה נשלחה ללקוחה ב-WhatsApp"));
+      // Auto-send the receipt to the client on WhatsApp when enabled in settings.
+      // Fire-and-forget: never blocks or breaks receipt creation; only warns on
+      // failure. Uses the same sendReceiptToClient the manual button uses.
+      if((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone){
+        sendReceiptToClient(data[0],{silent:true})
+          .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"); })
+          .catch(()=>toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"));
       }
       setShowCashier(false);setShowReceipt(data[0]);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierNote("");setCashierAppt(null);
@@ -1171,11 +1165,58 @@ export default function BeautyOS() {
       };
       const {data,error} = await supabase.from("receipts").insert([receipt]).select();
       if (error) { handleDbError(error, "create receipt (voice)"); return; }
-      if (data) setReceipts(prev=>[...prev, data[0]]);
       closeVoice();
       toast("הקבלה הופקה ✦");
+      // Open the receipt modal so the voice receipt gets the same actions
+      // (print / manual "send to client") as a regular receipt.
+      if (data) {
+        setReceipts(prev=>[...prev, data[0]]);
+        setShowReceipt(data[0]);
+        // Auto-send to the client on WhatsApp when enabled (same helper as the
+        // manual button). Fire-and-forget — never blocks or breaks creation.
+        const cl = clients.find(c=>String(c.id)===String(data[0].client_id));
+        if ((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cl?.phone) {
+          sendReceiptToClient(data[0],{silent:true})
+            .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"); })
+            .catch(()=>toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"));
+        }
+      }
     } finally {
       setBusyKey("voiceReceipt", false);
+    }
+  };
+
+  // Send a receipt summary to the client's WhatsApp via GreenAPI (server route
+  // /api/send-receipt, which reuses lib/whatsapp.js — the same mechanism as
+  // booking confirmations). Only sends when the client has a phone number.
+  // `silent` suppresses toasts for the auto-send path. Returns true on success.
+  const sendReceiptToClient = async (receipt, { silent = false } = {}) => {
+    if (!receipt) return false;
+    // Resolve the phone from the tenant's own client row; fall back to any
+    // phone already on the receipt object.
+    const cl = clients.find(c => String(c.id) === String(receipt.client_id));
+    const phone = (cl?.phone || receipt.client_phone || "").trim();
+    if (!phone) { if (!silent) toast("ללקוחה אין מספר טלפון", "error"); return false; }
+    try {
+      const res = await fetch("/api/send-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: settings.tenant_id,
+          client_name: receipt.client_name,
+          client_phone: phone,
+          amount: receipt.amount,
+          payment_method: receipt.payment_method,
+          date: (receipt.created_at || "").slice(0, 10),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) { if (!silent) toast("שליחת הקבלה נכשלה", "error"); return false; }
+      if (!silent) toast("הקבלה נשלחה ללקוחה ב-WhatsApp ✦");
+      return true;
+    } catch {
+      if (!silent) toast("שליחת הקבלה נכשלה", "error");
+      return false;
     }
   };
 
@@ -3884,7 +3925,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
  <button onClick={()=>window.print()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",fontSize:11,color:"#7A716A"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
- <a href={waMsg(cl.phone,`שלום ${showReceipt.client_name}! ✦\nקבלה מ${settings.business_name}:\n${showReceipt.service}\nסכום: ₪${showReceipt.amount}\nתודה! `)} target="_blank" rel="noreferrer" className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:11,textAlign:"center",textDecoration:"none"}}>שליחה</a>
+ <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:11,border:"none"}}>{isBusy("sendReceipt")?"שולח...":"שליחה ללקוחה"}</button>
               ):null;})()}
  <button onClick={()=>setShowReceipt(null)} className="primary-btn" style={{flex:1,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:11}}>סגירה</button>
  </div>
@@ -4068,6 +4109,18 @@ export default function BeautyOS() {
  <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
  </div>
  )}
+ </div>
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קבלות</p>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+ <span style={{fontSize:12,color:"#1C1C1C"}}>שליחת קבלה אוטומטית ללקוחה בוואטסאפ</span>
+ {(()=>{const on=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");return(
+ <button onClick={()=>setEditSettings({...editSettings,send_receipt_auto:!on})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:on?pc:"#D8CEd3",position:"relative",transition:"background .2s",flexShrink:0}}>
+ <span style={{position:"absolute",top:3,left:on?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+ </button>
+ );})()}
+ </div>
+ <p style={{fontSize:9,color:"#B8AFA0",marginTop:6,lineHeight:1.5}}>כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית.</p>
  </div>
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
