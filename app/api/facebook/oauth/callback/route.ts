@@ -18,13 +18,13 @@ export async function GET(request: NextRequest) {
   if (errorParam) {
     console.error('Facebook OAuth error:', errorParam, errorReason);
     return NextResponse.redirect(
-      `${appUrl}/onboarding?fb_error=${encodeURIComponent(errorReason || errorParam)}`
+      `${appUrl}/dashboard?fb_error=${encodeURIComponent(errorReason || errorParam)}`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${appUrl}/onboarding?fb_error=missing_parameters`
+      `${appUrl}/dashboard?fb_error=missing_parameters`
     );
   }
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     if (!cookieState || cookieState !== state) {
       return NextResponse.redirect(
-        `${appUrl}/onboarding?fb_error=invalid_state`
+        `${appUrl}/dashboard?fb_error=invalid_state`
       );
     }
 
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     if (tenantError || !tenantData) {
       console.error('Failed to get tenant ID:', tenantError);
       return NextResponse.redirect(
-        `${appUrl}/onboarding?fb_error=no_tenant`
+        `${appUrl}/dashboard?fb_error=no_tenant`
       );
     }
 
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 
     if (!pages || pages.length === 0) {
       return NextResponse.redirect(
-        `${appUrl}/onboarding?fb_error=no_pages`
+        `${appUrl}/dashboard?fb_error=no_pages`
       );
     }
 
@@ -120,14 +120,14 @@ export async function GET(request: NextRequest) {
     // Surface failures instead of falsely reporting success.
     if (upsertFailed) {
       const response = NextResponse.redirect(
-        `${appUrl}/onboarding?fb_error=save_failed`
+        `${appUrl}/dashboard?fb_error=save_failed`
       );
       response.cookies.delete('fb_oauth_state');
       return response;
     }
 
     const response = NextResponse.redirect(
-      `${appUrl}/onboarding?fb_success=true&pages=${savedCount}`
+      `${appUrl}/dashboard?fb_success=true&pages=${savedCount}`
     );
     response.cookies.delete('fb_oauth_state');
 
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Facebook OAuth callback error:', error);
     return NextResponse.redirect(
-      `${appUrl}/onboarding?fb_error=callback_failed`
+      `${appUrl}/dashboard?fb_error=callback_failed`
     );
   }
 }

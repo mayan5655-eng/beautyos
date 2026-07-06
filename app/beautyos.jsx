@@ -207,6 +207,8 @@ export default function BeautyOS() {
   const [fbLoading,      setFbLoading]      = useState(false);
   const [fbError,        setFbError]        = useState(null);
   const [fbDatePreset,   setFbDatePreset]   = useState("last_30d");
+  // Connected Facebook page for THIS tenant (row from facebook_pages), or null if not connected
+  const [fbPage,         setFbPage]         = useState(null);
   // AI content generator (posts)
   const [postGoal,       setPostGoal]       = useState("");
   const [postVariations, setPostVariations] = useState(null);
@@ -413,6 +415,29 @@ export default function BeautyOS() {
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
+
+  // Facebook connect: load the current connection state on mount, and handle the
+  // return from the OAuth callback. The callback redirects back here with
+  // ?fb_success=true (page connected) or ?fb_error=... — show a toast, then strip
+  // those params so a refresh doesn't re-fire the message.
+  useEffect(() => {
+    loadFbConnection();
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("fb_success") === "true") {
+        toast("הדף חובר בהצלחה ✦");
+        loadFbConnection();
+      } else if (params.get("fb_error")) {
+        toast("החיבור נכשל, נסי שוב", "error");
+      }
+      if (params.has("fb_success") || params.has("fb_error") || params.has("pages")) {
+        params.delete("fb_success"); params.delete("fb_error"); params.delete("pages");
+        const qs = params.toString();
+        window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
+      }
+    } catch { /* non-fatal */ }
+    /* eslint-disable-next-line */
+  }, []);
 
   // Esc closes any open modal / drawer (does not touch session/tenant logic).
   useEffect(() => {
@@ -1612,6 +1637,20 @@ export default function BeautyOS() {
     } finally {
       setScanLoading(false);
     }
+  };
+
+  // Is a Facebook page connected for THIS tenant? Mirrors the campaigns route's
+  // check (facebook_pages, is_active). RLS scopes the query to the tenant, so we
+  // never see another business's page.
+  const loadFbConnection = async () => {
+    try {
+      const { data } = await supabase
+        .from("facebook_pages")
+        .select("page_name")
+        .eq("is_active", true)
+        .limit(1);
+      setFbPage(data && data.length > 0 ? data[0] : null);
+    } catch { /* non-fatal — leave as not-connected */ }
   };
 
   // Fetch live Facebook ad campaigns for the current tenant
@@ -3052,7 +3091,12 @@ export default function BeautyOS() {
  <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6",marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
  <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"#1C1C1C"}}>קמפיינים בפייסבוק ואינסטגרם</h3>
- <div style={{display:"flex",gap:5,alignItems:"center"}}>
+ <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+ {fbPage?(
+ <span title={fbPage.page_name} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:600,color:"#388E3C",background:"#E8F5E9",borderRadius:20,padding:"6px 12px",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>מחובר ✓ · {fbPage.page_name}</span>
+ ):(
+ <button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"7px 14px",background:"#1877F2",color:"#fff",fontSize:11}}>התחבר לפייסבוק</button>
+ )}
  <select value={fbDatePreset} onChange={e=>{setFbDatePreset(e.target.value);loadFbCampaigns(e.target.value);}} style={{border:"1px solid #E8DED6",borderRadius:20,padding:"6px 10px",fontSize:10,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:"#7A716A"}}>
  <option value="today">היום</option>
  <option value="last_7d">7 ימים</option>
