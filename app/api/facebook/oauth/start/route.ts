@@ -12,7 +12,6 @@ import crypto from 'crypto';
 //   'leads_retrieval', 'business_management'
 const FACEBOOK_SCOPES = [
   'public_profile',
-  'email',
 ].join(',');
 
 export async function GET(request: NextRequest) {
