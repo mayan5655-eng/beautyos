@@ -52,7 +52,7 @@ export async function POST() {
       .select("tenant_id, business_name");
     const businessNameByTenant = {};
     (settingsRows || []).forEach((row) => {
-      businessNameByTenant[row.tenant_id] = row.business_name || "BloomOS";
+      businessNameByTenant[row.tenant_id] = row.business_name || "העסק";
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -65,7 +65,7 @@ export async function POST() {
         continue;
       }
 
-      const businessName = businessNameByTenant[appt.tenant_id] || "BloomOS";
+      const businessName = businessNameByTenant[appt.tenant_id] || "העסק";
       const confirmLink = `${baseUrl}/confirm?id=${appt.id}&action=confirm`;
       const cancelLink = `${baseUrl}/confirm?id=${appt.id}&action=cancel`;
 

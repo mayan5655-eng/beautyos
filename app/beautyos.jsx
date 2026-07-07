@@ -179,7 +179,7 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState(DEFAULT_SERVICES);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
-  const [settings,     setSettings]     = useState({business_name:"BloomOS",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
+  const [settings,     setSettings]     = useState({business_name:"",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
@@ -2419,7 +2419,7 @@ export default function BeautyOS() {
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",lineHeight:1}}>
  <span style={{display:"inline-flex",alignItems:"flex-start"}}>
- <span className="serif" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"#1C1C1C"}}>{settings.business_name}</span>
+ <span className="serif" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"#1C1C1C"}}>BloomOS</span>
  <span style={{fontSize:13,color:pc,marginRight:-2,marginTop:1,lineHeight:1}}>✦</span>
  </span>
  <span style={{fontSize:8,color:"#9A9088",letterSpacing:"4.5px",fontWeight:500,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
@@ -4005,7 +4005,7 @@ export default function BeautyOS() {
             <div id="post-design" style={{width:380,height:380,marginLeft:"auto",marginRight:"auto",background:designBg?"#000":pcGrad,borderRadius:0,padding:34,display:"flex",flexDirection:"column",justifyContent:"center",position:"relative",overflow:"hidden"}}>
               {designBg&&<img alt="" src={designBg} crossOrigin="anonymous" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
               {designBg&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.25),rgba(0,0,0,0.55))"}}/>}
-              <div style={{position:"absolute",top:18,right:22,fontSize:11,color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||"BloomOS"}</div>
+              <div style={{position:"absolute",top:18,right:22,fontSize:11,color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||""}</div>
               {designPost.title&&<div className="serif" style={{fontSize:26,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:14,textShadow:"0 1px 6px rgba(0,0,0,0.18)"}}>{designPost.title}</div>}
               <div style={{fontSize:14,color:"#fff",lineHeight:1.6,whiteSpace:"pre-wrap",textShadow:"0 1px 4px rgba(0,0,0,0.15)",maxHeight:170,overflow:"hidden"}}>{designPost.body}</div>
               {designPost.callToAction&&<div style={{marginTop:16,display:"inline-block",alignSelf:"flex-start",background:"#fff",color:"#3A2A30",fontSize:12.5,fontWeight:700,padding:"8px 18px",borderRadius:30}}>{designPost.callToAction}</div>}
