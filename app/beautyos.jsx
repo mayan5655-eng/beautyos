@@ -8,7 +8,7 @@ import { supabase } from "./supabase";
 // ============================================================
 
 const DEFAULT_SERVICES = [
-  {name:"טיפול פנים",price:250,duration:60,color:"#D4AF37",active:true},
+  {name:"טיפול פנים",price:250,duration:60,color:"#D98BA0",active:true},
   {name:"הסרת שיער",price:180,duration:45,color:"#C68A5E",active:true},
   {name:"עיצוב גבות",price:80,duration:30,color:"#D9B98C",active:true},
   {name:"מניקור",price:120,duration:45,color:"#CBA15E",active:true},
@@ -73,7 +73,7 @@ const planAllows = (plan, feature) => {
   return (PLAN_FEATURES[plan] || []).includes(feature);
 };
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
-const STATUS_COLORS = {"VIP":"#D4AF37","active":"#7BAE7F","cold":"#B8AFA0","hot":"#C68A5E"};
+const STATUS_COLORS = {"VIP":"#C9A24B","active":"#7BAE7F","cold":"#B8AFA0","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
 const FORM_TYPES = [
   {key:"general",label:"הצהרת בריאות כללית"},
@@ -92,7 +92,7 @@ const LEAD_STATUSES = {
 };
 const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","אחר":"◦"};
 const PAYMENT_METHODS = [
-  {key:"מזומן",icon:"◦",color:"#D4AF37"},
+  {key:"מזומן",icon:"◦",color:"#C9A24B"},
   {key:"אשראי",icon:"◦",color:"#A67C52"},
   {key:"ביט",icon:"◦",color:"#C68A5E"},
   {key:"פייבוקס",icon:"◦",color:"#CBA15E"},
@@ -179,7 +179,7 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState(DEFAULT_SERVICES);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
-  const [settings,     setSettings]     = useState({business_name:"BABAY",therapist_name:"רונית",primary_color:"#D4AF37",working_hours_start:8,working_hours_end:19,business_phone:""});
+  const [settings,     setSettings]     = useState({business_name:"BABAY",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
@@ -385,12 +385,12 @@ export default function BeautyOS() {
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
   const lastMonthYear = thisMonth===0?thisYear-1:thisYear;
-  const pc = (settings&&settings.primary_color)||"#D4AF37";
+  const pc = (settings&&settings.primary_color)||"#D98BA0";
   // Derived theme shades from the chosen primary color, so the whole app
   // recolors when the cosmetician picks a color in settings.
   const hexToRgb = (h) => {
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h || "");
-    return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : { r:212, g:175, b:55 };
+    return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : { r:217, g:139, b:160 };
   };
   const lighten = (h, amt) => {
     const c = hexToRgb(h);
@@ -4123,7 +4123,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#D4AF37","#C9A227","#C68A5E","#B0764E","#A67C52","#8C6239","#CBA15E","#E0C068","#BC6B3F","#1C1C1C"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #1C1C1C":"2px solid #E8DED6",cursor:"pointer"}}/>)}</div></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#D98BA0","#C9A24B","#C68A5E","#B0764E","#A67C52","#8C6239","#CBA15E","#E0C068","#BC6B3F","#1C1C1C"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #1C1C1C":"2px solid #E8DED6",cursor:"pointer"}}/>)}</div></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
  <div style={{display:"flex",gap:6}}>
