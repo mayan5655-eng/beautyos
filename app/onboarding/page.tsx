@@ -139,7 +139,7 @@ export default function OnboardingPage() {
         {/* Brand mark */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div style={{ fontSize: 26, marginBottom: 4 }}>💎</div>
-          <p style={{ fontSize: 10, color: "#BBB", fontWeight: 600, letterSpacing: 1.5 }}>BEAUTYOS</p>
+          <p style={{ fontSize: 10, color: "#BBB", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
         </div>
 
         {/* Progress */}

@@ -69,7 +69,7 @@ export async function POST(request) {
       .limit(1);
     const settingsRow =
       settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
-    const businessName = settingsRow?.business_name || "BeautyOS";
+    const businessName = settingsRow?.business_name || "BloomOS";
     const ownerPhone = settingsRow?.business_phone || "";
 
     // 3. Send confirmation to the CLIENT

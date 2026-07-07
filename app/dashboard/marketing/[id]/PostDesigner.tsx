@@ -125,7 +125,7 @@ export default function PostDesigner({
 
           {/* Business name */}
           <div style={{ position: 'absolute', top: 22, right: 24, color: '#fff', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
-            {businessName || 'BeautyOS'}
+            {businessName || 'BloomOS'}
           </div>
 
           {/* Headline + body */}

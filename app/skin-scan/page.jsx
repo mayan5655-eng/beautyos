@@ -331,7 +331,7 @@ export default function SkinScanPage() {
       </div>
 
       <div style={{ marginTop: "auto", paddingTop: 30, fontSize: 11, color: "#C9A9B6" }}>
-        מופעל ע"י BeautyOS 💎
+        מופעל ע"י BloomOS 💎
       </div>
     </div>
   );

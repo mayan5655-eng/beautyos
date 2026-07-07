@@ -179,7 +179,7 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState(DEFAULT_SERVICES);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
-  const [settings,     setSettings]     = useState({business_name:"BABAY",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
+  const [settings,     setSettings]     = useState({business_name:"BloomOS",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
@@ -4005,7 +4005,7 @@ export default function BeautyOS() {
             <div id="post-design" style={{width:380,height:380,marginLeft:"auto",marginRight:"auto",background:designBg?"#000":pcGrad,borderRadius:0,padding:34,display:"flex",flexDirection:"column",justifyContent:"center",position:"relative",overflow:"hidden"}}>
               {designBg&&<img alt="" src={designBg} crossOrigin="anonymous" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
               {designBg&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.25),rgba(0,0,0,0.55))"}}/>}
-              <div style={{position:"absolute",top:18,right:22,fontSize:11,color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||"BABAY"}</div>
+              <div style={{position:"absolute",top:18,right:22,fontSize:11,color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||"BloomOS"}</div>
               {designPost.title&&<div className="serif" style={{fontSize:26,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:14,textShadow:"0 1px 6px rgba(0,0,0,0.18)"}}>{designPost.title}</div>}
               <div style={{fontSize:14,color:"#fff",lineHeight:1.6,whiteSpace:"pre-wrap",textShadow:"0 1px 4px rgba(0,0,0,0.15)",maxHeight:170,overflow:"hidden"}}>{designPost.body}</div>
               {designPost.callToAction&&<div style={{marginTop:16,display:"inline-block",alignSelf:"flex-start",background:"#fff",color:"#3A2A30",fontSize:12.5,fontWeight:700,padding:"8px 18px",borderRadius:30}}>{designPost.callToAction}</div>}

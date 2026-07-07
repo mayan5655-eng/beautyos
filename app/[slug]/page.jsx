@@ -159,7 +159,7 @@ export default function LandingPage() {
 
       {/* FOOTER */}
       <div style={{ marginTop: "auto", padding: "20px 0 24px", fontSize: 11, color: "#BBB" }}>
-        מופעל ע"י BeautyOS 💎
+        מופעל ע"י BloomOS 💎
       </div>
     </div>
   );
