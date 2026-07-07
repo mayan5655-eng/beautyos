@@ -5,12 +5,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
 import crypto from 'crypto';
 
+// TEMP: reduced to basic scopes that do NOT require App Review, so the OAuth
+// flow can be tested end-to-end before the app is approved. Add the
+// page-management scopes back after App Review:
+//   'pages_show_list', 'pages_manage_metadata', 'pages_read_engagement',
+//   'leads_retrieval', 'business_management'
 const FACEBOOK_SCOPES = [
-  'pages_show_list',
-  'pages_manage_metadata',
-  'pages_read_engagement',
-  'leads_retrieval',
-  'business_management',
+  'public_profile',
+  'email',
 ].join(',');
 
 export async function GET(request: NextRequest) {
