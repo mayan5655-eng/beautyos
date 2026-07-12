@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'login' | 'forgot'>('login')
+  const [resetNotice, setResetNotice] = useState('')
   const router = useRouter()
 
   async function handleLogin(e: React.FormEvent) {
@@ -28,6 +30,38 @@ export default function LoginPage() {
       router.push('/')
       router.refresh()
     }
+  }
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setResetNotice('')
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    setLoading(false)
+    if (error) {
+      setError('שליחת הקישור נכשלה. נסה/י שוב.')
+    } else {
+      // Neutral message either way, so we don't reveal whether the email exists.
+      setResetNotice('אם קיים חשבון עם כתובת זו, נשלח אליו קישור לאיפוס הסיסמה.')
+    }
+  }
+
+  function showForgot() {
+    setMode('forgot')
+    setError('')
+    setResetNotice('')
+    setPassword('')
+  }
+
+  function showLogin() {
+    setMode('login')
+    setError('')
+    setResetNotice('')
   }
 
   return (
@@ -58,9 +92,9 @@ export default function LoginPage() {
           color: '#666',
           textAlign: 'center',
           fontSize: '14px',
-        }}>כניסה לחשבון</p>
+        }}>{mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}</p>
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={mode === 'login' ? handleLogin : handleForgot}>
           <input
             type="email"
             placeholder="אימייל"
@@ -77,22 +111,24 @@ export default function LoginPage() {
               boxSizing: 'border-box',
             }}
           />
-          <input
-            type="password"
-            placeholder="סיסמה"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '16px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
-          />
+          {mode === 'login' && (
+            <input
+              type="password"
+              placeholder="סיסמה"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '12px',
+                marginBottom: '16px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '15px',
+                boxSizing: 'border-box',
+              }}
+            />
+          )}
 
           {error && (
             <div style={{
@@ -104,6 +140,18 @@ export default function LoginPage() {
               fontSize: '14px',
               textAlign: 'center',
             }}>{error}</div>
+          )}
+
+          {resetNotice && (
+            <div style={{
+              color: '#276749',
+              background: '#c6f6d5',
+              padding: '10px',
+              borderRadius: '6px',
+              marginBottom: '16px',
+              fontSize: '14px',
+              textAlign: 'center',
+            }}>{resetNotice}</div>
           )}
 
           <button
@@ -121,9 +169,49 @@ export default function LoginPage() {
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.7 : 1,
             }}>
-            {loading ? 'מתחבר...' : 'כניסה'}
+            {mode === 'login'
+              ? (loading ? 'מתחבר...' : 'כניסה')
+              : (loading ? 'שולח...' : 'שליחת קישור לאיפוס')}
           </button>
         </form>
+
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+          {mode === 'login' ? (
+            <button
+              type="button"
+              onClick={showForgot}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#D4945A',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+            >
+              שכחת סיסמה?
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={showLogin}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#D4945A',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+            >
+              חזרה לכניסה
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
