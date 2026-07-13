@@ -41,7 +41,7 @@ export async function POST(request) {
       .eq("tenant_id", tenantId)
       .limit(1);
     const businessName =
-      (settingsRows && settingsRows[0]?.business_name) || "BeautyOS";
+      (settingsRows && settingsRows[0]?.business_name) || "העסק";
 
     const msg =
       `שלום ${client_name || "לקוחה"}! ✦\n` +

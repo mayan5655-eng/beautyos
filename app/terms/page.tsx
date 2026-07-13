@@ -7,8 +7,8 @@ import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "תנאי שימוש · BABAY",
-  description: "תנאי השימוש של BABAY — Beauty Business OS",
+  title: "תנאי שימוש · BloomOS",
+  description: "תנאי השימוש של BloomOS — Beauty Business OS",
 };
 
 const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
@@ -18,15 +18,15 @@ export default function TermsPage() {
     <main dir="rtl" style={pageStyle}>
       <article style={cardStyle}>
         <header style={{ marginBottom: 10 }}>
-          <p style={brandStyle}>BABAY</p>
+          <p style={brandStyle}>BloomOS</p>
           <h1 style={titleStyle}>תנאי שימוש</h1>
           <p style={enSubtitleStyle} dir="ltr">Terms of Service</p>
         </header>
 
         <Section heHeading="כללי" enHeading="General">
-          <He>השימוש ב-BABAY כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
+          <He>השימוש ב-BloomOS כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
           <En>
-            Use of BABAY is subject to these terms. Using the Service constitutes
+            Use of BloomOS is subject to these terms. Using the Service constitutes
             agreement to them.
           </En>
         </Section>

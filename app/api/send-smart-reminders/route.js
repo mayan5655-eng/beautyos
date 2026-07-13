@@ -64,7 +64,7 @@ export async function POST(request) {
     const businessNameByTenant = {};
     const reviewUrlByTenant = {};
     (settingsRows || []).forEach((row) => {
-      businessNameByTenant[row.tenant_id] = row.business_name || "BeautyOS";
+      businessNameByTenant[row.tenant_id] = row.business_name || "העסק";
       if (row.review_url) reviewUrlByTenant[row.tenant_id] = row.review_url;
     });
 
@@ -118,7 +118,7 @@ export async function POST(request) {
       if (lastDate >= cutoff90) continue; // visited recently - skip
       const client = clientById[clientId];
       if (!client) continue;
-      const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const message =
         `שלום ${client.name}! 💗\n` +
         `מתגעגעים אלייך ב${businessName}!\n` +
@@ -142,7 +142,7 @@ export async function POST(request) {
       if (!finished) continue;
       const client = clientById[pkg.client_id];
       if (!client) continue;
-      const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const message =
         `שלום ${client.name}! ✨\n` +
         `סיימת את חבילת ${pkg.service} ב${businessName} — כל הכבוד! 💆‍♀️\n` +
@@ -161,7 +161,7 @@ export async function POST(request) {
     for (const appt of reviewAppts || []) {
       const client = clientById[appt.client_id];
       if (!client) continue;
-      const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const reviewUrl = reviewUrlByTenant[client.tenant_id];
       const message =
         `שלום ${client.name}! 💗\n` +
@@ -199,7 +199,7 @@ export async function POST(request) {
       }
       if (bMonth !== todayMonth || bDay !== todayDay) continue; // not today
 
-      const businessName = businessNameByTenant[client.tenant_id] || "BeautyOS";
+      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const message =
         `שלום ${client.name}! 🎉\n` +
         `יום הולדת שמח מ${businessName}! 💗\n` +

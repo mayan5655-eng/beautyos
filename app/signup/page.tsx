@@ -83,7 +83,7 @@ export default function SignupPage() {
           color: '#D4945A',
           fontSize: '28px',
           textAlign: 'center',
-        }}>BeautyOS</h1>
+        }}>BloomOS</h1>
         <p style={{
           margin: '0 0 32px 0',
           color: '#666',

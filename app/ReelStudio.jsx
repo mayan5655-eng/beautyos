@@ -15,7 +15,7 @@ const W = 1080;
 const H = 1920;
 const FPS = 30;
 
-export default function ReelStudio({ primaryColor = "#C77B92", businessName = "BeautyOS" }) {
+export default function ReelStudio({ primaryColor = "#C77B92", businessName = "" }) {
   const pc = primaryColor;
 
   const [slides, setSlides] = useState([]);      // [{id, img, url, caption}]

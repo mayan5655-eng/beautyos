@@ -7,8 +7,8 @@ import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "מדיניות פרטיות · BABAY",
-  description: "מדיניות הפרטיות של BABAY — Beauty Business OS",
+  title: "מדיניות פרטיות · BloomOS",
+  description: "מדיניות הפרטיות של BloomOS — Beauty Business OS",
 };
 
 const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
@@ -18,19 +18,19 @@ export default function PrivacyPage() {
     <main dir="rtl" style={pageStyle}>
       <article style={cardStyle}>
         <header style={{ marginBottom: 10 }}>
-          <p style={brandStyle}>BABAY</p>
+          <p style={brandStyle}>BloomOS</p>
           <h1 style={titleStyle}>מדיניות פרטיות</h1>
           <p style={enSubtitleStyle} dir="ltr">Privacy Policy</p>
         </header>
 
         <Section heHeading="מבוא" enHeading="Introduction">
           <He>
-            BABAY (&quot;השירות&quot;, &quot;אנחנו&quot;) מכבד את פרטיותך. מדיניות זו
+            BloomOS (&quot;השירות&quot;, &quot;אנחנו&quot;) מכבד את פרטיותך. מדיניות זו
             מסבירה איזה מידע אנו אוספים, כיצד אנו משתמשים בו, וכיצד אנו מגנים עליו.
             השימוש בשירות מהווה הסכמה למדיניות זו.
           </He>
           <En>
-            BABAY (&quot;the Service&quot;, &quot;we&quot;) respects your privacy.
+            BloomOS (&quot;the Service&quot;, &quot;we&quot;) respects your privacy.
             This policy explains what information we collect, how we use it, and how
             we protect it. Using the Service constitutes agreement to this policy.
           </En>

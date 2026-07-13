@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../supabase'
+import FloralCorners from '../FloralCorners'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -66,6 +67,9 @@ export default function LoginPage() {
 
   return (
     <div dir="rtl" style={{
+      position: 'relative',
+      zIndex: 0,
+      overflow: 'hidden',
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -73,7 +77,10 @@ export default function LoginPage() {
       background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
       fontFamily: 'system-ui, -apple-system, sans-serif',
     }}>
+      <FloralCorners idPrefix="auth" />
       <div style={{
+        position: 'relative',
+        zIndex: 1,
         background: 'white',
         padding: '40px',
         borderRadius: '16px',
@@ -86,7 +93,7 @@ export default function LoginPage() {
           color: '#D4945A',
           fontSize: '28px',
           textAlign: 'center',
-        }}>BeautyOS</h1>
+        }}>BloomOS</h1>
         <p style={{
           margin: '0 0 32px 0',
           color: '#666',

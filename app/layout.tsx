@@ -15,7 +15,7 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "BABAY - Beauty Business OS",
+  title: "BloomOS - Beauty Business OS",
   description: "Beauty Business OS",
 };
 

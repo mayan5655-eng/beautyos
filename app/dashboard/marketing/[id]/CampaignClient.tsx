@@ -36,7 +36,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
 
   // Business branding pulled from settings (with safe fallbacks)
   const primaryColor = settings?.primary_color || '#C77B92'
-  const businessName = settings?.business_name || 'BeautyOS'
+  const businessName = settings?.business_name || ''
   const businessPhone = settings?.business_phone || ''
 
   const copyPost = (post: Post) => {

@@ -2,17 +2,19 @@
 
 :root {
   --white: #ffffff;
-  --cream: #f7f5f2;
-  --beige-light: #f2e9e1;
-  --beige-warm: #e7d6c1;
-  --gold: #d4af37;
-  --charcoal: #1c1c1c;
+  --cream: #fbf5f3;        /* warm blush-tinted background */
+  --beige-light: #f3e4e7;  /* soft blush border/light */
+  --beige-warm: #e8cdbf;   /* warm rosy beige */
+  --blush: #d98ba0;        /* primary — soft blush-pink */
+  --gold: #c9a24b;         /* accent — warm gold */
+  --charcoal: #1f1a1c;     /* warm near-black */
   --background: var(--cream);
   --foreground: var(--charcoal);
+  --primary: var(--blush);
   --accent: var(--gold);
   --card: var(--white);
   --border: var(--beige-light);
-  --muted: #8a8378;
+  --muted: #9c8a90;
 }
 
 @theme inline {
@@ -20,10 +22,12 @@
   --color-cream: var(--cream);
   --color-beige-light: var(--beige-light);
   --color-beige-warm: var(--beige-warm);
+  --color-blush: var(--blush);
   --color-gold: var(--gold);
   --color-charcoal: var(--charcoal);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
   --color-accent: var(--accent);
   --color-card: var(--card);
   --color-border: var(--border);
