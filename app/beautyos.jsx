@@ -83,13 +83,32 @@ const FORM_TYPES = [
   {key:"peel",label:"פילינג כימי"},
 ];
 const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטוק","המלצה","הליכה ברחוב","אחר"];
+// Canonical manual workflow statuses. These KEYS must stay in sync with
+// ALLOWED_STATUSES in app/api/leads/send-bulk/route.js and LEAD_STATUSES in
+// app/dashboard/leads/LeadsClient.tsx — the bulk WhatsApp send targets a status
+// by key. Colors/bg are drawn from the beautyOS palette so the chips, badges
+// and buttons match the rest of the app.
 const LEAD_STATUSES = {
- "new":       {label:"חדש",         color:"#5580C4",bg:"#EBF3FF"},
- "contacted": {label:"יצרתי קשר",  color:"#A67C52",bg:"#F7F1E6"},
- "scheduled": {label:"נקבע תור",   color:"#5C9460",bg:"#EEF6EF"},
- "closed":    {label:"נסגר",        color:"#7B1FA2",bg:"#F3E5F5"},
+ "no_answer":   {label:"אין מענה",   color:"#8C8073",bg:"#F4F1EC"},
+ "in_progress": {label:"בטיפול",      color:"#A67C52",bg:"#F7F1E6"},
+ "scheduled":   {label:"נקבע תור",   color:"#5C9460",bg:"#EEF6EF"},
+ "no_show":     {label:"לא הגיע",    color:"#C0872E",bg:"#FBF3E2"},
+ "closed":      {label:"נסגר",        color:"#5580C4",bg:"#EBF3FF"},
+ "irrelevant":  {label:"לא רלוונטי", color:"#C62828",bg:"#FEEBEE"},
+};
+// Legacy status values that may still exist on rows created before the status
+// model above (no DB migration is run). Shown read-only so old leads never
+// render blank; they are NOT offered as canonical chips/buttons.
+const LEGACY_LEAD_STATUSES = {
+ "new":       {label:"חדש",        color:"#5580C4",bg:"#EBF3FF"},
+ "contacted": {label:"יצרתי קשר", color:"#A67C52",bg:"#F7F1E6"},
  "lost":      {label:"לא רלוונטי", color:"#C62828",bg:"#FEEBEE"},
 };
+// Resolve a status value to its display meta: canonical first, then legacy,
+// then a neutral fallback so any unexpected value is still visible.
+const leadStatusMeta = (status) =>
+ LEAD_STATUSES[status] || LEGACY_LEAD_STATUSES[status] ||
+ {label: status || "ללא סטטוס", color:"#8C8073", bg:"#F4F1EC"};
 const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","אחר":"◦"};
 const PAYMENT_METHODS = [
   {key:"מזומן",icon:"◦",color:"#D4AF37"},
@@ -160,7 +179,7 @@ function waPayment(phone, name, amount, service, method, businessPhone) {
 }
 
 const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medical:"",notes:"",status:"active"};
-const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
+const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"no_answer",notes:"",reminder_date:""};
 
 // ============================================================
 // MAIN COMPONENT
@@ -275,6 +294,15 @@ export default function BeautyOS() {
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
   const [leadSourceFilter,  setLeadSourceFilter]   = useState("all");
+  // --- Bulk WhatsApp send (per status group) ---
+  // bulkStatus = status key being composed for (null = closed modal).
+  // bulkStep walks: compose -> confirm -> sending -> result. Nothing is sent
+  // until the explicit "confirm" step, which shows the real recipient count.
+  const [bulkStatus,        setBulkStatus]         = useState(null);
+  const [bulkMessage,       setBulkMessage]        = useState("");
+  const [bulkStep,          setBulkStep]           = useState("compose");
+  const [bulkResult,        setBulkResult]         = useState(null);
+  const [bulkError,         setBulkError]          = useState("");
   const [hoveredAppt,       setHoveredAppt]        = useState(null);
   const [loading,           setLoading]            = useState(true);
   const [uploading,         setUploading]          = useState(false);
@@ -593,11 +621,13 @@ export default function BeautyOS() {
   const tomorrowCancelled  = tomorrowAppts.filter(a=>a.confirmation_status==="cancelled").length;
   const tomorrowPending    = tomorrowAppts.filter(a=>!a.confirmation_status||a.confirmation_status==="pending").length;
 
-  const newLeadsCount      = leads.filter(l=>l.status==="new").length;
+  // Un-handled leads for the sidebar badge: the canonical "no_answer" plus the
+  // legacy "new" so pre-migration inbound leads still count.
+  const newLeadsCount      = leads.filter(l=>l.status==="no_answer"||l.status==="new").length;
   const thisMonthLeads     = leads.filter(l=>{if(!l.created_at)return false;const d=new Date(l.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;});
   const convertedLeads     = leads.filter(l=>l.status==="closed");
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
-  const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost");
+  const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
 
   const campaignStats = useMemo(() => LEAD_SOURCES.map(source=>{
     const sourceLeads=leads.filter(l=>l.source===source);
@@ -845,6 +875,40 @@ export default function BeautyOS() {
     const {data,error}=await supabase.from("leads").update({status}).eq("id",lead.id).select();
     if(error){handleDbError(error, "update lead status"); return;}
     if(data){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
+  };
+
+  // --- Bulk WhatsApp send per status group ---
+  // openBulk resets the flow to a clean "compose" step for the chosen status.
+  const openBulk = (status) => {
+    setBulkStatus(status); setBulkMessage(""); setBulkResult(null);
+    setBulkError(""); setBulkStep("compose");
+  };
+  const closeBulk = () => {
+    setBulkStatus(null); setBulkStep("compose"); setBulkMessage("");
+    setBulkResult(null); setBulkError("");
+  };
+  // Reuses the SAME API route as the standalone leads screen
+  // (app/api/leads/send-bulk/route.js). The route resolves the tenant from the
+  // authenticated session and sends a REAL WhatsApp to every lead with a phone
+  // in the given status — hence the explicit confirm step before we call it.
+  const confirmBulkSend = async () => {
+    if(!bulkStatus||!bulkMessage.trim()) return;
+    setBulkStep("sending"); setBulkError("");
+    try{
+      const res=await fetch("/api/leads/send-bulk",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({status:bulkStatus,message:bulkMessage.trim()}),
+      });
+      const data=await res.json();
+      if(!res.ok||!data.success){
+        setBulkError(data.error||"שליחה נכשלה"); setBulkStep("confirm"); return;
+      }
+      setBulkResult({sent:data.sent??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0});
+      setBulkStep("result");
+    }catch(err){
+      setBulkError(err instanceof Error?err.message:"שליחה נכשלה"); setBulkStep("confirm");
+    }
   };
 
   const handleConvertLead = (lead) => {
@@ -2826,6 +2890,26 @@ export default function BeautyOS() {
               ))}
  </div>
  <input value={leadSearch} onChange={e=>setLeadSearch(e.target.value)} placeholder="חיפוש..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:24,padding:"9px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",marginBottom:10}}/>
+            {/* Bulk WhatsApp by status — one send action per status group. Sends
+                REAL messages, but only after the explicit confirm step in the
+                modal below. Count on each pill = leads with a phone that will
+                receive the message. */}
+            {leads.length>0&&(
+ <div style={{background:"#fff",borderRadius:16,padding:"12px 14px",border:"1px solid #E8DED6",marginBottom:12}}>
+ <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:9,flexWrap:"wrap"}}>
+ <p style={{fontSize:12,fontWeight:700,color:"#1C1C1C"}}>שליחת וואטסאפ לפי סטטוס</p>
+ <span style={{fontSize:9,color:"#7A716A"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
+ </div>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {Object.entries(LEAD_STATUSES).map(([key,s])=>{
+                  const withPhone=leads.filter(l=>l.status===key&&l.phone).length;
+                  return(
+ <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 12px",border:"1px solid",borderColor:withPhone===0?"#E8DED6":s.color,borderRadius:20,background:withPhone===0?"#F7F5F2":s.bg,color:withPhone===0?"#B8AFA0":s.color,fontSize:10,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
+                  );
+                })}
+ </div>
+ </div>
+            )}
             {filteredLeads.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"46px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:6}}>
  <div style={{fontSize:32,marginBottom:10}}>✨</div>
@@ -2834,7 +2918,7 @@ export default function BeautyOS() {
  {!(leadSearch||leadFilter!=="all")&&<button className="empty-cta" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✦ פנייה חדשה</button>}
  </div>
               ):filteredLeads.map(lead=>{
-                const st=LEAD_STATUSES[lead.status]||LEAD_STATUSES.new;
+                const st=leadStatusMeta(lead.status);
                 const hasReminder=lead.reminder_date&&lead.reminder_date<=tomorrow;
                 return(
  <div key={lead.id} className="lead-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת פרטי הפנייה ${lead.name}`} onClick={()=>setSelectedLead(lead)} style={{background:"#fff",borderRadius:16,padding:"11px 14px",border:`1px solid ${hasReminder?"#FF9800":"#E8DED6"}`,display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
@@ -2848,7 +2932,7 @@ export default function BeautyOS() {
  <p style={{fontSize:9,color:"#7A716A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}</p>
  </div>
                     {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"4px 7px",fontSize:9}}></a>}
-                    {lead.status!=="closed"&&lead.status!=="lost"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"#7BAE7F",color:"#fff",border:"none",borderRadius:20,padding:"4px 9px",fontSize:9,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
+                    {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"#7BAE7F",color:"#fff",border:"none",borderRadius:20,padding:"4px 9px",fontSize:9,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
  </div>
                 );
               })}
@@ -3874,6 +3958,55 @@ export default function BeautyOS() {
  </div>
       )}
 
+      {/* BULK WHATSAPP MODAL — compose -> confirm -> sending -> result.
+          Nothing is sent until the explicit "confirm" step, which shows the
+          real recipient count. Reuses app/api/leads/send-bulk/route.js. */}
+      {bulkStatus&&(()=>{
+        const s=leadStatusMeta(bulkStatus);
+        const inGroup=leads.filter(l=>l.status===bulkStatus);
+        const withPhone=inGroup.filter(l=>l.phone).length;
+        const noPhone=inGroup.length-withPhone;
+        return(
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={bulkStep==="sending"?undefined:closeBulk}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card" dir="rtl" style={{background:"#fff",borderRadius:22,padding:24,width:400,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+ <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>שליחת וואטסאפ — {s.label}</h3>
+ <p style={{fontSize:10.5,color:"#7A716A",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
+
+            {bulkStep==="compose"&&(<>
+ <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder="כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={closeBulk} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",fontSize:12,color:"#7A716A"}}>ביטול</button>
+ <button onClick={()=>setBulkStep("confirm")} disabled={!bulkMessage.trim()||withPhone===0} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>המשך</button>
+ </div>
+            </>)}
+
+            {bulkStep==="confirm"&&(<>
+ <div style={{background:"#FBF3E2",border:"1px solid #F0DFC0",borderRadius:12,padding:"11px 13px",marginBottom:12,fontSize:11.5,color:"#8A6D3B",lineHeight:1.6}}>⚠ פעולה זו תשלח הודעת <b>וואטסאפ אמיתית</b> ל-<b>{withPhone}</b> נמענים.{noPhone>0?` (${noPhone} ללא טלפון ידולגו)`:""}</div>
+ <div style={{background:pcTint,borderRadius:12,padding:"11px 13px",marginBottom:12,fontSize:11.5,whiteSpace:"pre-wrap",maxHeight:140,overflowY:"auto"}}>{bulkMessage}</div>
+              {bulkError&&<p style={{color:"#C62828",fontSize:11,marginBottom:10}}>{bulkError}</p>}
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={()=>{setBulkStep("compose");setBulkError("");}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",fontSize:12,color:"#7A716A"}}>חזרה לעריכה</button>
+ <button onClick={confirmBulkSend} className="primary-btn" style={{flex:2,padding:"11px 0",background:"#5C9460",color:"#fff",fontSize:12}}>שלחי ל-{withPhone} נמענים ✓</button>
+ </div>
+            </>)}
+
+            {bulkStep==="sending"&&(
+ <div style={{textAlign:"center",padding:"28px 10px",fontSize:12.5,color:"#7A716A"}}>שולח הודעות... נא לא לסגור את החלון</div>
+            )}
+
+            {bulkStep==="result"&&bulkResult&&(<>
+ <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
+ <div style={{flex:1,minWidth:88,background:"#EEF6EF",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"#5C9460"}}>{bulkResult.sent}</p><p style={{fontSize:9,color:"#7A716A"}}>נשלחו</p></div>
+ <div style={{flex:1,minWidth:88,background:"#FEEBEE",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"#C62828"}}>{bulkResult.failed}</p><p style={{fontSize:9,color:"#7A716A"}}>נכשלו</p></div>
+ <div style={{flex:1,minWidth:88,background:"#F4F1EC",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"#8C8073"}}>{bulkResult.skipped_no_phone}</p><p style={{fontSize:9,color:"#7A716A"}}>דילוג (אין טלפון)</p></div>
+ </div>
+ <button onClick={closeBulk} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"#fff",fontSize:12}}>סגירה</button>
+            </>)}
+ </div>
+ </div>
+        );
+      })()}
+
       {/* CASHIER MODAL */}
       {showCashier&&(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowCashier(false)}>
@@ -4481,7 +4614,7 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="lead-drawer" style={{background:"#fff",width:400,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"4px 0 30px rgba(0,0,0,0.12)"}}>
             {(()=>{
               const l=selectedLead;
-              const st=LEAD_STATUSES[l.status]||LEAD_STATUSES.new;
+              const st=leadStatusMeta(l.status);
               return(<>
  <div style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"#fff",position:"relative"}}>
  <button onClick={()=>setSelectedLead(null)} style={{position:"absolute",top:14,left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:30,height:30,color:"#fff",fontSize:14,cursor:"pointer"}}>✕</button>
@@ -4512,7 +4645,7 @@ export default function BeautyOS() {
  <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/>
  </div>
                   {l.notes&&<div style={{marginTop:12,padding:"9px 11px",background:pcTint,borderRadius:10}}><p style={{color:"#7A716A",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p style={{fontSize:11}}>{l.notes}</p></div>}
-                  {l.status!=="closed"&&l.status!=="lost"&&(
+                  {l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant"&&(
  <button onClick={()=>handleConvertLead(l)} style={{width:"100%",marginTop:16,background:"#7BAE7F",color:"#fff",border:"none",borderRadius:24,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ המירי ללקוחה רשומה</button>
                   )}
  </div>
