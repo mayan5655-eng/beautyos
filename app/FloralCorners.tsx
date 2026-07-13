@@ -82,9 +82,20 @@ function Sprig({ stem, leaf, bud }: { stem: string; leaf: string; bud: string })
 export default function FloralCorners({
   idPrefix = "fc",
   fixed = false,
+  zIndex = -1,
 }: {
   idPrefix?: string;
   fixed?: boolean;
+  /**
+   * Stacking position of the decorative layer.
+   *   -1  → behind everything (good when the host has a large exposed
+   *         background, e.g. the login card screen).
+   *    1  → above the shell chrome but below modals/toasts (needed on the
+   *         dashboard, whose translucent full-viewport panels would otherwise
+   *         wash the florals out to nothing). Stays pointer-events:none, so it
+   *         never blocks clicks and never obscures active UI.
+   */
+  zIndex?: number;
 }) {
   const blushGrad = `url(#${idPrefix}-blush)`;
   const goldGrad = `url(#${idPrefix}-gold)`;
@@ -96,7 +107,7 @@ export default function FloralCorners({
       style={{
         position: fixed ? "fixed" : "absolute",
         inset: 0,
-        zIndex: -1,
+        zIndex,
         pointerEvents: "none",
         overflow: "hidden",
       }}

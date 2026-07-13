@@ -2072,7 +2072,7 @@ export default function BeautyOS() {
 
   return (
  <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"'Heebo',sans-serif",background:"#F7F5F2",minHeight:"100vh",display:"flex",flexDirection:"column",color:"#1C1C1C"}}>
- <FloralCorners idPrefix="app" fixed />
+ <FloralCorners idPrefix="app" fixed zIndex={1} />
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Heebo:wght@300;400;500;600;700&display=swap');
         .serif{font-family:'Cormorant Garamond',serif}
