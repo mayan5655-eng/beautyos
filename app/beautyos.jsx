@@ -734,6 +734,25 @@ export default function BeautyOS() {
     }
   };
 
+  // Gap-fill trigger: ask the server to offer this freed slot to matching clients
+  // over WhatsApp. All candidate selection + sending happens server-side (see
+  // app/api/slots/offer); the server also re-checks the toggle, so this is a
+  // safe fire-and-forget. Real messages go out, hence the undo-window guard below.
+  const triggerGapFill = async (appt) => {
+    try {
+      const res = await fetch("/api/slots/offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: appt.date, hour: appt.hour, service: appt.service,
+          duration: appt.duration, cancelledClientId: appt.client_id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success && data.sent > 0) toast(`נשלחה הצעה למילוי התור ל-${data.sent} לקוחות ✦`);
+    } catch { /* non-fatal: the cancellation already succeeded */ }
+  };
+
   const handleDelete = (appt) => {
     askConfirm({
       title: "מחיקת תור",
@@ -747,7 +766,9 @@ export default function BeautyOS() {
         setHoveredAppt(null);
         // Undo: re-insert the appointment (DB assigns a fresh id; tenant_id is
         // preserved so the RLS check still passes).
+        let restored = false;
         const restore = async () => {
+          restored = true;
           const { id, created_at, ...rest } = appt;
           const { data, error: rErr } = await supabase.from("appointments").insert([rest]).select();
           if (rErr) { handleDbError(rErr, "restore appointment"); return; }
@@ -755,6 +776,12 @@ export default function BeautyOS() {
           toast("התור שוחזר");
         };
         toast("התור נמחק", "success", { label: "ביטול", onClick: restore });
+        // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
+        // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
+        // an appointment the cosmetician restored. Gated by the settings toggle.
+        if (settings.gap_fill_enabled === true) {
+          setTimeout(() => { if (!restored) triggerGapFill(appt); }, 6500);
+        }
       },
     });
   };
@@ -4374,6 +4401,18 @@ export default function BeautyOS() {
  );})()}
  </div>
  <p style={{fontSize:9,color:"#B8AFA0",marginTop:6,lineHeight:1.5}}>כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית.</p>
+ </div>
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>מילוי תור שהתפנה (אוטומטי)</p>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+ <span style={{fontSize:12,color:"#1C1C1C"}}>הצעת תור שהתפנה ללקוחות בוואטסאפ</span>
+ {(()=>{const on=(editSettings.gap_fill_enabled===true);return(
+ <button onClick={()=>setEditSettings({...editSettings,gap_fill_enabled:!on})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:on?pc:"#D8CEd3",position:"relative",transition:"background .2s",flexShrink:0}}>
+ <span style={{position:"absolute",top:3,left:on?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+ </button>
+ );})()}
+ </div>
+ <p style={{fontSize:9,color:"#B8AFA0",marginTop:6,lineHeight:1.5}}>כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת <b>וואטסאפ אמיתית</b> ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל.</p>
  </div>
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
