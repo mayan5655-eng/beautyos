@@ -12,6 +12,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -53,6 +54,10 @@ async function logSent(tenantId, clientId, type, referenceId) {
   });
 }
 export async function POST(request) {
+  // Guard: only Vercel Cron (or a caller holding CRON_SECRET) may trigger this
+  // all-tenant WhatsApp blast.
+  if (!isAuthorizedCron(request)) return cronUnauthorized();
+
   try {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get("dryRun") === "1";

@@ -5,6 +5,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -25,7 +26,11 @@ function getTomorrowDate() {
   return `${year}-${month}-${day}`;
 }
 
-export async function POST() {
+export async function POST(request) {
+  // Guard: only Vercel Cron (or a caller holding CRON_SECRET) may trigger this
+  // all-tenant WhatsApp blast.
+  if (!isAuthorizedCron(request)) return cronUnauthorized();
+
   try {
     const tomorrow = getTomorrowDate();
     console.log("TOMORROW DATE:", tomorrow);
@@ -91,7 +96,8 @@ export async function POST() {
   }
 }
 
-// Allow Vercel Cron (which uses GET) to trigger the same logic
-export async function GET() {
-  return POST();
+// Allow Vercel Cron (which uses GET) to trigger the same logic. The request is
+// passed through so the same authorization guard runs on GET too.
+export async function GET(request) {
+  return POST(request);
 }
