@@ -352,6 +352,10 @@ export default function BeautyOS() {
   const [paymentMethod,   setPaymentMethod]   = useState("מזומן");
   const [cashierNote,     setCashierNote]     = useState("");
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0});
+  // Change-password form (Settings → כללי). Independent of handleSaveSettings.
+  const [pwCurrent, setPwCurrent] = useState("");
+  const [pwNew,     setPwNew]     = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
   const [newWaitlist, setNewWaitlist] = useState({client_id:"",client_name:"",phone:"",service:"",preferred_date:"",notes:""});
 
   // === WHATSAPP CENTER STATE ===
@@ -896,6 +900,34 @@ export default function BeautyOS() {
       toast(`${rows.length} לקוחות נוספו`);
     } finally {
       setImporting(false);
+    }
+  };
+
+  // Change the logged-in user's password from inside the app: validate, verify
+  // the CURRENT password by re-authenticating, then update. Does not touch the
+  // session/tenant resolution or handleSaveSettings.
+  const handleChangePassword = async () => {
+    if (isBusy("changePw")) return;
+    if (!pwCurrent || !pwNew || !pwConfirm) { toast("נא למלא את כל השדות", "error"); return; }
+    if (pwNew.length < 8) { toast("הסיסמה החדשה חייבת להכיל לפחות 8 תווים", "error"); return; }
+    if (pwNew !== pwConfirm) { toast("הסיסמאות אינן תואמות", "error"); return; }
+    setBusyKey("changePw", true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) { toast("לא זוהה משתמש מחובר", "error"); return; }
+      // Verify the current password by re-authenticating the same user.
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({ email: user.email, password: pwCurrent });
+      if (reauthErr) { toast("הסיסמה הנוכחית שגויה", "error"); return; }
+      const { error: updErr } = await supabase.auth.updateUser({ password: pwNew });
+      if (updErr) {
+        const sameAsOld = /should be different|New password/i.test(updErr.message || "");
+        toast(sameAsOld ? "הסיסמה החדשה חייבת להיות שונה מהנוכחית" : "עדכון הסיסמה נכשל, נסי שוב", "error");
+        return;
+      }
+      setPwCurrent(""); setPwNew(""); setPwConfirm("");
+      toast("הסיסמה עודכנה ✓");
+    } finally {
+      setBusyKey("changePw", false);
     }
   };
 
@@ -4418,6 +4450,15 @@ export default function BeautyOS() {
  <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} style={{width:"100%",padding:"10px 0",background:pcGrad,color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>✦ העתקת קישור לסורק העור</button>
  <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"10px 0",background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
+ </div>
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>שינוי סיסמה</p>
+ <div style={{display:"flex",flexDirection:"column",gap:7}}>
+ <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+ <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+ <input type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="אימות סיסמה חדשה" autoComplete="new-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+ <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"#fff",fontSize:12,marginTop:2}}>{isBusy("changePw")?"מעדכן...":"עדכון סיסמה"}</button>
+ </div>
  </div>
  </div>
               )}
