@@ -65,7 +65,7 @@ export default function SkinScanPage() {
       const res = await fetch("/api/skin-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageData, mediaType }),
+        body: JSON.stringify({ image: imageData, mediaType, tenantId }),
       });
       const data = await res.json();
       if (data.success) setReport(data.report);

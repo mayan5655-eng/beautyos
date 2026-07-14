@@ -17,15 +17,25 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request) {
   try {
-    const { image, mediaType } = await request.json();
+    const { image, mediaType, tenantId } = await request.json();
 
     if (!image) {
       return Response.json({ success: false, error: "חסרה תמונה" }, { status: 400 });
     }
 
-    // 1. Load the business's services so the AI can match a real treatment
-    const servicesRes = await supabase.from("service_prices").select("*");
-    const services = servicesRes.data || [];
+    // 1. Load ONLY this business's services so the AI can match a real treatment.
+    // Scoped to the caller's tenant_id (dashboard passes settings.tenant_id; the
+    // public scanner passes ?t=). Without a tenant we load nothing rather than
+    // every tenant's menu — so one business's services never leak into another's
+    // prompt (and the prompt stays small/fast). Only the fields we use are read.
+    let services = [];
+    if (tenantId) {
+      const servicesRes = await supabase
+        .from("service_prices")
+        .select("name, price")
+        .eq("tenant_id", tenantId);
+      services = servicesRes.data || [];
+    }
     const servicesText =
       services.length > 0
         ? services.map((s) => `- ${s.name} (${s.price} ש"ח)`).join("\n")

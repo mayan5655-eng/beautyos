@@ -1693,7 +1693,7 @@ export default function BeautyOS() {
       const res = await fetch("/api/skin-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
+        body: JSON.stringify({ image: base64, mediaType, tenantId: settings.tenant_id }),
       });
       const data = await res.json();
       if (!data.success) { toast(data.error || "הניתוח נכשל", "error"); setScanLoading(false); return; }

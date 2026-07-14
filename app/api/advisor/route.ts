@@ -177,7 +177,7 @@ ${snapshot}
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
     const aiResponse = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [...priorTurns, { role: 'user', content: message }] as any,
