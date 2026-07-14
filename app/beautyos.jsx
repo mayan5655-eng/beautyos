@@ -3,6 +3,34 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
 import FloralCorners from "./FloralCorners";
+import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
+
+// Renders a private client image from storage. `value` may be a bare storage
+// path (new format) or a legacy public URL (old); either way we resolve a
+// short-lived signed URL on demand, so the underlying bucket can stay private.
+// While loading — or if the object can't be signed (e.g. a legacy object not
+// yet migrated into the tenant folder) — it renders `fallback` (default null),
+// so a broken image never flashes. The DB always stores the path, never the
+// signed URL, so uploads/deletes keep operating on stable references.
+function SignedImage({ value, alt = "", style, fallback = null }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    let active = true;
+    setUrl(null);
+    const path = toStoragePath(value);
+    if (!path) return;
+    supabase.storage
+      .from(PRIVATE_BUCKET)
+      .createSignedUrl(path, 3600)
+      .then(({ data, error }) => {
+        if (active && !error && data?.signedUrl) setUrl(data.signedUrl);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [value]);
+  if (!url) return fallback;
+  return <img alt={alt} src={url} style={style} />;
+}
 
 // ============================================================
 // CONSTANTS
@@ -940,11 +968,14 @@ export default function BeautyOS() {
     const file=e.target.files[0];if(!file)return;
     setUploading(true);
     try {
-      const fileName=`${client.id}/${Date.now()}_${file.name}`;
-      const {error:ue}=await supabase.storage.from("client-images").upload(fileName,file);
+      const tid=settings?.tenant_id;
+      if(!tid){toast("לא זוהה עסק — לא ניתן להעלות","error");return;}
+      // Tenant-scoped, private path. We store the PATH (not a URL); display
+      // resolves a signed URL on demand via <SignedImage>.
+      const fileName=clientImagePath(tid,client.id,`${Date.now()}_${file.name}`);
+      const {error:ue}=await supabase.storage.from(PRIVATE_BUCKET).upload(fileName,file);
       if(ue){handleDbError(ue, "upload image"); return;}
-      const {data:urlData}=supabase.storage.from("client-images").getPublicUrl(fileName);
-      const newImages=[...(client.images||[]),urlData.publicUrl];
+      const newImages=[...(client.images||[]),fileName];
       const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
       if(error){handleDbError(error, "save image url"); return;}
       if(data){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
@@ -1626,18 +1657,21 @@ export default function BeautyOS() {
     if (!beforeFile && !afterFile) { toast("בחרי לפחות תמונה אחת", "error"); return; }
     setPhotoUploading(true);
     try {
+      const tid = settings?.tenant_id;
+      if (!tid) { toast("לא זוהה עסק — לא ניתן להעלות", "error"); return; }
+      // Store tenant-scoped PATHS (private bucket); display signs them on demand.
       let beforeUrl = null, afterUrl = null;
       if (beforeFile) {
         const { blob } = await compressImage(beforeFile, 1280, 0.82);
-        const fn = `photos/${clientId}/before-${Date.now()}.jpg`;
-        await supabase.storage.from("client-images").upload(fn, blob, { contentType: "image/jpeg" });
-        beforeUrl = supabase.storage.from("client-images").getPublicUrl(fn).data.publicUrl;
+        const fn = clientImagePath(tid, clientId, `before-${Date.now()}.jpg`);
+        await supabase.storage.from(PRIVATE_BUCKET).upload(fn, blob, { contentType: "image/jpeg" });
+        beforeUrl = fn;
       }
       if (afterFile) {
         const { blob } = await compressImage(afterFile, 1280, 0.82);
-        const fn = `photos/${clientId}/after-${Date.now()}.jpg`;
-        await supabase.storage.from("client-images").upload(fn, blob, { contentType: "image/jpeg" });
-        afterUrl = supabase.storage.from("client-images").getPublicUrl(fn).data.publicUrl;
+        const fn = clientImagePath(tid, clientId, `after-${Date.now()}.jpg`);
+        await supabase.storage.from(PRIVATE_BUCKET).upload(fn, blob, { contentType: "image/jpeg" });
+        afterUrl = fn;
       }
       const { error } = await supabase.from("client_photos").insert([{
        tenant_id: settings.tenant_id,
@@ -1674,11 +1708,12 @@ export default function BeautyOS() {
       // Upload the scan image to storage (best-effort)
       let imageUrl = null;
       try {
-        const fileName = `${client.id}/scan_${Date.now()}.jpg`;
-        const { error: ue } = await supabase.storage.from("client-images").upload(fileName, blob, { contentType: "image/jpeg" });
-        if (!ue) {
-          const { data: urlData } = supabase.storage.from("client-images").getPublicUrl(fileName);
-          imageUrl = urlData.publicUrl;
+        const tid = settings?.tenant_id;
+        if (tid) {
+          // Tenant-scoped PATH in the private bucket; signed on display.
+          const fileName = clientImagePath(tid, client.id, `scan_${Date.now()}.jpg`);
+          const { error: ue } = await supabase.storage.from(PRIVATE_BUCKET).upload(fileName, blob, { contentType: "image/jpeg" });
+          if (!ue) imageUrl = fileName;
         }
       } catch {}
 
@@ -1905,10 +1940,14 @@ export default function BeautyOS() {
     setPostImageUploading(true);
     try {
       const { base64, blob } = await compressImage(file, 1280, 0.82);
-      const fileName = `community/${Date.now()}.jpg`;
-      const { error: ue } = await supabase.storage.from("client-images").upload(fileName, blob, { contentType: "image/jpeg" });
+      // Community images are shown publicly to other businesses in the community
+      // feed, so they live in a separate PUBLIC bucket (not the private
+      // client-images bucket) and keep using a public URL.
+      const tid = settings?.tenant_id || "shared";
+      const fileName = `${tid}/${Date.now()}.jpg`;
+      const { error: ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(fileName, blob, { contentType: "image/jpeg" });
       if (!ue) {
-        const { data: urlData } = supabase.storage.from("client-images").getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(fileName);
         setNewPost(p => ({ ...p, image_url: urlData.publicUrl }));
         toast("התמונה הועלתה");
       } else { toast("שגיאה בהעלאת תמונה", "error"); }
@@ -2855,7 +2894,7 @@ export default function BeautyOS() {
                 return(
  <div key={client.id} className="client-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת כרטיס הלקוחה ${client.name}`} onClick={()=>{setSelectedClient(client);setClientTab("info");}} style={{background:"#fff",borderRadius:16,padding:"12px 14px",border:"1px solid #E8DED6",display:"flex",alignItems:"center",gap:11,marginBottom:7}}>
  <div style={{width:40,height:40,borderRadius:"50%",background:client.images?.[0]?"transparent":statusColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:"#fff",flexShrink:0,overflow:"hidden"}}>
-                      {client.images?.[0]?<img alt={client.name} src={client.images[0]} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:client.name[0]}
+                      {client.images?.[0]?<SignedImage value={client.images[0]} alt={client.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={client.name[0]}/>:client.name[0]}
  </div>
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
@@ -4368,7 +4407,7 @@ export default function BeautyOS() {
  <div style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"#fff",position:"relative"}}>
  <button onClick={()=>setSelectedClient(null)} style={{position:"absolute",top:14,left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:30,height:30,color:"#fff",fontSize:14,cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:14}}>
- <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<img alt={c.name} src={c.images[0]} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:c.name[0]}</div>
+ <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<SignedImage value={c.images[0]} alt={c.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={c.name[0]}/>:c.name[0]}</div>
  <div style={{flex:1}}>
  <h3 className="serif" style={{fontSize:23,fontWeight:600}}>{c.name}</h3>
  <p style={{fontSize:11,opacity:0.9}}>{c.phone||"אין טלפון"}</p>
@@ -4440,7 +4479,7 @@ export default function BeautyOS() {
                     :clientScans.length===0?<p style={{fontSize:11,color:"#B8AFA0"}}>אין סריקות עדיין. לחצי על "סריקת עור AI" למעלה.</p>
                     :clientScans.map(s=>(
  <div key={s.id} onClick={()=>setViewScan(s)} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid #F7F0F3",cursor:"pointer"}}>
- {s.image_url?<img alt="" src={s.image_url} style={{width:46,height:46,borderRadius:10,objectFit:"cover",flexShrink:0}}/>:<div style={{width:46,height:46,borderRadius:10,background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}
+ {s.image_url?<SignedImage value={s.image_url} alt="" style={{width:46,height:46,borderRadius:10,objectFit:"cover",flexShrink:0}} fallback={<div style={{width:46,height:46,borderRadius:10,background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}/>:<div style={{width:46,height:46,borderRadius:10,background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}
  <div style={{flex:1}}>
  <p style={{fontSize:11.5,fontWeight:600,color:"#1C1C1C"}}>{s.skin_type||"סריקת עור"}</p>
  <p style={{fontSize:9,color:"#7A716A"}}>{new Date(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
@@ -4519,11 +4558,11 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1,textAlign:"center"}}>
  <p style={{fontSize:8.5,color:"#7A716A",marginBottom:3}}>לפני</p>
- {ph.before_url?<img alt="תמונת לפני הטיפול" src={ph.before_url} style={{width:"100%",borderRadius:8,display:"block"}}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}
+ {ph.before_url?<SignedImage value={ph.before_url} alt="תמונת לפני הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}
  </div>
  <div style={{flex:1,textAlign:"center"}}>
  <p style={{fontSize:8.5,color:"#7A716A",marginBottom:3}}>אחרי</p>
- {ph.after_url?<img alt="תמונת אחרי הטיפול" src={ph.after_url} style={{width:"100%",borderRadius:8,display:"block"}}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}
+ {ph.after_url?<SignedImage value={ph.after_url} alt="תמונת אחרי הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"#B8AFA0"}}>—</div>}
  </div>
  </div>
  <p style={{fontSize:8,color:"#B8AFA0",marginTop:5,textAlign:"left"}}>{new Date(ph.created_at).toLocaleDateString("he-IL")}</p>
@@ -4539,7 +4578,7 @@ export default function BeautyOS() {
  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
                         {(c.images||[]).map((img,i)=>(
  <div key={i} style={{position:"relative",paddingBottom:"100%",borderRadius:10,overflow:"hidden",background:pcTint}}>
- <img alt="" src={img} style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
+ <SignedImage value={img} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
  <button onClick={()=>handleDeleteImage(c,img)} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.45)",border:"none",borderRadius:"50%",width:20,height:20,color:"#fff",fontSize:9,cursor:"pointer"}}>✕</button>
  </div>
                         ))}
@@ -4558,7 +4597,7 @@ export default function BeautyOS() {
       {(scanReport||viewScan)&&(()=>{ const SR = scanReport || viewScan.report; const closeModal=()=>{setScanReport(null);setViewScan(null);}; return (
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={closeModal}>
  <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:420,width:"100%",maxHeight:"88vh",overflowY:"auto",padding:"22px 22px"}}>
- {viewScan?.image_url&&<img alt="תמונת סריקת עור" src={viewScan.image_url} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:14,marginBottom:14}}/>}
+ {viewScan?.image_url&&<SignedImage value={viewScan.image_url} alt="תמונת סריקת עור" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:14,marginBottom:14}}/>}
  <div style={{textAlign:"center",marginBottom:14}}>
  <div style={{width:90,height:90,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",border:`6px solid ${SR.score>=75?"#388E3C":SR.score>=50?"#E8920C":pc}`}}>
  <span style={{fontSize:30,fontWeight:800,color:SR.score>=75?"#388E3C":SR.score>=50?"#E8920C":pc}}>{SR.score}</span>
