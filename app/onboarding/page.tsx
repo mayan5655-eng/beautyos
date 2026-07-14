@@ -89,8 +89,11 @@ export default function OnboardingPage() {
     try {
       const settings = {
         tenant_id: tenantId,
-        business_name: data.business_name.trim() || "העסק שלי",
-        therapist_name: data.therapist_name.trim() || "רונית",
+        // Left blank rather than backfilled with a fake placeholder: the app
+        // shows a neutral greeting and a first-run checklist prompting her to
+        // fill these in, so no "העסק שלי" / "רונית" ever leaks to real clients.
+        business_name: data.business_name.trim(),
+        therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
         primary_color: data.primary_color,
         working_hours_start: Number(data.working_hours_start) || 8,

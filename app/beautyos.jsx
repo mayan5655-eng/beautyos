@@ -36,18 +36,8 @@ function SignedImage({ value, alt = "", style, fallback = null }) {
 // CONSTANTS
 // ============================================================
 
-const DEFAULT_SERVICES = [
-  {name:"טיפול פנים",price:250,duration:60,color:"#D98BA0",active:true},
-  {name:"הסרת שיער",price:180,duration:45,color:"#C68A5E",active:true},
-  {name:"עיצוב גבות",price:80,duration:30,color:"#D9B98C",active:true},
-  {name:"מניקור",price:120,duration:45,color:"#CBA15E",active:true},
-  {name:"פדיקור",price:150,duration:60,color:"#B0764E",active:true},
-  {name:"לק ג'ל",price:160,duration:60,color:"#E0C068",active:true},
-  {name:"בוטוקס",price:800,duration:45,color:"#A67C52",active:true},
-  {name:"פילינג",price:350,duration:60,color:"#C9A227",active:true},
-  {name:"טיפול פלזמה",price:600,duration:60,color:"#8C6239",active:true},
-  {name:"מכשור מתקדם",price:400,duration:60,color:"#BC8A5F",active:true},
-];
+// No default/demo services: a new cosmetician starts with an empty list and is
+// guided (empty state + first-run checklist) to add her own real services.
 
 const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
@@ -192,7 +182,11 @@ function waConfirmLink(phone, name, service, date, hour, apptId, origin) {
 }
 
 function waBirthday(phone, name, businessName) {
-  return waMsg(phone, `שלום ${name}! \nיום הולדת שמח! \nמ${businessName} אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`);
+  // Drop the business-name clause when it's empty or the legacy placeholder, so
+  // "מהעסק שלי" / a dangling "מ" never reaches a real client.
+  const b = (businessName || "").trim();
+  const bs = b && b !== "העסק שלי" ? b : "";
+  return waMsg(phone, `שלום ${name}! \nיום הולדת שמח! \n${bs ? `מ${bs} ` : ""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`);
 }
 
 function waReview(phone, name) {
@@ -224,10 +218,10 @@ export default function BeautyOS() {
   const [leads,        setLeads]        = useState([]);
   const [receipts,     setReceipts]     = useState([]);
   const [expenses,     setExpenses]     = useState([]);
-  const [services,     setServices]     = useState(DEFAULT_SERVICES);
+  const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
-  const [settings,     setSettings]     = useState({business_name:"",therapist_name:"רונית",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
+  const [settings,     setSettings]     = useState({business_name:"",therapist_name:"",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
@@ -2549,7 +2543,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
           {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:10,color:pc}}>{upcomingBirthdays[0].name}</span>}
- <span className="desktop-only" style={{fontSize:11.5,color:"#7A716A"}}>שלום, {settings.therapist_name} </span>
+ <span className="desktop-only" style={{fontSize:11.5,color:"#7A716A"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">⚙</button>
  <button onClick={handleExportCSV} className="icon-btn" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
  <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
@@ -2669,7 +2663,7 @@ export default function BeautyOS() {
               return(<>
                 {/* HERO */}
  <div style={{textAlign:"center",marginBottom:40,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <h1 className="serif" style={{fontSize:38,fontWeight:600,color:"#1C1C1C",marginBottom:11,letterSpacing:"0.5px"}}>{greeting}, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></h1>
+ <h1 className="serif" style={{fontSize:38,fontWeight:600,color:"#1C1C1C",marginBottom:11,letterSpacing:"0.5px"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
  <p style={{fontSize:13.5,color:"#7A716A",fontWeight:300,maxWidth:480,margin:"0 auto"}}>
                     {todayAppts.length>0?`יום יפה מחכה לך — ${todayAppts.length} תורים בלוח`:"אין תורים היום — זמן מצוין להתארגן"}{upcomingBirthdays.length>0?`, ${upcomingBirthdays.length} ימי הולדת לחגוג השבוע`:""}{coldClients.length>0?`, ו-${coldClients.length} לקוחות מחכות להתחדשות`:""}.
  </p>
@@ -2680,6 +2674,42 @@ export default function BeautyOS() {
  </div>
                   )}
  </div>
+
+                {/* FIRST-RUN CHECKLIST — shown until business name, phone, and a first service are set */}
+                {(()=>{
+                  const nameDone=!!(settings.business_name&&settings.business_name.trim()&&settings.business_name.trim()!=="העסק שלי");
+                  const phoneDone=!!(settings.business_phone&&settings.business_phone.trim());
+                  const svcDone=services.length>0;
+                  const steps=[
+                    {done:nameDone,label:"הוספת שם העסק",hint:"יופיע בהודעות ובקבלות",onClick:()=>{setEditSettings({...settings});setSettingsTab("general");setShowSettings(true);}},
+                    {done:phoneDone,label:"הוספת טלפון העסק",hint:"נדרש לבקשות תשלום",onClick:()=>{setEditSettings({...settings});setSettingsTab("payment");setShowSettings(true);}},
+                    {done:svcDone,label:"הוספת שירות ראשון",hint:"עם מחיר ומשך טיפול",onClick:()=>{setEditSettings({...settings});setSettingsTab("services");setShowNewService(true);setShowSettings(true);}},
+                  ];
+                  const doneCount=steps.filter(s=>s.done).length;
+                  if(doneCount===steps.length) return null;
+                  return(
+ <div style={{maxWidth:1180,margin:"0 auto 28px",background:"#fff",border:`1px solid ${pc}`,borderRadius:18,padding:"18px 22px",boxShadow:"0 6px 22px rgba(28,28,28,0.05)"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:6}}>
+ <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"#1C1C1C"}}>כמה צעדים כדי להתחיל</h3>
+ <span style={{fontSize:11,color:pc,fontWeight:600}}>{doneCount}/{steps.length} הושלמו</span>
+ </div>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {steps.map((s,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:s.done?"#F3FFF6":pcTint,borderRadius:12,border:`1px solid ${s.done?"#B5EAD7":"#E8DED6"}`}}>
+ <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"#7BAE7F":"#fff",color:s.done?"#fff":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":i+1}</div>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{s.label}</p>
+ <p style={{fontSize:9.5,color:"#7A716A"}}>{s.hint}</p>
+ </div>
+                          {s.done
+                            ?<span style={{fontSize:10,color:"#7BAE7F",fontWeight:700}}>בוצע</span>
+                            :<button onClick={s.onClick} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>הוספה</button>}
+ </div>
+                      ))}
+ </div>
+ </div>
+                  );
+                })()}
 
                 {/* STAT CARDS */}
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:18,marginBottom:40,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -3067,6 +3097,11 @@ export default function BeautyOS() {
 
           {/* WHATSAPP CENTER */}
           {activeTab==="whatsapp"&&(()=>{
+            // Safe business name for outgoing messages: never leak an empty name
+            // or the legacy "העסק שלי" placeholder to real clients. When absent,
+            // the message phrasing simply drops the business-name clause.
+            const bizName=(settings.business_name||"").trim();
+            const bizSafe=bizName&&bizName!=="העסק שלי"?bizName:"";
             const reminderTargets=tomorrowAppts.map(a=>{
               const cl=clients.find(c=>String(c.id)===String(a.client_id));
               return {clientId:a.client_id,name:a.name,phone:cl?.phone,
@@ -3077,17 +3112,17 @@ export default function BeautyOS() {
               if(bd<now)bd.setFullYear(now.getFullYear()+1);
               const days=Math.floor((bd-now)/(1000*60*60*24));
               return {clientId:c.id,name:c.name,phone:c.phone,days,
-                message:`שלום ${c.name}! \nיום הולדת שמח! \nמ${settings.business_name} אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`};
+                message:`שלום ${c.name}! \nיום הולדת שמח! \n${bizSafe?`מ${bizSafe} `:""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`};
             });
             const coldTargets=coldClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
-              message:`שלום ${c.name}! \nמתגעגעים אלייך ב${settings.business_name}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `}));
+              message:`שלום ${c.name}! \nמתגעגעים אלייך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `}));
             const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
             const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
             const reviewTargets=reviewClientIds.map(cid=>{
               const c=clients.find(cl=>String(cl.id)===cid);
               if(!c)return null;
               return {clientId:c.id,name:c.name,phone:c.phone,
-                message:`שלום ${c.name}! \nתודה שביקרת אצלנו ב${settings.business_name}!\nנשמח מאוד אם תשאירי לנו ביקורת \nזה לוקח רק דקה ועוזר לנו מאוד! `};
+                message:`שלום ${c.name}! \nתודה שביקרת אצלנו${bizSafe?` ב${bizSafe}`:""}!\nנשמח מאוד אם תשאירי לנו ביקורת \nזה לוקח רק דקה ועוזר לנו מאוד! `};
             }).filter(Boolean);
 
             const audienceClients=clients.filter(c=>{
@@ -4349,6 +4384,13 @@ export default function BeautyOS() {
               )}
               {settingsTab==="services"&&(
  <div>
+                  {services.length===0&&!showNewService&&(
+ <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:14,marginBottom:8}}>
+ <div style={{fontSize:26,marginBottom:8}}>✦</div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>עדיין לא הוספת שירותים</p>
+ <p style={{fontSize:10.5,color:"#7A716A",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי את השירותים שאת מציעה עם המחיר ומשך הטיפול — הם יופיעו בקביעת תור ובקופה.</p>
+ </div>
+                  )}
                   {services.map((svc,idx)=>(
  <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:pcTint,borderRadius:12,marginBottom:5}}>
  <span style={{width:10,height:10,borderRadius:"50%",background:svc.color||"#D9B98C",flexShrink:0}}/>
