@@ -1,47 +1,134 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
+/* ============================================================
+   BloomOS Design System — premium tokens
+   A fixed lavender/plum luxury palette + neutral ink scale,
+   an 8px spacing rhythm, layered soft shadows and elegant
+   gradients. Tenant brand color still themes accents at
+   runtime via --pc (set in beautyos.jsx), so nothing is lost.
+   ============================================================ */
 :root {
-  --white: #ffffff;
-  --cream: #fbf5f3;        /* warm blush-tinted background */
-  --beige-light: #f3e4e7;  /* soft blush border/light */
-  --beige-warm: #e8cdbf;   /* warm rosy beige */
-  --blush: #d98ba0;        /* primary — soft blush-pink */
-  --gold: #c9a24b;         /* accent — warm gold */
-  --charcoal: #1f1a1c;     /* warm near-black */
-  --background: var(--cream);
-  --foreground: var(--charcoal);
-  --primary: var(--blush);
-  --accent: var(--gold);
-  --card: var(--white);
-  --border: var(--beige-light);
-  --muted: #9c8a90;
+  /* — Brand palette (fixed base) — */
+  --bg: #F8F5FB;            /* app background — soft lavender mist */
+  --primary: #E8C9E9;       /* soft lavender — tints, accents, chart fills */
+  --dark: #5B3E67;          /* deep plum — actions, headings, brand ink */
+  --success: #46B37B;
+  --warning: #F2B84B;
+  --danger: #E05B6F;
+
+  /* — Derived brand tones — */
+  --plum-700: #4A3155;
+  --plum-600: #5B3E67;
+  --plum-500: #7A5A88;
+  --plum-400: #A07EAE;
+  --lavender-200: #E8C9E9;
+  --lavender-100: #F1E2F2;
+  --lavender-50:  #F8F0F9;
+
+  /* — Neutral ink & surfaces — */
+  --ink: #2A2233;          /* primary text — plum-tinted near-black */
+  --ink-2: #6B6275;        /* secondary text */
+  --ink-3: #9A93A4;        /* tertiary / muted */
+  --surface: #FFFFFF;
+  --surface-2: #FCFAFE;    /* slightly tinted card / hover */
+  --line: #ECE6F2;         /* hairline borders */
+  --line-2: #E3DBEC;
+
+  /* — Radii — */
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-2xl: 34px;
+  --r-full: 999px;
+
+  /* — 8px spacing rhythm — */
+  --s-1: 8px;
+  --s-2: 16px;
+  --s-3: 24px;
+  --s-4: 32px;
+  --s-5: 40px;
+  --s-6: 48px;
+  --s-8: 64px;
+
+  /* — Premium layered shadows — */
+  --shadow-xs: 0 1px 2px rgba(43, 34, 51, 0.04);
+  --shadow-sm: 0 2px 8px rgba(43, 34, 51, 0.05), 0 1px 2px rgba(43, 34, 51, 0.04);
+  --shadow-md: 0 8px 24px rgba(43, 34, 51, 0.07), 0 2px 6px rgba(43, 34, 51, 0.04);
+  --shadow-lg: 0 18px 44px rgba(43, 34, 51, 0.10), 0 6px 14px rgba(43, 34, 51, 0.05);
+  --shadow-xl: 0 30px 70px rgba(43, 34, 51, 0.16), 0 10px 24px rgba(43, 34, 51, 0.07);
+  --shadow-glow: 0 14px 40px rgba(122, 90, 136, 0.28);
+
+  /* — Signature gradients — */
+  --grad-brand: linear-gradient(135deg, #7A5A88 0%, #5B3E67 100%);
+  --grad-lav:   linear-gradient(135deg, #F1E2F2 0%, #E8C9E9 100%);
+  --grad-hero:  radial-gradient(120% 120% at 100% 0%, #F1E2F2 0%, #F8F5FB 46%, #FBFAFE 100%);
+  --grad-sheen: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+
+  /* — Runtime tenant accent (defaults set again in-app) — */
+  --pc: #5B3E67;
+  --pc-tint: #F1E2F2;
+
+  /* — Font stacks (via next/font vars, with graceful fallbacks) — */
+  --sans: var(--font-inter), var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
+  --display: var(--font-cormorant), var(--font-frank), "Frank Ruhl Libre", "Cormorant Garamond", Georgia, serif;
+
+  /* Tailwind bridge (legacy tokens still referenced elsewhere) */
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --border: var(--line);
+  --muted: var(--ink-3);
 }
 
 @theme inline {
-  --color-white: var(--white);
-  --color-cream: var(--cream);
-  --color-beige-light: var(--beige-light);
-  --color-beige-warm: var(--beige-warm);
-  --color-blush: var(--blush);
-  --color-gold: var(--gold);
-  --color-charcoal: var(--charcoal);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
   --color-primary: var(--primary);
-  --color-accent: var(--accent);
-  --color-card: var(--card);
-  --color-border: var(--border);
-  --color-muted: var(--muted);
-  --font-serif: var(--font-cormorant);
-  --font-sans: var(--font-heebo);
+  --color-dark: var(--dark);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-card: var(--surface);
+  --color-border: var(--line);
+  --color-muted: var(--ink-3);
+  --font-sans: var(--sans);
+  --font-serif: var(--display);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-heebo), system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3 {
-  font-family: var(--font-cormorant), serif;
+  font-family: var(--display);
+  letter-spacing: -0.01em;
+}
+
+/* Refined scrollbars — slim, plum-tinted, unobtrusive */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 90, 136, 0.28) transparent;
+}
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(122, 90, 136, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: rgba(122, 90, 136, 0.38); background-clip: padding-box; }
+
+::selection {
+  background: rgba(232, 201, 233, 0.6);
+  color: var(--plum-700);
 }

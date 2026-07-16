@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
 import FloralCorners from "./FloralCorners";
@@ -464,28 +465,44 @@ export default function BeautyOS() {
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
   const lastMonthYear = thisMonth===0?thisYear-1:thisYear;
-  const pc = (settings&&settings.primary_color)||"#D98BA0";
+  // Brand accent. Default is the BloomOS deep-plum (#5B3E67) so the whole app
+  // wears the premium lavender/plum palette out of the box; a tenant may still
+  // pick her own color in Settings (hybrid theming) and everything re-tints.
+  const pc = (settings&&settings.primary_color)||"#5B3E67";
   // Derived theme shades from the chosen primary color, so the whole app
   // recolors when the cosmetician picks a color in settings.
   const hexToRgb = (h) => {
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h || "");
-    return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : { r:217, g:139, b:160 };
+    return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : { r:91, g:62, b:103 };
   };
   const lighten = (h, amt) => {
     const c = hexToRgb(h);
     const f = (v) => Math.round(v + (255 - v) * amt);
     return `#${[f(c.r),f(c.g),f(c.b)].map(x=>x.toString(16).padStart(2,"0")).join("")}`;
   };
+  const darken = (h, amt) => {
+    const c = hexToRgb(h);
+    const f = (v) => Math.round(v * (1 - amt));
+    return `#${[f(c.r),f(c.g),f(c.b)].map(x=>x.toString(16).padStart(2,"0")).join("")}`;
+  };
   const pcRgb = hexToRgb(pc);
   const pc2 = lighten(pc, 0.22);                 // lighter partner for gradients
+  const pcDeep = darken(pc, 0.16);               // deeper partner for premium depth
   const pcSoft = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.10)`;  // soft tint backgrounds
-  const pcTint = lighten(pc, 0.86);                              // light selected/hover bg
-  const pcGrad = `linear-gradient(90deg,${pc},${pc2})`;
-  const pcShadow = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.25)`;
+  const pcTint = lighten(pc, 0.90);                              // light selected/hover bg
+  const pcTint2 = lighten(pc, 0.82);                             // slightly stronger tint
+  const pcGrad = `linear-gradient(135deg,${pc2} 0%,${pcDeep} 100%)`;  // elegant diagonal
+  const pcShadow = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.28)`;
   // Push the active palette into CSS variables for the static <style> block
   if (typeof document !== "undefined") {
-    document.documentElement.style.setProperty("--pc", pc);
-    document.documentElement.style.setProperty("--pc-tint", pcTint);
+    const r = document.documentElement;
+    r.style.setProperty("--pc", pc);
+    r.style.setProperty("--pc-2", pc2);
+    r.style.setProperty("--pc-deep", pcDeep);
+    r.style.setProperty("--pc-tint", pcTint);
+    r.style.setProperty("--pc-tint-2", pcTint2);
+    r.style.setProperty("--pc-soft", pcSoft);
+    r.style.setProperty("--pc-shadow", pcShadow);
   }
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
@@ -2251,50 +2268,57 @@ export default function BeautyOS() {
   };
 
   return (
- <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"'Heebo',sans-serif",background:"#F7F5F2",minHeight:"100vh",display:"flex",flexDirection:"column",color:"#1C1C1C"}}>
+ <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:"var(--bg)",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
  <FloralCorners idPrefix="app" fixed zIndex={1} />
  <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Heebo:wght@300;400;500;600;700&display=swap');
-        .serif{font-family:'Cormorant Garamond',serif}
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        .serif{font-family:var(--display)}
         /* Keyboard focus indicator (only for keyboard nav, not mouse). The
            !important overrides the many inline outline:none declarations. */
         button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pc)!important;outline-offset:2px;border-radius:10px}
-        .slot:hover{background:#F2E9E1!important;cursor:pointer}
-        .appt-card{transition:transform 0.15s}.appt-card:hover{transform:scale(1.02)}
-        .client-row{transition:box-shadow 0.18s,transform 0.18s,border-color 0.18s}
-        .client-row:hover{cursor:pointer;box-shadow:0 8px 24px rgba(28,28,28,0.07);border-color:#E0CFA8!important;transform:translateY(-1px)}
-        .lead-row{transition:box-shadow 0.18s,transform 0.18s,border-color 0.18s}
-        .stat-card{transition:all 0.25s;box-shadow:0 4px 18px rgba(28,28,28,0.04)}.stat-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(212,175,55,0.13)}
-        .soft-card{box-shadow:0 6px 22px rgba(28,28,28,0.05)}
-        .nav-item{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;border-radius:14px;padding:11px 14px;font-size:13px;font-weight:500;color:#7A716A;cursor:pointer;font-family:inherit;text-align:right;transition:background 0.18s,color 0.18s;position:relative}
-        .nav-item:hover{background:var(--pc-tint);color:#1C1C1C}
-        .nav-item .nav-ico{width:19px;height:19px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:0.8}
-        .nav-item.active{background:var(--pc-tint);color:#1C1C1C;font-weight:600}
+        .slot:hover{background:var(--pc-tint)!important;cursor:pointer}
+        .appt-card{transition:transform 0.2s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s}.appt-card:hover{transform:translateY(-2px) scale(1.01);box-shadow:var(--shadow-md)}
+        .client-row{transition:box-shadow 0.2s,transform 0.2s,border-color 0.2s}
+        .client-row:hover{cursor:pointer;box-shadow:var(--shadow-md);border-color:var(--pc)!important;transform:translateY(-2px)}
+        .lead-row{transition:box-shadow 0.2s,transform 0.2s,border-color 0.2s}
+        .stat-card{transition:transform 0.28s cubic-bezier(.2,.7,.3,1),box-shadow 0.28s,border-color 0.28s;box-shadow:var(--shadow-sm)}
+        .stat-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:var(--pc)!important}
+        .soft-card{box-shadow:var(--shadow-md)}
+        .nav-item{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;border-radius:13px;padding:10px 13px;font-size:13.5px;font-weight:500;color:var(--ink-2);cursor:pointer;font-family:inherit;text-align:right;transition:background 0.2s,color 0.2s,transform 0.12s;position:relative;letter-spacing:-0.01em}
+        .nav-item:hover{background:var(--pc-tint);color:var(--ink)}
+        .nav-item:active{transform:scale(0.98)}
+        .nav-item .nav-ico{width:19px;height:19px;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:0.7;transition:opacity 0.2s,color 0.2s}
+        .nav-item.active{background:linear-gradient(100deg,var(--pc-tint),var(--pc-tint-2));color:var(--pc-deep);font-weight:700}
         .nav-item.active .nav-ico{opacity:1;color:var(--pc)}
-        .nav-item.active::before{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:3px;height:18px;border-radius:3px;background:var(--pc)}
-        .nav-aside::-webkit-scrollbar,main::-webkit-scrollbar{width:7px}
-        .nav-aside::-webkit-scrollbar-thumb,main::-webkit-scrollbar-thumb{background:rgba(180,170,160,0.3);border-radius:8px}
-        .lead-row:hover{cursor:pointer;box-shadow:0 8px 24px rgba(28,28,28,0.07);border-color:#E0CFA8!important;transform:translateY(-1px)}
-        .wa-btn{background:#25D366;color:#fff;border:none;border-radius:20px;padding:6px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
-        .wa-btn:hover{background:#1ea355}
-        .call-btn{background:var(--pc);color:#fff;border:none;border-radius:20px;padding:6px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
-        .icon-btn{background:rgba(212,175,55,0.10);border:none;border-radius:50%;width:30px;height:30px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.15s;display:inline-flex;align-items:center;justify-content:center}
-        .icon-btn:hover{background:rgba(212,175,55,0.20)}
+        .nav-item.active::before{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:3.5px;height:20px;border-radius:4px;background:var(--pc);box-shadow:0 0 10px var(--pc-shadow)}
+        .wa-btn{background:#25D366;color:#fff;border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
+        .wa-btn:hover{background:#1ea355;transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,211,102,0.3)}
+        .call-btn{background:var(--pc);color:#fff;border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+        .icon-btn{background:var(--pc-tint);border:none;border-radius:50%;width:32px;height:32px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.12s;display:inline-flex;align-items:center;justify-content:center}
+        .icon-btn:hover{background:var(--pc-tint-2);transform:translateY(-1px)}
         .icon-btn:disabled{opacity:0.5;cursor:default}
-        .primary-btn{border:none;border-radius:24px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity 0.15s,transform 0.1s}
+        .primary-btn{border:none;border-radius:var(--r-full);font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:-0.01em;transition:transform 0.12s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s,filter 0.2s}
+        .primary-btn:hover:not(:disabled){transform:translateY(-1.5px);filter:saturate(1.06)}
         .primary-btn:active:not(:disabled){transform:scale(0.97)}
         .primary-btn:disabled{opacity:0.5;cursor:default}
+        /* Reusable premium primitives for the redesign */
+        .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-md);position:relative;overflow:hidden}
+        .pill{display:inline-flex;align-items:center;gap:6px;border-radius:var(--r-full);font-weight:600;font-size:11px;letter-spacing:-0.01em}
+        .quick-action{transition:transform 0.16s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s,border-color 0.2s}
+        .quick-action:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--pc)!important}
+        .quick-action:active{transform:translateY(-1px) scale(0.99)}
         @keyframes toast-in{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
-        .toast{animation:toast-in 0.22s ease-out}
+        .toast{animation:toast-in 0.24s cubic-bezier(.2,.7,.3,1)}
         @keyframes shimmer{0%{background-position:-360px 0}100%{background-position:360px 0}}
-        .skel{background:linear-gradient(90deg,#F0E7EC 25%,#F8F1F4 50%,#F0E7EC 75%);background-size:720px 100%;animation:shimmer 1.3s infinite linear;border-radius:10px}
-        @keyframes fade-in-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .fade-in{animation:fade-in-up 0.32s ease-out both}
+        .skel{background:linear-gradient(90deg,#EFE7F3 25%,#F8F2FB 50%,#EFE7F3 75%);background-size:720px 100%;animation:shimmer 1.3s infinite linear;border-radius:10px}
+        @keyframes fade-in-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .fade-in{animation:fade-in-up 0.4s cubic-bezier(.2,.7,.3,1) both}
         @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:scale(1)}}
-        .pop-in{animation:pop-in 0.22s ease-out both}
-        @keyframes voice-pulse{0%{box-shadow:0 0 0 0 rgba(212,175,55,0.45)}70%{box-shadow:0 0 0 16px rgba(212,175,55,0)}100%{box-shadow:0 0 0 0 rgba(212,175,55,0)}}
+        .pop-in{animation:pop-in 0.24s cubic-bezier(.2,.7,.3,1) both}
+        @keyframes voice-pulse{0%{box-shadow:0 0 0 0 var(--pc-shadow)}70%{box-shadow:0 0 0 16px rgba(122,90,136,0)}100%{box-shadow:0 0 0 0 rgba(122,90,136,0)}}
         .voice-pulse{animation:voice-pulse 1.4s infinite}
-        .empty-cta{transition:transform 0.12s,box-shadow 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(212,175,55,0.22)}
+        @keyframes sheen{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}
+        .empty-cta{transition:transform 0.14s,box-shadow 0.2s,filter 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:var(--shadow-glow);filter:saturate(1.06)}
         .mobile-only{display:none}
         @media (max-width:680px){
           .desktop-only{display:none!important}
@@ -2736,27 +2760,56 @@ export default function BeautyOS() {
               const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
               const revTrend=lastMonthRevenue>0?Math.round(((thisMonthRevenue-lastMonthRevenue)/lastMonthRevenue)*100):null;
               const stats=[
-                {label:"הכנסות החודש",value:`₪${thisMonthRevenue.toLocaleString()}`,
-                  sub:revTrend!==null?(revTrend>=0?`↑ ${revTrend}% מהחודש שעבר`:`↓ ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
-                {label:"תורים השבוע",value:weekAppts.length,sub:`${todayAppts.length} מהם היום`},
-                {label:"לקוחות פעילות",value:activeClients.length,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
-                {label:"להתחדשות",value:coldClients.length,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
+                {label:"הכנסות החודש",value:`₪${thisMonthRevenue.toLocaleString()}`,icon:"₪",accent:pc,trend:revTrend,
+                  sub:revTrend!==null?(revTrend>=0?`עלייה של ${revTrend}% מהחודש שעבר`:`ירידה של ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
+                {label:"תורים השבוע",value:weekAppts.length,icon:"◴",accent:pc,trend:null,sub:`${todayAppts.length} מהם היום`},
+                {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"#46B37B",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
+                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"#F2B84B",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
               ];
               const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
+              const openNewAppt=()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);};
+              const quickActions=[
+                {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
+                {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
+                {label:"מטופלת חדשה",hint:"הוספה ל-CRM",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
+              ];
               return(<>
-                {/* HERO */}
- <div style={{textAlign:"center",marginBottom:40,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <h1 className="serif" style={{fontSize:38,fontWeight:600,color:"#1C1C1C",marginBottom:11,letterSpacing:"0.5px"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
- <p style={{fontSize:13.5,color:"#7A716A",fontWeight:300,maxWidth:480,margin:"0 auto"}}>
+                {/* HERO — focal gradient card + quick actions */}
+ <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.5,ease:[0.2,0.7,0.3,1]}}
+   style={{maxWidth:1180,margin:"0 auto 28px",background:"var(--grad-hero)",borderRadius:28,border:"1px solid var(--line)",boxShadow:"var(--shadow-lg)",padding:"34px 36px",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:-90,left:-70,width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.55), transparent 70%)",pointerEvents:"none"}}/>
+ <div aria-hidden style={{position:"absolute",bottom:-120,left:120,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(122,90,136,0.10), transparent 70%)",pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:28,flexWrap:"wrap"}}>
+ <div style={{minWidth:260,flex:"1 1 340px"}}>
+ <div className="pill" style={{background:"rgba(255,255,255,0.7)",color:pcDeep,padding:"6px 13px",border:"1px solid var(--line-2)",boxShadow:"var(--shadow-xs)",marginBottom:14}}>
+ <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"0 0 0 3px rgba(70,179,123,0.18)"}}/>
+                      {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
+ </div>
+ <h1 className="serif" style={{fontSize:40,fontWeight:600,color:"var(--ink)",marginBottom:10,lineHeight:1.08,letterSpacing:"-0.01em"}}>{greeting}{settings.therapist_name?.trim()?<>,<br/><span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
+ <p style={{fontSize:14,color:"var(--ink-2)",fontWeight:400,maxWidth:460,lineHeight:1.6}}>
                     {todayAppts.length>0?`יום יפה מחכה לך — ${todayAppts.length} תורים בלוח`:"אין תורים היום — זמן מצוין להתארגן"}{upcomingBirthdays.length>0?`, ${upcomingBirthdays.length} ימי הולדת לחגוג השבוע`:""}{coldClients.length>0?`, ו-${coldClients.length} לקוחות מחכות להתחדשות`:""}.
  </p>
- <div style={{width:80,height:2,background:`linear-gradient(90deg,transparent,${pc},transparent)`,margin:"20px auto 0"}}/>
                   {bdToday.length>0&&(
- <div style={{marginTop:16,background:pcTint,borderRadius:14,padding:"9px 16px",fontSize:11.5,color:pc,display:"inline-block",fontWeight:500}}>
-                      היום יום הולדת ל{bdToday.map(c=>c.name).join(", ")} — שווה לשלוח ברכה חמה
+ <div className="pill" style={{marginTop:16,background:"rgba(255,255,255,0.75)",border:"1px solid var(--line-2)",padding:"9px 15px",fontSize:11.5,color:pcDeep,fontWeight:500,boxShadow:"var(--shadow-xs)"}}>
+ 🎀 היום יום הולדת ל{bdToday.map(c=>c.name).join(", ")} — שווה לשלוח ברכה חמה
  </div>
                   )}
  </div>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(130px,1fr))",gap:12,flex:"0 1 300px"}}>
+                    {quickActions.map((qa,i)=>(
+ <motion.button key={i} onClick={qa.onClick} whileHover={{y:-3}} whileTap={{scale:0.98}} className="quick-action"
+   style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:18,padding:"15px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"right",boxShadow:"var(--shadow-sm)",display:"flex",flexDirection:"column",gap:9}}>
+ <span style={{width:38,height:38,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,color:"#fff",background:pcGrad,boxShadow:`0 6px 14px ${pcShadow}`}}>{qa.icon}</span>
+ <span style={{display:"block"}}>
+ <span style={{display:"block",fontSize:13,fontWeight:700,color:"var(--ink)",letterSpacing:"-0.01em"}}>{qa.label}</span>
+ <span style={{display:"block",fontSize:10,color:"var(--ink-3)",marginTop:2}}>{qa.hint}</span>
+ </span>
+ </motion.button>
+                    ))}
+ </div>
+ </div>
+ </motion.div>
 
                 {/* FIRST-RUN CHECKLIST — shown until business name, phone, and a first service are set */}
                 {(()=>{
@@ -2794,105 +2847,149 @@ export default function BeautyOS() {
                   );
                 })()}
 
-                {/* STAT CARDS */}
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:18,marginBottom:40,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
-                  {stats.map((s,i)=>(
- <div key={i} className="stat-card" style={{background:"#fff",borderRadius:18,padding:"26px 24px",border:"1px solid #E8DED6",textAlign:"right"}}>
- <p style={{fontSize:11,color:"#7A716A",fontWeight:500,letterSpacing:"0.8px",marginBottom:10}}>{s.label}</p>
- <p className="serif" style={{fontSize:42,fontWeight:600,color:"#1C1C1C",lineHeight:1,letterSpacing:"0.5px"}}>{s.value}</p>
-                      {s.sub&&<p style={{fontSize:10.5,color:pc,marginTop:10,fontWeight:500}}>{s.sub}</p>}
+                {/* STAT WIDGETS */}
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:16,marginBottom:32,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+                  {stats.map((s,i)=>{
+                    const up=s.trend!=null&&s.trend>=0;const down=s.trend!=null&&s.trend<0;
+                    return(
+ <motion.div key={i} className="stat-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.05*i,ease:[0.2,0.7,0.3,1]}}
+   style={{background:"var(--surface)",borderRadius:20,padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+ <span style={{width:42,height:42,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
+                        {s.trend!=null&&(
+ <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
+                        )}
  </div>
-                  ))}
+ <p style={{position:"relative",fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
+ <p className="serif" style={{position:"relative",fontSize:38,fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
+                      {s.sub&&<p style={{position:"relative",fontSize:10.5,color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
+ </motion.div>
+                    );
+                  })}
  </div>
 
                 {/* REVENUE CHART */}
- <div style={{background:"#fff",borderRadius:20,padding:"26px 28px",border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",marginBottom:24,maxWidth:1180,marginLeft:"auto",marginRight:"auto",position:"relative",overflow:"hidden"}}>
- 
- <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,justifyContent:"center"}}>
- <span style={{width:40,height:1,background:"linear-gradient(90deg,transparent,var(--pc))"}}/>
- <h3 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>הכנסות 6 חודשים אחרונים</h3>
- <span style={{width:40,height:1,background:"linear-gradient(90deg,var(--pc),transparent)"}}/>
+ <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.45,delay:0.1,ease:[0.2,0.7,0.3,1]}}
+   style={{background:"var(--surface)",borderRadius:24,padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,maxWidth:1180,marginLeft:"auto",marginRight:"auto",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:-70,left:-40,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle, var(--pc-soft), transparent 70%)",pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:14,marginBottom:22,flexWrap:"wrap"}}>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:5}}>סקירת הכנסות</p>
+ <h3 className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>6 החודשים האחרונים</h3>
  </div>
- <div style={{display:"flex",alignItems:"flex-end",gap:10,height:150,paddingBottom:4}}>
+ <div style={{textAlign:"left"}}>
+ <p className="serif" style={{fontSize:26,fontWeight:600,color:pc,lineHeight:1}}>₪{monthlyData.reduce((s,m)=>s+m.revenue,0).toLocaleString()}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginTop:3}}>סה״כ בתקופה</p>
+ </div>
+ </div>
+ <div style={{position:"relative",display:"flex",alignItems:"flex-end",gap:12,height:168,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
                     {monthlyData.map((m,i)=>{
-                      const h=Math.round((m.revenue/maxRev)*120);
+                      const h=Math.round((m.revenue/maxRev)*130);
                       const isCurrent=i===monthlyData.length-1;
                       return(
- <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
- <span style={{fontSize:9.5,fontWeight:600,color:isCurrent?pc:"#B0A8AE"}}>{m.revenue>0?`₪${m.revenue.toLocaleString()}`:""}</span>
- <div style={{width:"100%",maxWidth:46,height:Math.max(h,4),borderRadius:"10px 10px 4px 4px",background:isCurrent?`linear-gradient(180deg,${pc2} 0%,${pc} 100%)`:`linear-gradient(180deg,${lighten(pc,0.55)} 0%,${lighten(pc,0.35)} 100%)`,transition:"height 0.3s"}}/>
- <span style={{fontSize:10,color:isCurrent?"#1C1C1C":"#B0A8AE",fontWeight:isCurrent?600:500}}>{m.month}</span>
+ <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",gap:7,height:"100%"}}>
+ <span style={{fontSize:9.5,fontWeight:700,color:isCurrent?pc:"var(--ink-3)"}}>{m.revenue>0?`₪${(m.revenue/1000).toFixed(m.revenue>=10000?0:1)}k`:""}</span>
+ <motion.div initial={{height:0}} animate={{height:Math.max(h,4)}} transition={{duration:0.6,delay:0.15+0.06*i,ease:[0.2,0.7,0.3,1]}}
+   title={`${m.month}: ₪${m.revenue.toLocaleString()}`}
+   style={{width:"100%",maxWidth:44,borderRadius:"12px 12px 5px 5px",background:isCurrent?`linear-gradient(180deg,${pc2} 0%,${pcDeep} 100%)`:`linear-gradient(180deg,${lighten(pc,0.62)} 0%,${lighten(pc,0.4)} 100%)`,boxShadow:isCurrent?`0 8px 18px ${pcShadow}`:"none",cursor:"default"}}/>
  </div>
                       );
                     })}
  </div>
+ <div style={{display:"flex",gap:12,marginTop:8}}>
+                    {monthlyData.map((m,i)=>{const isCurrent=i===monthlyData.length-1;return(
+ <span key={i} style={{flex:1,textAlign:"center",fontSize:10,color:isCurrent?"var(--ink)":"var(--ink-3)",fontWeight:isCurrent?700:500}}>{m.month}</span>
+                    );})}
  </div>
+ </motion.div>
 
                 {/* SECTION TITLE */}
- <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,margin:"0 0 24px"}}>
- <span style={{width:50,height:1,background:"linear-gradient(90deg,transparent,var(--pc))"}}/>
- <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"#1C1C1C"}}>היום שלך</h2>
- <span style={{width:50,height:1,background:"linear-gradient(90deg,var(--pc),transparent)"}}/>
+ <div style={{maxWidth:1180,margin:"32px auto 18px",display:"flex",alignItems:"center",gap:11}}>
+ <span style={{width:5,height:24,borderRadius:4,background:pcGrad}}/>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>היום שלך</h2>
  </div>
 
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:18,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{background:"#fff",borderRadius:20,padding:"26px 28px",border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",position:"relative",overflow:"hidden"}}>
- 
- <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"#1C1C1C",marginBottom:16}}>דורש תשומת לב</h3>
+ <div className="glass-card" style={{padding:"24px 26px"}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(242,184,75,0.14)",color:"#c98b1f"}}>✷</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
+ </div>
                     {(()=>{
                       const items=[];
-                      if(newLeadsCount>0)items.push({icon:"",text:`${newLeadsCount} פניות חדשות ממתינות למענה`,tab:"leads"});
-                      if(leadsWithReminders.length>0)items.push({icon:"",text:`${leadsWithReminders.length} תזכורות מעקב להיום`,tab:"leads"});
-                      if(coldClients.length>0)items.push({icon:"✦",text:`${coldClients.length} לקוחות לא ביקרו 60+ ימים`,tab:"whatsapp"});
+                      if(newLeadsCount>0)items.push({icon:"✉",text:`${newLeadsCount} פניות חדשות ממתינות למענה`,tab:"leads",accent:"#5B3E67"});
+                      if(leadsWithReminders.length>0)items.push({icon:"◴",text:`${leadsWithReminders.length} תזכורות מעקב להיום`,tab:"leads",accent:"#E05B6F"});
+                      if(coldClients.length>0)items.push({icon:"✦",text:`${coldClients.length} לקוחות לא ביקרו 60+ ימים`,tab:"whatsapp",accent:"#F2B84B"});
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent).length;
-                      if(tomorrowNotSent>0)items.push({icon:"",text:`${tomorrowNotSent} תורי מחר ללא תזכורת שנשלחה`,tab:"whatsapp"});
-                      if(items.length===0)return <p style={{fontSize:11.5,color:"#7A716A",padding:"8px 0"}}>הכל מטופל — אין משימות פתוחות </p>;
+                      if(tomorrowNotSent>0)items.push({icon:"✆",text:`${tomorrowNotSent} תורי מחר ללא תזכורת שנשלחה`,tab:"whatsapp",accent:"#46B37B"});
+                      if(items.length===0)return(
+ <div style={{textAlign:"center",padding:"18px 10px"}}>
+ <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין משימות פתוחות כרגע</p>
+ </div>);
                       return items.map((it,i)=>(
- <div key={i} onClick={()=>setActiveTab(it.tab)} className="stat-card" style={{display:"flex",alignItems:"center",gap:11,padding:"12px 14px",background:"linear-gradient(90deg,#F2E9E1,#FFFFFF)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
- <span style={{fontSize:16}}>{it.icon}</span>
- <p style={{fontSize:12,color:"#1C1C1C",fontWeight:500,flex:1}}>{it.text}</p>
- <span style={{fontSize:12,color:pc}}>←</span>
- </div>
+ <motion.div key={i} onClick={()=>setActiveTab(it.tab)} whileHover={{x:-3}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
+ <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:500,flex:1,lineHeight:1.4}}>{it.text}</p>
+ <span style={{fontSize:13,color:pc}}>←</span>
+ </motion.div>
                       ));
                     })()}
  </div>
 
- <div style={{background:"#fff",borderRadius:20,padding:"26px 28px",border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",position:"relative",overflow:"hidden"}}>
- 
- <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"#1C1C1C",marginBottom:16}}>תורים להיום</h3>
+ <div className="glass-card" style={{padding:"24px 26px"}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--pc-tint)",color:pc}}>◴</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
+ </div>
                     {todayAppts.length===0?(
- <div style={{textAlign:"center",padding:"22px 14px"}}>
- <div style={{fontSize:26,marginBottom:8}}>☕</div>
- <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>אין תורים להיום</p>
- <p style={{fontSize:10.5,color:"#7A716A",marginBottom:14}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
- <button className="empty-cta" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"9px 18px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✦ קביעת תור</button>
+ <div style={{textAlign:"center",padding:"20px 14px"}}>
+ <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
+ <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
  </div>
-                      ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:13,padding:"13px 0",borderBottom:i<arr.length-1?"1px solid #E8DED6":"none"}}>
- <span className="serif" style={{fontSize:18,fontWeight:600,color:pc,width:50,flexShrink:0}}>{a.hour}:00</span>
+                      ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>{
+                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"#46B37B",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"#E05B6F",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                        return(
+ <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
+ <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
+ <span className="serif" style={{fontSize:16,fontWeight:700,color:pc,lineHeight:1}}>{a.hour}</span>
+ <span style={{fontSize:8,color:"var(--ink-3)",fontWeight:600}}>:00</span>
+ </span>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:13,fontWeight:600,color:"#1C1C1C"}}>{a.name}</p>
- <p style={{fontSize:10.5,color:"#7A716A",marginTop:1}}>{a.service}</p>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
  </div>
- <span style={{fontSize:9.5,padding:"5px 13px",borderRadius:20,fontWeight:500,background:pcTint,color:pc}}>{a.confirmation_status==="confirmed"?"אושר":a.confirmation_status==="cancelled"?"בוטל":"ממתין"}</span>
+ <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
  </div>
-                      ))}
+                        );
+                      })}
  </div>
 
- <div style={{background:"#fff",borderRadius:20,padding:"26px 28px",border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",position:"relative",overflow:"hidden"}}>
- 
- <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"#1C1C1C",marginBottom:16}}>ימי הולדת קרובים</h3>
-                    {upcomingBirthdays.length===0?<p style={{fontSize:11.5,color:"#7A716A",padding:"8px 0"}}>אין ימי הולדת ב-30 הימים הקרובים</p>
-                      :upcomingBirthdays.slice(0,5).map((c,i,arr)=>{
+ <div className="glass-card" style={{padding:"24px 26px"}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(224,91,111,0.12)",color:"#E05B6F"}}>🎀</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
+ </div>
+                    {upcomingBirthdays.length===0?(
+ <div style={{textAlign:"center",padding:"20px 14px"}}>
+ <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"rgba(224,91,111,0.10)"}}>🎂</div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-2)"}}>אין ימי הולדת קרובים</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>ב-30 הימים הקרובים</p>
+ </div>
+                      ):upcomingBirthdays.slice(0,5).map((c,i,arr)=>{
                         const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
                         return(
- <div key={c.id} style={{display:"flex",alignItems:"center",gap:14,padding:"11px 0",borderBottom:i<arr.length-1?"1px solid #E8DED6":"none"}}>
- <div className="serif" style={{width:44,height:44,borderRadius:14,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:600,color:"#fff",background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,boxShadow:"0 5px 12px rgba(212,175,55,0.26)"}}>{b.getDate()}</div>
+ <div key={c.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"9px 10px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
+ <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{c.name}</p>
- <p style={{fontSize:10,color:"#7A716A",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
  </div>
-                            {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" style={{fontSize:9.5,padding:"6px 14px",borderRadius:20,fontWeight:500,background:pcTint,color:pc,textDecoration:"none"}}>ברכה</a>}
+                            {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>}
  </div>
                         );
                       })}
