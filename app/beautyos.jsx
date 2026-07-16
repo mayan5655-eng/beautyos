@@ -2359,10 +2359,10 @@ export default function BeautyOS() {
       {toasts.length>0&&(
  <div aria-live="polite" aria-atomic="true" style={{position:"fixed",top:14,left:"50%",transform:"translateX(-50%)",zIndex:5000,display:"flex",flexDirection:"column",gap:7,alignItems:"center",pointerEvents:"none"}}>
           {toasts.map(t=>{
-            const colors={success:{bg:"#1C1C1C",fg:"#fff",icon:"✓"},error:{bg:"#C62828",fg:"#fff",icon:"!"},info:{bg:pc,fg:"#fff",icon:"i"}};
+            const colors={success:{bg:"var(--ink)",fg:"#fff",icon:"✓"},error:{bg:"var(--danger)",fg:"#fff",icon:"!"},info:{bg:pcDeep,fg:"#fff",icon:"i"}};
             const c=colors[t.type]||colors.success;
             return(
- <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} style={{background:c.bg,color:c.fg,padding:"9px 16px",borderRadius:24,fontSize:12,fontWeight:600,boxShadow:"0 6px 20px rgba(0,0,0,0.18)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8}}>
+ <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} style={{background:c.bg,color:c.fg,padding:"10px 18px",borderRadius:24,fontSize:12,fontWeight:600,boxShadow:"var(--shadow-lg)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(255,255,255,0.22)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0}}>{c.icon}</span>
                 {t.msg}
                 {t.action&&<button onClick={()=>{t.action.onClick();setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:"rgba(255,255,255,0.2)",border:"none",color:c.fg,fontSize:11,fontWeight:700,padding:"4px 11px",borderRadius:16,cursor:"pointer",fontFamily:"inherit",marginRight:2,whiteSpace:"nowrap"}}>{t.action.label}</button>}
@@ -2637,29 +2637,30 @@ export default function BeautyOS() {
 
       {/* OMBRE PROMO BAR */}
       {/* HEADER */}
- <header style={{background:"rgba(255,255,255,0.86)",backdropFilter:"blur(10px)",borderBottom:"1px solid #E8DED6",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap"}}>
+ <header style={{background:"rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)"}}>
  <div style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",lineHeight:1}}>
  <span style={{display:"inline-flex",alignItems:"flex-start"}}>
- <span className="serif" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"#1C1C1C"}}>BloomOS</span>
+ <span className="serif" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"var(--ink)"}}>BloomOS</span>
  <span style={{fontSize:13,color:pc,marginRight:-2,marginTop:1,lineHeight:1}}>✦</span>
  </span>
- <span style={{fontSize:8,color:"#9A9088",letterSpacing:"4.5px",fontWeight:500,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
+ <span style={{fontSize:8,color:"var(--ink-3)",letterSpacing:"4.5px",fontWeight:600,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
  </div>
-          {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer"}}>{newLeadsCount}</span>}
-          {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"#F44336",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
+          {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
+          {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
  </div>
  <div className="header-search" style={{position:"relative",flex:1,maxWidth:280,minWidth:80}}>
+ <span style={{position:"absolute",top:"50%",right:13,transform:"translateY(-50%)",fontSize:12,color:"var(--ink-3)",pointerEvents:"none",zIndex:1}}>⌕</span>
  <input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} placeholder="חיפוש..."
-            style={{width:"100%",border:"1px solid #E8DED6",borderRadius:24,padding:"7px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:"#1C1C1C"}}/>
+            style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"8px 34px 8px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",boxShadow:"var(--shadow-xs)"}}/>
           {globalResults.length>0&&(
- <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#fff",borderRadius:14,boxShadow:"0 8px 24px rgba(212,175,55,0.15)",zIndex:999,overflow:"hidden",marginTop:6}}>
+ <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:16,boxShadow:"var(--shadow-lg)",zIndex:999,overflow:"hidden",marginTop:6}}>
               {globalResults.map((r,i)=>(
  <div key={i} onClick={()=>{setGlobalSearch("");if(r.type==="client"){setSelectedClient(r.obj);setClientTab("info");}else if(r.type==="lead"){setSelectedLead(r.obj);setActiveTab("leads");}}}
-                  style={{padding:"9px 14px",borderBottom:"1px solid #F2E9E1",cursor:"pointer",display:"flex",gap:8,alignItems:"center"}} className="client-row">
+                  style={{padding:"10px 14px",borderBottom:i<globalResults.length-1?"1px solid var(--line)":"none",cursor:"pointer",display:"flex",gap:8,alignItems:"center"}} className="client-row">
  <span style={{fontSize:12}}>{r.type==="client"?"":r.type==="lead"?"":""}</span>
- <div><p style={{fontSize:11.5,fontWeight:600,color:"#1C1C1C"}}>{r.label}</p><p style={{fontSize:9,color:"#7A716A"}}>{r.sub}</p></div>
+ <div><p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{r.label}</p><p style={{fontSize:9,color:"var(--ink-3)"}}>{r.sub}</p></div>
  </div>
               ))}
  </div>
@@ -2667,7 +2668,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
           {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:10,color:pc}}>{upcomingBirthdays[0].name}</span>}
- <span className="desktop-only" style={{fontSize:11.5,color:"#7A716A"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
+ <span className="desktop-only" style={{fontSize:11.5,color:"var(--ink-2)"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">⚙</button>
  <button onClick={handleExportCSV} className="icon-btn" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
  <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
@@ -2678,8 +2679,8 @@ export default function BeautyOS() {
         {showMobileSidebar&&<div className="sidebar-backdrop mobile-only" onClick={()=>setShowMobileSidebar(false)}/>}
 
         {/* NAVIGATION SIDEBAR (right, RTL) */}
- <aside className={`nav-aside${showMobileSidebar?" open":""}`} style={{order:0,width:212,background:"rgba(255,255,255,0.72)",borderLeft:"1px solid #E8DED6",padding:"16px 12px",display:"flex",flexDirection:"column",gap:3,flexShrink:0,overflowY:"auto"}}>
- <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",alignSelf:"flex-start",background:"none",border:"none",fontSize:16,cursor:"pointer",color:"#7A716A",marginBottom:4}}>✕</button>
+ <aside className={`nav-aside${showMobileSidebar?" open":""}`} style={{order:0,width:212,background:"rgba(252,250,254,0.7)",borderLeft:"1px solid var(--line)",padding:"16px 12px",display:"flex",flexDirection:"column",gap:3,flexShrink:0,overflowY:"auto"}}>
+ <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",alignSelf:"flex-start",background:"none",border:"none",fontSize:16,cursor:"pointer",color:"var(--ink-3)",marginBottom:4}}>✕</button>
           {NAV_ITEMS.map(item=>(
  <button key={item.id} onClick={()=>{setActiveTab(item.id);setShowMobileSidebar(false);}} className={`nav-item${activeTab===item.id?" active":""}`}>
  <span className="nav-ico">{navIcon(item.id)}</span>
@@ -2694,15 +2695,15 @@ export default function BeautyOS() {
  </aside>
 
         {/* TODAY / REMINDERS PANEL (left, RTL) */}
- <aside className="sidebar-aside desktop-only" style={{order:2,width:195,background:"rgba(255,255,255,0.6)",borderRight:"1px solid #E8DED6",padding:"14px 11px",display:"flex",flexDirection:"column",gap:11,flexShrink:0,overflowY:"auto"}}>
+ <aside className="sidebar-aside desktop-only" style={{order:2,width:195,background:"rgba(252,250,254,0.6)",borderRight:"1px solid var(--line)",padding:"14px 11px",display:"flex",flexDirection:"column",gap:11,flexShrink:0,overflowY:"auto"}}>
  <div>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
- <p className="serif" style={{fontSize:14,fontWeight:600,color:"#1C1C1C"}}>היום ({todayAppts.length})</p>
- <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",background:"none",border:"none",fontSize:14,cursor:"pointer",color:"#7A716A"}}>✕</button>
+ <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>היום ({todayAppts.length})</p>
+ <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",background:"none",border:"none",fontSize:14,cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
-            {todayAppts.length===0?<p style={{fontSize:10.5,color:"#B8AFA0"}}>אין תורים</p>
+            {todayAppts.length===0?<p style={{fontSize:10.5,color:"var(--ink-3)"}}>אין תורים</p>
               :todayAppts.sort((a,b)=>a.hour-b.hour).map(a=>(
- <div key={a.id} style={{background:"linear-gradient(90deg,#F2E9E1,#FFFFFF)",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"7px 9px",marginBottom:5}}>
+ <div key={a.id} style={{background:"linear-gradient(90deg,var(--lavender-50),var(--surface))",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"7px 9px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{a.name}</p>
  <p style={{fontSize:9,color:"#7A716A"}}>{workingHours[Number(a.hour)-settings.working_hours_start]||a.hour+":00"} · {a.service}</p>
                   {a.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"#7BAE7F",fontWeight:700}}>אישרה</span>}
@@ -4229,10 +4230,10 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:380,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>{editingClient?"עריכת מטופלת":"מטופלת חדשה"}</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
- <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
- <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/>
- <select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+ <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ <select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid #FFDAC1",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FFFAF7",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#F7FAFF",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
@@ -4252,12 +4253,12 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:370,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>{editingLead?"עריכת פנייה":"פנייה חדשה"}</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
- <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+ <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{LEAD_SOURCES.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"#E8DED6",borderRadius:20,background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"#fff":"#7A716A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
- <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
+ <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"#E8DED6",borderRadius:20,background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"#7A716A",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תזכורת מעקב</p><input type="date" value={newLead.reminder_date} onChange={e=>setNewLead({...newLead,reminder_date:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תזכורת מעקב</p><input type="date" value={newLead.reminder_date} onChange={e=>setNewLead({...newLead,reminder_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
  <textarea value={newLead.notes} onChange={e=>setNewLead({...newLead,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
@@ -4426,8 +4427,8 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>חבילת טיפולים חדשה</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
- <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
+ <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+ <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>מחיר חבילה ₪</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
@@ -4474,10 +4475,10 @@ export default function BeautyOS() {
           <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:18,padding:20,width:"100%",maxWidth:440,maxHeight:"90vh",overflowY:"auto"}}>
             <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>פרוטוקול חדש</h3>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <input value={newProtocol.brand} onChange={e=>setNewProtocol({...newProtocol,brand:e.target.value})} placeholder="מותג *" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
-              <input value={newProtocol.name} onChange={e=>setNewProtocol({...newProtocol,name:e.target.value})} placeholder="שם הפרוטוקול *" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
-              <input value={newProtocol.concern} onChange={e=>setNewProtocol({...newProtocol,concern:e.target.value})} placeholder="בעיה שהפרוטוקול פותר (אקנה, אנטי-אייג׳ינג...)" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
-              <input value={newProtocol.frequency} onChange={e=>setNewProtocol({...newProtocol,frequency:e.target.value})} placeholder="תדירות (למשל: אחת לשבועיים)" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              <input value={newProtocol.brand} onChange={e=>setNewProtocol({...newProtocol,brand:e.target.value})} placeholder="מותג *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+              <input value={newProtocol.name} onChange={e=>setNewProtocol({...newProtocol,name:e.target.value})} placeholder="שם הפרוטוקול *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+              <input value={newProtocol.concern} onChange={e=>setNewProtocol({...newProtocol,concern:e.target.value})} placeholder="בעיה שהפרוטוקול פותר (אקנה, אנטי-אייג׳ינג...)" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+              <input value={newProtocol.frequency} onChange={e=>setNewProtocol({...newProtocol,frequency:e.target.value})} placeholder="תדירות (למשל: אחת לשבועיים)" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
               <div style={{display:"flex",gap:8}}>
                 <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>מספר מפגשים</p><input type="number" value={newProtocol.sessions_count} onChange={e=>setNewProtocol({...newProtocol,sessions_count:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
                 <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>זמן (דקות)</p><input type="number" value={newProtocol.duration_minutes} onChange={e=>setNewProtocol({...newProtocol,duration_minutes:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
@@ -4499,9 +4500,9 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>הוספה לרשימת המתנה</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <select value={newWaitlist.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewWaitlist({...newWaitlist,client_id:e.target.value,client_name:c?.name||"",phone:c?.phone||""});}} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
- <select value={newWaitlist.service} onChange={e=>setNewWaitlist({...newWaitlist,service:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
- <input type="date" value={newWaitlist.preferred_date} onChange={e=>setNewWaitlist({...newWaitlist,preferred_date:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/>
+ <select value={newWaitlist.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewWaitlist({...newWaitlist,client_id:e.target.value,client_name:c?.name||"",phone:c?.phone||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+ <select value={newWaitlist.service} onChange={e=>setNewWaitlist({...newWaitlist,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
+ <input type="date" value={newWaitlist.preferred_date} onChange={e=>setNewWaitlist({...newWaitlist,preferred_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
  <textarea value={newWaitlist.notes} onChange={e=>setNewWaitlist({...newWaitlist,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
@@ -4564,8 +4565,8 @@ export default function BeautyOS() {
  <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
               {settingsTab==="general"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
@@ -4584,9 +4585,9 @@ export default function BeautyOS() {
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
  <div style={{display:"flex",flexDirection:"column",gap:7}}>
- <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
- <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
- <input type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="אימות סיסמה חדשה" autoComplete="new-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+ <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="אימות סיסמה חדשה" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"#fff",fontSize:12,marginTop:2}}>{isBusy("changePw")?"מעדכן...":"עדכון סיסמה"}</button>
  </div>
  </div>
@@ -4669,14 +4670,14 @@ export default function BeautyOS() {
               {settingsTab==="hours"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת פתיחה</p><select value={editSettings.working_hours_start} onChange={e=>setEditSettings({...editSettings,working_hours_start:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת סגירה</p><select value={editSettings.working_hours_end} onChange={e=>setEditSettings({...editSettings,working_hours_end:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת פתיחה</p><select value={editSettings.working_hours_start} onChange={e=>setEditSettings({...editSettings,working_hours_start:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת סגירה</p><select value={editSettings.working_hours_end} onChange={e=>setEditSettings({...editSettings,working_hours_end:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
  </div>
  </div>
               )}
               {settingsTab==="payment"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
+ <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <p style={{fontSize:10,color:"#A89AA2",lineHeight:1.5}}>המספר הזה ישמש לבקשות תשלום ב-ביט שנשלחות ללקוחות </p>
  </div>
               )}
