@@ -3070,31 +3070,37 @@ export default function BeautyOS() {
           {/* CLIENTS */}
           {activeTab==="clients"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:7}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>לקוחות ({filteredClients.length})</h2>
- <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
- <button onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>ייבוא לקוחות</button>
- <button onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"9px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px ${pcShadow}`}}>✦ מטופלת חדשה</button>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ניהול קשרי לקוחות</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
+ </div>
+ <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ <button onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
+ <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"#fff",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>
  </div>
- <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
- <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="שם או טלפון..." style={{flex:1,minWidth:140,border:"1px solid #E8DED6",borderRadius:24,padding:"9px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff"}}/>
- <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:"1px solid #E8DED6",borderRadius:24,padding:"9px 12px",fontSize:10.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",color:"#7A716A"}}>
+ <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+ <div style={{position:"relative",flex:1,minWidth:160}}>
+ <span style={{position:"absolute",top:"50%",right:14,transform:"translateY(-50%)",fontSize:12,color:"var(--ink-3)",pointerEvents:"none"}}>⌕</span>
+ <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="חיפוש לפי שם או טלפון..." style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 36px 10px 14px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",boxShadow:"var(--shadow-xs)"}}/>
+ </div>
+ <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 14px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active">✓ פעילות</option><option value="cold">להתחדשות</option>
  </select>
- <select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid #E8DED6",borderRadius:24,padding:"9px 12px",fontSize:10.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",color:"#7A716A"}}>
+ <select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 14px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל עור</option>{SKIN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
  </select>
  </div>
             {filteredClients.length===0?(
- <div className="pop-in" style={{textAlign:"center",padding:"46px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:6}}>
- <div style={{fontSize:34,marginBottom:10}}>{(searchQuery||filterStatus!=="all")?"🔍":"👩‍🦰"}</div>
- <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C",marginBottom:5}}>{(searchQuery||filterStatus!=="all")?"לא נמצאו לקוחות":"עוד אין לקוחות"}</p>
- <p style={{fontSize:11.5,color:"#7A716A",maxWidth:340,margin:"0 auto 16px"}}>{(searchQuery||filterStatus!=="all")?"נסי לשנות את החיפוש או הסינון.":"הוסיפי את הלקוחה הראשונה, או ייבאי רשימה שלמה בבת אחת."}</p>
+ <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:24,marginTop:6}}>
+ <div style={{width:64,height:64,borderRadius:20,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>{(searchQuery||filterStatus!=="all")?"⌕":"♥"}</div>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>{(searchQuery||filterStatus!=="all")?"לא נמצאו לקוחות":"עוד אין לקוחות"}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:340,margin:"0 auto 18px",lineHeight:1.6}}>{(searchQuery||filterStatus!=="all")?"נסי לשנות את החיפוש או הסינון.":"הוסיפי את הלקוחה הראשונה, או ייבאי רשימה שלמה בבת אחת."}</p>
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
- <button className="empty-cta" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✦ מטופלת חדשה</button>
- <button className="empty-cta" onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>ייבוא לקוחות</button>
+ <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"#fff",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
+ <button className="empty-cta" onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -3108,21 +3114,23 @@ export default function BeautyOS() {
                 const days=getDaysSince(client.id);
                 const total=getClientTotal(client.id);
                 return(
- <div key={client.id} className="client-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת כרטיס הלקוחה ${client.name}`} onClick={()=>{setSelectedClient(client);setClientTab("info");}} style={{background:"#fff",borderRadius:16,padding:"12px 14px",border:"1px solid #E8DED6",display:"flex",alignItems:"center",gap:11,marginBottom:7}}>
- <div style={{width:40,height:40,borderRadius:"50%",background:client.images?.[0]?"transparent":statusColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:"#fff",flexShrink:0,overflow:"hidden"}}>
+ <div key={client.id} className="client-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת כרטיס הלקוחה ${client.name}`} onClick={()=>{setSelectedClient(client);setClientTab("info");}} style={{background:"var(--surface)",borderRadius:18,padding:"13px 16px",border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:13,marginBottom:8,boxShadow:"var(--shadow-sm)"}}>
+ <div style={{width:46,height:46,borderRadius:15,padding:2,background:`linear-gradient(135deg,${lighten(statusColor,0.4)},${statusColor})`,flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
+ <div style={{width:"100%",height:"100%",borderRadius:13,background:client.images?.[0]?"transparent":statusColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",overflow:"hidden"}}>
                       {client.images?.[0]?<SignedImage value={client.images[0]} alt={client.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={client.name[0]}/>:client.name[0]}
  </div>
+ </div>
  <div style={{flex:1,minWidth:0}}>
- <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
- <p style={{fontWeight:600,fontSize:13,color:"#1C1C1C"}}>{client.name}</p>
-                        {client.status&&<span style={{fontSize:7,background:statusColor,color:"#fff",padding:"2px 7px",borderRadius:20,fontWeight:600}}>{STATUS_LABELS[client.status]}</span>}
-                        {days>90&&<span style={{fontSize:7,background:"#FBF3E2",color:"#B07F2A",padding:"2px 7px",borderRadius:20,fontWeight:600}}>רדומה · {days}י</span>}
-                        {total>0&&<span style={{fontSize:7,background:pcTint,color:pc,padding:"2px 7px",borderRadius:20,fontWeight:700}}>₪{total.toLocaleString()}</span>}
+ <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+ <p style={{fontWeight:700,fontSize:13.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{client.name}</p>
+                        {client.status&&<span className="pill" style={{fontSize:8,background:statusColor,color:"#fff",padding:"3px 8px"}}>{STATUS_LABELS[client.status]}</span>}
+                        {days>90&&<span className="pill" style={{fontSize:8,background:"rgba(242,184,75,0.16)",color:"#b07f2a",padding:"3px 8px"}}>רדומה · {days}י</span>}
+                        {total>0&&<span className="pill" style={{fontSize:8,background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:9,color:"#7A716A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
  </div>
-                    {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 8px",fontSize:9}}></a>}
- <span style={{fontSize:11,color:pc}}>←</span>
+                    {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:10}}>✆ הודעה</a>}
+ <span style={{fontSize:13,color:pc}}>←</span>
  </div>
                 );
               })}
