@@ -4551,13 +4551,13 @@ export default function BeautyOS() {
 
       {/* SETTINGS MODAL */}
       {showSettings&&editSettings&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
- <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <div style={{padding:"20px 24px 0"}}>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>⚙ הגדרות</h3>
- <div style={{display:"flex",gap:4,borderBottom:"1px solid #E8DED6"}}>
+ <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
+ <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                 {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
- <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"9px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?600:400,color:settingsTab===t.k?"#1C1C1C":"#7A716A",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
  </div>
@@ -4566,23 +4566,23 @@ export default function BeautyOS() {
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>צבע ראשי</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#D98BA0","#C9A24B","#C68A5E","#B0764E","#A67C52","#8C6239","#CBA15E","#E0C068","#BC6B3F","#1C1C1C"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid #1C1C1C":"2px solid #E8DED6",cursor:"pointer"}}/>)}</div></div>
+ <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
- <div><p style={{fontSize:9,color:"#7A716A",marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
+ <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
  <div style={{display:"flex",gap:6}}>
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
                     const sel=(editSettings.business_tax_status||"exempt")===o.k;
-                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid #E8DED6",background:sel?pcTint:"#fff",color:sel?pc:"#7A716A"}}>{o.l}</button>;
+                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:11,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
                   })}
  </div>
- <p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
- <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
- <button onClick={()=>copyPublicLink("scan")} style={{width:"100%",padding:"10px 0",background:pcGrad,color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>✦ העתקת קישור לסורק העור</button>
- <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"10px 0",background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
+ <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{width:"100%",padding:"11px 0",background:pcGrad,color:"#fff",borderRadius:12,fontSize:12,marginBottom:7,boxShadow:`0 6px 14px ${pcShadow}`}}>✦ העתקת קישור לסורק העור</button>
+ <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
  </div>
- <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>שינוי סיסמה</p>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
  <div style={{display:"flex",flexDirection:"column",gap:7}}>
  <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
  <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
