@@ -2889,36 +2889,23 @@ export default function BeautyOS() {
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
-                {/* HERO — focal gradient card + quick actions */}
- <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.5,ease:[0.2,0.7,0.3,1]}}
-   style={{maxWidth:1180,margin:"0 auto 28px",background:"var(--grad-hero)",borderRadius:28,border:"1px solid var(--line)",boxShadow:"var(--shadow-lg)",padding:"34px 36px",position:"relative",overflow:"hidden"}}>
- <div aria-hidden style={{position:"absolute",top:-90,left:-70,width:280,height:280,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.55), transparent 70%)",pointerEvents:"none"}}/>
- <div aria-hidden style={{position:"absolute",bottom:-120,left:120,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(122,90,136,0.10), transparent 70%)",pointerEvents:"none"}}/>
- <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:28,flexWrap:"wrap"}}>
- <div style={{minWidth:260,flex:"1 1 340px"}}>
- <div className="pill" style={{background:"rgba(255,255,255,0.7)",color:pcDeep,padding:"6px 13px",border:"1px solid var(--line-2)",boxShadow:"var(--shadow-xs)",marginBottom:14}}>
+                {/* ── TIER 1a: slim greeting bar + 2 primary inline actions ── */}
+ <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}}
+   style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--grad-hero)",borderRadius:22,border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"20px 26px",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:-80,left:-60,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.5), transparent 70%)",pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:18,flexWrap:"wrap"}}>
+ <div style={{minWidth:220}}>
+ <div className="pill" style={{background:"rgba(255,255,255,0.7)",color:pcDeep,padding:"5px 12px",border:"1px solid var(--line-2)",boxShadow:"var(--shadow-xs)",marginBottom:10}}>
  <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"0 0 0 3px rgba(70,179,123,0.18)"}}/>
                       {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
  </div>
- <h1 className="serif" style={{fontSize:40,fontWeight:600,color:"var(--ink)",marginBottom:10,lineHeight:1.08,letterSpacing:"-0.01em"}}>{greeting}{settings.therapist_name?.trim()?<>,<br/><span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
- <p style={{fontSize:14,color:"var(--ink-2)",fontWeight:400,maxWidth:460,lineHeight:1.6}}>
-                    {todayAppts.length>0?`יום יפה מחכה לך — ${todayAppts.length} תורים בלוח`:"אין תורים היום — זמן מצוין להתארגן"}{upcomingBirthdays.length>0?`, ${upcomingBirthdays.length} ימי הולדת לחגוג השבוע`:""}{coldClients.length>0?`, ו-${coldClients.length} לקוחות מחכות להתחדשות`:""}.
- </p>
-                  {bdToday.length>0&&(
- <div className="pill" style={{marginTop:16,background:"rgba(255,255,255,0.75)",border:"1px solid var(--line-2)",padding:"9px 15px",fontSize:11.5,color:pcDeep,fontWeight:500,boxShadow:"var(--shadow-xs)"}}>
- 🎀 היום יום הולדת ל{bdToday.map(c=>c.name).join(", ")} — שווה לשלוח ברכה חמה
+ <h1 className="serif" style={{fontSize:30,fontWeight:600,color:"var(--ink)",lineHeight:1.1,letterSpacing:"-0.01em"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
  </div>
-                  )}
- </div>
- <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(130px,1fr))",gap:12,flex:"0 1 300px"}}>
-                    {quickActions.map((qa,i)=>(
- <motion.button key={i} onClick={qa.onClick} whileHover={{y:-3}} whileTap={{scale:0.98}} className="quick-action"
-   style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:18,padding:"15px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"right",boxShadow:"var(--shadow-sm)",display:"flex",flexDirection:"column",gap:9}}>
- <span style={{width:38,height:38,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,color:"#fff",background:pcGrad,boxShadow:`0 6px 14px ${pcShadow}`}}>{qa.icon}</span>
- <span style={{display:"block"}}>
- <span style={{display:"block",fontSize:13,fontWeight:700,color:"var(--ink)",letterSpacing:"-0.01em"}}>{qa.label}</span>
- <span style={{display:"block",fontSize:10,color:"var(--ink-3)",marginTop:2}}>{qa.hint}</span>
- </span>
+ <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {quickActions.slice(0,2).map((qa,i)=>(
+ <motion.button key={i} onClick={qa.onClick} whileHover={{y:-2}} whileTap={{scale:0.98}} className="primary-btn"
+   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"#fff":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?`0 8px 18px ${pcShadow}`:"var(--shadow-xs)"}}>
+ <span style={{fontSize:14}}>{qa.icon}</span>{qa.label}
  </motion.button>
                     ))}
  </div>
@@ -2938,21 +2925,21 @@ export default function BeautyOS() {
                   const doneCount=steps.filter(s=>s.done).length;
                   if(doneCount===steps.length) return null;
                   return(
- <div style={{maxWidth:1180,margin:"0 auto 28px",background:"#fff",border:`1px solid ${pc}`,borderRadius:18,padding:"18px 22px",boxShadow:"0 6px 22px rgba(28,28,28,0.05)"}}>
+ <div style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:20,padding:"18px 22px",boxShadow:"var(--shadow-md)"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:6}}>
- <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"#1C1C1C"}}>כמה צעדים כדי להתחיל</h3>
- <span style={{fontSize:11,color:pc,fontWeight:600}}>{doneCount}/{steps.length} הושלמו</span>
+ <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>כמה צעדים כדי להתחיל</h3>
+ <span style={{fontSize:11,color:pcDeep,fontWeight:700}}>{doneCount}/{steps.length} הושלמו</span>
  </div>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                       {steps.map((s,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:s.done?"#F3FFF6":pcTint,borderRadius:12,border:`1px solid ${s.done?"#B5EAD7":"#E8DED6"}`}}>
- <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"#7BAE7F":"#fff",color:s.done?"#fff":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":i+1}</div>
+ <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:s.done?"rgba(70,179,123,0.10)":"var(--pc-tint)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":"var(--line)"}`}}>
+ <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"#fff":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":i+1}</div>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C"}}>{s.label}</p>
- <p style={{fontSize:9.5,color:"#7A716A"}}>{s.hint}</p>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{s.hint}</p>
  </div>
                           {s.done
-                            ?<span style={{fontSize:10,color:"#7BAE7F",fontWeight:700}}>בוצע</span>
+                            ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700}}>בוצע</span>
                             :<button onClick={s.onClick} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>הוספה</button>}
  </div>
                       ))}
@@ -2961,29 +2948,125 @@ export default function BeautyOS() {
                   );
                 })()}
 
-                {/* STAT WIDGETS */}
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:16,marginBottom:32,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
-                  {stats.map((s,i)=>{
-                    const up=s.trend!=null&&s.trend>=0;const down=s.trend!=null&&s.trend<0;
-                    return(
- <motion.div key={i} className="stat-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.05*i,ease:[0.2,0.7,0.3,1]}}
-   style={{background:"var(--surface)",borderRadius:20,padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden"}}>
- <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
- <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
- <span style={{width:42,height:42,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
-                        {s.trend!=null&&(
- <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
-                        )}
+                {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
+ <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:18,flexWrap:"wrap",alignItems:"flex-start"}}>
+
+ {/* TODAY — the focal point: widest, most prominent */}
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"24px 26px",flex:"2 1 380px",minWidth:0}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--pc-tint)",color:pc}}>◴</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
+                      {todayAppts.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:11}}>{todayAppts.length}</span>}
  </div>
- <p style={{position:"relative",fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
- <p className="serif" style={{position:"relative",fontSize:38,fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
-                      {s.sub&&<p style={{position:"relative",fontSize:10.5,color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
+                    {todayAppts.length===0?(
+ <div style={{textAlign:"center",padding:"20px 14px"}}>
+ <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
+ <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
+ </div>
+                      ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>{
+                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"#46B37B",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"#E05B6F",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                        return(
+ <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
+ <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
+ <span className="serif" style={{fontSize:16,fontWeight:700,color:pc,lineHeight:1}}>{a.hour}</span>
+ <span style={{fontSize:8,color:"var(--ink-3)",fontWeight:600}}>:00</span>
+ </span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
+ </div>
+ <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
+ </div>
+                        );
+                      })}
  </motion.div>
+
+ {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.06,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(242,184,75,0.14)",color:"#c98b1f"}}>✷</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
+ </div>
+                    {(()=>{
+                      const items=[];
+                      if(newLeadsCount>0)items.push({icon:"✉",text:`${newLeadsCount} פניות חדשות ממתינות למענה`,tab:"leads",accent:"#5B3E67"});
+                      if(leadsWithReminders.length>0)items.push({icon:"◴",text:`${leadsWithReminders.length} תזכורות מעקב להיום`,tab:"leads",accent:"#E05B6F"});
+                      if(coldClients.length>0)items.push({icon:"✦",text:`${coldClients.length} לקוחות לא ביקרו 60+ ימים`,tab:"whatsapp",accent:"#F2B84B"});
+                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent).length;
+                      if(tomorrowNotSent>0)items.push({icon:"✆",text:`${tomorrowNotSent} תורי מחר ללא תזכורת שנשלחה`,tab:"whatsapp",accent:"#46B37B"});
+                      if(bdToday.length>0)items.push({icon:"🎀",text:`יום הולדת ל${bdToday.map(c=>c.name).join(", ")} — שלחי ברכה`,tab:"whatsapp",accent:"#E05B6F"});
+                      if(items.length===0)return(
+ <div style={{textAlign:"center",padding:"18px 10px"}}>
+ <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין משימות פתוחות כרגע</p>
+ </div>);
+                      return items.map((it,i)=>(
+ <motion.div key={i} onClick={()=>setActiveTab(it.tab)} whileHover={{x:-3}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
+ <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:500,flex:1,lineHeight:1.4}}>{it.text}</p>
+ <span style={{fontSize:13,color:pc}}>←</span>
+ </motion.div>
+                      ));
+                    })()}
+ </motion.div>
+ </div>
+
+                {/* ── TIER 2: upcoming birthdays — compact strip ── */}
+                {upcomingBirthdays.length>0&&(
+ <div style={{maxWidth:1180,margin:"18px auto 0"}}>
+ <div className="glass-card" style={{padding:"14px 18px"}}>
+ <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:11}}>
+ <span style={{width:28,height:28,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(224,91,111,0.12)"}}>🎂</span>
+ <h3 className="serif" style={{fontSize:15,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
+ <span style={{fontSize:9.5,color:"var(--ink-3)"}}>{upcomingBirthdays.length}</span>
+ </div>
+ <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2}}>
+                      {upcomingBirthdays.slice(0,8).map((c)=>{
+                        const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
+                        return(
+ <div key={c.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 11px 7px 7px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,flexShrink:0}}>
+ <div className="serif" style={{width:36,height:36,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 4px 10px ${pcShadow}`}}>{b.getDate()}</div>
+ <div style={{minWidth:0}}>
+ <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>{c.name}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)"}}>{bd.getDate()}/{bd.getMonth()+1}</p>
+ </div>
+                          {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"5px 12px",background:"var(--pc-tint)",color:pc,textDecoration:"none",flexShrink:0}}>ברכה</a>}
+ </div>
+                        );
+                      })}
+ </div>
+ </div>
+ </div>
+                )}
+
+                {/* ── TIER 3 (quiet): business pulse — stats + revenue ── */}
+ <div style={{maxWidth:1180,margin:"28px auto 12px",display:"flex",alignItems:"center",gap:10}}>
+ <span style={{width:4,height:18,borderRadius:4,background:"var(--line-2)"}}/>
+ <h2 className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink-3)",letterSpacing:"-0.01em"}}>סקירה עסקית</h2>
+ </div>
+
+ {/* stat strip — smaller, de-emphasized */}
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:16,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+                  {stats.map((s,i)=>{
+                    const up=s.trend!=null&&s.trend>=0;
+                    return(
+ <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:16,padding:"14px 16px",border:"1px solid var(--line)",textAlign:"right"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
+ <span style={{width:32,height:32,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86)}}>{s.icon}</span>
+                        {s.trend!=null&&<span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"3px 8px",fontSize:9.5}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>}
+ </div>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>{s.label}</p>
+ <p className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",lineHeight:1}}>{s.value}</p>
+                      {s.sub&&<p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:5}}>{s.sub}</p>}
+ </div>
                     );
                   })}
  </div>
 
-                {/* REVENUE CHART */}
+                {/* REVENUE CHART — quiet, at the bottom */}
  <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.45,delay:0.1,ease:[0.2,0.7,0.3,1]}}
    style={{background:"var(--surface)",borderRadius:24,padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,maxWidth:1180,marginLeft:"auto",marginRight:"auto",position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:-70,left:-40,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle, var(--pc-soft), transparent 70%)",pointerEvents:"none"}}/>
@@ -3017,98 +3100,6 @@ export default function BeautyOS() {
                     );})}
  </div>
  </motion.div>
-
-                {/* SECTION TITLE */}
- <div style={{maxWidth:1180,margin:"32px auto 18px",display:"flex",alignItems:"center",gap:11}}>
- <span style={{width:5,height:24,borderRadius:4,background:pcGrad}}/>
- <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>היום שלך</h2>
- </div>
-
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:18,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div className="glass-card" style={{padding:"24px 26px"}}>
- <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(242,184,75,0.14)",color:"#c98b1f"}}>✷</span>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
- </div>
-                    {(()=>{
-                      const items=[];
-                      if(newLeadsCount>0)items.push({icon:"✉",text:`${newLeadsCount} פניות חדשות ממתינות למענה`,tab:"leads",accent:"#5B3E67"});
-                      if(leadsWithReminders.length>0)items.push({icon:"◴",text:`${leadsWithReminders.length} תזכורות מעקב להיום`,tab:"leads",accent:"#E05B6F"});
-                      if(coldClients.length>0)items.push({icon:"✦",text:`${coldClients.length} לקוחות לא ביקרו 60+ ימים`,tab:"whatsapp",accent:"#F2B84B"});
-                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent).length;
-                      if(tomorrowNotSent>0)items.push({icon:"✆",text:`${tomorrowNotSent} תורי מחר ללא תזכורת שנשלחה`,tab:"whatsapp",accent:"#46B37B"});
-                      if(items.length===0)return(
- <div style={{textAlign:"center",padding:"18px 10px"}}>
- <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
- <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין משימות פתוחות כרגע</p>
- </div>);
-                      return items.map((it,i)=>(
- <motion.div key={i} onClick={()=>setActiveTab(it.tab)} whileHover={{x:-3}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
- <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
- <p style={{fontSize:12,color:"var(--ink)",fontWeight:500,flex:1,lineHeight:1.4}}>{it.text}</p>
- <span style={{fontSize:13,color:pc}}>←</span>
- </motion.div>
-                      ));
-                    })()}
- </div>
-
- <div className="glass-card" style={{padding:"24px 26px"}}>
- <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--pc-tint)",color:pc}}>◴</span>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
- </div>
-                    {todayAppts.length===0?(
- <div style={{textAlign:"center",padding:"20px 14px"}}>
- <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
- <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
- <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
- </div>
-                      ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>{
-                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"#46B37B",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"#E05B6F",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
-                        return(
- <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
- <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
- <span className="serif" style={{fontSize:16,fontWeight:700,color:pc,lineHeight:1}}>{a.hour}</span>
- <span style={{fontSize:8,color:"var(--ink-3)",fontWeight:600}}>:00</span>
- </span>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
- </div>
- <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
- </div>
-                        );
-                      })}
- </div>
-
- <div className="glass-card" style={{padding:"24px 26px"}}>
- <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(224,91,111,0.12)",color:"#E05B6F"}}>🎀</span>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
- </div>
-                    {upcomingBirthdays.length===0?(
- <div style={{textAlign:"center",padding:"20px 14px"}}>
- <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"rgba(224,91,111,0.10)"}}>🎂</div>
- <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-2)"}}>אין ימי הולדת קרובים</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>ב-30 הימים הקרובים</p>
- </div>
-                      ):upcomingBirthdays.slice(0,5).map((c,i,arr)=>{
-                        const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
-                        return(
- <div key={c.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"9px 10px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
- <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
- <p style={{fontSize:10,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
- </div>
-                            {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>}
- </div>
-                        );
-                      })}
- </div>
- </div>
  </>);
             })()}
  </>)}
