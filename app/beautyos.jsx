@@ -3140,64 +3140,67 @@ export default function BeautyOS() {
           {/* LEADS */}
           {activeTab==="leads"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:7}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>פניות ({leads.length})</h2>
- <button onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"9px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px ${pcShadow}`}}>✦ פנייה חדשה</button>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>צינור מכירות</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פניות <span style={{color:"var(--ink-3)",fontWeight:400}}>({leads.length})</span></h2>
  </div>
- <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
- <div onClick={()=>setLeadFilter("all")} className="stat-card" style={{background:leadFilter==="all"?pcGrad:"#fff",borderRadius:24,padding:"7px 14px",border:"1px solid #E8DED6",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
- <span style={{fontSize:10.5,fontWeight:600,color:leadFilter==="all"?"#fff":"#1C1C1C"}}>הכל ({leads.length})</span>
+ <button className="primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"#fff",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>
  </div>
+ <div style={{display:"flex",gap:7,marginBottom:12,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:2}}>
+ <button onClick={()=>setLeadFilter("all")} style={{background:leadFilter==="all"?pcGrad:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter==="all"?"transparent":"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:600,color:leadFilter==="all"?"#fff":"var(--ink-2)",boxShadow:leadFilter==="all"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)",transition:"transform 0.12s"}}>הכל ({leads.length})</button>
               {Object.entries(LEAD_STATUSES).map(([key,s])=>(
- <div key={key} onClick={()=>setLeadFilter(leadFilter===key?"all":key)} className="stat-card" style={{background:leadFilter===key?s.bg:"#fff",borderRadius:24,padding:"7px 14px",border:`1px solid ${leadFilter===key?s.color:"#E8DED6"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
- <span style={{fontSize:9.5,fontWeight:leadFilter===key?700:400,color:leadFilter===key?s.color:"#7A716A"}}>{s.label} ({leads.filter(l=>l.status===key).length})</span>
- </div>
+ <button key={key} onClick={()=>setLeadFilter(leadFilter===key?"all":key)} style={{background:leadFilter===key?s.bg:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter===key?s.color:"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:leadFilter===key?700:500,color:leadFilter===key?s.color:"var(--ink-2)",boxShadow:"var(--shadow-xs)",transition:"transform 0.12s"}}>{s.label} ({leads.filter(l=>l.status===key).length})</button>
               ))}
  </div>
- <input value={leadSearch} onChange={e=>setLeadSearch(e.target.value)} placeholder="חיפוש..." style={{width:"100%",border:"1px solid #E8DED6",borderRadius:24,padding:"9px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",marginBottom:10}}/>
+ <div style={{position:"relative",marginBottom:12}}>
+ <span style={{position:"absolute",top:"50%",right:14,transform:"translateY(-50%)",fontSize:12,color:"var(--ink-3)",pointerEvents:"none"}}>⌕</span>
+ <input value={leadSearch} onChange={e=>setLeadSearch(e.target.value)} placeholder="חיפוש פנייה..." style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 36px 10px 14px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",boxShadow:"var(--shadow-xs)"}}/>
+ </div>
             {/* Bulk WhatsApp by status — one send action per status group. Sends
                 REAL messages, but only after the explicit confirm step in the
                 modal below. Count on each pill = leads with a phone that will
                 receive the message. */}
             {leads.length>0&&(
- <div style={{background:"#fff",borderRadius:16,padding:"12px 14px",border:"1px solid #E8DED6",marginBottom:12}}>
- <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:9,flexWrap:"wrap"}}>
- <p style={{fontSize:12,fontWeight:700,color:"#1C1C1C"}}>שליחת וואטסאפ לפי סטטוס</p>
- <span style={{fontSize:9,color:"#7A716A"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
+ <div className="glass-card" style={{padding:"14px 16px",marginBottom:14}}>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11,flexWrap:"wrap"}}>
+ <span style={{width:30,height:30,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(37,211,102,0.12)",color:"#1ea355"}}>✆</span>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>שליחת וואטסאפ לפי סטטוס</p>
+ <span style={{fontSize:9.5,color:"var(--ink-3)"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
  </div>
- <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+ <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {Object.entries(LEAD_STATUSES).map(([key,s])=>{
                   const withPhone=leads.filter(l=>l.status===key&&l.phone).length;
                   return(
- <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 12px",border:"1px solid",borderColor:withPhone===0?"#E8DED6":s.color,borderRadius:20,background:withPhone===0?"#F7F5F2":s.bg,color:withPhone===0?"#B8AFA0":s.color,fontSize:10,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
+ <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 13px",border:"1px solid",borderColor:withPhone===0?"var(--line)":s.color,borderRadius:20,background:withPhone===0?"var(--surface-2)":s.bg,color:withPhone===0?"var(--ink-3)":s.color,fontSize:10.5,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
                   );
                 })}
  </div>
  </div>
             )}
             {filteredLeads.length===0?(
- <div className="pop-in" style={{textAlign:"center",padding:"46px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:6}}>
- <div style={{fontSize:32,marginBottom:10}}>✨</div>
- <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C",marginBottom:5}}>{leadSearch||leadFilter!=="all"?"לא נמצאו פניות":"עוד אין פניות"}</p>
- <p style={{fontSize:11.5,color:"#7A716A",maxWidth:320,margin:"0 auto 16px",lineHeight:1.6}}>{leadSearch||leadFilter!=="all"?"נסי לשנות את החיפוש או הסינון.":"פניות מהאתר ומפייסבוק יופיעו כאן. אפשר גם להוסיף פנייה ידנית."}</p>
- {!(leadSearch||leadFilter!=="all")&&<button className="empty-cta" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✦ פנייה חדשה</button>}
+ <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:24,marginTop:6}}>
+ <div style={{width:64,height:64,borderRadius:20,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>✦</div>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>{leadSearch||leadFilter!=="all"?"לא נמצאו פניות":"עוד אין פניות"}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{leadSearch||leadFilter!=="all"?"נסי לשנות את החיפוש או הסינון.":"פניות מהאתר ומפייסבוק יופיעו כאן. אפשר גם להוסיף פנייה ידנית."}</p>
+ {!(leadSearch||leadFilter!=="all")&&<button className="empty-cta primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"#fff",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>}
  </div>
               ):filteredLeads.map(lead=>{
                 const st=leadStatusMeta(lead.status);
                 const hasReminder=lead.reminder_date&&lead.reminder_date<=tomorrow;
                 return(
- <div key={lead.id} className="lead-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת פרטי הפנייה ${lead.name}`} onClick={()=>setSelectedLead(lead)} style={{background:"#fff",borderRadius:16,padding:"11px 14px",border:`1px solid ${hasReminder?"#FF9800":"#E8DED6"}`,display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
- <div style={{width:34,height:34,borderRadius:"50%",background:st.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,flexShrink:0}}>{SOURCE_ICONS[lead.source]||""}</div>
+ <div key={lead.id} className="lead-row" role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת פרטי הפנייה ${lead.name}`} onClick={()=>setSelectedLead(lead)} style={{background:"var(--surface)",borderRadius:18,padding:"12px 15px",border:`1px solid ${hasReminder?"var(--warning)":"var(--line)"}`,display:"flex",alignItems:"center",gap:11,marginBottom:8,boxShadow:"var(--shadow-sm)"}}>
+ <div style={{width:38,height:38,borderRadius:12,background:st.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{SOURCE_ICONS[lead.source]||"✦"}</div>
  <div style={{flex:1,minWidth:0}}>
- <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1,flexWrap:"wrap"}}>
- <p style={{fontWeight:600,fontSize:12,color:"#1C1C1C"}}>{lead.name}</p>
- <span style={{fontSize:7,background:st.bg,color:st.color,padding:"2px 6px",borderRadius:20,fontWeight:600}}>{st.label}</span>
-                        {hasReminder&&<span style={{fontSize:7,background:"#FFF3E0",color:"#FF9800",padding:"2px 6px",borderRadius:20}}></span>}
+ <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
+ <p style={{fontWeight:700,fontSize:12.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{lead.name}</p>
+ <span className="pill" style={{fontSize:8,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
+                        {hasReminder&&<span className="pill" style={{fontSize:8,background:"rgba(242,184,75,0.16)",color:"#b07f2a",padding:"3px 8px"}}>◴ תזכורת</span>}
  </div>
- <p style={{fontSize:9,color:"#7A716A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}</p>
  </div>
-                    {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"4px 7px",fontSize:9}}></a>}
-                    {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"#7BAE7F",color:"#fff",border:"none",borderRadius:20,padding:"4px 9px",fontSize:9,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
+                    {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:9}}>✆</a>}
+                    {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"#fff",border:"none",borderRadius:20,padding:"5px 11px",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
  </div>
                 );
               })}
