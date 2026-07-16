@@ -3475,17 +3475,18 @@ export default function BeautyOS() {
           {/* CAMPAIGNS */}
           {activeTab==="campaigns"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C",marginBottom:16}}>שיווק</h2>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>שיווק וצמיחה</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:16}}>שיווק</h2>
 
- <div style={{display:"flex",gap:6,marginBottom:18}}>
- <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:12,background:marketingView==="campaigns"?pcGrad:"#fff",color:marketingView==="campaigns"?"#fff":"#7A716A",border:marketingView==="campaigns"?"none":"1px solid #E8DED6"}}>קמפיינים בפייסבוק</button>
- <button onClick={()=>{setMarketingView("ai");if(savedCampaigns===null)loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 18px",fontSize:12,background:marketingView==="ai"?pcGrad:"#fff",color:marketingView==="ai"?"#fff":"#7A716A",border:marketingView==="ai"?"none":"1px solid #E8DED6"}}>תוכן AI</button>
+ <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:15,padding:4,boxShadow:"var(--shadow-xs)"}}>
+ <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:12,borderRadius:11,background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"#fff":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
+ <button onClick={()=>{setMarketingView("ai");if(savedCampaigns===null)loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 18px",fontSize:12,borderRadius:11,background:marketingView==="ai"?pcGrad:"transparent",color:marketingView==="ai"?"#fff":"var(--ink-2)"}}>תוכן AI</button>
  </div>
 
  {marketingView==="campaigns"&&(<>
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6",marginBottom:16}}>
+ <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
- <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"#1C1C1C"}}>קמפיינים בפייסבוק ואינסטגרם</h3>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קמפיינים בפייסבוק ואינסטגרם</h3>
  <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
  {fbPage?(
  <span title={fbPage.page_name} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:600,color:"#388E3C",background:"#E8F5E9",borderRadius:20,padding:"6px 12px",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>מחובר ✓ · {fbPage.page_name}</span>
@@ -3514,45 +3515,45 @@ export default function BeautyOS() {
  )}
 
  {fbTotals&&fbCampaigns&&fbCampaigns.length>0&&(
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:10,marginBottom:14}}>
- <div style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:14,padding:"12px 14px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>סה״כ הוצאה</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12,marginBottom:14}}>
+ <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
+ <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סה״כ הוצאה</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:pc}}>₪{Math.round(fbTotals.spend).toLocaleString()}</p>
  </div>
- <div style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:14,padding:"12px 14px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>לידים</p>
- <p className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C"}}>{fbTotals.leads}</p>
+ <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
+ <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>לידים</p>
+ <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)"}}>{fbTotals.leads}</p>
  </div>
- <div style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:14,padding:"12px 14px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>מחיר לליד</p>
+ <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
+ <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לליד</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:pc}}>{fbTotals.cpl?`₪${fbTotals.cpl}`:"—"}</p>
  </div>
- <div style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:14,padding:"12px 14px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>חשיפות</p>
- <p className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C"}}>{fbTotals.impressions.toLocaleString()}</p>
+ <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
+ <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>חשיפות</p>
+ <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)"}}>{fbTotals.impressions.toLocaleString()}</p>
  </div>
  </div>
  )}
 
  {fbCampaigns&&fbCampaigns.length>0&&fbCampaigns.map(c=>(
- <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",background:pcTint,borderRadius:12,marginBottom:6,flexWrap:"wrap"}}>
+ <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:7,flexWrap:"wrap"}}>
  <div style={{flex:1,minWidth:140}}>
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
- <p style={{fontSize:12,fontWeight:600,color:"#1C1C1C"}}>{c.name}</p>
- <span style={{fontSize:7,padding:"2px 7px",borderRadius:20,fontWeight:600,background:c.status==="ACTIVE"?"#E8F5E9":"#F0E7EC",color:c.status==="ACTIVE"?"#388E3C":"#7A716A"}}>{c.status==="ACTIVE"?"פעיל":"מושהה"}</span>
+ <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
+ <span className="pill" style={{fontSize:8,padding:"2px 8px",background:c.status==="ACTIVE"?"rgba(70,179,123,0.14)":"var(--line)",color:c.status==="ACTIVE"?"#2f9c63":"var(--ink-3)"}}>{c.status==="ACTIVE"?"פעיל":"מושהה"}</span>
  </div>
- <p style={{fontSize:9,color:"#7A716A",marginTop:2}}>{c.impressions.toLocaleString()} חשיפות · {c.clicks} קליקים</p>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginTop:2}}>{c.impressions.toLocaleString()} חשיפות · {c.clicks} קליקים</p>
  </div>
  <div style={{textAlign:"center",minWidth:60}}>
- <p style={{fontSize:8,color:"#7A716A"}}>הוצאה</p>
+ <p style={{fontSize:8,color:"var(--ink-3)"}}>הוצאה</p>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>₪{Math.round(c.spend).toLocaleString()}</p>
  </div>
  <div style={{textAlign:"center",minWidth:45}}>
- <p style={{fontSize:8,color:"#7A716A"}}>לידים</p>
- <p className="serif" style={{fontSize:14,fontWeight:600,color:"#1C1C1C"}}>{c.leads}</p>
+ <p style={{fontSize:8,color:"var(--ink-3)"}}>לידים</p>
+ <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>{c.leads}</p>
  </div>
  <div style={{textAlign:"center",minWidth:55}}>
- <p style={{fontSize:8,color:"#7A716A"}}>לליד</p>
+ <p style={{fontSize:8,color:"var(--ink-3)"}}>לליד</p>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>{c.cpl?`₪${c.cpl}`:"—"}</p>
  </div>
  </div>
@@ -3563,35 +3564,35 @@ export default function BeautyOS() {
  )}
  </div>
 
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:16}}>
               {[
-                {label:"סה״כ לידים",value:leads.length,icon:""},
+                {label:"סה״כ לידים",value:leads.length,icon:"✉"},
                 {label:"הומרו",value:convertedLeads.length,icon:"✓"},
-                {label:"המרה",value:`${conversionRate}%`,icon:""},
-                {label:"הכנסות מלידים",value:`₪${campaignStats.reduce((s,c)=>s+c.revenue,0).toLocaleString()}`,icon:""},
+                {label:"המרה",value:`${conversionRate}%`,icon:"↗"},
+                {label:"הכנסות מלידים",value:`₪${campaignStats.reduce((s,c)=>s+c.revenue,0).toLocaleString()}`,icon:"₪"},
               ].map((s,i)=>(
- <div key={i} className="stat-card" style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:16,padding:"14px 14px",border:`1px solid #E8DED6`}}>
- <div style={{fontSize:15,marginBottom:3}}>{s.icon}</div>
- <p style={{fontSize:9,color:"#7A716A",marginBottom:2}}>{s.label}</p>
- <p className="serif" style={{fontSize:19,fontWeight:600,color:pc}}>{s.value}</p>
+ <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:18,padding:"16px 16px",border:`1px solid var(--line)`}}>
+ <span style={{display:"inline-flex",width:30,height:30,borderRadius:9,alignItems:"center",justifyContent:"center",fontSize:14,color:pc,background:"var(--pc-tint)",marginBottom:8}}>{s.icon}</span>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>{s.label}</p>
+ <p className="serif" style={{fontSize:21,fontWeight:600,color:pc}}>{s.value}</p>
  </div>
               ))}
  </div>
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6",marginBottom:14}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>ביצועים לפי מקור</h3>
-              {campaignStats.length===0?<p style={{color:"#B8AFA0",fontSize:11}}>אין נתונים עדיין</p>
+ <div className="glass-card" style={{padding:18,marginBottom:14}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>ביצועים לפי מקור</h3>
+              {campaignStats.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין נתונים עדיין</p>
                 :campaignStats.map((s,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px",background:i%2===0?pcTint:"#fff",borderRadius:12,marginBottom:4}}>
+ <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:6}}>
  <span style={{fontSize:16,flexShrink:0}}>{s.icon}</span>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:11.5,fontWeight:700,color:"#1C1C1C"}}>{s.source}</p>
- <div style={{display:"flex",gap:7,marginTop:1,flexWrap:"wrap"}}>
- <span style={{fontSize:8,color:"#7A716A"}}>{s.total} לידים</span>
- <span style={{fontSize:8,color:"#7BAE7F"}}>{s.converted} הומרו</span>
- <span style={{fontSize:8,color:pc,fontWeight:700}}>{s.rate}%</span>
+ <p style={{fontSize:11.5,fontWeight:700,color:"var(--ink)"}}>{s.source}</p>
+ <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
+ <span style={{fontSize:8.5,color:"var(--ink-3)"}}>{s.total} לידים</span>
+ <span style={{fontSize:8.5,color:"var(--success)"}}>{s.converted} הומרו</span>
+ <span style={{fontSize:8.5,color:pc,fontWeight:700}}>{s.rate}%</span>
  </div>
- <div style={{background:"#F0E7EC",borderRadius:4,height:4,marginTop:3}}>
- <div style={{background:pcGrad,borderRadius:4,height:4,width:`${s.rate}%`}}/>
+ <div style={{background:"var(--line)",borderRadius:4,height:5,marginTop:5,overflow:"hidden"}}>
+ <div style={{background:pcGrad,borderRadius:4,height:5,width:`${s.rate}%`}}/>
  </div>
  </div>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>₪{s.revenue.toLocaleString()}</p>
@@ -3602,23 +3603,24 @@ export default function BeautyOS() {
 
  {marketingView==="ai"&&(<>
  <div style={{textAlign:"center",marginBottom:18}}>
- <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"#1C1C1C",marginBottom:6}}>תוכן AI</h2>
- <p style={{fontSize:12.5,color:"#7A716A"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
+ <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>תוכן AI</h2>
+ <p style={{fontSize:12.5,color:"var(--ink-2)"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
  </div>
 
- <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:22,flexWrap:"wrap"}}>
- <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="create"?pcGrad:"#fff",color:aiPostsView==="create"?"#fff":"#7A716A",border:aiPostsView==="create"?"none":"1px solid #E8DED6"}}>יצירת פוסטים</button>
- <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="saved"?pcGrad:"#fff",color:aiPostsView==="saved"?"#fff":"#7A716A",border:aiPostsView==="saved"?"none":"1px solid #E8DED6"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
- <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,background:aiPostsView==="reels"?pcGrad:"#fff",color:aiPostsView==="reels"?"#fff":"#7A716A",border:aiPostsView==="reels"?"none":"1px solid #E8DED6"}}>🎬 רילסים</button>
+ <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
+ <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:15,padding:4,boxShadow:"var(--shadow-xs)",flexWrap:"wrap",justifyContent:"center"}}>
+ <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="create"?pcGrad:"transparent",color:aiPostsView==="create"?"#fff":"var(--ink-2)"}}>יצירת פוסטים</button>
+ <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="saved"?pcGrad:"transparent",color:aiPostsView==="saved"?"#fff":"var(--ink-2)"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
+ <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"#fff":"var(--ink-2)"}}>🎬 רילסים</button>
+ </div>
  </div>
 
  {aiPostsView==="create"&&(<>
- <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #E8DED6",marginBottom:18,position:"relative",overflow:"hidden"}}>
- 
- <p style={{fontSize:11,color:"#7A716A",fontWeight:600,marginBottom:8}}>מה תרצי לפרסם?</p>
+ <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:8}}>מה תרצי לפרסם?</p>
  <textarea value={postGoal} onChange={e=>setPostGoal(e.target.value)} rows={3}
  placeholder="לדוגמה: מבצע על טיפולי פנים לחודש הקרוב / להחזיר לקוחות שלא הגיעו מזמן"
- style={{width:"100%",border:"1px solid #E8DED6",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:12}}/>
+ style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
  <button onClick={generatePosts} disabled={postLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"#fff",fontSize:14}}>
  {postLoading?"יוצרת פוסטים... ✦":"✦ צרי לי 5 פוסטים"}
  </button>
@@ -3651,7 +3653,7 @@ export default function BeautyOS() {
  )}
 
  {postVariations&&postVariations.length>0&&postVariations.map((v,i)=>(
- <div key={i} style={{background:"#fff",borderRadius:18,border:"1px solid #E8DED6",marginBottom:14,overflow:"hidden"}}>
+ <div key={i} className="glass-card" style={{marginBottom:14}}>
  {v.image&&v.image.url&&(
  <div style={{position:"relative"}}>
  <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
@@ -3695,10 +3697,9 @@ export default function BeautyOS() {
  </button>
  )}
 
- <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #E8DED6",marginTop:24,position:"relative",overflow:"hidden"}}>
- 
+ <div className="glass-card" style={{padding:"22px 24px",marginTop:24}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
- <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"#1C1C1C"}}>קבוצות פייסבוק לפרסום</h3>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קבוצות פייסבוק לפרסום</h3>
  <button onClick={loadGroups} disabled={groupsLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"#fff",fontSize:11}}>{groupsLoading?"מחפשת...":groups===null?"הציעי לי קבוצות":"רענני"}</button>
  </div>
  <p style={{fontSize:11,color:"#7A716A",marginBottom:groups?14:0}}>קבוצות שכדאי לחפש ולהצטרף אליהן כדי לפרסם בהן</p>
@@ -3721,17 +3722,18 @@ export default function BeautyOS() {
  {aiPostsView==="saved"&&(<>
  {savedCampaigns===null&&<p style={{fontSize:12,color:"#7A716A",textAlign:"center",padding:"30px 0"}}>טוען...</p>}
  {savedCampaigns&&savedCampaigns.length===0&&(
- <div style={{background:"#fff",borderRadius:18,padding:"40px 20px",textAlign:"center",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:13,color:"#7A716A",marginBottom:6}}>עדיין לא שמרת קמפיינים</p>
- <p style={{fontSize:11,color:"#B8AFA0"}}>צרי פוסטים בלשונית "יצירת פוסטים" ולחצי "שמרי את הקמפיין"</p>
+ <div className="pop-in" style={{background:"var(--grad-hero)",borderRadius:22,padding:"46px 20px",textAlign:"center",border:"1px solid var(--line)"}}>
+ <div style={{width:56,height:56,borderRadius:18,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>✦</div>
+ <p style={{fontSize:14,fontWeight:700,color:"var(--ink)",marginBottom:5}}>עדיין לא שמרת קמפיינים</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>צרי פוסטים בלשונית "יצירת פוסטים" ולחצי "שמרי את הקמפיין"</p>
  </div>
  )}
  {savedCampaigns&&savedCampaigns.length>0&&savedCampaigns.map(c=>(
- <div key={c.id} style={{background:"#fff",borderRadius:18,border:"1px solid #E8DED6",marginBottom:14,overflow:"hidden"}}>
- <div style={{background:pcTint,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+ <div key={c.id} className="glass-card" style={{marginBottom:14}}>
+ <div style={{background:"var(--pc-tint)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,borderBottom:"1px solid var(--line)"}}>
  <div style={{flex:1,minWidth:0}}>
- <p className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C"}}>{c.name||c.goal}</p>
- <p style={{fontSize:10,color:"#7A716A",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
+ <p className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink)"}}>{c.name||c.goal}</p>
+ <p style={{fontSize:10,color:"var(--ink-2)",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
  </div>
  <button onClick={()=>deleteCampaign(c.id)} className="primary-btn" style={{padding:"5px 12px",background:"#fff",color:"#C62828",border:"1px solid #F5D0D0",fontSize:10}}>מחקי</button>
  </div>
@@ -3754,12 +3756,11 @@ export default function BeautyOS() {
  </>)}
 
  {aiPostsView==="reels"&&(<>
- <div style={{background:"#fff",borderRadius:20,padding:"22px 24px",border:"1px solid #E8DED6",marginBottom:18,position:"relative",overflow:"hidden"}}>
- 
- <p style={{fontSize:11,color:"#7A716A",fontWeight:600,marginBottom:8}}>על מה הרילס?</p>
+ <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:8}}>על מה הרילס?</p>
  <textarea value={reelTopic} onChange={e=>setReelTopic(e.target.value)} rows={3}
  placeholder="לדוגמה: טיפול פנים לכלות / 3 טיפים לעור זוהר / למה כדאי לעשות פילינג באביב"
- style={{width:"100%",border:"1px solid #E8DED6",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:12}}/>
+ style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
  <button onClick={generateReel} disabled={reelLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"#fff",fontSize:14}}>
  {reelLoading?"יוצרת רילס... 🎬":"🎬 צרי לי רילס"}
  </button>
@@ -3804,24 +3805,24 @@ export default function BeautyOS() {
  }} className="primary-btn" style={{width:"100%",padding:"11px 0",background:"#fff",color:pc,border:`1.5px solid ${pc}`,fontSize:12.5,marginBottom:14}}>📋 העתיקי את כל הרילס</button>
 
  {reelData.scenes&&reelData.scenes.length>0&&reelData.scenes.map((sc,i)=>(
- <div key={i} style={{background:"#fff",borderRadius:16,border:"1px solid #E8DED6",padding:"16px 18px",marginBottom:10,position:"relative",overflow:"hidden"}}>
+ <div key={i} style={{background:"var(--surface)",borderRadius:16,border:"1px solid var(--line)",padding:"16px 18px",marginBottom:10,position:"relative",overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
  <div style={{position:"absolute",top:0,right:0,width:4,bottom:0,background:pcGrad}}/>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
  <span className="serif" style={{fontSize:20,fontWeight:700,color:pc}}>{sc.scene_number||i+1}</span>
- <span style={{fontSize:9,background:pcTint,color:pc,padding:"3px 10px",borderRadius:20,fontWeight:600}}>סצנה{sc.seconds?` · ${sc.seconds} שניות`:""}</span>
+ <span className="pill" style={{fontSize:9,background:"var(--pc-tint)",color:pcDeep,padding:"3px 10px"}}>סצנה{sc.seconds?` · ${sc.seconds} שניות`:""}</span>
  </div>
- <p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:2}}>🗣️ מה אומרים</p>
- <p style={{fontSize:13,color:"#3A2A30",lineHeight:1.6,marginBottom:8}}>{sc.spoken}</p>
- {sc.on_screen_text&&(<><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:2}}>📱 טקסט על המסך</p><p style={{fontSize:12,color:"#3A2A30",lineHeight:1.5,marginBottom:8}}>{sc.on_screen_text}</p></>)}
- {sc.filming&&(<><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:2}}>🎥 איך לצלם</p><p style={{fontSize:12,color:"#7A716A",lineHeight:1.5}}>{sc.filming}</p></>)}
+ <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🗣️ מה אומרים</p>
+ <p style={{fontSize:13,color:"var(--ink)",lineHeight:1.6,marginBottom:8}}>{sc.spoken}</p>
+ {sc.on_screen_text&&(<><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>📱 טקסט על המסך</p><p style={{fontSize:12,color:"var(--ink)",lineHeight:1.5,marginBottom:8}}>{sc.on_screen_text}</p></>)}
+ {sc.filming&&(<><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎥 איך לצלם</p><p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>{sc.filming}</p></>)}
  </div>
  ))}
 
- {reelData.call_to_action&&(<div style={{background:pcTint,borderRadius:14,padding:"14px 18px",marginBottom:10}}><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:3}}>📣 קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:13,color:pc,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
+ {reelData.call_to_action&&(<div style={{background:"var(--pc-tint)",borderRadius:14,padding:"14px 18px",marginBottom:10}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>📣 קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:13,color:pcDeep,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
 
- {reelData.caption&&(<div style={{background:"#fff",borderRadius:14,border:"1px solid #E8DED6",padding:"14px 18px",marginBottom:10}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:10,color:"#7A716A",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"#fff",fontSize:9}}>העתיקי</button></div><p style={{fontSize:12.5,color:"#3A2A30",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"#7A716A",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
+ {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"#fff",fontSize:9}}>העתיקי</button></div><p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
 
- {reelData.music_vibe&&(<div style={{background:"#fff",borderRadius:14,border:"1px solid #E8DED6",padding:"12px 18px",marginBottom:10}}><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"#3A2A30"}}>{reelData.music_vibe}</p></div>)}
+ {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
  </div>)}
  </>)}
  </>)}
