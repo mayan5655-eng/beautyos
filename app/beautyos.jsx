@@ -2873,6 +2873,15 @@ export default function BeautyOS() {
             {(()=>{
               const hour=now.getHours();
               const greeting=hour<12?"בוקר טוב":hour<17?"צהריים טובים":hour<21?"ערב טוב":"לילה טוב";
+              // Warm, adaptive one-liner from today's existing data — no new sources.
+              // Priority: full day → new leads → a lighter day → calm/empty.
+              const warmMsg = todayAppts.length>=5
+                ? `יום מלא היום — ${todayAppts.length} תורים. את מוכנה 💪`
+                : newLeadsCount>0
+                ? `${newLeadsCount} ${newLeadsCount===1?"פנייה חדשה מחכה":"פניות חדשות מחכות"} לך 🌸`
+                : todayAppts.length>0
+                ? `${todayAppts.length} ${todayAppts.length===1?"תור היום":"תורים היום"} — שיהיה יום נהדר ✨`
+                : `${hour<12?"בוקר רגוע":hour<17?"צהריים רגועים":hour<21?"ערב רגוע":"לילה רגוע"} ☕ — יום טוב לפנות ללקוחות ותיקות`;
               const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
               // Revenue stats + chart moved to the "תובנות" (insights) tab.
               const openNewAppt=()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);};
@@ -2894,6 +2903,7 @@ export default function BeautyOS() {
                       {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
  </div>
  <h1 className="serif" style={{fontSize:30,fontWeight:600,color:"var(--ink)",lineHeight:1.1,letterSpacing:"-0.01em"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
+ <p style={{fontSize:13,color:"var(--ink-2)",marginTop:7,fontWeight:400,maxWidth:520,lineHeight:1.5}}>{warmMsg}</p>
  </div>
  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
                     {quickActions.slice(0,2).map((qa,i)=>(
