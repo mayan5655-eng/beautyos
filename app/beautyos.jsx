@@ -3993,40 +3993,39 @@ export default function BeautyOS() {
           {/* AI BUSINESS ADVISOR */}
           {activeTab==="advisor"&&(
  <div style={{maxWidth:840,marginLeft:"auto",marginRight:"auto",display:"flex",flexDirection:"column",height:"100%"}}>
- <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
- <span style={{width:38,height:1,background:`linear-gradient(90deg,transparent,${pc})`}}/>
- <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"#1C1C1C"}}>יועץ עסקי AI</h2>
- <span style={{width:38,height:1,background:`linear-gradient(90deg,${pc},transparent)`}}/>
+ <div style={{textAlign:"center",marginBottom:6}}>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>בינה מלאכותית</p>
+ <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>יועץ עסקי AI</h2>
  </div>
- <p style={{textAlign:"center",fontSize:11.5,color:"#7A716A",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
+ <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
 
- <div id="advisor-scroll" style={{flex:1,overflowY:"auto",background:"#fff",borderRadius:20,border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",padding:"18px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:300}}>
+ <div id="advisor-scroll" className="glass-card" style={{flex:1,overflowY:"auto",padding:"18px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:300}}>
               {advisorMessages===null?(
- <p style={{textAlign:"center",color:"#B8AFA0",fontSize:11.5,margin:"auto"}}>טוען…</p>
+ <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:11.5,margin:"auto"}}>טוען…</p>
               ):advisorMessages.length===0?(
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
- <div style={{fontSize:34,marginBottom:10}}>✦</div>
- <p style={{fontSize:15,fontWeight:600,color:"#1C1C1C",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
- <p style={{fontSize:11.5,color:"#7A716A",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
+ <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,color:"#fff",background:pcGrad,boxShadow:`0 10px 24px ${pcShadow}`}}>✦</div>
+ <p style={{fontSize:16,fontWeight:700,color:"var(--ink)",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
                     {["איך אחזיר לקוחות רדומות?","איך אעלה את ההכנסות החודש?","מה כדאי לתמחר מחדש?","רעיון לקמפיין לחודש חלש"].map(q=>(
- <button key={q} className="empty-cta" onClick={()=>setAdvisorInput(q)} style={{background:pcTint,color:pc,border:"1px solid #E8DED6",borderRadius:20,padding:"8px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>
+ <button key={q} className="empty-cta" onClick={()=>setAdvisorInput(q)} style={{background:"var(--pc-tint)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:20,padding:"9px 15px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>
                     ))}
  </div>
  </div>
               ):advisorMessages.map(m=>(
- <div key={m.id} style={{alignSelf:m.role==="user"?"flex-start":"flex-end",maxWidth:"82%",background:m.role==="user"?pcGrad:"#FBF8F4",color:m.role==="user"?"#fff":"#1C1C1C",border:m.role==="user"?"none":"1px solid #E8DED6",borderRadius:m.role==="user"?"16px 16px 16px 4px":"16px 16px 4px 16px",padding:"11px 14px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap"}}>
+ <div key={m.id} style={{alignSelf:m.role==="user"?"flex-start":"flex-end",maxWidth:"82%",background:m.role==="user"?pcGrad:"var(--surface-2)",color:m.role==="user"?"#fff":"var(--ink)",border:m.role==="user"?"none":"1px solid var(--line)",borderRadius:m.role==="user"?"16px 16px 16px 4px":"16px 16px 4px 16px",padding:"12px 15px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap",boxShadow:m.role==="user"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)"}}>
                     {m.content}
  </div>
               ))}
               {advisorSending&&(
- <div style={{alignSelf:"flex-end",background:"#FBF8F4",border:"1px solid #E8DED6",borderRadius:"16px 16px 4px 16px",padding:"11px 16px",fontSize:12,color:"#7A716A"}}>היועצת חושבת…</div>
+ <div style={{alignSelf:"flex-end",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"16px 16px 4px 16px",padding:"11px 16px",fontSize:12,color:"var(--ink-2)"}}>היועצת חושבת…</div>
               )}
  </div>
 
  <div style={{display:"flex",gap:8,alignItems:"flex-end",marginTop:12}}>
- <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder="כתבי שאלה עסקית… (Enter לשליחה)" rows={1} style={{flex:1,border:"1px solid #E8DED6",borderRadius:16,padding:"12px 14px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",resize:"none",maxHeight:120}}/>
- <button onClick={sendAdvisor} disabled={advisorSending||!advisorInput.trim()} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"12px 20px",fontSize:12.5}}>{advisorSending?"…":"שליחה"}</button>
+ <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder="כתבי שאלה עסקית… (Enter לשליחה)" rows={1} style={{flex:1,border:"1px solid var(--line-2)",borderRadius:16,padding:"12px 14px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"none",maxHeight:120,boxShadow:"var(--shadow-xs)"}}/>
+ <button onClick={sendAdvisor} disabled={advisorSending||!advisorInput.trim()} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"12px 22px",fontSize:12.5,boxShadow:`0 8px 18px ${pcShadow}`}}>{advisorSending?"…":"שליחה"}</button>
  </div>
  </div>
           )}
