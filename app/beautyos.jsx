@@ -57,6 +57,41 @@ function AutoToggleRow({ label, desc, on, onChange, pc }) {
   );
 }
 
+// Beauty Voice — the full set of spoken commands the assistant understands.
+// The `intent` values mirror the actions in app/api/voice-intent/route.ts; each
+// row carries a friendly label + one example phrase to show users what they can
+// say. Display-only: this drives the "מה אפשר לומר?" help list and does not
+// affect recognition or dispatch.
+const VOICE_COMMANDS = [
+  { intent: "book_appointment",    icon: "✦",  label: "קביעת תור",      example: "קבעי תור לרונית מחר בעשר וחצי" },
+  { intent: "show_day",            icon: "◴",  label: "התורים של היום",  example: "מה יש לי מחר?" },
+  { intent: "revenue_summary",     icon: "₪",  label: "סיכום הכנסות",    example: "כמה הכנסתי החודש?" },
+  { intent: "cancel_appointment",  icon: "✕",  label: "ביטול תור",       example: "בטלי את התור של דנה מחר" },
+  { intent: "call_client",         icon: "✆",  label: "חיוג ללקוחה",     example: "תתקשרי לרונית" },
+  { intent: "create_receipt",      icon: "🧾", label: "הוצאת קבלה",      example: "תוציאי קבלה לרונית על 200 שקל" },
+];
+
+// Compact "what can I say?" list for the Beauty Voice modal. Uses runtime CSS
+// vars (--pc etc.) so it needs no props. Purely presentational.
+function VoiceCommandList() {
+  return (
+    <div style={{ marginTop: 16, textAlign: "right" }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-2)", marginBottom: 8 }}>מה אפשר לומר?</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {VOICE_COMMANDS.map((c) => (
+          <div key={c.intent} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 12 }}>
+            <span style={{ width: 27, height: 27, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--pc)", background: "var(--pc-tint)" }}>{c.icon}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--ink)" }}>{c.label}</span>
+              <span style={{ display: "block", fontSize: 10.5, color: "var(--ink-2)" }}>&ldquo;{c.example}&rdquo;</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -2406,8 +2441,9 @@ export default function BeautyOS() {
  <div className="voice-pulse" style={{width:66,height:66,borderRadius:"50%",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:pc}}>
  <svg viewBox="0 0 24 24" width="28" height="28" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
  </div>
- <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C"}}>🎙️ מקשיבה...</p>
- <p style={{fontSize:11.5,color:"#7A716A",marginTop:5,lineHeight:1.5}}>אמרי מה לעשות — למשל: "קבעי תור לרונית מחר בעשר וחצי לפילינג"</p>
+ <p style={{fontSize:14,fontWeight:700,color:"var(--ink)"}}>🎙️ מקשיבה...</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginTop:5,lineHeight:1.5}}>אמרי בקול אחת מהפקודות הבאות:</p>
+ <VoiceCommandList/>
  </div>
             )}
 
@@ -2622,14 +2658,20 @@ export default function BeautyOS() {
             })()}
 
             {voiceStatus==="error"&&(
- <div style={{textAlign:"center",padding:"14px 0"}}>
- <p style={{fontSize:13,color:"#C62828",marginBottom:12,lineHeight:1.5}}>{voiceErr||"לא נקלט דיבור. נסי שוב."}</p>
- <button onClick={startVoice} className="primary-btn" style={{padding:"10px 22px",background:pcGrad,color:"#fff",fontSize:12}}>🎙️ נסי שוב</button>
+ <div style={{padding:"14px 0"}}>
+ <div style={{textAlign:"center"}}>
+ <p style={{fontSize:13,color:"var(--danger)",marginBottom:12,lineHeight:1.5}}>{voiceErr||"לא נקלט דיבור. נסי שוב."}</p>
+ <button onClick={startVoice} className="primary-btn" style={{padding:"10px 22px",background:pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>🎙️ נסי שוב</button>
+ </div>
+ <VoiceCommandList/>
  </div>
             )}
 
             {voiceStatus==="unsupported"&&(
- <p style={{fontSize:12.5,color:"#7A716A",lineHeight:1.7,padding:"10px 0",textAlign:"center"}}>השליטה הקולית זמינה בדפדפני <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). נסי לפתוח את המערכת באחד מהם.</p>
+ <div style={{padding:"10px 0"}}>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.7,textAlign:"center"}}>השליטה הקולית זמינה בדפדפני <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). נסי לפתוח את המערכת באחד מהם.</p>
+ <VoiceCommandList/>
+ </div>
             )}
  </div>
  </div>
