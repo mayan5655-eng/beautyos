@@ -71,6 +71,17 @@ const VOICE_COMMANDS = [
   { intent: "create_receipt",      icon: "🧾", label: "הוצאת קבלה",      example: "תוציאי קבלה לרונית על 200 שקל" },
 ];
 
+// Section metadata for the global top-bar search dropdown — render order,
+// Hebrew header label, and type icon. Display-only; the result objects come
+// from globalResults and are routed by openSearchResult.
+const SEARCH_GROUPS = [
+  { type: "client",  label: "לקוחות",  icon: "♥" },
+  { type: "appt",    label: "תורים",   icon: "◴" },
+  { type: "lead",    label: "לידים",   icon: "✦" },
+  { type: "service", label: "שירותים", icon: "✂" },
+  { type: "receipt", label: "קבלות",   icon: "🧾" },
+];
+
 // Compact "what can I say?" list for the Beauty Voice modal. Uses runtime CSS
 // vars (--pc etc.) so it needs no props. Purely presentational.
 function VoiceCommandList() {
@@ -756,11 +767,39 @@ export default function BeautyOS() {
     return matchSearch&&matchStatus&&matchSkin;
   }), [clients, appointments, searchQuery, filterStatus, filterSkin, today]);
 
-  const globalResults = globalSearch.length<2?[]:[
-    ...clients.filter(c=>c.name?.includes(globalSearch)||c.phone?.includes(globalSearch)).map(c=>({type:"client",label:c.name,sub:c.phone||"",obj:c})),
-    ...leads.filter(l=>l.name?.includes(globalSearch)||l.phone?.includes(globalSearch)).map(l=>({type:"lead",label:l.name,sub:l.source,obj:l})),
-    ...appointments.filter(a=>a.name?.includes(globalSearch)).map(a=>({type:"appt",label:a.name,sub:a.service+" · "+a.date,obj:a})),
-  ].slice(0,8);
+  // Global top-bar search. Normalizes the query once (trim + lowercase) and
+  // matches against lowercased fields across five sources. Each source is
+  // capped at 5 rows (so one busy source can't crowd out the rest), and the
+  // combined list is capped at ~15. Every result is a self-describing
+  // {type,label,sub,obj} so the dropdown can group + navigate by type.
+  const _searchQ = globalSearch.trim().toLowerCase();
+  const globalResults = _searchQ.length<2?[]:(()=>{
+    const has = (v)=> (v==null?"":String(v).toLowerCase()).includes(_searchQ);
+    const groups = [
+      clients.filter(c=>has(c.name)||has(c.phone))
+        .slice(0,5).map(c=>({type:"client",label:c.name,sub:c.phone||"",obj:c})),
+      appointments.filter(a=>has(a.name)||has(a.service)||has(a.client_phone))
+        .slice(0,5).map(a=>({type:"appt",label:a.name,sub:(a.service||"")+" · "+a.date,obj:a})),
+      leads.filter(l=>has(l.name)||has(l.phone)||has(l.service_interest))
+        .slice(0,5).map(l=>({type:"lead",label:l.name,sub:l.source||"",obj:l})),
+      activeServices.filter(s=>has(s.name))
+        .slice(0,5).map(s=>({type:"service",label:s.name,sub:`₪${s.price}`+(s.duration?` · ${s.duration}′`:""),obj:s})),
+      receipts.filter(r=>has(r.client_name)||has(r.service)||has(r.amount))
+        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"קבלה",sub:`₪${r.amount} · ${(r.created_at||"").slice(0,10)}`,obj:r})),
+    ];
+    return groups.flat().slice(0,15);
+  })();
+
+  // Navigate to whatever a search result points at, reusing existing handlers
+  // (zero new logic). Called from the grouped results dropdown.
+  const openSearchResult = (r) => {
+    setGlobalSearch("");
+    if (r.type === "client") { setSelectedClient(r.obj); setClientTab("info"); }
+    else if (r.type === "lead") { setSelectedLead(r.obj); setActiveTab("leads"); }
+    else if (r.type === "appt") { setActiveTab("calendar"); if (r.obj?.date) setWeekStart(new Date(r.obj.date)); }
+    else if (r.type === "receipt") { setShowReceipt(r.obj); }
+    else if (r.type === "service") { setEditSettings({ ...settings }); setSettingsTab("services"); setShowSettings(true); }
+  };
 
   const getAppt = (date,hour) => appointments.find(a=>a.date===formatDate(date)&&Number(a.hour)===Number(hour));
 
@@ -2697,14 +2736,29 @@ export default function BeautyOS() {
  <input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} placeholder="חיפוש..."
             style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"8px 34px 8px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",boxShadow:"var(--shadow-xs)"}}/>
           {globalResults.length>0&&(
- <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:16,boxShadow:"var(--shadow-lg)",zIndex:999,overflow:"hidden",marginTop:6}}>
-              {globalResults.map((r,i)=>(
- <div key={i} onClick={()=>{setGlobalSearch("");if(r.type==="client"){setSelectedClient(r.obj);setClientTab("info");}else if(r.type==="lead"){setSelectedLead(r.obj);setActiveTab("leads");}}}
-                  style={{padding:"10px 14px",borderBottom:i<globalResults.length-1?"1px solid var(--line)":"none",cursor:"pointer",display:"flex",gap:8,alignItems:"center"}} className="client-row">
- <span style={{fontSize:12}}>{r.type==="client"?"":r.type==="lead"?"":""}</span>
- <div><p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{r.label}</p><p style={{fontSize:9,color:"var(--ink-3)"}}>{r.sub}</p></div>
+ <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:16,boxShadow:"var(--shadow-lg)",zIndex:999,overflow:"hidden",marginTop:6,maxHeight:400,overflowY:"auto"}}>
+              {SEARCH_GROUPS.map(g=>{
+                const rows=globalResults.filter(r=>r.type===g.type);
+                if(rows.length===0) return null;
+                return(
+ <div key={g.type}>
+ <div style={{padding:"9px 14px 5px",background:"var(--surface-2)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:6,position:"sticky",top:0}}>
+ <span style={{fontSize:9.5,fontWeight:700,color:"var(--ink-2)",letterSpacing:"0.03em"}}>{g.label}</span>
+ <span style={{fontSize:9,color:"var(--ink-3)"}}>{rows.length}</span>
  </div>
-              ))}
+                  {rows.map((r,i)=>(
+ <div key={g.type+i} onClick={()=>openSearchResult(r)} className="client-row"
+                    style={{padding:"9px 14px",borderBottom:"1px solid var(--line)",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}>
+ <span style={{width:26,height:26,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--pc)",background:"var(--pc-tint)"}}>{g.icon}</span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.label}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</p>
+ </div>
+ </div>
+                  ))}
+ </div>
+                );
+              })}
  </div>
           )}
  </div>
