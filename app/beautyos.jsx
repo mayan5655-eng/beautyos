@@ -2325,7 +2325,8 @@ export default function BeautyOS() {
   // Primary navigation – matches the mockup's right-hand sidebar.
   // Each item maps to an existing activeTab id, so no logic changes.
   const NAV_ITEMS = [
-    {id:"dashboard",label:"דשבורד"},
+    {id:"dashboard",label:"היום"},
+    {id:"insights", label:"תובנות"},
     {id:"calendar", label:"יומן"},
     {id:"clients",  label:"לקוחות"},
     {id:"leads",    label:"לידים"},
@@ -2343,6 +2344,7 @@ export default function BeautyOS() {
     const svg = (children) => <svg viewBox="0 0 24 24" width="19" height="19">{children}</svg>;
     switch(id){
       case "dashboard": return svg(<><rect x="3" y="3" width="7" height="9" rx="1.5" {...p}/><rect x="14" y="3" width="7" height="5" rx="1.5" {...p}/><rect x="14" y="12" width="7" height="9" rx="1.5" {...p}/><rect x="3" y="16" width="7" height="5" rx="1.5" {...p}/></>);
+      case "insights":  return svg(<><path d="M4 20h16" {...p}/><rect x="5" y="12" width="3.2" height="6" rx="1" {...p}/><rect x="10.4" y="8" width="3.2" height="10" rx="1" {...p}/><rect x="15.8" y="4" width="3.2" height="14" rx="1" {...p}/></>);
       case "calendar":  return svg(<><rect x="3" y="4.5" width="18" height="16" rx="2.5" {...p}/><path d="M3 9h18M8 2.5v4M16 2.5v4" {...p}/></>);
       case "clients":   return svg(<><circle cx="12" cy="8" r="3.4" {...p}/><path d="M5.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" {...p}/></>);
       case "leads":     return svg(<><path d="M12 3l2.4 5 5.6.6-4.2 3.8 1.2 5.6L12 21l-5.2 3 1.2-5.6L3.8 14.6 9.6 8z" {...p}/></>);
@@ -2872,15 +2874,7 @@ export default function BeautyOS() {
               const hour=now.getHours();
               const greeting=hour<12?"בוקר טוב":hour<17?"צהריים טובים":hour<21?"ערב טוב":"לילה טוב";
               const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
-              const revTrend=lastMonthRevenue>0?Math.round(((thisMonthRevenue-lastMonthRevenue)/lastMonthRevenue)*100):null;
-              const stats=[
-                {label:"הכנסות החודש",value:`₪${thisMonthRevenue.toLocaleString()}`,icon:"₪",accent:pc,trend:revTrend,
-                  sub:revTrend!==null?(revTrend>=0?`עלייה של ${revTrend}% מהחודש שעבר`:`ירידה של ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
-                {label:"תורים השבוע",value:weekAppts.length,icon:"◴",accent:pc,trend:null,sub:`${todayAppts.length} מהם היום`},
-                {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"#46B37B",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
-                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"#F2B84B",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
-              ];
-              const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
+              // Revenue stats + chart moved to the "תובנות" (insights) tab.
               const openNewAppt=()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);};
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
@@ -3003,7 +2997,8 @@ export default function BeautyOS() {
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
  <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין משימות פתוחות כרגע</p>
  </div>);
-                      return items.map((it,i)=>(
+                      /* Home stays calm: show only the 1-2 most urgent items. */
+                      return items.slice(0,2).map((it,i)=>(
  <motion.div key={i} onClick={()=>setActiveTab(it.tab)} whileHover={{x:-3}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
  <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
  <p style={{fontSize:12,color:"var(--ink)",fontWeight:500,flex:1,lineHeight:1.4}}>{it.text}</p>
@@ -3014,61 +3009,52 @@ export default function BeautyOS() {
  </motion.div>
  </div>
 
-                {/* ── TIER 2: upcoming birthdays — compact strip ── */}
-                {upcomingBirthdays.length>0&&(
- <div style={{maxWidth:1180,margin:"18px auto 0"}}>
- <div className="glass-card" style={{padding:"14px 18px"}}>
- <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:11}}>
- <span style={{width:28,height:28,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(224,91,111,0.12)"}}>🎂</span>
- <h3 className="serif" style={{fontSize:15,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
- <span style={{fontSize:9.5,color:"var(--ink-3)"}}>{upcomingBirthdays.length}</span>
- </div>
- <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:2}}>
-                      {upcomingBirthdays.slice(0,8).map((c)=>{
-                        const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
-                        return(
- <div key={c.id} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 11px 7px 7px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,flexShrink:0}}>
- <div className="serif" style={{width:36,height:36,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 4px 10px ${pcShadow}`}}>{b.getDate()}</div>
- <div style={{minWidth:0}}>
- <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",whiteSpace:"nowrap"}}>{c.name}</p>
- <p style={{fontSize:9,color:"var(--ink-3)"}}>{bd.getDate()}/{bd.getMonth()+1}</p>
- </div>
-                          {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"5px 12px",background:"var(--pc-tint)",color:pc,textDecoration:"none",flexShrink:0}}>ברכה</a>}
- </div>
-                        );
-                      })}
- </div>
- </div>
- </div>
-                )}
+ </>);
+            })()}
+ </>)}
 
-                {/* ── TIER 3 (quiet): business pulse — stats + revenue ── */}
- <div style={{maxWidth:1180,margin:"28px auto 12px",display:"flex",alignItems:"center",gap:10}}>
- <span style={{width:4,height:18,borderRadius:4,background:"var(--line-2)"}}/>
- <h2 className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink-3)",letterSpacing:"-0.01em"}}>סקירה עסקית</h2>
- </div>
+          {/* INSIGHTS / תובנות — overview & analytics (moved off the calm "היום" home) */}
+          {activeTab==="insights"&&(<>
+            {(()=>{
+              const revTrend=lastMonthRevenue>0?Math.round(((thisMonthRevenue-lastMonthRevenue)/lastMonthRevenue)*100):null;
+              const stats=[
+                {label:"הכנסות החודש",value:`₪${thisMonthRevenue.toLocaleString()}`,icon:"₪",accent:pc,trend:revTrend,
+                  sub:revTrend!==null?(revTrend>=0?`עלייה של ${revTrend}% מהחודש שעבר`:`ירידה של ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
+                {label:"תורים השבוע",value:weekAppts.length,icon:"◴",accent:pc,trend:null,sub:`${todayAppts.length} מהם היום`},
+                {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"#46B37B",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
+                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"#F2B84B",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
+              ];
+              const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
+              return(
+ <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>סקירה עסקית</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:18}}>תובנות</h2>
 
- {/* stat strip — smaller, de-emphasized */}
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:16,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+                {/* STAT WIDGETS — full size */}
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:16,marginBottom:24}}>
                   {stats.map((s,i)=>{
                     const up=s.trend!=null&&s.trend>=0;
                     return(
- <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:16,padding:"14px 16px",border:"1px solid var(--line)",textAlign:"right"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
- <span style={{width:32,height:32,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86)}}>{s.icon}</span>
-                        {s.trend!=null&&<span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"3px 8px",fontSize:9.5}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>}
+ <motion.div key={i} className="stat-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.05*i,ease:[0.2,0.7,0.3,1]}}
+   style={{background:"var(--surface)",borderRadius:20,padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+ <span style={{width:42,height:42,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
+                        {s.trend!=null&&(
+ <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
+                        )}
  </div>
- <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>{s.label}</p>
- <p className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",lineHeight:1}}>{s.value}</p>
-                      {s.sub&&<p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:5}}>{s.sub}</p>}
- </div>
+ <p style={{position:"relative",fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
+ <p className="serif" style={{position:"relative",fontSize:38,fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
+                      {s.sub&&<p style={{position:"relative",fontSize:10.5,color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
+ </motion.div>
                     );
                   })}
  </div>
 
-                {/* REVENUE CHART — quiet, at the bottom */}
+                {/* REVENUE CHART */}
  <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.45,delay:0.1,ease:[0.2,0.7,0.3,1]}}
-   style={{background:"var(--surface)",borderRadius:24,padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,maxWidth:1180,marginLeft:"auto",marginRight:"auto",position:"relative",overflow:"hidden"}}>
+   style={{background:"var(--surface)",borderRadius:24,padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:-70,left:-40,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle, var(--pc-soft), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:14,marginBottom:22,flexWrap:"wrap"}}>
  <div>
@@ -3100,7 +3086,36 @@ export default function BeautyOS() {
                     );})}
  </div>
  </motion.div>
- </>);
+
+                {/* UPCOMING BIRTHDAYS — full list */}
+ <div className="glass-card" style={{padding:"24px 26px",marginBottom:24}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(224,91,111,0.12)",color:"#E05B6F"}}>🎀</span>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
+                    {upcomingBirthdays.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:11}}>{upcomingBirthdays.length}</span>}
+ </div>
+                    {upcomingBirthdays.length===0?(
+ <div style={{textAlign:"center",padding:"22px 14px"}}>
+ <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"rgba(224,91,111,0.10)"}}>🎂</div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-2)"}}>אין ימי הולדת קרובים</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>ב-30 הימים הקרובים</p>
+ </div>
+                      ):upcomingBirthdays.slice(0,20).map((c)=>{
+                        const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
+                        return(
+ <div key={c.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"9px 10px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
+ <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
+ </div>
+                          {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>}
+ </div>
+                        );
+                      })}
+ </div>
+ </div>
+              );
             })()}
  </>)}
 
