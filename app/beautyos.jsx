@@ -32,6 +32,30 @@ function SignedImage({ value, alt = "", style, fallback = null }) {
   return <img alt={alt} src={url} style={style} />;
 }
 
+// A single pill on/off switch. Extracted so every settings toggle shares one
+// piece of markup instead of repeating the same inline styles. `pc` is the
+// tenant's primary color (the "on" background).
+function Toggle({ on, onChange, pc }) {
+  return (
+    <button onClick={onChange} style={{ width: 46, height: 26, borderRadius: 13, border: "none", cursor: "pointer", background: on ? pc : "#D8CEd3", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+      <span style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
+    </button>
+  );
+}
+
+// One "label + switch (+ optional hint)" row for the Automations settings tab.
+function AutoToggleRow({ label, desc, on, onChange, pc }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ fontSize: 12, color: "#1C1C1C" }}>{label}</span>
+        <Toggle on={on} onChange={onChange} pc={pc} />
+      </div>
+      {desc && <p style={{ fontSize: 9, color: "#B8AFA0", marginTop: 6, lineHeight: 1.5 }}>{desc}</p>}
+    </div>
+  );
+}
+
 // ============================================================
 // CONSTANTS
 // ============================================================
@@ -4381,7 +4405,7 @@ export default function BeautyOS() {
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>⚙ הגדרות</h3>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid #E8DED6"}}>
-                {[{k:"general",l:"כללי"},{k:"services",l:"שירותים"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
+                {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"9px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?600:400,color:settingsTab===t.k?"#1C1C1C":"#7A716A",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit"}}>{t.l}</button>
                 ))}
  </div>
@@ -4402,51 +4426,6 @@ export default function BeautyOS() {
  </div>
  <p style={{fontSize:9,color:"#A89AA2",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>בוט הוואטסאפ החכם</p>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
- <span style={{fontSize:12,color:"#1C1C1C"}}>הבוט פעיל</span>
- {(()=>{const botOn=!(editSettings.bot_active===false||editSettings.bot_active==="false");return(
- <button onClick={()=>setEditSettings({...editSettings,bot_active:!botOn})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:botOn?pc:"#D8CEd3",position:"relative",transition:"background .2s"}}>
- <span style={{position:"absolute",top:3,left:botOn?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
- </button>
- );})()}
- </div>
- {!(editSettings.bot_active===false||editSettings.bot_active==="false")&&(
- <div>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:6}}>מתי הבוט יענה?</p>
- <div style={{display:"flex",gap:6}}>
- <button onClick={()=>setEditSettings({...editSettings,bot_mode:"always"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:(editSettings.bot_mode||"always")==="always"?`2px solid ${pc}`:"1px solid #E8DED6",background:(editSettings.bot_mode||"always")==="always"?pcTint:"#fff",color:pc}}>תמיד</button>
- <button onClick={()=>setEditSettings({...editSettings,bot_mode:"after_hours"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:editSettings.bot_mode==="after_hours"?`2px solid ${pc}`:"1px solid #E8DED6",background:editSettings.bot_mode==="after_hours"?pcTint:"#fff",color:pc}}>רק מחוץ לשעות העבודה</button>
- </div>
- <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
- </div>
- )}
- </div>
- <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קבלות</p>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
- <span style={{fontSize:12,color:"#1C1C1C"}}>שליחת קבלה אוטומטית ללקוחה בוואטסאפ</span>
- {(()=>{const on=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");return(
- <button onClick={()=>setEditSettings({...editSettings,send_receipt_auto:!on})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:on?pc:"#D8CEd3",position:"relative",transition:"background .2s",flexShrink:0}}>
- <span style={{position:"absolute",top:3,left:on?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
- </button>
- );})()}
- </div>
- <p style={{fontSize:9,color:"#B8AFA0",marginTop:6,lineHeight:1.5}}>כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית.</p>
- </div>
- <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>מילוי תור שהתפנה (אוטומטי)</p>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
- <span style={{fontSize:12,color:"#1C1C1C"}}>הצעת תור שהתפנה ללקוחות בוואטסאפ</span>
- {(()=>{const on=(editSettings.gap_fill_enabled===true);return(
- <button onClick={()=>setEditSettings({...editSettings,gap_fill_enabled:!on})} style={{width:46,height:26,borderRadius:13,border:"none",cursor:"pointer",background:on?pc:"#D8CEd3",position:"relative",transition:"background .2s",flexShrink:0}}>
- <span style={{position:"absolute",top:3,left:on?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
- </button>
- );})()}
- </div>
- <p style={{fontSize:9,color:"#B8AFA0",marginTop:6,lineHeight:1.5}}>כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת <b>וואטסאפ אמיתית</b> ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל.</p>
- </div>
- <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} style={{width:"100%",padding:"10px 0",background:pcGrad,color:"#fff",border:"none",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>✦ העתקת קישור לסורק העור</button>
  <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"10px 0",background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
@@ -4462,6 +4441,53 @@ export default function BeautyOS() {
  </div>
  </div>
               )}
+              {settingsTab==="automations"&&(()=>{
+                // Default-ON reminder flags: undefined (column never set) counts
+                // as ON, matching today's cron behavior. Only an explicit false
+                // turns them off. (Cron wiring is a separate step — these are
+                // settings only for now.)
+                const onDefaultTrue=(k)=>!(editSettings[k]===false||editSettings[k]==="false");
+                // Preserve the existing default-OFF semantics for gap-fill and
+                // auto-receipt exactly as they were in the General tab.
+                const botOn=onDefaultTrue("bot_active");
+                const gapOn=(editSettings.gap_fill_enabled===true);
+                const receiptOn=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");
+                const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});
+                return(
+ <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
+
+ <div>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
+ <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="שליחת תזכורת אוטומטית בוואטסאפ ללקוחות שיש להן תור מחר." />
+ <AutoToggleRow pc={pc} label="בקשת ביקורת (יומיים אחרי טיפול)" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="בקשה אוטומטית להשאיר ביקורת, נשלחת כיומיים לאחר הביקור." />
+ <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות (90+ יום)" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום." />
+ <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="תזכורת אוטומטית ללקוחה שסיימה חבילת טיפולים, לקביעת המשך." />
+ </div>
+
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
+ <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
+ {botOn&&(
+ <div>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:6}}>מתי הבוט יענה?</p>
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={()=>setEditSettings({...editSettings,bot_mode:"always"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:(editSettings.bot_mode||"always")==="always"?`2px solid ${pc}`:"1px solid #E8DED6",background:(editSettings.bot_mode||"always")==="always"?pcTint:"#fff",color:pc}}>תמיד</button>
+ <button onClick={()=>setEditSettings({...editSettings,bot_mode:"after_hours"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:editSettings.bot_mode==="after_hours"?`2px solid ${pc}`:"1px solid #E8DED6",background:editSettings.bot_mode==="after_hours"?pcTint:"#fff",color:pc}}>רק מחוץ לשעות העבודה</button>
+ </div>
+ <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
+ </div>
+ )}
+ </div>
+
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:10,fontWeight:600}}>תפעול</p>
+ <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת וואטסאפ אמיתית ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל." />
+ <AutoToggleRow pc={pc} label="שליחת קבלה אוטומטית ללקוחה בוואטסאפ" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית." />
+ </div>
+ </div>
+                );
+              })()}
               {settingsTab==="services"&&(
  <div>
                   {services.length===0&&!showNewService&&(
