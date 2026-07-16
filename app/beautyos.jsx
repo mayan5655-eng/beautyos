@@ -4036,41 +4036,42 @@ export default function BeautyOS() {
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
  <div>
- <h2 className="serif" style={{fontSize:21,fontWeight:600,color:"#1C1C1C"}}>מרחב הלקוחות</h2>
- <p style={{fontSize:11.5,color:"#7A716A",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים — הלקוחות שלך רואות הכל במקום אחד.</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מרחב לקוחות</p>
+ <h2 className="serif" style={{fontSize:23,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מרחב הלקוחות</h2>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים — הלקוחות שלך רואות הכל במקום אחד.</p>
  </div>
  <div style={{display:"flex",gap:7}}>
- <button onClick={()=>copyPublicLink("community")} style={{padding:"9px 14px",background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:11,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת קישור לקהילה</button>
- <button onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} className="primary-btn" style={{padding:"9px 16px",background:pcGrad,color:"#fff",fontSize:11.5}}>+ פוסט חדש</button>
+ <button onClick={()=>copyPublicLink("community")} style={{padding:"9px 15px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:12,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>העתקת קישור לקהילה</button>
+ <button onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} className="primary-btn" style={{padding:"10px 16px",background:pcGrad,color:"#fff",fontSize:11.5,boxShadow:`0 8px 18px ${pcShadow}`}}>+ פוסט חדש</button>
  </div>
  </div>
 
  {communityLoading?(
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
- {[0,1].map(i=><div key={i} style={{background:"#fff",borderRadius:16,overflow:"hidden",border:"1px solid #E8DED6"}}><div className="skel" style={{width:"100%",height:150,borderRadius:0}}/><div style={{padding:"14px 16px"}}><div className="skel" style={{width:90,height:14,marginBottom:9}}/><div className="skel" style={{width:"60%",height:16,marginBottom:7}}/><div className="skel" style={{width:"100%",height:12,marginBottom:5}}/><div className="skel" style={{width:"80%",height:12}}/></div></div>)}
+ {[0,1].map(i=><div key={i} style={{background:"var(--surface)",borderRadius:18,overflow:"hidden",border:"1px solid var(--line)",boxShadow:"var(--shadow-sm)"}}><div className="skel" style={{width:"100%",height:150,borderRadius:0}}/><div style={{padding:"14px 16px"}}><div className="skel" style={{width:90,height:14,marginBottom:9}}/><div className="skel" style={{width:"60%",height:16,marginBottom:7}}/><div className="skel" style={{width:"100%",height:12,marginBottom:5}}/><div className="skel" style={{width:"80%",height:12}}/></div></div>)}
  </div>
  )
  :communityPosts.length===0?(
- <div style={{textAlign:"center",padding:"48px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:14}}>
- <div style={{fontSize:34,marginBottom:10}}>💜</div>
- <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C",marginBottom:5}}>עוד אין פוסטים</p>
- <p style={{fontSize:11.5,color:"#7A716A",maxWidth:360,margin:"0 auto"}}>פרסמי את הפוסט הראשון — מבצע, טיפ, או עדכון — והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
+ <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:24,marginTop:14}}>
+ <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>💜</div>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>עוד אין פוסטים</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:360,margin:"0 auto",lineHeight:1.6}}>פרסמי את הפוסט הראשון — מבצע, טיפ, או עדכון — והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
  </div>
  ):(
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
  {communityPosts.map(p=>(
- <div key={p.id} style={{background:"#fff",borderRadius:16,overflow:"hidden",border:"1px solid #E8DED6"}}>
+ <div key={p.id} className="glass-card">
  {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
- <span style={{fontSize:9.5,fontWeight:700,color:"#fff",background:p.post_type==="offer"?pc:p.post_type==="tip"?"#7BA88E":"#A89BB0",padding:"3px 9px",borderRadius:20}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
- <span style={{fontSize:9,color:"#B8AFA0"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
+ <span className="pill" style={{fontSize:9.5,color:"#fff",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
+ <span style={{fontSize:9,color:"var(--ink-3)"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
  </div>
- {p.title&&<p style={{fontSize:14.5,fontWeight:700,color:"#1C1C1C",marginBottom:4}}>{p.title}</p>}
- {p.body&&<p style={{fontSize:12.5,color:"#4A3A42",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
+ {p.title&&<p style={{fontSize:14.5,fontWeight:700,color:"var(--ink)",marginBottom:4}}>{p.title}</p>}
+ {p.body&&<p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
  {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:pcGrad,color:"#fff",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
  <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}>
- <button onClick={()=>deleteCommunityPost(p.id)} style={{background:"none",border:"none",color:"#B8AFA0",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
+ <button onClick={()=>deleteCommunityPost(p.id)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
  </div>
  </div>
  </div>
@@ -4085,32 +4086,33 @@ export default function BeautyOS() {
             <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
                 <div>
-                  <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>פרוטוקולי טיפול</h2>
-                  <p style={{fontSize:11.5,color:"#7A716A",marginTop:2}}>ספריית הטיפולים שלך לפי מותג ובעיה.</p>
+                  <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ספריית טיפולים</p>
+                  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פרוטוקולי טיפול</h2>
+                  <p style={{fontSize:11.5,color:"var(--ink-2)",marginTop:2}}>ספריית הטיפולים שלך לפי מותג ובעיה.</p>
                 </div>
-                <button onClick={()=>{setNewProtocol(emptyProtocol);setShowProtocolModal(true);}} className="primary-btn" style={{padding:"9px 16px",background:pcGrad,color:"#fff",fontSize:12}}>+ פרוטוקול חדש</button>
+                <button onClick={()=>{setNewProtocol(emptyProtocol);setShowProtocolModal(true);}} className="primary-btn" style={{padding:"10px 16px",background:pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>+ פרוטוקול חדש</button>
               </div>
               {protocolsLoading?(
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>{[0,1,2].map(i=><div key={i} className="skel" style={{width:"100%",height:74,borderRadius:14}}/>)}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>{[0,1,2].map(i=><div key={i} className="skel" style={{width:"100%",height:74,borderRadius:16}}/>)}</div>
               ):protocols.length===0?(
-                <div style={{textAlign:"center",padding:"48px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18}}>
-                  <div style={{fontSize:34,marginBottom:10}}>📋</div>
-                  <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C",marginBottom:5}}>עוד אין פרוטוקולים</p>
-                  <p style={{fontSize:11.5,color:"#7A716A"}}>צרי פרוטוקול ראשון כדי לבנות את ספריית הטיפולים שלך.</p>
+                <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:24}}>
+                  <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>📋</div>
+                  <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>עוד אין פרוטוקולים</p>
+                  <p style={{fontSize:12,color:"var(--ink-2)"}}>צרי פרוטוקול ראשון כדי לבנות את ספריית הטיפולים שלך.</p>
                 </div>
               ):(
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {protocols.map(pr=>(
-                    <div key={pr.id} style={{background:"#fff",borderRadius:14,padding:"13px 15px",border:"1px solid #E8DED6"}}>
+                    <div key={pr.id} className="glass-card" style={{padding:"14px 16px"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
                         <div>
-                          <span style={{fontSize:9.5,fontWeight:700,color:pc,background:pcTint,padding:"3px 9px",borderRadius:20}}>{pr.brand}</span>
-                          <h3 style={{fontSize:14,fontWeight:700,color:"#1C1C1C",marginTop:6}}>{pr.name}</h3>
-                          {pr.concern&&<p style={{fontSize:11,color:"#7A716A",marginTop:2}}>{pr.concern}</p>}
+                          <span className="pill" style={{fontSize:9.5,color:pcDeep,background:"var(--pc-tint)",padding:"3px 10px"}}>{pr.brand}</span>
+                          <h3 style={{fontSize:14,fontWeight:700,color:"var(--ink)",marginTop:6}}>{pr.name}</h3>
+                          {pr.concern&&<p style={{fontSize:11,color:"var(--ink-2)",marginTop:2}}>{pr.concern}</p>}
                         </div>
-                        <div style={{textAlign:"left",fontSize:10,color:"#7A716A"}}>
+                        <div style={{textAlign:"left",fontSize:10,color:"var(--ink-3)"}}>
                           {pr.sessions_count?<div>{pr.sessions_count} מפגשים</div>:null}
-                          {pr.price?<div style={{fontWeight:700,color:"#1C1C1C"}}>₪{pr.price}</div>:null}
+                          {pr.price?<div style={{fontWeight:700,color:"var(--ink)",fontSize:13}}>₪{pr.price}</div>:null}
                         </div>
                       </div>
                     </div>
@@ -4124,47 +4126,50 @@ export default function BeautyOS() {
           {activeTab==="packages"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>מנויי טיפולים</h2>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מנויים וחבילות</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מנויי טיפולים</h2>
+ </div>
  <div style={{display:"flex",gap:6}}>
- <button onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px ${pcShadow}`}}>+ חבילה חדשה</button>
- <button onClick={()=>setShowWaitlistModal(true)} style={{background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>רשימת המתנה</button>
+ <button className="primary-btn" onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"#fff",padding:"10px 16px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>+ חבילה חדשה</button>
+ <button onClick={()=>setShowWaitlistModal(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>רשימת המתנה</button>
  </div>
  </div>
 
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6",marginBottom:14}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:12}}>חבילות פעילות ({packages.filter(p=>p.active).length})</h3>
-              {packages.filter(p=>p.active).length===0?<p style={{color:"#B8AFA0",fontSize:11}}>אין חבילות פעילות</p>
+ <div className="glass-card" style={{padding:18,marginBottom:14}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>חבילות פעילות ({packages.filter(p=>p.active).length})</h3>
+              {packages.filter(p=>p.active).length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין חבילות פעילות</p>
                 :packages.filter(p=>p.active).map(pkg=>(
- <div key={pkg.id} style={{background:pcTint,borderRadius:14,padding:"12px 14px",marginBottom:8,border:"1px solid #E8DED6"}}>
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7,flexWrap:"wrap",gap:5}}>
+ <div key={pkg.id} style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",marginBottom:8,border:"1px solid var(--line)"}}>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9,flexWrap:"wrap",gap:5}}>
  <div>
- <p style={{fontSize:12,fontWeight:700,color:"#1C1C1C"}}>{pkg.client_name}</p>
- <p style={{fontSize:10,color:"#7A716A"}}>{pkg.service} · ₪{pkg.price}</p>
+ <p style={{fontSize:12,fontWeight:700,color:"var(--ink)"}}>{pkg.client_name}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)"}}>{pkg.service} · ₪{pkg.price}</p>
  </div>
- <button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:20,padding:"5px 11px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+ <button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:20,padding:"6px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
                         ✓ השתמשי
  </button>
  </div>
- <div style={{display:"flex",gap:3,marginBottom:4}}>
+ <div style={{display:"flex",gap:3,marginBottom:5}}>
                       {Array.from({length:Number(pkg.total_sessions)},(_,i)=>(
- <div key={i} style={{flex:1,height:8,borderRadius:4,background:i<Number(pkg.used_sessions)?pcGrad:"#F0E7EC"}}/>
+ <div key={i} style={{flex:1,height:8,borderRadius:4,background:i<Number(pkg.used_sessions)?pcGrad:"var(--line)"}}/>
                       ))}
  </div>
- <p style={{fontSize:9,color:"#7A716A"}}>{pkg.used_sessions}/{pkg.total_sessions} טיפולים · נותרו {Number(pkg.total_sessions)-Number(pkg.used_sessions)}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)"}}>{pkg.used_sessions}/{pkg.total_sessions} טיפולים · נותרו {Number(pkg.total_sessions)-Number(pkg.used_sessions)}</p>
  </div>
                 ))}
  </div>
 
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6"}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:12}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
-              {waitlist.filter(w=>w.status==="waiting").length===0?<p style={{color:"#B8AFA0",fontSize:11}}>אין ממתינות</p>
+ <div className="glass-card" style={{padding:18}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
+              {waitlist.filter(w=>w.status==="waiting").length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין ממתינות</p>
                 :waitlist.filter(w=>w.status==="waiting").map(w=>(
- <div key={w.id} style={{background:pcTint,borderRadius:14,padding:"10px 14px",marginBottom:6,border:`1px solid #E8DED6`,display:"flex",alignItems:"center",gap:8}}>
+ <div key={w.id} style={{background:"var(--surface-2)",borderRadius:14,padding:"11px 14px",marginBottom:6,border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{w.client_name}</p>
- <p style={{fontSize:9,color:"#7A716A"}}>{w.service}{w.preferred_date&&` · ${w.preferred_date}`}</p>
+ <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{w.client_name}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)"}}>{w.service}{w.preferred_date&&` · ${w.preferred_date}`}</p>
  </div>
-                    {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"4px 8px",fontSize:9}}></a>}
+                    {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:9}}>✆</a>}
  </div>
                 ))}
  </div>
