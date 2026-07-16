@@ -3369,47 +3369,48 @@ export default function BeautyOS() {
             });
 
             const groups=[
-              {key:"reminders",icon:"",title:"תזכורות לתורי מחר",color:"#FF9800",bg:"#FFF3E0",targets:reminderTargets,empty:"אין תורים מחר"},
-              {key:"birthdays",icon:"",title:"ברכות יום הולדת",color:pc,bg:"#F7F1E6",targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
-              {key:"cold",icon:"",title:"מטופלות להתחדשות (60+ יום)",color:"#5580C4",bg:"#EBF3FF",targets:coldTargets,empty:"כל המטופלות פעילות! "},
-              {key:"review",icon:"",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",bg:"#F3E5F5",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
+              {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:"אין תורים מחר"},
+              {key:"birthdays",icon:"🎀",title:"ברכות יום הולדת",color:pc,targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
+              {key:"cold",icon:"✦",title:"מטופלות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל המטופלות פעילות! "},
+              {key:"review",icon:"⭐",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
             ];
 
             return(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>מרכז הודעות</h2>
- <p style={{fontSize:11,color:"#7A716A",marginBottom:16}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>מרכז הודעות</h2>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
 
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:16}}>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:14,marginBottom:16}}>
                 {groups.map(g=>{
                   const withPhone=g.targets.filter(t=>t.phone);
                   return(
- <div key={g.key} style={{background:"#fff",borderRadius:18,border:`1px solid #E8DED6`,overflow:"hidden"}}>
- <div style={{background:g.bg,padding:"12px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
- <div style={{display:"flex",alignItems:"center",gap:8}}>
- <span style={{fontSize:16}}>{g.icon}</span>
- <div>
- <p style={{fontSize:11.5,fontWeight:700,color:"#1C1C1C"}}>{g.title}</p>
- <p style={{fontSize:9,color:g.color,fontWeight:600}}>{withPhone.length} נמענים</p>
+ <div key={g.key} className="glass-card">
+ <div style={{background:lighten(g.color,0.86),padding:"13px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,borderBottom:"1px solid var(--line)"}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+ <span style={{width:34,height:34,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:g.color,background:"rgba(255,255,255,0.7)"}}>{g.icon}</span>
+ <div style={{minWidth:0}}>
+ <p style={{fontSize:11.5,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.title}</p>
+ <p style={{fontSize:9,color:g.color,fontWeight:700}}>{withPhone.length} נמענים</p>
  </div>
  </div>
                         {withPhone.length>0&&(
- <button onClick={()=>waSendGroup(g.targets)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:20,padding:"7px 12px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>שליחה מרוכזת</button>
+ <button onClick={()=>waSendGroup(g.targets)} className="wa-btn" style={{padding:"7px 12px",fontSize:10,flexShrink:0}}>✆ שליחה מרוכזת</button>
                         )}
  </div>
- <div style={{padding:"10px 12px",maxHeight:200,overflowY:"auto"}}>
-                        {g.targets.length===0?<p style={{fontSize:10,color:"#B8AFA0",padding:"6px 0"}}>{g.empty}</p>
+ <div style={{padding:"8px 12px",maxHeight:200,overflowY:"auto"}}>
+                        {g.targets.length===0?<p style={{fontSize:10,color:"var(--ink-3)",padding:"8px 2px"}}>{g.empty}</p>
                           :g.targets.map((t,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 4px",borderBottom:i<g.targets.length-1?"1px solid #F7F0F3":"none"}}>
+ <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 4px",borderBottom:i<g.targets.length-1?"1px solid var(--line)":"none"}}>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:10,fontWeight:600,color:"#1C1C1C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                                  {waSentToday[t.clientId]&&<span style={{color:"#7BAE7F"}}>✓ </span>}{t.name}
+ <p style={{fontSize:10.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {waSentToday[t.clientId]&&<span style={{color:"var(--success)"}}>✓ </span>}{t.name}
  </p>
- <p style={{fontSize:8,color:"#A89AA2"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
+ <p style={{fontSize:8.5,color:"var(--ink-3)"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
  </div>
                               {t.phone?(
- <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"4px 9px",fontSize:9}}>שלחי</button>
-                              ):<span style={{fontSize:8,color:"#D8CDD4"}}>—</span>}
+ <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"4px 10px",fontSize:9}}>שלחי</button>
+                              ):<span style={{fontSize:8,color:"var(--ink-3)"}}>—</span>}
  </div>
                           ))}
  </div>
@@ -3418,39 +3419,39 @@ export default function BeautyOS() {
                 })}
  </div>
 
- <div style={{background:"#fff",borderRadius:18,border:"1px solid #E8DED6",padding:16,marginBottom:14}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:12}}>שליחת הודעה לקבוצה</h3>
- <p style={{fontSize:9,color:"#7A716A",marginBottom:6}}>בחרי קהל יעד</p>
- <div style={{display:"flex",gap:4,marginBottom:12,flexWrap:"wrap"}}>
+ <div className="glass-card" style={{padding:18,marginBottom:14}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>שליחת הודעה לקבוצה</h3>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
+ <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
                   {[{k:"all",l:"כל המטופלות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
- <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"6px 12px",border:"1px solid",borderColor:waBroadcastAudience===a.k?pc:"#E8DED6",borderRadius:20,background:waBroadcastAudience===a.k?pcGrad:pcTint,color:waBroadcastAudience===a.k?"#fff":"#7A716A",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:waBroadcastAudience===a.k?700:400}}>{a.l}</button>
+ <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:20,background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"#fff":"var(--ink-2)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>{a.l}</button>
                   ))}
  </div>
  <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
                   placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים "
-                  style={{width:"100%",border:"1px solid #E8DED6",borderRadius:14,padding:"10px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:8}}/>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
- <p style={{fontSize:10,color:"#7A716A"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
+                  style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"11px 13px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+ <p style={{fontSize:10.5,color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
  <button onClick={()=>{
                     if(!waBroadcastMsg.trim()){toast("נא לכתוב הודעה","error");return;}
                     waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:`שלום ${c.name}! ${waBroadcastMsg}`})));
-                  }} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:24,padding:"9px 16px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>שלחי לקבוצה</button>
+                  }} className="wa-btn" style={{padding:"9px 18px",fontSize:11}}>✆ שלחי לקבוצה</button>
  </div>
  </div>
 
- <div style={{background:"#fff",borderRadius:18,border:"1px solid #E8DED6",padding:16}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:12}}>הודעה אישית למטופלת</h3>
- <div style={{position:"relative",marginBottom:8}}>
+ <div className="glass-card" style={{padding:18}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>הודעה אישית למטופלת</h3>
+ <div style={{position:"relative",marginBottom:10}}>
  <input value={waFreeSearch} onChange={e=>{setWaFreeSearch(e.target.value);if(!e.target.value)setWaFreeClient(null);}}
                     placeholder="חיפוש לקוחה לפי שם או טלפון..."
-                    style={{width:"100%",border:`1px solid ${waFreeClient?"#7BAE7F":"#E8DED6"}`,borderRadius:14,padding:"10px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:waFreeClient?"#F3FFF6":pcTint}}/>
-                  {waFreeClient&&<span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",fontSize:13}}>✓</span>}
+                    style={{width:"100%",border:`1px solid ${waFreeClient?"var(--success)":"var(--line-2)"}`,borderRadius:14,padding:"11px 13px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:waFreeClient?"rgba(70,179,123,0.07)":"var(--surface-2)"}}/>
+                  {waFreeClient&&<span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:13,color:"var(--success)"}}>✓</span>}
                   {waFreeSearch.length>1&&!waFreeClient&&(
- <div style={{position:"absolute",top:"100%",right:0,left:0,background:"#fff",borderRadius:14,boxShadow:"0 8px 24px rgba(212,175,55,0.12)",zIndex:99,overflow:"hidden",marginTop:3,maxHeight:180,overflowY:"auto"}}>
+ <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,boxShadow:"var(--shadow-lg)",zIndex:99,overflow:"hidden",marginTop:4,maxHeight:180,overflowY:"auto"}}>
                       {clients.filter(c=>c.name?.includes(waFreeSearch)||c.phone?.includes(waFreeSearch)).slice(0,6).map(c=>(
- <div key={c.id} onClick={()=>{setWaFreeClient(c);setWaFreeSearch(c.name);}} className="client-row" style={{padding:"9px 12px",borderBottom:"1px solid #F2E9E1",cursor:"pointer"}}>
- <p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{c.name}</p>
- <p style={{fontSize:9,color:"#7A716A"}}>{c.phone||"אין טלפון"}</p>
+ <div key={c.id} onClick={()=>{setWaFreeClient(c);setWaFreeSearch(c.name);}} className="client-row" style={{padding:"10px 13px",borderBottom:"1px solid var(--line)",cursor:"pointer"}}>
+ <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)"}}>{c.phone||"אין טלפון"}</p>
  </div>
                       ))}
  </div>
@@ -3458,14 +3459,14 @@ export default function BeautyOS() {
  </div>
  <textarea value={waFreeMsg} onChange={e=>setWaFreeMsg(e.target.value)} rows={3}
                   placeholder="כתבי כאן את ההודעה..."
-                  style={{width:"100%",border:"1px solid #E8DED6",borderRadius:14,padding:"10px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:8}}/>
+                  style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"11px 13px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <button onClick={()=>{
                   if(!waFreeClient){toast("נא לבחור לקוחה","error");return;}
                   if(!waFreeClient.phone){toast("אין טלפון ללקוחה זו","error");return;}
                   if(!waFreeMsg.trim()){toast("נא לכתוב הודעה","error");return;}
                   waSendOne(waFreeClient.id,waFreeClient.phone,waFreeMsg);
                   setWaFreeMsg("");
-                }} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:24,padding:"10px 16px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>שלחי הודעה</button>
+                }} className="wa-btn" style={{padding:"11px 16px",fontSize:11.5,width:"100%",justifyContent:"center"}}>✆ שלחי הודעה</button>
  </div>
  </div>
  </>);
