@@ -3864,35 +3864,34 @@ export default function BeautyOS() {
             const isRefund = finalVat < 0;           // negative => refund from the authority
             const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
             const Stat=({label,value,big,gold})=>(
- <div style={{flex:1,minWidth:120,background:gold?pcTint:"#FBF8F4",border:`1px solid ${gold?pc:"#E8DED6"}`,borderRadius:14,padding:"16px 14px",textAlign:"center"}}>
- <p style={{fontSize:10,color:"#7A716A",marginBottom:7,letterSpacing:"0.4px"}}>{label}</p>
- <p className="serif" style={{fontSize:big?30:22,fontWeight:600,color:gold?pc:"#1C1C1C",lineHeight:1}}>{value}</p>
+ <div style={{flex:1,minWidth:120,background:gold?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${gold?pc:"var(--line)"}`,borderRadius:16,padding:"16px 14px",textAlign:"center"}}>
+ <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:7,letterSpacing:"0.3px"}}>{label}</p>
+ <p className="serif" style={{fontSize:big?30:22,fontWeight:600,color:gold?pcDeep:"var(--ink)",lineHeight:1}}>{value}</p>
  </div>
             );
             return (
  <div style={{maxWidth:720,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6,justifyContent:"center"}}>
- <span style={{width:38,height:1,background:`linear-gradient(90deg,transparent,${pc})`}}/>
- <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"#1C1C1C"}}>דוחות מס</h2>
- <span style={{width:38,height:1,background:`linear-gradient(90deg,${pc},transparent)`}}/>
+ <div style={{textAlign:"center",marginBottom:6}}>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>ניהול פיננסי</p>
+ <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דוחות מס</h2>
  </div>
- <p style={{textAlign:"center",fontSize:11.5,color:"#7A716A",marginBottom:16}}>סטטוס העסק: <b style={{color:pc}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
+ <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-2)",marginBottom:16}}>סטטוס העסק: <b style={{color:pcDeep}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
 
                 {/* CONTROLS */}
  <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
- <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+ <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                     {years.map(y=>(
- <button key={y} onClick={()=>setTaxYear(y)} style={{padding:"7px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:taxYear===y?`2px solid ${pc}`:"1px solid #E8DED6",background:taxYear===y?pcTint:"#fff",color:taxYear===y?pc:"#7A716A"}}>{y}</button>
+ <button key={y} onClick={()=>setTaxYear(y)} style={{padding:"7px 15px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:taxYear===y?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:taxYear===y?"var(--pc-tint)":"var(--surface)",color:taxYear===y?pcDeep:"var(--ink-2)",boxShadow:"var(--shadow-xs)"}}>{y}</button>
                     ))}
  </div>
  </div>
                 {status!=="exempt"&&(
  <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",alignItems:"center",marginBottom:16}}>
- <div style={{display:"flex",gap:5,background:"#FBF8F4",border:"1px solid #E8DED6",borderRadius:20,padding:3}}>
- <button onClick={()=>{setTaxPeriodMode("bimonthly");setTaxPeriodIdx(Math.floor(new Date().getMonth()/2));}} style={{padding:"6px 12px",borderRadius:18,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="bimonthly"?pcGrad:"transparent",color:taxPeriodMode==="bimonthly"?"#fff":"#7A716A"}}>דו-חודשי</button>
- <button onClick={()=>{setTaxPeriodMode("monthly");setTaxPeriodIdx(new Date().getMonth());}} style={{padding:"6px 12px",borderRadius:18,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="monthly"?pcGrad:"transparent",color:taxPeriodMode==="monthly"?"#fff":"#7A716A"}}>חודשי</button>
+ <div style={{display:"flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:4,boxShadow:"var(--shadow-xs)"}}>
+ <button onClick={()=>{setTaxPeriodMode("bimonthly");setTaxPeriodIdx(Math.floor(new Date().getMonth()/2));}} style={{padding:"6px 13px",borderRadius:16,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="bimonthly"?pcGrad:"transparent",color:taxPeriodMode==="bimonthly"?"#fff":"var(--ink-2)"}}>דו-חודשי</button>
+ <button onClick={()=>{setTaxPeriodMode("monthly");setTaxPeriodIdx(new Date().getMonth());}} style={{padding:"6px 13px",borderRadius:16,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="monthly"?pcGrad:"transparent",color:taxPeriodMode==="monthly"?"#fff":"var(--ink-2)"}}>חודשי</button>
  </div>
- <select value={taxPeriodIdx} onChange={e=>setTaxPeriodIdx(Number(e.target.value))} style={{border:"1px solid #E8DED6",borderRadius:20,padding:"7px 12px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#fff",color:"#1C1C1C"}}>
+ <select value={taxPeriodIdx} onChange={e=>setTaxPeriodIdx(Number(e.target.value))} style={{border:"1px solid var(--line-2)",borderRadius:20,padding:"8px 13px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
                       {taxPeriodMode==="monthly"
                         ? MONTHS_HE.map((m,i)=><option key={i} value={i}>{m}</option>)
                         : Array.from({length:6},(_,i)=><option key={i} value={i}>{MONTHS_HE[i*2]}–{MONTHS_HE[i*2+1]}</option>)}
@@ -3909,10 +3908,10 @@ export default function BeautyOS() {
  </div>
 
                 {/* REPORT CARD */}
- <div id="tax-report" style={{background:"#fff",borderRadius:20,border:"1px solid #E8DED6",boxShadow:"0 6px 22px rgba(28,28,28,0.05)",padding:"26px 24px"}}>
+ <div id="tax-report" style={{background:"var(--surface)",borderRadius:22,border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"26px 24px"}}>
  <div style={{textAlign:"center",marginBottom:18}}>
- <p className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C"}}>{settings.business_name||"העסק"} — {statusLabel}</p>
- <p style={{fontSize:12,color:"#7A716A",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
+ <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name||"העסק"} — {statusLabel}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
  </div>
                   {status==="exempt"?(
  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
@@ -3936,7 +3935,7 @@ export default function BeautyOS() {
                   )}
 
                   {/* LEGAL DISCLAIMER */}
- <div style={{marginTop:20,padding:"12px 14px",background:"#FBF3E2",border:"1px solid #EAD9B0",borderRadius:12}}>
+ <div style={{marginTop:20,padding:"12px 14px",background:"rgba(242,184,75,0.12)",border:"1px solid rgba(242,184,75,0.35)",borderRadius:12}}>
  <p style={{fontSize:10.5,color:"#8A6D2F",lineHeight:1.6,textAlign:"center"}}>⚠️ {TAX_DISCLAIMER}</p>
  </div>
  </div>
@@ -3944,21 +3943,21 @@ export default function BeautyOS() {
                 {/* EXPENSES (licensed/company only) — outside #tax-report so it stays out of the PDF */}
                 {status!=="exempt"&&(
  <div style={{marginTop:22}}>
- <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>הוצאות העסק — {rangeLabel}</h3>
- <p style={{fontSize:10.5,color:"#7A716A",marginBottom:12}}>הוצאות (כולל מע"מ) משמשות לחישוב מס התשומות. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה.</p>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>הוצאות העסק — {rangeLabel}</h3>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:12}}>הוצאות (כולל מע"מ) משמשות לחישוב מס התשומות. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה.</p>
 
                     {/* ADD FORM */}
- <div style={{background:"#fff",borderRadius:16,border:"1px solid #E8DED6",boxShadow:"0 4px 18px rgba(28,28,28,0.04)",padding:"14px 16px",marginBottom:12}}>
+ <div className="glass-card" style={{padding:"14px 16px",marginBottom:12}}>
  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
  <div style={{flex:"1 1 110px"}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>סכום (כולל מע"מ)</p><input type="number" value={newExpense.amount} onChange={e=>setNewExpense({...newExpense,amount:e.target.value})} placeholder="0" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:pcTint}}/></div>
  <div style={{flex:"1 1 130px"}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תאריך</p><input type="date" value={newExpense.expense_date} onChange={e=>setNewExpense({...newExpense,expense_date:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
  <div style={{flex:"2 1 160px"}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תיאור</p><input value={newExpense.description} onChange={e=>setNewExpense({...newExpense,description:e.target.value})} placeholder="למשל: חומרים מספק" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
  </div>
  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
- <span style={{fontSize:9,color:"#7A716A"}}>קטגוריה:</span>
+ <span style={{fontSize:9,color:"var(--ink-3)",fontWeight:600}}>קטגוריה:</span>
                         {EXPENSE_CATEGORIES.map(cat=>{
                           const sel=newExpense.category===cat.k;
-                          return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 11px",borderRadius:16,fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid #E8DED6",background:sel?pcTint:"#fff",color:sel?pc:"#7A716A"}}>{cat.l}</button>;
+                          return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 12px",borderRadius:16,fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{cat.l}</button>;
                         })}
  <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"#fff",padding:"8px 18px",fontSize:12}}>{isBusy("addExpense")?"מוסיף...":"✦ הוסף הוצאה"}</button>
  </div>
@@ -3966,23 +3965,23 @@ export default function BeautyOS() {
 
                     {/* LIST */}
                     {periodExpenses.length===0?(
- <p style={{fontSize:11,color:"#B8AFA0",textAlign:"center",padding:"14px 0"}}>אין הוצאות בתקופה זו</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",textAlign:"center",padding:"14px 0"}}>אין הוצאות בתקופה זו</p>
                     ):(<>
                       {[...periodExpenses].sort((a,b)=>String(b.expense_date||"").localeCompare(String(a.expense_date||""))).map(exp=>{
                         const catL=EXPENSE_CATEGORIES.find(c=>c.k===exp.category)?.l||"אחר";
                         return (
- <div key={exp.id} style={{display:"flex",alignItems:"center",gap:10,background:"#fff",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",marginBottom:6}}>
- <span style={{fontSize:10,color:"#7A716A",width:74,flexShrink:0}}>{exp.expense_date}</span>
- <span style={{fontSize:8,background:pcTint,color:pc,padding:"2px 8px",borderRadius:20,fontWeight:600,flexShrink:0}}>{catL}</span>
- <span style={{flex:1,minWidth:0,fontSize:11.5,color:"#1C1C1C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{exp.description||"—"}</span>
- <span className="serif" style={{fontSize:14,fontWeight:600,color:"#1C1C1C",flexShrink:0}}>{nis(Number(exp.amount)||0)}</span>
- <button onClick={()=>handleDeleteExpense(exp)} aria-label="מחיקת הוצאה" style={{background:"none",border:"none",color:"#C0857F",fontSize:13,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>✕</button>
+ <div key={exp.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:13,padding:"10px 13px",marginBottom:6,boxShadow:"var(--shadow-xs)"}}>
+ <span style={{fontSize:10,color:"var(--ink-3)",width:74,flexShrink:0}}>{exp.expense_date}</span>
+ <span className="pill" style={{fontSize:8,background:"var(--pc-tint)",color:pcDeep,padding:"2px 9px",flexShrink:0}}>{catL}</span>
+ <span style={{flex:1,minWidth:0,fontSize:11.5,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{exp.description||"—"}</span>
+ <span className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)",flexShrink:0}}>{nis(Number(exp.amount)||0)}</span>
+ <button onClick={()=>handleDeleteExpense(exp)} aria-label="מחיקת הוצאה" style={{background:"none",border:"none",color:"var(--danger)",fontSize:13,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>✕</button>
  </div>
                         );
                       })}
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",marginTop:4,background:pcTint,borderRadius:12}}>
- <span style={{fontSize:11.5,fontWeight:600,color:"#7A716A"}}>סך הוצאות בתקופה ({periodExpenses.length})</span>
- <span className="serif" style={{fontSize:18,fontWeight:600,color:pc}}>{nis(expensesTotal)}</span>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 13px",marginTop:5,background:"var(--pc-tint)",borderRadius:13}}>
+ <span style={{fontSize:11.5,fontWeight:600,color:"var(--ink-2)"}}>סך הוצאות בתקופה ({periodExpenses.length})</span>
+ <span className="serif" style={{fontSize:18,fontWeight:600,color:pcDeep}}>{nis(expensesTotal)}</span>
  </div>
                     </>)}
  </div>
