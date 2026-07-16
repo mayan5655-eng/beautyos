@@ -2374,13 +2374,13 @@ export default function BeautyOS() {
 
       {/* CONFIRM DIALOG */}
       {confirmDialog&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:14}} onClick={()=>setConfirmDialog(null)}>
- <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:20,padding:24,width:340,maxWidth:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
- <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C",marginBottom:8}}>{confirmDialog.title}</h3>
- <p style={{fontSize:12.5,color:"#7A716A",lineHeight:1.5,marginBottom:18}}>{confirmDialog.message}</p>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:4000,padding:14}} onClick={()=>setConfirmDialog(null)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:22,padding:24,width:340,maxWidth:"100%",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
+ <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:8}}>{confirmDialog.title}</h3>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.5,marginBottom:18}}>{confirmDialog.message}</p>
  <div style={{display:"flex",gap:7}}>
- <button onClick={()=>setConfirmDialog(null)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1.5px solid #E8DED6",borderRadius:24,background:"#fff",fontSize:12,color:"#7A716A"}}>{confirmDialog.cancelText}</button>
- <button onClick={()=>{const fn=confirmDialog.onConfirm;setConfirmDialog(null);if(fn)fn();}} className="primary-btn" style={{flex:2,padding:"11px 0",background:confirmDialog.danger?"#C62828":pcGrad,color:"#fff",fontSize:12}}>{confirmDialog.confirmText}</button>
+ <button onClick={()=>setConfirmDialog(null)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1.5px solid var(--line-2)",borderRadius:24,background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>{confirmDialog.cancelText}</button>
+ <button onClick={()=>{const fn=confirmDialog.onConfirm;setConfirmDialog(null);if(fn)fn();}} className="primary-btn" style={{flex:2,padding:"11px 0",background:confirmDialog.danger?"var(--danger)":pcGrad,color:"#fff",fontSize:12,boxShadow:confirmDialog.danger?"0 8px 18px rgba(224,91,111,0.3)":`0 8px 18px ${pcShadow}`}}>{confirmDialog.confirmText}</button>
  </div>
  </div>
  </div>
@@ -2394,11 +2394,11 @@ export default function BeautyOS() {
 
       {/* BEAUTY VOICE — modal */}
       {showVoice&&(
- <div onClick={closeVoice} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:4200,padding:16}}>
- <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"#fff",borderRadius:22,padding:24,width:430,maxWidth:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.25)",marginBottom:84}}>
+ <div onClick={closeVoice} style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:4200,padding:16}}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:430,maxWidth:"100%",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)",marginBottom:84}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
- <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C"}}>Beauty Voice ✦</h3>
- <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:16,cursor:"pointer",color:"#7A716A"}}>✕</button>
+ <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>Beauty Voice ✦</h3>
+ <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:16,cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
 
             {voiceStatus==="listening"&&(
@@ -4175,26 +4175,26 @@ export default function BeautyOS() {
 
       {/* APPT MODAL */}
       {showModal&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowModal(false)}>
- <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:360,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"#1C1C1C",marginBottom:14}}>קביעת תור חדש</h3>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowModal(false)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:360,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>קביעת תור חדש</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {clients.length>0&&<select value={newAppt.clientId} onChange={e=>handleClientSelect(e.target.value)} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}><option value="">— בחרי לקוחה קיימת —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}</select>}
- <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
+              {clients.length>0&&<select value={newAppt.clientId} onChange={e=>handleClientSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה קיימת —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}</select>}
+ <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעה</p><select value={newAppt.hour} onChange={e=>setNewAppt({...newAppt,hour:Number(e.target.value)})} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}>{workingHours.map((h,i)=><option key={h} value={settings.working_hours_start+i}>{h}</option>)}</select></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p><select value={newAppt.hour} onChange={e=>setNewAppt({...newAppt,hour:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{workingHours.map((h,i)=><option key={h} value={settings.working_hours_start+i}>{h}</option>)}</select></div>
  </div>
- <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}>
+ <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>
  <option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price} ({s.duration}′)</option>)}
  </select>
- <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"7px 0",border:"1px solid",borderColor:newAppt.duration===d?pc:"#E8DED6",borderRadius:12,background:newAppt.duration===d?pcGrad:pcTint,color:newAppt.duration===d?"#fff":"#7A716A",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
- <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint,textAlign:"right"}}/>
- <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" rows={2} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
+ <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"#fff":"var(--ink-2)",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
+ <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
+ <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
- <button onClick={()=>setShowModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",fontSize:12,color:"#7A716A"}}>ביטול</button>
- <button onClick={handleSave} disabled={isBusy("saveAppt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12}}>{isBusy("saveAppt")?"שומר...":"שמירה ✓"}</button>
+ <button onClick={()=>setShowModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
+ <button onClick={handleSave} disabled={isBusy("saveAppt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>{isBusy("saveAppt")?"שומר...":"שמירה ✓"}</button>
  </div>
  </div>
  </div>
@@ -4202,22 +4202,22 @@ export default function BeautyOS() {
 
       {/* IMPORT CONTACTS MODAL */}
       {showImportModal&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
- <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
- <p className="serif" style={{fontSize:18,fontWeight:600,color:"#1C1C1C",marginBottom:6}}>ייבוא לקוחות</p>
- <p style={{fontSize:11.5,color:"#7A716A",marginBottom:14,lineHeight:1.6}}>הוסיפי כמה לקוחות בבת אחת. כתבי כל לקוחה בשורה נפרדת, בפורמט: שם, טלפון</p>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
+ <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>ייבוא לקוחות</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>הוסיפי כמה לקוחות בבת אחת. כתבי כל לקוחה בשורה נפרדת, בפורמט: שם, טלפון</p>
 
- <button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"#fff",color:pc,border:"1px dashed #E8DED6",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
- <p style={{fontSize:9,color:"#B8AFA0",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p>
+ <button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p>
 
- <p style={{fontSize:10,color:"#7A716A",marginBottom:5}}>או הדביקי כאן (שורה לכל לקוחה):</p>
- <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן, 0541234567\nמיכל לוי, 0529876543"} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid #E8D5DD",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl"}}/>
+ <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>או הדביקי כאן (שורה לכל לקוחה):</p>
+ <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן, 0541234567\nמיכל לוי, 0529876543"} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
 
- {importText.trim()&&<p style={{fontSize:10.5,color:"#7BA88E",marginBottom:12}}>זוהו {parseImportText(importText).length} לקוחות</p>}
+ {importText.trim()&&<p style={{fontSize:10.5,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {parseImportText(importText).length} לקוחות</p>}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importContacts} disabled={importing} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"#fff",fontSize:13,opacity:importing?0.6:1}}>{importing?"מוסיף...":"הוספת הלקוחות"}</button>
- <button onClick={()=>setShowImportModal(false)} style={{flex:1,padding:"12px 0",background:"#fff",color:"#7A716A",border:"1px solid #E8D5DD",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+ <button onClick={importContacts} disabled={importing} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"#fff",fontSize:13,opacity:importing?0.6:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מוסיף...":"הוספת הלקוחות"}</button>
+ <button onClick={()=>setShowImportModal(false)} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  </div>
  </div>
  </div>
@@ -4387,30 +4387,30 @@ export default function BeautyOS() {
 
       {/* RECEIPT MODAL */}
       {showReceipt&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14}} onClick={()=>setShowReceipt(null)}>
- <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"#fff",borderRadius:22,padding:0,width:360,maxWidth:"100%",maxHeight:"92vh",overflowY:"auto",overflow:"hidden"}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14}} onClick={()=>setShowReceipt(null)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:360,maxWidth:"100%",maxHeight:"92vh",overflowY:"auto",overflow:"hidden",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <div className="receipt-print" style={{padding:24}}>
- <div style={{textAlign:"center",borderBottom:"2px dashed #E8DED6",paddingBottom:14,marginBottom:14}}>
- <p className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>{settings.business_name}</p>
- <p style={{fontSize:10,color:"#7A716A",marginTop:2}}>קבלה</p>
-                {settings.business_phone&&<p style={{fontSize:9,color:"#A89AA2"}}>{settings.business_phone}</p>}
+ <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
+ <p className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginTop:2}}>קבלה</p>
+                {settings.business_phone&&<p style={{fontSize:9,color:"var(--ink-3)"}}>{settings.business_phone}</p>}
  </div>
- <div style={{fontSize:11,color:"#1C1C1C",lineHeight:1.9}}>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#7A716A"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#7A716A"}}>תאריך:</span><span>{showReceipt.created_at?.slice(0,10)}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#7A716A"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#7A716A"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
+ <div style={{fontSize:11,color:"var(--ink)",lineHeight:1.9}}>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{showReceipt.created_at?.slice(0,10)}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
                 {showReceipt.discount>0&&<div style={{display:"flex",justifyContent:"space-between",color:pc}}><span>הנחה:</span><span>−₪{showReceipt.discount}</span></div>}
-                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"#7A716A"}}>הערה:</span><span>{showReceipt.note}</span></div>}
+                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>הערה:</span><span>{showReceipt.note}</span></div>}
  </div>
- <div style={{borderTop:"2px dashed #E8DED6",marginTop:14,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
- <span style={{fontSize:13,fontWeight:600,color:"#7A716A"}}>סה״כ:</span>
+ <div style={{borderTop:"2px dashed var(--line-2)",marginTop:14,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+ <span style={{fontSize:13,fontWeight:600,color:"var(--ink-2)"}}>סה״כ:</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{showReceipt.amount}</span>
  </div>
- <p style={{textAlign:"center",fontSize:9,color:"#B8AFA0",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
+ <p style={{textAlign:"center",fontSize:9,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
- <button onClick={()=>window.print()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid #E8DED6",background:"#fff",fontSize:11,color:"#7A716A"}}>הדפסה</button>
+ <button onClick={()=>window.print()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:11,color:"var(--ink-2)"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
  <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:11,border:"none"}}>{isBusy("sendReceipt")?"שולח...":"שליחה ללקוחה"}</button>
               ):null;})()}
@@ -4691,8 +4691,8 @@ export default function BeautyOS() {
 
       {/* CLIENT PROFILE DRAWER */}
       {selectedClient&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedClient(null)}>
- <div onClick={e=>e.stopPropagation()} className="client-drawer" style={{background:"#fff",width:440,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"4px 0 30px rgba(0,0,0,0.12)"}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedClient(null)}>
+ <div onClick={e=>e.stopPropagation()} className="client-drawer" style={{background:"var(--surface)",width:440,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"var(--shadow-xl)",borderLeft:"1px solid var(--line)"}}>
             {(()=>{
               const c=selectedClient;
               const appts=getClientAppts(c.id).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -4747,9 +4747,9 @@ export default function BeautyOS() {
                   );
                 })()}
 
- <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid #E8DED6",overflowX:"auto"}}>
+ <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                   {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"8px 9px",fontSize:10.5,fontWeight:clientTab===t.k?600:400,color:clientTab===t.k?"#1C1C1C":"#7A716A",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:10.5,fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -4950,8 +4950,8 @@ export default function BeautyOS() {
 
       {/* LEAD PROFILE DRAWER */}
       {selectedLead&&(
- <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedLead(null)}>
- <div onClick={e=>e.stopPropagation()} className="lead-drawer" style={{background:"#fff",width:400,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"4px 0 30px rgba(0,0,0,0.12)"}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedLead(null)}>
+ <div onClick={e=>e.stopPropagation()} className="lead-drawer" style={{background:"var(--surface)",width:400,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"var(--shadow-xl)",borderLeft:"1px solid var(--line)"}}>
             {(()=>{
               const l=selectedLead;
               const st=leadStatusMeta(l.status);
@@ -4972,21 +4972,21 @@ export default function BeautyOS() {
  </div>
  </div>
  <div style={{padding:"16px 22px"}}>
- <p style={{fontSize:9,color:"#7A716A",marginBottom:5,fontWeight:600}}>סטטוס</p>
- <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:16}}>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>סטטוס</p>
+ <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:16}}>
                     {Object.entries(LEAD_STATUSES).map(([key,s])=>(
- <button key={key} onClick={()=>handleUpdateLeadStatus(l,key)} style={{padding:"6px 10px",border:"1px solid",borderColor:l.status===key?s.color:"#E8DED6",borderRadius:20,background:l.status===key?s.bg:pcTint,color:l.status===key?s.color:"#7A716A",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:l.status===key?700:400}}>{s.label}</button>
+ <button key={key} onClick={()=>handleUpdateLeadStatus(l,key)} style={{padding:"6px 11px",border:"1px solid",borderColor:l.status===key?s.color:"var(--line-2)",borderRadius:20,background:l.status===key?s.bg:"var(--surface)",color:l.status===key?s.color:"var(--ink-2)",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:l.status===key?700:500}}>{s.label}</button>
                     ))}
  </div>
-                  {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #F7F0F3",fontSize:11.5}}><span style={{color:"#7A716A"}}>תחום עניין</span><span style={{fontWeight:600}}>{l.service_interest}</span></div>}
-                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #F7F0F3",fontSize:11.5}}><span style={{color:"#7A716A"}}>נוצר</span><span>{l.created_at.slice(0,10)}</span></div>}
+                  {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
+                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{l.created_at.slice(0,10)}</span></div>}
  <div style={{marginTop:12}}>
- <p style={{fontSize:9,color:"#7A716A",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
- <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} style={{width:"100%",border:"1px solid #E8DED6",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
+ <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
  </div>
-                  {l.notes&&<div style={{marginTop:12,padding:"9px 11px",background:pcTint,borderRadius:10}}><p style={{color:"#7A716A",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p style={{fontSize:11}}>{l.notes}</p></div>}
+                  {l.notes&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--pc-tint)",borderRadius:12}}><p style={{color:"var(--ink-3)",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p style={{fontSize:11,color:"var(--ink)"}}>{l.notes}</p></div>}
                   {l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant"&&(
- <button onClick={()=>handleConvertLead(l)} style={{width:"100%",marginTop:16,background:"#7BAE7F",color:"#fff",border:"none",borderRadius:24,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✓ המירי ללקוחה רשומה</button>
+ <button onClick={()=>handleConvertLead(l)} className="primary-btn" style={{width:"100%",marginTop:16,background:"var(--success)",color:"#fff",borderRadius:24,padding:"12px 0",fontSize:12,fontWeight:700,boxShadow:"0 8px 18px rgba(70,179,123,0.3)"}}>✓ המירי ללקוחה רשומה</button>
                   )}
  </div>
  </>);
