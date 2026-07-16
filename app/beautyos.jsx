@@ -3001,56 +3001,62 @@ export default function BeautyOS() {
 
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[5])}</h2>
- <div style={{display:"flex",gap:5,alignItems:"center"}}>
- <div className="desktop-only" style={{display:"flex",gap:6,fontSize:9,color:"#7A716A",marginLeft:6}}>
- <span style={{color:"#7BAE7F",fontWeight:700}}>● אישרה</span>
- <span style={{color:"#F44336",fontWeight:700}}>● ביטלה</span>
- <span style={{color:"#7A716A"}}>● ממתין</span>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[5])}</h2>
  </div>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-6);setWeekStart(d);}} style={{background:"#fff",border:"1px solid #E8DED6",borderRadius:20,padding:"6px 12px",cursor:"pointer",fontSize:11,color:pc}}>←</button>
- <button onClick={()=>setWeekStart(new Date())} style={{background:pcTint,border:"1px solid #E8DED6",borderRadius:20,padding:"6px 12px",cursor:"pointer",fontSize:11,color:pc}}>היום</button>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+6);setWeekStart(d);}} style={{background:"#fff",border:"1px solid #E8DED6",borderRadius:20,padding:"6px 12px",cursor:"pointer",fontSize:11,color:pc}}>→</button>
+ <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+ <div className="desktop-only" style={{display:"flex",gap:10,fontSize:10,color:"var(--ink-2)",alignItems:"center"}}>
+ <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--success)"}}/>אישרה</span>
+ <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)"}}/>ביטלה</span>
+ <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
+ </div>
+ <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
+ <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
+ <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:11,padding:"7px 14px",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
+ <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
+ </div>
+ <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"#fff",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
  </div>
- <div style={{background:"#fff",borderRadius:18,overflow:"auto",border:"1px solid #E8DED6",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"grid",gridTemplateColumns:"50px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid #E8DED6",background:"linear-gradient(90deg,#F2E9E1,#FFFFFF)",minWidth:480}}>
+ <div className="glass-card" style={{overflow:"auto",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ <div style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
  <div/>
                 {weekDates.map((d,i)=>{
                   const isToday=formatDate(d)===today;
                   const dayAppts=appointments.filter(a=>a.date===formatDate(d));
                   const hasCancel=dayAppts.some(a=>a.confirmation_status==="cancelled");
                   return(
- <div key={i} style={{padding:"9px 4px",textAlign:"center",borderRight:i<5?"1px solid #E8DED6":"none",background:hasCancel?"#FFF3F3":"transparent"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>{DAYS_HE[d.getDay()]}</p>
- <p className="serif" style={{fontSize:16,fontWeight:600,color:isToday?pc:"#1C1C1C"}}>{d.getDate()}</p>
- <p style={{fontSize:7,color:"#B8AFA0"}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
-                      {hasCancel&&<p style={{fontSize:7,color:"#F44336"}}>ביטול</p>}
+ <div key={i} style={{padding:"11px 4px",textAlign:"center",borderRight:i<5?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":hasCancel?"rgba(224,91,111,0.05)":"transparent"}}>
+ <p style={{fontSize:9.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:600}}>{DAYS_HE[d.getDay()]}</p>
+ <p className="serif" style={{fontSize:18,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.2,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:26,height:26,borderRadius:"50%",...(isToday?{background:pcGrad,color:"#fff",WebkitTextFillColor:"#fff"}:{})}}>{d.getDate()}</p>
+ <p style={{fontSize:7.5,color:"var(--ink-3)",marginTop:1}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
+                      {hasCancel&&<p style={{fontSize:7.5,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
  </div>
                   );
                 })}
  </div>
               {workingHours.map((hour,hi)=>(
- <div key={hour} style={{display:"grid",gridTemplateColumns:"50px repeat(6,minmax(70px,1fr))",borderBottom:hi<workingHours.length-1?"1px solid #F7F0F3":"none",minHeight:54,minWidth:480}}>
- <div style={{padding:"4px 3px 0",fontSize:8,color:"#B8AFA0",textAlign:"center",borderLeft:"1px solid #E8DED6"}}>{hour}</div>
+ <div key={hour} style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:hi<workingHours.length-1?"1px solid var(--line)":"none",minHeight:56,minWidth:480}}>
+ <div style={{padding:"5px 3px 0",fontSize:9,color:"var(--ink-3)",fontWeight:600,textAlign:"center",borderLeft:"1px solid var(--line)"}}>{hour}</div>
                   {weekDates.map((date,di)=>{
                     const appt=getAppt(date,settings.working_hours_start+hi);
                     const apptColor=appt?getApptColor(appt):null;
                     return(
- <div key={di} className={!appt?"slot":""} onClick={()=>handleSlotClick(date,settings.working_hours_start+hi)} style={{borderRight:di<5?"1px solid #F7F0F3":"none",position:"relative",padding:2,minHeight:54}}>
+ <div key={di} className={!appt?"slot":""} onClick={()=>handleSlotClick(date,settings.working_hours_start+hi)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,transition:"background 0.15s"}}>
                         {appt&&(
  <div className="appt-card" onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
-                            style={{background:apptColor,borderRadius:10,padding:"4px 6px",height:"calc(100% - 2px)",position:"relative",border:appt.confirmation_status==="confirmed"?"2px solid #7BAE7F":appt.confirmation_status==="cancelled"?"2px solid #F44336":"none"}}>
- <p style={{fontSize:9,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,0.3)"}}>{appt.name}</p>
- <p style={{fontSize:7,color:"rgba(255,255,255,0.9)"}}>{appt.service}</p>
-                            {appt.confirmation_status==="confirmed"&&<span style={{fontSize:7}}>✓</span>}
-                            {appt.confirmation_status==="cancelled"&&<span style={{fontSize:7}}>✕</span>}
- <div style={{display:"flex",gap:2,position:"absolute",bottom:2,right:2}}>
-                              {appt.client_id&&<button onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={{background:"rgba(255,255,255,0.7)",border:"none",borderRadius:4,padding:"1px 3px",fontSize:7,cursor:"pointer"}}></button>}
- <button onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={{background:"rgba(255,255,255,0.7)",border:"none",borderRadius:4,padding:"1px 3px",fontSize:7,cursor:"pointer"}}></button>
+                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
+ <p style={{fontSize:9.5,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
+ <p style={{fontSize:7.5,color:"rgba(255,255,255,0.92)"}}>{appt.service}</p>
+                            {appt.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"#fff"}}>✓</span>}
+                            {appt.confirmation_status==="cancelled"&&<span style={{fontSize:8,color:"#fff"}}>✕</span>}
+ <div style={{display:"flex",gap:3,position:"absolute",bottom:3,right:3}}>
+                              {appt.client_id&&<button title="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>♥</button>}
+ <button title="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>₪</button>
  </div>
-                            {hoveredAppt===appt.id&&<button onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{position:"absolute",top:2,left:2,background:"rgba(0,0,0,0.2)",border:"none",borderRadius:4,width:13,height:13,fontSize:7,cursor:"pointer",color:"#fff"}}>✕</button>}
+                            {hoveredAppt===appt.id&&<button onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.28)",border:"none",borderRadius:6,width:15,height:15,fontSize:8,cursor:"pointer",color:"#fff"}}>✕</button>}
  </div>
                         )}
  </div>
