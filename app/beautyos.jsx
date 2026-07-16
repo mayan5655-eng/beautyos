@@ -3227,46 +3227,59 @@ export default function BeautyOS() {
           {/* CASHIER */}
           {activeTab==="cashier"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
- <h2 className="serif" style={{fontSize:22,fontWeight:600,color:"#1C1C1C"}}>תשלומים וקבלות</h2>
- <div style={{display:"flex",gap:6}}>
- <button onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"9px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 16px ${pcShadow}`}}>✦ תשלום חדש</button>
- <button onClick={handleExportCSV} style={{background:"#fff",color:pc,border:"1px solid #E8DED6",borderRadius:24,padding:"9px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>ייצוא Excel</button>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+ <div>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה וקבלות</p>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תשלומים</h2>
+ </div>
+ <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ <button className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"#fff",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תשלום חדש</button>
+ <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇩ ייצוא Excel</button>
  </div>
  </div>
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
- <div style={{background:"linear-gradient(180deg,#FFFFFF,#FFFFFF)",borderRadius:16,padding:"14px 16px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>הכנסות החודש</p>
- <p className="serif" style={{fontSize:22,fontWeight:600,color:pc}}>₪{thisMonthRevenue.toLocaleString()}</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:18}}>
+ <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)",position:"relative",overflow:"hidden"}}>
+ <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:"radial-gradient(circle at 100% 0%, var(--pc-tint), transparent 70%)",pointerEvents:"none"}}/>
+ <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:pc,background:"var(--pc-tint)"}}>₪</span>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600}}>הכנסות החודש</p>
  </div>
-              {paymentBreakdown.map(p=>(
- <div key={p.key} style={{background:"#fff",borderRadius:16,padding:"14px 16px",border:"1px solid #E8DED6"}}>
- <p style={{fontSize:9,color:"#7A716A"}}>{p.icon} {p.key}</p>
- <p className="serif" style={{fontSize:19,fontWeight:600,color:"#1C1C1C"}}>₪{p.total.toLocaleString()}</p>
- <p style={{fontSize:7,color:"#7A716A"}}>{p.count} עסקאות</p>
+ <p className="serif" style={{position:"relative",fontSize:26,fontWeight:600,color:pc,lineHeight:1}}>₪{thisMonthRevenue.toLocaleString()}</p>
+ </motion.div>
+              {paymentBreakdown.map((p,i)=>(
+ <motion.div key={p.key} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,delay:0.05*(i+1),ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)"}}>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--surface-2)",border:"1px solid var(--line)"}}>{p.icon}</span>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600}}>{p.key}</p>
  </div>
+ <p className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",lineHeight:1}}>₪{p.total.toLocaleString()}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginTop:6}}>{p.count} עסקאות</p>
+ </motion.div>
               ))}
  </div>
 
             {todayAppts.length>0&&(
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6",marginBottom:14}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C",marginBottom:12}}>תורים היום — תשלום מהיר</h3>
+ <div className="glass-card" style={{padding:"18px 20px",marginBottom:16}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--pc-tint)",color:pc}}>⚡</span>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים היום — תשלום מהיר</h3>
+ </div>
                 {todayAppts.map(a=>{
                   const client=clients.find(c=>String(c.id)===String(a.client_id));
                   const paid=receipts.some(r=>String(r.appointment_id)===String(a.id));
                   return(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:paid?"#F3FFF6":pcTint,borderRadius:12,marginBottom:6,border:`1px solid ${paid?"#B5EAD7":"#E8DED6"}`,flexWrap:"wrap"}}>
+ <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 13px",background:paid?"rgba(70,179,123,0.08)":"var(--surface-2)",borderRadius:14,marginBottom:7,border:`1px solid ${paid?"rgba(70,179,123,0.35)":"var(--line)"}`,flexWrap:"wrap"}}>
  <div style={{flex:1,minWidth:120}}>
- <p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{a.name}</p>
- <p style={{fontSize:9,color:"#7A716A"}}>{a.service} · ₪{a.price}</p>
+ <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{a.service} · ₪{a.price}</p>
  </div>
-                      {paid?<span style={{fontSize:10,color:"#7BAE7F",fontWeight:700}}>שולם</span>
-                        :<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      {paid?<span className="pill" style={{fontSize:10,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>✓ שולם</span>
+                        :<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                           {client?.phone&&PAYMENT_METHODS.slice(1).map(pm=>(
- <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer"
-                              style={{background:pm.color,color:"#fff",border:"none",borderRadius:14,padding:"4px 8px",fontSize:8,cursor:"pointer",textDecoration:"none",fontWeight:600}}>{pm.icon}</a>
+ <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer" title={pm.key}
+                              style={{background:pm.color,color:"#fff",border:"none",borderRadius:16,padding:"5px 9px",fontSize:9,cursor:"pointer",textDecoration:"none",fontWeight:600}}>{pm.icon}</a>
                           ))}
- <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:14,padding:"4px 10px",fontSize:9,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}></button>
+ <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:16,padding:"5px 12px",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>₪ קופה</button>
  </div>
                       }
  </div>
@@ -3275,36 +3288,43 @@ export default function BeautyOS() {
  </div>
             )}
 
- <div style={{background:"#fff",borderRadius:18,padding:16,border:"1px solid #E8DED6"}}>
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:5}}>
- <h3 className="serif" style={{fontSize:16,fontWeight:600,color:"#1C1C1C"}}>קבלות</h3>
- <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+ <div className="glass-card" style={{padding:"18px 20px"}}>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+ <div style={{display:"flex",alignItems:"center",gap:10}}>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--pc-tint)",color:pc}}>🧾</span>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קבלות</h3>
+ </div>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {["all",...PAYMENT_METHODS.map(p=>p.key)].map(m=>(
- <button key={m} onClick={()=>setReceiptFilter(m)} style={{background:receiptFilter===m?pcGrad:pcTint,color:receiptFilter===m?"#fff":"#7A716A",border:"1px solid #E8DED6",borderRadius:20,padding:"3px 9px",fontSize:8,cursor:"pointer",fontFamily:"inherit"}}>
+ <button key={m} onClick={()=>setReceiptFilter(m)} style={{background:receiptFilter===m?pcGrad:"var(--surface)",color:receiptFilter===m?"#fff":"var(--ink-2)",border:`1px solid ${receiptFilter===m?"transparent":"var(--line-2)"}`,borderRadius:20,padding:"5px 12px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:receiptFilter===m?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>
                       {m==="all"?"הכל":m}
  </button>
                   ))}
  </div>
  </div>
               {filteredReceipts.length===0?(
- <div className="pop-in" style={{textAlign:"center",padding:"40px 20px",background:"rgba(255,255,255,0.6)",borderRadius:18,marginTop:6}}>
- <div style={{fontSize:32,marginBottom:10}}>🧾</div>
- <p style={{fontSize:14,fontWeight:600,color:"#1C1C1C",marginBottom:5}}>{receiptFilter!=="all"?"אין קבלות בסינון הזה":"עוד אין קבלות"}</p>
- <p style={{fontSize:11.5,color:"#7A716A",maxWidth:320,margin:"0 auto 16px",lineHeight:1.6}}>{receiptFilter!=="all"?"נסי לשנות את אופן התשלום בסינון.":"כל תשלום שתגבי יופיע כאן. אפשר לפתוח תשלום חדש עכשיו."}</p>
- {receiptFilter==="all"&&<button className="empty-cta" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✦ תשלום חדש</button>}
+ <div className="pop-in" style={{textAlign:"center",padding:"46px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:22,marginTop:6}}>
+ <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>🧾</div>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>{receiptFilter!=="all"?"אין קבלות בסינון הזה":"עוד אין קבלות"}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{receiptFilter!=="all"?"נסי לשנות את אופן התשלום בסינון.":"כל תשלום שתגבי יופיע כאן. אפשר לפתוח תשלום חדש עכשיו."}</p>
+ {receiptFilter==="all"&&<button className="empty-cta primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"#fff",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תשלום חדש</button>}
  </div>
-              ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 11px",background:pcTint,borderRadius:12,marginBottom:5,cursor:"pointer"}} className="client-row">
- <div style={{width:30,height:30,borderRadius:"50%",background:PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.color||"#D9B98C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>
-                      {PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}
+              ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
+                const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
+                const pmColor=pm?.color||"#D9B98C";
+                return(
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:6,cursor:"pointer"}} className="client-row">
+ <div style={{width:36,height:36,borderRadius:12,background:`linear-gradient(135deg,${lighten(pmColor,0.35)},${pmColor})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"#fff",flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
+                      {pm?.icon||"₪"}
  </div>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{r.client_name}</p>
- <p style={{fontSize:8,color:"#7A716A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}</p>
+ <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}</p>
  </div>
- <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>₪{r.amount}</p>
+ <p className="serif" style={{fontSize:15,fontWeight:600,color:pc}}>₪{r.amount}</p>
  </div>
-                ))}
+                );
+              })}
  </div>
  </div>
  </>)}
