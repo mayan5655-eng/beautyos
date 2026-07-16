@@ -744,14 +744,23 @@ export default function BeautyOS() {
     if(isBusy("saveAppt")) return;
     setBusyKey("saveAppt", true);
     try {
+      // Resolve the tenant and stamp it on the inserts so the row satisfies the
+      // appointments/clients RLS WITH CHECK (tenant_id = get_user_tenant_id())
+      // even if the table's column default isn't applied. Mirrors
+      // handleSaveSettings. If the tenant can't be resolved (rare rpc hiccup) we
+      // omit the field rather than send null, so we never regress below the DB
+      // default behavior.
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
       let clientId=newAppt.clientId;
       if(!clientId){
-        const {data:nc,error:ce}=await supabase.from("clients").insert([{name:newAppt.name,phone:"",skinType:"",notes:"",status:"active"}]).select();
+        const {data:nc,error:ce}=await supabase.from("clients").insert([{name:newAppt.name,phone:"",skinType:"",notes:"",status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "create client"); return;}
         if(nc?.[0]){clientId=nc[0].id;setClients(prev=>[...prev,nc[0]]);}
       }
       const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||"#D9B98C";
-      const appt={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false};
+      const appt={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
       const {data,error}=await supabase.from("appointments").insert([appt]).select();
       if(error){handleDbError(error, "create appointment"); return;}
       if(data)setAppointments(prev=>[...prev,data[0]]);
@@ -1499,6 +1508,13 @@ export default function BeautyOS() {
     if (isBusy("voiceBook")) return;
     setBusyKey("voiceBook", true);
     try {
+      // Stamp the resolved tenant on both inserts so they satisfy the RLS
+      // WITH CHECK even if the table column default isn't applied (mirrors the
+      // regular booking flow). Omit the field if the tenant can't be resolved,
+      // so we never regress below the DB default behavior.
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
       // Resolve client: reuse an exact-name match, otherwise create a new one.
       let clientId = null;
       const low = b.clientName.trim().toLowerCase();
@@ -1507,7 +1523,7 @@ export default function BeautyOS() {
         clientId = existing.id;
       } else {
         const {data:nc,error:ce} = await supabase.from("clients")
-          .insert([{name:b.clientName.trim(),phone:"",skinType:"",notes:"",status:"active"}]).select();
+          .insert([{name:b.clientName.trim(),phone:"",skinType:"",notes:"",status:"active",...tenantField}]).select();
         if (ce) { handleDbError(ce, "create client (voice)"); return; }
         if (nc?.[0]) { clientId = nc[0].id; setClients(prev=>[...prev, nc[0]]); }
       }
@@ -1525,6 +1541,7 @@ export default function BeautyOS() {
         price: svc?.price || 0,
         confirmation_status: "pending",
         confirmation_sent: false,
+        ...tenantField,
       };
       const {data,error} = await supabase.from("appointments").insert([appt]).select();
       if (error) { handleDbError(error, "create appointment (voice)"); return; }
