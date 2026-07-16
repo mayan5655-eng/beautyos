@@ -62,16 +62,26 @@ export async function POST(request) {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get("dryRun") === "1";
 
-    // Load all business names + review links once, keyed by tenant_id
-    const { data: settingsRows } = await supabase
-      .from("settings")
-      .select("tenant_id, business_name, review_url");
+    // Load all settings rows once, keyed by tenant_id. We read the whole row
+    // (select "*") rather than named columns because the automation-toggle
+    // columns may not exist yet in every environment, and "*" can't fail on a
+    // missing column the way an explicit select would.
+    const { data: settingsRows } = await supabase.from("settings").select("*");
     const businessNameByTenant = {};
     const reviewUrlByTenant = {};
+    const settingsByTenant = {};
     (settingsRows || []).forEach((row) => {
+      settingsByTenant[row.tenant_id] = row;
       businessNameByTenant[row.tenant_id] = row.business_name || "העסק";
       if (row.review_url) reviewUrlByTenant[row.tenant_id] = row.review_url;
     });
+
+    // Each reminder type is ON by default: a tenant's type is skipped only when
+    // its flag is explicitly false. undefined/null (column absent or never set)
+    // counts as ON, so behavior matches how the cron ran before the toggles
+    // existed. Note: the birthday greeting has no toggle and always runs.
+    const flagEnabled = (tenantId, flag) =>
+      settingsByTenant[tenantId]?.[flag] !== false;
 
     // Load all clients once (we need phone + tenant + id + birthday)
     const { data: clients } = await supabase
@@ -123,6 +133,7 @@ export async function POST(request) {
       if (lastDate >= cutoff90) continue; // visited recently - skip
       const client = clientById[clientId];
       if (!client) continue;
+      if (!flagEnabled(client.tenant_id, "winback_enabled")) continue; // tenant disabled win-back
       const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const message =
         `שלום ${client.name}! 💗\n` +
@@ -147,6 +158,7 @@ export async function POST(request) {
       if (!finished) continue;
       const client = clientById[pkg.client_id];
       if (!client) continue;
+      if (!flagEnabled(client.tenant_id, "package_reminders_enabled")) continue; // tenant disabled package reminders
       const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const message =
         `שלום ${client.name}! ✨\n` +
@@ -166,6 +178,7 @@ export async function POST(request) {
     for (const appt of reviewAppts || []) {
       const client = clientById[appt.client_id];
       if (!client) continue;
+      if (!flagEnabled(client.tenant_id, "review_requests_enabled")) continue; // tenant disabled review requests
       const businessName = businessNameByTenant[client.tenant_id] || "העסק";
       const reviewUrl = reviewUrlByTenant[client.tenant_id];
       const message =

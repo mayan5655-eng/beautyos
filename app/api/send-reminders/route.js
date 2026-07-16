@@ -50,27 +50,40 @@ export async function POST(request) {
       return Response.json({ success: true, sent: 0, message: "אין תורים מחר" });
     }
 
-    // Load all business names once, so we don't query settings per appointment.
-    // Map of tenant_id -> business_name.
-    const { data: settingsRows } = await supabase
-      .from("settings")
-      .select("tenant_id, business_name");
-    const businessNameByTenant = {};
+    // Load all settings rows once, so we don't query per appointment. We read
+    // the whole row (select "*") rather than named columns on purpose: the
+    // reminders_enabled toggle column may not exist yet in every environment,
+    // and "*" can't fail on a missing column the way an explicit select would.
+    // Map of tenant_id -> settings row.
+    const { data: settingsRows } = await supabase.from("settings").select("*");
+    const settingsByTenant = {};
     (settingsRows || []).forEach((row) => {
-      businessNameByTenant[row.tenant_id] = row.business_name || "העסק";
+      settingsByTenant[row.tenant_id] = row;
     });
+
+    // Appointment reminders are ON by default: a tenant is skipped only when it
+    // has explicitly turned reminders_enabled off. undefined/null (column absent
+    // or never set) counts as ON, so behavior matches how the cron ran before
+    // the toggle existed.
+    const remindersEnabled = (tenantId) =>
+      settingsByTenant[tenantId]?.reminders_enabled !== false;
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
 
     // Send a reminder to each appointment, using its tenant's business name.
     const results = [];
     for (const appt of appointments) {
+      // Respect the tenant's "appointment reminders" automation toggle.
+      if (!remindersEnabled(appt.tenant_id)) {
+        results.push({ name: appt.name, status: "מושבת (הגדרות)" });
+        continue;
+      }
       if (!appt.client_phone) {
         results.push({ name: appt.name, status: "אין מספר טלפון" });
         continue;
       }
 
-      const businessName = businessNameByTenant[appt.tenant_id] || "העסק";
+      const businessName = settingsByTenant[appt.tenant_id]?.business_name || "העסק";
       const confirmLink = `${baseUrl}/confirm?id=${appt.id}&action=confirm`;
       const cancelLink = `${baseUrl}/confirm?id=${appt.id}&action=cancel`;
 
