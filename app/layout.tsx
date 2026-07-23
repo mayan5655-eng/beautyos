@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre } from "next/font/google";
 import "./globals.css";
 import PWARegister from "./pwa-register";
+import IOSInstallBanner from "./ios-install-banner";
 
 // Elegant Latin serif for display headings (Latin glyphs only).
 const cormorant = Cormorant_Garamond({
@@ -78,6 +79,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col relative">
         <PWARegister />
         {children}
+        <IOSInstallBanner />
       </body>
     </html>
   );
