@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre } from "next/font/google";
 import "./globals.css";
+import PWARegister from "./pwa-register";
 
 // Elegant Latin serif for display headings (Latin glyphs only).
 const cormorant = Cormorant_Garamond({
@@ -40,6 +41,20 @@ const frankRuhl = Frank_Ruhl_Libre({
 export const metadata: Metadata = {
   title: "BloomOS — Beauty Business OS",
   description: "Beauty Business OS",
+  applicationName: "BloomOS",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "BloomOS",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#5B3E67",
 };
 
 export default function RootLayout({
@@ -61,6 +76,7 @@ export default function RootLayout({
       ].join(" ")}
     >
       <body className="min-h-full flex flex-col relative">
+        <PWARegister />
         {children}
       </body>
     </html>
