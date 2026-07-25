@@ -33,63 +33,119 @@ export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false) // recovery session established
   const router = useRouter()
 
-  // On mount, turn the credential in the URL into a live session.
+  // On mount, turn the recovery credential in the URL into a live session.
+  // Supabase may deliver it as a PKCE `?code=` query param OR an implicit
+  // `#access_token=…` hash, and the browser client's detectSessionInUrl may
+  // auto-consume it before we look. So we check every source and only fall
+  // back to /login when there is genuinely no recovery token at all — an
+  // invalid/expired token shows a clear error rather than bouncing away.
   useEffect(() => {
     let active = true
     const BAD_LINK =
       'הקישור לאיפוס אינו תקין או שפג תוקפו. יש לבקש איפוס סיסמה חדש.'
 
+    // Capture the URL credentials synchronously, before anything strips them.
+    const search = new URLSearchParams(window.location.search)
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const errParam = search.get('error') || hash.get('error')
+    const code = search.get('code')
+    const accessToken = hash.get('access_token')
+    const refreshToken = hash.get('refresh_token')
+    // Is there ANY recovery credential present (a code, a token pair, or an
+    // error Supabase attached to the redirect)?
+    const hasRecoveryToken = Boolean(
+      errParam || code || (accessToken && refreshToken)
+    )
+
+    const succeed = () => {
+      if (!active) return
+      setError('')
+      setReady(true)
+      setChecking(false)
+    }
+    const fail = (msg: string) => {
+      if (!active) return
+      setError(msg)
+      setChecking(false)
+    }
+
+    // detectSessionInUrl can establish the recovery session for us and emit
+    // PASSWORD_RECOVERY — treat that (or any resulting session) as success so
+    // we never bounce a valid recovery link to login.
+    const { data: authSub } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || session) succeed()
+      }
+    )
+
     async function establish() {
       try {
-        const search = new URLSearchParams(window.location.search)
-        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        // Expired / denied link: Supabase reports it via error params. Show a
+        // clear message instead of silently redirecting.
+        if (errParam) {
+          fail(BAD_LINK)
+          return
+        }
 
-        // Supabase reports failures (e.g. expired link) via error params.
-        if (search.get('error') || hash.get('error')) {
-          if (active) setError(BAD_LINK)
+        // A recovery session may already exist — auto-detected on load, or the
+        // hash was consumed before this ran. If so, show the form immediately.
+        const { data: current } = await supabase.auth.getSession()
+        if (!active) return
+        if (current.session) {
+          succeed()
+          return
+        }
+
+        // No credential anywhere → genuine direct visit, send to login.
+        if (!hasRecoveryToken) {
+          router.replace('/login')
           return
         }
 
         // PKCE flow: exchange the code for a session (the code verifier was
         // stored in this browser when resetPasswordForEmail was called).
-        const code = search.get('code')
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
           if (!active) return
-          if (error) setError(BAD_LINK)
-          else setReady(true)
+          if (!error) {
+            succeed()
+            return
+          }
+          // The code may have been consumed by auto-detect between our two
+          // calls — re-check for a session before declaring the link bad.
+          const { data: retry } = await supabase.auth.getSession()
+          if (!active) return
+          if (retry.session) succeed()
+          else fail(BAD_LINK)
           return
         }
 
         // Implicit flow: the tokens arrive in the URL hash.
-        const accessToken = hash.get('access_token')
-        const refreshToken = hash.get('refresh_token')
         if (accessToken && refreshToken) {
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           })
           if (!active) return
-          if (error) setError(BAD_LINK)
-          else setReady(true)
+          if (!error) succeed()
+          else fail(BAD_LINK)
           return
         }
 
-        // Fallback: the browser client may have auto-detected the session.
-        const { data } = await supabase.auth.getSession()
-        if (!active) return
-        if (data.session) setReady(true)
-        else setError(BAD_LINK)
-      } finally {
-        if (active) setChecking(false)
+        // A token was present but unusable.
+        fail(BAD_LINK)
+      } catch {
+        fail(BAD_LINK)
       }
     }
 
     establish()
+
     return () => {
       active = false
+      authSub.subscription.unsubscribe()
     }
-  }, [])
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
