@@ -219,6 +219,15 @@ export default function LoginPage() {
             </button>
           )}
         </div>
+
+        {mode === 'login' && (
+          <p style={{ marginTop: '14px', textAlign: 'center', fontSize: '14px', color: '#666' }}>
+            אין לך חשבון?{' '}
+            <a href="/signup" style={{ color: '#D4945A', fontWeight: 600, textDecoration: 'none' }}>
+              הירשמי
+            </a>
+          </p>
+        )}
       </div>
     </div>
   )

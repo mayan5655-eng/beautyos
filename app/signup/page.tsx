@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../supabase'
+import FloralCorners from '../FloralCorners'
+
+const GOLD = '#D4945A'
 
 export default function SignupPage() {
   const [businessName, setBusinessName] = useState('')
@@ -54,154 +57,248 @@ export default function SignupPage() {
       return
     }
 
-    if (data.user) { 
-      router.push("/onboarding")
+    if (data.user) {
+      router.push('/onboarding')
       router.refresh()
     }
   }
 
   return (
-    <div dir="rtl" style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '20px',
-    }}>
-      <div style={{
-        background: 'white',
-        padding: '40px',
-        borderRadius: '16px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '420px',
-      }}>
-        <h1 style={{
-          margin: '0 0 8px 0',
-          color: '#D4945A',
-          fontSize: '28px',
-          textAlign: 'center',
-        }}>BloomOS</h1>
-        <p style={{
-          margin: '0 0 32px 0',
-          color: '#666',
-          textAlign: 'center',
-          fontSize: '14px',
-        }}>פתיחת חשבון חדש</p>
+    <div dir="rtl" style={pageStyle}>
+      <FloralCorners idPrefix="signup" />
+
+      <style>{`
+        @keyframes signupIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+        .signup-card { animation: signupIn 0.4s ease-out; }
+        .signup-input:focus {
+          border-color: ${GOLD} !important;
+          background: #fff !important;
+          box-shadow: 0 0 0 3px rgba(212,148,90,0.14) !important;
+        }
+        .signup-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(212,148,90,0.35); }
+        .signup-link:hover { text-decoration: underline; }
+      `}</style>
+
+      <div className="signup-card" style={cardStyle}>
+        {/* Brand */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={wordmarkStyle}>BloomOS</h1>
+          <p style={taglineStyle}>מערכת ההפעלה לעסקי היופי</p>
+        </div>
+
+        {/* Welcome */}
+        <div style={{ textAlign: 'center', marginBottom: 26 }}>
+          <h2 style={welcomeTitleStyle}>נעים להכיר 🌸</h2>
+          <p style={welcomeSubtitleStyle}>
+            פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד.
+          </p>
+        </div>
 
         <form onSubmit={handleSignup}>
-          <input
-            type="text"
-            placeholder="שם העסק"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '12px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
-          />
-          <input
-            type="email"
-            placeholder="אימייל"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '12px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
-          />
-          <input
-            type="password"
-            placeholder="סיסמה (לפחות 6 תווים)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '12px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
-          />
-          <input
-            type="password"
-            placeholder="אישור סיסמה"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '16px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
-          />
+          <Field label="שם העסק">
+            <input
+              className="signup-input"
+              type="text"
+              placeholder="למשל: סטודיו רונית"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              required
+              style={inputStyle}
+            />
+          </Field>
 
-          {error && (
-            <div style={{
-              color: '#c53030',
-              background: '#fed7d7',
-              padding: '10px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              fontSize: '14px',
-              textAlign: 'center',
-            }}>{error}</div>
-          )}
+          <Field label="אימייל">
+            <input
+              className="signup-input"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }}
+            />
+          </Field>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '14px',
-              background: '#D4945A',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              marginBottom: '16px',
-            }}>
-            {loading ? 'יוצר חשבון...' : 'הרשמה'}
+          <Field label="סיסמה" hint="לפחות 6 תווים">
+            <input
+              className="signup-input"
+              type="password"
+              placeholder="בחרי סיסמה"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="אישור סיסמה">
+            <input
+              className="signup-input"
+              type="password"
+              placeholder="הקלידי שוב את הסיסמה"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              style={inputStyle}
+            />
+          </Field>
+
+          {error && <div style={errorStyle}>{error}</div>}
+
+          <button type="submit" disabled={loading} className="signup-btn" style={buttonStyle(loading)}>
+            {loading ? 'יוצרת חשבון...' : 'הרשמה'}
           </button>
 
-          <p style={{
-            textAlign: 'center',
-            fontSize: '14px',
-            color: '#666',
-            margin: 0,
-          }}>
+          <p style={footerStyle}>
             כבר יש לך חשבון?{' '}
-            <a href="/login" style={{ color: '#D4945A', fontWeight: 600 }}>
-              התחברות
+            <a href="/login" className="signup-link" style={linkStyle}>
+              התחברי
             </a>
           </p>
         </form>
       </div>
     </div>
   )
+}
+
+// === Sub-component ===
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+        <label style={labelStyle}>{label}</label>
+        {hint && <span style={hintStyle}>{hint}</span>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// === Styles ===
+const pageStyle: React.CSSProperties = {
+  position: 'relative',
+  zIndex: 0,
+  overflow: 'hidden',
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
+  fontFamily: 'var(--sans, system-ui, -apple-system, sans-serif)',
+  padding: 20,
+}
+
+const cardStyle: React.CSSProperties = {
+  position: 'relative',
+  zIndex: 1,
+  background: '#fff',
+  padding: '38px 40px',
+  borderRadius: 20,
+  boxShadow: '0 18px 50px rgba(180,120,90,0.16), 0 4px 14px rgba(0,0,0,0.05)',
+  border: '1px solid rgba(212,148,90,0.12)',
+  width: '100%',
+  maxWidth: 430,
+}
+
+const wordmarkStyle: React.CSSProperties = {
+  margin: 0,
+  color: GOLD,
+  fontSize: 34,
+  fontWeight: 600,
+  letterSpacing: '0.5px',
+  fontFamily: 'var(--display, Georgia, serif)',
+}
+
+const taglineStyle: React.CSSProperties = {
+  margin: '4px 0 0 0',
+  color: '#b89a86',
+  fontSize: 12,
+  letterSpacing: '0.5px',
+}
+
+const welcomeTitleStyle: React.CSSProperties = {
+  margin: '0 0 6px 0',
+  color: '#3a2b2b',
+  fontSize: 20,
+  fontWeight: 700,
+}
+
+const welcomeSubtitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: '#7a6a63',
+  fontSize: 13.5,
+  lineHeight: 1.6,
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '12px 14px',
+  border: '1.5px solid #efe1da',
+  borderRadius: 10,
+  fontSize: 15,
+  boxSizing: 'border-box',
+  background: '#fbf7f5',
+  color: '#3a2b2b',
+  outline: 'none',
+  fontFamily: 'inherit',
+  transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  color: '#6b5b56',
+  fontWeight: 600,
+}
+
+const hintStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#b0a099',
+}
+
+const errorStyle: React.CSSProperties = {
+  color: '#c53030',
+  background: '#fed7d7',
+  padding: 10,
+  borderRadius: 8,
+  marginBottom: 16,
+  fontSize: 14,
+  textAlign: 'center',
+}
+
+const buttonStyle = (loading: boolean): React.CSSProperties => ({
+  width: '100%',
+  padding: 14,
+  marginTop: 4,
+  background: loading ? '#e6c3a3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  fontSize: 16,
+  fontWeight: 700,
+  cursor: loading ? 'not-allowed' : 'pointer',
+  opacity: loading ? 0.8 : 1,
+  fontFamily: 'inherit',
+  transition: 'transform 0.15s, box-shadow 0.15s',
+})
+
+const footerStyle: React.CSSProperties = {
+  textAlign: 'center',
+  fontSize: 14,
+  color: '#7a6a63',
+  margin: '18px 0 0 0',
+}
+
+const linkStyle: React.CSSProperties = {
+  color: GOLD,
+  fontWeight: 700,
+  textDecoration: 'none',
 }
