@@ -8,7 +8,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
-import { hoursSummaryHe } from "@/lib/businessHours";
+import { buildSystemPrompt } from "@/lib/botPrompt";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -40,34 +40,8 @@ export async function POST(request) {
       settingsRes.data && settingsRes.data.length > 0 ? settingsRes.data[0] : {};
     const services = servicesRes.data || [];
 
-    const businessName = settings.business_name || "העסק";
-    const therapistName = settings.therapist_name || "";
-    const bookUrl = `${APP_URL}/book?t=${tenantId}`;
-
-    const servicesText =
-      services.length > 0
-        ? services.map((s) => `- ${s.name}${s.price ? ` (${s.price} ש"ח)` : ""}${s.duration ? `, ${s.duration} דקות` : ""}`).join("\n")
-        : "לא הוגדרו שירותים";
-
-    // 2. Build the system prompt (the agent's personality + rules)
-    const systemPrompt = `את העוזרת הווירטואלית של "${businessName}"${therapistName ? ` (המטפלת: ${therapistName})` : ""}, עסק יופי/קוסמטיקה בישראל.
-
-תפקידך: לענות ללקוחות בוואטסאפ בעברית, בחמימות, בקצרה ובבהירות.
-
-ידע על העסק:
-שירותים ומחירים:
-${servicesText}
-
-שעות פעילות (לפי יום):
-${hoursSummaryHe(settings)}
-
-כללים:
-1. דברי תמיד בעברית, בנימה חמה ומקצועית (לא רובוטית, לא יותר מדי).
-2. תשובות קצרות — שפט עד שלושה. זה וואטסאפ, לא אימייל.
-3. כשלקוחה רוצה לקבוע תור, או שואלת על זמינות/תורים, הפני אותה לקישור הקביעה: ${bookUrl}
-4. אל תמציאי מחיר או טיפול — עני רק לפי הרשימה למעלה.
-5. אם אינך יודעת משהו, אמרי שתעבירי את הפנייה למטפלת, ואל תמציאי.
-6. כדי לקבוע תור — תמיד הפני לקישור הקביעה.`;
+    // 2. Build the system prompt (shared with the live webhook, so both stay in sync)
+    const systemPrompt = buildSystemPrompt({ settings, services, tenantId, appUrl: APP_URL });
 
     // 3. Call the AI
     const aiResponse = await anthropic.messages.create({

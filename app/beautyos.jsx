@@ -4681,7 +4681,7 @@ export default function BeautyOS() {
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
+                {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -4789,6 +4789,28 @@ export default function BeautyOS() {
  <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
  </div>
                   ):<button onClick={()=>setShowNewService(true)} style={{background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",width:"100%",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>+ הוסיפי שירות</button>}
+ </div>
+              )}
+              {settingsTab==="faq"&&(
+ <div>
+ <p style={{fontSize:10,color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
+                  {(editSettings.faq||[]).length===0&&(
+ <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:14,marginBottom:8}}>
+ <div style={{fontSize:26,marginBottom:8}}>✦</div>
+ <p style={{fontSize:12.5,fontWeight:600,color:"#1C1C1C",marginBottom:4}}>עדיין לא הוספת שאלות ותשובות</p>
+ <p style={{fontSize:10.5,color:"#7A716A",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
+ </div>
+                  )}
+                  {(editSettings.faq||[]).map((f,idx)=>(
+ <div key={idx} style={{background:pcTint,borderRadius:12,padding:"10px 10px 8px",marginBottom:6,position:"relative"}}>
+ <button onClick={()=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).filter((_,i)=>i!==idx)})} className="icon-btn" style={{position:"absolute",top:8,left:8,width:24,height:24,fontSize:11}} title="מחיקה" aria-label="מחיקת שאלה">✕</button>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שאלה</p>
+ <input value={f.q||""} onChange={e=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).map((x,i)=>i===idx?{...x,q:e.target.value}:x)})} placeholder="למשל: יש חניה?" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:9,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",fontWeight:600,color:"#1C1C1C",marginBottom:6}}/>
+ <p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>תשובה</p>
+ <textarea value={f.a||""} onChange={e=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).map((x,i)=>i===idx?{...x,a:e.target.value}:x)})} placeholder="התשובה שהבוט ייתן ללקוחה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:9,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"vertical",lineHeight:1.5}}/>
+ </div>
+                  ))}
+ <button onClick={()=>setEditSettings({...editSettings,faq:[...(editSettings.faq||[]),{q:"",a:""}]})} style={{background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",width:"100%",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>+ הוסף שאלה</button>
  </div>
               )}
               {settingsTab==="hours"&&(()=>{
