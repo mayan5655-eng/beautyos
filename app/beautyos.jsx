@@ -300,6 +300,11 @@ export default function BeautyOS() {
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
+  // Mobile calendar: "day" = single-day agenda (default on phones), "week" = the
+  // desktop grid. Toggle is mobile-only; on desktop calView stays "day" and the
+  // desktop-only week grid always renders, so the desktop calendar is unchanged.
+  const [calView,           setCalView]           = useState("day");
+  const [calDay,            setCalDay]            = useState(new Date()); // selected day for the mobile agenda
   const [showModal,         setShowModal]          = useState(false);
   const [showClientModal,   setShowClientModal]    = useState(false);
   const [showImportModal,   setShowImportModal]    = useState(false);
@@ -3346,17 +3351,22 @@ export default function BeautyOS() {
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div>
+ <div className={calView==="week"?undefined:"desktop-only"}>
  <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[5])}</h2>
  </div>
  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+ {/* Mobile-only day/week toggle. Hidden on desktop, so desktop always shows the week grid. */}
+ <div className="mobile-only" style={{gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
+ <button onClick={()=>setCalView("day")} style={{background:calView==="day"?pcGrad:"none",color:calView==="day"?"#fff":"var(--ink-2)",border:"none",borderRadius:11,padding:"9px 16px",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>יום</button>
+ <button onClick={()=>setCalView("week")} style={{background:calView==="week"?pcGrad:"none",color:calView==="week"?"#fff":"var(--ink-2)",border:"none",borderRadius:11,padding:"9px 16px",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>שבוע</button>
+ </div>
  <div className="desktop-only" style={{display:"flex",gap:10,fontSize:10,color:"var(--ink-2)",alignItems:"center"}}>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--success)"}}/>אישרה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)"}}/>ביטלה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
  </div>
- <div style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
+ <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
  <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:11,padding:"7px 14px",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
  <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
@@ -3364,7 +3374,7 @@ export default function BeautyOS() {
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"#fff",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
  </div>
- <div className="glass-card" style={{overflow:"auto",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ <div className={calView==="week"?"glass-card":"glass-card desktop-only"} style={{overflow:"auto",WebkitOverflowScrolling:"touch",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
  <div/>
                 {weekDates.map((d,i)=>{
@@ -3416,6 +3426,63 @@ export default function BeautyOS() {
  </div>
               ))}
  </div>
+              {/* MOBILE single-day agenda — mobile-only + rendered only in day view.
+                  Desktop never shows this (calView stays "day" but .mobile-only hides it),
+                  so the desktop calendar is unchanged. Reuses all existing handlers. */}
+              {calView==="day"&&(()=>{
+                const dh=dayHoursFrom(settings,calDay.getDay());
+                const isTodaySel=formatDate(calDay)===today;
+                const agBtn={background:"rgba(255,255,255,0.9)",border:"none",borderRadius:10,width:40,height:40,fontSize:16,cursor:"pointer",lineHeight:1,color:"var(--ink)",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0};
+                return(
+ <div className="mobile-only" style={{flexDirection:"column",maxWidth:560,marginLeft:"auto",marginRight:"auto"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12}}>
+ <button aria-label="יום קודם" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()-1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,width:44,height:44,fontSize:18,color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>←</button>
+ <div style={{textAlign:"center",flex:1}}>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600}}>יום {DAYS_HE[calDay.getDay()]}</p>
+ <p className="serif" style={{fontSize:21,fontWeight:700,color:isTodaySel?pc:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(calDay)}{isTodaySel?" · היום":""}</p>
+ </div>
+ <button aria-label="יום הבא" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()+1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,width:44,height:44,fontSize:18,color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>→</button>
+ </div>
+ <div style={{display:"flex",gap:8,marginBottom:14}}>
+ <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:14,padding:"11px 0",fontSize:13,fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
+ <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"#fff",padding:"11px 0",fontSize:13,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
+ </div>
+                  {!dh?(
+ <div style={{textAlign:"center",padding:"48px 0",color:"var(--danger)",fontWeight:700,fontSize:15,background:"var(--surface)",borderRadius:16,border:"1px solid var(--line)"}}>סגור ביום זה</div>
+                  ):(
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {workingHours.map((hourLabel,hi)=>{
+                        const actualHour=settings.working_hours_start+hi;
+                        const openCell=actualHour>=dh.open&&actualHour<dh.close;
+                        const appt=getAppt(calDay,actualHour);
+                        if(!openCell&&!appt) return null;
+                        const apptColor=appt?getApptColor(appt):null;
+                        const hasPhone=appt&&(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone);
+                        return(
+ <div key={hi} style={{display:"flex",alignItems:"stretch",gap:10}}>
+ <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{hourLabel}</div>
+                            {appt?(
+ <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:14,padding:"12px 14px",cursor:"pointer",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
+ <p style={{fontSize:15,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{appt.name}{appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
+ <p style={{fontSize:12.5,color:"rgba(255,255,255,0.92)",marginTop:2}}>{appt.service} · {appt.duration}ד׳</p>
+ <div style={{display:"flex",gap:8,marginTop:10}}>
+                                  {appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}>♥</button>}
+                                  {hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}>✉</button>}
+ <button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>
+ <button aria-label="מחיקה" onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"#fff"}}>✕</button>
+ </div>
+ </div>
+                            ):(
+ <button onClick={()=>handleSlotClick(calDay,actualHour)} style={{flex:1,background:"var(--surface)",border:"1px dashed var(--line-2)",borderRadius:14,padding:14,fontSize:13,color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>+ פנוי</button>
+                            )}
+ </div>
+                        );
+                      })}
+ </div>
+                  )}
+ </div>
+                );
+              })()}
  </>)}
 
           {/* CLIENTS */}
