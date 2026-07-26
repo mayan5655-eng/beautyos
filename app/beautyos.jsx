@@ -2647,11 +2647,20 @@ export default function BeautyOS() {
              modest floor on the drawer nav so labels stay legible on a phone. */
           .modal-card input,.modal-card select,.modal-card textarea{font-size:16px!important}
           .nav-item{font-size:14px!important}
-          /* Phase 3 — give content its width back (main uses inline 28px 30px). */
-          .app-main{padding:16px 14px!important}
+          /* Phase 3 — give content its width back (main uses inline 28px 30px).
+             Slim 8px side gutter so content runs nearly edge-to-edge on phones. */
+          .app-main{padding:12px 8px!important}
           /* Phase 4 — tap targets: round icon buttons up to a touch-friendly ~40px. */
           .icon-btn{width:40px!important;height:40px!important;font-size:15px!important}
           .wa-btn,.call-btn{padding:9px 14px!important}
+          /* Header fit — the desktop logo (30px, 6px letter-spacing, no shrink) pushed
+             the left-side action icons off the viewport in RTL. Shrink the wordmark,
+             hide the tagline, let the brand block shrink, and tighten header padding so
+             the power/download/settings icons stay fully on-screen. */
+          .app-header{padding:0 8px!important;gap:6px!important}
+          .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:hidden}
+          .brand-word{font-size:18px!important;letter-spacing:1px!important}
+          .brand-tag{display:none!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -2948,15 +2957,15 @@ export default function BeautyOS() {
 
       {/* OMBRE PROMO BAR */}
       {/* HEADER */}
- <header style={{background:"rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)"}}>
- <div style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
+ <header className="app-header" style={{background:"rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)"}}>
+ <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",lineHeight:1}}>
  <span style={{display:"inline-flex",alignItems:"flex-start"}}>
- <span className="serif" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"var(--ink)"}}>BloomOS</span>
+ <span className="serif brand-word" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"var(--ink)"}}>BloomOS</span>
  <span style={{fontSize:13,color:pc,marginRight:-2,marginTop:1,lineHeight:1}}>✦</span>
  </span>
- <span style={{fontSize:8,color:"var(--ink-3)",letterSpacing:"4.5px",fontWeight:600,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
+ <span className="brand-tag" style={{fontSize:8,color:"var(--ink-3)",letterSpacing:"4.5px",fontWeight:600,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
  </div>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
