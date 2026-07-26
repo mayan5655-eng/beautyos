@@ -417,6 +417,10 @@ export default function BeautyOS() {
   const [newClient,  setNewClient]  = useState(emptyClient);
   const [newLead,    setNewLead]    = useState(emptyLead);
   const [apptNote,   setApptNote]   = useState("");
+  // When set, the appointment modal is in EDIT mode for this appointment id
+  // (reschedule/edit an existing row) rather than CREATE mode. Reset to null on
+  // every close so the modal never opens stale in edit mode.
+  const [editingAppointmentId, setEditingAppointmentId] = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:"#D9B98C",active:true});
   const [showNewService, setShowNewService] = useState(false);
@@ -579,8 +583,10 @@ export default function BeautyOS() {
   // Busy [start,end) minute-intervals already taken on the picked date. Cancelled
   // appointments free their slot (grid + gap-fill treat them as available), so
   // they are excluded here.
+  // In EDIT mode, exclude the appointment being edited so it never flags itself
+  // as a conflict (an appointment can't clash with its own current slot).
   const apptBusy = appointments
-    .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled")
+    .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId)
     .map(a=>{ const s=Number(a.hour)*60; return [s, s+Number(a.duration||0)]; });
   // Is a candidate start hour taken, given the currently selected duration?
   // Recomputes every render, so changing the duration re-evaluates the picker.
@@ -857,8 +863,21 @@ export default function BeautyOS() {
   const handleSlotClick = (date,hour) => {
     if(getAppt(date,hour))return;
     const svc=activeServices[0];
+    setEditingAppointmentId(null); // fresh create, not edit
     setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),hour,price:svc?.price||0});
     setApptNote("");setShowModal(true);
+  };
+
+  // Open the appointment modal in EDIT mode, pre-filled with an existing
+  // appointment's values so its date/time/service/etc. can be rescheduled.
+  // Reuses the exact same modal + per-day-hours + double-booking logic as create;
+  // editingAppointmentId flips handleSave to UPDATE and excludes this row from
+  // the conflict checks.
+  const handleApptClick = (appt) => {
+    setEditingAppointmentId(appt.id);
+    setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),price:appt.price||0});
+    setApptNote(appt.note||"");
+    setShowModal(true);
   };
 
   const handleClientSelect = (clientId) => {
@@ -880,6 +899,7 @@ export default function BeautyOS() {
       const newStart = Number(newAppt.hour)*60;
       const newEnd = newStart + Number(newAppt.duration||0);
       const clash = appointments.some(a=>{
+        if(a.id===editingAppointmentId) return false; // don't clash with self when editing
         if(a.date!==newAppt.date || a.confirmation_status==="cancelled") return false;
         const bs = Number(a.hour)*60, be = bs + Number(a.duration||0);
         return newStart < be && bs < newEnd;
@@ -905,12 +925,24 @@ export default function BeautyOS() {
         if(nc?.[0]){clientId=nc[0].id;setClients(prev=>[...prev,nc[0]]);}
       }
       const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||"#D9B98C";
-      const appt={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
-      const {data,error}=await supabase.from("appointments").insert([appt]).select();
-      if(error){handleDbError(error, "create appointment"); return;}
-      if(data)setAppointments(prev=>[...prev,data[0]]);
-      setShowModal(false);setApptNote("");
-      toast("התור נשמר בהצלחה");
+      if(editingAppointmentId){
+        // EDIT/reschedule: update only the editable fields on the existing row.
+        // confirmation_status/confirmation_sent are intentionally left untouched
+        // (no change to unrelated confirmation logic).
+        const patch={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0};
+        const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
+        if(error){handleDbError(error, "update appointment"); return;}
+        if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
+        setShowModal(false);setApptNote("");setEditingAppointmentId(null);
+        toast("התור עודכן בהצלחה");
+      } else {
+        const appt={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
+        const {data,error}=await supabase.from("appointments").insert([appt]).select();
+        if(error){handleDbError(error, "create appointment"); return;}
+        if(data)setAppointments(prev=>[...prev,data[0]]);
+        setShowModal(false);setApptNote("");
+        toast("התור נשמר בהצלחה");
+      }
     } finally {
       setBusyKey("saveAppt", false);
     }
@@ -3364,8 +3396,8 @@ export default function BeautyOS() {
                     return(
  <div key={di} className={(!appt&&openCell)?"slot":""} onClick={blocked?undefined:()=>handleSlotClick(date,actualHour)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,transition:"background 0.15s",cursor:blocked?"default":undefined,background:blocked?"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.06) 5px,rgba(122,90,136,0.06) 10px)":undefined}}>
                         {appt&&(
- <div className="appt-card" onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
-                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
+ <div className="appt-card" title="לחצי לעריכה / שינוי מועד" onClick={e=>{e.stopPropagation();handleApptClick(appt);}} onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
+                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",cursor:"pointer",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:9.5,fontWeight:700,color:"#fff",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
  <p style={{fontSize:7.5,color:"rgba(255,255,255,0.92)"}}>{appt.service}</p>
                             {appt.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"#fff"}}>✓</span>}
@@ -4482,9 +4514,9 @@ export default function BeautyOS() {
 
       {/* APPT MODAL */}
       {showModal&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowModal(false)}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowModal(false);setEditingAppointmentId(null);}}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:360,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
- <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>קביעת תור חדש</h3>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>{editingAppointmentId?"עריכת תור":"קביעת תור חדש"}</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {clients.length>0&&<select value={newAppt.clientId} onChange={e=>handleClientSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה קיימת —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}</select>}
  <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
@@ -4502,8 +4534,8 @@ export default function BeautyOS() {
  <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
- <button onClick={()=>setShowModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומר...":!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":"שמירה ✓"}</button>
+ <button onClick={()=>{setShowModal(false);setEditingAppointmentId(null);}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
+ <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומר...":!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":editingAppointmentId?"עדכון ✓":"שמירה ✓"}</button>
  </div>
  </div>
  </div>
