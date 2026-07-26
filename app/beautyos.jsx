@@ -1572,6 +1572,73 @@ export default function BeautyOS() {
     }
   };
 
+  // Print a receipt by rendering it into a fresh standalone window. This replaces
+  // the in-modal @media-print trick, which the redesign broke: the modal overlay
+  // (backdrop-filter) and the .pop-in card (transform: scale(1)) each become the
+  // containing block for the position:fixed receipt, so it printed blank. A
+  // standalone document has no such ancestors, so the full receipt always prints.
+  const printReceipt = (receipt) => {
+    if (!receipt) return;
+    const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const rows = [
+      ["לקוחה", esc(receipt.client_name || "לקוחה")],
+      ["תאריך", esc((receipt.created_at || "").slice(0, 10))],
+      ["שירות", esc(receipt.service || "")],
+      ["אמצעי תשלום", esc(receipt.payment_method || "")],
+    ];
+    if (Number(receipt.discount) > 0) rows.push(["הנחה", "−₪" + esc(receipt.discount)]);
+    if (receipt.note) rows.push(["הערה", esc(receipt.note)]);
+    const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
+    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>קבלה</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2233;padding:40px;direction:rtl}
+  .wrap{max-width:360px;margin:0 auto}
+  .head{text-align:center;border-bottom:2px dashed #E3DBEC;padding-bottom:14px;margin-bottom:14px}
+  .biz{font-size:22px;font-weight:700}
+  .sub{font-size:11px;color:#9A93A4;margin-top:2px}
+  .body{font-size:13px;line-height:1.9}
+  .row{display:flex;justify-content:space-between}
+  .k{color:#9A93A4}
+  .v{font-weight:600}
+  .total{border-top:2px dashed #E3DBEC;margin-top:14px;padding-top:14px;display:flex;justify-content:space-between;align-items:center}
+  .total .lbl{font-size:14px;font-weight:600;color:#5B5563}
+  .total .amt{font-size:28px;font-weight:700;color:${esc(pc)}}
+  .foot{text-align:center;font-size:10px;color:#9A93A4;margin-top:14px}
+</style></head>
+<body onload="window.print()">
+  <div class="wrap">
+    <div class="head">
+      <div class="biz">${esc(settings.business_name || "העסק")}</div>
+      <div class="sub">קבלה</div>
+      ${settings.business_phone ? `<div class="sub">${esc(settings.business_phone)}</div>` : ""}
+    </div>
+    <div class="body">${rowsHtml}</div>
+    <div class="total"><span class="lbl">סה״כ:</span><span class="amt">₪${esc(receipt.amount)}</span></div>
+    <div class="foot">תודה ונתראה בקרוב ✦</div>
+  </div>
+  <script>window.onafterprint=function(){window.close()}<\/script>
+</body></html>`;
+    const w = window.open("", "_blank", "width=420,height=640");
+    if (!w) { toast("החלון נחסם — אפשרי חלונות קופצים ונסי שוב", "error"); return; }
+    w.document.write(html);
+    w.document.close();
+  };
+
+  // TEMP DIAGNOSTIC: dump the receipt's actual fields the instant it opens, so we
+  // can see whether showReceipt carries data (client_name/service/amount) or is
+  // blank — this tells us if the bug is the DATA or only the rendering/printing.
+  useEffect(() => {
+    if (!showReceipt) return;
+    console.log("[RECEIPT DEBUG] opened. keys:", Object.keys(showReceipt || {}), "| values:", {
+      client_name: showReceipt.client_name,
+      service: showReceipt.service,
+      amount: showReceipt.amount,
+      payment_method: showReceipt.payment_method,
+      created_at: showReceipt.created_at,
+    }, "| full object:", showReceipt);
+  }, [showReceipt]);
+
   // call_client: find the client by name; the call itself just opens tel:.
   const prepareCall = (intent) => {
     const nameSpoken = (intent.client_name || "").trim();
@@ -4597,7 +4664,7 @@ export default function BeautyOS() {
  <p style={{textAlign:"center",fontSize:9,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
- <button onClick={()=>window.print()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:11,color:"var(--ink-2)"}}>הדפסה</button>
+ <button onClick={()=>printReceipt(showReceipt)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:11,color:"var(--ink-2)"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
  <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:11,border:"none"}}>{isBusy("sendReceipt")?"שולח...":"שליחה ללקוחה"}</button>
               ):null;})()}
