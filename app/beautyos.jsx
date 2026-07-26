@@ -113,6 +113,9 @@ function VoiceCommandList() {
 
 const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
+// Reassuring steps cycled through while the AI skin scan is processing, so the
+// wait feels alive and progressing rather than frozen.
+const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
 // שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
@@ -368,6 +371,7 @@ export default function BeautyOS() {
   const [activeTab,         setActiveTab]          = useState("dashboard");
   const [clientTab,         setClientTab]          = useState("info");
   const [scanLoading,       setScanLoading]        = useState(false);
+  const [scanStep,          setScanStep]           = useState(0);
   const [scanReport,        setScanReport]         = useState(null);
   const [clientScans,       setClientScans]        = useState([]);
   const [clientPhotos,      setClientPhotos]       = useState([]);
@@ -1973,6 +1977,13 @@ export default function BeautyOS() {
       setScanLoading(false);
     }
   };
+
+  // Cycle the reassuring "מנתחת..." steps while a scan is in flight (UI only).
+  useEffect(() => {
+    if (!scanLoading) { setScanStep(0); return; }
+    const id = setInterval(() => setScanStep((s) => s + 1), 1800);
+    return () => clearInterval(id);
+  }, [scanLoading]);
 
   // Is a Facebook page connected for THIS tenant? Mirrors the campaigns route's
   // check (facebook_pages, is_active). RLS scopes the query to the tenant, so we
@@ -4946,8 +4957,8 @@ export default function BeautyOS() {
                     {c.phone&&<a href={waLink(c.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"#fff",color:pc,borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditClient(c)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"#fff",border:"none",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✎ עריכה</button>
  </div>
- <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:20,padding:"9px 0",fontSize:11,fontWeight:700,textAlign:"center",cursor:"pointer"}}>
- {scanLoading?"סורקת...":"✦ סריקת עור AI"}
+ <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:20,padding:"9px 0",fontSize:11,fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
+ {scanLoading?"סורקת... 🔍":"✦ סריקת עור AI"}
  <input type="file" accept="image/*" capture="user" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
  </label>
  </div>
@@ -5118,6 +5129,20 @@ export default function BeautyOS() {
       )}
 
       {/* SKIN SCAN RESULT MODAL */}
+      {/* SKIN-SCAN LOADING OVERLAY — calm, on-brand, cycles reassuring steps */}
+      {scanLoading&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.55)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1400,padding:14}}>
+ <div className="pop-in" style={{background:"var(--surface)",borderRadius:24,padding:"32px 30px",width:320,maxWidth:"100%",textAlign:"center",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
+ <motion.div animate={{scale:[1,1.12,1],opacity:[0.82,1,0.82]}} transition={{duration:1.6,repeat:Infinity,ease:"easeInOut"}} style={{width:78,height:78,borderRadius:"50%",margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,background:pcGrad,boxShadow:`0 10px 26px ${pcShadow}`}}>🔍</motion.div>
+ <p className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",marginBottom:8}}>מנתחת את העור...</p>
+ <p style={{fontSize:12.5,color:pcDeep,fontWeight:600,minHeight:18}}>{SCAN_STEPS[scanStep%SCAN_STEPS.length]}</p>
+ <div style={{display:"flex",gap:5,justifyContent:"center",marginTop:16}}>
+                {SCAN_STEPS.map((_,i)=><span key={i} style={{width:6,height:6,borderRadius:"50%",background:i===scanStep%SCAN_STEPS.length?pc:"var(--line-2)",transition:"background 0.3s"}}/>)}
+ </div>
+ </div>
+ </div>
+      )}
+
       {(scanReport||viewScan)&&(()=>{ const SR = scanReport || viewScan.report; const closeModal=()=>{setScanReport(null);setViewScan(null);}; return (
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={closeModal}>
  <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:20,maxWidth:420,width:"100%",maxHeight:"88vh",overflowY:"auto",padding:"22px 22px"}}>
