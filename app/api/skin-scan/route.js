@@ -95,11 +95,12 @@ ${servicesText}
 score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוגנת ומעודדת.`;
 
     // 3. Call Claude with vision. Haiku 4.5 is much faster than Sonnet for this
-    // structured-report task; max_tokens is sized to the JSON above (the report
-    // is capped at ~4 items per section, so it fits comfortably under 1500).
+    // structured-report task. max_tokens is generous enough that the full JSON
+    // report is never truncated (1500 was too tight and cut the JSON off), while
+    // still well below Sonnet's old 4000.
     const aiResponse = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
+      max_tokens: 3000,
       system: systemPrompt,
       messages: [
         {
@@ -131,13 +132,32 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
 
     const clean = raw.replace(/```json/g, "").replace(/```/g, "").trim();
 
+    // stop_reason === "max_tokens" means the model ran out of budget mid-JSON, so
+    // the parse below is guaranteed to fail. Surface it explicitly (separate from
+    // a genuinely unreadable photo) so the logs make the cause obvious.
+    const truncated = aiResponse.stop_reason === "max_tokens";
+
     let report;
     try {
       report = JSON.parse(clean);
     } catch (parseErr) {
-      console.error("Skin-scan JSON parse error:", parseErr, "RAW:", raw);
+      // Log the full raw response + why it stopped, so a truncation (or any other
+      // malformed output) is diagnosable from the logs rather than guessed at.
+      console.error(
+        "Skin-scan JSON parse error:",
+        parseErr && parseErr.message,
+        "| stop_reason:", aiResponse.stop_reason,
+        "| usage:", JSON.stringify(aiResponse.usage || {}),
+        "| RAW_FULL:", raw
+      );
       return Response.json(
-        { success: false, error: "לא הצלחנו לנתח את התמונה. נסי תמונה ברורה יותר." },
+        {
+          success: false,
+          error: truncated
+            ? "הדוח היה ארוך מדי והצטמצם. נסי שוב."
+            : "לא הצלחנו לנתח את התמונה. נסי תמונה ברורה יותר.",
+          stopReason: aiResponse.stop_reason,
+        },
         { status: 422 }
       );
     }
