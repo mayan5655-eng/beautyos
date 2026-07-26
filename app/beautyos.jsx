@@ -5167,6 +5167,10 @@ export default function BeautyOS() {
  {SR.therapist_notes.cautions&&<p style={{fontSize:10.5,color:"#C0392B",lineHeight:1.5,marginTop:6}}>⚠️ {SR.therapist_notes.cautions}</p>}
  </div>
  )}
+ <div style={{background:pcTint,borderRadius:12,padding:"10px 13px",margin:"2px 0 12px",display:"flex",gap:8,alignItems:"flex-start"}}>
+ <span style={{fontSize:13,flexShrink:0,lineHeight:1.5}}>ℹ️</span>
+ <p style={{fontSize:10,color:"#7A716A",lineHeight:1.6,textAlign:"right"}}>זוהי הערכת AI ראשונית בלבד ואינה מהווה אבחון רפואי. לתכנית טיפול מלאה ומדויקת מומלץ להתייעץ עם הקוסמטיקאית.</p>
+ </div>
  <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"#fff",fontSize:13}}>סגירה ✓</button>
  {!viewScan&&<p style={{fontSize:9.5,color:"#B8AFA0",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
  </div>
