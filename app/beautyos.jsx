@@ -5054,6 +5054,10 @@ export default function BeautyOS() {
                     {c.phone&&<a href={waLink(c.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"#fff",color:pc,borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditClient(c)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"#fff",border:"none",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✎ עריכה</button>
  </div>
+ {/* Book an appointment for THIS client — opens the existing new-appointment
+     modal pre-filled with her (all the per-day-hours / no-double-booking /
+     end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
+ <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:20,padding:"9px 0",fontSize:11,fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(0,0,0,0.10)"}}>✦ קביעת תור</button>
  <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:20,padding:"9px 0",fontSize:11,fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
  {scanLoading?"סורקת... 🔍":"✦ סריקת עור AI"}
  <input type="file" accept="image/*" capture="user" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
