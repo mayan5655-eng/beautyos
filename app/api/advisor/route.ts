@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { hoursSummaryHe } from '@/lib/businessHours'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -52,7 +53,7 @@ async function buildBusinessSnapshot(
 ) {
   const [settingsRes, servicesRes, clientsRes, apptsRes, receiptsRes, leadsRes] =
     await Promise.all([
-      supabase.from('settings').select('business_name, therapist_name, working_hours_start, working_hours_end').eq('tenant_id', tenantId).limit(1),
+      supabase.from('settings').select('business_name, therapist_name, working_hours_start, working_hours_end, working_days, business_hours').eq('tenant_id', tenantId).limit(1),
       supabase.from('service_prices').select('name, price, duration, active').eq('tenant_id', tenantId),
       supabase.from('clients').select('id').eq('tenant_id', tenantId),
       supabase.from('appointments').select('client_id, service, date').eq('tenant_id', tenantId),
@@ -121,7 +122,7 @@ async function buildBusinessSnapshot(
   const trendPct = revLast > 0 ? Math.round(((revThis - revLast) / revLast) * 100) : null
 
   return `שם העסק: ${settings.business_name || 'לא הוגדר'}${settings.therapist_name ? ` (מטפלת: ${settings.therapist_name})` : ''}
-שעות פעילות: ${settings.working_hours_start ?? 9}:00–${settings.working_hours_end ?? 19}:00
+שעות פעילות (לפי יום): ${hoursSummaryHe(settings)}
 סך לקוחות: ${clients.length}
 לקוחות רדומות (60+ ימים ללא ביקור): ${dormant}
 הכנסות החודש: ₪${revThis.toLocaleString()}${trendPct !== null ? ` (${trendPct >= 0 ? '+' : ''}${trendPct}% מהחודש שעבר: ₪${revLast.toLocaleString()})` : ''}

@@ -9,6 +9,7 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { dayHoursFrom, hoursSummaryHe } from "@/lib/businessHours";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -43,7 +44,7 @@ async function shouldBotReply(tenantId) {
   try {
     const { data, error } = await supabase
       .from("settings")
-      .select("bot_active, bot_mode, working_hours_start, working_hours_end, working_days")
+      .select("bot_active, bot_mode, working_hours_start, working_hours_end, working_days, business_hours")
       .eq("tenant_id", tenantId)
       .limit(1);
     if (error) console.log("BOT_SETTINGS_ERROR", error.message);
@@ -58,26 +59,18 @@ async function shouldBotReply(tenantId) {
   // Always-on mode (default) -> reply
   if (!s.bot_mode || s.bot_mode === "always") return true;
 
-  // after_hours mode -> reply only OUTSIDE working hours/days (Israel time)
+  // after_hours mode -> reply only OUTSIDE working hours/days (Israel time),
+  // now respecting each day's own open/close (per-day business_hours).
   if (s.bot_mode === "after_hours") {
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
     const day = now.getDay(); // 0=Sunday ... 6=Saturday
     const hour = now.getHours();
 
-    const startH = s.working_hours_start != null ? Number(s.working_hours_start) : 9;
-    const endH = s.working_hours_end != null ? Number(s.working_hours_end) : 19;
+    const dh = dayHoursFrom(s, day); // {open,close} for today, or null if closed
+    const isWorkingNow = !!dh && hour >= dh.open && hour < dh.close;
 
-    // working_days stored like "0,1,2,3,4" (Sun-Thu). Default Sun-Thu.
-    const workingDays = (s.working_days || "0,1,2,3,4")
-      .split(",")
-      .map((d) => parseInt(d.trim(), 10))
-      .filter((d) => !isNaN(d));
-
-    const isWorkingDay = workingDays.includes(day);
-    const isWorkingHour = hour >= startH && hour < endH;
-
-    // During working day AND working hour -> she answers; bot stays quiet
-    if (isWorkingDay && isWorkingHour) return false;
+    // During a working day AND working hour -> she answers; bot stays quiet.
+    if (isWorkingNow) return false;
     return true;
   }
 
@@ -96,8 +89,6 @@ async function generateReply({ message, clientName, tenantId }) {
 
   const businessName = settings.business_name || "העסק";
   const therapistName = settings.therapist_name || "";
-  const startH = settings.working_hours_start || 9;
-  const endH = settings.working_hours_end || 19;
   const bookUrl = `${APP_URL}/book?t=${tenantId}`;
 
   const servicesText =
@@ -113,7 +104,8 @@ async function generateReply({ message, clientName, tenantId }) {
 שירותים ומחירים:
 ${servicesText}
 
-שעות פעילות: ${startH}:00 עד ${endH}:00
+שעות פעילות (לפי יום):
+${hoursSummaryHe(settings)}
 
 כללים:
 1. דברי תמיד בעברית, בנימה חמה ומקצועית (לא רובוטית).

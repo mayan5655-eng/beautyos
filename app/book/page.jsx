@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
+import { dayHoursFrom, isOpenOn } from "@/lib/businessHours";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -87,23 +88,20 @@ export default function BookPage() {
 
   const pc = settings?.primary_color || "#E91E63";
 
-  // === Build next 14 available days (respecting working_days) ===
-  const workingDays = (settings?.working_days || "0,1,2,3,4,5")
-    .split(",")
-    .filter((x) => x !== "")
-    .map(Number);
+  // === Build next 14 available days (respecting per-day business_hours) ===
   const availableDays = [];
   for (let i = 0; i < 21 && availableDays.length < 14; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    if (workingDays.includes(d.getDay())) availableDays.push(d);
+    if (isOpenOn(settings, d)) availableDays.push(d);
   }
 
-  // === Build hours for selected day ===
-  const startH = settings?.working_hours_start || 9;
-  const endH = settings?.working_hours_end || 19;
+  // === Build hours for the SELECTED day (its own open→close window) ===
+  const selDayHours = selectedDate ? dayHoursFrom(settings, selectedDate.getDay()) : null;
   const allHours = [];
-  for (let h = startH; h < endH; h++) allHours.push(h);
+  if (selDayHours) {
+    for (let h = selDayHours.open; h < selDayHours.close; h++) allHours.push(h);
+  }
 
   const takenHours = selectedDate
     ? appointments.filter((a) => a.date === formatDate(selectedDate)).map((a) => Number(a.hour))

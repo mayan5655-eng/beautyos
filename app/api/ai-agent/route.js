@@ -8,6 +8,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { hoursSummaryHe } from "@/lib/businessHours";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -41,8 +42,6 @@ export async function POST(request) {
 
     const businessName = settings.business_name || "העסק";
     const therapistName = settings.therapist_name || "";
-    const startH = settings.working_hours_start || 9;
-    const endH = settings.working_hours_end || 19;
     const bookUrl = `${APP_URL}/book?t=${tenantId}`;
 
     const servicesText =
@@ -59,7 +58,8 @@ export async function POST(request) {
 שירותים ומחירים:
 ${servicesText}
 
-שעות פעילות: ${startH}:00 עד ${endH}:00
+שעות פעילות (לפי יום):
+${hoursSummaryHe(settings)}
 
 כללים:
 1. דברי תמיד בעברית, בנימה חמה ומקצועית (לא רובוטית, לא יותר מדי).

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
 import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
+import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -3157,11 +3158,13 @@ export default function BeautyOS() {
                   const isToday=formatDate(d)===today;
                   const dayAppts=appointments.filter(a=>a.date===formatDate(d));
                   const hasCancel=dayAppts.some(a=>a.confirmation_status==="cancelled");
+                  const isClosed=!dayHoursFrom(settings,d.getDay());
                   return(
- <div key={i} style={{padding:"11px 4px",textAlign:"center",borderRight:i<5?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":hasCancel?"rgba(224,91,111,0.05)":"transparent"}}>
+ <div key={i} style={{padding:"11px 4px",textAlign:"center",borderRight:i<5?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":hasCancel?"rgba(224,91,111,0.05)":"transparent",opacity:isClosed?0.5:1}}>
  <p style={{fontSize:9.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:600}}>{DAYS_HE[d.getDay()]}</p>
  <p className="serif" style={{fontSize:18,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.2,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:26,height:26,borderRadius:"50%",...(isToday?{background:pcGrad,color:"#fff",WebkitTextFillColor:"#fff"}:{})}}>{d.getDate()}</p>
  <p style={{fontSize:7.5,color:"var(--ink-3)",marginTop:1}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
+                      {isClosed&&<p style={{fontSize:7.5,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
                       {hasCancel&&<p style={{fontSize:7.5,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
  </div>
                   );
@@ -3171,10 +3174,14 @@ export default function BeautyOS() {
  <div key={hour} style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:hi<workingHours.length-1?"1px solid var(--line)":"none",minHeight:56,minWidth:480}}>
  <div style={{padding:"5px 3px 0",fontSize:9,color:"var(--ink-3)",fontWeight:600,textAlign:"center",borderLeft:"1px solid var(--line)"}}>{hour}</div>
                   {weekDates.map((date,di)=>{
-                    const appt=getAppt(date,settings.working_hours_start+hi);
+                    const actualHour=settings.working_hours_start+hi;
+                    const appt=getAppt(date,actualHour);
                     const apptColor=appt?getApptColor(appt):null;
+                    const dh=dayHoursFrom(settings,date.getDay());
+                    const openCell=!!dh&&actualHour>=dh.open&&actualHour<dh.close;
+                    const blocked=!appt&&!openCell; // closed day / outside that day's hours -> not bookable
                     return(
- <div key={di} className={!appt?"slot":""} onClick={()=>handleSlotClick(date,settings.working_hours_start+hi)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,transition:"background 0.15s"}}>
+ <div key={di} className={(!appt&&openCell)?"slot":""} onClick={blocked?undefined:()=>handleSlotClick(date,actualHour)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,transition:"background 0.15s",cursor:blocked?"default":undefined,background:blocked?"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.06) 5px,rgba(122,90,136,0.06) 10px)":undefined}}>
                         {appt&&(
  <div className="appt-card" onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
                             style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
@@ -4784,14 +4791,41 @@ export default function BeautyOS() {
                   ):<button onClick={()=>setShowNewService(true)} style={{background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",width:"100%",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>+ הוסיפי שירות</button>}
  </div>
               )}
-              {settingsTab==="hours"&&(
- <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת פתיחה</p><select value={editSettings.working_hours_start} onChange={e=>setEditSettings({...editSettings,working_hours_start:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>שעת סגירה</p><select value={editSettings.working_hours_end} onChange={e=>setEditSettings({...editSettings,working_hours_end:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select></div>
+              {settingsTab==="hours"&&(()=>{
+                // Per-day hours live in the business_hours JSONB. We edit a
+                // normalized { 0..6: {open,close}|null } map and, on every
+                // change, also refresh the legacy start/end + working_days on
+                // editSettings so the existing handleSaveSettings persists both
+                // — keeping un-migrated readers correct. Save logic unchanged.
+                const bh=normalizeBusinessHours(editSettings);
+                const commit=(next)=>setEditSettings({...editSettings,business_hours:next,...legacyHoursFromMap(next)});
+                const toggleDay=(d)=>{const next={...bh};next[d]=bh[d]?null:{open:9,close:18};commit(next);};
+                const setOpen=(d,val)=>{const cur=bh[d]||{open:9,close:18};const open=Number(val);let close=cur.close;if(close<=open)close=Math.min(open+1,20);commit({...bh,[d]:{open,close}});};
+                const setClose=(d,val)=>{const cur=bh[d]||{open:9,close:18};const close=Number(val);let open=cur.open;if(close<=open)open=Math.max(close-1,7);commit({...bh,[d]:{open,close}});};
+                return(
+ <div style={{display:"flex",flexDirection:"column",gap:6}}>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:2}}>הגדירי לכל יום אם את עובדת ובאילו שעות. יום כבוי מסומן כ״סגור״.</p>
+ {DAYS_HE.map((label,d)=>{
+   const dh=bh[d];const isOpen=!!dh;
+   return(
+ <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:12,border:"1px solid var(--line-2)",background:isOpen?"var(--surface-2)":"var(--surface)",opacity:isOpen?1:0.6,transition:"opacity .2s"}}>
+ <span style={{width:52,fontSize:12,fontWeight:600,color:"var(--ink)"}}>{label}</span>
+ <Toggle on={isOpen} onChange={()=>toggleDay(d)} pc={pc} />
+ {isOpen?(
+ <div style={{display:"flex",alignItems:"center",gap:6,marginRight:"auto"}}>
+ <select value={dh.open} onChange={e=>setOpen(d,e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:10,padding:"6px 8px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select>
+ <span style={{fontSize:11,color:"var(--ink-3)"}}>–</span>
+ <select value={dh.close} onChange={e=>setClose(d,e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:10,padding:"6px 8px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select>
  </div>
+ ):(
+ <span style={{marginRight:"auto",fontSize:11,color:"var(--ink-3)",fontWeight:600}}>סגור</span>
+ )}
  </div>
-              )}
+   );
+ })}
+ </div>
+                );
+              })()}
               {settingsTab==="payment"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <div><p style={{fontSize:9,color:"#7A716A",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
