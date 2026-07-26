@@ -4871,6 +4871,9 @@ export default function BeautyOS() {
                 const botOn=onDefaultTrue("bot_active");
                 const gapOn=(editSettings.gap_fill_enabled===true);
                 const receiptOn=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");
+                // Connected = her own instance id + token are both set (mirrors
+                // isWhatsAppConnected's per-tenant rule; url is optional).
+                const waConnected=!!(String(editSettings.green_api_instance||"").trim()&&String(editSettings.green_api_token||"").trim());
                 const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
@@ -4897,6 +4900,19 @@ export default function BeautyOS() {
  <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
  </div>
  )}
+ </div>
+
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
+ <p style={{fontSize:10,color:"#7A716A",fontWeight:600}}>חיבור וואטסאפ (GreenAPI)</p>
+ <span style={{fontSize:9.5,fontWeight:700,borderRadius:20,padding:"5px 11px",...(waConnected?{color:"#388E3C",background:"#E8F5E9"}:{color:"#B07F2A",background:"rgba(242,184,75,0.16)"})}}>{waConnected?"מחובר ✓":"לא מחובר"}</span>
+ </div>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:8}}>חברי את מספר הוואטסאפ שלך דרך GreenAPI כדי שההודעות (תזכורות, קבלות ועוד) יישלחו מהמספר שלך. את הפרטים תמצאי בקונסולת GreenAPI. אם לא תחברי — נשלח מהמספר הכללי של המערכת.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מזהה מכשיר (idInstance)</p><input value={editSettings.green_api_instance||""} onChange={e=>setEditSettings({...editSettings,green_api_instance:e.target.value})} placeholder="7103000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p><input value={editSettings.green_api_token||""} onChange={e=>setEditSettings({...editSettings,green_api_token:e.target.value})} placeholder="••••••••••••••••" autoComplete="off" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ </div>
  </div>
 
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>

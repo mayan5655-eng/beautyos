@@ -5,7 +5,7 @@
 // every sent message is logged with the tenant_id (inside sendWhatsApp).
 
 import { createClient } from "@supabase/supabase-js";
-import { sendWhatsApp } from "../../../lib/whatsapp";
+import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -34,15 +34,12 @@ export async function POST(request) {
       );
     }
 
-    // If the GreenAPI integration isn't configured, this is a "not connected"
-    // state — report it explicitly (notConnected) so the UI can guide her to
-    // connect WhatsApp and fall back to the direct wa.me link, instead of a
-    // vague "send failed". 200 so the client reads the flag from the body.
-    if (
-      !process.env.GREENAPI_ID_INSTANCE ||
-      !process.env.GREENAPI_API_TOKEN ||
-      !process.env.GREENAPI_API_URL
-    ) {
+    // If neither this tenant's own GreenAPI instance nor the global env fallback
+    // is configured, it's a "not connected" state — report it explicitly
+    // (notConnected) so the UI can guide her to connect WhatsApp and fall back to
+    // the direct wa.me link, instead of a vague "send failed". 200 so the client
+    // reads the flag from the body.
+    if (!(await isWhatsAppConnected(tenantId))) {
       return Response.json(
         { success: false, notConnected: true, error: "וואטסאפ לא מחובר" },
         { status: 200 }
