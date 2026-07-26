@@ -2658,6 +2658,12 @@ export default function BeautyOS() {
              hide the tagline, let the brand block shrink, and tighten header padding so
              the power/download/settings icons stay fully on-screen. */
           .app-header{padding:0 8px!important;gap:6px!important}
+          /* The header's backdrop-filter creates a stacking context that (being
+             earlier in the DOM than <main>) trapped the global-search results
+             dropdown BEHIND the page content on mobile. Lift the whole header
+             context above the content — but keep it below modals/drawers/toasts
+             (>=1000) so those still overlay the header as before. */
+          .app-header{position:relative!important;z-index:100!important}
           .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:hidden}
           .brand-word{font-size:18px!important;letter-spacing:1px!important}
           .brand-tag{display:none!important}
