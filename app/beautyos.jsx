@@ -1635,6 +1635,51 @@ export default function BeautyOS() {
     w.document.close();
   };
 
+  // Manual appointment reminder text — identical to the automatic cron reminder
+  // and the /api/send-reminder-manual server message, incl. confirm/cancel links.
+  // Used for the zero-dependency wa.me fallback.
+  const reminderText = (appt) => {
+    const businessName = settings.business_name || "העסק";
+    const confirmLink = `${origin}/confirm?id=${appt.id}&action=confirm`;
+    const cancelLink = `${origin}/confirm?id=${appt.id}&action=cancel`;
+    return `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
+      `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
+      `✨ טיפול: ${appt.service}\n\n` +
+      `✅ לאישור התור: ${confirmLink}\n` +
+      `🚫 לביטול התור: ${cancelLink}`;
+  };
+
+  // Send a one-off reminder for a specific appointment. Tries the tenant's
+  // GreenAPI (server route, mirrors sendReceiptToClient); if that isn't
+  // connected or fails, falls back to opening WhatsApp with the message
+  // pre-filled (wa.me) so the reminder still goes out.
+  const sendReminderToClient = async (appt) => {
+    if (!appt || isBusy("sendReminder")) return;
+    const cl = clients.find(c => String(c.id) === String(appt.client_id));
+    const phone = (cl?.phone || appt.client_phone || "").trim();
+    if (!phone) { toast("ללקוחה אין מספר טלפון", "error"); return; }
+    setBusyKey("sendReminder", true);
+    try {
+      const res = await fetch("/api/send-reminder-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: settings.tenant_id, appointmentId: appt.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
+      // Fallback: open WhatsApp with the reminder pre-filled.
+      toast(data.notConnected ? "וואטסאפ לא מחובר — נפתחת שליחה ידנית" : "השליחה נכשלה — נפתחת שליחה ידנית", "error");
+      const link = waMsg(phone, reminderText(appt));
+      if (link) window.open(link, "_blank", "noopener");
+    } catch {
+      toast("השליחה נכשלה — נפתחת שליחה ידנית", "error");
+      const link = waMsg(phone, reminderText(appt));
+      if (link) window.open(link, "_blank", "noopener");
+    } finally {
+      setBusyKey("sendReminder", false);
+    }
+  };
+
   // Plain-text receipt summary for the zero-dependency wa.me fallback — opens
   // WhatsApp with the message pre-filled, so the receipt can be shared even when
   // GreenAPI isn't connected. Mirrors the server message in /api/send-receipt.
@@ -3327,6 +3372,7 @@ export default function BeautyOS() {
                             {appt.confirmation_status==="cancelled"&&<span style={{fontSize:8,color:"#fff"}}>✕</span>}
  <div style={{display:"flex",gap:3,position:"absolute",bottom:3,right:3}}>
                               {appt.client_id&&<button title="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>♥</button>}
+                              {(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone)&&<button title="שלחי תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>✉</button>}
  <button title="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>₪</button>
  </div>
                             {hoveredAppt===appt.id&&<button onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.28)",border:"none",borderRadius:6,width:15,height:15,fontSize:8,cursor:"pointer",color:"#fff"}}>✕</button>}
@@ -5107,6 +5153,7 @@ export default function BeautyOS() {
  <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"#D9B98C",flexShrink:0}}/>
  <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"#1C1C1C"}}>{a.service}</p><p style={{fontSize:9,color:"#7A716A"}}>{a.date} · {a.hour}:00{a.price?` · ₪${a.price}`:""}</p></div>
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"#7BAE7F"}}>✓</span>}
+                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:9.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✉ שלחי תזכורת</button>}
  </div>
                     ))
                   )}
