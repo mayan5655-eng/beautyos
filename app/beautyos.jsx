@@ -557,6 +557,38 @@ export default function BeautyOS() {
   const workingHours = HOURS_ALL.slice(Math.max((settings?.working_hours_start||8)-7,0),Math.min((settings?.working_hours_end||19)-7,HOURS_ALL.length));
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
+  // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
+  // Day-of-week of the picked date, parsed as LOCAL (not UTC) so it never shifts
+  // across the date line. Falls back to today's day if the string is malformed.
+  const apptDay = (()=>{ const p=String(newAppt.date||"").split("-"); return p.length===3?new Date(Number(p[0]),Number(p[1])-1,Number(p[2])).getDay():new Date().getDay(); })();
+  // That day's open/close from the per-day business_hours (null = closed that day).
+  const apptDayHours = dayHoursFrom(settings, apptDay);
+  // Bookable START hours for the day: open .. close-1 (can't start at closing time).
+  const apptHourOptions = apptDayHours ? Array.from({length:Math.max(0,apptDayHours.close-apptDayHours.open)},(_,i)=>apptDayHours.open+i) : [];
+  // Keep the shown hour inside the day's range even before the clamp effect runs,
+  // so the label + select stay consistent when the date changes.
+  const apptEffectiveHour = apptHourOptions.includes(Number(newAppt.hour)) ? Number(newAppt.hour) : (apptHourOptions.length?apptHourOptions[0]:Number(newAppt.hour));
+  const fmtHM = (mins)=>`${String(Math.floor(mins/60)).padStart(2,"0")}:${String(((mins%60)+60)%60).padStart(2,"0")}`;
+  const apptStartMin = apptEffectiveHour*60;
+  const apptEndMin = apptStartMin + Number(newAppt.duration||0);
+  // --- STAGE C: block double-booking ---
+  // Busy [start,end) minute-intervals already taken on the picked date. Cancelled
+  // appointments free their slot (grid + gap-fill treat them as available), so
+  // they are excluded here.
+  const apptBusy = appointments
+    .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled")
+    .map(a=>{ const s=Number(a.hour)*60; return [s, s+Number(a.duration||0)]; });
+  // Is a candidate start hour taken, given the currently selected duration?
+  // Recomputes every render, so changing the duration re-evaluates the picker.
+  const hourIsTaken = (h)=>{ const s=h*60, e=s+Number(newAppt.duration||0); return apptBusy.some(([bs,be])=>s<be&&bs<e); };
+  // When the picked day changes and the current hour falls outside that day's
+  // range, snap to the first open hour so a stale start can't be saved.
+  useEffect(()=>{
+    if(!showModal||!apptDayHours) return;
+    if(!apptHourOptions.includes(Number(newAppt.hour))) setNewAppt(prev=>({...prev,hour:apptHourOptions[0]}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[showModal,newAppt.date,apptDayHours?.open,apptDayHours?.close]);
+
   useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
 
   // Facebook connect: load the current connection state on mount, and handle the
@@ -833,6 +865,19 @@ export default function BeautyOS() {
 
   const handleSave = async () => {
     if(!newAppt.name.trim()){toast("נא להזין שם לקוחה","error");return;}
+    // STAGE C: refuse to double-book. The new appointment occupies
+    // [start, start+duration) minutes; reject if it overlaps any non-cancelled
+    // appointment already on that date. (Runs before the busy flag is set.)
+    {
+      const newStart = Number(newAppt.hour)*60;
+      const newEnd = newStart + Number(newAppt.duration||0);
+      const clash = appointments.some(a=>{
+        if(a.date!==newAppt.date || a.confirmation_status==="cancelled") return false;
+        const bs = Number(a.hour)*60, be = bs + Number(a.duration||0);
+        return newStart < be && bs < newEnd;
+      });
+      if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
+    }
     if(isBusy("saveAppt")) return;
     setBusyKey("saveAppt", true);
     try {
@@ -4308,18 +4353,19 @@ export default function BeautyOS() {
  <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p><select value={newAppt.hour} onChange={e=>setNewAppt({...newAppt,hour:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{workingHours.map((h,i)=><option key={h} value={settings.working_hours_start+i}>{h}</option>)}</select></div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveHour} onChange={e=>setNewAppt({...newAppt,hour:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{apptHourOptions.map(h=>{const taken=hourIsTaken(h);return <option key={h} value={h} disabled={taken}>{String(h).padStart(2,"0")}:00{taken?" — תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:10.5,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
  </div>
  <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>
  <option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price} ({s.duration}′)</option>)}
  </select>
  <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"#fff":"var(--ink-2)",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
+              {apptDayHours&&<p style={{fontSize:11,color:pcDeep,fontWeight:600,textAlign:"center",background:"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>⏱ {fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration||0)} דקות</p>}
  <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
  <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSave} disabled={isBusy("saveAppt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>{isBusy("saveAppt")?"שומר...":"שמירה ✓"}</button>
+ <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:apptDayHours?1:0.5,cursor:apptDayHours?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומר...":!apptDayHours?"סגור ביום זה":"שמירה ✓"}</button>
  </div>
  </div>
  </div>
