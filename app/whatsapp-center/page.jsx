@@ -84,7 +84,9 @@ export default function WhatsAppCenter() {
 
         {!loading && messages.length > 0 && (
           <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #EFE7EB", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            {/* Horizontal scroll on narrow phones so the 6 columns never clip/crush. */}
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "linear-gradient(90deg,#FCEEF3,#FFFFFF)", textAlign: "right" }}>
                   <th style={{ padding: "12px 14px", fontSize: 11, color: "#8A8088", fontWeight: 600 }}>שם</th>
@@ -118,6 +120,7 @@ export default function WhatsAppCenter() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

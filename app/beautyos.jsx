@@ -2643,6 +2643,15 @@ export default function BeautyOS() {
           .header-search{max-width:none!important}
           .modal-card{width:94%!important;max-width:380px!important}
           .client-drawer,.lead-drawer{width:100%!important}
+          /* Phase 2 — mobile readability: 16px form fields stop iOS zoom-on-focus;
+             modest floor on the drawer nav so labels stay legible on a phone. */
+          .modal-card input,.modal-card select,.modal-card textarea{font-size:16px!important}
+          .nav-item{font-size:14px!important}
+          /* Phase 3 — give content its width back (main uses inline 28px 30px). */
+          .app-main{padding:16px 14px!important}
+          /* Phase 4 — tap targets: round icon buttons up to a touch-friendly ~40px. */
+          .icon-btn{width:40px!important;height:40px!important;font-size:15px!important}
+          .wa-btn,.call-btn{padding:9px 14px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -3085,7 +3094,7 @@ export default function BeautyOS() {
  </button>
  </aside>
 
- <main style={{order:1,flex:1,overflow:"auto",padding:"28px 30px"}}>
+ <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px"}}>
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
@@ -4858,6 +4867,10 @@ export default function BeautyOS() {
       {designPost&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14,overflowY:"auto"}} onClick={()=>setDesignPost(null)}>
           <div onClick={e=>e.stopPropagation()} style={{maxWidth:420,width:"100%"}}>
+            {/* Scroll wrapper: contains the fixed 380px export canvas on <380px phones
+                without resizing #post-design (html2canvas captures it at its rendered
+                size, so its dimensions must stay fixed to keep the exported PNG square). */}
+            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
             <div id="post-design" style={{width:380,height:380,marginLeft:"auto",marginRight:"auto",background:designBg?"#000":pcGrad,borderRadius:0,padding:34,display:"flex",flexDirection:"column",justifyContent:"center",position:"relative",overflow:"hidden"}}>
               {designBg&&<img alt="" src={designBg} crossOrigin="anonymous" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
               {designBg&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.25),rgba(0,0,0,0.55))"}}/>}
@@ -4865,6 +4878,7 @@ export default function BeautyOS() {
               {designPost.title&&<div className="serif" style={{fontSize:26,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:14,textShadow:"0 1px 6px rgba(0,0,0,0.18)"}}>{designPost.title}</div>}
               <div style={{fontSize:14,color:"#fff",lineHeight:1.6,whiteSpace:"pre-wrap",textShadow:"0 1px 4px rgba(0,0,0,0.15)",maxHeight:170,overflow:"hidden"}}>{designPost.body}</div>
               {designPost.callToAction&&<div style={{marginTop:16,display:"inline-block",alignSelf:"flex-start",background:"#fff",color:"#3A2A30",fontSize:12.5,fontWeight:700,padding:"8px 18px",borderRadius:30}}>{designPost.callToAction}</div>}
+            </div>
             </div>
             <div style={{display:"flex",gap:8,marginTop:10,maxWidth:380,marginLeft:"auto",marginRight:"auto"}}>
               <label style={{flex:1,padding:"10px 0",background:"rgba(255,255,255,0.92)",color:"#3A2A30",borderRadius:12,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
