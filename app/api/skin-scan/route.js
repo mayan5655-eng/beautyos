@@ -94,10 +94,12 @@ ${servicesText}
 
 score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוגנת ומעודדת.`;
 
-    // 3. Call Claude with vision
+    // 3. Call Claude with vision. Haiku 4.5 is much faster than Sonnet for this
+    // structured-report task; max_tokens is sized to the JSON above (the report
+    // is capped at ~4 items per section, so it fits comfortably under 1500).
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 4000,
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1500,
       system: systemPrompt,
       messages: [
         {

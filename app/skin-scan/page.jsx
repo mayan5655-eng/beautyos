@@ -46,12 +46,32 @@ export default function SkinScanPage() {
     setShowPro(false);
     setSent(false);
     setSendError("");
-    setMediaType(file.type || "image/jpeg");
+    // Downscale + compress in the browser before sending, so the upload is small
+    // and the vision call is faster (mirrors the dashboard scanner). We always
+    // emit JPEG, so the media type is fixed to image/jpeg.
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result;
-      setPreview(result);
-      setImageData(result.split(",")[1]);
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1024;
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        else if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        setMediaType("image/jpeg");
+        setPreview(dataUrl);
+        setImageData(dataUrl.split(",")[1]);
+      };
+      // If the browser can't decode the image, fall back to the raw file.
+      img.onerror = () => {
+        setMediaType(file.type || "image/jpeg");
+        setPreview(reader.result);
+        setImageData(String(reader.result).split(",")[1]);
+      };
+      img.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
@@ -319,7 +339,7 @@ export default function SkinScanPage() {
 
             {/* DISCLAIMER */}
             <p style={{ fontSize: 11, color: "#B0A0A6", textAlign: "center", lineHeight: 1.5, marginBottom: 14, padding: "0 10px" }}>
-              ⚠️ הניתוח הוא הערכה קוסמטית כללית בלבד, ואינו תחליף לייעוץ או אבחון מקצועי.
+              ℹ️ זוהי הערכת AI ראשונית בלבד ואינה מהווה אבחון רפואי. לתכנית טיפול מלאה ומדויקת מומלץ להתייעץ עם הקוסמטיקאית.
             </p>
 
             <button onClick={reset} className="ss-btn" style={{ width: "100%", padding: "14px 0", borderRadius: 14, background: "#fff", color: PINK, fontSize: 15, fontWeight: 800, border: `2px solid ${PINK}` }}>
