@@ -1360,8 +1360,8 @@ export default function BeautyOS() {
       // failure. Uses the same sendReceiptToClient the manual button uses.
       if((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone){
         sendReceiptToClient(data[0],{silent:true})
-          .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"); })
-          .catch(()=>toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"));
+          .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
+          .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
       }
       setShowCashier(false);setShowReceipt(data[0]);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierNote("");setCashierAppt(null);
@@ -1529,8 +1529,8 @@ export default function BeautyOS() {
         const cl = clients.find(c=>String(c.id)===String(data[0].client_id));
         if ((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cl?.phone) {
           sendReceiptToClient(data[0],{silent:true})
-            .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"); })
-            .catch(()=>toast("הקבלה נוצרה, אך השליחה ללקוחה נכשלה","error"));
+            .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
+            .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
         }
       }
     } finally {
@@ -1563,7 +1563,15 @@ export default function BeautyOS() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) { if (!silent) toast("שליחת הקבלה נכשלה", "error"); return false; }
+      if (!res.ok || !data.success) {
+        if (!silent) toast(
+          data.notConnected
+            ? "וואטסאפ לא מחובר — חברי בהגדרות, או שלחי בקישור הישיר"
+            : "שליחת הקבלה נכשלה — נסי בקישור הישיר",
+          "error"
+        );
+        return false;
+      }
       if (!silent) toast("הקבלה נשלחה ללקוחה ב-WhatsApp ✦");
       return true;
     } catch {
@@ -1625,6 +1633,19 @@ export default function BeautyOS() {
     if (!w) { toast("החלון נחסם — אפשרי חלונות קופצים ונסי שוב", "error"); return; }
     w.document.write(html);
     w.document.close();
+  };
+
+  // Plain-text receipt summary for the zero-dependency wa.me fallback — opens
+  // WhatsApp with the message pre-filled, so the receipt can be shared even when
+  // GreenAPI isn't connected. Mirrors the server message in /api/send-receipt.
+  const receiptShareText = (receipt) => {
+    const businessName = settings.business_name || "העסק";
+    return `שלום ${receipt.client_name || "לקוחה"}! ✦\n` +
+      `קבלה מ${businessName}\n\n` +
+      `💰 סכום: ₪${receipt.amount}\n` +
+      `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
+      `📅 תאריך: ${(receipt.created_at || "").slice(0, 10)}\n\n` +
+      `תודה ונתראה בקרוב! 😊`;
   };
 
   // call_client: find the client by name; the call itself just opens tel:.
@@ -4658,6 +4679,11 @@ export default function BeautyOS() {
               ):null;})()}
  <button onClick={()=>setShowReceipt(null)} className="primary-btn" style={{flex:1,padding:"11px 0",background:pcGrad,color:"#fff",fontSize:11}}>סגירה</button>
  </div>
+              {/* Zero-dependency fallback: opens WhatsApp with the receipt pre-filled,
+                  works even if GreenAPI isn't connected. */}
+              {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));const phone=(cl?.phone||showReceipt.client_phone||"").trim();return phone?(
+ <a href={waMsg(phone,receiptShareText(showReceipt))} target="_blank" rel="noreferrer" className="primary-btn" style={{display:"block",margin:"0 24px 22px",padding:"11px 0",background:"var(--surface)",color:"#128C7E",border:"1.5px solid #25D366",borderRadius:12,fontSize:11.5,fontWeight:700,textAlign:"center",textDecoration:"none"}}>✆ שלחי בוואטסאפ (קישור ישיר)</a>
+              ):null;})()}
  </div>
  </div>
       )}

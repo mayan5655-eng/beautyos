@@ -34,6 +34,21 @@ export async function POST(request) {
       );
     }
 
+    // If the GreenAPI integration isn't configured, this is a "not connected"
+    // state — report it explicitly (notConnected) so the UI can guide her to
+    // connect WhatsApp and fall back to the direct wa.me link, instead of a
+    // vague "send failed". 200 so the client reads the flag from the body.
+    if (
+      !process.env.GREENAPI_ID_INSTANCE ||
+      !process.env.GREENAPI_API_TOKEN ||
+      !process.env.GREENAPI_API_URL
+    ) {
+      return Response.json(
+        { success: false, notConnected: true, error: "וואטסאפ לא מחובר" },
+        { status: 200 }
+      );
+    }
+
     // Business name from THIS tenant's settings (never trust the client).
     const { data: settingsRows } = await supabase
       .from("settings")
