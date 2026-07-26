@@ -1591,20 +1591,22 @@ export default function BeautyOS() {
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>קבלה</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2233;padding:40px;direction:rtl}
-  .wrap{max-width:360px;margin:0 auto}
-  .head{text-align:center;border-bottom:2px dashed #E3DBEC;padding-bottom:14px;margin-bottom:14px}
-  .biz{font-size:22px;font-weight:700}
-  .sub{font-size:11px;color:#9A93A4;margin-top:2px}
-  .body{font-size:13px;line-height:1.9}
-  .row{display:flex;justify-content:space-between}
+  @page{size:A4;margin:18mm}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{width:100%}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#2A2233;direction:rtl;font-size:16px}
+  .wrap{max-width:700px;margin:0 auto;padding:24px 8px}
+  .head{text-align:center;border-bottom:2px dashed #E3DBEC;padding-bottom:22px;margin-bottom:22px}
+  .biz{font-size:34px;font-weight:700;letter-spacing:-0.01em}
+  .sub{font-size:15px;color:#9A93A4;margin-top:4px}
+  .body{font-size:19px;line-height:2.1}
+  .row{display:flex;justify-content:space-between;gap:16px}
   .k{color:#9A93A4}
   .v{font-weight:600}
-  .total{border-top:2px dashed #E3DBEC;margin-top:14px;padding-top:14px;display:flex;justify-content:space-between;align-items:center}
-  .total .lbl{font-size:14px;font-weight:600;color:#5B5563}
-  .total .amt{font-size:28px;font-weight:700;color:${esc(pc)}}
-  .foot{text-align:center;font-size:10px;color:#9A93A4;margin-top:14px}
+  .total{border-top:2px dashed #E3DBEC;margin-top:22px;padding-top:22px;display:flex;justify-content:space-between;align-items:center}
+  .total .lbl{font-size:22px;font-weight:600;color:#5B5563}
+  .total .amt{font-size:44px;font-weight:700;color:${esc(pc)}}
+  .foot{text-align:center;font-size:14px;color:#9A93A4;margin-top:24px}
 </style></head>
 <body onload="window.print()">
   <div class="wrap">
@@ -1619,25 +1621,11 @@ export default function BeautyOS() {
   </div>
   <script>window.onafterprint=function(){window.close()}<\/script>
 </body></html>`;
-    const w = window.open("", "_blank", "width=420,height=640");
+    const w = window.open("", "_blank", "width=760,height=900");
     if (!w) { toast("החלון נחסם — אפשרי חלונות קופצים ונסי שוב", "error"); return; }
     w.document.write(html);
     w.document.close();
   };
-
-  // TEMP DIAGNOSTIC: dump the receipt's actual fields the instant it opens, so we
-  // can see whether showReceipt carries data (client_name/service/amount) or is
-  // blank — this tells us if the bug is the DATA or only the rendering/printing.
-  useEffect(() => {
-    if (!showReceipt) return;
-    console.log("[RECEIPT DEBUG] opened. keys:", Object.keys(showReceipt || {}), "| values:", {
-      client_name: showReceipt.client_name,
-      service: showReceipt.service,
-      amount: showReceipt.amount,
-      payment_method: showReceipt.payment_method,
-      created_at: showReceipt.created_at,
-    }, "| full object:", showReceipt);
-  }, [showReceipt]);
 
   // call_client: find the client by name; the call itself just opens tel:.
   const prepareCall = (intent) => {
