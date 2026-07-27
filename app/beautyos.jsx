@@ -5106,9 +5106,22 @@ export default function BeautyOS() {
                 // isWhatsAppConnected's per-tenant rule; url is optional).
                 const waConnected=!!(String(editSettings.green_api_instance||"").trim()&&String(editSettings.green_api_token||"").trim());
                 const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});
+                // Structured automation config lives in the settings.automations JSONB
+                // (same store as business_hours/faq). Read/write defensively.
+                const autos=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
+                const skinMode=(autos.skin_followup&&autos.skin_followup.mode)||"off";
+                const masterPaused=autos.paused===true;
+                const setAutos=(next)=>setEditSettings({...editSettings,automations:next});
+                const setSkinMode=(m)=>setAutos({...autos,skin_followup:{...(autos.skin_followup||{}),mode:m}});
+                const setPaused=(v)=>setAutos({...autos,paused:v});
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
+
+ <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"#E8DED6"}`,borderRadius:12,padding:"2px 12px"}}>
+ <AutoToggleRow pc={pc} label="⏸ השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
+ </div>
+ {masterPaused&&<p style={{fontSize:9.5,color:"#B07F2A",fontWeight:700,margin:"-2px 0 2px"}}>⏸ כל האוטומציות מושהות כרגע.</p>}
 
  <div>
  <p style={{fontSize:10,color:"#7A716A",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
@@ -5131,6 +5144,18 @@ export default function BeautyOS() {
  <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
  </div>
  )}
+ </div>
+
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
+ <p style={{fontSize:11,fontWeight:600,color:"#5A4A52",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
+ <div style={{display:"flex",gap:6,opacity:masterPaused?0.5:1}}>
+                    {[["off","כבוי"],["approval","באישור"],["automatic","אוטומטי"]].map(([m,l])=>(
+ <button key={m} onClick={()=>!masterPaused&&setSkinMode(m)} disabled={masterPaused} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:masterPaused?"default":"pointer",fontFamily:"inherit",border:skinMode===m?`2px solid ${pc}`:"1px solid #E8DED6",background:skinMode===m?pcTint:"#fff",color:pc}}>{l}</button>
+                    ))}
+ </div>
+ <p style={{fontSize:9,color:"#B8AFA0",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":skinMode==="approval"?"באישור — נכין עבורך הצעות, וכל הודעה תישלח רק לאחר אישורך.":"אוטומטי — יופעל בקרוב; בינתיים ההצעות ממתינות לאישורך (לא נשלח דבר אוטומטית)."}</p>
  </div>
 
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
