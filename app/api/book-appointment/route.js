@@ -37,6 +37,32 @@ export async function POST(request) {
     }
     const activeTenantId = tenantId;
 
+    // 0. Reject double-booking: if a non-cancelled appointment already overlaps
+    //    this slot on the same date for this tenant, fail with a friendly message
+    //    instead of silently stacking a second appointment on top of it. Mirrors
+    //    the in-app overlap guard (cancelled appointments free their slot).
+    {
+      const { data: sameDay } = await supabase
+        .from("appointments")
+        .select("hour, duration, confirmation_status")
+        .eq("tenant_id", activeTenantId)
+        .eq("date", date);
+      const newStart = Number(hour) * 60;
+      const newEnd = newStart + Number(duration || 60);
+      const clash = (sameDay || []).some((a) => {
+        if (a.confirmation_status === "cancelled") return false;
+        const bs = Number(a.hour) * 60;
+        const be = bs + Number(a.duration || 0);
+        return newStart < be && bs < newEnd;
+      });
+      if (clash) {
+        return Response.json(
+          { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
+          { status: 409 }
+        );
+      }
+    }
+
     // 1. Save the appointment to Supabase
     const { data: appt, error } = await supabase
       .from("appointments")
@@ -58,6 +84,14 @@ export async function POST(request) {
       .single();
 
     if (error) {
+      // Unique-violation from a slot index (concurrent booking race) → treat as
+      // "slot taken" rather than surfacing a raw 500.
+      if (error.code === "23505") {
+        return Response.json(
+          { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
+          { status: 409 }
+        );
+      }
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 

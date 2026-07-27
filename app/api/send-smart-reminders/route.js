@@ -121,10 +121,11 @@ export async function POST(request) {
     const cutoff90 = dateNDaysAgo(90);
     const { data: allAppts } = await supabase
       .from("appointments")
-      .select("client_id, date, tenant_id");
+      .select("client_id, date, tenant_id, confirmation_status");
     const lastVisitByClient = {};
     (allAppts || []).forEach((a) => {
       if (!a.client_id || !a.date) return;
+      if (a.confirmation_status === "cancelled") return; // a cancelled appointment is not a real visit
       const prev = lastVisitByClient[a.client_id];
       if (!prev || a.date > prev) lastVisitByClient[a.client_id] = a.date;
     });
@@ -173,9 +174,10 @@ export async function POST(request) {
     const reviewDay = dateNDaysAgo(2);
     const { data: reviewAppts } = await supabase
       .from("appointments")
-      .select("id, client_id, service, date, tenant_id")
+      .select("id, client_id, service, date, tenant_id, confirmation_status")
       .eq("date", reviewDay);
     for (const appt of reviewAppts || []) {
+      if (appt.confirmation_status === "cancelled") continue; // don't request a review for a cancelled visit
       const client = clientById[appt.client_id];
       if (!client) continue;
       if (!flagEnabled(client.tenant_id, "review_requests_enabled")) continue; // tenant disabled review requests

@@ -133,7 +133,9 @@ export default function BookPage() {
         }),
       });
       const result = await res.json();
-      if (!result.success) { setErrorMsg("אירעה שגיאה. נסי שוב."); setSubmitting(false); return; }
+      // Prefer the server's specific message (e.g. "slot taken") when provided,
+      // otherwise fall back to the generic error.
+      if (!result.success) { setErrorMsg(result.error || "אירעה שגיאה. נסי שוב."); setSubmitting(false); return; }
       setStep(4);
     } catch (err) {
       setErrorMsg("אירעה שגיאה. נסי שוב.");

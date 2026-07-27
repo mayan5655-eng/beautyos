@@ -55,8 +55,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 5. בדיקה אם התור כבר אושר/בוטל
-    if (existingAppointment.confirmation_status === 'confirmed') {
+    // 5. אם התור כבר נמצא במצב המבוקש — אין מה לעדכן (תגובה idempotent).
+    //    חשוב: משווים מול הפעולה המבוקשת ולא מול הסטטוס בלבד, אחרת תור שאושר
+    //    לא ניתן לביטול דרך קישור ה"לביטול התור" (ולהפך).
+    if (action === 'confirm' && existingAppointment.confirmation_status === 'confirmed') {
       return NextResponse.json({
         success: true,
         alreadyDone: true,
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (existingAppointment.confirmation_status === 'cancelled') {
+    if (action === 'cancel' && existingAppointment.confirmation_status === 'cancelled') {
       return NextResponse.json({
         success: true,
         alreadyDone: true,

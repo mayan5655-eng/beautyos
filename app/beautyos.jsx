@@ -751,7 +751,10 @@ export default function BeautyOS() {
   const lastMonthRevenue = useMemo(() => receipts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [receipts, lastMonth, lastMonthYear]);
   const todayAppts    = useMemo(() => appointments.filter(a=>a.date===today), [appointments, today]);
   const tomorrowAppts = useMemo(() => appointments.filter(a=>a.date===tomorrow), [appointments, tomorrow]);
-  const weekAppts     = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);const ws=new Date(weekStart);const we=new Date(weekStart);we.setDate(we.getDate()+5);return d>=ws&&d<=we;}), [appointments, weekStart]);
+  // Compare on local YYYY-MM-DD strings (via formatDate), not Date objects:
+  // weekStart carries a time-of-day while new Date("YYYY-MM-DD") is UTC midnight,
+  // which previously dropped today's appointments from the weekly count.
+  const weekAppts     = useMemo(() => { const ws=formatDate(weekStart); const weEnd=new Date(weekStart); weEnd.setDate(weEnd.getDate()+5); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
   const thisMonthAppts = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [appointments, thisMonth, thisYear]);
 
   const getLastAppt    = (cid) => appointments.filter(a=>String(a.client_id)===String(cid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
@@ -1808,6 +1811,23 @@ export default function BeautyOS() {
     if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
     if (!b.service) { toast("נא לבחור שירות", "error"); return; }
     if (!b.date || !b.time) { toast("נא לבחור תאריך ושעה", "error"); return; }
+    const svc = activeServices.find(s => s.name === b.service);
+    // Whole-hour schema: parse the spoken start hour and reject anything we can't
+    // represent as a valid hour, so a malformed time never books silently at 00:00.
+    const hourNum = Number((b.time||"").split(":")[0]);
+    if (!Number.isInteger(hourNum) || hourNum < 0 || hourNum > 23) { toast("שעה לא תקינה", "error"); return; }
+    const duration = svc?.duration || 60;
+    // Guard against double-booking, mirroring handleSave: reject if the new
+    // [start,end) overlaps any non-cancelled appointment on that date.
+    {
+      const newStart = hourNum*60, newEnd = newStart + duration;
+      const clash = appointments.some(a=>{
+        if(a.date!==b.date || a.confirmation_status==="cancelled") return false;
+        const bs=Number(a.hour)*60, be=bs+Number(a.duration||0);
+        return newStart<be && bs<newEnd;
+      });
+      if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
+    }
     if (isBusy("voiceBook")) return;
     setBusyKey("voiceBook", true);
     try {
@@ -1830,14 +1850,12 @@ export default function BeautyOS() {
         if (ce) { handleDbError(ce, "create client (voice)"); return; }
         if (nc?.[0]) { clientId = nc[0].id; setClients(prev=>[...prev, nc[0]]); }
       }
-      const svc = activeServices.find(s => s.name === b.service);
-      const hourNum = Number((b.time||"").split(":")[0]) || 0; // schema stores whole hours
       const appt = {
         date: b.date,
         hour: hourNum,
         name: b.clientName.trim(),
         service: b.service,
-        duration: svc?.duration || 60,
+        duration: duration,
         color: svc?.color || "#D9B98C",
         client_id: clientId,
         note: "",
