@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { bookAppointmentSlot } from "@/lib/booking";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
 function admin() {
@@ -112,10 +113,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ state: loaded ? stateOf(loaded.offer) : "invalid" });
   }
 
-  // Won. Book the appointment for this client. The partial unique index
+  // Won. Book the appointment for this client via the shared, DB-guarded booking
+  // path (also used by the concierge). The partial unique index
   // uniq_appt_slot_active guards against a parallel manual/online booking of the
   // same slot; if that fires, the slot was really taken -> undo our claim.
-  const { error: apptErr } = await supabase.from("appointments").insert({
+  const booked = await bookAppointmentSlot(supabase, {
     tenant_id: claimed.tenant_id,
     date: claimed.slot_date,
     hour: claimed.slot_hour,
@@ -124,12 +126,10 @@ export async function POST(request: NextRequest) {
     client_id: claimed.client_id,
     name: claimed.client_name,
     client_phone: claimed.phone,
-    confirmation_status: "confirmed",
-    confirmation_sent: true,
   });
 
-  if (apptErr) {
-    if ((apptErr as { code?: string }).code === "23505") {
+  if (!booked.ok) {
+    if ("taken" in booked) {
       await supabase.from("slot_offers")
         .update({ status: "superseded" })
         .eq("token", token);
