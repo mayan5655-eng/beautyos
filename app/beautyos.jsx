@@ -648,6 +648,28 @@ export default function BeautyOS() {
     toast("אושר במצב בדיקה — לא נשלחה הודעה אמיתית ✓","success");
   };
 
+  // Connect a free-text Advisor reply to ONE existing next action. The Advisor
+  // returns unstructured prose (no client/scan/appointment references), so this
+  // does NOT change the AI or invent recommendation types — it matches the KNOWN
+  // topics the advisor already covers and routes to the relevant existing module.
+  // Returns {label, run} or null. First match wins (priority order); idempotent
+  // navigation (no entity mutation, no duplicates, safe to click repeatedly).
+  const advisorAction = (text) => {
+    const t = String(text||"");
+    const has = (...ws)=>ws.some(w=>t.includes(w));
+    if(has("רדומ","לא ביקר","לא הגיע","החזרת לקוחות","להחזיר לקוחות","נטש"))
+      return { label:"פתחי מרכז הודעות", run:()=>setActiveTab("whatsapp") };
+    if(has("קמפיין","מבצע","שיווק","פוסט","סושיאל","אינסטגרם","פייסבוק"))
+      return { label:"צרי קמפיין", run:()=>setActiveTab("campaigns") };
+    if(has("ליד","פנייה","פניות","לידים"))
+      return { label:"פתחי לידים", run:()=>setActiveTab("leads") };
+    if(has("יומן","תור פנוי","תורים פנויים","למלא את היומן","זמינות"))
+      return { label:"פתחי יומן", run:()=>setActiveTab("calendar") };
+    if(has("תמחור","העלאת מחיר","המחיר","חבילת","חבילות"))
+      return { label:"פתחי שירותים ומחירים", run:()=>{setEditSettings({...settings});setSettingsTab("services");setShowSettings(true);} };
+    return null;
+  };
+
   // Facebook connect: load the current connection state on mount, and handle the
   // return from the OAuth callback. The callback redirects back here with
   // ?fb_success=true (page connected) or ?fb_error=... — show a toast, then strip
@@ -4585,6 +4607,9 @@ export default function BeautyOS() {
               ):advisorMessages.map(m=>(
  <div key={m.id} style={{alignSelf:m.role==="user"?"flex-start":"flex-end",maxWidth:"82%",background:m.role==="user"?pcGrad:"var(--surface-2)",color:m.role==="user"?"#fff":"var(--ink)",border:m.role==="user"?"none":"1px solid var(--line)",borderRadius:m.role==="user"?"16px 16px 16px 4px":"16px 16px 4px 16px",padding:"12px 15px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap",boxShadow:m.role==="user"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)"}}>
                     {m.content}
+                    {m.role!=="user"&&(()=>{const a=advisorAction(m.content);return a?(
+ <button onClick={a.run} className="primary-btn" style={{display:"inline-block",marginTop:10,background:pcGrad,color:"#fff",fontSize:11,fontWeight:600,padding:"8px 15px",borderRadius:12}}>← {a.label}</button>
+                    ):null;})()}
  </div>
               ))}
               {advisorSending&&(
