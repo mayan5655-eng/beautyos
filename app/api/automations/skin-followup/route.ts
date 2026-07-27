@@ -11,10 +11,12 @@
 // (get_user_tenant_id); every read is tenant-scoped. Only the client's own data
 // is used; messages carry no scan scores or findings.
 //
-// Automation control (three-state) + clinic master pause are read DEFENSIVELY so
-// this is safe BEFORE the proposed (not-yet-applied) settings columns exist:
-//   settings.skin_followup_mode -> 'off' (default) | 'approval' | 'automatic'
-//   settings.automations_paused -> false (default) | true  (clinic master pause)
+// Automation control (three-state) + clinic master pause live in the EXISTING
+// settings store, inside ONE JSONB column `settings.automations` (same convention
+// as settings.business_hours / settings.faq — no new table, no new architecture).
+// Read DEFENSIVELY so this is safe BEFORE the column exists:
+//   settings.automations.skin_followup.mode -> 'off'(default)|'approval'|'automatic'
+//   settings.automations.paused             -> false(default)|true (master pause)
 // Default is OFF — no queue is produced until the clinic explicitly opts in, and
 // even 'automatic' never sends from this route (auto-send is a later increment).
 
@@ -49,8 +51,14 @@ export async function GET() {
       .eq('tenant_id', tenantId)
       .limit(1)
     const settings: Record<string, unknown> = settingsRows?.[0] || {}
-    const mode = (settings.skin_followup_mode as string) || 'off'
-    const paused = settings.automations_paused === true
+    // Automation config lives in the existing settings store, in a single JSONB
+    // column `automations`. Read defensively so it works before the column exists.
+    const asObj = (v: unknown): Record<string, unknown> =>
+      v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
+    const automations = asObj(settings.automations)
+    const skinCfg = asObj(automations.skin_followup)
+    const mode = typeof skinCfg.mode === 'string' ? skinCfg.mode : 'off'
+    const paused = automations.paused === true
 
     // Clinic master pause wins over any individual automation mode.
     if (paused) {

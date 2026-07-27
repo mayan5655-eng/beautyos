@@ -1,28 +1,32 @@
 -- skin-followup-automation.sql   (PROPOSED — do NOT run without approval)
 --
--- Adds the automation controls behind the Skin-scan → WhatsApp follow-up feature.
--- Additive and default-safe: every clinic starts OFF, so applying this migration
--- changes NO behavior until a cosmetician explicitly opts in. Mirrors the pattern
--- in automation-flags.sql. Safe to re-run (uses "if not exists").
+-- Reuses the EXISTING per-tenant config store (public.settings) — no new table,
+-- no new settings architecture. Adds ONE additive JSONB column `automations`,
+-- matching the store's existing structured-config convention (settings.business_hours,
+-- settings.faq are already JSONB). This single column holds structured config for
+-- EVERY automation (mode now; later: working hours, sending days, cooldown,
+-- included/excluded services, template, approval) with no further migrations.
 --
--- The app reads both columns DEFENSIVELY (missing/null -> default), so the
--- feature works in preview/test mode even BEFORE this runs — this migration only
--- makes the per-clinic choice persistable.
+-- Additive + fully backward compatible:
+--   * Existing boolean automation flags (reminders_enabled, gap_fill_enabled,
+--     send_receipt_auto, …) are UNTOUCHED and keep working exactly as before.
+--   * Default is an empty object, so every clinic starts effectively OFF — applying
+--     this changes NO behavior until a cosmetician opts in.
+--   * The app reads `automations` DEFENSIVELY (missing/null -> defaults), so the
+--     feature already works in preview/test mode BEFORE this runs; the column only
+--     makes the per-clinic choice persistable.
+-- Safe to re-run ("if not exists").
 
 alter table public.settings
-  -- Three-state control for the skin follow-up automation:
-  --   'off'        -> feature disabled (DEFAULT)
-  --   'approval'   -> build the approval queue; a human approves each message
-  --   'automatic'  -> (reserved) auto-send; NOT implemented yet, never sends today
-  add column if not exists skin_followup_mode text not null default 'off'
-    check (skin_followup_mode in ('off','approval','automatic')),
+  add column if not exists automations jsonb not null default '{}'::jsonb;
 
-  -- Clinic-level master pause. When true, ALL automations are held regardless of
-  -- their individual mode. Individual settings are preserved (this is a pause,
-  -- not a reset), so "resume" restores each automation's own mode.
-  add column if not exists automations_paused boolean not null default false;
+-- Shape stored inside settings.automations (all keys optional; read with defaults):
+-- {
+--   "paused": false,                         -- clinic-level master pause (overrides all)
+--   "skin_followup": { "mode": "off" }       -- 'off' | 'approval' | 'automatic'
+--   -- future automations add their own key here, e.g.
+--   -- "reminders": { "mode": "approval", "cooldownDays": 14, "sendDays": [0,1,2,3,4] }
+-- }
 
--- ROLLBACK (fully reversible; no data loss — these columns hold only preferences):
---   alter table public.settings
---     drop column if exists skin_followup_mode,
---     drop column if exists automations_paused;
+-- ROLLBACK (fully reversible; the column holds only preferences — no data loss):
+--   alter table public.settings drop column if exists automations;
