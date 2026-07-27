@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { supabase } from "../supabase";
+import { fetchPublicBranding } from "@/lib/branding";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -11,8 +13,8 @@ import { useState, useRef, useEffect } from "react";
 // No new scanner, no new AI, no new booking/lead system.
 // ============================================================
 
-const ACCENT = "#8E5A7C"; // muted plum-rose (primary)
-const DEEP = "#5B3E67"; // plum (brand ink)
+const ACCENT_DEFAULT = "#8E5A7C"; // muted plum-rose (fallback primary)
+const DEEP_DEFAULT = "#5B3E67"; // plum (fallback brand ink)
 const INK = "#3A2E38";
 const INK2 = "#8A7E86";
 const LINE = "#EFE3EC";
@@ -42,6 +44,7 @@ export default function SkinScanPage() {
   const [sendError, setSendError] = useState("");
 
   const [tenantId, setTenantId] = useState("");
+  const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
 
   const fileRef = useRef(null);
 
@@ -52,6 +55,15 @@ export default function SkinScanPage() {
       if (t) setTenantId(t);
     } catch {}
   }, []);
+
+  // Load the clinic's branding (public-safe fields only). Strictly tenant-scoped;
+  // missing/invalid tenant or error -> neutral BloomOS defaults (never another clinic).
+  useEffect(() => {
+    if (!tenantId) return;
+    let alive = true;
+    fetchPublicBranding(supabase, tenantId).then((b) => { if (alive) setBrand(b); });
+    return () => { alive = false; };
+  }, [tenantId]);
 
   useEffect(() => {
     if (!loading) { setLoadStep(0); return; }
@@ -123,6 +135,11 @@ export default function SkinScanPage() {
     return "/book" + (qs ? `?${qs}` : "");
   };
 
+  // Clinic colors (safe-resolved) drive every accent + CTA; fall back to defaults.
+  const ACCENT = brand?.primary || ACCENT_DEFAULT;
+  const DEEP = brand?.deep || DEEP_DEFAULT;
+  const ctaText = (brand?.ctaLabel || "קביעת תור לטיפול");
+
   const scoreColor = (s) => (s >= 75 ? "#3E9E6B" : s >= 50 ? "#C98A3A" : ACCENT);
   // Honest, encouraging framing derived from the REAL score band (not a fabricated
   // per-feature finding). Builds confidence before discussing concerns.
@@ -163,6 +180,11 @@ export default function SkinScanPage() {
 
       {/* HEADER */}
       <div style={{ width: "100%", maxWidth: 500, padding: "40px 22px 8px", textAlign: "center" }}>
+        {brand?.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 60, maxWidth: 200, objectFit: "contain", margin: "0 auto 12px", display: "block" }} />
+        ) : brand?.businessName ? (
+          <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
+        ) : null}
         <p style={{ fontSize: 11, letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
         <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>הכירי את העור שלך —<br />וקבלי המלצה מקצועית</h1>
         <p style={{ fontSize: 13.5, color: INK2, fontWeight: 500, lineHeight: 1.6 }}>העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה.</p>
@@ -282,7 +304,7 @@ export default function SkinScanPage() {
               {report.matched_service && <p style={{ fontSize: 13, color: "#fff", opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
               {(plan.sessions || plan.treatment_type) && <p style={{ fontSize: 12, color: "#fff", opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
               <p style={{ fontSize: 12.5, color: "#fff", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך — כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
-              {bookCard("קביעת תור לטיפול ✦")}
+              {bookCard(ctaText + " ✦")}
               <p style={{ fontSize: 11, color: "#fff", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול — בלי למלא מחדש</p>
             </div>
 
@@ -322,7 +344,7 @@ export default function SkinScanPage() {
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
               <p style={{ fontSize: 12.5, color: "#6A5E66", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ — הפרטים שלך כבר נשמרים.</p>
-              <a href={bookHref()} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "#fff", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>קביעת תור לטיפול ✦</a>
+              <a href={bookHref()} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "#fff", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>
             </div>
 
             {/* SECONDARY — full report on WhatsApp (also captures the lead) */}

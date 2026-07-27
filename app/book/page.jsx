@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn } from "@/lib/businessHours";
+import { BOOK_SETTINGS_COLUMNS, resolveBranding } from "@/lib/branding";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -67,7 +68,9 @@ export default function BookPage() {
     try {
       // Every query is scoped to this tenant only.
       const [st, sv, ap] = await Promise.all([
-        supabase.from("settings").select("*").eq("tenant_id", t).limit(1),
+        // SECURITY: explicit public-safe allowlist — never the full row (which
+        // includes green_api_token and other secrets). Shared with the branding layer.
+        supabase.from("settings").select(BOOK_SETTINGS_COLUMNS).eq("tenant_id", t).limit(1),
         supabase.from("service_prices").select("*").eq("tenant_id", t),
         supabase.from("appointments").select("date, hour").eq("tenant_id", t),
       ]);
