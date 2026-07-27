@@ -435,6 +435,7 @@ export default function BeautyOS() {
   // every close so the modal never opens stale in edit mode.
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
+  const [brandUploading, setBrandUploading] = useState(""); // which branding asset is uploading
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:"#D9B98C",active:true});
   const [showNewService, setShowNewService] = useState(false);
   const [cashierAppt,     setCashierAppt]     = useState(null);
@@ -1346,6 +1347,28 @@ export default function BeautyOS() {
         toast("התמונה נמחקה");
       },
     });
+  };
+
+  // Upload a public branding asset (logo/hero) to the PUBLIC bucket under the
+  // clinic's OWN tenant folder ("<tenant>/branding/…"), so one clinic can never
+  // write into another's path. Validates type + size; stores the public URL in
+  // editSettings.branding (persisted on Save).
+  const uploadBrandAsset = async (file, key) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading(key);
+    try {
+      const ext = ((file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")) || "png";
+      const path = `${tid}/branding/${key}_${Date.now()}.${ext}`;
+      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type, upsert:true });
+      if(ue){ handleDbError(ue, "upload brand asset"); return; }
+      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
+      setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), [key]: url }}));
+      toast("התמונה הועלתה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
   };
 
   const handleSendForm = async (client,formType) => {
@@ -5169,7 +5192,7 @@ export default function BeautyOS() {
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
+                {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -5205,6 +5228,40 @@ export default function BeautyOS() {
  </div>
  </div>
               )}
+              {settingsTab==="branding"&&(()=>{
+                const brand=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+                const setBrand=(k,v)=>setEditSettings(prev=>({...prev,branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}),[k]:v}}));
+                const lbl={fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5};
+                const inp={width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"};
+                const upBtn={background:"var(--pc-tint)",color:pcDeep,border:"none",borderRadius:12,padding:"8px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"};
+                const swatches=["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"];
+                const colorRow=(label,val,onPick)=>(<div><p style={lbl}>{label}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{swatches.map(c=><button key={c} onClick={()=>onPick(c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:val===c?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer"}}/>)}</div></div>);
+                const uploader=(key,current)=>(
+                  current?(
+ <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+ <img src={current} alt="" style={{maxHeight:52,maxWidth:120,objectFit:"contain",background:"#fff",border:"1px solid var(--line)",borderRadius:10,padding:6}}/>
+ <label style={upBtn}>{brandUploading===key?"מעלה…":"החלפה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
+ <button onClick={()=>setBrand(key,"")} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 12px",fontSize:11,fontWeight:600,color:"var(--danger)",cursor:"pointer",fontFamily:"inherit"}}>הסרה</button>
+ </div>
+                  ):(
+ <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:12,padding:"14px",textAlign:"center",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading===key?"מעלה…":"העלאת תמונה (PNG/JPG, עד 3MB)"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
+                  )
+                );
+                return(
+ <div style={{display:"flex",flexDirection:"column",gap:14}}>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
+ <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
+                    {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
+                    {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
+ <div><p style={lbl}>כותרת פתיחה ללקוחה</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/></div>
+ <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
+ <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={editSettings.cta_label||""} onChange={e=>setEditSettings({...editSettings,cta_label:e.target.value})} placeholder="קביעת תור" style={inp}/></div>
+ <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
+ </div>
+                );
+              })()}
+
               {settingsTab==="automations"&&(()=>{
                 // Default-ON reminder flags: undefined (column never set) counts
                 // as ON, matching today's cron behavior. Only an explicit false
