@@ -41,10 +41,17 @@ export default function BookPage() {
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
-    let t = null;
+    let t = null, svc = null;
     try {
       const params = new URLSearchParams(window.location.search);
       t = params.get("t");
+      // Context carried over from the skin scanner (or any deep link) so the
+      // visitor never re-enters what we already know.
+      svc = params.get("service");
+      const nm = params.get("name");
+      const ph = params.get("phone");
+      if (nm) setName(nm);
+      if (ph) setPhone(ph);
     } catch {}
     if (!t) {
       // No tenant in the URL - we cannot safely show any business's data.
@@ -53,10 +60,10 @@ export default function BookPage() {
       return;
     }
     setTenantId(t);
-    loadData(t);
+    loadData(t, svc);
   }, []);
 
-  const loadData = async (t) => {
+  const loadData = async (t, prefillServiceName) => {
     try {
       // Every query is scoped to this tenant only.
       const [st, sv, ap] = await Promise.all([
@@ -75,7 +82,14 @@ export default function BookPage() {
       }
 
       if (sv.data && sv.data.length > 0) {
-        setServices(sv.data.filter((s) => s.active !== false));
+        const active = sv.data.filter((s) => s.active !== false);
+        setServices(active);
+        // Preserve the scanner's recommended treatment: preselect it and skip the
+        // service-selection step so the visitor lands straight on date/time.
+        if (prefillServiceName) {
+          const match = active.find((s) => s.name === prefillServiceName);
+          if (match) { setSelectedService(match); setStep(2); }
+        }
       }
       if (ap.data) setAppointments(ap.data);
     } catch (err) {
