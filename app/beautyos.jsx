@@ -1229,7 +1229,16 @@ export default function BeautyOS() {
         setClients(prev=>[...prev,cd[0]]);
         if(ld&&ld[0])setLeads(prev=>prev.map(l=>l.id===lead.id?ld[0]:l));
         setSelectedLead(null);
-        toast(`${lead.name} הומרה ללקוחה`);
+        // Next step: offer to book her first appointment, pre-filled with the
+        // service the lead already told us (service_interest) — no re-entry, and
+        // the conversion no longer dead-ends at a toast.
+        const nc=cd[0], svcName=lead.service_interest||"";
+        toast(`${lead.name} הומרה ללקוחה`, "success", { label:"קבעי תור", onClick:()=>{
+          const svc=activeServices.find(s=>s.name===svcName);
+          setEditingAppointmentId(null);
+          setNewAppt({clientId:nc.id,name:nc.name,service:svc?.name||svcName||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});
+          setApptNote("");setShowModal(true);
+        }});
       },
     });
   };
@@ -5554,7 +5563,13 @@ export default function BeautyOS() {
  <span style={{fontSize:13,flexShrink:0,lineHeight:1.5}}>ℹ️</span>
  <p style={{fontSize:10,color:"#7A716A",lineHeight:1.6,textAlign:"right"}}>זוהי הערכת AI ראשונית בלבד ואינה מהווה אבחון רפואי. לתכנית טיפול מלאה ומדויקת מומלץ להתייעץ עם הקוסמטיקאית.</p>
  </div>
- <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"#fff",fontSize:13}}>סגירה ✓</button>
+ {/* Next step: book the matched treatment (reuses the drawer's booking opener,
+     pre-filled with her + the AI-matched service). Turns the scan's best moment
+     from a dead end into a booking. Primary action when a service was matched. */}
+ {selectedClient&&SR.matched_service&&(()=>{const svc=activeServices.find(s=>s.name===SR.matched_service);return(
+ <button onClick={()=>{const c=selectedClient;setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||SR.matched_service,duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");closeModal();setSelectedClient(null);setShowModal(true);}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"#fff",fontSize:13,marginBottom:8}}>✦ קבעי טיפול {SR.matched_service}</button>
+ );})()}
+ <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:(selectedClient&&SR.matched_service)?"#fff":pcGrad,color:(selectedClient&&SR.matched_service)?"var(--ink-2)":"#fff",border:(selectedClient&&SR.matched_service)?"1px solid var(--line-2)":"none",fontSize:13}}>סגירה</button>
  {!viewScan&&<p style={{fontSize:9.5,color:"#B8AFA0",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
  </div>
  </div>
