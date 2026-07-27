@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn } from "@/lib/businessHours";
-import { BOOK_SETTINGS_COLUMNS, resolveBranding } from "@/lib/branding";
+import { fetchPublicSettings } from "@/lib/branding";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -67,16 +67,16 @@ export default function BookPage() {
   const loadData = async (t, prefillServiceName) => {
     try {
       // Every query is scoped to this tenant only.
-      const [st, sv, ap] = await Promise.all([
-        // SECURITY: explicit public-safe allowlist — never the full row (which
-        // includes green_api_token and other secrets). Shared with the branding layer.
-        supabase.from("settings").select(BOOK_SETTINGS_COLUMNS).eq("tenant_id", t).limit(1),
+      const [row, sv, ap] = await Promise.all([
+        // SECURITY: public-safe settings via the shared layer (hardened RPC, no
+        // direct anonymous settings access; never green_api_token or other secrets).
+        fetchPublicSettings(supabase, t),
         supabase.from("service_prices").select("*").eq("tenant_id", t),
         supabase.from("appointments").select("date, hour").eq("tenant_id", t),
       ]);
 
-      if (st.data && st.data.length > 0) {
-        setSettings(st.data[0]);
+      if (row) {
+        setSettings(row);
       } else {
         // Tenant has no settings row - treat as not found rather than guessing.
         setTenantError(true);

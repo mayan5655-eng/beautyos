@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { supabase } from "../supabase"; 
+import { supabase } from "../supabase";
+import { fetchPublicSettings } from "@/lib/branding";
 
 // ============================================================
 // DYNAMIC LANDING PAGE  —  /[slug]
@@ -57,12 +58,14 @@ export default function LandingPage() {
       setTenant(tenantData);
 
       // 2. Load this tenant's settings + services in parallel
-      const [settingsRes, servicesRes] = await Promise.all([
-        supabase.from("settings").select("*").eq("tenant_id", tenantData.id),
+      const [settingsRow, servicesRes] = await Promise.all([
+        // SECURITY: public-safe settings via the shared layer (hardened RPC; never
+        // the full row / green_api_token). Strictly scoped to this tenant's UUID.
+        fetchPublicSettings(supabase, tenantData.id),
         supabase.from("service_prices").select("*").eq("tenant_id", tenantData.id),
       ]);
 
-      if (settingsRes.data && settingsRes.data.length > 0) setSettings(settingsRes.data[0]);
+      if (settingsRow) setSettings(settingsRow);
       if (servicesRes.data) setServices(servicesRes.data.filter((s) => s.active !== false));
     } catch (err) {
       console.error("Landing load error:", err);
