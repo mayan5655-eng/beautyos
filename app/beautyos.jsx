@@ -657,8 +657,10 @@ export default function BeautyOS() {
   const advisorAction = (text) => {
     const t = String(text||"");
     const has = (...ws)=>ws.some(w=>t.includes(w));
+    // Dormant / win-back advice -> the unified approval queue, where the per-client
+    // rebooking + skin-follow-up suggestions already exist (no new items invented).
     if(has("רדומ","לא ביקר","לא הגיע","החזרת לקוחות","להחזיר לקוחות","נטש"))
-      return { label:"פתחי מרכז הודעות", run:()=>setActiveTab("whatsapp") };
+      return { label:"פתחי משימות ממתינות", run:()=>setActiveTab("dashboard") };
     if(has("קמפיין","מבצע","שיווק","פוסט","סושיאל","אינסטגרם","פייסבוק"))
       return { label:"צרי קמפיין", run:()=>setActiveTab("campaigns") };
     if(has("ליד","פנייה","פניות","לידים"))
