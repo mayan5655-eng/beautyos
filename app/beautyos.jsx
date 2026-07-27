@@ -416,6 +416,8 @@ export default function BeautyOS() {
   const [filterSkin,        setFilterSkin]         = useState("all");
   const [receiptFilter,     setReceiptFilter]      = useState("all");
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  // Unified approval queue: session-local set of dismissed item keys (Reject).
+  const [queueDismissed,    setQueueDismissed]    = useState(()=>new Set());
 
   // === FORM STATES ===
   const [newAppt,    setNewAppt]    = useState({clientId:"",name:"",service:"",duration:60,date:formatDate(new Date()),hour:9,price:0});
@@ -3303,27 +3305,50 @@ export default function BeautyOS() {
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
  </div>
                     {(()=>{
-                      const items=[];
-                      if(newLeadsCount>0)items.push({icon:"✉",text:`${newLeadsCount} פניות חדשות ממתינות למענה`,tab:"leads",accent:"#5B3E67"});
-                      if(leadsWithReminders.length>0)items.push({icon:"◴",text:`${leadsWithReminders.length} תזכורות מעקב להיום`,tab:"leads",accent:"#E05B6F"});
-                      if(coldClients.length>0)items.push({icon:"✦",text:`${coldClients.length} לקוחות לא ביקרו 60+ ימים`,tab:"whatsapp",accent:"#F2B84B"});
-                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent).length;
-                      if(tomorrowNotSent>0)items.push({icon:"✆",text:`${tomorrowNotSent} תורי מחר ללא תזכורת שנשלחה`,tab:"whatsapp",accent:"#46B37B"});
-                      if(bdToday.length>0)items.push({icon:"🎀",text:`יום הולדת ל${bdToday.map(c=>c.name).join(", ")} — שלחי ברכה`,tab:"whatsapp",accent:"#E05B6F"});
-                      if(items.length===0)return(
+                      // Unified approval queue: individual pending actions collected from
+                      // existing signals (leads, cold clients, birthdays, tomorrow reminders).
+                      // Each item carries its own primary action; nothing is sent — actions
+                      // open an editable surface (booking modal / lead drawer) or navigate.
+                      const q=[];
+                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"#E05B6F",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
+                      coldClients.forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"#F2B84B",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:"לא ביקרה מעל 60 יום",primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
+                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"#5B3E67",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
+                      bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"#E05B6F",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
+                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
+                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"#46B37B",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
+                      // Dedup by key (stable per entity) + drop session-dismissed items.
+                      const seen=new Set();
+                      const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key);});
+                      const paused=settings?.automations?.paused===true;
+                      if(visible.length===0)return(
  <div style={{textAlign:"center",padding:"18px 10px"}}>
  <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין משימות פתוחות כרגע</p>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין פעולות שממתינות לך כרגע</p>
  </div>);
-                      /* Home stays calm: show only the 1-2 most urgent items. */
-                      return items.slice(0,2).map((it,i)=>(
- <motion.div key={i} onClick={()=>setActiveTab(it.tab)} whileHover={{x:-3}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8,cursor:"pointer"}}>
- <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
- <p style={{fontSize:12,color:"var(--ink)",fontWeight:500,flex:1,lineHeight:1.4}}>{it.text}</p>
- <span style={{fontSize:13,color:pc}}>←</span>
- </motion.div>
-                      ));
+                      return(<>
+                        {paused&&<p style={{fontSize:9.5,color:"#B07F2A",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
+                        {visible.map(it=>(
+ <div key={it.key} style={{border:"1px solid var(--line)",background:"var(--surface-2)",borderRadius:14,padding:"11px 13px",marginBottom:8}}>
+ <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+ <span style={{width:30,height:30,borderRadius:9,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:it.accent,background:lighten(it.accent,0.85)}}>{it.icon}</span>
+ <div style={{flex:1,minWidth:0}}>
+ <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{it.what}</p>
+ <span style={{fontSize:8.5,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
+ <span style={{fontSize:8.5,fontWeight:700,color:"#B07F2A",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
+ </div>
+ <p style={{fontSize:11,color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
+ <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+ <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"#fff",fontSize:10.5,padding:"7px 15px"}}>{it.primaryLabel}</button>
+ <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:20,fontSize:10.5,padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
+ </div>
+ </div>
+ </div>
+ </div>
+                        ))}
+                      </>);
                     })()}
  </motion.div>
  </div>
