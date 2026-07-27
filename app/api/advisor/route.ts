@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { hoursSummaryHe } from '@/lib/businessHours'
+import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -51,7 +52,7 @@ async function buildBusinessSnapshot(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tenantId: string
 ) {
-  const [settingsRes, servicesRes, clientsRes, apptsRes, receiptsRes, leadsRes] =
+  const [settingsRes, servicesRes, clientsRes, apptsRes, receiptsRes, leadsRes, scansRes] =
     await Promise.all([
       supabase.from('settings').select('business_name, therapist_name, working_hours_start, working_hours_end, working_days, business_hours').eq('tenant_id', tenantId).limit(1),
       supabase.from('service_prices').select('name, price, duration, active').eq('tenant_id', tenantId),
@@ -59,6 +60,9 @@ async function buildBusinessSnapshot(
       supabase.from('appointments').select('client_id, service, date').eq('tenant_id', tenantId),
       supabase.from('receipts').select('amount, service, created_at, client_id').eq('tenant_id', tenantId),
       supabase.from('leads').select('status').eq('tenant_id', tenantId),
+      // Connect the AI Skin Scanner's saved history (read-only, aggregate) so the
+      // Advisor can reason over skin progress, not just money and bookings.
+      supabase.from('skin_scans').select('client_id, score, skin_type, created_at').eq('tenant_id', tenantId),
     ])
 
   const settings: any = settingsRes.data?.[0] || {}
@@ -67,6 +71,7 @@ async function buildBusinessSnapshot(
   const appts = apptsRes.data || []
   const receipts = receiptsRes.data || []
   const leads = leadsRes.data || []
+  const scans = scansRes.data || []
 
   const now = new Date()
   const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -121,6 +126,12 @@ async function buildBusinessSnapshot(
 
   const trendPct = revLast > 0 ? Math.round(((revThis - revLast) / revLast) * 100) : null
 
+  // Skin-scan intelligence (aggregate counts only — no per-client scan detail).
+  const skin = summarizeTenantSkinTrends(scans, { todayStr, reassessDays: 30 })
+  const skinSection = skin.clientsWithScans > 0
+    ? `\nאינטליגנציית עור (מתוך היסטוריית הסריקות): לקוחות עם סריקות: ${skin.clientsWithScans} | במגמת שיפור: ${skin.improving} | במגמת נסיגה: ${skin.regressing} | ללא שיפור (פלטו): ${skin.plateaued} | מומלצות להערכה מחדש (30+ ימים): ${skin.dueForReassessment}`
+    : ''
+
   return `שם העסק: ${settings.business_name || 'לא הוגדר'}${settings.therapist_name ? ` (מטפלת: ${settings.therapist_name})` : ''}
 שעות פעילות (לפי יום): ${hoursSummaryHe(settings)}
 סך לקוחות: ${clients.length}
@@ -130,7 +141,7 @@ async function buildBusinessSnapshot(
 תורים בשבוע הקרוב: ${weekAppts}
 לידים פתוחים: ${openLeads} | שיעור המרה כולל: ${conversionRate}%
 שירותים מובילים:
-${topServices.length ? topServices.join('\n') : 'אין נתונים עדיין'}
+${topServices.length ? topServices.join('\n') : 'אין נתונים עדיין'}${skinSection}
 
 תפריט השירותים והמחירים:
 ${servicesText}`
