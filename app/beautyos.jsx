@@ -1043,12 +1043,14 @@ export default function BeautyOS() {
       if(editingClient){
         const {data,error}=await supabase.from("clients").update(newClient).eq("id",editingClient.id).select();
         if(error){handleDbError(error, "update client"); return;}
-        if(data){setClients(prev=>prev.map(c=>c.id===editingClient.id?data[0]:c));setSelectedClient(data[0]);}
+        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        setClients(prev=>prev.map(c=>c.id===editingClient.id?data[0]:c));setSelectedClient(data[0]);
         toast("הלקוחה עודכנה");
       }else{
         const {data,error}=await supabase.from("clients").insert([newClient]).select();
         if(error){handleDbError(error, "create client"); return;}
-        if(data)setClients(prev=>[...prev,data[0]]);
+        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        setClients(prev=>[...prev,data[0]]);
         toast("הלקוחה נוספה");
       }
       setShowClientModal(false);setEditingClient(null);setNewClient(emptyClient);
@@ -1157,12 +1159,14 @@ export default function BeautyOS() {
       if(editingLead){
         const {data,error}=await supabase.from("leads").update(newLead).eq("id",editingLead.id).select();
         if(error){handleDbError(error, "update lead"); return;}
-        if(data){setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);}
+        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
         toast("הליד עודכן");
       }else{
         const {data,error}=await supabase.from("leads").insert([newLead]).select();
         if(error){handleDbError(error, "create lead"); return;}
-        if(data)setLeads(prev=>[...prev,data[0]]);
+        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        setLeads(prev=>[...prev,data[0]]);
         toast("הליד נוסף");
       }
       setShowLeadModal(false);setEditingLead(null);setNewLead(emptyLead);
@@ -1174,7 +1178,7 @@ export default function BeautyOS() {
   const handleUpdateLeadStatus = async (lead,status) => {
     const {data,error}=await supabase.from("leads").update({status}).eq("id",lead.id).select();
     if(error){handleDbError(error, "update lead status"); return;}
-    if(data){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
+    if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
   };
 
   // --- Bulk WhatsApp send per status group ---
@@ -1219,10 +1223,11 @@ export default function BeautyOS() {
       onConfirm: async () => {
         const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${lead.source}`,status:"active"}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
+        if(!cd||!cd[0]){toast("ההמרה נכשלה","error");return;}
         const {data:ld, error:le}=await supabase.from("leads").update({status:"closed",converted_at:new Date().toISOString(),client_id:cd[0].id}).eq("id",lead.id).select();
         if(le){handleDbError(le, "convert lead -> update lead"); return;}
         setClients(prev=>[...prev,cd[0]]);
-        if(ld)setLeads(prev=>prev.map(l=>l.id===lead.id?ld[0]:l));
+        if(ld&&ld[0])setLeads(prev=>prev.map(l=>l.id===lead.id?ld[0]:l));
         setSelectedLead(null);
         toast(`${lead.name} הומרה ללקוחה`);
       },
@@ -1232,7 +1237,7 @@ export default function BeautyOS() {
   const handleSetReminder = async (lead,date) => {
     const {data,error}=await supabase.from("leads").update({reminder_date:date}).eq("id",lead.id).select();
     if(error){handleDbError(error, "set reminder"); return;}
-    if(data){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
+    if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
   };
 
   const handleUploadImage = async (e,client) => {
@@ -1249,7 +1254,7 @@ export default function BeautyOS() {
       const newImages=[...(client.images||[]),fileName];
       const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
       if(error){handleDbError(error, "save image url"); return;}
-      if(data){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
+      if(data&&data[0]){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
       toast("התמונה הועלתה");
     } finally {
       setUploading(false);
@@ -1266,7 +1271,7 @@ export default function BeautyOS() {
         const newImages=(client.images||[]).filter(img=>img!==imageUrl);
         const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
         if(error){handleDbError(error, "delete image"); return;}
-        if(data){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
+        if(data&&data[0]){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
         toast("התמונה נמחקה");
       },
     });
@@ -1275,6 +1280,7 @@ export default function BeautyOS() {
   const handleSendForm = async (client,formType) => {
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
+    if(!data||!data[0]){toast("יצירת הטופס נכשלה","error");return;}
     setForms(prev=>[...prev,data[0]]);
     const link=`${origin}/form?id=${data[0].id}`;
     try {
@@ -1353,15 +1359,22 @@ export default function BeautyOS() {
     if(svc.id){
       const {data,error}=await supabase.from("service_prices").update(svc).eq("id",svc.id).select();
       if(error){handleDbError(error, "update service"); return;}
-      if(data){setServices(prev=>prev.map((s,i)=>i===idx?data[0]:s)); toast("המחיר עודכן");}
+      if(data&&data[0]){setServices(prev=>prev.map((s,i)=>i===idx?data[0]:s)); toast("המחיר עודכן");}
     }
   };
 
   const handleAddService = async () => {
     if(!newService.name.trim()){toast("נא להזין שם שירות","error");return;}
-    const {data,error}=await supabase.from("service_prices").insert([newService]).select();
-    if(error){handleDbError(error, "add service"); return;}
-    if(data){setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:"#D9B98C",active:true});setShowNewService(false); toast("השירות נוסף");}
+    if(isBusy("addService")) return;
+    setBusyKey("addService", true);
+    try {
+      const {data,error}=await supabase.from("service_prices").insert([newService]).select();
+      if(error){handleDbError(error, "add service"); return;}
+      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:"#D9B98C",active:true});setShowNewService(false); toast("השירות נוסף");
+    } finally {
+      setBusyKey("addService", false);
+    }
   };
 
   const handleOpenCashier = (appt) => {
@@ -1394,6 +1407,7 @@ export default function BeautyOS() {
       };
       const {data,error}=await supabase.from("receipts").insert([receipt]).select();
       if(error){handleDbError(error, "save receipt"); return;}
+      if(!data||!data[0]){toast("יצירת הקבלה נכשלה","error");return;}
       setReceipts(prev=>[...prev,data[0]]);
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
@@ -1938,9 +1952,16 @@ export default function BeautyOS() {
 
   const handleSavePackage = async () => {
     if(!newPackage.client_id||!newPackage.service){toast("נא לבחור לקוחה ושירות","error");return;}
-    const {data,error}=await supabase.from("packages").insert([newPackage]).select();
-    if(error){handleDbError(error, "save package"); return;}
-    if(data){setPackages(prev=>[...prev,data[0]]);setShowPackageModal(false);toast("החבילה נוספה");}
+    if(isBusy("savePackage")) return;
+    setBusyKey("savePackage", true);
+    try {
+      const {data,error}=await supabase.from("packages").insert([newPackage]).select();
+      if(error){handleDbError(error, "save package"); return;}
+      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      setPackages(prev=>[...prev,data[0]]);setShowPackageModal(false);toast("החבילה נוספה");
+    } finally {
+      setBusyKey("savePackage", false);
+    }
   };
 
   const handleUsePackageSession = async (pkg) => {
@@ -1948,27 +1969,44 @@ export default function BeautyOS() {
     const active=used<Number(pkg.total_sessions);
     const {data,error}=await supabase.from("packages").update({used_sessions:used,active}).eq("id",pkg.id).select();
     if(error){handleDbError(error, "use package session"); return;}
-    if(data){setPackages(prev=>prev.map(p=>p.id===pkg.id?data[0]:p)); toast(active?`טיפול ${used}/${pkg.total_sessions}`:"החבילה הסתיימה");}
+    if(data&&data[0]){setPackages(prev=>prev.map(p=>p.id===pkg.id?data[0]:p)); toast(active?`טיפול ${used}/${pkg.total_sessions}`:"החבילה הסתיימה");}
   };
 
   const handleSaveWaitlist = async () => {
     if(!newWaitlist.client_name||!newWaitlist.service){toast("נא למלא פרטים","error");return;}
-    const {data,error}=await supabase.from("waitlist").insert([newWaitlist]).select();
-    if(error){handleDbError(error, "save waitlist"); return;}
-    if(data){setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");}
+    if(isBusy("saveWaitlist")) return;
+    setBusyKey("saveWaitlist", true);
+    try {
+      const {data,error}=await supabase.from("waitlist").insert([newWaitlist]).select();
+      if(error){handleDbError(error, "save waitlist"); return;}
+      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");
+    } finally {
+      setBusyKey("saveWaitlist", false);
+    }
   };
 
   const handleSaveProtocol = async () => {
     if(!newProtocol.brand||!newProtocol.name){toast("נא למלא מותג ושם","error");return;}
-    const {data,error}=await supabase.from("treatment_protocols").insert([newProtocol]).select();
-    if(error){handleDbError(error, "save protocol"); return;}
-    if(data){setProtocols(prev=>[data[0],...prev]);setShowProtocolModal(false);setNewProtocol(emptyProtocol);toast("הפרוטוקול נשמר");}
+    if(isBusy("saveProtocol")) return;
+    setBusyKey("saveProtocol", true);
+    try {
+      const {data,error}=await supabase.from("treatment_protocols").insert([newProtocol]).select();
+      if(error){handleDbError(error, "save protocol"); return;}
+      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      setProtocols(prev=>[data[0],...prev]);setShowProtocolModal(false);setNewProtocol(emptyProtocol);toast("הפרוטוקול נשמר");
+    } finally {
+      setBusyKey("saveProtocol", false);
+    }
   };
 
   const handleExportCSV = () => {
     const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום"]];
     receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,r.created_at?.slice(0,10)||"",r.amount,r.payment_method]);});
-    const csv=rows.map(r=>r.join(",")).join("\n");
+    // Quote every cell (escaping embedded quotes) so values containing commas
+    // — e.g. a multi-item receipt service "פנים, עיסוי" — don't shift columns.
+    const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;a.download=`beautyos_${today}.csv`;a.click();URL.revokeObjectURL(url);
@@ -2400,11 +2438,12 @@ export default function BeautyOS() {
 
   // Delete a community post
   const deleteCommunityPost = async (id) => {
-    try {
-      await supabase.from("community_posts").delete().eq("id", id);
-      setCommunityPosts(prev => prev.filter(p => p.id !== id));
-      toast("הפוסט נמחק");
-    } catch { toast("שגיאה במחיקה", "error"); }
+    // Supabase returns { error } rather than throwing, so a try/catch never fired
+    // on a real DB/RLS failure — the post vanished from the UI but not the DB.
+    const { error } = await supabase.from("community_posts").delete().eq("id", id);
+    if (error) { handleDbError(error, "delete community post"); return; }
+    setCommunityPosts(prev => prev.filter(p => p.id !== id));
+    toast("הפוסט נמחק");
   };
 
   const copyPost = async (v) => {

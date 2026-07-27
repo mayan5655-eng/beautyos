@@ -18,7 +18,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.verce
 
 export async function POST(request) {
   try {
-    const { tenantId, appointmentId } = await request.json();
+    const { tenantId, appointmentId } = await request.json().catch(() => ({}));
 
     if (!tenantId) {
       return Response.json({ success: false, error: "חסר מזהה עסק" }, { status: 400 });

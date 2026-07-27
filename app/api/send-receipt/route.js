@@ -15,7 +15,7 @@ const supabase = createClient(
 export async function POST(request) {
   try {
     const { tenantId, client_name, client_phone, amount, payment_method, date } =
-      await request.json();
+      await request.json().catch(() => ({}));
 
     // Tenant must be explicit — we never fall back to a default business, so a
     // receipt can't be sent under someone else's account.
