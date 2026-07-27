@@ -418,6 +418,12 @@ export default function BeautyOS() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   // Unified approval queue: session-local set of dismissed item keys (Reject).
   const [queueDismissed,    setQueueDismissed]    = useState(()=>new Set());
+  const [queueApproved,     setQueueApproved]     = useState(()=>new Set()); // mocked-approved skin keys (double-click guard)
+  const [skinQueue,         setSkinQueue]         = useState(null);          // skin-followup suggestions from the route (null=not loaded)
+  const [skinQueueLoading,  setSkinQueueLoading]  = useState(false);
+  const [skinQueueError,    setSkinQueueError]    = useState(null);
+  const [skinEdits,         setSkinEdits]         = useState({});            // key -> edited message (local/test only)
+  const [skinOpen,          setSkinOpen]          = useState(()=>new Set()); // keys with the message preview/edit expanded
 
   // === FORM STATES ===
   const [newAppt,    setNewAppt]    = useState({clientId:"",name:"",service:"",duration:60,date:formatDate(new Date()),hour:9,price:0});
@@ -611,6 +617,36 @@ export default function BeautyOS() {
   },[showModal,newAppt.date,apptDayHours?.open,apptDayHours?.close]);
 
   useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
+
+  // Fetch existing Skin Follow-up suggestions into the unified queue when the
+  // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
+  // empty queue when the automation is Off or the clinic is paused, so those
+  // states naturally produce no actionable items. Nothing here sends anything.
+  useEffect(()=>{
+    if(activeTab!=="dashboard") return;
+    let cancelled=false;
+    setSkinQueueLoading(true); setSkinQueueError(null);
+    fetch("/api/automations/skin-followup")
+      .then(r=>r.ok?r.json():Promise.reject(new Error("HTTP "+r.status)))
+      .then(d=>{ if(!cancelled) setSkinQueue(Array.isArray(d?.queue)?d.queue:[]); })
+      .catch(()=>{ if(!cancelled){ setSkinQueue([]); setSkinQueueError("לא ניתן לטעון כרגע הצעות מעקב עור"); } })
+      .finally(()=>{ if(!cancelled) setSkinQueueLoading(false); });
+    return ()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeTab]);
+
+  // Approve a Skin Follow-up suggestion — MOCKED test mode ONLY. Validates the
+  // client still exists and has a phone, guards against double-clicks, and shows
+  // a clear success state. It NEVER calls the WhatsApp send endpoint and never
+  // sends a real message; production sending is a separate, gated step.
+  const approveSkinFollowup = (it) => {
+    if(queueApproved.has(it.key)) return; // double-click / repeated-approval guard
+    const c = clients.find(x=>String(x.id)===String(it.clientId));
+    if(!c){ toast("הלקוחה כבר לא קיימת — הפעולה בוטלה","error"); return; }
+    if(!(c.phone&&String(c.phone).trim())){ toast("אין מספר טלפון ללקוחה — לא ניתן לשלוח","error"); return; }
+    setQueueApproved(prev=>{const n=new Set(prev);n.add(it.key);return n;});
+    toast("אושר במצב בדיקה — לא נשלחה הודעה אמיתית ✓","success");
+  };
 
   // Facebook connect: load the current connection state on mount, and handle the
   // return from the OAuth callback. The callback redirects back here with
@@ -3316,11 +3352,13 @@ export default function BeautyOS() {
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"#E05B6F",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
                       if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"#46B37B",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
-                      // Dedup by key (stable per entity) + drop session-dismissed items.
+                      // Skin Follow-up suggestions from the existing route (empty when Off/paused).
+                      (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"#6B4A8C",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
+                      // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
-                      const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key);});
+                      const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
                       const paused=settings?.automations?.paused===true;
-                      if(visible.length===0)return(
+                      if(visible.length===0&&!skinQueueLoading&&!skinQueueError)return(
  <div style={{textAlign:"center",padding:"18px 10px"}}>
  <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
@@ -3328,6 +3366,8 @@ export default function BeautyOS() {
  </div>);
                       return(<>
                         {paused&&<p style={{fontSize:9.5,color:"#B07F2A",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
+                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:9.5,color:"var(--ink-3)",padding:"2px 2px 8px"}}>טוען הצעות מעקב עור…</p>}
+                        {skinQueueError&&<p style={{fontSize:9.5,color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
  <div key={it.key} style={{border:"1px solid var(--line)",background:"var(--surface-2)",borderRadius:14,padding:"11px 13px",marginBottom:8}}>
  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
@@ -3340,8 +3380,21 @@ export default function BeautyOS() {
  </div>
  <p style={{fontSize:11,color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
  <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
+                                {it.isSkin&&!it.hasPhone&&<p style={{fontSize:9,color:"var(--danger)",fontWeight:600,marginTop:3}}>⚠ אין מספר טלפון ללקוחה — לא ניתן לשלוח</p>}
+                                {it.isSkin&&(
+ <div style={{marginTop:6}}>
+ <button onClick={()=>setSkinOpen(prev=>{const n=new Set(prev);if(n.has(it.key))n.delete(it.key);else n.add(it.key);return n;})} style={{background:"none",border:"none",color:pc,fontSize:9.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{skinOpen.has(it.key)?"▲ הסתר הודעה":"▼ צפייה ועריכה בהודעה"}</button>
+                                    {skinOpen.has(it.key)&&(
+ <textarea value={skinEdits[it.key]??it.message} onChange={e=>setSkinEdits(prev=>({...prev,[it.key]:e.target.value}))} rows={3} dir="rtl" style={{width:"100%",marginTop:6,border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",direction:"rtl",background:"var(--surface)",resize:"vertical",color:"var(--ink)"}}/>
+                                    )}
+ </div>
+                                )}
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                                  {it.isSkin?(
+ <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"#fff",fontSize:10.5,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
+                                  ):(
  <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"#fff",fontSize:10.5,padding:"7px 15px"}}>{it.primaryLabel}</button>
+                                  )}
  <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:20,fontSize:10.5,padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
  </div>
  </div>
