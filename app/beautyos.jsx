@@ -1363,7 +1363,7 @@ export default function BeautyOS() {
     try {
       const ext = ((file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")) || "png";
       const path = `${tid}/branding/${key}_${Date.now()}.${ext}`;
-      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type, upsert:true });
+      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
       if(ue){ handleDbError(ue, "upload brand asset"); return; }
       const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
       setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), [key]: url }}));
