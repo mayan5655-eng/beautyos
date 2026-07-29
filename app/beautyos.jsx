@@ -438,6 +438,7 @@ export default function BeautyOS() {
   const [brandUploading, setBrandUploading] = useState(""); // which branding asset is uploading
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:"#D9B98C",active:true});
   const [showNewService, setShowNewService] = useState(false);
+  const [showSetup, setShowSetup] = useState(false); // always-accessible setup checklist modal
   const [cashierAppt,     setCashierAppt]     = useState(null);
   const [cashierClient,   setCashierClient]   = useState(null);
   const [cashierSearch,   setCashierSearch]   = useState("");
@@ -562,6 +563,63 @@ export default function BeautyOS() {
   const pcTint2 = lighten(pc, 0.82);                             // slightly stronger tint
   const pcGrad = `linear-gradient(135deg,${pc2} 0%,${pcDeep} 100%)`;  // elegant diagonal
   const pcShadow = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.28)`;
+
+  // ── SETUP CHECKLIST — persistent, always-accessible. Each item auto-detects
+  //    "done" from her real data and jumps straight to the right Settings tab
+  //    (reuses the existing setEditSettings/setSettingsTab/setShowSettings jump). ──
+  const openSetupTab = (tab, extra) => {
+    setEditSettings({ ...settings });
+    setSettingsTab(tab);
+    if (extra === "newService") setShowNewService(true);
+    setShowSettings(true);
+    setShowSetup(false);
+  };
+  const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
+  const setupSteps = [
+    { key:"details",  done: !!(settings.business_name && settings.business_name.trim() && settings.business_name.trim()!=="העסק שלי") && !!(settings.business_phone && String(settings.business_phone).trim()), label:"פרטי העסק", hint:"שם וטלפון ליצירת קשר", onClick:()=>openSetupTab("general") },
+    { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
+    { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
+    { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
+    { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
+    { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
+    { key:"whatsapp", done: !!(settings.green_api_instance && String(settings.green_api_instance).trim() && settings.green_api_token && String(settings.green_api_token).trim()), label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
+  ];
+  const setupDone = setupSteps.filter(s=>s.done).length;
+  const setupTotal = setupSteps.length;
+  const setupPct = Math.round((setupDone/setupTotal)*100);
+  const renderSetupBody = () => (
+    <>
+      <div style={{marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+          <span style={{fontSize:12,fontWeight:700,color:pcDeep}}>{setupDone} מתוך {setupTotal} הושלמו</span>
+          <span style={{fontSize:11,color:"var(--ink-3)"}}>{setupPct}%</span>
+        </div>
+        <div style={{height:8,borderRadius:20,background:pcTint,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${setupPct}%`,background:pcGrad,borderRadius:20,transition:"width 0.5s ease"}}/>
+        </div>
+      </div>
+      {setupDone===setupTotal && (
+        <div style={{textAlign:"center",padding:"6px 0 14px"}}>
+          <p className="serif" style={{fontSize:18,fontWeight:600,color:pcDeep,marginBottom:3}}>הכל מוכן! ✨</p>
+          <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
+        </div>
+      )}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {setupSteps.map((s)=>(
+          <div key={s.key} onClick={s.onClick} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:s.done?"rgba(70,179,123,0.10)":pcTint,borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":"var(--line)"}`,cursor:"pointer"}}>
+            <div style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"#fff":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":"○"}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</p>
+              <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{s.hint}</p>
+            </div>
+            {s.done
+              ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700,flexShrink:0}}>בוצע</span>
+              :<span style={{background:pcGrad,color:"#fff",borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>הגדרה ←</span>}
+          </div>
+        ))}
+      </div>
+    </>
+  );
   // Push the active palette into CSS variables for the static <style> block
   if (typeof document !== "undefined") {
     const r = document.documentElement;
@@ -3182,6 +3240,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
           {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:10,color:pc}}>{upcomingBirthdays[0].name}</span>}
  <span className="desktop-only" style={{fontSize:11.5,color:"var(--ink-2)"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
+ <button onClick={()=>setShowSetup(true)} className="icon-btn" title="הגדרת המערכת" aria-label="הגדרת המערכת">☑</button>
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">⚙</button>
  <button onClick={handleExportCSV} className="icon-btn" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
  <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
@@ -3331,41 +3390,15 @@ export default function BeautyOS() {
  </div>
  </motion.div>
 
-                {/* FIRST-RUN CHECKLIST — shown until business name, phone, and a first service are set */}
-                {(()=>{
-                  const nameDone=!!(settings.business_name&&settings.business_name.trim()&&settings.business_name.trim()!=="העסק שלי");
-                  const phoneDone=!!(settings.business_phone&&settings.business_phone.trim());
-                  const svcDone=services.length>0;
-                  const steps=[
-                    {done:nameDone,label:"הוספת שם העסק",hint:"יופיע בהודעות ובקבלות",onClick:()=>{setEditSettings({...settings});setSettingsTab("general");setShowSettings(true);}},
-                    {done:phoneDone,label:"הוספת טלפון העסק",hint:"נדרש לבקשות תשלום",onClick:()=>{setEditSettings({...settings});setSettingsTab("payment");setShowSettings(true);}},
-                    {done:svcDone,label:"הוספת שירות ראשון",hint:"עם מחיר ומשך טיפול",onClick:()=>{setEditSettings({...settings});setSettingsTab("services");setShowNewService(true);setShowSettings(true);}},
-                  ];
-                  const doneCount=steps.filter(s=>s.done).length;
-                  if(doneCount===steps.length) return null;
-                  return(
+                {/* SETUP CHECKLIST — persistent: never auto-hides, shows "הכל מוכן" when
+                    complete, and is also reachable from any tab via the header ☑ button. */}
  <div style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:20,padding:"18px 22px",boxShadow:"var(--shadow-md)"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:6}}>
- <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>כמה צעדים כדי להתחיל</h3>
- <span style={{fontSize:11,color:pcDeep,fontWeight:700}}>{doneCount}/{steps.length} הושלמו</span>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
+ <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
+ <span style={{fontSize:11,color:pcDeep,fontWeight:700}}>{setupDone}/{setupTotal}</span>
  </div>
- <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {steps.map((s,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 12px",background:s.done?"rgba(70,179,123,0.10)":"var(--pc-tint)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":"var(--line)"}`}}>
- <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"#fff":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":i+1}</div>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{s.hint}</p>
+                  {renderSetupBody()}
  </div>
-                          {s.done
-                            ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700}}>בוצע</span>
-                            :<button onClick={s.onClick} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>הוספה</button>}
- </div>
-                      ))}
- </div>
- </div>
-                  );
-                })()}
 
                 {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:18,flexWrap:"wrap",alignItems:"flex-start"}}>
@@ -5207,6 +5240,18 @@ export default function BeautyOS() {
       )}
 
       {/* SETTINGS MODAL */}
+      {showSetup && (
+        <div onClick={()=>setShowSetup(false)} style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:20,padding:"20px 22px",width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-lg)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</h3>
+              <button onClick={()=>setShowSetup(false)} className="icon-btn" aria-label="סגירה">✕</button>
+            </div>
+            {renderSetupBody()}
+          </div>
+        </div>
+      )}
+
       {showSettings&&editSettings&&(
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
