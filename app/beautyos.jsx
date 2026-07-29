@@ -1371,6 +1371,27 @@ export default function BeautyOS() {
     } finally { setBrandUploading(""); }
   };
 
+  // Upload one gallery image and APPEND its public URL to branding.gallery (an
+  // array), same tenant-scoped path rules as uploadBrandAsset. The public /book
+  // page renders these as a Google-style photo grid.
+  const uploadGalleryImage = async (file) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading("gallery");
+    try {
+      const ext = ((file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")) || "jpg";
+      const path = `${tid}/branding/gallery_${Date.now()}.${ext}`;
+      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
+      if(ue){ handleDbError(ue, "upload gallery image"); return; }
+      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
+      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const gal=Array.isArray(b.gallery)?b.gallery:[]; return {...prev, branding:{...b, gallery:[...gal, url]}}; });
+      toast("התמונה נוספה לגלריה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
+  };
+
   const handleSendForm = async (client,formType) => {
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
@@ -5258,6 +5279,27 @@ export default function BeautyOS() {
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
  <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
+ <div>
+ <p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>גלריית תמונות</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
+                    {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
+ <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:10,overflow:"hidden",border:"1px solid var(--line)"}}>
+ <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <button onClick={()=>setBrand("gallery",(Array.isArray(brand.gallery)?brand.gallery:[]).filter((_,j)=>j!==i))} style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"#fff",border:"none",fontSize:11,cursor:"pointer",lineHeight:1}}>✕</button>
+ </div>
+                    ))}
+ </div>
+ <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:12,padding:"12px",textAlign:"center",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading==="gallery"?"מעלה…":"+ הוספת תמונה לגלריה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadGalleryImage(f);e.target.value="";}}/></label>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:10,color:"#7A716A",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
+ <div><p style={lbl}>מספר וואטסאפ</p><input value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ </div>
  </div>
                 );
               })()}
