@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
+import FloralCorners from "../FloralCorners";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -250,7 +251,9 @@ export default function BookPage() {
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "#fff", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF8F5 0%,#F5EEE9 55%,#FBF9F7 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink }}>
+    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF8F5 0%,#F5EEE9 55%,#FBF9F7 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+      {/* Subtle brand-tinted floral watermark, behind all content */}
+      <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.6} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }

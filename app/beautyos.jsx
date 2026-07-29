@@ -2753,7 +2753,7 @@ export default function BeautyOS() {
 
   return (
  <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:"var(--bg)",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
- <FloralCorners idPrefix="app" fixed zIndex={1} />
+ <FloralCorners idPrefix="app" fixed zIndex={1} blush={pc} gold={pcDeep} />
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}

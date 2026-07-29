@@ -15,10 +15,20 @@ import React from "react";
  * compete with content — many flowers, but spaced out and airy.
  */
 
-const BLUSH = "#D98BA0"; // primary — soft blush-pink
+const BLUSH = "#D98BA0"; // primary — soft blush-pink (default when no brand color)
 const BLUSH_SOFT = "#EBBCC7";
-const GOLD = "#C9A24B"; // accent — warm gold
+const GOLD = "#C9A24B"; // accent — warm gold (default when no brand color)
 const GOLD_SOFT = "#E2C888";
+
+// Lighten a hex toward white by amt (0..1). Used to derive the soft petal tint
+// when a custom brand color is supplied.
+function lighten(hex: string, amt: number): string {
+  const h = hex.replace("#", "").trim();
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * amt);
+  return "#" + [mix(r), mix(g), mix(b)].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
 
 type Kind = "blush" | "gold" | "sprig";
 
@@ -83,6 +93,9 @@ export default function FloralCorners({
   idPrefix = "fc",
   fixed = false,
   zIndex = -1,
+  blush,
+  gold,
+  opacity = 1,
 }: {
   idPrefix?: string;
   fixed?: boolean;
@@ -96,7 +109,19 @@ export default function FloralCorners({
    *         never blocks clicks and never obscures active UI.
    */
   zIndex?: number;
+  /** Brand blush/petal color. Defaults to the BloomOS blush when omitted. */
+  blush?: string;
+  /** Brand gold/accent color. Defaults to the BloomOS gold when omitted. */
+  gold?: string;
+  /** Extra overall fade for the whole decorative layer (0..1). */
+  opacity?: number;
 }) {
+  // Tint to the brand color when provided; otherwise keep the exact BloomOS
+  // blush + gold so existing callers (login/signup) stay pixel-identical.
+  const blushBase = blush || BLUSH;
+  const goldBase = gold || GOLD;
+  const blushSoft = blush ? lighten(blush, 0.4) : BLUSH_SOFT;
+  const goldSoft = gold ? lighten(gold, 0.4) : GOLD_SOFT;
   const blushGrad = `url(#${idPrefix}-blush)`;
   const goldGrad = `url(#${idPrefix}-gold)`;
   const blur = `url(#${idPrefix}-soft)`;
@@ -108,6 +133,7 @@ export default function FloralCorners({
         position: fixed ? "fixed" : "absolute",
         inset: 0,
         zIndex,
+        opacity,
         pointerEvents: "none",
         overflow: "hidden",
       }}
@@ -116,14 +142,14 @@ export default function FloralCorners({
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
         <defs>
           <radialGradient id={`${idPrefix}-blush`} cx="50%" cy="40%" r="65%">
-            <stop offset="0%" stopColor={BLUSH_SOFT} />
-            <stop offset="65%" stopColor={BLUSH} />
-            <stop offset="100%" stopColor={BLUSH} stopOpacity="0.12" />
+            <stop offset="0%" stopColor={blushSoft} />
+            <stop offset="65%" stopColor={blushBase} />
+            <stop offset="100%" stopColor={blushBase} stopOpacity="0.12" />
           </radialGradient>
           <radialGradient id={`${idPrefix}-gold`} cx="50%" cy="40%" r="65%">
-            <stop offset="0%" stopColor={GOLD_SOFT} />
-            <stop offset="65%" stopColor={GOLD} />
-            <stop offset="100%" stopColor={GOLD} stopOpacity="0.12" />
+            <stop offset="0%" stopColor={goldSoft} />
+            <stop offset="65%" stopColor={goldBase} />
+            <stop offset="100%" stopColor={goldBase} stopOpacity="0.12" />
           </radialGradient>
           <filter id={`${idPrefix}-soft`} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="0.5" />
@@ -150,9 +176,9 @@ export default function FloralCorners({
               filter: blur,
             }}
           >
-            {p.kind === "blush" && <Blossom fill={blushGrad} center={GOLD} />}
-            {p.kind === "gold" && <Blossom fill={goldGrad} center={BLUSH} />}
-            {p.kind === "sprig" && <Sprig stem={GOLD_SOFT} leaf={BLUSH_SOFT} bud={GOLD} />}
+            {p.kind === "blush" && <Blossom fill={blushGrad} center={goldBase} />}
+            {p.kind === "gold" && <Blossom fill={goldGrad} center={blushBase} />}
+            {p.kind === "sprig" && <Sprig stem={goldSoft} leaf={blushSoft} bud={goldBase} />}
           </svg>
         );
       })}
