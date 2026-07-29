@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn } from "@/lib/businessHours";
-import { fetchPublicSettings } from "@/lib/branding";
+import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -29,6 +29,7 @@ export default function BookPage() {
   const [loading, setLoading] = useState(true);
   const [tenantId, setTenantId] = useState(null);
   const [tenantError, setTenantError] = useState(false);
+  const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=service, 2=date+time, 3=details, 4=done
@@ -77,6 +78,7 @@ export default function BookPage() {
 
       if (row) {
         setSettings(row);
+        setBrand(resolveBranding(row)); // logo/colors/welcome text from the branding jsonb
       } else {
         // Tenant has no settings row - treat as not found rather than guessing.
         setTenantError(true);
@@ -103,7 +105,7 @@ export default function BookPage() {
     }
   };
 
-  const pc = settings?.primary_color || "#E91E63";
+  const pc = brand?.primary || settings?.primary_color || "#E91E63";
 
   // === Build next 14 available days (respecting per-day business_hours) ===
   const availableDays = [];
@@ -197,11 +199,22 @@ export default function BookPage() {
         .bk-btn:disabled { opacity: 0.5; cursor: default; }
       `}</style>
 
+      {/* HERO (optional clinic banner from branding) */}
+      {brand?.heroImageUrl && (
+        <div style={{ width: "100%", maxWidth: 480, height: 150, overflow: "hidden", borderRadius: "0 0 22px 22px", marginBottom: 4 }}>
+          <img src={brand.heroImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+      )}
+
       {/* HEADER */}
       <div style={{ width: "100%", maxWidth: 480, padding: "32px 20px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 6 }}>💗</div>
-        <h1 style={{ fontSize: 28, fontWeight: 900, color: pc, marginBottom: 4 }}>{settings?.business_name || "קביעת תור"}</h1>
-        <p style={{ fontSize: 13, color: "#B77", fontWeight: 500 }}>קביעת תור אונליין · 24/7</p>
+        {brand?.logoUrl ? (
+          <img src={brand.logoUrl} alt={brand.businessName || settings?.business_name || "קליניקה"} style={{ maxHeight: 64, maxWidth: 200, objectFit: "contain", margin: "0 auto 12px", display: "block" }} />
+        ) : (
+          <div style={{ fontSize: 40, marginBottom: 6 }}>💗</div>
+        )}
+        <h1 style={{ fontSize: 28, fontWeight: 900, color: pc, marginBottom: 4 }}>{brand?.welcomeHeadline || brand?.businessName || settings?.business_name || "קביעת תור"}</h1>
+        <p style={{ fontSize: 13, color: "#B77", fontWeight: 500 }}>{brand?.welcomeMessage || "קביעת תור אונליין · 24/7"}</p>
       </div>
 
       {/* PROGRESS BAR */}
@@ -330,7 +343,7 @@ export default function BookPage() {
 
             <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
               style={{ width: "100%", padding: "16px 0", borderRadius: 14, background: pc, color: "#fff", fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55` }}>
-              {submitting ? "קובע תור..." : "✨ קבעי תור"}
+              {submitting ? "קובע תור..." : `✨ ${brand?.ctaLabel || "קבעי תור"}`}
             </button>
           </div>
         )}
@@ -355,8 +368,11 @@ export default function BookPage() {
       </div>
 
       {/* FOOTER */}
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize: 11, color: "#C9A9B6" }}>
-        מופעל ע"י BloomOS 💎
+      <div style={{ marginTop: "auto", paddingTop: 30, textAlign: "center", padding: "30px 20px 0" }}>
+        {brand?.address && (
+          <p style={{ fontSize: 12.5, color: pc, fontWeight: 600, marginBottom: 6 }}>📍 {brand.address}</p>
+        )}
+        <p style={{ fontSize: 11, color: "#C9A9B6" }}>מופעל ע"י BloomOS 💎</p>
       </div>
     </div>
   );

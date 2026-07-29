@@ -186,8 +186,8 @@ export default function SkinScanPage() {
           <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
         ) : null}
         <p style={{ fontSize: 11, letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
-        <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>הכירי את העור שלך —<br />וקבלי המלצה מקצועית</h1>
-        <p style={{ fontSize: 13.5, color: INK2, fontWeight: 500, lineHeight: 1.6 }}>העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה.</p>
+        <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך —<br />וקבלי המלצה מקצועית</>}</h1>
+        <p style={{ fontSize: 13.5, color: INK2, fontWeight: 500, lineHeight: 1.6 }}>{brand?.welcomeMessage || "העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה."}</p>
       </div>
 
       <div style={{ width: "100%", maxWidth: 500, padding: "14px 20px 0" }}>
