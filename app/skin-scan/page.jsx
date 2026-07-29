@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "../supabase";
 import { fetchPublicBranding } from "@/lib/branding";
+import FloralCorners from "../FloralCorners";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -27,9 +28,11 @@ const SCAN_STEPS = [
 ];
 
 export default function SkinScanPage() {
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview] = useState(null);         // FRONT photo (primary — analyzed)
   const [imageData, setImageData] = useState(null);
   const [mediaType, setMediaType] = useState("image/jpeg");
+  const [leftPreview, setLeftPreview] = useState(null);   // optional left-profile photo
+  const [rightPreview, setRightPreview] = useState(null); // optional right-profile photo
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(0);
   const [report, setReport] = useState(null);
@@ -47,6 +50,8 @@ export default function SkinScanPage() {
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
 
   const fileRef = useRef(null);
+  const leftRef = useRef(null);
+  const rightRef = useRef(null);
 
   useEffect(() => {
     try {
@@ -71,10 +76,9 @@ export default function SkinScanPage() {
     return () => clearInterval(id);
   }, [loading]);
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setErrorMsg(""); setReport(null); setShowPro(false); setShowRoutine(false); setSent(false); setSendError("");
+  // Downscale + compress a picked file in the browser, then hand back the JPEG
+  // data URL. Shared by all three angle slots (front + left/right profiles).
+  const processImage = (file, cb) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
@@ -87,12 +91,29 @@ export default function SkinScanPage() {
         canvas.width = width; canvas.height = height;
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-        setMediaType("image/jpeg"); setPreview(dataUrl); setImageData(dataUrl.split(",")[1]);
+        cb({ dataUrl, mediaType: "image/jpeg" });
       };
-      img.onerror = () => { setMediaType(file.type || "image/jpeg"); setPreview(reader.result); setImageData(String(reader.result).split(",")[1]); };
+      img.onerror = () => cb({ dataUrl: String(reader.result), mediaType: file.type || "image/jpeg" });
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  // FRONT photo is the primary image the AI analyzes — behaviour identical to
+  // before (sets preview + imageData + mediaType); engine call is unchanged.
+  const handleFront = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorMsg(""); setReport(null); setShowPro(false); setShowRoutine(false); setSent(false); setSendError("");
+    processImage(file, ({ dataUrl, mediaType }) => { setMediaType(mediaType); setPreview(dataUrl); setImageData(dataUrl.split(",")[1]); });
+  };
+
+  // LEFT / RIGHT profile photos — captured for a more professional multi-angle
+  // scan (preview only; the existing single-image engine analyzes the front).
+  const handleSide = (e, which) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImage(file, ({ dataUrl }) => { (which === "left" ? setLeftPreview : setRightPreview)(dataUrl); });
   };
 
   const analyze = async () => {
@@ -120,8 +141,11 @@ export default function SkinScanPage() {
 
   const reset = () => {
     setPreview(null); setImageData(null); setReport(null); setErrorMsg(""); setShowPro(false); setShowRoutine(false);
+    setLeftPreview(null); setRightPreview(null);
     setClientName(""); setClientPhone(""); setSent(false); setSendError("");
     if (fileRef.current) fileRef.current.value = "";
+    if (leftRef.current) leftRef.current.value = "";
+    if (rightRef.current) rightRef.current.value = "";
   };
 
   // Booking that PRESERVES context (treatment + name + phone) — no re-entry.
@@ -160,7 +184,7 @@ export default function SkinScanPage() {
   );
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF4F8 0%,#F7EFF4 55%,#FBFAFC 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK }}>
+    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF4F8 0%,#F7EFF4 55%,#FBFAFC 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&display=swap');
         * { box-sizing: border-box; }
@@ -178,10 +202,15 @@ export default function SkinScanPage() {
         .chip { display:inline-flex; align-items:center; gap:5px; background:#fff; border:1px solid ${LINE}; border-radius:999px; padding:6px 12px; font-size:11.5px; font-weight:600; color:${DEEP}; }
       `}</style>
 
+      {/* Subtle brand-tinted floral watermark, behind all content (matches /book) */}
+      <FloralCorners idPrefix="scan" blush={ACCENT} gold={DEEP} opacity={0.9} />
+
       {/* HEADER */}
       <div style={{ width: "100%", maxWidth: 500, padding: "40px 22px 8px", textAlign: "center" }}>
         {brand?.logoUrl ? (
-          <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 60, maxWidth: 200, objectFit: "contain", margin: "0 auto 12px", display: "block" }} />
+          <div style={{ width: 84, height: 84, borderRadius: "50%", background: "#fff", boxShadow: "0 12px 30px -14px rgba(70,50,60,0.4)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${ACCENT}33`, outline: "4px solid #fff" }}>
+            <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          </div>
         ) : brand?.businessName ? (
           <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
         ) : null}
@@ -203,17 +232,36 @@ export default function SkinScanPage() {
               </div>
             )}
 
-            {preview ? (
-              <img src={preview} alt="preview" style={{ width: "100%", maxHeight: 340, objectFit: "cover", borderRadius: 16, marginBottom: 16 }} />
-            ) : (
-              <div onClick={() => fileRef.current?.click()} style={{ border: `1.5px dashed #E4C4D6`, borderRadius: 18, padding: "40px 20px", cursor: "pointer", marginBottom: 16, background: "linear-gradient(180deg,#FDF7FB,#FBF3F8)" }}>
-                <div style={{ fontSize: 34, marginBottom: 10 }}>🌸</div>
-                <p style={{ fontSize: 15.5, fontWeight: 700, color: DEEP }}>צלמי או העלי תמונה</p>
-                <p style={{ fontSize: 12, color: INK2, marginTop: 4 }}>סלפי חזיתי — ונתחיל</p>
-              </div>
-            )}
+            {/* 3-ANGLE CAPTURE — front (required, analyzed) + optional left/right profiles */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+              {[
+                { key: "front", label: "חזית", req: true, thumb: preview, onPick: () => fileRef.current?.click() },
+                { key: "left", label: "פרופיל שמאל", req: false, thumb: leftPreview, onPick: () => leftRef.current?.click() },
+                { key: "right", label: "פרופיל ימין", req: false, thumb: rightPreview, onPick: () => rightRef.current?.click() },
+              ].map((a) => (
+                <div key={a.key} onClick={a.onPick} style={{ cursor: "pointer", borderRadius: 16, overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed #E4C4D6`, background: a.thumb ? "#fff" : "linear-gradient(180deg,#FDF7FB,#FBF3F8)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                  {a.thumb ? (
+                    <>
+                      <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(58,46,56,0.55)", color: "#fff", fontSize: 10.5, fontWeight: 600, padding: "3px 0" }}>{a.label} · החלפה</span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 22, marginBottom: 6 }}>📷</div>
+                      <p style={{ fontSize: 11.5, fontWeight: 700, color: DEEP, lineHeight: 1.3 }}>{a.label}</p>
+                      <p style={{ fontSize: 9.5, color: INK2, marginTop: 2 }}>{a.req ? "חובה" : "אופציונלי"}</p>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: "#6A5E66", lineHeight: 1.55, marginBottom: 14, textAlign: "center" }}>
+              לניתוח מקצועי מדויק — צלמי שלוש זוויות: <b style={{ color: DEEP }}>חזית</b>, פרופיל שמאל ופרופיל ימין. החזית חובה, הפרופילים מומלצים.
+            </p>
 
-            <input ref={fileRef} type="file" accept="image/*" capture="user" onChange={handleFile} style={{ display: "none" }} />
+            <input ref={fileRef} type="file" accept="image/*" capture="user" onChange={handleFront} style={{ display: "none" }} />
+            <input ref={leftRef} type="file" accept="image/*" capture="user" onChange={(e) => handleSide(e, "left")} style={{ display: "none" }} />
+            <input ref={rightRef} type="file" accept="image/*" capture="user" onChange={(e) => handleSide(e, "right")} style={{ display: "none" }} />
 
             {!preview && !loading && (
               <div style={{ background: "#FBF6FA", border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, textAlign: "right" }}>
@@ -225,10 +273,6 @@ export default function SkinScanPage() {
                   </div>
                 ))}
               </div>
-            )}
-
-            {preview && !loading && (
-              <button onClick={() => fileRef.current?.click()} className="ss-btn" style={{ background: "none", color: ACCENT, fontSize: 13, fontWeight: 600, marginBottom: 12, display: "block", width: "100%" }}>החלפת תמונה</button>
             )}
 
             {errorMsg && (
@@ -255,6 +299,12 @@ export default function SkinScanPage() {
         {/* ===== RESULTS — read as a consultation ===== */}
         {report && (
           <div className="ss-card">
+
+            {/* MEDICAL DISCLAIMER — clear + visible at the very top of the results */}
+            <div style={{ ...card, background: "#FBF6FA", border: "1px solid #EAD9E6", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>ℹ️</span>
+              <p style={{ fontSize: 12, color: "#6A5E66", lineHeight: 1.6, fontWeight: 500 }}>הסריקה נועדה להתרשמות ראשונית בלבד ואינה מחליפה ייעוץ או אבחון מקצועי. אין להסתמך על ההמלצות כאבחנה סופית.</p>
+            </div>
 
             {/* 1) OVERALL SUMMARY — score + type + warm one-liner */}
             <div style={{ ...card, padding: "26px 20px", borderRadius: 22, textAlign: "center" }}>
