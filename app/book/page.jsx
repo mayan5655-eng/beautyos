@@ -78,7 +78,12 @@ export default function BookPage() {
 
       if (row) {
         setSettings(row);
-        setBrand(resolveBranding(row)); // logo/colors/welcome text from the branding jsonb
+        const _b = resolveBranding(row); // logo/colors/welcome text from the branding jsonb
+        // TEMP DEBUG — remove after diagnosing branding render
+        console.log("[BRANDING DEBUG] raw row:", row);
+        console.log("[BRANDING DEBUG] row.branding:", row?.branding);
+        console.log("[BRANDING DEBUG] resolved brand:", _b);
+        setBrand(_b);
       } else {
         // Tenant has no settings row - treat as not found rather than guessing.
         setTenantError(true);
@@ -106,6 +111,8 @@ export default function BookPage() {
   };
 
   const pc = brand?.primary || settings?.primary_color || "#E91E63";
+  // TEMP DEBUG — remove after diagnosing branding render
+  if (typeof window !== "undefined") console.log("[BRANDING DEBUG] render-time brand:", brand);
 
   // === Build next 14 available days (respecting per-day business_hours) ===
   const availableDays = [];
