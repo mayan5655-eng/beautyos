@@ -435,6 +435,7 @@ export default function BeautyOS() {
   // every close so the modal never opens stale in edit mode.
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
+  const [brandUploading, setBrandUploading] = useState(""); // which branding asset is uploading
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:"#D9B98C",active:true});
   const [showNewService, setShowNewService] = useState(false);
   const [cashierAppt,     setCashierAppt]     = useState(null);
@@ -1346,6 +1347,49 @@ export default function BeautyOS() {
         toast("התמונה נמחקה");
       },
     });
+  };
+
+  // Upload a public branding asset (logo/hero) to the PUBLIC bucket under the
+  // clinic's OWN tenant folder ("<tenant>/branding/…"), so one clinic can never
+  // write into another's path. Validates type + size; stores the public URL in
+  // editSettings.branding (persisted on Save).
+  const uploadBrandAsset = async (file, key) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading(key);
+    try {
+      const ext = ((file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")) || "png";
+      const path = `${tid}/branding/${key}_${Date.now()}.${ext}`;
+      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
+      if(ue){ handleDbError(ue, "upload brand asset"); return; }
+      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
+      setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), [key]: url }}));
+      toast("התמונה הועלתה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
+  };
+
+  // Upload one gallery image and APPEND its public URL to branding.gallery (an
+  // array), same tenant-scoped path rules as uploadBrandAsset. The public /book
+  // page renders these as a Google-style photo grid.
+  const uploadGalleryImage = async (file) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading("gallery");
+    try {
+      const ext = ((file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")) || "jpg";
+      const path = `${tid}/branding/gallery_${Date.now()}.${ext}`;
+      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
+      if(ue){ handleDbError(ue, "upload gallery image"); return; }
+      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
+      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const gal=Array.isArray(b.gallery)?b.gallery:[]; return {...prev, branding:{...b, gallery:[...gal, url]}}; });
+      toast("התמונה נוספה לגלריה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
   };
 
   const handleSendForm = async (client,formType) => {
@@ -2709,7 +2753,7 @@ export default function BeautyOS() {
 
   return (
  <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:"var(--bg)",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
- <FloralCorners idPrefix="app" fixed zIndex={1} />
+ <FloralCorners idPrefix="app" fixed zIndex={1} blush={pc} gold={pcDeep} />
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}
@@ -5169,7 +5213,7 @@ export default function BeautyOS() {
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                {[{k:"general",l:"כללי"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
+                {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -5205,6 +5249,85 @@ export default function BeautyOS() {
  </div>
  </div>
               )}
+              {settingsTab==="branding"&&(()=>{
+                const brand=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+                const setBrand=(k,v)=>setEditSettings(prev=>({...prev,branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}),[k]:v}}));
+                const lbl={fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5};
+                const inp={width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"};
+                const upBtn={background:"var(--pc-tint)",color:pcDeep,border:"none",borderRadius:12,padding:"8px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"};
+                const swatches=["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"];
+                const colorRow=(label,val,onPick)=>(<div><p style={lbl}>{label}</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{swatches.map(c=><button key={c} onClick={()=>onPick(c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:val===c?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer"}}/>)}</div></div>);
+                const uploader=(key,current)=>(
+                  current?(
+ <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+ <img src={current} alt="" style={{maxHeight:52,maxWidth:120,objectFit:"contain",background:"#fff",border:"1px solid var(--line)",borderRadius:10,padding:6}}/>
+ <label style={upBtn}>{brandUploading===key?"מעלה…":"החלפה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
+ <button onClick={()=>setBrand(key,"")} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 12px",fontSize:11,fontWeight:600,color:"var(--danger)",cursor:"pointer",fontFamily:"inherit"}}>הסרה</button>
+ </div>
+                  ):(
+ <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:12,padding:"14px",textAlign:"center",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading===key?"מעלה…":"העלאת תמונה (PNG/JPG, עד 3MB)"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
+                  )
+                );
+                return(
+ <div style={{display:"flex",flexDirection:"column",gap:14}}>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
+ <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
+                    {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
+                    {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
+ <div><p style={lbl}>כותרת פתיחה ללקוחה</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/></div>
+ <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
+ <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
+ <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>📷 גלריית תמונות</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
+                    {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
+ <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:10,overflow:"hidden",border:"1px solid var(--line)"}}>
+ <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <button onClick={()=>setBrand("gallery",(Array.isArray(brand.gallery)?brand.gallery:[]).filter((_,j)=>j!==i))} style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"#fff",border:"none",fontSize:11,cursor:"pointer",lineHeight:1}}>✕</button>
+ </div>
+                    ))}
+ </div>
+ <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:12,padding:"12px",textAlign:"center",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading==="gallery"?"מעלה…":"+ הוספת תמונה לגלריה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadGalleryImage(f);e.target.value="";}}/></label>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:10,color:"#7A716A",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
+ <div><p style={lbl}>מספר וואטסאפ</p><input value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>⭐ ביקורות לקוחות</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>יוצגו בעמוד העסק שלך כמו ביקורות Google (רק אם הוספת לפחות אחת)</p>
+                    {(Array.isArray(brand.reviews)?brand.reviews:[]).map((rv,i)=>{
+                      const revs=Array.isArray(brand.reviews)?brand.reviews:[];
+                      const updRev=(patch)=>setBrand("reviews",revs.map((x,j)=>j===i?{...x,...patch}:x));
+                      return (
+ <div key={i} style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:8}}>
+ <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+ <input value={rv.name||""} onChange={e=>updRev({name:e.target.value})} placeholder="שם הלקוחה" style={{...inp,flex:1,padding:"7px 10px"}}/>
+ <button onClick={()=>setBrand("reviews",revs.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>✕</button>
+ </div>
+ <div style={{display:"flex",gap:3,marginBottom:6}}>
+                          {[1,2,3,4,5].map(n=>(
+ <button key={n} onClick={()=>updRev({rating:n})} style={{background:"none",border:"none",cursor:"pointer",fontSize:19,lineHeight:1,padding:0,color:(Number(rv.rating)||5)>=n?pc:"var(--line-2)"}}>★</button>
+                          ))}
+ </div>
+ <textarea value={rv.text||""} onChange={e=>updRev({text:e.target.value})} rows={2} placeholder="תוכן הביקורת" style={{...inp,resize:"none"}}/>
+ </div>
+                      );
+                    })}
+ <button onClick={()=>setBrand("reviews",[...(Array.isArray(brand.reviews)?brand.reviews:[]),{name:"",rating:5,text:""}])} style={{background:"var(--pc-tint)",border:`1px dashed ${pc}`,borderRadius:12,padding:"9px 0",width:"100%",fontSize:11.5,color:pcDeep,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ הוסף ביקורת</button>
+ </div>
+ </div>
+                );
+              })()}
+
               {settingsTab==="automations"&&(()=>{
                 // Default-ON reminder flags: undefined (column never set) counts
                 // as ON, matching today's cron behavior. Only an explicit false
