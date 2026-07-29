@@ -3390,8 +3390,10 @@ export default function BeautyOS() {
  </div>
  </motion.div>
 
-                {/* SETUP CHECKLIST — persistent: never auto-hides, shows "הכל מוכן" when
-                    complete, and is also reachable from any tab via the header ☑ button. */}
+                {/* SETUP CHECKLIST — prominent on the dashboard ONLY while incomplete.
+                    Once every item is done it disappears from here and lives compactly
+                    inside Settings (+ the always-on header ☑ button / modal). */}
+                {setupDone < setupTotal && (
  <div style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:20,padding:"18px 22px",boxShadow:"var(--shadow-md)"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
  <h3 className="serif" style={{fontSize:17,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
@@ -3399,6 +3401,7 @@ export default function BeautyOS() {
  </div>
                   {renderSetupBody()}
  </div>
+                )}
 
                 {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:18,flexWrap:"wrap",alignItems:"flex-start"}}>
@@ -5241,7 +5244,7 @@ export default function BeautyOS() {
 
       {/* SETTINGS MODAL */}
       {showSetup && (
-        <div onClick={()=>setShowSetup(false)} style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}}>
+        <div onClick={()=>setShowSetup(false)} style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1100,padding:14}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:20,padding:"20px 22px",width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-lg)"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
               <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</h3>
@@ -5257,6 +5260,15 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
+ {/* Compact setup-checklist entry — the checklist's home once it leaves the dashboard */}
+ <button onClick={()=>setShowSetup(true)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:pcTint,border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:14,cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>
+ <span style={{fontSize:15,color:setupDone===setupTotal?"var(--success)":pc,flexShrink:0}}>{setupDone===setupTotal?"✓":"☑"}</span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{setupDone===setupTotal?"הכל מוכן. אפשר לעדכן בכל עת":"רשימת ההגדרות להשלמה"}</p>
+ </div>
+ <span style={{fontSize:11,color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
+ </button>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                 {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
