@@ -5,6 +5,37 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../supabase'
 import FloralCorners from '../FloralCorners'
 
+// === premium styles (BloomOS aesthetic — matches /book + /skin-scan) ===
+const GOLD = '#D4945A'
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '13px 15px', marginBottom: 12, border: '1px solid #EADFD8',
+  borderRadius: 12, fontSize: 15, boxSizing: 'border-box', background: '#FBF7F4',
+  color: '#3A2B2B', outline: 'none', fontFamily: 'inherit',
+  transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+}
+const textLinkStyle: React.CSSProperties = {
+  background: 'none', border: 'none', color: GOLD, fontSize: 13.5, cursor: 'pointer',
+  textDecoration: 'underline', padding: 0, fontFamily: 'inherit',
+}
+function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
+  return {
+    color: kind === 'error' ? '#B25B52' : '#2E7D50',
+    background: kind === 'error' ? '#F7ECEA' : '#EEF5F0',
+    border: `1px solid ${kind === 'error' ? '#EAD3CF' : '#D4E7DB'}`,
+    padding: 11, borderRadius: 10, marginBottom: 16, fontSize: 13.5, textAlign: 'center',
+  }
+}
+function btnStyle(loading: boolean): React.CSSProperties {
+  return {
+    width: '100%', padding: 15, color: '#fff', border: 'none', borderRadius: 12,
+    background: loading ? '#E6C3A3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
+    fontSize: 15.5, fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
+    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.8 : 1,
+    boxShadow: '0 14px 30px -14px rgba(212,148,90,0.7)',
+    transition: 'transform 0.15s, box-shadow 0.15s',
+  }
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -67,163 +98,78 @@ export default function LoginPage() {
 
   return (
     <div dir="rtl" style={{
-      position: 'relative',
-      zIndex: 0,
-      overflow: 'hidden',
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
+      position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      background: 'linear-gradient(180deg, #FBF7F4 0%, #F4ECE6 58%, #FBF9F7 100%)',
+      fontFamily: "'Assistant', system-ui, -apple-system, sans-serif",
     }}>
       <FloralCorners idPrefix="auth" />
-      <div style={{
-        position: 'relative',
-        zIndex: 1,
-        background: 'white',
-        padding: '40px',
-        borderRadius: '16px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '400px',
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
+        @keyframes authIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+        .auth-card { animation: authIn 0.4s ease-out; }
+        .auth-input:focus { border-color: ${GOLD} !important; background: #fff !important; box-shadow: 0 0 0 3px rgba(212,148,90,0.14) !important; }
+        .auth-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 32px -14px rgba(212,148,90,0.75); }
+        .auth-link:hover { text-decoration: underline; }
+      `}</style>
+      <div className="auth-card" style={{
+        position: 'relative', zIndex: 1, background: '#fff', padding: '42px 40px',
+        borderRadius: 24, boxShadow: '0 26px 64px -32px rgba(120,90,70,0.34), 0 4px 14px rgba(0,0,0,0.04)',
+        border: '1px solid #EFE6DF', width: '100%', maxWidth: 400,
       }}>
-        <h1 style={{
-          margin: '0 0 8px 0',
-          color: '#D4945A',
-          fontSize: '28px',
-          textAlign: 'center',
-        }}>BloomOS</h1>
-        <p style={{
-          margin: '0 0 32px 0',
-          color: '#666',
-          textAlign: 'center',
-          fontSize: '14px',
-        }}>{mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}</p>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ margin: 0, color: GOLD, fontSize: 34, fontWeight: 600, letterSpacing: '2px', fontFamily: "'Frank Ruhl Libre', Georgia, serif" }}>BloomOS</h1>
+          <p style={{ margin: '8px 0 0 0', color: '#B0998B', fontSize: 11, letterSpacing: '2.5px', fontWeight: 600 }}>{mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}</p>
+        </div>
 
         <form onSubmit={mode === 'login' ? handleLogin : handleForgot}>
           <input
+            className="auth-input"
             type="email"
             placeholder="אימייל"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            style={{
-              width: '100%',
-              padding: '12px',
-              marginBottom: '12px',
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              fontSize: '15px',
-              boxSizing: 'border-box',
-            }}
+            style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }}
           />
           {mode === 'login' && (
             <input
+              className="auth-input"
               type="password"
               placeholder="סיסמה"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{
-                width: '100%',
-                padding: '12px',
-                marginBottom: '16px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '15px',
-                boxSizing: 'border-box',
-              }}
+              style={{ ...inputStyle, marginBottom: 16 }}
             />
           )}
 
-          {error && (
-            <div style={{
-              color: '#c53030',
-              background: '#fed7d7',
-              padding: '10px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              fontSize: '14px',
-              textAlign: 'center',
-            }}>{error}</div>
-          )}
+          {error && <div style={noticeStyle('error')}>{error}</div>}
+          {resetNotice && <div style={noticeStyle('ok')}>{resetNotice}</div>}
 
-          {resetNotice && (
-            <div style={{
-              color: '#276749',
-              background: '#c6f6d5',
-              padding: '10px',
-              borderRadius: '6px',
-              marginBottom: '16px',
-              fontSize: '14px',
-              textAlign: 'center',
-            }}>{resetNotice}</div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '14px',
-              background: '#D4945A',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-            }}>
+          <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
             {mode === 'login'
               ? (loading ? 'מתחבר...' : 'כניסה')
               : (loading ? 'שולח...' : 'שליחת קישור לאיפוס')}
           </button>
         </form>
 
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
+        <div style={{ marginTop: 18, textAlign: 'center' }}>
           {mode === 'login' ? (
-            <button
-              type="button"
-              onClick={showForgot}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#D4945A',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: 0,
-                fontFamily: 'inherit',
-              }}
-            >
+            <button type="button" onClick={showForgot} className="auth-link" style={textLinkStyle}>
               שכחת סיסמה?
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={showLogin}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#D4945A',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: 0,
-                fontFamily: 'inherit',
-              }}
-            >
+            <button type="button" onClick={showLogin} className="auth-link" style={textLinkStyle}>
               חזרה לכניסה
             </button>
           )}
         </div>
 
         {mode === 'login' && (
-          <p style={{ marginTop: '14px', textAlign: 'center', fontSize: '14px', color: '#666' }}>
+          <p style={{ marginTop: 16, textAlign: 'center', fontSize: 13.5, color: '#8A7A70' }}>
             אין לך חשבון?{' '}
-            <a href="/signup" style={{ color: '#D4945A', fontWeight: 600, textDecoration: 'none' }}>
+            <a href="/signup" className="auth-link" style={{ color: GOLD, fontWeight: 700, textDecoration: 'none' }}>
               הירשמי
             </a>
           </p>
