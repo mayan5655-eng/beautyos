@@ -5256,7 +5256,7 @@ export default function BeautyOS() {
  <div><p style={lbl}>כותרת פתיחה ללקוחה</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/></div>
  <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
- <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={editSettings.cta_label||""} onChange={e=>setEditSettings({...editSettings,cta_label:e.target.value})} placeholder="קביעת תור" style={inp}/></div>
+ <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
  <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
  </div>
                 );
