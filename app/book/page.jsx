@@ -51,6 +51,7 @@ export default function BookPage() {
   const [tenantId, setTenantId] = useState(null);
   const [tenantError, setTenantError] = useState(false);
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
+  const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=business card + service, 2=date+time, 3=details, 4=done
@@ -118,6 +119,16 @@ export default function BookPage() {
         }
       }
       if (ap.data) setAppointments(ap.data);
+
+      // Her client-facing announcements feed. Read through the SAME vetted safe
+      // public endpoint the standalone /community page uses (service role, returns
+      // ONLY whitelisted non-secret fields, scoped to this tenant). Best-effort:
+      // any failure just leaves the feed empty and never blocks the booking flow.
+      try {
+        const cRes = await fetch(`/api/community?t=${encodeURIComponent(t)}`);
+        const cData = await cRes.json();
+        if (cData && cData.success && Array.isArray(cData.posts)) setPosts(cData.posts);
+      } catch { /* announcements are optional — ignore */ }
     } catch (err) {
       console.error("loadData error:", err);
       setTenantError(true);
@@ -227,6 +238,12 @@ export default function BookPage() {
     brand?.tiktok && { key: "tt", label: "טיקטוק", href: socialHref("https://tiktok.com/@", brand.tiktok) },
   ].filter(Boolean);
 
+  // Client-facing announcements: newest first, cap to keep the mini-site tight.
+  const recentPosts = (posts || []).slice(0, 5);
+  const postTypeLabel = (t) => (t === "offer" ? "מבצע" : t === "tip" ? "טיפ" : "עדכון");
+  // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
+  const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "#7BA88E" : faint);
+
   const goToServices = () => {
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -327,6 +344,48 @@ export default function BookPage() {
               <div style={cardBox}>
                 {eyebrow("אודות")}
                 <p style={{ fontSize: 14, color: "#635A60", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty) */}
+          {recentPosts.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={cardBox}>
+                {eyebrow("עדכונים")}
+                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+                  {recentPosts.map((p) => (
+                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
+                      {p.image_url && (
+                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
+                      )}
+                      <div style={{ padding: "15px 17px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                            {postTypeLabel(p.post_type)}
+                          </span>
+                          <span style={{ fontSize: 10, color: faint, letterSpacing: "0.3px" }}>
+                            {new Date(p.created_at).toLocaleDateString("he-IL")}
+                          </span>
+                        </div>
+                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
+                        {p.body && <p style={{ fontSize: 13.5, color: "#635A60", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.cta_label && (
+                          wa ? (
+                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
+                              {p.cta_label}
+                            </a>
+                          ) : (
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
+                              {p.cta_label}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
