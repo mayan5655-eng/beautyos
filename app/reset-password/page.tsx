@@ -10,17 +10,35 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../supabase'
+import FloralCorners from '../FloralCorners'
 
 const MIN_PASSWORD_LENGTH = 8
 
+// === premium styles (BloomOS aesthetic — matches /book + /skin-scan) ===
+const GOLD = '#D4945A'
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px',
-  marginBottom: '12px',
-  border: '1px solid #ddd',
-  borderRadius: '8px',
-  fontSize: '15px',
-  boxSizing: 'border-box',
+  width: '100%', padding: '13px 15px', marginBottom: 12, border: '1px solid #EADFD8',
+  borderRadius: 12, fontSize: 15, boxSizing: 'border-box', background: '#FBF7F4',
+  color: '#3A2B2B', outline: 'none', fontFamily: 'inherit',
+  transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+}
+function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
+  return {
+    color: kind === 'error' ? '#B25B52' : '#2E7D50',
+    background: kind === 'error' ? '#F7ECEA' : '#EEF5F0',
+    border: `1px solid ${kind === 'error' ? '#EAD3CF' : '#D4E7DB'}`,
+    padding: 12, borderRadius: 10, marginBottom: 16, fontSize: 13.5, textAlign: 'center',
+  }
+}
+function btnStyle(loading: boolean): React.CSSProperties {
+  return {
+    width: '100%', padding: 15, color: '#fff', border: 'none', borderRadius: 12,
+    background: loading ? '#E6C3A3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
+    fontSize: 15.5, fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
+    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.8 : 1,
+    boxShadow: '0 14px 30px -14px rgba(212,148,90,0.7)',
+    transition: 'transform 0.15s, box-shadow 0.15s',
+  }
 }
 
 export default function ResetPasswordPage() {
@@ -184,65 +202,47 @@ export default function ResetPasswordPage() {
     <div
       dir="rtl"
       style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        background: 'linear-gradient(180deg, #FBF7F4 0%, #F4ECE6 58%, #FBF9F7 100%)',
+        fontFamily: "'Assistant', system-ui, -apple-system, sans-serif",
       }}
     >
+      <FloralCorners idPrefix="reset" />
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
+        @keyframes authIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+        .auth-card { animation: authIn 0.4s ease-out; }
+        .auth-input:focus { border-color: ${GOLD} !important; background: #fff !important; box-shadow: 0 0 0 3px rgba(212,148,90,0.14) !important; }
+        .auth-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 32px -14px rgba(212,148,90,0.75); }
+      `}</style>
       <div
+        className="auth-card"
         style={{
-          background: 'white',
-          padding: '40px',
-          borderRadius: '16px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-          width: '100%',
-          maxWidth: '400px',
+          position: 'relative', zIndex: 1, background: '#fff', padding: '42px 40px',
+          borderRadius: 24, boxShadow: '0 26px 64px -32px rgba(120,90,70,0.34), 0 4px 14px rgba(0,0,0,0.04)',
+          border: '1px solid #EFE6DF', width: '100%', maxWidth: 400,
         }}
       >
-        <h1
-          style={{
-            margin: '0 0 8px 0',
-            color: '#D4945A',
-            fontSize: '28px',
-            textAlign: 'center',
-          }}
-        >
-          BeautyOS
-        </h1>
-        <p
-          style={{
-            margin: '0 0 32px 0',
-            color: '#666',
-            textAlign: 'center',
-            fontSize: '14px',
-          }}
-        >
-          בחירת סיסמה חדשה
-        </p>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ margin: 0, color: GOLD, fontSize: 34, fontWeight: 600, letterSpacing: '2px', fontFamily: "'Frank Ruhl Libre', Georgia, serif" }}>
+            BloomOS
+          </h1>
+          <p style={{ margin: '8px 0 0 0', color: '#B0998B', fontSize: 11, letterSpacing: '2.5px', fontWeight: 600 }}>
+            בחירת סיסמה חדשה
+          </p>
+        </div>
 
         {checking ? (
-          <p style={{ textAlign: 'center', color: '#666', fontSize: '15px' }}>
+          <p style={{ textAlign: 'center', color: '#8A7A70', fontSize: 15, letterSpacing: '0.5px' }}>
             טוען...
           </p>
         ) : notice ? (
-          <div
-            style={{
-              color: '#276749',
-              background: '#c6f6d5',
-              padding: '12px',
-              borderRadius: '6px',
-              fontSize: '14px',
-              textAlign: 'center',
-            }}
-          >
-            {notice}
-          </div>
+          <div style={noticeStyle('ok')}>{notice}</div>
         ) : ready ? (
           <form onSubmit={handleSubmit}>
             <input
+              className="auth-input"
               type="password"
               placeholder="סיסמה חדשה"
               value={password}
@@ -251,79 +251,25 @@ export default function ResetPasswordPage() {
               style={inputStyle}
             />
             <input
+              className="auth-input"
               type="password"
               placeholder="אימות סיסמה חדשה"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required
-              style={{ ...inputStyle, marginBottom: '16px' }}
+              style={{ ...inputStyle, marginBottom: 16 }}
             />
 
-            {error && (
-              <div
-                style={{
-                  color: '#c53030',
-                  background: '#fed7d7',
-                  padding: '10px',
-                  borderRadius: '6px',
-                  marginBottom: '16px',
-                  fontSize: '14px',
-                  textAlign: 'center',
-                }}
-              >
-                {error}
-              </div>
-            )}
+            {error && <div style={noticeStyle('error')}>{error}</div>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: '#D4945A',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
+            <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
               {loading ? 'מעדכן...' : 'עדכון סיסמה'}
             </button>
           </form>
         ) : (
           <>
-            <div
-              style={{
-                color: '#c53030',
-                background: '#fed7d7',
-                padding: '10px',
-                borderRadius: '6px',
-                marginBottom: '16px',
-                fontSize: '14px',
-                textAlign: 'center',
-              }}
-            >
-              {error || 'לא נמצא קישור איפוס תקין.'}
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push('/login')}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: '#D4945A',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
+            <div style={noticeStyle('error')}>{error || 'לא נמצא קישור איפוס תקין.'}</div>
+            <button type="button" onClick={() => router.push('/login')} className="auth-btn" style={btnStyle(false)}>
               חזרה לכניסה
             </button>
           </>

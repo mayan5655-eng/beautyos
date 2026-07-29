@@ -68,6 +68,7 @@ export default function SignupPage() {
       <FloralCorners idPrefix="signup" />
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
         @keyframes signupIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
         .signup-card { animation: signupIn 0.4s ease-out; }
         .signup-input:focus {
@@ -183,7 +184,7 @@ function Field({
   )
 }
 
-// === Styles ===
+// === Styles (premium BloomOS aesthetic — matches /book + /skin-scan) ===
 const pageStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 0,
@@ -192,8 +193,8 @@ const pageStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'linear-gradient(135deg, #fef3f3 0%, #f9e1e6 100%)',
-  fontFamily: 'var(--sans, system-ui, -apple-system, sans-serif)',
+  background: 'linear-gradient(180deg, #FBF7F4 0%, #F4ECE6 58%, #FBF9F7 100%)',
+  fontFamily: "'Assistant', system-ui, -apple-system, sans-serif",
   padding: 20,
 }
 
@@ -201,10 +202,10 @@ const cardStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 1,
   background: '#fff',
-  padding: '38px 40px',
-  borderRadius: 20,
-  boxShadow: '0 18px 50px rgba(180,120,90,0.16), 0 4px 14px rgba(0,0,0,0.05)',
-  border: '1px solid rgba(212,148,90,0.12)',
+  padding: '42px 40px',
+  borderRadius: 24,
+  boxShadow: '0 26px 64px -32px rgba(120,90,70,0.34), 0 4px 14px rgba(0,0,0,0.04)',
+  border: '1px solid #EFE6DF',
   width: '100%',
   maxWidth: 430,
 }
@@ -214,87 +215,94 @@ const wordmarkStyle: React.CSSProperties = {
   color: GOLD,
   fontSize: 34,
   fontWeight: 600,
-  letterSpacing: '0.5px',
-  fontFamily: 'var(--display, Georgia, serif)',
+  letterSpacing: '2px',
+  fontFamily: "'Frank Ruhl Libre', Georgia, serif",
 }
 
 const taglineStyle: React.CSSProperties = {
-  margin: '4px 0 0 0',
-  color: '#b89a86',
-  fontSize: 12,
-  letterSpacing: '0.5px',
+  margin: '6px 0 0 0',
+  color: '#B0998B',
+  fontSize: 11,
+  letterSpacing: '2.5px',
+  fontWeight: 600,
 }
 
 const welcomeTitleStyle: React.CSSProperties = {
   margin: '0 0 6px 0',
-  color: '#3a2b2b',
-  fontSize: 20,
-  fontWeight: 700,
+  color: '#4A3B33',
+  fontSize: 22,
+  fontWeight: 600,
+  letterSpacing: '0.3px',
+  fontFamily: "'Frank Ruhl Libre', Georgia, serif",
 }
 
 const welcomeSubtitleStyle: React.CSSProperties = {
   margin: 0,
-  color: '#7a6a63',
+  color: '#8A7A70',
   fontSize: 13.5,
-  lineHeight: 1.6,
+  lineHeight: 1.7,
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '12px 14px',
-  border: '1.5px solid #efe1da',
-  borderRadius: 10,
+  padding: '13px 15px',
+  border: '1px solid #EADFD8',
+  borderRadius: 12,
   fontSize: 15,
   boxSizing: 'border-box',
-  background: '#fbf7f5',
-  color: '#3a2b2b',
+  background: '#FBF7F4',
+  color: '#3A2B2B',
   outline: 'none',
   fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12.5,
-  color: '#6b5b56',
+  fontSize: 12,
+  color: '#6B5B56',
   fontWeight: 600,
+  letterSpacing: '0.3px',
 }
 
 const hintStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#b0a099',
+  color: '#B0A099',
 }
 
 const errorStyle: React.CSSProperties = {
-  color: '#c53030',
-  background: '#fed7d7',
-  padding: 10,
-  borderRadius: 8,
+  color: '#B25B52',
+  background: '#F7ECEA',
+  border: '1px solid #EAD3CF',
+  padding: 11,
+  borderRadius: 10,
   marginBottom: 16,
-  fontSize: 14,
+  fontSize: 13.5,
   textAlign: 'center',
 }
 
 const buttonStyle = (loading: boolean): React.CSSProperties => ({
   width: '100%',
-  padding: 14,
-  marginTop: 4,
-  background: loading ? '#e6c3a3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
+  padding: 15,
+  marginTop: 6,
+  background: loading ? '#E6C3A3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
   color: '#fff',
   border: 'none',
-  borderRadius: 10,
-  fontSize: 16,
-  fontWeight: 700,
+  borderRadius: 12,
+  fontSize: 15.5,
+  fontWeight: 600,
+  letterSpacing: '1px',
   cursor: loading ? 'not-allowed' : 'pointer',
   opacity: loading ? 0.8 : 1,
   fontFamily: 'inherit',
+  boxShadow: '0 14px 30px -14px rgba(212,148,90,0.7)',
   transition: 'transform 0.15s, box-shadow 0.15s',
 })
 
 const footerStyle: React.CSSProperties = {
   textAlign: 'center',
-  fontSize: 14,
-  color: '#7a6a63',
-  margin: '18px 0 0 0',
+  fontSize: 13.5,
+  color: '#8A7A70',
+  margin: '20px 0 0 0',
 }
 
 const linkStyle: React.CSSProperties = {
