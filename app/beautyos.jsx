@@ -5280,8 +5280,9 @@ export default function BeautyOS() {
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
  <div><p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
- <div>
- <p style={{fontSize:10,color:"#7A716A",fontWeight:600,marginBottom:6}}>גלריית תמונות</p>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>📷 גלריית תמונות</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:10,overflow:"hidden",border:"1px solid var(--line)"}}>
@@ -5299,6 +5300,29 @@ export default function BeautyOS() {
  <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>⭐ ביקורות לקוחות</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>יוצגו בעמוד העסק שלך כמו ביקורות Google (רק אם הוספת לפחות אחת)</p>
+                    {(Array.isArray(brand.reviews)?brand.reviews:[]).map((rv,i)=>{
+                      const revs=Array.isArray(brand.reviews)?brand.reviews:[];
+                      const updRev=(patch)=>setBrand("reviews",revs.map((x,j)=>j===i?{...x,...patch}:x));
+                      return (
+ <div key={i} style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:8}}>
+ <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+ <input value={rv.name||""} onChange={e=>updRev({name:e.target.value})} placeholder="שם הלקוחה" style={{...inp,flex:1,padding:"7px 10px"}}/>
+ <button onClick={()=>setBrand("reviews",revs.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>✕</button>
+ </div>
+ <div style={{display:"flex",gap:3,marginBottom:6}}>
+                          {[1,2,3,4,5].map(n=>(
+ <button key={n} onClick={()=>updRev({rating:n})} style={{background:"none",border:"none",cursor:"pointer",fontSize:19,lineHeight:1,padding:0,color:(Number(rv.rating)||5)>=n?pc:"var(--line-2)"}}>★</button>
+                          ))}
+ </div>
+ <textarea value={rv.text||""} onChange={e=>updRev({text:e.target.value})} rows={2} placeholder="תוכן הביקורת" style={{...inp,resize:"none"}}/>
+ </div>
+                      );
+                    })}
+ <button onClick={()=>setBrand("reviews",[...(Array.isArray(brand.reviews)?brand.reviews:[]),{name:"",rating:5,text:""}])} style={{background:"var(--pc-tint)",border:`1px dashed ${pc}`,borderRadius:12,padding:"9px 0",width:"100%",fontSize:11.5,color:pcDeep,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ הוסף ביקורת</button>
  </div>
  </div>
                 );

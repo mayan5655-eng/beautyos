@@ -213,6 +213,8 @@ export default function BookPage() {
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
+  const reviews = brand?.reviews || [];
+  const avgRating = reviews.length ? reviews.reduce((a, r) => a + (Number(r.rating) || 0), 0) / reviews.length : 0;
   const now = new Date();
   const weekHours = normalizeBusinessHours(settings);
   const todayHours = weekHours[now.getDay()];
@@ -342,6 +344,35 @@ export default function BookPage() {
                         <p style={{ fontSize: 16, fontWeight: 800, color: pc }}>₪{s.price}</p>
                         <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: pc, borderRadius: 999, padding: "5px 12px" }}>{brand?.ctaLabel || "קבעי"}</span>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* REVIEWS */}
+          {reviews.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={cardBox}>
+                <p style={sectionTitle}>⭐ ביקורות</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 26, fontWeight: 900, color: deep }}>{avgRating.toFixed(1)}</span>
+                  <div>
+                    <div style={{ fontSize: 15, color: pc, letterSpacing: 1 }}>
+                      {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
+                    </div>
+                    <span style={{ fontSize: 11.5, color: "#9A8E96" }}>{reviews.length} ביקורות</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6 }}>
+                  {reviews.map((rv, i) => (
+                    <div key={i} style={{ flexShrink: 0, width: 240, background: "#FBF7FA", border: "1px solid #F0E6EC", borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ fontSize: 14, color: pc, letterSpacing: 1, marginBottom: 6 }}>
+                        {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
+                      </div>
+                      {rv.text && <p style={{ fontSize: 13, color: "#5A5058", lineHeight: 1.6, marginBottom: 8 }}>{rv.text}</p>}
+                      {rv.name && <p style={{ fontSize: 12.5, fontWeight: 700, color: deep }}>— {rv.name}</p>}
                     </div>
                   ))}
                 </div>
