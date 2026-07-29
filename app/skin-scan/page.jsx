@@ -20,6 +20,16 @@ const INK = "#3A2E38";
 const INK2 = "#8A7E86";
 const LINE = "#EFE3EC";
 
+// Normalize a phone into an international wa.me target (Israel-aware).
+function normalizeWa(raw) {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("972")) return d;
+  if (d.startsWith("0")) return "972" + d.slice(1);
+  if (d.length === 9) return "972" + d;
+  return d;
+}
+
 const SCAN_STEPS = [
   "בודקת את גווני העור וההארה…",
   "מעריכה לחות, מרקם ואיזון…",
@@ -163,14 +173,33 @@ export default function SkinScanPage() {
   const ACCENT = brand?.primary || ACCENT_DEFAULT;
   const DEEP = brand?.deep || DEEP_DEFAULT;
   const ctaText = (brand?.ctaLabel || "קביעת תור לטיפול");
+  const wa = normalizeWa(brand?.whatsappNumber);
+
+  // Booking-intent capture: when she proceeds to Book WITH a phone already on
+  // file (entered in the WhatsApp card), upsert her as a "סורק העור" lead so
+  // booking-intent visitors are captured too. keepalive lets the request finish
+  // as the page navigates to /book. No phone -> skip (the /book flow captures
+  // her on completion instead). Deduped server-side by tenant_id+phone.
+  const captureBookingLead = () => {
+    const phone = clientPhone.trim();
+    if (!tenantId || !phone) return;
+    try {
+      fetch("/api/skin-scan/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, name: clientName.trim(), phone, report }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  };
 
   const scoreColor = (s) => (s >= 75 ? "#3E9E6B" : s >= 50 ? "#C98A3A" : ACCENT);
   // Honest, encouraging framing derived from the REAL score band (not a fabricated
   // per-feature finding). Builds confidence before discussing concerns.
   const positiveNote = (s) =>
-    s >= 75 ? "העור שלך במצב טוב — נקודת פתיחה מצוינת. נשמור על מה שיפה ונחדד את הפרטים."
+    s >= 75 ? "העור שלך במצב טוב, נקודת פתיחה מצוינת. נשמור על מה שיפה ונחדד את הפרטים."
     : s >= 55 ? "יש לך בסיס יפה לעבודה. עם ליווי מותאם אפשר לראות שיפור נעים וברור."
-    : "יחד נבנה תוכנית מותאמת שתעשה שינוי אמיתי — צעד אחר צעד, בקצב שלך.";
+    : "יחד נבנה תוכנית מותאמת שתעשה שינוי אמיתי, צעד אחר צעד, בקצב שלך.";
 
   const card = { background: "#fff", borderRadius: 18, padding: "18px 20px", boxShadow: "0 6px 22px rgba(91,62,103,0.06)", border: `1px solid ${LINE}`, marginBottom: 14 };
   const sectionLabel = { fontSize: 11.5, letterSpacing: "1.5px", color: ACCENT, fontWeight: 700, marginBottom: 8 };
@@ -180,7 +209,7 @@ export default function SkinScanPage() {
   const priority = concerns[0]; // the AI lists concerns most-important first
 
   const bookCard = (label) => (
-    <a href={bookHref()} style={{ display: "block", textDecoration: "none", background: "#fff", color: DEEP, padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, textAlign: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>{label}</a>
+    <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: "#fff", color: DEEP, padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, textAlign: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>{label}</a>
   );
 
   return (
@@ -215,7 +244,7 @@ export default function SkinScanPage() {
           <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
         ) : null}
         <p style={{ fontSize: 11, letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
-        <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך —<br />וקבלי המלצה מקצועית</>}</h1>
+        <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך<br />וקבלי המלצה מקצועית</>}</h1>
         <p style={{ fontSize: 13.5, color: INK2, fontWeight: 500, lineHeight: 1.6 }}>{brand?.welcomeMessage || "העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה."}</p>
       </div>
 
@@ -249,14 +278,14 @@ export default function SkinScanPage() {
                     <>
                       <div style={{ fontSize: 22, marginBottom: 6 }}>📷</div>
                       <p style={{ fontSize: 11.5, fontWeight: 700, color: DEEP, lineHeight: 1.3 }}>{a.label}</p>
-                      <p style={{ fontSize: 9.5, color: INK2, marginTop: 2 }}>{a.req ? "חובה" : "אופציונלי"}</p>
+                      <p style={{ fontSize: 9.5, color: a.req ? ACCENT : INK2, marginTop: 2, fontWeight: a.req ? 700 : 500 }}>{a.req ? "חובה" : "רשות"}</p>
                     </>
                   )}
                 </div>
               ))}
             </div>
             <p style={{ fontSize: 12, color: "#6A5E66", lineHeight: 1.55, marginBottom: 14, textAlign: "center" }}>
-              לניתוח מקצועי מדויק — צלמי שלוש זוויות: <b style={{ color: DEEP }}>חזית</b>, פרופיל שמאל ופרופיל ימין. החזית חובה, הפרופילים מומלצים.
+              <b style={{ color: DEEP }}>תמונת חזית</b> היא כל מה שצריך לניתוח. אפשר להוסיף גם פרופיל שמאל וימין אם תרצי (רשות).
             </p>
 
             <input ref={fileRef} type="file" accept="image/*" capture="user" onChange={handleFront} style={{ display: "none" }} />
@@ -286,7 +315,7 @@ export default function SkinScanPage() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "16px 0" }}>
                 <div className="ss-ring" />
                 <p key={loadStep} className="ss-fade" style={{ fontSize: 14, color: DEEP, fontWeight: 600, minHeight: 20 }}>{SCAN_STEPS[loadStep]}</p>
-                <p style={{ fontSize: 11.5, color: INK2 }}>רגע אחד — מכינות עבורך ניתוח אישי ✦</p>
+                <p style={{ fontSize: 11.5, color: INK2 }}>רגע אחד, מכינות עבורך ניתוח אישי ✦</p>
               </div>
             ) : (
               preview && (
@@ -343,7 +372,7 @@ export default function SkinScanPage() {
               <div style={{ ...card, background: "#FBF6FA", borderColor: "#EAD9E6" }}>
                 <p style={sectionLabel}>במה נתמקד קודם</p>
                 <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, lineHeight: 1.5 }}>{priority}</p>
-                <p style={{ fontSize: 12.5, color: "#6A5E66", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל — הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
+                <p style={{ fontSize: 12.5, color: "#6A5E66", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל. הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
               </div>
             )}
 
@@ -353,9 +382,9 @@ export default function SkinScanPage() {
               <p className="serif" style={{ fontSize: 21, fontWeight: 700, color: "#fff", marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
               {report.matched_service && <p style={{ fontSize: 13, color: "#fff", opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
               {(plan.sessions || plan.treatment_type) && <p style={{ fontSize: 12, color: "#fff", opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
-              <p style={{ fontSize: 12.5, color: "#fff", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך — כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
+              <p style={{ fontSize: 12.5, color: "#fff", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך, כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
               {bookCard(ctaText + " ✦")}
-              <p style={{ fontSize: 11, color: "#fff", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול — בלי למלא מחדש</p>
+              <p style={{ fontSize: 11, color: "#fff", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p>
             </div>
 
             {/* 6) EXPECTED BENEFIT — from clinic_plan.expected_results (real data) */}
@@ -393,8 +422,9 @@ export default function SkinScanPage() {
             <div style={{ ...card, background: "linear-gradient(140deg,#FBF4F8,#F6EEF4)", borderColor: "#EAD9E6", textAlign: "center" }}>
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
-              <p style={{ fontSize: 12.5, color: "#6A5E66", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ — הפרטים שלך כבר נשמרים.</p>
-              <a href={bookHref()} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "#fff", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>
+              <p style={{ fontSize: 12.5, color: "#6A5E66", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
+              <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "#fff", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>
+              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "#fff", padding: "13px 0", borderRadius: 14, fontSize: 14.5, fontWeight: 700, marginTop: 10, boxShadow: "0 8px 20px rgba(37,211,102,0.3)" }}>💬 ייעוץ נוסף בוואטסאפ</a>}
             </div>
 
             {/* SECONDARY — full report on WhatsApp (also captures the lead) */}
@@ -408,7 +438,7 @@ export default function SkinScanPage() {
               ) : (
                 <>
                   <p style={{ fontSize: 14, fontWeight: 700, color: "#2E7D4F", marginBottom: 3 }}>מעדיפה בוואטסאפ? נדבר.</p>
-                  <p style={{ fontSize: 12, color: "#5A7A65", marginBottom: 12 }}>נשלח לך את הניתוח המלא לנייד — ונשמח לענות על כל שאלה.</p>
+                  <p style={{ fontSize: 12, color: "#5A7A65", marginBottom: 12 }}>נשלח לך את הניתוח המלא לנייד, ונשמח לענות על כל שאלה.</p>
                   <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="שם (לא חובה)" style={{ width: "100%", border: "1.5px solid #CDECD7", borderRadius: 12, padding: "12px 14px", fontSize: 14, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 9 }} />
                   <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} type="tel" inputMode="tel" placeholder="טלפון נייד" style={{ width: "100%", border: "1.5px solid #CDECD7", borderRadius: 12, padding: "12px 14px", fontSize: 14, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 10 }} />
                   {sendError && <p style={{ color: "#C0392B", fontSize: 12.5, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{sendError}</p>}
@@ -420,7 +450,7 @@ export default function SkinScanPage() {
             {/* TRUST — reassuring, honest */}
             <div style={{ ...card, background: "#FBFAFC", borderColor: LINE }}>
               <p style={{ fontSize: 12, fontWeight: 700, color: DEEP, marginBottom: 6 }}>איך זה עובד</p>
-              {["הניתוח מבוסס על התמונה והמידע שהעלית.", "התוצאות מיועדות כהכוונה קוסמטית מקצועית — לא כאבחון רפואי.", "פגישת ייעוץ בקליניקה תאפשר התאמה אישית מלאה עבורך."].map((t, i) => (
+              {["הניתוח מבוסס על התמונה והמידע שהעלית.", "התוצאות מיועדות כהכוונה קוסמטית מקצועית, לא כאבחון רפואי.", "פגישת ייעוץ בקליניקה תאפשר התאמה אישית מלאה עבורך."].map((t, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: i < 2 ? 5 : 0 }}>
                   <span style={{ color: ACCENT, fontSize: 12, flexShrink: 0, marginTop: 1 }}>✦</span>
                   <p style={{ fontSize: 12, color: "#6A5E66", lineHeight: 1.55 }}>{t}</p>
