@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
+import { upsertScanLead } from "../../../../lib/leads";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -103,20 +104,11 @@ export async function POST(request) {
       });
     }
 
-    // 3. Save the lead so it shows up in the leads list (best-effort).
+    // 3. Save/refresh the lead as a first-class "סורק העור" row (top-level
+    //    phone/source/status/service_interest, deduped by tenant_id+phone).
+    //    Best-effort — a lead failure never blocks the WhatsApp send.
     try {
-      await supabase.from("leads").insert({
-        tenant_id: tenantId,
-        name: clientName || "לקוחה מסורק העור",
-        raw_form_data: {
-          source: "skin_scanner",
-          phone: clientPhone,
-          score: report.score,
-          skin_type: report.skin_type,
-          recommended_treatment: report.clinical_treatment || "",
-        },
-        received_at: new Date().toISOString(),
-      });
+      await upsertScanLead(supabase, { tenantId, name: clientName, phone: clientPhone, report });
     } catch (leadErr) {
       console.error("Lead save (non-fatal):", leadErr.message);
     }
