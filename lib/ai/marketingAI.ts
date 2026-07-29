@@ -12,16 +12,23 @@ const anthropic = new Anthropic({
 // Types
 // =====================
 
-// Business profile loaded from the tenants table
+// Business profile — loaded from where the data ACTUALLY lives (settings +
+// settings.branding jsonb + service_prices) via lib/ai/loadBusinessProfile.ts.
 export interface BusinessProfile {
   business_name?: string | null
   business_description?: string | null
-  services?: string[] | null
+  services?: string[] | null            // real menu, formatted "name (₪price, duration)"
   target_audience?: string | null
-  region?: string | null
+  region?: string | null                // clinic address ("street, city")
   brand_tone?: string | null
   unique_selling_points?: string[] | null
-  price_range?: string | null
+  price_range?: string | null           // derived from real service prices
+  // Real brand-voice & identity hints (from settings + branding jsonb)
+  therapist_name?: string | null
+  welcome_headline?: string | null      // headline she shows her own customers
+  welcome_message?: string | null       // her brand tone toward clients
+  brand_colors?: string | null          // "ראשי #.., משני #.."
+  has_logo?: boolean | null
 }
 
 // Input for generating a campaign strategy
@@ -67,26 +74,45 @@ function buildBusinessContext(profile: BusinessProfile): string {
   if (profile.business_name) {
     parts.push(`שם העסק: ${profile.business_name}`)
   }
+  if (profile.therapist_name) {
+    parts.push(`שם הקוסמטיקאית: ${profile.therapist_name}`)
+  }
   if (profile.business_description) {
-    parts.push(`תיאור: ${profile.business_description}`)
+    parts.push(`תיאור העסק: ${profile.business_description}`)
   }
   if (profile.services && profile.services.length > 0) {
-    parts.push(`שירותים: ${profile.services.join(', ')}`)
+    // Real service menu with prices — bullet list so the AI can reference
+    // actual treatments and prices rather than inventing them.
+    parts.push(
+      `השירותים והמחירים בפועל:\n${profile.services.map((s) => `- ${s}`).join('\n')}`
+    )
+  }
+  if (profile.price_range) {
+    parts.push(`טווח מחירים בפועל: ${profile.price_range}`)
   }
   if (profile.target_audience) {
     parts.push(`קהל יעד: ${profile.target_audience}`)
   }
   if (profile.region) {
-    parts.push(`אזור: ${profile.region}`)
+    parts.push(`אזור / כתובת הקליניקה: ${profile.region}`)
+  }
+  if (profile.welcome_headline) {
+    parts.push(`משפט המפתח של המותג ללקוחה: ${profile.welcome_headline}`)
+  }
+  if (profile.welcome_message) {
+    parts.push(`טון הפנייה של המותג ללקוחות: ${profile.welcome_message}`)
   }
   if (profile.brand_tone) {
     parts.push(`סגנון מותג: ${profile.brand_tone}`)
   }
+  if (profile.brand_colors) {
+    parts.push(`צבעי המותג: ${profile.brand_colors}`)
+  }
+  if (profile.has_logo) {
+    parts.push(`למותג יש לוגו מעוצב`)
+  }
   if (profile.unique_selling_points && profile.unique_selling_points.length > 0) {
     parts.push(`יתרונות תחרותיים: ${profile.unique_selling_points.join(', ')}`)
-  }
-  if (profile.price_range) {
-    parts.push(`טווח מחירים: ${profile.price_range}`)
   }
 
   if (parts.length === 0) {
