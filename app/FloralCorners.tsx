@@ -46,23 +46,40 @@ type Piece = {
 // Generously spaced — corners get a light cluster, edges get a single stem,
 // the middle stays clear.
 const PIECES: Piece[] = [
-  // top-left
-  { top: "-1%", left: "1.5%", size: 94, rotate: -18, kind: "blush", opacity: 0.14 },
-  { top: "8%", left: "-2%", size: 50, rotate: 24, kind: "gold", opacity: 0.13 },
-  { top: "3%", left: "10%", size: 40, rotate: 6, kind: "sprig", opacity: 0.12 },
-  // top-right
-  { top: "-2%", right: "2%", size: 82, rotate: 20, kind: "blush", opacity: 0.13 },
-  { top: "9%", right: "-1.5%", size: 46, rotate: -16, kind: "gold", opacity: 0.12 },
-  // mid edges (kept far apart, well clear of the centre)
-  { top: "45%", left: "-3%", size: 56, rotate: 12, kind: "sprig", opacity: 0.1 },
-  { top: "53%", right: "-3%", size: 58, rotate: -22, kind: "blush", opacity: 0.1 },
-  // bottom-left
-  { bottom: "-2%", left: "3%", size: 74, rotate: 16, kind: "blush", opacity: 0.13 },
-  { bottom: "8%", left: "-2%", size: 44, rotate: -20, kind: "gold", opacity: 0.12 },
-  // bottom-right
-  { bottom: "-1%", right: "1.5%", size: 98, rotate: -14, kind: "blush", opacity: 0.14 },
-  { bottom: "9%", right: "11%", size: 40, rotate: 18, kind: "gold", opacity: 0.12 },
-  { bottom: "3%", right: "-2%", size: 52, rotate: 28, kind: "sprig", opacity: 0.11 },
+  // ---- TOP-LEFT cluster ----
+  { top: "-1%", left: "1.5%", size: 100, rotate: -18, kind: "blush", opacity: 0.30 },
+  { top: "7%", left: "-2%", size: 54, rotate: 24, kind: "gold", opacity: 0.26 },
+  { top: "3%", left: "10%", size: 44, rotate: 6, kind: "sprig", opacity: 0.24 },
+  { top: "14%", left: "5%", size: 40, rotate: -10, kind: "gold", opacity: 0.20 },
+  // ---- TOP edge (small + high, well clear of the reading area) ----
+  { top: "-2%", left: "30%", size: 46, rotate: 14, kind: "sprig", opacity: 0.18 },
+  { top: "-2%", right: "30%", size: 48, rotate: -12, kind: "gold", opacity: 0.18 },
+  // ---- TOP-RIGHT cluster ----
+  { top: "-2%", right: "2%", size: 92, rotate: 20, kind: "blush", opacity: 0.30 },
+  { top: "8%", right: "-1.5%", size: 50, rotate: -16, kind: "gold", opacity: 0.26 },
+  { top: "3%", right: "10%", size: 44, rotate: -6, kind: "sprig", opacity: 0.23 },
+  { top: "15%", right: "4%", size: 40, rotate: 12, kind: "blush", opacity: 0.20 },
+  // ---- LEFT edge ----
+  { top: "30%", left: "-3%", size: 56, rotate: 12, kind: "sprig", opacity: 0.22 },
+  { top: "44%", left: "-2%", size: 60, rotate: -8, kind: "blush", opacity: 0.22 },
+  { top: "60%", left: "-3%", size: 50, rotate: 18, kind: "gold", opacity: 0.21 },
+  { top: "74%", left: "-2%", size: 46, rotate: -14, kind: "sprig", opacity: 0.20 },
+  // ---- RIGHT edge ----
+  { top: "28%", right: "-3%", size: 54, rotate: -12, kind: "gold", opacity: 0.22 },
+  { top: "45%", right: "-2%", size: 60, rotate: 20, kind: "blush", opacity: 0.22 },
+  { top: "61%", right: "-3%", size: 50, rotate: -18, kind: "sprig", opacity: 0.21 },
+  { top: "76%", right: "-2%", size: 46, rotate: 14, kind: "gold", opacity: 0.20 },
+  // ---- BOTTOM-LEFT cluster ----
+  { bottom: "-2%", left: "3%", size: 86, rotate: 16, kind: "blush", opacity: 0.30 },
+  { bottom: "8%", left: "-2%", size: 48, rotate: -20, kind: "gold", opacity: 0.25 },
+  { bottom: "3%", left: "13%", size: 44, rotate: 10, kind: "sprig", opacity: 0.23 },
+  // ---- BOTTOM edge ----
+  { bottom: "-2%", left: "32%", size: 46, rotate: -12, kind: "sprig", opacity: 0.18 },
+  { bottom: "-2%", right: "32%", size: 48, rotate: 14, kind: "blush", opacity: 0.18 },
+  // ---- BOTTOM-RIGHT cluster ----
+  { bottom: "-1%", right: "1.5%", size: 102, rotate: -14, kind: "blush", opacity: 0.31 },
+  { bottom: "9%", right: "11%", size: 44, rotate: 18, kind: "gold", opacity: 0.24 },
+  { bottom: "3%", right: "-2%", size: 54, rotate: 28, kind: "sprig", opacity: 0.23 },
 ];
 
 /** A soft 5-petal blossom. */

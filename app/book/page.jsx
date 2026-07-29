@@ -253,7 +253,7 @@ export default function BookPage() {
   return (
     <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF8F5 0%,#F5EEE9 55%,#FBF9F7 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       {/* Subtle brand-tinted floral watermark, behind all content */}
-      <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.6} />
+      <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.9} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }
