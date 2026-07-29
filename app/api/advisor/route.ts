@@ -13,6 +13,8 @@ import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
+import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
+import type { BusinessProfile } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -147,6 +149,27 @@ ${topServices.length ? topServices.join('\n') : 'אין נתונים עדיין'
 ${servicesText}`
 }
 
+// Render the brand-IDENTITY fields from the shared loadBusinessProfile layer —
+// only what the numeric snapshot above doesn't already cover (description, brand
+// voice, address, colors, logo). This is the SAME profile the marketing AI uses,
+// so the advisor and the marketing engine speak from one accurate business picture.
+// Returns '' when nothing is set (name/services are intentionally left to the snapshot).
+function renderBrandIdentity(profile: BusinessProfile): string {
+  const lines: string[] = []
+  if (profile.business_description) lines.push(`תיאור ומיצוב: ${profile.business_description}`)
+  if (profile.region) lines.push(`אזור / כתובת הקליניקה: ${profile.region}`)
+  if (profile.welcome_headline) lines.push(`משפט המפתח של המותג ללקוחה: ${profile.welcome_headline}`)
+  if (profile.welcome_message) lines.push(`טון הפנייה של המותג ללקוחות: ${profile.welcome_message}`)
+  if (profile.brand_colors) lines.push(`צבעי המותג: ${profile.brand_colors}`)
+  if (profile.has_logo) lines.push('למותג יש לוגו מעוצב')
+  if (profile.target_audience) lines.push(`קהל יעד: ${profile.target_audience}`)
+  if (profile.brand_tone) lines.push(`סגנון מותג: ${profile.brand_tone}`)
+  if (profile.unique_selling_points && profile.unique_selling_points.length > 0) {
+    lines.push(`יתרונות תחרותיים: ${profile.unique_selling_points.join(', ')}`)
+  }
+  return lines.join('\n')
+}
+
 // POST: answer one question, grounded in the tenant's data; persist both turns.
 export async function POST(request: NextRequest) {
   try {
@@ -159,8 +182,14 @@ export async function POST(request: NextRequest) {
     const message: string = (body?.message || '').toString().trim()
     if (!message) return NextResponse.json({ error: 'חסרה שאלה' }, { status: 400 })
 
-    // Business snapshot + recent conversation history (last 16 turns).
-    const snapshot = await buildBusinessSnapshot(supabase, tenantId)
+    // Business snapshot (live numbers) + brand identity (shared profile layer) +
+    // recent conversation history (last 16 turns). Snapshot and profile run in
+    // parallel so the added identity context costs no extra latency.
+    const [snapshot, profile] = await Promise.all([
+      buildBusinessSnapshot(supabase, tenantId),
+      loadBusinessProfile(supabase, tenantId),
+    ])
+    const identity = renderBrandIdentity(profile)
     const { data: history } = await supabase
       .from('advisor_messages')
       .select('role, content')
@@ -175,13 +204,14 @@ export async function POST(request: NextRequest) {
 
 הנתונים האמיתיים של העסק של המשתמשת (מעודכנים, מסוננים לעסק שלה בלבד):
 ${snapshot}
-
+${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במערכת):\n${identity}\n` : ''}
 איך לענות:
 - עברית בלבד, חמה אך מקצועית וישירה — כמו יועצת שמכירה את המספרים שלה.
 - תמיד התבססי על הנתונים האמיתיים למעלה. אם שואלים "איך אעלה הכנסות" — התייחסי למספרים הספציפיים (לקוחות רדומות, ממוצע עסקה, שירות מוביל וכו').
 - תני פתרונות קונקרטיים וברי-ביצוע, ולא כלליות. כשמתאים — בני תוכנית עבודה בצעדים ממוספרים.
 - הציעי טקסטים מוכנים (למשל הודעת וואטסאפ להחזרת לקוחה רדומה) כשזה עוזר.
 - כשאת מנסחת טקסט/הודעה שמיועדת ללקוחה של הקוסמטיקאית, חתמי והשתמשי תמיד בשם העסק של המשתמשת (שם העסק שמופיע בנתוני העסק למעלה) — לעולם לא "BloomOS" ולא שם המערכת. "BloomOS" הוא שם הפלטפורמה הפנימית בלבד ואסור שיופיע בתקשורת עם לקוחות. אם שם העסק לא הוגדר ("לא הוגדר") — השאירי מקום-שמור [שם העסק] במקום להמציא שם.
+- כשמתאים, התאימי את הסגנון, השפה והמסרים לזהות המותג של המשתמשת (תיאור העסק, משפט המפתח וטון הפנייה שהיא כתבה) — כך העצות והטקסטים יישמעו כמו המותג שלה.
 - אל תמציאי נתונים שאינם למעלה. אם חסר מידע — אמרי זאת והצעי מה לבדוק.
 - שמרי על תשובות ממוקדות; פסקאות קצרות או רשימות, לא קיר טקסט.`
 

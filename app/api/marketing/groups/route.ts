@@ -4,10 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import {
-  suggestFacebookGroups,
-  type BusinessProfile,
-} from '@/lib/ai/marketingAI'
+import { suggestFacebookGroups } from '@/lib/ai/marketingAI'
+import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,24 +26,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const { count } = body
 
-    // Step 3: Load business profile
+    // Step 3: Load the REAL business profile (settings + branding + service_prices)
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
-
-    let profile: BusinessProfile = {}
-
-    if (tenantId) {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select(
-          'business_name, business_description, services, target_audience, region, brand_tone, unique_selling_points, price_range'
-        )
-        .eq('id', tenantId)
-        .single()
-
-      if (tenant) {
-        profile = tenant as BusinessProfile
-      }
-    }
+    const profile = await loadBusinessProfile(supabase, tenantId)
 
     // Step 4: Call AI to suggest groups (default 10)
     const groups = await suggestFacebookGroups(profile, count || 10)

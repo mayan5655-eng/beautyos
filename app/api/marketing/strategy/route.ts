@@ -6,9 +6,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import {
   generateCampaignStrategy,
-  type BusinessProfile,
   type CampaignInput,
 } from '@/lib/ai/marketingAI'
+import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,24 +36,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Load the business profile from the tenants table
+    // Step 3: Load the REAL business profile (settings + branding + service_prices)
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
-
-    let profile: BusinessProfile = {}
-
-    if (tenantId) {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select(
-          'business_name, business_description, services, target_audience, region, brand_tone, unique_selling_points, price_range'
-        )
-        .eq('id', tenantId)
-        .single()
-
-      if (tenant) {
-        profile = tenant as BusinessProfile
-      }
-    }
+    const profile = await loadBusinessProfile(supabase, tenantId)
 
     // Step 4: Build the input for the AI function
     const input: CampaignInput = {
