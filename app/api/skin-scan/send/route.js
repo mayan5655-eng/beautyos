@@ -103,11 +103,19 @@ export async function POST(request) {
       });
     }
 
-    // 3. Save the lead so it shows up in the leads list (best-effort).
+    // 3. Save the lead as a FIRST-CLASS row so it behaves like any other lead in
+    //    the dashboard: top-level phone/source/status/service_interest (not just
+    //    raw_form_data), tagged as the "סורק העור" source, and DE-DUPLICATED by
+    //    (tenant_id, phone) so re-scans update one lead instead of piling up.
+    //    Best-effort — a lead failure never blocks the WhatsApp send.
     try {
-      await supabase.from("leads").insert({
+      const leadCore = {
         tenant_id: tenantId,
         name: clientName || "לקוחה מסורק העור",
+        phone: clientPhone,
+        source: "סורק העור",
+        service_interest: report.matched_service || report.clinical_treatment || "",
+        // Keep the rich scan context for the lead detail view.
         raw_form_data: {
           source: "skin_scanner",
           phone: clientPhone,
@@ -115,8 +123,21 @@ export async function POST(request) {
           skin_type: report.skin_type,
           recommended_treatment: report.clinical_treatment || "",
         },
-        received_at: new Date().toISOString(),
-      });
+      };
+      const { data: existing } = await supabase
+        .from("leads")
+        .select("id, status")
+        .eq("tenant_id", tenantId)
+        .eq("phone", clientPhone)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        // Refresh the existing lead's context, but never downgrade a status the
+        // owner already advanced (e.g. "closed") back to "new".
+        const keepStatus = existing[0].status && existing[0].status !== "new" ? existing[0].status : "new";
+        await supabase.from("leads").update({ ...leadCore, status: keepStatus }).eq("id", existing[0].id);
+      } else {
+        await supabase.from("leads").insert({ ...leadCore, status: "new", received_at: new Date().toISOString() });
+      }
     } catch (leadErr) {
       console.error("Lead save (non-fatal):", leadErr.message);
     }

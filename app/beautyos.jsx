@@ -176,7 +176,7 @@ const FORM_TYPES = [
   {key:"laser",label:"הסרת שיער בלייזר"},
   {key:"peel",label:"פילינג כימי"},
 ];
-const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטוק","המלצה","הליכה ברחוב","אחר"];
+const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטוק","המלצה","הליכה ברחוב","סורק העור","אחר"];
 // Canonical manual workflow statuses. These KEYS must stay in sync with
 // ALLOWED_STATUSES in app/api/leads/send-bulk/route.js and LEAD_STATUSES in
 // app/dashboard/leads/LeadsClient.tsx — the bulk WhatsApp send targets a status
@@ -203,7 +203,7 @@ const LEGACY_LEAD_STATUSES = {
 const leadStatusMeta = (status) =>
  LEAD_STATUSES[status] || LEGACY_LEAD_STATUSES[status] ||
  {label: status || "ללא סטטוס", color:"#8C8073", bg:"#F4F1EC"};
-const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","אחר":"◦"};
+const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","סורק העור":"✦","אחר":"◦"};
 const PAYMENT_METHODS = [
   {key:"מזומן",icon:"◦",color:"#C9A24B"},
   {key:"אשראי",icon:"◦",color:"#A67C52"},
