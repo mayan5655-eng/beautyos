@@ -17,6 +17,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
+import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 
 const supabase = createClient(
@@ -39,6 +40,12 @@ export async function POST(request) {
     if (!tenantId) {
       return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
     }
+
+    // Plan gate: an expired or paused tenant cannot send real messages. Placed
+    // before any sending work, so nothing goes out and no GreenAPI call is made.
+    // Fails open, so it can never lock out a paying user.
+    const guard = await requireActiveTenant(session);
+    if (!guard.ok) return guard.response;
 
     const { appointmentId } = await request.json().catch(() => ({}));
 
