@@ -7,6 +7,7 @@ import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
 import { planState } from "@/lib/planState";
+import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -570,21 +571,14 @@ export default function BeautyOS() {
   const pcShadow = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.28)`;
 
   // ── TRIAL / SUBSCRIPTION STATE ──────────────────────────────────────────
-  //    Derived from the tenants row loaded in loadAll. Phase 1 is state only:
-  //    the trial banner is Phase 2 and the access gate is Phase 3, so nothing
-  //    reads planInfo for behaviour yet.
+  //    Derived from the tenants row loaded in loadAll, and rendered by
+  //    <TrialBanner/> inside <main>. Phase 3 adds the access gate; today this
+  //    state only decides what the banner says.
   //    planState() fails OPEN: an unreadable row, a missing column or an
-  //    unrecognised status all report an unblocked tenant. Blocking only ever
-  //    happens on a definite 'expired' or 'paused'.
+  //    unrecognised status all report an unblocked tenant with tone 'none', so
+  //    no banner appears. Blocking only ever happens on a definite 'expired'
+  //    or 'paused'.
   const planInfo = planState(planRow);
-
-  // Phase 1 verification hook: makes the derived state observable in the
-  // browser console before any UI depends on it. Removed in Phase 2, once the
-  // banner renders the same values on screen.
-  useEffect(() => {
-    if (planRow) console.log("[BeautyOS] plan state:", planInfo);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planRow]);
 
   // ── SETUP CHECKLIST — persistent, always-accessible. Each item auto-detects
   //    "done" from her real data and jumps straight to the right Settings tab
@@ -3372,6 +3366,11 @@ export default function BeautyOS() {
  </aside>
 
  <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px"}}>
+          {/* Trial notice. Sits OUTSIDE the keyed tab wrapper on purpose: it is a
+              property of the account, not of a screen, so it stays put and does
+              not replay its entrance animation on every tab change. Renders
+              nothing at all for an active tenant. */}
+ <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
