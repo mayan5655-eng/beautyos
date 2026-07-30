@@ -11,6 +11,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
+import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 
 // Service-role client for reading the tenant's leads (bypasses RLS; always
@@ -47,6 +48,11 @@ export async function POST(request) {
     if (!tenantId) {
       return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
     }
+
+    // Plan gate: a lapsed or paused tenant cannot send real messages. Placed
+    // before any sending work. Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase);
+    if (!guard.ok) return guard.response;
 
     // 3. Validate the request body.
     const body = await request.json().catch(() => ({}));

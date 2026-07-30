@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireActiveTenant } from '@/lib/planGuard'
 import { suggestFacebookGroups } from '@/lib/ai/marketingAI'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // Plan gate: a tenant whose trial has lapsed or whose account is paused
+    // cannot spend or mutate. Placed before any AI call so a blocked tenant
+    // never costs money. Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase)
+    if (!guard.ok) return guard.response
 
     // Step 2: Get count from request (optional)
     const body = await request.json().catch(() => ({}))

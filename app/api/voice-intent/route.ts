@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -21,6 +22,12 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'לא מחובר' }, { status: 401 })
+
+    // Plan gate: a tenant whose trial has lapsed or whose account is paused
+    // cannot spend or mutate. Placed before any AI call so a blocked tenant
+    // never costs money. Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase)
+    if (!guard.ok) return guard.response
 
     const body = await request.json()
     const transcript: string = (body?.transcript || '').toString().trim()

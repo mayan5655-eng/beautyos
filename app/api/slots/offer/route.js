@@ -12,6 +12,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
+import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 
 const admin = createClient(
@@ -39,6 +40,11 @@ export async function POST(request) {
     if (!user) return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
     const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
     if (!tenantId) return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+
+    // Plan gate: a lapsed or paused tenant cannot send real messages. Placed
+    // before any sending work. Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase);
+    if (!guard.ok) return guard.response;
 
     // 2. Validate the freed slot.
     const body = await request.json().catch(() => ({}));

@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
@@ -177,6 +178,14 @@ export async function POST(request: NextRequest) {
     const r = await resolveTenant(supabase)
     if ('error' in r) return r.error
     const tenantId = r.tenantId
+
+    // Plan gate: a tenant whose trial has lapsed or whose account is paused
+    // cannot spend or mutate. Placed before the Anthropic call so a blocked
+    // tenant never costs money, and before the question is persisted. The GET
+    // handler is deliberately NOT gated: reading her own history is a read.
+    // Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase)
+    if (!guard.ok) return guard.response
 
     const body = await request.json()
     const message: string = (body?.message || '').toString().trim()

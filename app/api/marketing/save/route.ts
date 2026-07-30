@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireActiveTenant } from '@/lib/planGuard'
 
 type SaveRequest = {
   campaignData: {
@@ -48,6 +49,12 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // Plan gate: a tenant whose trial has lapsed or whose account is paused
+    // cannot spend or mutate. Placed before any AI call so a blocked tenant
+    // never costs money. Fails open, so it cannot lock out a paying user.
+    const guard = await requireActiveTenant(supabase)
+    if (!guard.ok) return guard.response
 
     // Step 2: Get tenant ID
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
