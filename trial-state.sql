@@ -59,19 +59,29 @@ create index if not exists idx_tenants_plan_status
 -- this step, a tenant who has been paying for months would silently lock
 -- herself out 30 days from now. Existing tenants become 'active' immediately.
 --
--- The cutoff makes this statement IDEMPOTENT and safe to re-run: every row that
--- existed when step 1 ran shares the same trial_started_at (the transaction
--- timestamp), and every later signup is strictly after it. Rows already
--- grandfathered have trial_started_at = NULL, which the comparison excludes.
+-- The cutoff is now(), NOT a hardcoded date, and that matters:
+--   * now() is the TRANSACTION timestamp in Postgres, identical for every
+--     statement between this BEGIN and COMMIT. ADD COLUMN ... DEFAULT now()
+--     stamps every pre-existing row with that same value, so `<= now()` matches
+--     all of them exactly, on whatever date you happen to run this.
+--   * It also correctly EXCLUDES a signup that commits while this transaction is
+--     open: that row carries its own, later now().
+--   * A hardcoded date would fail SILENTLY if this ran on a later day. The
+--     UPDATE would match nothing, every existing tenant would stay on 'trial'
+--     with a 30-day clock, and your paying users would lock themselves out a
+--     month later. Verification 5c would NOT catch it, because 'trial' is not a
+--     blocking state. Check 5g below exists to catch exactly that.
 --
--- >>> If you run this file on a LATER date than 2026-07-30, change the cutoff
--- >>> below to the day you run it, otherwise real trials will be grandfathered.
+-- This file is a ONE-TIME migration. Do not re-run it once real trials exist:
+-- a later run would grandfather them into 'active'. That failure direction is
+-- the safe one (someone gets free access rather than being locked out), but it
+-- is still not something to do by accident.
 update public.tenants
    set plan_status      = 'active',
        trial_started_at = null,
        trial_ends_at    = null
  where plan_status = 'trial'
-   and trial_started_at < '2026-07-31T00:00:00Z';
+   and trial_started_at <= now();
 
 commit;
 
@@ -127,10 +137,31 @@ as $$
            true);
 $$;
 
+-- Grants, deliberately asymmetric.
+--
+-- is_tenant_active() MUST be executable by `authenticated`: the Phase 3
+-- RESTRICTIVE policies are evaluated as the querying role, so without this grant
+-- the policy raises a permission error instead of returning a boolean. It is
+-- also granted to anon purely as a robustness measure: the Phase 3 policies are
+-- scoped TO authenticated and so will never call it as anon, but if one were
+-- ever mis-scoped, a missing grant would hard-error rather than evaluate. Called
+-- as anon it just returns true (no tenant, so nothing to block).
+--
+-- tenant_effective_status() stays INTERNAL, granted to nobody. is_tenant_active
+-- is SECURITY DEFINER, so its inner call runs with the function OWNER's rights
+-- and needs no grant on the caller's side. Withholding it matters: the function
+-- accepts an ARBITRARY tenant id, and tenant UUIDs are public (they appear in
+-- /book?t=<tenantId> links), so granting it to `authenticated` would let any
+-- logged-in user probe whether another business is expired or paused.
+--
+-- service_role is granted explicitly because `revoke ... from public` strips the
+-- default PUBLIC execute grant, and service_role is bypassrls, NOT superuser: it
+-- does not get execute back implicitly. Without this the Phase 4 admin panel
+-- would fail on permissions.
 revoke execute on function public.tenant_effective_status(uuid) from public;
 revoke execute on function public.is_tenant_active() from public;
-grant  execute on function public.tenant_effective_status(uuid) to authenticated;
-grant  execute on function public.is_tenant_active() to authenticated;
+grant  execute on function public.is_tenant_active() to authenticated, anon, service_role;
+grant  execute on function public.tenant_effective_status(uuid) to service_role;
 
 -- ── 5. Admin allowlist (infrastructure for the Phase 4 panel) ─────────────
 -- RLS is enabled with ZERO policies, which is a deny-all for both anon and
@@ -185,6 +216,28 @@ select public.is_tenant_active() as must_be_true;
 
 -- 5e. MUST return 1: you are registered as the platform admin.
 select count(*) as must_be_one from public.platform_admins;
+
+-- 5g. MUST return 0, and this is the check that matters MOST.
+--     Immediately after the migration, before any new signup, EVERY tenant must
+--     read 'active'. If this returns a non-zero count, step 2's grandfathering
+--     did not apply, and those tenants are sitting on a 30-day clock that will
+--     lock them out. 5c will NOT warn you about this, because 'trial' is not yet
+--     a blocking state. Fix by re-running step 2's UPDATE before going further.
+select count(*) as must_be_zero_every_tenant_active
+  from public.tenants
+ where plan_status <> 'active';
+
+-- 5h. Sanity-check the grants: the leak-probe must be closed. Expected output is
+--     is_tenant_active = true for authenticated, and tenant_effective_status
+--     NOT executable by authenticated.
+select p.proname,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_can_execute,
+       has_function_privilege('service_role',  p.oid, 'execute') as service_role_can_execute
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public'
+   and p.proname in ('is_tenant_active', 'tenant_effective_status')
+ order by p.proname;
 
 -- 5f. Confirm the trigger that creates tenant rows does not set plan_status
 --     itself (if it does, the defaults in step 1 are bypassed and new signups
