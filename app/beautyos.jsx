@@ -1528,8 +1528,19 @@ export default function BeautyOS() {
     }
   };
 
+  // DELIBERATELY NOT guarded by guardWrite(). This is the ONE mutating handler
+  // that an expired or paused tenant must still be able to run, and it matches
+  // the database exactly: public.settings is intentionally absent from the
+  // `targets` list in gate.sql, so no RESTRICTIVE policy blocks this write
+  // (check 6f asserts that). Her public /book page serves business name, phone
+  // and opening hours out of this table, so locking her out would leave real
+  // clients looking at wrong hours with no way for her to correct them.
+  //
+  // Everything this handler touches is public.settings and nothing else, so
+  // there is no gated table behind it. Do not "fix" the missing guard here.
+  // The accepted trade-off (settings also holds green_api_* and `automations`)
+  // is documented at the top of gate.sql.
   const handleSaveSettings = async () => {
-    if (guardWrite()) return;
     if(isBusy("saveSettings")) return;
     setBusyKey("saveSettings", true);
     try {
