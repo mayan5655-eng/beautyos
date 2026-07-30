@@ -348,48 +348,6 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty) */}
-          {recentPosts.length > 0 && (
-            <div style={{ ...section }}>
-              <div style={cardBox}>
-                {eyebrow("עדכונים")}
-                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                  {recentPosts.map((p) => (
-                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
-                      {p.image_url && (
-                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
-                      )}
-                      <div style={{ padding: "15px 17px" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
-                            {postTypeLabel(p.post_type)}
-                          </span>
-                          <span style={{ fontSize: 10, color: faint, letterSpacing: "0.3px" }}>
-                            {new Date(p.created_at).toLocaleDateString("he-IL")}
-                          </span>
-                        </div>
-                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
-                        {p.body && <p style={{ fontSize: 13.5, color: "#635A60", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
-                        {p.cta_label && (
-                          wa ? (
-                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
-                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
-                              {p.cta_label}
-                            </a>
-                          ) : (
-                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
-                              {p.cta_label}
-                            </span>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* HOURS */}
           <div style={{ ...section }}>
             <div style={cardBox}>
@@ -499,6 +457,50 @@ export default function BookPage() {
                   {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("#fff", deep, pc)}>{s.label}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty).
+              Placed right before the booking CTA so her latest offer/update is
+              the last thing a client sees before booking. */}
+          {recentPosts.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={cardBox}>
+                {eyebrow("עדכונים")}
+                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+                  {recentPosts.map((p) => (
+                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
+                      {p.image_url && (
+                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
+                      )}
+                      <div style={{ padding: "15px 17px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                            {postTypeLabel(p.post_type)}
+                          </span>
+                          <span style={{ fontSize: 10, color: faint, letterSpacing: "0.3px" }}>
+                            {new Date(p.created_at).toLocaleDateString("he-IL")}
+                          </span>
+                        </div>
+                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
+                        {p.body && <p style={{ fontSize: 13.5, color: "#635A60", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.cta_label && (
+                          wa ? (
+                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
+                              {p.cta_label}
+                            </a>
+                          ) : (
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
+                              {p.cta_label}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
