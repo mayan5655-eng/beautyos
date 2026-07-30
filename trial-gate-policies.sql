@@ -29,6 +29,38 @@
 --   * service_role bypasses RLS entirely, so /api/book-appointment, the
 --     reminder senders and the WhatsApp webhook keep working while she is on
 --     hold. That is deliberate: her clients must never notice her billing.
+--
+-- ===========================================================================
+-- ATOMIC ON PURPOSE
+-- ===========================================================================
+-- Sections 1 and 2 are wrapped in a single transaction. Postgres DDL is
+-- transactional, so either the whole gate lands or none of it does. Without
+-- this, section 1 could succeed while section 2 failed, leaving the gate
+-- switched ON and simultaneously BYPASSABLE, which is the worst of both.
+-- The verification queries sit AFTER the commit on purpose, so what they report
+-- is the state that is actually live rather than an uncommitted snapshot.
+--
+-- ===========================================================================
+-- WHY public.settings IS DELIBERATELY *NOT* BLOCKED
+-- ===========================================================================
+-- settings is excluded by design. Her public booking site serves its contents
+-- (business name, phone, opening hours) to her clients through the
+-- get_public_branding RPC, so if she were locked out of it, a wrong phone number
+-- or wrong opening hours would keep misleading real customers with no way for
+-- her to correct it. Being on hold must never make her mini-site wrong.
+--
+-- The accepted trade-off: settings also holds her GreenAPI credentials and the
+-- `automations` JSONB. A blocked tenant can therefore still edit those, and the
+-- cron senders run on the service-role key, so she could re-enable an
+-- automation and have messages continue to go out. That is a deliberate
+-- decision to favour her clients over airtight metering. If it ever needs
+-- closing, the fix is a BEFORE UPDATE trigger that preserves green_api_* and
+-- automations from OLD while a tenant is inactive. Column privileges CANNOT be
+-- used here the way they are on public.tenants below, because the app saves
+-- settings as one wide UPDATE and Postgres checks privileges on every column
+-- named in a SET list, which would break saving for ACTIVE tenants too.
+
+begin;
 
 -- ── 1. The write block ─────────────────────────────────────────────────────
 -- Applied in a loop so a table that does not exist is SKIPPED with a notice
@@ -46,11 +78,14 @@ declare
     -- AI and marketing output.
     'advisor_messages', 'campaigns', 'campaign_posts', 'community_posts',
     -- Messaging and automation state.
-    'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages',
-    -- Her configuration. Blocked too: read-only means she cannot re-brand or
-    -- re-price while on hold. Onboarding is unaffected because a brand new
-    -- tenant is on 'trial', which is_tenant_active() treats as active.
-    'settings'
+    'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages'
+    -- NOTE: 'settings' is intentionally absent. See the header for why.
+    --
+    -- skin_scans, whatsapp_messages and auto_reminders_log are kept here on
+    -- purpose even though every writer today is a service-role route, so these
+    -- three policies change nothing in practice. They are future-proofing: if
+    -- any of those writes ever moves to a browser call, the gate is already
+    -- correct instead of silently missing a table.
   ];
 begin
   foreach t in array targets loop
@@ -97,16 +132,21 @@ end $$;
 -- now legitimately return true. RLS cannot express "this row but not this
 -- column", so column-level privileges are the right tool.
 --
--- After this, she can still rename her business (the only column onboarding
--- writes) and nothing else. service_role is unaffected, so the Phase 4 admin
--- panel can still change plan state.
+-- Column privileges are safe HERE (unlike on settings) because `name` is the
+-- only column any browser code writes: app/onboarding/page.tsx line 108, and
+-- nothing else in the codebase updates public.tenants from the client.
+--
+-- After this, she can still rename her business and nothing else. service_role
+-- is unaffected, so the Phase 4 admin panel can still change plan state.
 revoke update on public.tenants from authenticated;
 revoke update on public.tenants from anon;
 grant  update (name) on public.tenants to authenticated;
 
+commit;
+
 
 -- ===========================================================================
--- VERIFICATION
+-- VERIFICATION. Run after the commit above; these read the live state.
 -- ===========================================================================
 
 -- 6a. Inventory. Every row must read permissive = RESTRICTIVE, roles =
@@ -117,7 +157,9 @@ select tablename, policyname, permissive, roles, cmd
    and policyname like '%\_require\_active\_%'
  order by tablename, cmd;
 
--- 6b. Expect 3 policies per gated table. Anything less is a partial gate.
+-- 6b. EXPECT policy_count = 60 and tables_gated = 20 (three policies each on
+--     twenty tables). A lower number means a table was skipped: scroll back to
+--     the NOTICE output from section 1 to see which, and treat it as a gap.
 select count(*) as policy_count, count(distinct tablename) as tables_gated
   from pg_policies
  where schemaname = 'public'
@@ -140,13 +182,21 @@ select count(*) as must_be_zero_anon_never_restricted
    and 'anon' = any(roles);
 
 -- 6e. The self-activation bypass must be closed. Expect:
---     can_update_name = true, can_update_plan_status = false.
+--     can_update_name = true, and BOTH plan columns false.
 select has_column_privilege('authenticated', 'public.tenants', 'name', 'update')
          as can_update_name,
        has_column_privilege('authenticated', 'public.tenants', 'plan_status', 'update')
          as can_update_plan_status,
        has_column_privilege('authenticated', 'public.tenants', 'trial_ends_at', 'update')
          as can_update_trial_ends_at;
+
+-- 6f. settings must NOT be gated, so she can always fix what her public
+--     booking site shows her clients. MUST return 0.
+select count(*) as must_be_zero_settings_not_gated
+  from pg_policies
+ where schemaname = 'public'
+   and tablename = 'settings'
+   and policyname like '%\_require\_active\_%';
 
 
 -- ===========================================================================
@@ -158,7 +208,10 @@ select has_column_privilege('authenticated', 'public.tenants', 'name', 'update')
 --      update public.tenants set plan_status = 'expired' where id = '<throwaway>';
 -- 3. Logged in AS THAT TENANT, confirm:
 --      READS STILL WORK   - the calendar and client list still load fully.
---      WRITES ARE BLOCKED - creating an appointment or a client fails.
+--      WRITES ARE BLOCKED - creating an appointment or a client is refused,
+--        with the Hebrew read-only explanation rather than a raw error.
+--      SETTINGS STILL SAVE - change her opening hours or phone number and save.
+--        This MUST succeed, and /book?t=<throwaway> must show the new value.
 --      SELF-ACTIVATION FAILS - in the browser console,
 --        await supabase.from('tenants').update({plan_status:'active'}).eq('id','<throwaway>')
 --        must NOT change plan_status. Re-select the row to confirm.
@@ -166,8 +219,8 @@ select has_column_privilege('authenticated', 'public.tenants', 'name', 'update')
 --        booking still succeeds, because that path runs on the service-role key.
 --      GUARDED ROUTES REFUSE - the AI advisor returns 402, not a 500.
 --      READ ROUTES STILL WORK - loading advisor history (GET) still returns.
--- 4. Set it to 'paused' and confirm the same write block applies.
+-- 4. Set it to 'paused' and confirm the same write block applies, with the
+--    softer "החשבון בהשהיה" wording.
 -- 5. Put it back: update public.tenants set plan_status='active' where id='<throwaway>';
---
--- Expect RAW errors in the UI at this stage. The friendly Hebrew explanations
--- on every write affordance are the NEXT step, deliberately not in this script.
+-- 6. As YOUR OWN active tenant, confirm nothing changed at all: create an
+--    appointment, save settings, ask the advisor a question.
