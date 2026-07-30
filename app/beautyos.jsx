@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
+import { planState } from "@/lib/planState";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -349,6 +350,10 @@ export default function BeautyOS() {
   // Subscription plan of the logged-in business: none | basic | pro | premium.
   // Loaded in loadAll; NOT used to gate anything yet.
   const [currentPlan,     setCurrentPlan]     = useState("none");
+  // Raw trial/subscription columns from the tenants row (plan_status, trial
+  // dates, plan_price, signup_source). null until loadAll resolves, or when the
+  // row cannot be read at all -- which planState() treats as "not blocked".
+  const [planRow,         setPlanRow]         = useState(null);
   // Tax-report screen controls
   const [taxYear,        setTaxYear]       = useState(new Date().getFullYear());
   const [taxPeriodMode,  setTaxPeriodMode] = useState("bimonthly"); // monthly | bimonthly
@@ -563,6 +568,23 @@ export default function BeautyOS() {
   const pcTint2 = lighten(pc, 0.82);                             // slightly stronger tint
   const pcGrad = `linear-gradient(135deg,${pc2} 0%,${pcDeep} 100%)`;  // elegant diagonal
   const pcShadow = `rgba(${pcRgb.r},${pcRgb.g},${pcRgb.b},0.28)`;
+
+  // ── TRIAL / SUBSCRIPTION STATE ──────────────────────────────────────────
+  //    Derived from the tenants row loaded in loadAll. Phase 1 is state only:
+  //    the trial banner is Phase 2 and the access gate is Phase 3, so nothing
+  //    reads planInfo for behaviour yet.
+  //    planState() fails OPEN: an unreadable row, a missing column or an
+  //    unrecognised status all report an unblocked tenant. Blocking only ever
+  //    happens on a definite 'expired' or 'paused'.
+  const planInfo = planState(planRow);
+
+  // Phase 1 verification hook: makes the derived state observable in the
+  // browser console before any UI depends on it. Removed in Phase 2, once the
+  // banner renders the same values on screen.
+  useEffect(() => {
+    if (planRow) console.log("[BeautyOS] plan state:", planInfo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planRow]);
 
   // ── SETUP CHECKLIST — persistent, always-accessible. Each item auto-detects
   //    "done" from her real data and jumps straight to the right Settings tab
@@ -835,13 +857,22 @@ export default function BeautyOS() {
         supabase.from("waitlist").select("*"),
         // Business expenses (for input-VAT in tax reports). RLS-scoped to tenant.
         supabase.from("expenses").select("*"),
-        // Subscription plan for this tenant (read-only; no gating yet).
-        supabase.from("tenants").select("plan").eq("id", myTenantId).maybeSingle(),
+        // Feature tier + trial/subscription state for this tenant.
+        // Selects the whole row deliberately: the plan-state columns are added
+        // by trial-state.sql, which is run by hand against Supabase, so naming
+        // them explicitly would make this query fail outright on any
+        // environment where that migration has not been run yet. The row is one
+        // row on a tiny table, and RLS already scopes it to her own tenant.
+        supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle(),
       ]);
       // Safe default 'none' if the row/column is missing for any reason.
       const plan = tn?.data?.plan || "none";
       setCurrentPlan(plan);
-      console.log("[BeautyOS] current plan:", plan);
+      // Trial/subscription state. A failed read leaves this null on purpose:
+      // planState() then reports an unblocked tenant, so a transient error can
+      // never lock her out of her own data.
+      setPlanRow(tn?.data || null);
+      console.log("[BeautyOS] current plan:", plan, "| plan_status:", tn?.data?.plan_status || "(not migrated)");
       if(a.data)  setAppointments(a.data);
       if(c.data)  setClients(c.data);
       if(f.data)  setForms(f.data);
