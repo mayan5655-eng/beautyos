@@ -5,8 +5,18 @@
 // Multi-tenant: sends from the tenant's own GreenAPI instance (lib/whatsapp.js),
 // and the appointment is loaded scoped to the caller's tenantId so a reminder
 // can't be sent for another business's appointment.
+//
+// SECURITY: tenant comes from the AUTHENTICATED session (get_user_tenant_id),
+// never the request body. This route runs on the service-role key, which
+// bypasses RLS entirely, so a body-supplied tenantId would have made the
+// `.eq("tenant_id", tenantId)` scoping below meaningless — any logged in user
+// could pass another business's id and read that business's appointment, then
+// message its client from its own GreenAPI instance. Mirrors the pattern in
+// app/api/slots/offer/route.js. The client still posts a `tenantId` field; it
+// is deliberately ignored.
 
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 
 const supabase = createClient(
@@ -18,11 +28,20 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.verce
 
 export async function POST(request) {
   try {
-    const { tenantId, appointmentId } = await request.json().catch(() => ({}));
-
-    if (!tenantId) {
-      return Response.json({ success: false, error: "חסר מזהה עסק" }, { status: 400 });
+    // Identify the caller and resolve THEIR tenant. Anything the body claims
+    // about which business this is, is ignored.
+    const session = await createServerClient();
+    const { data: { user } } = await session.auth.getUser();
+    if (!user) {
+      return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
     }
+    const { data: tenantId } = await session.rpc("get_user_tenant_id");
+    if (!tenantId) {
+      return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+    }
+
+    const { appointmentId } = await request.json().catch(() => ({}));
+
     if (!appointmentId) {
       return Response.json({ success: false, error: "חסר מזהה תור" }, { status: 400 });
     }

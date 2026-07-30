@@ -3,8 +3,17 @@
 // Reuses the exact mechanism used for booking confirmations (lib/whatsapp.js).
 // Multi-tenant: the business name is looked up per-tenant from settings, and
 // every sent message is logged with the tenant_id (inside sendWhatsApp).
+//
+// SECURITY: tenant comes from the AUTHENTICATED session (get_user_tenant_id),
+// never the request body. This route runs on the service-role key, which
+// bypasses RLS entirely, so a body-supplied tenantId would have let any logged
+// in user send WhatsApp from another business's GreenAPI instance, under that
+// business's name, logged against that business's tenant_id. Mirrors the
+// pattern in app/api/slots/offer/route.js. The client still posts a `tenantId`
+// field; it is deliberately ignored.
 
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 
 const supabase = createClient(
@@ -14,17 +23,23 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
-    const { tenantId, client_name, client_phone, amount, payment_method, date } =
-      await request.json().catch(() => ({}));
-
-    // Tenant must be explicit — we never fall back to a default business, so a
-    // receipt can't be sent under someone else's account.
+    // Identify the caller and resolve THEIR tenant. Anything the body claims
+    // about which business this is, is ignored.
+    const session = await createServerClient();
+    const { data: { user } } = await session.auth.getUser();
+    if (!user) {
+      return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
+    }
+    const { data: tenantId } = await session.rpc("get_user_tenant_id");
     if (!tenantId) {
       return Response.json(
-        { success: false, error: "חסר מזהה עסק" },
+        { success: false, error: "לא זוהה עסק" },
         { status: 400 }
       );
     }
+
+    const { client_name, client_phone, amount, payment_method, date } =
+      await request.json().catch(() => ({}));
 
     // Only send when there is a phone number.
     if (!client_phone) {
