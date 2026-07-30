@@ -7,6 +7,7 @@ import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
 import { planState } from "@/lib/planState";
+import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -510,7 +511,19 @@ export default function BeautyOS() {
 
   const handleDbError = useCallback((err, context = "") => {
     console.error(`[BeautyOS DB error] ${context}:`, err);
-    toast(`שגיאה: ${err?.message || "פעולה נכשלה"}`, "error");
+    // A row-level-security denial on a write is exactly what the read-only gate
+    // looks like from the browser. Translate it into the shared Hebrew
+    // explanation rather than surfacing a raw Postgres string. This is the
+    // safety net for any write path that guardWrite() does not cover, so no
+    // blocked write can ever show her an unexplained error. Detection is by
+    // error code/message only, so it stays correct regardless of plan state.
+    const code = err?.code || "";
+    const message = String(err?.message || "");
+    if (code === "42501" || /row-level security|violates row-level/i.test(message)) {
+      toast(WRITE_BLOCKED_TOAST_HE, "error");
+      return;
+    }
+    toast(`שגיאה: ${message || "פעולה נכשלה"}`, "error");
   }, [toast]);
 
   const handleLogout = useCallback(() => {
@@ -579,6 +592,19 @@ export default function BeautyOS() {
   //    no banner appears. Blocking only ever happens on a definite 'expired'
   //    or 'paused'.
   const planInfo = planState(planRow);
+
+  // Read-only mode: an expired or paused tenant keeps FULL read access to her
+  // calendar, clients and reports, and loses only the ability to write. Call
+  // guardWrite() first in every mutating handler: it explains the situation in
+  // Hebrew and returns true, meaning "stop here". The RLS restrictive policies
+  // are the actual enforcement; this exists so she gets a clear explanation
+  // instead of a failed request, and so no pointless round trip is made.
+  const readOnly = planInfo.isBlocked;
+  const guardWrite = useCallback(() => {
+    if (!planInfo.isBlocked) return false;
+    toast(WRITE_BLOCKED_TOAST_HE, "error");
+    return true;
+  }, [planInfo.isBlocked, toast]);
 
   // ── SETUP CHECKLIST — persistent, always-accessible. Each item auto-detects
   //    "done" from her real data and jumps straight to the right Settings tab
@@ -1045,6 +1071,7 @@ export default function BeautyOS() {
   };
 
   const handleSave = async () => {
+    if (guardWrite()) return;
     if(!newAppt.name.trim()){toast("נא להזין שם לקוחה","error");return;}
     // STAGE C: refuse to double-book. The new appointment occupies
     // [start, start+duration) minutes; reject if it overlaps any non-cancelled
@@ -1122,6 +1149,7 @@ export default function BeautyOS() {
   };
 
   const handleDelete = (appt) => {
+    if (guardWrite()) return;
     askConfirm({
       title: "מחיקת תור",
       message: `למחוק את התור של ${appt.name} (${appt.service}, ${appt.date} ${appt.hour}:00)?`,
@@ -1155,6 +1183,7 @@ export default function BeautyOS() {
   };
 
   const handleSendConfirmation = async (appt) => {
+    if (guardWrite()) return;
     const client=clients.find(c=>String(c.id)===String(appt.client_id));
     if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return;}
     const link=waConfirmLink(client.phone,appt.name,appt.service,appt.date,appt.hour,appt.id,origin);
@@ -1165,6 +1194,7 @@ export default function BeautyOS() {
   };
 
   const handleSendAllConfirmations = async () => {
+    if (guardWrite()) return;
     const pending=tomorrowAppts.filter(a=>!a.confirmation_sent);
     if(pending.length===0){toast("כבר נשלחו תזכורות לכל התורים מחר", "info");return;}
     askConfirm({
@@ -1182,6 +1212,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveClient = async () => {
+    if (guardWrite()) return;
     if(!newClient.name.trim()){toast("נא להזין שם","error");return;}
     if(isBusy("saveClient")) return;
     setBusyKey("saveClient", true);
@@ -1252,6 +1283,7 @@ export default function BeautyOS() {
 
   // Save all parsed contacts as new clients
   const importContacts = async () => {
+    if (guardWrite()) return;
     if (importing) return;
     const rows = parseImportText(importText);
     if (rows.length === 0) { toast("לא נמצאו אנשי קשר להוספה", "error"); return; }
@@ -1298,6 +1330,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveLead = async () => {
+    if (guardWrite()) return;
     if(!newLead.name.trim()){toast("נא להזין שם","error");return;}
     if(isBusy("saveLead")) return;
     setBusyKey("saveLead", true);
@@ -1322,6 +1355,7 @@ export default function BeautyOS() {
   };
 
   const handleUpdateLeadStatus = async (lead,status) => {
+    if (guardWrite()) return;
     const {data,error}=await supabase.from("leads").update({status}).eq("id",lead.id).select();
     if(error){handleDbError(error, "update lead status"); return;}
     if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
@@ -1362,6 +1396,7 @@ export default function BeautyOS() {
   };
 
   const handleConvertLead = (lead) => {
+    if (guardWrite()) return;
     askConfirm({
       title: "המרת ליד ללקוחה",
       message: `להמיר את ${lead.name} ללקוחה רשומה?`,
@@ -1390,12 +1425,14 @@ export default function BeautyOS() {
   };
 
   const handleSetReminder = async (lead,date) => {
+    if (guardWrite()) return;
     const {data,error}=await supabase.from("leads").update({reminder_date:date}).eq("id",lead.id).select();
     if(error){handleDbError(error, "set reminder"); return;}
     if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
   };
 
   const handleUploadImage = async (e,client) => {
+    if (guardWrite()) return;
     const file=e.target.files[0];if(!file)return;
     setUploading(true);
     try {
@@ -1417,6 +1454,7 @@ export default function BeautyOS() {
   };
 
   const handleDeleteImage = (client,imageUrl) => {
+    if (guardWrite()) return;
     askConfirm({
       title: "מחיקת תמונה",
       message: "למחוק את התמונה?",
@@ -1476,6 +1514,7 @@ export default function BeautyOS() {
   };
 
   const handleSendForm = async (client,formType) => {
+    if (guardWrite()) return;
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
     if(!data||!data[0]){toast("יצירת הטופס נכשלה","error");return;}
@@ -1490,6 +1529,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveSettings = async () => {
+    if (guardWrite()) return;
     if(isBusy("saveSettings")) return;
     setBusyKey("saveSettings", true);
     try {
@@ -1554,6 +1594,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveService = async (svc,idx) => {
+    if (guardWrite()) return;
     if(svc.id){
       const {data,error}=await supabase.from("service_prices").update(svc).eq("id",svc.id).select();
       if(error){handleDbError(error, "update service"); return;}
@@ -1562,6 +1603,7 @@ export default function BeautyOS() {
   };
 
   const handleAddService = async () => {
+    if (guardWrite()) return;
     if(!newService.name.trim()){toast("נא להזין שם שירות","error");return;}
     if(isBusy("addService")) return;
     setBusyKey("addService", true);
@@ -1587,6 +1629,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveReceipt = async () => {
+    if (guardWrite()) return;
     if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
     if(isBusy("saveReceipt")) return;
     setBusyKey("saveReceipt", true);
@@ -1625,6 +1668,7 @@ export default function BeautyOS() {
 
   // Add a business expense (tenant_id is filled by the DB column default).
   const handleAddExpense = async () => {
+    if (guardWrite()) return;
     const amt = Number(newExpense.amount);
     if(!amt || amt<=0){ toast("נא להזין סכום תקין","error"); return; }
     if(!newExpense.expense_date){ toast("נא לבחור תאריך","error"); return; }
@@ -1649,6 +1693,7 @@ export default function BeautyOS() {
   };
 
   const handleDeleteExpense = (exp) => {
+    if (guardWrite()) return;
     askConfirm({
       title: "מחיקת הוצאה",
       message: `למחוק את ההוצאה${exp.description?` "${exp.description}"`:""} (₪${Number(exp.amount).toLocaleString()})?`,
@@ -1737,6 +1782,7 @@ export default function BeautyOS() {
   // Create the receipt (and the client, if new) — ONLY on explicit confirm.
   // Mirrors handleSaveReceipt's DB fields; tenant_id is filled by the DB default.
   const handleVoiceReceipt = async () => {
+    if (guardWrite()) return;
     const b = voiceReceipt;
     if (!b) return;
     if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
@@ -1795,6 +1841,7 @@ export default function BeautyOS() {
   // booking confirmations). Only sends when the client has a phone number.
   // `silent` suppresses toasts for the auto-send path. Returns true on success.
   const sendReceiptToClient = async (receipt, { silent = false } = {}) => {
+    if (guardWrite()) return false;
     if (!receipt) return false;
     // Resolve the phone from the tenant's own client row; fall back to any
     // phone already on the receipt object.
@@ -1906,6 +1953,7 @@ export default function BeautyOS() {
   // connected or fails, falls back to opening WhatsApp with the message
   // pre-filled (wa.me) so the reminder still goes out.
   const sendReminderToClient = async (appt) => {
+    if (guardWrite()) return;
     if (!appt || isBusy("sendReminder")) return;
     const cl = clients.find(c => String(c.id) === String(appt.client_id));
     const phone = (cl?.phone || appt.client_phone || "").trim();
@@ -1974,6 +2022,7 @@ export default function BeautyOS() {
 
   // Delete the selected appointment — ONLY on explicit confirm (same as handleDelete).
   const handleVoiceCancel = async () => {
+    if (guardWrite()) return;
     const appt = voiceCancel?.selected;
     if (!appt) return;
     if (isBusy("voiceCancel")) return;
@@ -2018,6 +2067,7 @@ export default function BeautyOS() {
   // Create the appointment (and the client, if new) — ONLY on explicit confirm.
   // Mirrors the regular booking flow (same table, tenant_id filled by DB default).
   const handleVoiceBook = async () => {
+    if (guardWrite()) return;
     const b = voiceBooking;
     if (!b) return;
     if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
@@ -2115,6 +2165,7 @@ export default function BeautyOS() {
 
   // Credit card payment via Grow - opens secure payment page
   const handleCreditPayment = async () => {
+    if (guardWrite()) return;
     if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
     if(isBusy("creditPayment")) return;
     setBusyKey("creditPayment", true);
@@ -2149,6 +2200,7 @@ export default function BeautyOS() {
   };
 
   const handleSavePackage = async () => {
+    if (guardWrite()) return;
     if(!newPackage.client_id||!newPackage.service){toast("נא לבחור לקוחה ושירות","error");return;}
     if(isBusy("savePackage")) return;
     setBusyKey("savePackage", true);
@@ -2163,6 +2215,7 @@ export default function BeautyOS() {
   };
 
   const handleUsePackageSession = async (pkg) => {
+    if (guardWrite()) return;
     const used=Number(pkg.used_sessions)+1;
     const active=used<Number(pkg.total_sessions);
     const {data,error}=await supabase.from("packages").update({used_sessions:used,active}).eq("id",pkg.id).select();
@@ -2171,6 +2224,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveWaitlist = async () => {
+    if (guardWrite()) return;
     if(!newWaitlist.client_name||!newWaitlist.service){toast("נא למלא פרטים","error");return;}
     if(isBusy("saveWaitlist")) return;
     setBusyKey("saveWaitlist", true);
@@ -2185,6 +2239,7 @@ export default function BeautyOS() {
   };
 
   const handleSaveProtocol = async () => {
+    if (guardWrite()) return;
     if(!newProtocol.brand||!newProtocol.name){toast("נא למלא מותג ושם","error");return;}
     if(isBusy("saveProtocol")) return;
     setBusyKey("saveProtocol", true);
@@ -2567,6 +2622,7 @@ export default function BeautyOS() {
 
   // Send a question to the AI advisor; optimistically show it, then the reply.
   const sendAdvisor = async () => {
+    if (guardWrite()) return;
     const q = advisorInput.trim();
     if (!q || advisorSending) return;
     setAdvisorSending(true);
@@ -2615,6 +2671,7 @@ export default function BeautyOS() {
 
   // Save a new community post
   const saveCommunityPost = async () => {
+    if (guardWrite()) return;
     if (savingPost) return;
     if (!newPost.body && !newPost.title) { toast("כתבי תוכן לפוסט", "error"); return; }
     setSavingPost(true);
@@ -2636,6 +2693,7 @@ export default function BeautyOS() {
 
   // Delete a community post
   const deleteCommunityPost = async (id) => {
+    if (guardWrite()) return;
     // Supabase returns { error } rather than throwing, so a try/catch never fired
     // on a real DB/RLS failure — the post vanished from the UI but not the DB.
     const { error } = await supabase.from("community_posts").delete().eq("id", id);
@@ -2722,6 +2780,7 @@ export default function BeautyOS() {
 
   // Save the current generated campaign + posts to the database
   const saveCampaign = async () => {
+    if (guardWrite()) return;
     if (!postVariations || postVariations.length === 0) return;
     if (savingCampaign) return;
     setSavingCampaign(true);
@@ -2759,6 +2818,7 @@ export default function BeautyOS() {
   };
 
   const deleteCampaign = (campaignId) => {
+    if (guardWrite()) return;
     askConfirm({
       title: "מחיקת קמפיין",
       message: "למחוק את הקמפיין וכל הפוסטים שלו?",
@@ -3410,9 +3470,11 @@ export default function BeautyOS() {
  <p style={{fontSize:13,color:"var(--ink-2)",marginTop:7,fontWeight:400,maxWidth:520,lineHeight:1.5}}>{warmMsg}</p>
  </div>
  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {/* Read-only mode visibly disables these: both open a form that
+                        could only fail. guardWrite() still backstops the handlers. */}
                     {quickActions.slice(0,2).map((qa,i)=>(
- <motion.button key={i} onClick={qa.onClick} whileHover={{y:-2}} whileTap={{scale:0.98}} className="primary-btn"
-   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"#fff":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?`0 8px 18px ${pcShadow}`:"var(--shadow-xs)"}}>
+ <motion.button key={i} onClick={qa.onClick} disabled={readOnly} title={readOnly?DISABLED_REASON_HE:undefined} whileHover={readOnly?undefined:{y:-2}} whileTap={readOnly?undefined:{scale:0.98}} className="primary-btn"
+   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:12.5,cursor:readOnly?"not-allowed":"pointer",opacity:readOnly?0.5:1,fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"#fff":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?`0 8px 18px ${pcShadow}`:"var(--shadow-xs)"}}>
  <span style={{fontSize:14}}>{qa.icon}</span>{qa.label}
  </motion.button>
                     ))}
@@ -4730,8 +4792,11 @@ export default function BeautyOS() {
  </div>
 
  <div style={{display:"flex",gap:8,alignItems:"flex-end",marginTop:12}}>
- <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder="כתבי שאלה עסקית… (Enter לשליחה)" rows={1} style={{flex:1,border:"1px solid var(--line-2)",borderRadius:16,padding:"12px 14px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"none",maxHeight:120,boxShadow:"var(--shadow-xs)"}}/>
- <button onClick={sendAdvisor} disabled={advisorSending||!advisorInput.trim()} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"12px 22px",fontSize:12.5,boxShadow:`0 8px 18px ${pcShadow}`}}>{advisorSending?"…":"שליחה"}</button>
+ {/* The advisor is a paid AI write action, so read-only mode disables the
+     input itself and states why, rather than letting her type a question
+     that the server would refuse with a 402. */}
+ <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} disabled={readOnly} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder={readOnly?READ_ONLY_BADGE_HE:"כתבי שאלה עסקית… (Enter לשליחה)"} rows={1} style={{flex:1,border:"1px solid var(--line-2)",borderRadius:16,padding:"12px 14px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:readOnly?"var(--surface-2)":"var(--surface)",resize:"none",maxHeight:120,boxShadow:"var(--shadow-xs)",opacity:readOnly?0.6:1,cursor:readOnly?"not-allowed":"auto"}}/>
+ <button onClick={sendAdvisor} disabled={readOnly||advisorSending||!advisorInput.trim()} title={readOnly?DISABLED_REASON_HE:undefined} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"12px 22px",fontSize:12.5,boxShadow:`0 8px 18px ${pcShadow}`,opacity:readOnly?0.5:1,cursor:readOnly?"not-allowed":"pointer"}}>{advisorSending?"…":"שליחה"}</button>
  </div>
  </div>
           )}

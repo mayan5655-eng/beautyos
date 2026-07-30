@@ -5,6 +5,9 @@
 
 import { useState, useMemo } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
+import usePlanState from '../../usePlanState';
+import ReadOnlyNotice from '../../ReadOnlyNotice';
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 
 // Lead type - matches the actual database schema
 export interface Lead {
@@ -102,6 +105,9 @@ export default function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortBy>('score');
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
+  // Read-only mode when the trial has lapsed or the account is paused. Reads
+  // stay open, so the list below still renders in full.
+  const { plan, readOnly } = usePlanState();
 
   // --- Bulk WhatsApp send state ---
   // bulkStatus = which status group we're composing a message for (null = closed).
@@ -144,6 +150,12 @@ export default function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) 
 
   async function confirmBulkSend() {
     if (!bulkStatus || !bulkMessage.trim()) return;
+    // The server guard also returns 402 for this route; this stops the round
+    // trip and shows the shared Hebrew explanation in the existing error slot.
+    if (readOnly) {
+      setBulkError(WRITE_BLOCKED_TOAST_HE);
+      return;
+    }
     setBulkStep('sending');
     setBulkError('');
     try {
@@ -211,6 +223,11 @@ export default function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) 
   }, [leads, searchQuery, categoryFilter, statusFilter, sortBy]);
 
   async function updateStatus(leadId: string, newStatus: string) {
+    // Read-only mode: explain rather than attempt a write RLS would refuse.
+    if (readOnly) {
+      alert(WRITE_BLOCKED_TOAST_HE);
+      return;
+    }
     setUpdatingLeadId(leadId);
     const { error } = await supabase
       .from('leads')
@@ -218,7 +235,11 @@ export default function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) 
       .eq('id', leadId);
 
     if (error) {
-      alert('שגיאה בעדכון הסטטוס: ' + error.message);
+      // An RLS denial here is the read-only gate. Explain it in Hebrew instead
+      // of surfacing the raw Postgres message.
+      const denied =
+        error.code === '42501' || /row-level security/i.test(error.message || '');
+      alert(denied ? WRITE_BLOCKED_TOAST_HE : 'שגיאה בעדכון הסטטוס: ' + error.message);
     } else {
       setLeads((prev) =>
         prev.map((l) => (l.id === leadId ? { ...l, status: newStatus } : l))
@@ -248,6 +269,9 @@ export default function LeadsClient({ initialLeads }: { initialLeads: Lead[] }) 
 
   return (
     <div>
+      {/* Standing explanation while the account is read-only. Renders nothing
+          for an active or trialling tenant. The list below is unaffected. */}
+      <ReadOnlyNotice plan={plan} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <h1 style={{ fontSize: '28px', margin: 0 }}>📋 לידים</h1>
         <div style={{ color: '#666', fontSize: '14px' }}>

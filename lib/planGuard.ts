@@ -20,6 +20,7 @@
 
 import { NextResponse } from 'next/server'
 import type { createClient } from '@/lib/supabase/server'
+import { API_BLOCKED_MESSAGE_HE } from '@/lib/planCopy'
 
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
 
@@ -34,12 +35,10 @@ export const PLAN_BLOCKED_HTTP_STATUS = 402
 export const PLAN_BLOCKED_CODE = 'PLAN_INACTIVE'
 
 /**
- * Short Hebrew line for the API layer. The full, tone-aware copy for the hold
- * screen lands with that screen; this is only what an intercepted fetch shows.
- * No em-dashes.
+ * Short Hebrew line for the API layer, re-exported from lib/planCopy so the
+ * wording matches every other surface.
  */
-export const PLAN_BLOCKED_MESSAGE_HE =
-  'החשבון בהשהיה. כל הנתונים שלך שמורים במלואם, ואפשר להמשיך בכל רגע.'
+export const PLAN_BLOCKED_MESSAGE_HE = API_BLOCKED_MESSAGE_HE
 
 export type PlanGuardResult = { ok: true } | { ok: false; response: NextResponse }
 

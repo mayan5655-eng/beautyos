@@ -3,6 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import PostDesigner from './PostDesigner'
+import usePlanState from '../../../usePlanState'
+import ReadOnlyNotice from '../../../ReadOnlyNotice'
+import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE } from '@/lib/planCopy'
 
 type Campaign = {
   id: string
@@ -31,6 +34,8 @@ type Post = {
 export default function CampaignClient({ campaign, posts, settings }: { campaign: Campaign; posts: Post[]; settings: any }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  // Deleting a campaign is a write, so read-only mode blocks it.
+  const { plan, readOnly } = usePlanState()
   // Currently selected post to open in the designer modal (null = closed)
   const [designPost, setDesignPost] = useState<Post | null>(null)
 
@@ -46,6 +51,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
   }
 
   const handleDelete = async () => {
+    if (readOnly) { alert(WRITE_BLOCKED_TOAST_HE); return }
     if (!confirm('האם את בטוחה שברצונך למחוק את הקמפיין?')) return
     setDeleting(true)
     try {
@@ -68,6 +74,8 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
 
   return (
     <div className="max-w-5xl mx-auto p-6">
+      {/* Renders nothing unless the account is read-only. */}
+      <ReadOnlyNotice plan={plan} />
       <button
         onClick={() => router.push('/dashboard/marketing')}
         className="mb-4 text-gray-600 hover:text-purple-700 font-semibold transition"
@@ -92,8 +100,9 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
           </div>
           <button
             onClick={handleDelete}
-            disabled={deleting}
-            className="bg-red-500/20 hover:bg-red-500/40 text-white px-6 py-3 rounded-xl font-bold transition border-2 border-white/30"
+            disabled={deleting || readOnly}
+            title={readOnly ? DISABLED_REASON_HE : undefined}
+            className={`text-white px-6 py-3 rounded-xl font-bold transition border-2 border-white/30 ${readOnly ? 'bg-red-500/10 opacity-50 cursor-not-allowed' : 'bg-red-500/20 hover:bg-red-500/40'}`}
           >
             {deleting ? '⏳' : '🗑️ מחק קמפיין'}
           </button>

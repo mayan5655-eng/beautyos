@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import usePlanState from '../../../usePlanState'
+import ReadOnlyNotice from '../../../ReadOnlyNotice'
+import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE } from '@/lib/planCopy'
 
 type Strategy = {
   strategy: string
@@ -37,6 +40,9 @@ type Group = {
 
 export default function NewCampaignClient() {
   const router = useRouter()
+  // Every step of this wizard is a paid AI write action, so read-only mode
+  // blocks all four and says why. The server routes also return 402.
+  const { plan, readOnly } = usePlanState()
   const [currentStep, setCurrentStep] = useState(1)
   const [campaignData, setCampaignData] = useState({
     name: '',
@@ -57,6 +63,7 @@ export default function NewCampaignClient() {
   const goBack = () => { if (currentStep > 1) setCurrentStep(currentStep - 1) }
 
   const handleGenerateStrategy = async () => {
+    if (readOnly) { setError(WRITE_BLOCKED_TOAST_HE); return }
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/marketing/strategy', {
@@ -72,6 +79,7 @@ export default function NewCampaignClient() {
   }
 
   const handleGenerateVariations = async () => {
+    if (readOnly) { setError(WRITE_BLOCKED_TOAST_HE); return }
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/marketing/variations', {
@@ -87,6 +95,7 @@ export default function NewCampaignClient() {
   }
 
   const handleSuggestGroups = async () => {
+    if (readOnly) { setError(WRITE_BLOCKED_TOAST_HE); return }
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/marketing/groups', {
@@ -102,6 +111,7 @@ export default function NewCampaignClient() {
   }
 
   const handleSave = async () => {
+    if (readOnly) { setSaveError(WRITE_BLOCKED_TOAST_HE); return }
     setSaving(true); setSaveError('')
     try {
       const res = await fetch('/api/marketing/save', {
@@ -149,6 +159,8 @@ export default function NewCampaignClient() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
+      {/* Renders nothing unless the account is read-only. */}
+      <ReadOnlyNotice plan={plan} />
       <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-gray-800 mb-2">✨ יצירת קמפיין חדש</h1>
         <p className="text-gray-600 text-lg">ה-AI ייצור עבורך אסטרטגיה, פוסטים והמלצות לקבוצות</p>
@@ -201,7 +213,7 @@ export default function NewCampaignClient() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">🎯 אסטרטגיית קמפיין</h2>
           <p className="text-gray-500 mb-6">ה-AI ייצור עבורך אסטרטגיה שיווקית</p>
-          {!strategy && (<><button onClick={handleGenerateStrategy} disabled={!campaignData.goal || loading} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40 disabled:cursor-not-allowed">{loading ? '⏳ ה-AI חושב...' : '✨ צור אסטרטגיה עם AI'}</button>{!campaignData.goal && <p className="text-center text-amber-600 mt-4 font-semibold">⚠️ חזרי לשלב 1 ומלאי את מטרת הקמפיין</p>}</>)}
+          {!strategy && (<><button onClick={handleGenerateStrategy} disabled={!campaignData.goal || loading || readOnly} title={readOnly ? DISABLED_REASON_HE : undefined} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40 disabled:cursor-not-allowed">{loading ? '⏳ ה-AI חושב...' : '✨ צור אסטרטגיה עם AI'}</button>{!campaignData.goal && <p className="text-center text-amber-600 mt-4 font-semibold">⚠️ חזרי לשלב 1 ומלאי את מטרת הקמפיין</p>}</>)}
           {strategy && (
             <div className="space-y-4 mt-6">
               <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-5"><h3 className="font-bold text-purple-800 text-lg mb-2">📋 הגישה</h3><p className="text-gray-700">{strategy.strategy}</p></div>
@@ -218,7 +230,7 @@ export default function NewCampaignClient() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">✍️ יצירת פוסטים</h2>
           <p className="text-gray-500 mb-6">ה-AI ייצור 5 וריאציות עם תמונות</p>
-          {variations.length === 0 && (<><button onClick={handleGenerateVariations} disabled={!strategy || loading} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">{loading ? '⏳ ה-AI כותב פוסטים...' : '✨ צור פוסטים עם AI'}</button>{!strategy && <p className="text-center text-amber-600 mt-4 font-semibold">⚠️ חזרי לשלב 2 וצרי אסטרטגיה קודם</p>}</>)}
+          {variations.length === 0 && (<><button onClick={handleGenerateVariations} disabled={!strategy || loading || readOnly} title={readOnly ? DISABLED_REASON_HE : undefined} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">{loading ? '⏳ ה-AI כותב פוסטים...' : '✨ צור פוסטים עם AI'}</button>{!strategy && <p className="text-center text-amber-600 mt-4 font-semibold">⚠️ חזרי לשלב 2 וצרי אסטרטגיה קודם</p>}</>)}
           {variations.length > 0 && (
             <div className="space-y-6 mt-6">
               {variations.map((v) => (
@@ -243,7 +255,7 @@ export default function NewCampaignClient() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">👥 קבוצות פייסבוק</h2>
           <p className="text-gray-500 mb-6">ה-AI ימליץ על 10 קבוצות רלוונטיות</p>
-          {groups.length === 0 && (<button onClick={handleSuggestGroups} disabled={loading} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">{loading ? '⏳ ה-AI מחפש קבוצות...' : '✨ הצע קבוצות עם AI'}</button>)}
+          {groups.length === 0 && (<button onClick={handleSuggestGroups} disabled={loading || readOnly} title={readOnly ? DISABLED_REASON_HE : undefined} className="w-full py-6 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">{loading ? '⏳ ה-AI מחפש קבוצות...' : '✨ הצע קבוצות עם AI'}</button>)}
           {groups.length > 0 && (
             <div className="space-y-3 mt-6">
               {groups.map((g, i) => (
@@ -262,7 +274,7 @@ export default function NewCampaignClient() {
               <h3 className="text-xl font-bold text-gray-800 mb-3 text-center">🎉 סיימת!</h3>
               <p className="text-gray-600 mb-4 text-center">שמרי את הקמפיין כדי לחזור אליו בכל זמן</p>
               {saveError && (<div className="mb-4 bg-red-50 border-2 border-red-300 text-red-700 p-3 rounded-xl text-center font-bold">⚠️ {saveError}</div>)}
-              <button onClick={handleSave} disabled={saving} className="w-full py-6 px-8 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">
+              <button onClick={handleSave} disabled={saving || readOnly} title={readOnly ? DISABLED_REASON_HE : undefined} className="w-full py-6 px-8 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:scale-105 transition disabled:opacity-40">
                 {saving ? '⏳ שומר...' : '💾 שמור קמפיין'}
               </button>
             </div>

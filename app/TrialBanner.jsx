@@ -10,22 +10,25 @@
 //   urgent  -> a real card with a way to reach a human, the final 7 days.
 //   blocked -> the trial has run out, or the account is paused.
 //
-// On `blocked`: in Phase 2 this banner is all there is. Phase 3 replaces the
-// whole dashboard with the account-hold screen, at which point a blocked tenant
-// stops seeing this banner because she never reaches the dashboard shell.
+// On `blocked`: the dashboard is NOT replaced. The account goes read-only, so
+// she keeps seeing her calendar and clients and this banner is the standing
+// explanation of why the write actions are disabled. Wording comes from
+// lib/planCopy, shared with the read-only notice on the standalone pages.
 //
 // Colour comes from her own primary_color via the pc* props, so the notice
 // belongs to her brand rather than looking like a system warning. Hebrew copy
 // deliberately contains no em-dashes.
 
 import { supportWhatsAppUrl } from "@/lib/support";
-
-// Hebrew needs a real dual form: "יומיים", not "2 ימים".
-function daysHe(n) {
-  if (n === 1) return "יום אחד";
-  if (n === 2) return "יומיים";
-  return `${n} ימים`;
-}
+// All Hebrew comes from lib/planCopy so this banner and the read-only notice on
+// the standalone dashboard pages can never drift apart.
+import {
+  trialGentleHe,
+  trialUrgentTitleHe,
+  TRIAL_URGENT_BODY_HE,
+  blockedNoticeHe,
+  CTA_WHATSAPP_HE,
+} from "@/lib/planCopy";
 
 export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow }) {
   // Covers 'active', a tenant whose row could not be read, and a trial with no
@@ -57,7 +60,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           style={{ width: 7, height: 7, borderRadius: "50%", background: pcGrad, flexShrink: 0 }}
         />
         <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-2)" }}>
-          תקופת ההתנסות שלך פעילה, נשארו עוד {daysHe(days)}
+          {trialGentleHe(days)}
         </p>
       </div>
     );
@@ -65,24 +68,18 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
 
   // ── URGENT / BLOCKED: a card with a title, a reassurance, and a way to talk.
   const blocked = plan.tone === "blocked";
-  const paused = blocked && plan.status === "paused";
 
   let title;
   let body;
-  if (paused) {
-    // Softer wording on purpose: a paused account is an arrangement, not a debt.
-    title = "החשבון בהשהיה";
-    body = "כל הנתונים שלך שמורים במלואם. כשתרצי לחזור, אני כאן.";
-  } else if (blocked) {
-    title = "תקופת ההתנסות הסתיימה";
-    body = "כל הנתונים שלך שמורים במלואם. נסדר את ההמשך בהודעה קצרה.";
+  if (blocked) {
+    // blockedNoticeHe softens the wording for 'paused': that is an arrangement,
+    // not a debt. It also states plainly that viewing still works.
+    const notice = blockedNoticeHe(plan.status);
+    title = notice.title;
+    body = notice.body;
   } else {
-    // days === 1 means under 24 hours are left, so "מחר" could be wrong.
-    title =
-      days === 1
-        ? "תקופת ההתנסות מסתיימת בקרוב"
-        : `תקופת ההתנסות מסתיימת בעוד ${daysHe(days)}`;
-    body = "אפשר להמשיך לעבוד בלי הפסקה. כתבי לי ונסגור את זה בקלות.";
+    title = trialUrgentTitleHe(days);
+    body = TRIAL_URGENT_BODY_HE;
   }
 
   return (
@@ -138,7 +135,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           flexShrink: 0,
         }}
       >
-        דברי איתי בוואטסאפ
+        {CTA_WHATSAPP_HE}
       </a>
     </div>
   );
