@@ -11,7 +11,7 @@ import {
   type CampaignStrategy,
 } from '@/lib/ai/marketingAI'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
-import { searchUnsplashImage } from '@/lib/unsplash'
+import { searchUnsplashImagesForVariations } from '@/lib/unsplash'
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,19 +56,16 @@ export async function POST(request: NextRequest) {
       count || 5
     )
 
-    // Step 5: Fetch Unsplash images for each variation in parallel
-    // We use the imageSuggestion field from AI as the search query
-    const variationsWithImages = await Promise.all(
-      variations.map(async (v) => {
-        const image = await searchUnsplashImage(
-          v.imageSuggestion || 'beauty cosmetics'
-        )
-        return {
-          ...v,
-          image, // adds: { url, thumbUrl, photographerName, photographerUrl, description } or null
-        }
-      })
+    // Step 5: Fetch images for the whole batch in ONE Unsplash call, then give
+    // each variation a different photo by index. Previously this called once
+    // per variation with per_page=1, so every post got the same top result.
+    const images = await searchUnsplashImagesForVariations(
+      variations.map((v) => v.imageSuggestion || 'beauty cosmetics')
     )
+    const variationsWithImages = variations.map((v, i) => ({
+      ...v,
+      image: images[i] ?? null, // { url, thumbUrl, photographerName, photographerUrl, description } or null
+    }))
 
     // Step 6: Return to client
     return NextResponse.json({ variations: variationsWithImages })

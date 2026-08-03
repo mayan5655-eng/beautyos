@@ -28,9 +28,14 @@ type SaveRequest = {
     callToAction: string
     hashtags: string[]
     imageSuggestion: string
+    // Unsplash image attached by /api/marketing/variations. Null when the
+    // lookup failed or UNSPLASH_ACCESS_KEY is unset.
     image?: {
       url: string
+      thumbUrl: string
       photographerName: string
+      photographerUrl: string
+      description: string
     } | null
   }>
 }
@@ -115,6 +120,13 @@ export async function POST(request: NextRequest) {
         image_suggestion: v.imageSuggestion,
         variation_number: v.variationNumber,
         variation_type: v.variationType,
+        // Persist the generated Unsplash image. Null-safe: `image` is null
+        // whenever the Unsplash lookup did not return a photo.
+        image_url: v.image?.url || null,
+        image_thumb_url: v.image?.thumbUrl || null,
+        image_credit_name: v.image?.photographerName || null,
+        image_credit_url: v.image?.photographerUrl || null,
+        image_alt: v.image?.description || null,
         is_winner: false,
         total_copies: 0,
         total_leads: 0,

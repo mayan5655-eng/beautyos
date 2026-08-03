@@ -8,6 +8,11 @@ import { createBrowserClient } from '@supabase/ssr';
 import usePlanState from '../../usePlanState';
 import ReadOnlyNotice from '../../ReadOnlyNotice';
 import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
+import {
+  LEAD_STATUS_KEYS,
+  LEAD_STATUS_LABELS,
+  LEGACY_LEAD_STATUS_LABELS,
+} from '@/lib/leads/statuses';
 
 // Lead type - matches the actual database schema
 export interface Lead {
@@ -46,30 +51,49 @@ function getCategoryDisplay(category: string | null) {
 // source of truth for the status buttons on each card AND the status filter
 // chips. `status` is a free-text column in the DB, so these keys are just the
 // canonical set we write/read; order here is the order shown in the UI.
+// Dashboard palette. Keys and Hebrew labels come from the shared module; only
+// the colors are local to this screen.
+const STATUS_COLORS: Record<string, { color: string; bg: string }> = {
+  new:             { color: '#00bcd4', bg: '#e0f7fa' },
+  no_answer:       { color: '#9e9e9e', bg: '#f5f5f5' },
+  awaiting_reply:  { color: '#9c27b0', bg: '#f3e5f5' },
+  in_progress:     { color: '#ff9800', bg: '#fff3e0' },
+  quote_sent:      { color: '#ffa000', bg: '#fff8e1' },
+  scheduled:       { color: '#2196f3', bg: '#e3f2fd' },
+  no_show:         { color: '#e53935', bg: '#ffebee' },
+  follow_up_later: { color: '#009688', bg: '#e0f2f1' },
+  closed:          { color: '#4caf50', bg: '#e8f5e9' },
+  irrelevant:      { color: '#795548', bg: '#efebe9' },
+};
+
 export const LEAD_STATUSES: Record<
   string,
   { label: string; color: string; bg: string }
-> = {
-  no_answer:   { label: 'אין מענה',    color: '#9e9e9e', bg: '#f5f5f5' },
-  in_progress: { label: 'בטיפול',      color: '#ff9800', bg: '#fff3e0' },
-  scheduled:   { label: 'נקבע תור',    color: '#2196f3', bg: '#e3f2fd' },
-  no_show:     { label: 'לא הגיע',     color: '#e53935', bg: '#ffebee' },
-  closed:      { label: 'נסגר',        color: '#4caf50', bg: '#e8f5e9' },
-  irrelevant:  { label: 'לא רלוונטי',  color: '#795548', bg: '#efebe9' },
-};
+> = Object.fromEntries(
+  LEAD_STATUS_KEYS.map((k) => [
+    k,
+    { label: LEAD_STATUS_LABELS[k], ...STATUS_COLORS[k] },
+  ])
+);
 
 // Ordered keys, for iterating over the canonical statuses in the UI.
-export const LEAD_STATUS_KEYS = Object.keys(LEAD_STATUSES);
+export { LEAD_STATUS_KEYS };
 
 // Legacy values that may still exist on rows created before this status model
 // (no migration is run as part of this change). Shown read-only so old leads
 // don't render blank; they are NOT offered as canonical buttons/chips.
-const LEGACY_STATUS_DISPLAY: Record<string, { label: string; color: string }> = {
-  new:       { label: 'חדש', color: '#2196f3' },
-  contacted: { label: 'יצרתי קשר', color: '#a67c52' },
-  converted: { label: 'מומר ✓', color: '#4caf50' },
-  lost:      { label: 'לא רלוונטי', color: '#999' },
+const LEGACY_STATUS_COLORS: Record<string, string> = {
+  contacted: '#a67c52',
+  converted: '#4caf50',
+  lost: '#999',
 };
+const LEGACY_STATUS_DISPLAY: Record<string, { label: string; color: string }> =
+  Object.fromEntries(
+    Object.keys(LEGACY_LEAD_STATUS_LABELS).map((k) => [
+      k,
+      { label: LEGACY_LEAD_STATUS_LABELS[k], color: LEGACY_STATUS_COLORS[k] },
+    ])
+  );
 
 function getStatusDisplay(status: string | null): { label: string; color: string } {
   if (status && LEAD_STATUSES[status]) {

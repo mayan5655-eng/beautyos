@@ -27,6 +27,13 @@ type Post = {
   call_to_action: string
   hashtags: string[]
   image_suggestion: string
+  // Unsplash image persisted at generation time. Null for posts saved before
+  // the image columns existed, and whenever the Unsplash lookup found nothing.
+  image_url: string | null
+  image_thumb_url: string | null
+  image_credit_name: string | null
+  image_credit_url: string | null
+  image_alt: string | null
   variation_number: number
   variation_type: string
 }
@@ -55,7 +62,15 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
     if (!confirm('האם את בטוחה שברצונך למחוק את הקמפיין?')) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/marketing/delete?id=${campaign.id}`, { method: 'DELETE' })
+      // POST /api/marketing/delete-campaign with { campaignId } is the route's
+      // actual contract. The previous DELETE /api/marketing/delete?id=... hit a
+      // route that does not exist, so every delete 404'd into the error branch.
+      // Mirrors the working call in app/beautyos.jsx.
+      const res = await fetch('/api/marketing/delete-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaignId: campaign.id }),
+      })
       if (res.ok) {
         router.push('/dashboard/marketing')
       } else {
@@ -184,7 +199,39 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
                     <p className="text-blue-600 text-sm">{post.hashtags.join(' ')}</p>
                   )}
                 </div>
-                {post.image_suggestion && (
+                {/* Full post view, so the full-size image. The whole block is
+                    skipped when there is no image: no frame, no placeholder. */}
+                {post.image_url && (
+                  <div className="relative rounded-xl overflow-hidden mb-3">
+                    <img
+                      src={post.image_url}
+                      alt={post.image_alt || post.title}
+                      className="w-full max-h-80 object-cover object-center block"
+                    />
+                    {post.image_credit_name && (
+                      <span className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full">
+                        {/* Unsplash terms require the photographer name to link
+                            to their profile. Plain text if the URL is missing. */}
+                        צילום:{' '}
+                        {post.image_credit_url ? (
+                          <a
+                            href={post.image_credit_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            {post.image_credit_name}
+                          </a>
+                        ) : (
+                          post.image_credit_name
+                        )}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {/* The AI text hint is now a fallback only - it is redundant
+                    once a real image is on screen. */}
+                {!post.image_url && post.image_suggestion && (
                   <div className="bg-amber-50 rounded-xl p-3 mb-3">
                     <p className="text-amber-800 text-sm">
                       💡 <strong>תמונה מומלצת:</strong> {post.image_suggestion}

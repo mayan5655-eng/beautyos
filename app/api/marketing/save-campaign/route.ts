@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
       image_suggestion: v.imageSuggestion || '',
       variation_number: v.variationNumber || i + 1,
       variation_type: v.variationType || '',
+      // Persist the generated Unsplash image. Null-safe: `image` is null
+      // whenever the Unsplash lookup did not return a photo.
+      image_url: v.image?.url || null,
+      image_thumb_url: v.image?.thumbUrl || null,
+      image_credit_name: v.image?.photographerName || null,
+      image_credit_url: v.image?.photographerUrl || null,
+      image_alt: v.image?.description || null,
     }))
 
     const { error: pErr } = await supabase.from('campaign_posts').insert(postsToInsert)

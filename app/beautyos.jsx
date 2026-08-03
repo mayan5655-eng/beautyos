@@ -8,6 +8,9 @@ import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from ".
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
 import { planState } from "@/lib/planState";
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
+import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
+import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
+import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -185,22 +188,35 @@ const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטו
 // app/dashboard/leads/LeadsClient.tsx — the bulk WhatsApp send targets a status
 // by key. Colors/bg are drawn from the beautyOS palette so the chips, badges
 // and buttons match the rest of the app.
-const LEAD_STATUSES = {
- "no_answer":   {label:"אין מענה",   color:"#8C8073",bg:"#F4F1EC"},
- "in_progress": {label:"בטיפול",      color:"#A67C52",bg:"#F7F1E6"},
- "scheduled":   {label:"נקבע תור",   color:"#5C9460",bg:"#EEF6EF"},
- "no_show":     {label:"לא הגיע",    color:"#C0872E",bg:"#FBF3E2"},
- "closed":      {label:"נסגר",        color:"#5580C4",bg:"#EBF3FF"},
- "irrelevant":  {label:"לא רלוונטי", color:"#C62828",bg:"#FEEBEE"},
+// beautyOS palette. Keys and Hebrew labels come from the shared module; only
+// the colors are local to this screen.
+const LEAD_STATUS_COLORS = {
+ "new":             {color:"#6E8CA0",bg:"#EFF4F7"},
+ "no_answer":       {color:"#8C8073",bg:"#F4F1EC"},
+ "awaiting_reply":  {color:"#8E7AA3",bg:"#F3EFF7"},
+ "in_progress":     {color:"#A67C52",bg:"#F7F1E6"},
+ "quote_sent":      {color:"#C9A24B",bg:"#FAF4E4"},
+ "scheduled":       {color:"#5C9460",bg:"#EEF6EF"},
+ "no_show":         {color:"#C0872E",bg:"#FBF3E2"},
+ "follow_up_later": {color:"#7FA8A0",bg:"#EFF6F4"},
+ "closed":          {color:"#5580C4",bg:"#EBF3FF"},
+ "irrelevant":      {color:"#C62828",bg:"#FEEBEE"},
 };
+const LEAD_STATUSES = Object.fromEntries(
+ LEAD_STATUS_KEYS.map(k => [k, {label: LEAD_STATUS_LABELS[k], ...LEAD_STATUS_COLORS[k]}])
+);
 // Legacy status values that may still exist on rows created before the status
 // model above (no DB migration is run). Shown read-only so old leads never
 // render blank; they are NOT offered as canonical chips/buttons.
-const LEGACY_LEAD_STATUSES = {
- "new":       {label:"חדש",        color:"#5580C4",bg:"#EBF3FF"},
- "contacted": {label:"יצרתי קשר", color:"#A67C52",bg:"#F7F1E6"},
- "lost":      {label:"לא רלוונטי", color:"#C62828",bg:"#FEEBEE"},
+const LEGACY_LEAD_STATUS_COLORS = {
+ "contacted": {color:"#A67C52",bg:"#F7F1E6"},
+ "converted": {color:"#5C9460",bg:"#EEF6EF"},
+ "lost":      {color:"#C62828",bg:"#FEEBEE"},
 };
+const LEGACY_LEAD_STATUSES = Object.fromEntries(
+ Object.keys(LEGACY_LEAD_STATUS_LABELS).map(k =>
+   [k, {label: LEGACY_LEAD_STATUS_LABELS[k], ...LEGACY_LEAD_STATUS_COLORS[k]}])
+);
 // Resolve a status value to its display meta: canonical first, then legacy,
 // then a neutral fallback so any unexpected value is still visible.
 const leadStatusMeta = (status) =>
@@ -280,7 +296,9 @@ function waPayment(phone, name, amount, service, method, businessPhone) {
 }
 
 const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medical:"",notes:"",status:"active"};
-const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"no_answer",notes:"",reminder_date:""};
+// Manually added leads start at "new", the same entry status the Facebook
+// webhook writes, so both intake paths begin in one place.
+const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
 
 // ============================================================
 // MAIN COMPONENT
@@ -414,6 +432,9 @@ export default function BeautyOS() {
   const [bulkStep,          setBulkStep]           = useState("compose");
   const [bulkResult,        setBulkResult]         = useState(null);
   const [bulkError,         setBulkError]          = useState("");
+  // Non-null = send to these lead ids only (the per-lead one-click send).
+  // Null = the whole status group, which is the original behavior.
+  const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
   const [hoveredAppt,       setHoveredAppt]        = useState(null);
   const [loading,           setLoading]            = useState(true);
   const [uploading,         setUploading]          = useState(false);
@@ -962,8 +983,9 @@ export default function BeautyOS() {
   const tomorrowCancelled  = tomorrowAppts.filter(a=>a.confirmation_status==="cancelled").length;
   const tomorrowPending    = tomorrowAppts.filter(a=>!a.confirmation_status||a.confirmation_status==="pending").length;
 
-  // Un-handled leads for the sidebar badge: the canonical "no_answer" plus the
-  // legacy "new" so pre-migration inbound leads still count.
+  // Un-handled leads for the sidebar badge: both canonical entry statuses -
+  // "new" (where inbound Facebook leads and manually added leads start) and
+  // "no_answer" (reached out, nobody picked up).
   const newLeadsCount      = leads.filter(l=>l.status==="no_answer"||l.status==="new").length;
   const thisMonthLeads     = leads.filter(l=>{if(!l.created_at)return false;const d=new Date(l.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;});
   const convertedLeads     = leads.filter(l=>l.status==="closed");
@@ -1363,13 +1385,20 @@ export default function BeautyOS() {
 
   // --- Bulk WhatsApp send per status group ---
   // openBulk resets the flow to a clean "compose" step for the chosen status.
-  const openBulk = (status) => {
-    setBulkStatus(status); setBulkMessage(""); setBulkResult(null);
-    setBulkError(""); setBulkStep("compose");
+  // Prefills the composer from the saved per-status template
+  // (settings.automations.lead_templates). Always editable before sending, and
+  // blank when no template is saved for that status.
+  // Passing `lead` targets that single lead instead of the whole status group.
+  const openBulk = (status, lead) => {
+    const tpl = resolveLeadTemplate(settings, status);
+    setBulkStatus(status);
+    setBulkLeadIds(lead ? [lead.id] : null);
+    setBulkMessage(tpl ? renderLeadTemplate(tpl, lead, settings) : "");
+    setBulkResult(null); setBulkError(""); setBulkStep("compose");
   };
   const closeBulk = () => {
     setBulkStatus(null); setBulkStep("compose"); setBulkMessage("");
-    setBulkResult(null); setBulkError("");
+    setBulkResult(null); setBulkError(""); setBulkLeadIds(null);
   };
   // Reuses the SAME API route as the standalone leads screen
   // (app/api/leads/send-bulk/route.js). The route resolves the tenant from the
@@ -1382,13 +1411,28 @@ export default function BeautyOS() {
       const res=await fetch("/api/leads/send-bulk",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({status:bulkStatus,message:bulkMessage.trim()}),
+        body:JSON.stringify({
+          status:bulkStatus,
+          message:bulkMessage.trim(),
+          // Only present for a single-lead send; omitted for a group send.
+          ...(bulkLeadIds?{leadIds:bulkLeadIds}:{}),
+        }),
       });
       const data=await res.json();
       if(!res.ok||!data.success){
         setBulkError(data.error||"שליחה נכשלה"); setBulkStep("confirm"); return;
       }
       setBulkResult({sent:data.sent??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0});
+      // Single-lead send: reflect the contact trail immediately in the row and
+      // the open drawer instead of waiting for the next load. Group sends are
+      // left to the next refresh - the API reports results by name, not id.
+      if(bulkLeadIds&&bulkLeadIds.length===1&&(data.sent??0)>0){
+        const nowIso=new Date().toISOString();
+        const id=bulkLeadIds[0];
+        const stamp=(l)=>({...l,last_contacted_at:nowIso,first_contacted_at:l.first_contacted_at||nowIso,contact_attempts:(Number(l.contact_attempts)||0)+1});
+        setLeads(prev=>prev.map(l=>l.id===id?stamp(l):l));
+        setSelectedLead(prev=>(prev&&prev.id===id)?stamp(prev):prev);
+      }
       setBulkStep("result");
     }catch(err){
       setBulkError(err instanceof Error?err.message:"שליחה נכשלה"); setBulkStep("confirm");
@@ -3990,7 +4034,7 @@ export default function BeautyOS() {
  <span className="pill" style={{fontSize:8,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
                         {hasReminder&&<span className="pill" style={{fontSize:8,background:"rgba(242,184,75,0.16)",color:"#b07f2a",padding:"3px 8px"}}>◴ תזכורת</span>}
  </div>
- <p style={{fontSize:9.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
  </div>
                     {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:9}}>✆</a>}
                     {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"#fff",border:"none",borderRadius:20,padding:"5px 11px",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
@@ -4434,7 +4478,12 @@ export default function BeautyOS() {
  <div style={{position:"relative"}}>
  <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
  {v.image.photographerName&&(
- <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"#fff",fontSize:8,padding:"2px 7px",borderRadius:10}}>צילום: {v.image.photographerName}</span>
+ <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"#fff",fontSize:8,padding:"2px 7px",borderRadius:10}}>
+ {/* Unsplash terms require the photographer name to link to their profile.
+     This is the pre-save preview, so the field is the in-memory camelCase
+     photographerUrl rather than the persisted image_credit_url column. */}
+ צילום: {v.image.photographerUrl?<a href={v.image.photographerUrl} target="_blank" rel="noopener noreferrer" style={{color:"#fff",textDecoration:"underline"}}>{v.image.photographerName}</a>:v.image.photographerName}
+ </span>
  )}
  </div>
  )}
@@ -4517,6 +4566,19 @@ export default function BeautyOS() {
  {c.ai_strategy&&<p style={{fontSize:11.5,color:"#7A716A",lineHeight:1.6,marginBottom:12}}>{c.ai_strategy}</p>}
  {(c.posts||[]).map((p,i)=>(
  <div key={i} style={{borderTop:i>0?"1px solid #F7F0F3":"none",padding:"10px 0"}}>
+ {/* Saved list is a preview, so prefer the thumbnail and fall back to the
+     full image. Skipped entirely when the post has no image. */}
+ {(p.image_thumb_url||p.image_url)&&(
+ <div style={{position:"relative",borderRadius:12,overflow:"hidden",marginBottom:8}}>
+ <img alt={p.image_alt||p.title||""} src={p.image_thumb_url||p.image_url} style={{width:"100%",height:140,objectFit:"cover",objectPosition:"center",display:"block"}}/>
+ {p.image_credit_name&&(
+ <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"#fff",fontSize:8,padding:"2px 7px",borderRadius:10}}>
+ {/* Unsplash terms require the photographer name to link to their profile. */}
+ צילום: {p.image_credit_url?<a href={p.image_credit_url} target="_blank" rel="noopener noreferrer" style={{color:"#fff",textDecoration:"underline"}}>{p.image_credit_name}</a>:p.image_credit_name}
+ </span>
+ )}
+ </div>
+ )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,gap:6}}>
  {p.title&&<p style={{fontSize:13,fontWeight:600,color:"#1C1C1C"}}>{p.title}</p>}
  <button onClick={()=>copyPost({body:p.body,callToAction:p.call_to_action,hashtags:p.hashtags})} className="primary-btn" style={{padding:"4px 10px",background:pcGrad,color:"#fff",fontSize:9,flexShrink:0}}>העתיקי</button>
@@ -5062,7 +5124,11 @@ export default function BeautyOS() {
           real recipient count. Reuses app/api/leads/send-bulk/route.js. */}
       {bulkStatus&&(()=>{
         const s=leadStatusMeta(bulkStatus);
-        const inGroup=leads.filter(l=>l.status===bulkStatus);
+        // Single-lead send narrows the recipient list, so the confirm step
+        // always shows the real count for what is about to be sent.
+        const inGroup=bulkLeadIds
+          ? leads.filter(l=>bulkLeadIds.includes(l.id))
+          : leads.filter(l=>l.status===bulkStatus);
         const withPhone=inGroup.filter(l=>l.phone).length;
         const noPhone=inGroup.length-withPhone;
         return(
@@ -5514,6 +5580,17 @@ export default function BeautyOS() {
                 const setAutos=(next)=>setEditSettings({...editSettings,automations:next});
                 const setSkinMode=(m)=>setAutos({...autos,skin_followup:{...(autos.skin_followup||{}),mode:m}});
                 const setPaused=(v)=>setAutos({...autos,paused:v});
+                // Ready-made WhatsApp messages per lead status. A blank textarea
+                // removes the key, so only real templates are persisted.
+                const leadTemplates=(autos.lead_templates&&typeof autos.lead_templates==="object")?autos.lead_templates:{};
+                const setLeadTemplate=(k,v)=>{
+                  // Store "" rather than deleting the key: an explicit clear must
+                  // stick, otherwise the default would reappear on the next open.
+                  const next={...leadTemplates,[k]:v};
+                  setAutos({...autos,lead_templates:next});
+                };
+                // True only when the tenant saved this status as empty on purpose.
+                const isCleared=(k)=>Object.prototype.hasOwnProperty.call(leadTemplates,k)&&!String(leadTemplates[k]).trim();
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
@@ -5569,6 +5646,20 @@ export default function BeautyOS() {
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p><input value={editSettings.green_api_token||""} onChange={e=>setEditSettings({...editSettings,green_api_token:e.target.value})} placeholder="••••••••••••••••" autoComplete="off" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
  </div>
+ </div>
+
+ <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"#7A716A",marginBottom:4,fontWeight:600}}>הודעות מוכנות לפי סטטוס פנייה</p>
+ <p style={{fontSize:9,color:"#A89AA2",lineHeight:1.5,marginBottom:8}}>ההודעה תיפתח מוכנה לשליחה כשתשלחי הודעה לפי סטטוס במסך הפניות. אפשר לכתוב {"{name}"} לשם הפונה ו-{"{clinic}"} לשם העסק. הנוסח האפור הוא ברירת המחדל שתישלח אם לא תשני דבר; אם תמחקי הכל, אותו סטטוס ייפתח ריק.</p>
+ {LEAD_STATUS_KEYS.map(k=>(
+ <div key={k} style={{marginBottom:8}}>
+ <p style={{fontSize:9.5,color:LEAD_STATUS_COLORS[k].color,fontWeight:700,marginBottom:3}}>{LEAD_STATUS_LABELS[k]}</p>
+ <textarea value={leadTemplates[k]||""} onChange={e=>setLeadTemplate(k,e.target.value)} rows={2}
+   placeholder={DEFAULT_LEAD_TEMPLATES[k]||""}
+   style={{width:"100%",border:"1px solid #E8DED6",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box"}}/>
+ {isCleared(k)&&<p style={{fontSize:8.5,color:"#B07F2A",fontWeight:700,marginTop:3}}>(נוקה — ייפתח ריק)</p>}
+ </div>
+ ))}
  </div>
 
  <div style={{borderTop:"1px solid #E8DED6",paddingTop:12,marginTop:4}}>
@@ -5988,6 +6079,11 @@ export default function BeautyOS() {
                     {l.phone&&<a href={waLink(l.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"#fff",color:pc,borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditLead(l)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"#fff",border:"none",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✎ עריכה</button>
  </div>
+ {/* One-click send to THIS lead, prefilled from the template saved for her
+     current status. Opens the same confirm flow as a group send. */}
+ {l.phone&&(
+ <button onClick={()=>openBulk(l.status,l)} style={{width:"100%",marginTop:6,background:"rgba(255,255,255,0.25)",color:"#fff",border:"none",borderRadius:20,padding:"8px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>הודעה מוכנה</button>
+ )}
  </div>
  <div style={{padding:"16px 22px"}}>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>סטטוס</p>
@@ -5998,6 +6094,9 @@ export default function BeautyOS() {
  </div>
                   {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
                   {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{l.created_at.slice(0,10)}</span></div>}
+                  {/* Contact trail. Reads "טרם יצרת קשר" until the first
+                      successful WhatsApp send from the app. */}
+ <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>
  <div style={{marginTop:12}}>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
  <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>

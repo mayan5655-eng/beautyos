@@ -14,6 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
+import { clinicName } from "../../../../lib/clinicName";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -57,12 +58,67 @@ export async function POST(request) {
       return Response.json({ success: false, error: "פרטי תור חסרים" }, { status: 400 });
     }
 
+    // A slot that has already passed - or is about to - cannot be filled.
+    // Deleting an old appointment for bookkeeping must never send an offer, and
+    // a client realistically needs a couple of hours' notice to take one.
+    //
+    // Compared in the CLINIC's timezone, not the server's: appointments store a
+    // local "YYYY-MM-DD" plus an integer hour, while the server runs UTC, so a
+    // naive Date() parse would treat a slot as future for hours after it passed.
+    // Asia/Jerusalem is hardcoded because settings has no timezone column and
+    // every tenant is Israeli; this is the one place to change if that changes.
+    const nowParts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+        .formatToParts(new Date())
+        .filter((p) => p.type !== "literal")
+        .map((p) => [p.type, p.value])
+    );
+    // Both sides are Jerusalem wall-clock, so Date.UTC is used purely as a
+    // consistent minute scale for the subtraction - never as a real instant.
+    const wallMinutes = (dateStr, hour, minute = 0) => {
+      const [y, m, d] = String(dateStr).split("-").map(Number);
+      return Date.UTC(y, m - 1, d, hour, minute) / 60000;
+    };
+    const MIN_LEAD_MINUTES = 120;
+    const leadMinutes =
+      wallMinutes(slotDate, slotHour) -
+      wallMinutes(
+        `${nowParts.year}-${nowParts.month}-${nowParts.day}`,
+        Number(nowParts.hour),
+        Number(nowParts.minute)
+      );
+
+    if (!Number.isFinite(leadMinutes) || leadMinutes < MIN_LEAD_MINUTES) {
+      console.log(
+        `[slots/offer] skipped: slot ${slotDate} ${slotHour}:00 is ${Math.round(leadMinutes)} min away (min ${MIN_LEAD_MINUTES})`
+      );
+      return Response.json({
+        success: true,
+        skipped: true,
+        reason: "past_or_too_soon",
+        sent: 0,
+      });
+    }
+
     // 3. Server-side toggle check (defense in depth — nothing sends when off).
     const { data: settingsRow } = await admin
-      .from("settings").select("gap_fill_enabled").eq("tenant_id", tenantId).maybeSingle();
+      .from("settings").select("gap_fill_enabled, business_name").eq("tenant_id", tenantId).maybeSingle();
     if (!settingsRow || settingsRow.gap_fill_enabled !== true) {
       return Response.json({ success: true, skipped: true, reason: "disabled", sent: 0 });
     }
+
+    // Attribution: a lapsed client receiving an unattributed link from an
+    // unknown number cannot tell this apart from spam. Falls back to a neutral
+    // word rather than leaking the product name on an unconfigured tenant.
+    const clinic = clinicName(settingsRow);
 
     // 4. Load this tenant's clients, appointment history, and active waitlist.
     const [{ data: clients }, { data: appts }, { data: waitlistRows }] = await Promise.all([
@@ -153,7 +209,7 @@ export async function POST(request) {
       const claimUrl = `${origin}/claim/${offer.token}`;
       const message =
         `שלום${cand.name ? ` ${cand.name}` : ""}! ✦\n` +
-        `התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}:00.\n` +
+        `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}:00.\n` +
         `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:\n${claimUrl}`;
 
       const res = await sendWhatsApp(cand.phone, message, {
