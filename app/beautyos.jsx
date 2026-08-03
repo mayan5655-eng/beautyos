@@ -398,6 +398,11 @@ export default function BeautyOS() {
   const [reelLoading, setReelLoading] = useState(false);
   const [reelError,   setReelError]   = useState(null);
   const [marketingView,  setMarketingView]  = useState("campaigns"); // campaigns | ai
+  // WhatsApp tab sub-views: the send tools, or the log of what was already sent.
+  const [waView,         setWaView]         = useState("send"); // send | log
+  const [waMessages,     setWaMessages]     = useState(null);   // null = not loaded yet
+  const [waLogLoading,   setWaLogLoading]   = useState(false);
+  const [waLogError,     setWaLogError]     = useState("");
   const [activeTab,         setActiveTab]          = useState("dashboard");
   const [clientTab,         setClientTab]          = useState("info");
   const [scanLoading,       setScanLoading]        = useState(false);
@@ -2864,6 +2869,29 @@ export default function BeautyOS() {
     }
   };
 
+  // The WhatsApp message log. /api/messages derives the tenant from the session
+  // cookie, so no tenant id is sent or needed - she can only ever read her own.
+  const loadWaMessages = async () => {
+    setWaLogLoading(true); setWaLogError("");
+    try {
+      const res = await fetch("/api/messages");
+      const data = await res.json();
+      if (data.success) setWaMessages(data.messages || []);
+      else setWaLogError(data.error || "טעינת ההודעות נכשלה");
+    } catch (err) {
+      setWaLogError(err.message || "טעינת ההודעות נכשלה");
+    }
+    setWaLogLoading(false);
+  };
+  // Hebrew labels for the message_type column. slot_offer and lead_bulk are
+  // written by the gap-fill and lead-template send paths.
+  const WA_TYPE_LABELS = {
+    reminder:"תזכורת", confirmation:"אישור הגעה", booking_confirm:"אישור תור",
+    owner_alert:"התראת תור", receipt:"קבלה", skin_report:"דוח עור",
+    skin_lead_alert:"ליד מהסורק", slot_offer:"הצעת תור", lead_bulk:"הודעה ללידים",
+    general:"כללי",
+  };
+
   const loadSavedCampaigns = async () => {
     try {
       const res = await fetch("/api/marketing/list");
@@ -4201,6 +4229,16 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>מרכז הודעות</h2>
  <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
 
+ {/* Sub-tabs: the send tools, or the log of everything already sent. */}
+ <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
+ <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:15,padding:3}}>
+ <button onClick={()=>setWaView("send")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:waView==="send"?pcGrad:"transparent",color:waView==="send"?"#fff":"var(--ink-2)"}}>שליחת הודעות</button>
+ <button onClick={()=>{setWaView("log");if(waMessages===null)loadWaMessages();}} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:waView==="log"?pcGrad:"transparent",color:waView==="log"?"#fff":"var(--ink-2)"}}>יומן הודעות</button>
+ </div>
+ </div>
+
+ {waView==="send"&&(<>
+
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:14,marginBottom:16}}>
                 {groups.map(g=>{
                   const withPhone=g.targets.filter(t=>t.phone);
@@ -4288,6 +4326,61 @@ export default function BeautyOS() {
                   setWaFreeMsg("");
                 }} className="wa-btn" style={{padding:"11px 16px",fontSize:11.5,width:"100%",justifyContent:"center"}}>✆ שלחי הודעה</button>
  </div>
+ </>)}
+
+ {/* Log of everything already sent, newest first. Read-only. */}
+ {waView==="log"&&(<>
+ <div className="glass-card" style={{padding:"16px 18px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+ <div>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>יומן הודעות</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:2}}>100 ההודעות האחרונות שנשלחו מהמערכת בשמך.</p>
+ </div>
+ <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"#fff",fontSize:11}}>{waLogLoading?"טוען...":"רענני"}</button>
+ </div>
+
+ {waLogError&&(
+ <div style={{background:"#FFFAF7",border:"1px solid #FFDAC1",borderRadius:14,padding:"12px 16px",marginBottom:14}}>
+ <p style={{fontSize:11.5,color:pc,fontWeight:600}}>{waLogError}</p>
+ </div>
+ )}
+
+ {waLogLoading&&waMessages===null&&<p style={{fontSize:11.5,color:"var(--ink-3)",textAlign:"center",padding:"26px 0"}}>טוען...</p>}
+
+ {!waLogLoading&&waMessages&&waMessages.length===0&&(
+ <div className="glass-card" style={{padding:"36px 20px",textAlign:"center"}}>
+ <p style={{fontSize:12,color:"var(--ink-3)"}}>עדיין לא נשלחו הודעות.</p>
+ </div>
+ )}
+
+ {waMessages&&waMessages.length>0&&(
+ <div className="glass-card" style={{overflow:"hidden"}}>
+ {/* Horizontal scroll on narrow phones so the six columns never crush. */}
+ <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+ <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
+ <thead>
+ <tr style={{background:"var(--pc-tint)",textAlign:"right"}}>
+                        {["שם","טלפון","סוג","סטטוס","תוכן","תאריך"].map(h=>(
+ <th key={h} style={{padding:"11px 13px",fontSize:9.5,color:"var(--ink-3)",fontWeight:600}}>{h}</th>
+                        ))}
+ </tr>
+ </thead>
+ <tbody>
+                      {waMessages.map((m,i)=>(
+ <tr key={m.id||i} style={{borderTop:"1px solid var(--line)",background:i%2===0?"var(--surface)":"var(--surface-2)"}}>
+ <td style={{padding:"10px 13px",fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{m.recipient_name||"—"}</td>
+ <td style={{padding:"10px 13px",fontSize:11,color:"var(--ink-2)",whiteSpace:"nowrap"}}>{m.recipient_phone}</td>
+ <td style={{padding:"10px 13px",fontSize:10}}><span className="pill" style={{background:"var(--pc-tint)",color:pc,padding:"3px 9px",fontWeight:600}}>{WA_TYPE_LABELS[m.message_type]||m.message_type}</span></td>
+ <td style={{padding:"10px 13px",fontSize:10,fontWeight:700,whiteSpace:"nowrap",color:m.status==="sent"?"var(--success)":"#C62828"}}>{m.status==="sent"?"✓ נשלח":"✕ נכשל"}</td>
+ <td style={{padding:"10px 13px",fontSize:11,color:"var(--ink-2)",maxWidth:300}}>{m.message_body}</td>
+ <td style={{padding:"10px 13px",fontSize:9.5,color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?new Date(m.created_at).toLocaleString("he-IL"):""}</td>
+ </tr>
+                      ))}
+ </tbody>
+ </table>
+ </div>
+ </div>
+ )}
+ </>)}
  </div>
  </>);
           })()}
