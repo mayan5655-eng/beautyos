@@ -66,9 +66,59 @@
   --grad-hero:  radial-gradient(120% 120% at 100% 0%, #F1E2F2 0%, #F8F5FB 46%, #FBFAFE 100%);
   --grad-sheen: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
 
-  /* — Runtime tenant accent (defaults set again in-app) — */
+  /* ============================================================
+     THEME TOKENS — two tiers, deliberately separate.
+
+     --brand-*  BloomOS identity. FIXED. Owns the logo, /login, /signup,
+                /reset-password, marketing and emails. A tenant can never
+                recolour these.
+     --pc-*     Tenant accent. SWITCHABLE from settings.primary_color.
+                Owns everything inside her app and her client-facing pages.
+
+     Rule of thumb: if a client reads it as HER business it is --pc-*;
+     if they read it as BloomOS it is --brand-*.
+
+     Everything below is additive. Values alias the existing palette, so
+     declaring them changes nothing until a screen opts in.
+     ============================================================ */
+
+  /* — BloomOS brand (fixed) — */
+  --brand-ink: #2A2233;              /* brand text */
+  --brand-accent: #5B3E67;           /* primary brand action */
+  --brand-accent-2: #7A5A88;         /* lighter partner */
+  --brand-deep: #4A3155;             /* deeper partner */
+  --brand-tint: #F1E2F2;             /* brand wash */
+  --brand-surface: #F8F5FB;          /* brand page background */
+  --brand-contrast: #FFFFFF;         /* readable ON --brand-accent */
+  --brand-grad: linear-gradient(135deg, #7A5A88 0%, #5B3E67 100%);
+  /* Current pre-auth accent on /login, /signup, /reset-password. Kept as a
+     token so those pages stop hardcoding it; the final value should be
+     sampled from the BloomOS logo when the rebrand palette is chosen. */
+  --brand-alt: #D4945A;
+
+  /* — Brand typography (aliases; the stacks live in --sans / --display) — */
+  --brand-font-display: var(--display);
+  --brand-font-sans: var(--sans);
+
+  /* — Runtime tenant accent —
+     Declared here so every page renders correctly with zero JS. The full
+     family is overwritten at runtime from settings.primary_color; these
+     defaults match the BloomOS brand accent so an unthemed page still
+     looks intentional. Derivation ratios (kept in sync with lib/theme):
+       --pc-2      lighten 22%     --pc-tint    lighten 90%
+       --pc-deep   darken  16%     --pc-tint-2  lighten 82%
+       --pc-soft   alpha 0.10      --pc-shadow  alpha 0.28          */
   --pc: #5B3E67;
+  --pc-2: #7D6489;
+  --pc-deep: #4C3457;
   --pc-tint: #F1E2F2;
+  --pc-tint-2: #E5D9EA;
+  --pc-soft: rgba(91, 62, 103, 0.10);
+  --pc-shadow: rgba(91, 62, 103, 0.28);
+  --pc-grad: linear-gradient(135deg, #7D6489 0%, #4C3457 100%);
+  /* Readable text ON the accent. Computed from the accent's luminance at
+     runtime, so a pale custom colour never yields white-on-pale. */
+  --pc-contrast: #FFFFFF;
 
   /* — Font stacks (via next/font vars, with graceful fallbacks) — */
   --sans: var(--font-inter), var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;

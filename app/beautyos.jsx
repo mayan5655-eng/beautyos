@@ -11,6 +11,7 @@ import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "
 import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
 import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
+import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -586,20 +587,8 @@ export default function BeautyOS() {
   const pc = (settings&&settings.primary_color)||"#5B3E67";
   // Derived theme shades from the chosen primary color, so the whole app
   // recolors when the cosmetician picks a color in settings.
-  const hexToRgb = (h) => {
-    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h || "");
-    return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : { r:91, g:62, b:103 };
-  };
-  const lighten = (h, amt) => {
-    const c = hexToRgb(h);
-    const f = (v) => Math.round(v + (255 - v) * amt);
-    return `#${[f(c.r),f(c.g),f(c.b)].map(x=>x.toString(16).padStart(2,"0")).join("")}`;
-  };
-  const darken = (h, amt) => {
-    const c = hexToRgb(h);
-    const f = (v) => Math.round(v * (1 - amt));
-    return `#${[f(c.r),f(c.g),f(c.b)].map(x=>x.toString(16).padStart(2,"0")).join("")}`;
-  };
+  // hexToRgb / lighten / darken now live in lib/theme.ts so every page can use
+  // the same derivation. Same maths, same output - see the imports at the top.
   const pcRgb = hexToRgb(pc);
   const pc2 = lighten(pc, 0.22);                 // lighter partner for gradients
   const pcDeep = darken(pc, 0.16);               // deeper partner for premium depth
@@ -688,17 +677,10 @@ export default function BeautyOS() {
       </div>
     </>
   );
-  // Push the active palette into CSS variables for the static <style> block
-  if (typeof document !== "undefined") {
-    const r = document.documentElement;
-    r.style.setProperty("--pc", pc);
-    r.style.setProperty("--pc-2", pc2);
-    r.style.setProperty("--pc-deep", pcDeep);
-    r.style.setProperty("--pc-tint", pcTint);
-    r.style.setProperty("--pc-tint-2", pcTint2);
-    r.style.setProperty("--pc-soft", pcSoft);
-    r.style.setProperty("--pc-shadow", pcShadow);
-  }
+  // Push the active palette into CSS variables for the static <style> block.
+  // Shared with every other page via lib/theme.ts, which also derives
+  // --pc-grad and --pc-contrast (readable text on the accent).
+  applyAccentTokens(pc);
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = useMemo(() => services.filter(s=>s.active!==false), [services]);
