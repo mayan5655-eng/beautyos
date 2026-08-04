@@ -110,7 +110,18 @@ export async function POST(request) {
 
     // 3. Server-side toggle check (defense in depth — nothing sends when off).
     const { data: settingsRow } = await admin
-      .from("settings").select("gap_fill_enabled, business_name").eq("tenant_id", tenantId).maybeSingle();
+      .from("settings").select("gap_fill_enabled, business_name, automations").eq("tenant_id", tenantId).maybeSingle();
+
+    // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
+    // Gap-fill fires automatically 6.5s after a delete with no further input,
+    // so it belongs under the master pause exactly like the reminder crons.
+    // Fails open: only a literal true pauses.
+    const autos = settingsRow?.automations;
+    if (autos && typeof autos === "object" && autos.paused === true) {
+      console.log(`[slots/offer] skipped: automations paused for tenant ${tenantId}`);
+      return Response.json({ success: true, skipped: true, reason: "automations_paused", sent: 0 });
+    }
+
     if (!settingsRow || settingsRow.gap_fill_enabled !== true) {
       return Response.json({ success: true, skipped: true, reason: "disabled", sent: 0 });
     }

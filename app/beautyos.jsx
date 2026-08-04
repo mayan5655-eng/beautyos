@@ -5653,8 +5653,13 @@ export default function BeautyOS() {
               {settingsTab==="automations"&&(()=>{
                 // Default-ON reminder flags: undefined (column never set) counts
                 // as ON, matching today's cron behavior. Only an explicit false
-                // turns them off. (Cron wiring is a separate step — these are
-                // settings only for now.)
+                // turns them off.
+                //
+                // These are live, not settings-only: send-reminders reads
+                // reminders_enabled, and send-smart-reminders reads
+                // winback_enabled, package_reminders_enabled and
+                // review_requests_enabled. The master pause below
+                // (automations.paused) gates all of them, plus gap-fill.
                 const onDefaultTrue=(k)=>!(editSettings[k]===false||editSettings[k]==="false");
                 // Preserve the existing default-OFF semantics for gap-fill and
                 // auto-receipt exactly as they were in the General tab.

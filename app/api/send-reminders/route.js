@@ -68,11 +68,32 @@ export async function POST(request) {
     const remindersEnabled = (tenantId) =>
       settingsByTenant[tenantId]?.reminders_enabled !== false;
 
+    // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
+    // A tenant-wide gate ON TOP of reminders_enabled - when it is on, nothing
+    // automated goes out for that tenant at all.
+    // Fails open: only a literal true pauses, so a missing column or a
+    // malformed JSONB value can never silently stop a paying tenant's messages.
+    const tenantPaused = (tenantId) => {
+      const autos = settingsByTenant[tenantId]?.automations;
+      return !!(autos && typeof autos === "object" && autos.paused === true);
+    };
+    // One log line per tenant per run, not per appointment.
+    const pausedLogged = new Set();
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
 
     // Send a reminder to each appointment, using its tenant's business name.
     const results = [];
     for (const appt of appointments) {
+      // Master pause first: it overrides the per-type toggle below.
+      if (tenantPaused(appt.tenant_id)) {
+        if (!pausedLogged.has(appt.tenant_id)) {
+          console.log(`[send-reminders] skipped: automations paused for tenant ${appt.tenant_id}`);
+          pausedLogged.add(appt.tenant_id);
+        }
+        results.push({ name: appt.name, status: "מושהה (השהיית אוטומציות)" });
+        continue;
+      }
       // Respect the tenant's "appointment reminders" automation toggle.
       if (!remindersEnabled(appt.tenant_id)) {
         results.push({ name: appt.name, status: "מושבת (הגדרות)" });

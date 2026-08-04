@@ -80,6 +80,18 @@ export async function POST(request) {
     // its flag is explicitly false. undefined/null (column absent or never set)
     // counts as ON, so behavior matches how the cron ran before the toggles
     // existed. Note: the birthday greeting has no toggle and always runs.
+    // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
+    // A tenant-wide gate ON TOP of the per-type toggles below - when it is on,
+    // nothing automated goes out for that tenant at all.
+    // Fails open: only a literal true pauses, so a missing column or a
+    // malformed JSONB value can never silently stop a paying tenant's messages.
+    const tenantPaused = (tenantId) => {
+      const autos = settingsByTenant[tenantId]?.automations;
+      return !!(autos && typeof autos === "object" && autos.paused === true);
+    };
+    // One log line per tenant per run, not per message.
+    const pausedLogged = new Set();
+
     const flagEnabled = (tenantId, flag) =>
       settingsByTenant[tenantId]?.[flag] !== false;
 
@@ -94,6 +106,17 @@ export async function POST(request) {
 
     // Helper: send (or preview) one reminder + log it
     async function handleReminder(client, type, referenceId, message) {
+      // Master pause beats everything, including the birthday greeting, which
+      // has no per-type toggle of its own. Every send path routes through this
+      // helper, so one check here covers all four reminder types.
+      if (client && tenantPaused(client.tenant_id)) {
+        if (!pausedLogged.has(client.tenant_id)) {
+          console.log(`[send-smart-reminders] skipped: automations paused for tenant ${client.tenant_id}`);
+          pausedLogged.add(client.tenant_id);
+        }
+        results[type].push({ name: client.name || "?", status: "מושהה (השהיית אוטומציות)" });
+        return;
+      }
       if (!client || !client.phone) {
         results[type].push({ name: client?.name || "?", status: "אין טלפון" });
         return;
