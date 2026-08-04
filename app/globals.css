@@ -61,7 +61,8 @@
   --shadow-glow: 0 14px 40px rgba(122, 90, 136, 0.28);
 
   /* — Signature gradients — */
-  --grad-brand: linear-gradient(135deg, #7A5A88 0%, #5B3E67 100%);
+  /* Purple → pink, exactly like the wordmark. No consumers yet. */
+  --grad-brand: linear-gradient(135deg, #4A2E5A 0%, #D28697 100%);
   --grad-lav:   linear-gradient(135deg, #F1E2F2 0%, #E8C9E9 100%);
   --grad-hero:  radial-gradient(120% 120% at 100% 0%, #F1E2F2 0%, #F8F5FB 46%, #FBFAFE 100%);
   --grad-sheen: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
@@ -82,19 +83,22 @@
      declaring them changes nothing until a screen opts in.
      ============================================================ */
 
-  /* — BloomOS brand (fixed) — */
-  --brand-ink: #2A2233;              /* brand text */
-  --brand-accent: #5B3E67;           /* primary brand action */
-  --brand-accent-2: #7A5A88;         /* lighter partner */
-  --brand-deep: #4A3155;             /* deeper partner */
-  --brand-tint: #F1E2F2;             /* brand wash */
-  --brand-surface: #F8F5FB;          /* brand page background */
+  /* — BloomOS brand (fixed) —
+     Sampled from the BloomOS logo: a deep-purple "Bloom" wordmark, a
+     purple-to-pink "OS", and watercolor florals in lilac, rose and blush. */
+  --brand-accent: #4A2E5A;           /* deep purple — the "Bloom" wordmark */
+  --brand-deep: #301848;             /* darkest purple — headings */
+  --brand-rose: #D28697;             /* pink — "OS" gradient start */
+  --brand-rose-2: #C07890;           /* deeper pink — "OS" gradient end */
+  --brand-lilac: #BB84A7;            /* lavender/lilac flowers */
+  --brand-cosmos: #D890A8;           /* rose cosmos accent */
+  --brand-tint: #EDE4F5;             /* soft lavender wash */
+  --brand-surface: #FAF6FC;          /* near-white lavender — cards */
+  --brand-blush: #FADDCF;            /* watercolor blush — florals */
+  --brand-cream: #FEFAF7;            /* cream — page background */
+  --brand-muted: #98879B;            /* muted text — taglines */
   --brand-contrast: #FFFFFF;         /* readable ON --brand-accent */
-  --brand-grad: linear-gradient(135deg, #7A5A88 0%, #5B3E67 100%);
-  /* Current pre-auth accent on /login, /signup, /reset-password. Kept as a
-     token so those pages stop hardcoding it; the final value should be
-     sampled from the BloomOS logo when the rebrand palette is chosen. */
-  --brand-alt: #D4945A;
+  --brand-grad: linear-gradient(135deg, #4A2E5A 0%, #D28697 100%);
 
   /* — Brand typography (aliases; the stacks live in --sans / --display) — */
   --brand-font-display: var(--display);
