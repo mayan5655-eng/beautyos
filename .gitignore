@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local dev-only startup guard: suppresses a TLS-interception crash caused by
+# antivirus/proxy on some dev machines. Never deployed - see instrumentation.node.ts.
+instrumentation.ts
+instrumentation.node.ts
