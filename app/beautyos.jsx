@@ -12,7 +12,7 @@ import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from 
 import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
-import { LOGO_COMPACT } from "@/lib/brand";
+import { LOGO_COMPACT, BRAND_WASH } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -2924,6 +2924,18 @@ export default function BeautyOS() {
 
   // Primary navigation – matches the mockup's right-hand sidebar.
   // Each item maps to an existing activeTab id, so no logic changes.
+  // Floral density per tab. The login page is the reference: a full, rich
+  // watercolor wash. Sparse screens match it exactly; screens dominated by
+  // tables and grids sit lower so rows stay readable through the blossoms -
+  // clearly visible, not barely there.
+  const DENSE_TABS = ["calendar", "cashier", "leads", "tax", "clients"];
+  const SPARSE_TABS = ["dashboard", "insights", "advisor", "community"];
+  const floralOpacity = SPARSE_TABS.includes(activeTab)
+    ? 1        // same as /login
+    : DENSE_TABS.includes(activeTab)
+      ? 0.58   // readable through, but the flowers clearly read as flowers
+      : 0.8;   // everything else sits between the two
+
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
     {id:"insights", label:"תובנות"},
@@ -2961,8 +2973,11 @@ export default function BeautyOS() {
   };
 
   return (
- <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:"var(--bg)",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
- <FloralCorners idPrefix="app" fixed zIndex={1} blush={pc} gold={pcDeep} />
+ <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:BRAND_WASH,backgroundAttachment:"fixed",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
+                {/* skipTop: no background blossom lands behind the header, so
+                    the flowers in the BloomOS logo are the only ones there and
+                    nothing competes with them. */}
+ <FloralCorners idPrefix="app" fixed zIndex={1} blush={pc} gold={pcDeep} skipTop opacity={floralOpacity} />
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}
@@ -3045,8 +3060,12 @@ export default function BeautyOS() {
              context above the content — but keep it below modals/drawers/toasts
              (>=1000) so those still overlay the header as before. */
           .app-header{position:relative!important;z-index:100!important}
-          .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:hidden}
-          .hdr-logo{height:30px!important}
+          /* overflow stays visible: the logo's petals reach the edge of the
+             artwork and must never be cropped by this container. */
+          .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:visible}
+          /* Width-driven, matching /login: overriding height here would fight
+             the aspect ratio the artwork sets. */
+          .hdr-logo{width:140px!important;margin-inline-end:8px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -3343,13 +3362,21 @@ export default function BeautyOS() {
 
       {/* OMBRE PROMO BAR */}
       {/* HEADER */}
- <header className="app-header" style={{background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)"}}>
+ <header className="app-header" style={{background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)",overflow:"visible"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
                 {/* Compact BloomOS lockup: florals + wordmark, no tagline.
                     Brand tier, so it never takes the tenant accent. Intrinsic
                     520x177 with the height capped, so the ratio holds. */}
- <img className="hdr-logo" src={LOGO_COMPACT} alt="BloomOS" width={520} height={177} style={{height:42,width:"auto",display:"block"}}/>
+                {/* Matches the /login treatment exactly: width-driven sizing so
+                    the artwork sets its own ratio, the same drop-shadow that
+                    makes it float there, and its own breathing room rather than
+                    sitting flush against the menu button. No wrapper box, no
+                    background, no overflow - the petals reach the edge of the
+                    artwork and must never be cropped. */}
+ <img className="hdr-logo" src={LOGO_COMPACT} alt="BloomOS" width={520} height={177}
+      style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
+              marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
  </div>

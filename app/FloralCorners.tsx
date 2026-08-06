@@ -113,9 +113,16 @@ export default function FloralCorners({
   blush,
   gold,
   opacity = 1,
+  skipTop = false,
 }: {
   idPrefix?: string;
   fixed?: boolean;
+  /**
+   * Drop the pieces that sit in the top band of the screen. Used by the app
+   * shell so no background blossom lands behind the header, where it would
+   * compete with the flowers in the BloomOS logo itself.
+   */
+  skipTop?: boolean;
   /**
    * Stacking position of the decorative layer.
    *   -1  → behind everything (good when the host has a large exposed
@@ -174,7 +181,13 @@ export default function FloralCorners({
         </defs>
       </svg>
 
-      {PIECES.map((p, i) => {
+      {PIECES.filter((p) => {
+        if (!skipTop) return true;
+        // Anything anchored within the top ~18% of the screen would sit behind
+        // the header. Pieces anchored from the bottom are always kept.
+        if (p.top === undefined) return true;
+        return parseFloat(p.top) > 18;
+      }).map((p, i) => {
         const w = `clamp(${Math.round(p.size * 0.5)}px, ${(p.size / 9).toFixed(1)}vw, ${p.size}px)`;
         return (
           <svg
