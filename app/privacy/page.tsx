@@ -6,6 +6,9 @@
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 
+// Legal pages are BloomOS documents, not a tenant's: brand tier, never --pc-*.
+import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
+
 export const metadata: Metadata = {
   title: "מדיניות פרטיות · BloomOS",
   description: "מדיניות הפרטיות של BloomOS — Beauty Business OS",
@@ -152,29 +155,29 @@ function Email() {
 // === Styles (quiet-luxury, warm neutrals, serif headings) ===
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #FAF7F5 0%, #F3EEE9 100%)",
+  background: BRAND_WASH_SOFT,
   padding: "48px 18px",
   display: "flex",
   justifyContent: "center",
   fontFamily: "var(--font-heebo), 'Heebo', 'Assistant', sans-serif",
-  color: "#2C1A1A",
+  color: DEEP,
 };
 
 const cardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 760,
-  background: "#fff",
+  background: SURFACE,
   borderRadius: 20,
   padding: "44px 40px",
-  border: "1px solid #E8DED6",
-  boxShadow: "0 14px 44px rgba(44,26,26,0.06), 0 2px 8px rgba(44,26,26,0.03)",
+  border: `1px solid ${ACCENT_LINE}`,
+  boxShadow: `0 14px 44px ${DEEP_SHADOW}, 0 2px 8px rgba(48,24,72,0.04)`,
 };
 
 const brandStyle: CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   letterSpacing: 2,
-  color: "#B4A79C",
+  color: MUTED,
   marginBottom: 10,
 };
 
@@ -182,7 +185,7 @@ const titleStyle: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
   fontSize: 38,
   fontWeight: 600,
-  color: "#1C1C1C",
+  color: DEEP,
   lineHeight: 1.2,
   marginBottom: 4,
 };
@@ -190,21 +193,21 @@ const titleStyle: CSSProperties = {
 const enSubtitleStyle: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
   fontSize: 17,
-  color: "#9A8F86",
+  color: MUTED,
   letterSpacing: 0.5,
 };
 
 const sectionStyle: CSSProperties = {
   paddingTop: 24,
   marginTop: 24,
-  borderTop: "1px solid #EFE7DF",
+  borderTop: `1px solid ${ACCENT_LINE}`,
 };
 
 const h2Style: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
   fontSize: 22,
   fontWeight: 600,
-  color: "#1C1C1C",
+  color: DEEP,
   marginBottom: 2,
 };
 
@@ -213,26 +216,26 @@ const enHeadingStyle: CSSProperties = {
   fontWeight: 600,
   letterSpacing: 0.8,
   textTransform: "uppercase",
-  color: "#B4A79C",
+  color: MUTED,
   marginBottom: 12,
 };
 
 const heBodyStyle: CSSProperties = {
   fontSize: 14.5,
   lineHeight: 1.9,
-  color: "#5C534C",
+  color: DEEP,
   marginBottom: 10,
 };
 
 const enBodyStyle: CSSProperties = {
   fontSize: 13.5,
   lineHeight: 1.85,
-  color: "#8A8079",
+  color: MUTED,
   textAlign: "left",
 };
 
 const emailStyle: CSSProperties = {
-  color: "#C08A5E",
+  color: ACCENT,
   fontWeight: 600,
   textDecoration: "none",
   display: "inline-block",
@@ -241,8 +244,8 @@ const emailStyle: CSSProperties = {
 const footerStyle: CSSProperties = {
   marginTop: 34,
   paddingTop: 20,
-  borderTop: "1px solid #EFE7DF",
+  borderTop: `1px solid ${ACCENT_LINE}`,
   fontSize: 12,
-  color: "#9A8F86",
+  color: MUTED,
   textAlign: "center",
 };
