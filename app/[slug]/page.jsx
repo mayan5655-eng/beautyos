@@ -23,7 +23,7 @@ function lighten(hex, amount) {
     const nb = Math.round(b + (255 - b) * amount);
     return `rgb(${nr}, ${ng}, ${nb})`;
   } catch {
-    return "#FFF0F6";
+    return "var(--pc-tint, #EDE7F0)";
   }
 }
 
@@ -75,7 +75,7 @@ export default function LandingPage() {
     }
   };
 
-  const pc = settings?.primary_color || "#E91E63";
+  const pc = settings?.primary_color || "#4A2E5A";
   const businessName = settings?.business_name || tenant?.name || "";
   const therapistName = settings?.therapist_name || "";
   const bgSoft = lighten(pc, 0.92);
@@ -85,7 +85,7 @@ export default function LandingPage() {
   // === LOADING ===
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "#FFF0F6", fontSize: 18, color: "#E91E63" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--pc-tint, #EDE7F0)", fontSize: 18, color: "#4A2E5A" }}>
         טוען... 💗
       </div>
     );
@@ -94,10 +94,10 @@ export default function LandingPage() {
   // === NOT FOUND ===
   if (notFound) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "#FAFAFA", textAlign: "center", padding: 20 }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🤔</div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: "#333", marginBottom: 8 }}>הדף לא נמצא</h1>
-        <p style={{ fontSize: 14, color: "#888" }}>הכתובת שחיפשת לא קיימת. בדקי שהקישור נכון.</p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 8 }}>הדף לא נמצא</h1>
+        <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)" }}>הכתובת שחיפשת לא קיימת. בדקי שהקישור נכון.</p>
       </div>
     );
   }
@@ -120,30 +120,30 @@ export default function LandingPage() {
 
         {/* HERO */}
         <div className="ld-in" style={{ textAlign: "center", padding: "50px 0 30px" }}>
-          <div style={{ width: 88, height: 88, borderRadius: "50%", background: pc, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, margin: "0 auto 16px", boxShadow: `0 8px 28px ${pc}55`, color: "#fff", fontWeight: 800 }}>
+          <div style={{ width: 88, height: 88, borderRadius: "50%", background: pc, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, margin: "0 auto 16px", boxShadow: `0 8px 28px ${pc}55`, color: "var(--brand-surface, #FAF6FC)", fontWeight: 800 }}>
             {businessName ? businessName[0] : "💗"}
           </div>
           <h1 style={{ fontSize: 30, fontWeight: 900, color: pc, marginBottom: 6 }}>{businessName}</h1>
-          {therapistName && <p style={{ fontSize: 15, color: "#666", fontWeight: 500 }}>{therapistName}</p>}
+          {therapistName && <p style={{ fontSize: 15, color: "var(--ink, #2A2233)", fontWeight: 500 }}>{therapistName}</p>}
         </div>
 
         {/* BOOK CTA (top) */}
-        <a href={bookUrl} className="ld-cta" style={{ display: "block", textDecoration: "none", textAlign: "center", background: pc, color: "#fff", padding: "16px 0", borderRadius: 16, fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55`, marginBottom: 30 }}>
+        <a href={bookUrl} className="ld-cta" style={{ display: "block", textDecoration: "none", textAlign: "center", background: pc, color: "var(--brand-surface, #FAF6FC)", padding: "16px 0", borderRadius: 16, fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55`, marginBottom: 30 }}>
           ✨ לקביעת תור
         </a>
 
         {/* SERVICES */}
         {services.length > 0 && (
           <div className="ld-in">
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: "#3A2A30", marginBottom: 14, textAlign: "center" }}>הטיפולים שלנו</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 14, textAlign: "center" }}>הטיפולים שלנו</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {services.map((s, i) => (
-                <div key={i} className="ld-svc" style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div key={i} className="ld-svc" style={{ background: "var(--brand-surface, #FAF6FC)", borderRadius: 16, padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 14, height: 14, borderRadius: "50%", background: s.color || pc, flexShrink: 0 }} />
                     <div>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: "#3A2A30" }}>{s.name}</p>
-                      <p style={{ fontSize: 12, color: "#999" }}>{s.duration || 60} דקות</p>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: "var(--ink, #2A2233)" }}>{s.name}</p>
+                      <p style={{ fontSize: 12, color: "var(--brand-muted, #98879B)" }}>{s.duration || 60} דקות</p>
                     </div>
                   </div>
                   <p style={{ fontSize: 18, fontWeight: 800, color: pc }}>₪{s.price}</p>
@@ -154,14 +154,14 @@ export default function LandingPage() {
         )}
 
         {/* BOOK CTA (bottom) */}
-        <a href={bookUrl} className="ld-cta" style={{ display: "block", textDecoration: "none", textAlign: "center", background: pc, color: "#fff", padding: "16px 0", borderRadius: 16, fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55`, marginTop: 30 }}>
+        <a href={bookUrl} className="ld-cta" style={{ display: "block", textDecoration: "none", textAlign: "center", background: pc, color: "var(--brand-surface, #FAF6FC)", padding: "16px 0", borderRadius: 16, fontSize: 17, fontWeight: 800, boxShadow: `0 8px 22px ${pc}55`, marginTop: 30 }}>
           ✨ קבעי תור עכשיו
         </a>
 
       </div>
 
       {/* FOOTER */}
-      <div style={{ marginTop: "auto", padding: "20px 0 24px", fontSize: 11, color: "#BBB" }}>
+      <div style={{ marginTop: "auto", padding: "20px 0 24px", fontSize: 11, color: "var(--brand-muted, #98879B)" }}>
         מופעל ע"י BloomOS 💎
       </div>
     </div>

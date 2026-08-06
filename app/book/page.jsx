@@ -137,7 +137,7 @@ export default function BookPage() {
     }
   };
 
-  const pc = brand?.primary || settings?.primary_color || "#B08D74";
+  const pc = brand?.primary || settings?.primary_color || "#4A2E5A";
   const deep = brand?.deep || pc;
 
   // === Build next 14 available days (respecting per-day business_hours) ===
@@ -199,7 +199,7 @@ export default function BookPage() {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "#FBF8F5", fontSize: 15, letterSpacing: "1px", color: pc }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize: 15, letterSpacing: "1px", color: pc }}>
         ✦ טוען
       </div>
     );
@@ -208,10 +208,10 @@ export default function BookPage() {
   // Invalid / missing tenant - show a friendly message instead of the wrong data
   if (tenantError) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, #FBF8F5 0%, #F3ECE7 100%)", padding: 24, textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 16, color: "#C0917F" }}>✦</div>
-        <h1 className="serif" style={{ fontSize: 23, fontWeight: 600, color: "#8A6F62", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
-        <p style={{ fontSize: 14, color: "#9A8E86", maxWidth: 320, lineHeight: 1.7 }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 16, color: "var(--pc, #4A2E5A)" }}>✦</div>
+        <h1 className="serif" style={{ fontSize: 23, fontWeight: 600, color: "var(--brand-muted, #98879B)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
+        <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", maxWidth: 320, lineHeight: 1.7 }}>
           נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
         </p>
       </div>
@@ -242,7 +242,7 @@ export default function BookPage() {
   const recentPosts = (posts || []).slice(0, 5);
   const postTypeLabel = (t) => (t === "offer" ? "מבצע" : t === "tip" ? "טיפ" : "עדכון");
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
-  const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "#7BA88E" : faint);
+  const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
 
   const goToServices = () => {
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
@@ -250,13 +250,13 @@ export default function BookPage() {
   };
 
   // === refined style tokens (premium / luxury visual layer) ===
-  const ink = "#3E3439";
-  const muted = "#8C8188";
-  const faint = "#A99EA3";
-  const hair = "#EEE6E1";
-  const cream = "#FBF7F4";
+  const ink = "var(--ink, #2A2233)";
+  const muted = "var(--brand-muted, #98879B)";
+  const faint = "var(--brand-muted, #98879B)";
+  const hair = "rgba(74,46,90,0.14)";
+  const cream = "var(--brand-cream, #FEFAF7)";
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 26 };
-  const cardBox = { background: "#fff", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
+  const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
   const eyebrow = (text) => (
     <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
       <span style={{ width: 22, height: 1.5, background: pc, opacity: 0.55, borderRadius: 2 }} />
@@ -264,11 +264,11 @@ export default function BookPage() {
     </div>
   );
   const qaBtn = { border: "none", borderRadius: 999, padding: "12px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "0.4px", textDecoration: "none" };
-  const qaOutline = { ...qaBtn, background: "#fff", color: ink, border: `1px solid ${pc}3D`, boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" };
-  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "#fff", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
+  const qaOutline = { ...qaBtn, background: "var(--brand-surface, #FAF6FC)", color: ink, border: `1px solid ${pc}3D`, boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" };
+  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,#FBF8F5 0%,#F5EEE9 55%,#FBF9F7 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       {/* Subtle brand-tinted floral watermark, behind all content */}
       <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.9} />
       <style>{`
@@ -313,7 +313,7 @@ export default function BookPage() {
 
           {/* HEADER (logo overlaps cover) */}
           <div style={{ ...section, marginTop: -54, textAlign: "center" }}>
-            <div style={{ width: 96, height: 96, borderRadius: "50%", background: "#fff", boxShadow: "0 14px 32px -14px rgba(70,50,60,0.4)", margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${pc}33`, outline: "4px solid #fff" }}>
+            <div style={{ width: 96, height: 96, borderRadius: "50%", background: "var(--brand-surface, #FAF6FC)", boxShadow: "0 14px 32px -14px rgba(70,50,60,0.4)", margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${pc}33`, outline: "4px solid var(--brand-surface, #FAF6FC)" }}>
               {brand?.logoUrl ? (
                 <img src={brand.logoUrl} alt={bizName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
@@ -322,8 +322,8 @@ export default function BookPage() {
             </div>
             <h1 className="serif" style={{ fontSize: 27, fontWeight: 600, color: deep, marginBottom: 8, letterSpacing: "0.3px", lineHeight: 1.25 }}>{bizName}</h1>
             {brand?.welcomeMessage && <p style={{ fontSize: 13.5, color: muted, fontWeight: 400, marginBottom: 14, lineHeight: 1.7, maxWidth: 380, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: openNow ? "#EEF5F0" : "#F6ECEA", color: openNow ? "#2E7D50" : "#B25B52", padding: "5px 14px", borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: "0.6px" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: openNow ? "#3EA76B" : "#CE8A82" }} />
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: openNow ? "rgba(70,179,123,0.10)" : "var(--pc-tint, #EDE7F0)", color: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)", padding: "5px 14px", borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: "0.6px" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)" }} />
               {openNow ? "פתוח עכשיו" : "סגור עכשיו"}
             </div>
           </div>
@@ -331,8 +331,8 @@ export default function BookPage() {
           {/* QUICK ACTIONS */}
           <div style={{ ...section }}>
             <div style={{ display: "flex", gap: 9, justifyContent: "center", flexWrap: "wrap" }}>
-              <button onClick={goToServices} className="qa" style={{ ...qaBtn, background: pc, color: "#fff", boxShadow: `0 12px 26px -14px ${pc}` }}>{brand?.ctaLabel || "קביעת תור"}</button>
-              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="qa" style={{ ...qaBtn, background: "#25D366", color: "#fff", boxShadow: "0 12px 26px -14px rgba(37,211,102,0.85)" }}>וואטסאפ</a>}
+              <button onClick={goToServices} className="qa" style={{ ...qaBtn, background: pc, color: "var(--brand-surface, #FAF6FC)", boxShadow: `0 12px 26px -14px ${pc}` }}>{brand?.ctaLabel || "קביעת תור"}</button>
+              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="qa" style={{ ...qaBtn, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", boxShadow: "0 12px 26px -14px rgba(37,211,102,0.85)" }}>וואטסאפ</a>}
               {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" className="qa" style={qaOutline}>ניווט</a>}
               {phoneRaw && <a href={`tel:${phoneRaw}`} className="qa" style={qaOutline}>התקשרי</a>}
             </div>
@@ -343,7 +343,7 @@ export default function BookPage() {
             <div style={{ ...section }}>
               <div style={cardBox}>
                 {eyebrow("אודות")}
-                <p style={{ fontSize: 14, color: "#635A60", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
               </div>
             </div>
           )}
@@ -357,8 +357,8 @@ export default function BookPage() {
                 const today = d === now.getDay();
                 return (
                   <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius: 10, background: today ? `${pc}0D` : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
-                    <span style={{ fontSize: 13.5, color: today ? deep : "#6B626A", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
-                    <span style={{ fontSize: 13.5, color: v ? (today ? deep : "#5A515A") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
+                    <span style={{ fontSize: 13.5, color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
+                    <span style={{ fontSize: 13.5, color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
                   </div>
                 );
               })}
@@ -412,7 +412,7 @@ export default function BookPage() {
                       <div style={{ fontSize: 13.5, color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
                         {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
-                      {rv.text && <p className="serif" style={{ fontSize: 14.5, color: "#5A515A", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
+                      {rv.text && <p className="serif" style={{ fontSize: 14.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
                       {rv.name && <p style={{ fontSize: 11.5, fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
                     </div>
                   ))}
@@ -442,7 +442,7 @@ export default function BookPage() {
             <div style={{ ...section }}>
               <div style={cardBox}>
                 {eyebrow("מיקום")}
-                <p style={{ fontSize: 14, color: "#635A60", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
+                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
                 {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: `${pc}10`, color: deep, textDecoration: "none", padding: "11px 20px", borderRadius: 999, fontSize: 13, fontWeight: 600, letterSpacing: "0.4px", border: `1px solid ${pc}30` }}>ניווט במפות Google</a>}
               </div>
             </div>
@@ -456,7 +456,7 @@ export default function BookPage() {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                   {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
                   {socials.map((s) => (
-                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("#fff", deep, pc)}>{s.label}</a>
+                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FAF6FC)", deep, pc)}>{s.label}</a>
                   ))}
                 </div>
               </div>
@@ -478,7 +478,7 @@ export default function BookPage() {
                       )}
                       <div style={{ padding: "15px 17px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
                             {postTypeLabel(p.post_type)}
                           </span>
                           <span style={{ fontSize: 10, color: faint, letterSpacing: "0.3px" }}>
@@ -486,15 +486,15 @@ export default function BookPage() {
                           </span>
                         </div>
                         {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
-                        {p.body && <p style={{ fontSize: 13.5, color: "#635A60", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.body && <p style={{ fontSize: 13.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                         {p.cta_label && (
                           wa ? (
                             <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
-                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
                               {p.cta_label}
                             </a>
                           ) : (
-                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "#fff", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
                               {p.cta_label}
                             </span>
                           )
@@ -510,7 +510,7 @@ export default function BookPage() {
           {/* Primary book CTA at the bottom too */}
           {services.length > 0 && (
             <div style={{ ...section, marginTop: 2 }}>
-              <button onClick={goToServices} className="bk-btn" style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "#fff", fontSize: 15, fontWeight: 600, letterSpacing: "1px", boxShadow: `0 16px 34px -18px ${pc}` }}>
+              <button onClick={goToServices} className="bk-btn" style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, letterSpacing: "1px", boxShadow: `0 16px 34px -18px ${pc}` }}>
                 {brand?.ctaLabel || "קביעת תור"}
               </button>
             </div>
@@ -556,7 +556,7 @@ export default function BookPage() {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
                       <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedHour(null); }}
-                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius: 16, textAlign: "center", background: isSel ? pc : "#fff", color: isSel ? "#fff" : ink, boxShadow: isSel ? `0 10px 24px -12px ${pc}` : "0 6px 16px -12px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius: 16, textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? `0 10px 24px -12px ${pc}` : "0 6px 16px -12px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize: 10, fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
                         <p style={{ fontSize: 9, opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
@@ -575,7 +575,7 @@ export default function BookPage() {
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedHour(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius: 12, fontSize: 14, fontWeight: 600, background: taken ? "#F1EAE6" : isSel ? pc : "#fff", color: taken ? faint : isSel ? "#fff" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "0 4px 12px -8px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius: 12, fontSize: 14, fontWeight: 600, background: taken ? "var(--brand-cream, #FEFAF7)" : isSel ? pc : "var(--brand-surface, #FAF6FC)", color: taken ? faint : isSel ? "var(--brand-surface, #FAF6FC)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "0 4px 12px -8px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {h}:00
                           </button>
                         );
@@ -583,7 +583,7 @@ export default function BookPage() {
                     </div>
                     {selectedHour !== null && (
                       <button onClick={() => setStep(3)} className="bk-btn"
-                        style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "#fff", fontSize: 15, fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow: `0 16px 34px -18px ${pc}` }}>
+                        style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow: `0 16px 34px -18px ${pc}` }}>
                         המשך ←
                       </button>
                     )}
@@ -619,14 +619,14 @@ export default function BookPage() {
 
                 <p style={{ fontSize: 10.5, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 10 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff", marginBottom: 14 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 14 }} />
 
-                {errorMsg && <p style={{ color: "#C0685E", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
+                {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
-                  style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "#fff", fontSize: 16, fontWeight: 600, letterSpacing: "0.8px", boxShadow: `0 16px 36px -18px ${pc}` }}>
+                  style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600, letterSpacing: "0.8px", boxShadow: `0 16px 36px -18px ${pc}` }}>
                   {submitting ? "קובע תור..." : (brand?.ctaLabel || "קביעת תור")}
                 </button>
               </div>
@@ -637,7 +637,7 @@ export default function BookPage() {
               <div className="bk-card" style={{ textAlign: "center", paddingTop: 24 }}>
                 <div style={{ fontSize: 48, marginBottom: 14, color: pc }}>✦</div>
                 <h2 className="serif" style={{ fontSize: 26, fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
-                <p style={{ fontSize: 14, color: "#635A60", lineHeight: 1.7, marginBottom: 22 }}>
+                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
                   נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {selectedHour}:00
                 </p>
                 <div style={{ background: cream, borderRadius: 18, padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
@@ -645,7 +645,7 @@ export default function BookPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 13, color: muted }}>שם</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: muted }}>טלפון</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "#fff", textDecoration: "none", padding: "12px 22px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}>💬 שלחי לנו הודעה</a>}
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "12px 22px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}>💬 שלחי לנו הודעה</a>}
                 <p style={{ fontSize: 12, color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>
             )}
