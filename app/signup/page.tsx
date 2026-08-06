@@ -2,10 +2,32 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { supabase } from '../supabase'
 import FloralCorners from '../FloralCorners'
 
-const GOLD = '#D4945A'
+// Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
+// tenant until after signup, so every value reads --brand-*, never --pc-*.
+const ACCENT = 'var(--brand-accent, #4A2E5A)'
+const ROSE = 'var(--brand-rose, #D28697)'
+const CREAM = 'var(--brand-cream, #FEFAF7)'
+const TINT = 'var(--brand-tint, #EDE4F5)'
+const SURFACE = 'var(--brand-surface, #FAF6FC)'
+const MUTED = 'var(--brand-muted, #98879B)'
+const DEEP = 'var(--brand-deep, #301848)'
+const GRAD = 'var(--brand-grad, linear-gradient(135deg, #4A2E5A 0%, #D28697 100%))'
+
+// Alpha shades of --brand-accent / --brand-deep. Written literally because
+// inline styles cannot take the alpha channel of a var().
+const ACCENT_LINE = 'rgba(74,46,90,0.14)'
+const ACCENT_LINE_2 = 'rgba(74,46,90,0.18)'
+const ACCENT_RING = 'rgba(74,46,90,0.16)'
+const DEEP_SHADOW = 'rgba(48,24,72,0.22)'
+
+// Matches /login. Full lockup: florals, wordmark, tagline. 760x394.
+const LOGO_SRC = '/bloomos-logo-full.png'
+const LOGO_W = 760
+const LOGO_H = 394
 
 export default function SignupPage() {
   const [businessName, setBusinessName] = useState('')
@@ -68,23 +90,28 @@ export default function SignupPage() {
       <FloralCorners idPrefix="signup" />
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
         @keyframes signupIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
         .signup-card { animation: signupIn 0.4s ease-out; }
         .signup-input:focus {
-          border-color: ${GOLD} !important;
+          border-color: ${ACCENT} !important;
           background: #fff !important;
-          box-shadow: 0 0 0 3px rgba(212,148,90,0.14) !important;
+          box-shadow: 0 0 0 3px ${ACCENT_RING} !important;
         }
-        .signup-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(212,148,90,0.35); }
+        .signup-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 18px 36px -14px ${DEEP_SHADOW}; }
         .signup-link:hover { text-decoration: underline; }
       `}</style>
 
       <div className="signup-card" style={cardStyle}>
-        {/* Brand */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <h1 style={wordmarkStyle}>BloomOS</h1>
-          <p style={taglineStyle}>מערכת ההפעלה לעסקי היופי</p>
+        {/* Brand — the logo lockup already carries the wordmark and tagline. */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+          <Image
+            src={LOGO_SRC}
+            alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
+            width={LOGO_W}
+            height={LOGO_H}
+            priority
+            style={logoStyle}
+          />
         </div>
 
         {/* Welcome */}
@@ -93,6 +120,13 @@ export default function SignupPage() {
           <p style={welcomeSubtitleStyle}>
             פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד.
           </p>
+          {/* Hairline with a rose glyph, echoing the lotus mark in the logo.
+              Matches the same divider on /login. */}
+          <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
+            <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
+            <span style={{ color: ROSE, fontSize: 12, lineHeight: 1 }}>✦</span>
+            <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
+          </div>
         </div>
 
         <form onSubmit={handleSignup}>
@@ -193,43 +227,32 @@ const pageStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: 'linear-gradient(180deg, #FBF7F4 0%, #F4ECE6 58%, #FBF9F7 100%)',
-  fontFamily: "'Assistant', system-ui, -apple-system, sans-serif",
+  background: `radial-gradient(120% 90% at 50% 22%, ${CREAM} 0%, ${CREAM} 38%, ${TINT} 100%)`,
+  fontFamily: 'var(--sans)',
   padding: 20,
 }
 
 const cardStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 1,
-  background: '#fff',
-  padding: '42px 40px',
-  borderRadius: 24,
-  boxShadow: '0 26px 64px -32px rgba(120,90,70,0.34), 0 4px 14px rgba(0,0,0,0.04)',
-  border: '1px solid #EFE6DF',
+  background: SURFACE,
+  padding: '38px 40px 42px',
+  borderRadius: 28,
+  boxShadow: `0 26px 64px -32px ${DEEP_SHADOW}, 0 4px 14px rgba(48,24,72,0.05)`,
+  border: `1px solid ${ACCENT_LINE}`,
   width: '100%',
   maxWidth: 430,
 }
 
-const wordmarkStyle: React.CSSProperties = {
-  margin: 0,
-  color: GOLD,
-  fontSize: 34,
-  fontWeight: 600,
-  letterSpacing: '2px',
-  fontFamily: "'Frank Ruhl Libre', Georgia, serif",
-}
-
-const taglineStyle: React.CSSProperties = {
-  margin: '6px 0 0 0',
-  color: '#B0998B',
-  fontSize: 11,
-  letterSpacing: '2.5px',
-  fontWeight: 600,
+const logoStyle: React.CSSProperties = {
+  width: 'min(280px, 84%)',
+  height: 'auto',
+  filter: 'drop-shadow(0 10px 22px rgba(48,24,72,0.16))',
 }
 
 const welcomeTitleStyle: React.CSSProperties = {
   margin: '0 0 6px 0',
-  color: '#4A3B33',
+  color: DEEP,
   fontSize: 22,
   fontWeight: 600,
   letterSpacing: '0.3px',
@@ -238,7 +261,7 @@ const welcomeTitleStyle: React.CSSProperties = {
 
 const welcomeSubtitleStyle: React.CSSProperties = {
   margin: 0,
-  color: '#8A7A70',
+  color: MUTED,
   fontSize: 13.5,
   lineHeight: 1.7,
 }
@@ -246,12 +269,12 @@ const welcomeSubtitleStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '13px 15px',
-  border: '1px solid #EADFD8',
+  border: `1px solid ${ACCENT_LINE_2}`,
   borderRadius: 12,
   fontSize: 15,
   boxSizing: 'border-box',
-  background: '#FBF7F4',
-  color: '#3A2B2B',
+  background: CREAM,
+  color: DEEP,
   outline: 'none',
   fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
@@ -259,14 +282,14 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#6B5B56',
+  color: DEEP,
   fontWeight: 600,
   letterSpacing: '0.3px',
 }
 
 const hintStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#B0A099',
+  color: MUTED,
 }
 
 const errorStyle: React.CSSProperties = {
@@ -284,7 +307,7 @@ const buttonStyle = (loading: boolean): React.CSSProperties => ({
   width: '100%',
   padding: 15,
   marginTop: 6,
-  background: loading ? '#E6C3A3' : `linear-gradient(135deg, #E0A567 0%, ${GOLD} 100%)`,
+  background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
   color: '#fff',
   border: 'none',
   borderRadius: 12,
@@ -294,19 +317,20 @@ const buttonStyle = (loading: boolean): React.CSSProperties => ({
   cursor: loading ? 'not-allowed' : 'pointer',
   opacity: loading ? 0.8 : 1,
   fontFamily: 'inherit',
-  boxShadow: '0 14px 30px -14px rgba(212,148,90,0.7)',
+  boxShadow: `0 14px 30px -14px ${DEEP_SHADOW}`,
   transition: 'transform 0.15s, box-shadow 0.15s',
 })
 
 const footerStyle: React.CSSProperties = {
   textAlign: 'center',
   fontSize: 13.5,
-  color: '#8A7A70',
+  color: MUTED,
   margin: '20px 0 0 0',
 }
 
 const linkStyle: React.CSSProperties = {
-  color: GOLD,
+  // Purple, not pink: pink on cream is 2.66:1 and fails AA. Purple is 11.1:1.
+  color: ACCENT,
   fontWeight: 700,
   textDecoration: 'none',
 }
