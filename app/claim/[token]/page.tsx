@@ -8,12 +8,16 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-// BloomOS palette (this page renders outside the main app's CSS variables).
-const BLUSH = "#D98BA0";
-const BLUSH_DEEP = "#B85C77";
-const GOLD = "#C9A24B";
-const INK = "#3A2A30";
-const PAPER = "#FBF4F6";
+// Client-facing page: a client opens this from HER cosmetician's WhatsApp, so
+// it takes the ACCENT tier (--pc-*), not the BloomOS brand tier. When the
+// tenant's colour is applied the whole page follows it.
+import { PC, PC_DEEP, PC_TINT, PC_SOFT, CREAM, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW } from '@/lib/brand';
+
+const BLUSH = PC;
+const BLUSH_DEEP = PC_DEEP;
+const GOLD = PC_DEEP;
+const INK = 'var(--ink, #2A2233)';
+const PAPER = CREAM;
 
 type Details = {
   service?: string | null;
@@ -79,14 +83,14 @@ export default function ClaimPage() {
 
   return (
     <div dir="rtl" style={{
-      minHeight: "100dvh", background: `linear-gradient(160deg, ${PAPER} 0%, #F3E4EA 100%)`,
+      minHeight: "100dvh", background: `linear-gradient(160deg, ${PAPER} 0%, ${PC_TINT} 100%)`,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       fontFamily: "'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif", color: INK,
     }}>
       <div style={{
-        background: "#fff", borderRadius: 24, width: "100%", maxWidth: 400,
+        background: SURFACE, borderRadius: 24, width: "100%", maxWidth: 400,
         padding: "34px 26px", textAlign: "center",
-        boxShadow: "0 18px 50px rgba(184,92,119,0.18)", border: "1px solid #F0DCE3",
+        boxShadow: `0 18px 50px ${DEEP_SHADOW}`, border: `1px solid ${ACCENT_LINE}`,
       }}>
         <div aria-hidden style={{ fontSize: 30, marginBottom: 6 }}>🌸</div>
         <div style={{ fontSize: 12, letterSpacing: "0.14em", color: GOLD, fontWeight: 700, marginBottom: 18 }}>
@@ -94,7 +98,7 @@ export default function ClaimPage() {
         </div>
 
         {state === "loading" && (
-          <p style={{ color: "#8A7A80", fontSize: 15, margin: "24px 0" }}>טוען…</p>
+          <p style={{ color: MUTED, fontSize: 15, margin: "24px 0" }}>טוען…</p>
         )}
 
         {state === "available" && (
@@ -102,7 +106,7 @@ export default function ClaimPage() {
             <h1 style={{ fontSize: 23, fontWeight: 700, margin: "0 0 6px", lineHeight: 1.3 }}>
               {details.clientName ? `${details.clientName}, ` : ""}התפנה תור!
             </h1>
-            <p style={{ fontSize: 14, color: "#8A7A80", margin: "0 0 22px" }}>
+            <p style={{ fontSize: 14, color: MUTED, margin: "0 0 22px" }}>
               רוצה לתפוס אותו? הראשונה שתלחץ — התור שלה.
             </p>
             <div style={{ background: PAPER, borderRadius: 16, padding: "18px 16px", margin: "0 0 24px", textAlign: "right" }}>
@@ -115,8 +119,8 @@ export default function ClaimPage() {
               disabled={claiming}
               style={{
                 width: "100%", padding: "16px 0", border: "none", borderRadius: 16,
-                background: claiming ? "#E7C9D3" : `linear-gradient(90deg, ${BLUSH}, ${BLUSH_DEEP})`,
-                color: "#fff", fontSize: 17, fontWeight: 700, cursor: claiming ? "default" : "pointer",
+                background: claiming ? PC_TINT : `linear-gradient(90deg, ${BLUSH}, ${BLUSH_DEEP})`,
+                color: SURFACE, fontSize: 17, fontWeight: 700, cursor: claiming ? "default" : "pointer",
                 fontFamily: "inherit", boxShadow: "0 8px 20px rgba(184,92,119,0.28)",
               }}
             >
@@ -136,17 +140,17 @@ export default function ClaimPage() {
         )}
 
         {state === "expired" && (
-          <Result emoji="⏳" title="ההצעה פגה" tone="#9A8A90"
+          <Result emoji="⏳" title="ההצעה פגה" tone={MUTED}
             body="חלון הזמן לתפוס את התור הזה נסגר. נשמח לעדכן אותך בפעם הבאה." />
         )}
 
         {(state === "invalid") && (
-          <Result emoji="🔗" title="הקישור לא תקין" tone="#9A8A90"
+          <Result emoji="🔗" title="הקישור לא תקין" tone={MUTED}
             body="נראה שהקישור שגוי או ישן. אם קיבלת אותו בוואטסאפ, נסי ללחוץ שוב על הקישור המקורי." />
         )}
 
         {state === "error" && (
-          <Result emoji="⚠️" title="משהו השתבש" tone="#C0553F"
+          <Result emoji="⚠️" title="משהו השתבש" tone="var(--danger, #E05B6F)"
             body="לא הצלחנו להשלים את הפעולה. נסי שוב עוד רגע, או פני אלינו בוואטסאפ." />
         )}
       </div>
@@ -158,9 +162,9 @@ function SlotRow({ label, value, last }: { label: string; value: string; last?: 
   return (
     <div style={{
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "9px 2px", borderBottom: last ? "none" : "1px solid #EFDCE3",
+      padding: "9px 2px", borderBottom: last ? "none" : `1px solid ${ACCENT_LINE}`,
     }}>
-      <span style={{ fontSize: 12.5, color: "#A08A92" }}>{label}</span>
+      <span style={{ fontSize: 12.5, color: MUTED }}>{label}</span>
       <span style={{ fontSize: 15, fontWeight: 600, color: INK }}>{value}</span>
     </div>
   );
@@ -171,7 +175,7 @@ function Result({ emoji, title, body, tone }: { emoji: string; title: string; bo
     <div style={{ padding: "12px 0" }}>
       <div aria-hidden style={{ fontSize: 44, marginBottom: 10 }}>{emoji}</div>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 10px", color: tone }}>{title}</h1>
-      <p style={{ fontSize: 14.5, color: "#8A7A80", lineHeight: 1.6, margin: 0 }}>{body}</p>
+      <p style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.6, margin: 0 }}>{body}</p>
     </div>
   );
 }
