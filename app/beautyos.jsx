@@ -12,6 +12,7 @@ import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from 
 import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
+import { LOGO_COMPACT } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -3045,8 +3046,7 @@ export default function BeautyOS() {
              (>=1000) so those still overlay the header as before. */
           .app-header{position:relative!important;z-index:100!important}
           .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:hidden}
-          .brand-word{font-size:18px!important;letter-spacing:1px!important}
-          .brand-tag{display:none!important}
+          .hdr-logo{height:30px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -3346,13 +3346,10 @@ export default function BeautyOS() {
  <header className="app-header" style={{background:"rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:74,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
- <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start",justifyContent:"center",lineHeight:1}}>
- <span style={{display:"inline-flex",alignItems:"flex-start"}}>
- <span className="serif brand-word" style={{fontWeight:600,fontSize:30,letterSpacing:"6px",color:"var(--ink)"}}>BloomOS</span>
- <span style={{fontSize:13,color:pc,marginRight:-2,marginTop:1,lineHeight:1}}>✦</span>
- </span>
- <span className="brand-tag" style={{fontSize:8,color:"var(--ink-3)",letterSpacing:"4.5px",fontWeight:600,marginTop:5,paddingRight:1}}>BEAUTY BUSINESS OS</span>
- </div>
+                {/* Compact BloomOS lockup: florals + wordmark, no tagline.
+                    Brand tier, so it never takes the tenant accent. Intrinsic
+                    520x177 with the height capped, so the ratio holds. */}
+ <img className="hdr-logo" src={LOGO_COMPACT} alt="BloomOS" width={520} height={177} style={{height:42,width:"auto",display:"block"}}/>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"#fff",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
  </div>
