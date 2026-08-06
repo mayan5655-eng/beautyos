@@ -81,6 +81,10 @@ export function buildAccentTokens(accent?: string | null): Record<string, string
     '--pc-tint': lighten(pc, 0.9),
     '--pc-tint-2': lighten(pc, 0.82),
     '--pc-soft': `rgba(${rgb.r},${rgb.g},${rgb.b},0.10)`,
+    // Chrome wash: the header and sidebars carry a hint of her colour so the
+    // shell feels like hers. Deliberately far weaker than --pc-soft - this
+    // sits behind navigation text, where readability wins over presence.
+    '--pc-chrome': `rgba(${rgb.r},${rgb.g},${rgb.b},0.045)`,
     '--pc-shadow': `rgba(${rgb.r},${rgb.g},${rgb.b},0.28)`,
     '--pc-grad': `linear-gradient(135deg,${pc2} 0%,${pcDeep} 100%)`,
     '--pc-contrast': contrastOn(pc),

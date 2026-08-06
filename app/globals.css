@@ -9,7 +9,8 @@
    ============================================================ */
 :root {
   /* — Brand palette (fixed base) — */
-  --bg: #F8F5FB;            /* app background — soft lavender mist */
+  --bg: #FCF8FB;            /* app background — cream lifting toward lavender,
+                               continuous with the /login wash */
   --primary: #E8C9E9;       /* soft lavender — tints, accents, chart fills */
   --dark: #5B3E67;          /* deep plum — actions, headings, brand ink */
   --success: #46B37B;
@@ -25,14 +26,18 @@
   --lavender-100: #F1E2F2;
   --lavender-50:  #F8F0F9;
 
-  /* — Neutral ink & surfaces — */
-  --ink: #2A2233;          /* primary text — plum-tinted near-black */
+  /* — Neutral ink & surfaces —
+     Retuned to sit under the purple/pink logo palette, so the app reads as
+     one product with /login rather than a lavender app behind a cream door.
+     Every shared class (.glass-card, .nav-item, .pill) already resolves to
+     these, so the whole shell follows from here. */
+  --ink: #2A2233;          /* primary text — purple-tinted near-black */
   --ink-2: #6B6275;        /* secondary text */
-  --ink-3: #9A93A4;        /* tertiary / muted */
+  --ink-3: #98879B;        /* tertiary / muted — matches --brand-muted */
   --surface: #FFFFFF;
-  --surface-2: #FCFAFE;    /* slightly tinted card / hover */
-  --line: #ECE6F2;         /* hairline borders */
-  --line-2: #E3DBEC;
+  --surface-2: #FAF6FC;    /* tinted card / hover — matches --brand-surface */
+  --line: #ECE4F0;         /* hairline borders */
+  --line-2: #E2D6EA;
 
   /* — Radii — */
   --r-xs: 8px;
@@ -58,7 +63,7 @@
   --shadow-md: 0 8px 24px rgba(43, 34, 51, 0.07), 0 2px 6px rgba(43, 34, 51, 0.04);
   --shadow-lg: 0 18px 44px rgba(43, 34, 51, 0.10), 0 6px 14px rgba(43, 34, 51, 0.05);
   --shadow-xl: 0 30px 70px rgba(43, 34, 51, 0.16), 0 10px 24px rgba(43, 34, 51, 0.07);
-  --shadow-glow: 0 14px 40px rgba(122, 90, 136, 0.28);
+  --shadow-glow: 0 14px 40px rgba(74, 46, 90, 0.26);
 
   /* — Signature gradients — */
   /* Purple → pink, exactly like the wordmark. No consumers yet. */
@@ -118,6 +123,8 @@
   --pc-tint: #F1E2F2;
   --pc-tint-2: #E5D9EA;
   --pc-soft: rgba(91, 62, 103, 0.10);
+  /* Faint wash for the header and sidebars - see lib/theme.ts. */
+  --pc-chrome: rgba(91, 62, 103, 0.045);
   --pc-shadow: rgba(91, 62, 103, 0.28);
   --pc-grad: linear-gradient(135deg, #7D6489 0%, #4C3457 100%);
   /* Readable text ON the accent. Computed from the accent's luminance at
