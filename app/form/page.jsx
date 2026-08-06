@@ -124,7 +124,7 @@ export default function FormPage() {
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(x, y);
-    ctx.strokeStyle = "#2C1A1A";
+    ctx.strokeStyle = "var(--ink, #2A2233)";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.stroke();
@@ -168,17 +168,17 @@ export default function FormPage() {
   );
 
   if (submitted) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"#FAF7F5",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
       <div style={{fontSize:60,marginBottom:16}}>✅</div>
-      <h2 style={{fontSize:22,fontWeight:800,color:"#2C1A1A",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
-      <p style={{fontSize:14,color:"#888"}}>תודה {formData.client_name}, הטופס נשמר בכרטיס שלך</p>
+      <h2 style={{fontSize:22,fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
+      <p style={{fontSize:14,color:"var(--brand-muted, #98879B)"}}>תודה {formData.client_name}, הטופס נשמר בכרטיס שלך</p>
     </div>
   );
 
   if (formData.status === "signed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"#FAF7F5",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
       <div style={{fontSize:60,marginBottom:16}}>✅</div>
-      <h2 style={{fontSize:22,fontWeight:800,color:"#2C1A1A"}}>הטופס כבר נחתם</h2>
+      <h2 style={{fontSize:22,fontWeight:800,color:"var(--ink, #2A2233)"}}>הטופס כבר נחתם</h2>
     </div>
   );
 
@@ -186,38 +186,38 @@ export default function FormPage() {
   const progress = Math.round((answeredCount / formTemplate.questions.length) * 100);
 
   return (
-    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"#FAF7F5",minHeight:"100vh",padding:"24px 16px"}}>
+    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100vh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
 
-        <div style={{background:"#2C1A1A",borderRadius:16,padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
+        <div style={{background:"var(--ink, #2A2233)",borderRadius:16,padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
           <div style={{fontSize:22,marginBottom:4}}>💎</div>
-          <h1 style={{color:"#FAF7F5",fontSize:18,fontWeight:800,margin:0}}>{formTemplate.title}</h1>
-          <p style={{color:"#C4A882",fontSize:13,marginTop:4}}>שלום {formData.client_name} 👋</p>
+          <h1 style={{color:"var(--brand-cream, #FEFAF7)",fontSize:18,fontWeight:800,margin:0}}>{formTemplate.title}</h1>
+          <p style={{color:"var(--pc-deep, #3E2749)",fontSize:13,marginTop:4}}>שלום {formData.client_name} 👋</p>
         </div>
 
-        <div style={{background:"#fff",borderRadius:12,padding:"10px 16px",marginBottom:16,border:"1px solid #EEE8E2"}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:6}}>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:12,padding:"10px 16px",marginBottom:16,border:"1px solid rgba(74,46,90,0.14)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--brand-muted, #98879B)",marginBottom:6}}>
             <span>התקדמות</span>
             <span>{answeredCount}/{formTemplate.questions.length} שאלות</span>
           </div>
-          <div style={{background:"#EEE8E2",borderRadius:10,height:8}}>
-            <div style={{background:"#D4945A",borderRadius:10,height:8,width:`${progress}%`,transition:"width 0.3s"}}/>
+          <div style={{background:"rgba(74,46,90,0.14)",borderRadius:10,height:8}}>
+            <div style={{background:"var(--pc, #4A2E5A)",borderRadius:10,height:8,width:`${progress}%`,transition:"width 0.3s"}}/>
           </div>
         </div>
 
-        <div style={{background:"#FFF5F0",border:"1px solid #FFDAC1",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:13,color:"#2C1A1A"}}>
+        <div style={{background:"var(--brand-cream, #FEFAF7)",border:"1px solid var(--warning, #F2B84B)",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:13,color:"var(--ink, #2A2233)"}}>
           ⚠️ נא לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
         </div>
 
-        <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,border:"1px solid #EEE8E2"}}>
-          <h3 style={{fontSize:15,fontWeight:700,color:"#2C1A1A",marginBottom:16}}>שאלות רפואיות</h3>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:16,padding:24,marginBottom:20,border:"1px solid rgba(74,46,90,0.14)"}}>
+          <h3 style={{fontSize:15,fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:16}}>שאלות רפואיות</h3>
           {formTemplate.questions.map((q, i) => (
-            <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid #F0EAE6":"none"}}>
-              <p style={{fontSize:14,color:"#2C1A1A",marginBottom:8,lineHeight:1.5}}>{i+1}. {q}</p>
+            <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid var(--brand-cream, #FEFAF7)":"none"}}>
+              <p style={{fontSize:14,color:"var(--ink, #2A2233)",marginBottom:8,lineHeight:1.5}}>{i+1}. {q}</p>
               <div style={{display:"flex",gap:8}}>
                 {["כן","לא"].map(ans => (
                   <button key={ans} onClick={()=>setAnswers({...answers,[i]:ans})}
-                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"#2C1A1A":"#EEE8E2",borderRadius:10,background:answers[i]===ans?(ans==="כן"?"#F4A7B9":"#B5EAD7"):"#FAF7F5",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #2A2233)":"rgba(74,46,90,0.14)",borderRadius:10,background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #EDE7F0)":"var(--success, #46B37B)"):"var(--brand-cream, #FEFAF7)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
                     {ans==="כן"?"✓ כן":"✗ לא"}
                   </button>
                 ))}
@@ -225,32 +225,32 @@ export default function FormPage() {
               {answers[i]==="כן" && (
                 <textarea onChange={e=>setAnswers({...answers,[`${i}_note`]:e.target.value})}
                   placeholder="פרטים נוספים..." rows={2}
-                  style={{width:"100%",marginTop:8,border:"1.5px solid #F4A7B9",borderRadius:8,padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"#FFF5F7",resize:"none"}}/>
+                  style={{width:"100%",marginTop:8,border:"1.5px solid var(--pc-tint, #EDE7F0)",borderRadius:8,padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--pc-tint, #EDE7F0)",resize:"none"}}/>
               )}
             </div>
           ))}
         </div>
 
-        <div style={{background:"#fff",borderRadius:16,padding:24,marginBottom:20,border:"1px solid #EEE8E2"}}>
-          <h3 style={{fontSize:15,fontWeight:700,color:"#2C1A1A",marginBottom:4}}>✍️ חתימה דיגיטלית</h3>
-          <p style={{fontSize:12,color:"#888",marginBottom:12}}>חתמי באצבע או בעכבר בתוך המסגרת</p>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:16,padding:24,marginBottom:20,border:"1px solid rgba(74,46,90,0.14)"}}>
+          <h3 style={{fontSize:15,fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:4}}>✍️ חתימה דיגיטלית</h3>
+          <p style={{fontSize:12,color:"var(--brand-muted, #98879B)",marginBottom:12}}>חתמי באצבע או בעכבר בתוך המסגרת</p>
           <canvas ref={canvasRef} width={460} height={130}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={()=>setDrawing(false)}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={()=>setDrawing(false)}
-            style={{width:"100%",height:130,border:"1.5px solid #EEE8E2",borderRadius:10,background:"#FAF7F5",cursor:"crosshair",touchAction:"none",display:"block"}}/>
+            style={{width:"100%",height:130,border:"1.5px solid rgba(74,46,90,0.14)",borderRadius:10,background:"var(--brand-cream, #FEFAF7)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
           <button onClick={clearSignature}
-            style={{marginTop:8,background:"none",border:"none",fontSize:12,color:"#888",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
+            style={{marginTop:8,background:"none",border:"none",fontSize:12,color:"var(--brand-muted, #98879B)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
             מחקי חתימה
           </button>
         </div>
 
-        <div style={{background:"#FAF7F5",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:11,color:"#888",textAlign:"center",lineHeight:1.6}}>
+        <div style={{background:"var(--brand-cream, #FEFAF7)",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:11,color:"var(--brand-muted, #98879B)",textAlign:"center",lineHeight:1.6}}>
           בחתימתי אני מאשרת שקראתי את השאלות, עניתי עליהן בכנות,<br/>
           והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.
         </div>
 
         <button onClick={handleSubmit}
-          style={{width:"100%",background:"#D4945A",color:"#fff",border:"none",borderRadius:12,padding:"16px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"0 4px 12px rgba(212,148,90,0.3)"}}>
+          style={{width:"100%",background:"var(--pc, #4A2E5A)",color:"var(--brand-surface, #FAF6FC)",border:"none",borderRadius:12,padding:"16px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"0 4px 12px rgba(212,148,90,0.3)"}}>
           שליחה וחתימה ✓
         </button>
       </div>
