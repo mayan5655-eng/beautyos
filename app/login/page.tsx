@@ -4,39 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
-import FloralCorners from '../FloralCorners'
+import BrandBackdrop from '../BrandBackdrop'
 
-// === BloomOS pre-auth styling ===
-// Pre-auth pages carry the BLOOMOS BRAND, never a tenant accent: there is no
-// tenant until after login. Every value below therefore reads --brand-*, never
-// --pc-*. Literal fallbacks keep the page correct if the stylesheet is slow.
-//
-// Palette is sampled from the logo: deep purple wordmark, purple-to-pink "OS",
-// watercolor florals in lilac, rose and blush.
-const ACCENT = 'var(--brand-accent, #4A2E5A)'   // deep purple
-const ROSE = 'var(--brand-rose, #D28697)'       // pink
-const LILAC = 'var(--brand-lilac, #BB84A7)'     // lilac florals
-const BLUSH = 'var(--brand-blush, #FADDCF)'     // blush florals
-const CREAM = 'var(--brand-cream, #FEFAF7)'     // page background
-const TINT = 'var(--brand-tint, #EDE4F5)'       // lavender wash
-const SURFACE = 'var(--brand-surface, #FAF6FC)' // card
-const MUTED = 'var(--brand-muted, #98879B)'     // taglines
-const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
-const GRAD = 'var(--brand-grad, linear-gradient(135deg, #4A2E5A 0%, #D28697 100%))'
-
-// Alpha shades derived from --brand-accent #4A2E5A / --brand-deep #301848.
-// Written literally because inline styles cannot take the alpha of a var().
-const ACCENT_LINE = 'rgba(74,46,90,0.14)'
-const ACCENT_LINE_2 = 'rgba(74,46,90,0.18)'
-const ACCENT_RING = 'rgba(74,46,90,0.16)'
-const DEEP_SHADOW = 'rgba(48,24,72,0.22)'
-
-// Single place to swap the logo. Full lockup: florals, wordmark and tagline,
-// transparent, 760x394. Intrinsic dimensions are passed to next/image and the
-// rendered width is capped in CSS, so the aspect ratio is never squashed.
-const LOGO_SRC = '/bloomos-logo-full.png'
-const LOGO_W = 760
-const LOGO_H = 394
+// Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
+// tenant until after login, so every value reads --brand-*, never --pc-*.
+// The tokens, the wash and the logo all come from lib/brand.ts so this page and
+// its siblings cannot drift apart.
+import {
+  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
+  ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+} from '@/lib/brand'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12,
@@ -135,12 +113,12 @@ export default function LoginPage() {
       position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 20px 40px',
       // Cream page lifting to a soft lavender halo behind the card.
-      background: `radial-gradient(120% 90% at 50% 22%, ${CREAM} 0%, ${CREAM} 38%, ${TINT} 100%)`,
       fontFamily: 'var(--sans)',
     }}>
-      {/* Retinted to the logo: blush petals, lilac accents. The component
-          already accepts these, so nothing inside it changes. */}
-      <FloralCorners idPrefix="auth" blush="#FADDCF" gold="#BB84A7" opacity={0.9} />
+      {/* The shared brand backdrop: cream-to-lavender wash plus blush/lilac
+          florals. Every branded screen renders this same component, so none of
+          them can drift into a lighter or different version. */}
+      <BrandBackdrop density="full" idPrefix="auth" />
       <style>{`
         @keyframes authIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
         .auth-card { animation: authIn 0.4s ease-out; }
@@ -154,10 +132,10 @@ export default function LoginPage() {
             the Hebrew tagline, which a negative margin would crop. */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
-            src={LOGO_SRC}
+            src={LOGO_FULL}
             alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
-            width={LOGO_W}
-            height={LOGO_H}
+            width={LOGO_FULL_W}
+            height={LOGO_FULL_H}
             priority
             style={{
               width: 'min(300px, 84%)', height: 'auto',

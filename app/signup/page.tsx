@@ -4,30 +4,16 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
-import FloralCorners from '../FloralCorners'
+import BrandBackdrop from '../BrandBackdrop'
 
 // Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
 // tenant until after signup, so every value reads --brand-*, never --pc-*.
-const ACCENT = 'var(--brand-accent, #4A2E5A)'
-const ROSE = 'var(--brand-rose, #D28697)'
-const CREAM = 'var(--brand-cream, #FEFAF7)'
-const TINT = 'var(--brand-tint, #EDE4F5)'
-const SURFACE = 'var(--brand-surface, #FAF6FC)'
-const MUTED = 'var(--brand-muted, #98879B)'
-const DEEP = 'var(--brand-deep, #301848)'
-const GRAD = 'var(--brand-grad, linear-gradient(135deg, #4A2E5A 0%, #D28697 100%))'
-
-// Alpha shades of --brand-accent / --brand-deep. Written literally because
-// inline styles cannot take the alpha channel of a var().
-const ACCENT_LINE = 'rgba(74,46,90,0.14)'
-const ACCENT_LINE_2 = 'rgba(74,46,90,0.18)'
-const ACCENT_RING = 'rgba(74,46,90,0.16)'
-const DEEP_SHADOW = 'rgba(48,24,72,0.22)'
-
-// Matches /login. Full lockup: florals, wordmark, tagline. 760x394.
-const LOGO_SRC = '/bloomos-logo-full.png'
-const LOGO_W = 760
-const LOGO_H = 394
+// Shared with /login and /reset-password via lib/brand.ts.
+import {
+  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, GRAD,
+  ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+} from '@/lib/brand'
 
 export default function SignupPage() {
   const [businessName, setBusinessName] = useState('')
@@ -87,7 +73,7 @@ export default function SignupPage() {
 
   return (
     <div dir="rtl" style={pageStyle}>
-      <FloralCorners idPrefix="signup" />
+      <BrandBackdrop density="full" idPrefix="signup" />
 
       <style>{`
         @keyframes signupIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
@@ -105,10 +91,10 @@ export default function SignupPage() {
         {/* Brand — the logo lockup already carries the wordmark and tagline. */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
-            src={LOGO_SRC}
+            src={LOGO_FULL}
             alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
-            width={LOGO_W}
-            height={LOGO_H}
+            width={LOGO_FULL_W}
+            height={LOGO_FULL_H}
             priority
             style={logoStyle}
           />
@@ -227,7 +213,7 @@ const pageStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: `radial-gradient(120% 90% at 50% 22%, ${CREAM} 0%, ${CREAM} 38%, ${TINT} 100%)`,
+  // Wash comes from BrandBackdrop, so it is identical on every branded screen.
   fontFamily: 'var(--sans)',
   padding: 20,
 }

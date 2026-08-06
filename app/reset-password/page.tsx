@@ -11,34 +11,18 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
-import FloralCorners from '../FloralCorners'
+import BrandBackdrop from '../BrandBackdrop'
 
 const MIN_PASSWORD_LENGTH = 8
 
-// === BloomOS pre-auth styling — matches /login and /signup ===
 // Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
 // tenant on a reset link, so every value reads --brand-*, never --pc-*.
-const ACCENT = 'var(--brand-accent, #4A2E5A)'
-const ROSE = 'var(--brand-rose, #D28697)'
-const CREAM = 'var(--brand-cream, #FEFAF7)'
-const TINT = 'var(--brand-tint, #EDE4F5)'
-const SURFACE = 'var(--brand-surface, #FAF6FC)'
-const MUTED = 'var(--brand-muted, #98879B)'
-const DEEP = 'var(--brand-deep, #301848)'
-const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
-const GRAD = 'var(--brand-grad, linear-gradient(135deg, #4A2E5A 0%, #D28697 100%))'
-
-// Alpha shades of --brand-accent / --brand-deep. Written literally because
-// inline styles cannot take the alpha channel of a var().
-const ACCENT_LINE = 'rgba(74,46,90,0.14)'
-const ACCENT_LINE_2 = 'rgba(74,46,90,0.18)'
-const ACCENT_RING = 'rgba(74,46,90,0.16)'
-const DEEP_SHADOW = 'rgba(48,24,72,0.22)'
-
-// Matches /login and /signup. Full lockup: florals, wordmark, tagline.
-const LOGO_SRC = '/bloomos-logo-full.png'
-const LOGO_W = 760
-const LOGO_H = 394
+// Shared with /login and /signup via lib/brand.ts.
+import {
+  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
+  ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+} from '@/lib/brand'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12, border: `1px solid ${ACCENT_LINE_2}`,
@@ -230,11 +214,11 @@ export default function ResetPasswordPage() {
       style={{
         position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        background: `radial-gradient(120% 90% at 50% 22%, ${CREAM} 0%, ${CREAM} 38%, ${TINT} 100%)`,
+        // Wash comes from BrandBackdrop, identical on every branded screen.
         fontFamily: 'var(--sans)',
       }}
     >
-      <FloralCorners idPrefix="reset" blush="#FADDCF" gold="#BB84A7" opacity={0.9} />
+      <BrandBackdrop density="full" idPrefix="reset" />
       <style>{`
         @keyframes authIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
         .auth-card { animation: authIn 0.4s ease-out; }
@@ -244,10 +228,10 @@ export default function ResetPasswordPage() {
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 400 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
-            src={LOGO_SRC}
+            src={LOGO_FULL}
             alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
-            width={LOGO_W}
-            height={LOGO_H}
+            width={LOGO_FULL_W}
+            height={LOGO_FULL_H}
             priority
             style={{ width: 'min(300px, 84%)', height: 'auto', filter: 'drop-shadow(0 10px 22px rgba(48,24,72,0.16))' }}
           />
