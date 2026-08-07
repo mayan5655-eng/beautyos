@@ -5460,7 +5460,12 @@ export default function BeautyOS() {
         background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
         backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
         borderTop:"1px solid var(--line)",boxShadow:"0 -2px 16px rgba(48,24,72,0.06)",
-        display:"flex",alignItems:"stretch",
+        /* NO inline display here. An inline style outranks a class selector,
+           so display:flex would beat .mobile-only{display:none} and the bar
+           would render on desktop alongside the sidebar. Visibility is left
+           entirely to .mobile-only, which supplies flex below the breakpoint
+           and none above it. */
+        alignItems:"stretch",
         paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
         {BOTTOM_NAV.map(item=>{
           const on = activeTab===item.id;
@@ -5505,7 +5510,9 @@ export default function BeautyOS() {
  <div className="mobile-only" onClick={()=>setShowMoreSheet(false)}
       style={{position:"fixed",inset:0,zIndex:1401,background:"rgba(48,24,72,0.34)",
               backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",
-              display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+              /* Same reasoning as the bar: no inline display, so .mobile-only
+                 alone decides whether this can appear. */
+              alignItems:"flex-end",justifyContent:"center"}}>
  <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="עוד מסכים"
       style={{width:"100%",maxWidth:560,background:"var(--surface)",
               borderTopLeftRadius:26,borderTopRightRadius:26,
