@@ -3572,7 +3572,7 @@ export default function BeautyOS() {
                         could only fail. guardWrite() still backstops the handlers. */}
                     {quickActions.slice(0,2).map((qa,i)=>(
  <motion.button key={i} onClick={qa.onClick} disabled={readOnly} title={readOnly?DISABLED_REASON_HE:undefined} whileHover={readOnly?undefined:{y:-2}} whileTap={readOnly?undefined:{scale:0.98}} className="primary-btn"
-   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:12.5,cursor:readOnly?"not-allowed":"pointer",opacity:readOnly?0.5:1,fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"#fff":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?`0 8px 18px ${pcShadow}`:"var(--shadow-xs)"}}>
+   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:12.5,cursor:readOnly?"not-allowed":"pointer",opacity:readOnly?0.5:1,fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"var(--surface)":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?`0 8px 18px ${pcShadow}`:"var(--shadow-xs)"}}>
  <span style={{fontSize:14}}>{qa.icon}</span>{qa.label}
  </motion.button>
                     ))}
@@ -3608,10 +3608,10 @@ export default function BeautyOS() {
  <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
  <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
  <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
- <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"#fff",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
+ <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
  </div>
                       ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>{
-                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"#46B37B",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"#E05B6F",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
                         return(
  <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
  <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
@@ -3631,7 +3631,7 @@ export default function BeautyOS() {
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
  <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.06,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(242,184,75,0.14)",color:"#c98b1f"}}>✷</span>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(242,184,75,0.14)",color:"var(--warning)"}}>✷</span>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
  </div>
                     {(()=>{
@@ -3640,14 +3640,14 @@ export default function BeautyOS() {
                       // Each item carries its own primary action; nothing is sent — actions
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
-                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"#E05B6F",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
-                      coldClients.forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"#F2B84B",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:"לא ביקרה מעל 60 יום",primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
-                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"#5B3E67",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
-                      bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"#E05B6F",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
+                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
+                      coldClients.forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:"לא ביקרה מעל 60 יום",primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
+                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
+                      bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
-                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"#46B37B",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
+                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
-                      (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"#6B4A8C",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
+                      (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
@@ -3659,7 +3659,7 @@ export default function BeautyOS() {
  <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין פעולות שממתינות לך כרגע</p>
  </div>);
                       return(<>
-                        {paused&&<p style={{fontSize:9.5,color:"#B07F2A",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
+                        {paused&&<p style={{fontSize:9.5,color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
                         {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:9.5,color:"var(--ink-3)",padding:"2px 2px 8px"}}>טוען הצעות מעקב עור…</p>}
                         {skinQueueError&&<p style={{fontSize:9.5,color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
@@ -3670,7 +3670,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
  <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{it.what}</p>
  <span style={{fontSize:8.5,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
- <span style={{fontSize:8.5,fontWeight:700,color:"#B07F2A",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
+ <span style={{fontSize:8.5,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
  </div>
  <p style={{fontSize:11,color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
  <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
@@ -3685,9 +3685,9 @@ export default function BeautyOS() {
                                 )}
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                                   {it.isSkin?(
- <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"#fff",fontSize:10.5,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
+ <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"var(--surface)",fontSize:10.5,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
                                   ):(
- <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"#fff",fontSize:10.5,padding:"7px 15px"}}>{it.primaryLabel}</button>
+ <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",fontSize:10.5,padding:"7px 15px"}}>{it.primaryLabel}</button>
                                   )}
  <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:20,fontSize:10.5,padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
  </div>
@@ -3712,8 +3712,8 @@ export default function BeautyOS() {
                 {label:"הכנסות החודש",value:`₪${thisMonthRevenue.toLocaleString()}`,icon:"₪",accent:pc,trend:revTrend,
                   sub:revTrend!==null?(revTrend>=0?`עלייה של ${revTrend}% מהחודש שעבר`:`ירידה של ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
                 {label:"תורים השבוע",value:weekAppts.length,icon:"◴",accent:pc,trend:null,sub:`${todayAppts.length} מהם היום`},
-                {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"#46B37B",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
-                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"#F2B84B",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
+                {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"var(--success)",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
+                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"var(--warning)",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
               ];
               const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
               return(
@@ -3732,7 +3732,7 @@ export default function BeautyOS() {
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
  <span style={{width:42,height:42,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
                         {s.trend!=null&&(
- <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"#2f9c63":"#c9445a",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
+ <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"var(--success)":"var(--danger)",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
                         )}
  </div>
  <p style={{position:"relative",fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
@@ -3781,7 +3781,7 @@ export default function BeautyOS() {
                 {/* UPCOMING BIRTHDAYS — full list */}
  <div className="glass-card" style={{padding:"24px 26px",marginBottom:24}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(224,91,111,0.12)",color:"#E05B6F"}}>🎀</span>
+ <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"rgba(224,91,111,0.12)",color:"var(--danger)"}}>🎀</span>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>ימי הולדת קרובים</h3>
                     {upcomingBirthdays.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:11}}>{upcomingBirthdays.length}</span>}
  </div>
@@ -3795,7 +3795,7 @@ export default function BeautyOS() {
                         const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
                         return(
  <div key={c.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"9px 10px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
- <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"#fff",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
+ <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"var(--surface)",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
  <p style={{fontSize:10,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
@@ -4950,7 +4950,7 @@ export default function BeautyOS() {
  <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:11.5,margin:"auto"}}>טוען…</p>
               ):advisorMessages.length===0?(
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
- <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,color:"#fff",background:pcGrad,boxShadow:`0 10px 24px ${pcShadow}`}}>✦</div>
+ <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,color:"var(--surface)",background:pcGrad,boxShadow:`0 10px 24px ${pcShadow}`}}>✦</div>
  <p style={{fontSize:16,fontWeight:700,color:"var(--ink)",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
  <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
@@ -4960,10 +4960,10 @@ export default function BeautyOS() {
  </div>
  </div>
               ):advisorMessages.map(m=>(
- <div key={m.id} style={{alignSelf:m.role==="user"?"flex-start":"flex-end",maxWidth:"82%",background:m.role==="user"?pcGrad:"var(--surface-2)",color:m.role==="user"?"#fff":"var(--ink)",border:m.role==="user"?"none":"1px solid var(--line)",borderRadius:m.role==="user"?"16px 16px 16px 4px":"16px 16px 4px 16px",padding:"12px 15px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap",boxShadow:m.role==="user"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)"}}>
+ <div key={m.id} style={{alignSelf:m.role==="user"?"flex-start":"flex-end",maxWidth:"82%",background:m.role==="user"?pcGrad:"var(--surface-2)",color:m.role==="user"?"var(--surface)":"var(--ink)",border:m.role==="user"?"none":"1px solid var(--line)",borderRadius:m.role==="user"?"16px 16px 16px 4px":"16px 16px 4px 16px",padding:"12px 15px",fontSize:12.5,lineHeight:1.65,whiteSpace:"pre-wrap",boxShadow:m.role==="user"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)"}}>
                     {m.content}
                     {m.role!=="user"&&(()=>{const a=advisorAction(m.content);return a?(
- <button onClick={a.run} className="primary-btn" style={{display:"inline-block",marginTop:10,background:pcGrad,color:"#fff",fontSize:11,fontWeight:600,padding:"8px 15px",borderRadius:12}}>← {a.label}</button>
+ <button onClick={a.run} className="primary-btn" style={{display:"inline-block",marginTop:10,background:pcGrad,color:"var(--surface)",fontSize:11,fontWeight:600,padding:"8px 15px",borderRadius:12}}>← {a.label}</button>
                     ):null;})()}
  </div>
               ))}
@@ -4977,7 +4977,7 @@ export default function BeautyOS() {
      input itself and states why, rather than letting her type a question
      that the server would refuse with a 402. */}
  <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} disabled={readOnly} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder={readOnly?READ_ONLY_BADGE_HE:"כתבי שאלה עסקית… (Enter לשליחה)"} rows={1} style={{flex:1,border:"1px solid var(--line-2)",borderRadius:16,padding:"12px 14px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:readOnly?"var(--surface-2)":"var(--surface)",resize:"none",maxHeight:120,boxShadow:"var(--shadow-xs)",opacity:readOnly?0.6:1,cursor:readOnly?"not-allowed":"auto"}}/>
- <button onClick={sendAdvisor} disabled={readOnly||advisorSending||!advisorInput.trim()} title={readOnly?DISABLED_REASON_HE:undefined} className="primary-btn" style={{background:pcGrad,color:"#fff",padding:"12px 22px",fontSize:12.5,boxShadow:`0 8px 18px ${pcShadow}`,opacity:readOnly?0.5:1,cursor:readOnly?"not-allowed":"pointer"}}>{advisorSending?"…":"שליחה"}</button>
+ <button onClick={sendAdvisor} disabled={readOnly||advisorSending||!advisorInput.trim()} title={readOnly?DISABLED_REASON_HE:undefined} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"12px 22px",fontSize:12.5,boxShadow:`0 8px 18px ${pcShadow}`,opacity:readOnly?0.5:1,cursor:readOnly?"not-allowed":"pointer"}}>{advisorSending?"…":"שליחה"}</button>
  </div>
  </div>
           )}
@@ -4993,7 +4993,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",gap:7}}>
  <button onClick={()=>copyPublicLink("community")} style={{padding:"9px 15px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:12,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>העתקת קישור לקהילה</button>
- <button onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} className="primary-btn" style={{padding:"10px 16px",background:pcGrad,color:"#fff",fontSize:11.5,boxShadow:`0 8px 18px ${pcShadow}`}}>+ פוסט חדש</button>
+ <button onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} className="primary-btn" style={{padding:"10px 16px",background:pcGrad,color:"var(--surface)",fontSize:11.5,boxShadow:`0 8px 18px ${pcShadow}`}}>+ פוסט חדש</button>
  </div>
  </div>
 
@@ -5015,12 +5015,12 @@ export default function BeautyOS() {
  {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
- <span className="pill" style={{fontSize:9.5,color:"#fff",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
+ <span className="pill" style={{fontSize:9.5,color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
  <span style={{fontSize:9,color:"var(--ink-3)"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
  </div>
  {p.title&&<p style={{fontSize:14.5,fontWeight:700,color:"var(--ink)",marginBottom:4}}>{p.title}</p>}
  {p.body&&<p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
- {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:pcGrad,color:"#fff",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
+ {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:pcGrad,color:"var(--surface)",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
  <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}>
  <button onClick={()=>deleteCommunityPost(p.id)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
  </div>
