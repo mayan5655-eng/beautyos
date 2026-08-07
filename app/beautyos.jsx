@@ -304,6 +304,18 @@ function waPayment(phone, name, amount, service, method, businessPhone) {
 
 const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medical:"",notes:"",status:"active"};
 
+// service_prices.color and appointments.color are STORED DATA, not styling:
+// they are written to the database and read back to tint calendar blocks. They
+// must stay literal hex. A theme token here would persist a CSS variable
+// reference into the data layer, where it resolves only by accident inside a
+// styled context and breaks everywhere else.
+const DEFAULT_SERVICE_COLOR = "#D9B98C";
+
+// Palette for imported services, assigned round-robin so a pasted list gets
+// distinct calendar colours instead of one repeated tint. Same hues the seeded
+// services already use.
+const SERVICE_COLOR_CYCLE = ["#F4A7B9","#A7C4F4","#B5EAD7","#FFDAC1","#E2CFEA","#F9C6D0","#D9B98C","#C7E9E4"];
+
 // ============================================================
 // CLIENT IMPORT — paste + column mapping
 // A cosmetician moving from another system exports to Excel, copies the
@@ -595,7 +607,7 @@ export default function BeautyOS() {
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
   const [brandUploading, setBrandUploading] = useState(""); // which branding asset is uploading
-  const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:"var(--warning)",active:true});
+  const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});
   const [showNewService, setShowNewService] = useState(false);
   const [showSetup, setShowSetup] = useState(false); // always-accessible setup checklist modal
   const [cashierAppt,     setCashierAppt]     = useState(null);
@@ -1267,7 +1279,7 @@ export default function BeautyOS() {
         if(ce){handleDbError(ce, "create client"); return;}
         if(nc?.[0]){clientId=nc[0].id;setClients(prev=>[...prev,nc[0]]);}
       }
-      const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||"var(--warning)";
+      const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||DEFAULT_SERVICE_COLOR;
       if(editingAppointmentId){
         // EDIT/reschedule: update only the editable fields on the existing row.
         // confirmation_status/confirmation_sent are intentionally left untouched
@@ -1860,7 +1872,7 @@ export default function BeautyOS() {
       const {data,error}=await supabase.from("service_prices").insert([newService]).select();
       if(error){handleDbError(error, "add service"); return;}
       if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
-      setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:"var(--warning)",active:true});setShowNewService(false); toast("השירות נוסף");
+      setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});setShowNewService(false); toast("השירות נוסף");
     } finally {
       setBusyKey("addService", false);
     }
@@ -1872,7 +1884,7 @@ export default function BeautyOS() {
       const client=clients.find(c=>String(c.id)===String(appt.client_id));
       setCashierClient(client||null);setCashierSearch(client?.name||"");
       const svc=activeServices.find(s=>s.name===appt.service);
-      setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||"var(--warning)"}]);
+      setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
     setPaymentMethod("מזומן");setCashierDiscount(0);setCashierNote("");setShowCashier(true);
   };
@@ -4401,7 +4413,7 @@ export default function BeautyOS() {
  </div>
               ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
                 const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
-                const pmColor=pm?.color||"var(--warning)";
+                const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
                 return(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:6,cursor:"pointer"}} className="client-row">
  <div style={{width:36,height:36,borderRadius:12,background:`linear-gradient(135deg,${lighten(pmColor,0.35)},${pmColor})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"var(--surface)",flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
