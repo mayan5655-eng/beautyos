@@ -15,7 +15,7 @@ const W = 1080;
 const H = 1920;
 const FPS = 30;
 
-export default function ReelStudio({ primaryColor = "#C77B92", businessName = "" }) {
+export default function ReelStudio({ primaryColor = "var(--pc)", businessName = "" }) {
   const pc = primaryColor;
 
   const [slides, setSlides] = useState([]);      // [{id, img, url, caption}]
@@ -116,7 +116,7 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
 
       // Per-slide caption near bottom
       if (slide.caption) {
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = "var(--surface)";
         ctx.font = "600 58px Arial";
         ctx.textAlign = "center";
         ctx.direction = "rtl";
@@ -279,24 +279,24 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
       <audio ref={audioElRef} style={{ display: "none" }} crossOrigin="anonymous" />
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: "#2A2A2A", marginBottom: 4 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
           🎬 סטודיו רילסים
         </h2>
-        <p style={{ fontSize: 12.5, color: "#8A8088" }}>
+        <p style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
           העלי תמונות וקבלי סרטון מוכן לאינסטגרם
         </p>
       </div>
 
       {/* TITLE + TIMING */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", border: "1px solid #EFE7EB", marginBottom: 14 }}>
-        <p style={{ fontSize: 10, color: "#8A8088", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
+      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+        <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="לדוגמה: תוצאות טיפול פנים ✨"
-          style={{ width: "100%", border: "1px solid #EFE7EB", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none", direction: "rtl", background: pcTint, boxSizing: "border-box", marginBottom: 12 }}
+          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none", direction: "rtl", background: pcTint, boxSizing: "border-box", marginBottom: 12 }}
         />
-        <p style={{ fontSize: 10, color: "#8A8088", fontWeight: 600, marginBottom: 5 }}>
+        <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
           זמן לכל תמונה: {secondsPer} שניות
         </p>
         <input
@@ -308,10 +308,10 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
       </div>
 
       {/* PHOTOS */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", border: "1px solid #EFE7EB", marginBottom: 14 }}>
+      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "#2A2A2A" }}>תמונות ({slides.length})</p>
-          <label style={{ background: pcGrad, color: "#fff", borderRadius: 20, padding: "7px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>תמונות ({slides.length})</p>
+          <label style={{ background: pcGrad, color: "var(--surface)", borderRadius: 20, padding: "7px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
             + הוספת תמונות
             <input type="file" accept="image/*" multiple style={{ display: "none" }}
               onChange={(e) => addPhotos(e.target.files)} />
@@ -319,7 +319,7 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
         </div>
 
         {slides.length === 0 ? (
-          <p style={{ fontSize: 11, color: "#C9B8C2", textAlign: "center", padding: "20px 0" }}>
+          <p style={{ fontSize: 11, color: "var(--line-2)", textAlign: "center", padding: "20px 0" }}>
             עוד לא הוספת תמונות. לחצי "הוספת תמונות" כדי להתחיל.
           </p>
         ) : (
@@ -332,11 +332,11 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
                   value={s.caption}
                   onChange={(e) => setCaption(s.id, e.target.value)}
                   placeholder="כיתוב (לא חובה)"
-                  style={{ flex: 1, minWidth: 0, border: "1px solid #EFE7EB", borderRadius: 8, padding: "6px 9px", fontSize: 11, fontFamily: "inherit", outline: "none", direction: "rtl", background: "#fff" }}
+                  style={{ flex: 1, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 11, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--surface)" }}
                 />
-                <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} style={{ background: "#fff", border: "1px solid #EFE7EB", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
-                <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} style={{ background: "#fff", border: "1px solid #EFE7EB", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
-                <button onClick={() => removeSlide(s.id)} style={{ background: "none", border: "none", color: "#F44336", fontSize: 15, cursor: "pointer" }}>✕</button>
+                <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
+                <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
+                <button onClick={() => removeSlide(s.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 15, cursor: "pointer" }}>✕</button>
               </div>
             ))}
           </div>
@@ -344,27 +344,27 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
       </div>
 
       {/* MUSIC (optional) */}
-      <div style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", border: "1px solid #EFE7EB", marginBottom: 14 }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#2A2A2A", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
-        <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius: 10, border: "1px dashed #EFE7EB", fontSize: 11.5, color: pc, cursor: "pointer", fontWeight: 600 }}>
+      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
+        <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 11.5, color: pc, cursor: "pointer", fontWeight: 600 }}>
           {music ? "✓ " + music.file.name : "+ העלאת קובץ מוזיקה (MP3)"}
           <input type="file" accept="audio/*" style={{ display: "none" }}
             onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) setMusic({ file: f, url: URL.createObjectURL(f) }); }} />
         </label>
-        <p style={{ fontSize: 9, color: "#C9B8C2", marginTop: 6, textAlign: "center" }}>
+        <p style={{ fontSize: 9, color: "var(--line-2)", marginTop: 6, textAlign: "center" }}>
           השתמשי במוזיקה חופשית לשימוש (כדי שאינסטגרם לא יחסום)
         </p>
       </div>
 
       {/* BUILD */}
       <button onClick={buildVideo} disabled={building || slides.length === 0}
-        style={{ width: "100%", padding: "14px 0", background: pcGrad, color: "#fff", border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: building ? "default" : "pointer", fontFamily: "inherit", opacity: building || slides.length === 0 ? 0.6 : 1, marginBottom: 12 }}>
+        style={{ width: "100%", padding: "14px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: building ? "default" : "pointer", fontFamily: "inherit", opacity: building || slides.length === 0 ? 0.6 : 1, marginBottom: 12 }}>
         {building ? "יוצרת סרטון... 🎬" : "🎬 צרי סרטון"}
       </button>
 
       {building && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ background: "#F0E7EC", borderRadius: 8, height: 10, overflow: "hidden", marginBottom: 6 }}>
+          <div style={{ background: "var(--pc-tint)", borderRadius: 8, height: 10, overflow: "hidden", marginBottom: 6 }}>
             <div style={{ background: pcGrad, height: 10, width: `${progress}%`, transition: "width 0.2s" }} />
           </div>
           <p style={{ fontSize: 11, color: pc, textAlign: "center", fontWeight: 500 }}>{statusText} {progress}%</p>
@@ -372,20 +372,20 @@ export default function ReelStudio({ primaryColor = "#C77B92", businessName = ""
       )}
 
       {error && (
-        <div style={{ background: "#FFFAF7", border: "1px solid #FFDAC1", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+        <div style={{ background: "var(--surface-2)", border: "1px solid rgba(242,184,75,0.16)", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
           <p style={{ fontSize: 11.5, color: pc, fontWeight: 600 }}>{error}</p>
         </div>
       )}
 
       {videoUrl && (
-        <div style={{ background: "#fff", borderRadius: 16, padding: "16px 18px", border: "1px solid #EFE7EB", textAlign: "center" }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "#2A2A2A", marginBottom: 12 }}>✨ הסרטון מוכן!</p>
+        <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", textAlign: "center" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>✨ הסרטון מוכן!</p>
           <video src={videoUrl} controls playsInline style={{ width: "100%", maxWidth: 270, borderRadius: 14, marginBottom: 12, background: "#000" }} />
           <button onClick={downloadVideo}
-            style={{ width: "100%", padding: "13px 0", background: pcGrad, color: "#fff", border: "none", borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ width: "100%", padding: "13px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
             ⬇ הורדת הסרטון
           </button>
-          <p style={{ fontSize: 9.5, color: "#C9B8C2", marginTop: 8 }}>
+          <p style={{ fontSize: 9.5, color: "var(--line-2)", marginTop: 8 }}>
             הורידי את הקובץ והעלי אותו ישירות לאינסטגרם / וואטסאפ סטטוס
           </p>
         </div>

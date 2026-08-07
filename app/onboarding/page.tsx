@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../supabase";
 
-const PRESET_COLORS = ["#D4945A", "#F4A7B9", "#A7C4F4", "#B5EAD7", "#E2CFEA", "#FFDAC1", "#9C27B0", "#2C1A1A"];
+const PRESET_COLORS = ["#4A2E5A", "var(--pc-tint)", "#A7C4F4", "var(--success)", "var(--pc-tint)", "rgba(242,184,75,0.16)", "var(--pc)", "var(--ink)"];
 
 type OnboardingData = {
   business_name: string;
@@ -27,7 +27,7 @@ export default function OnboardingPage() {
     business_name: "",
     therapist_name: "",
     business_phone: "",
-    primary_color: "#D4945A",
+    primary_color: "#4A2E5A",
     working_hours_start: 8,
     working_hours_end: 19,
   });
@@ -120,21 +120,21 @@ export default function OnboardingPage() {
   if (loading) {
     return (
       <div style={containerStyle}>
-        <p style={{ fontSize: 14, color: "#888", fontFamily: "'Heebo','Assistant',sans-serif" }}>💎 רגע, טוענים...</p>
+        <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>💎 רגע, טוענים...</p>
       </div>
     );
   }
 
-  const pc = data.primary_color || "#D4945A";
+  const pc = data.primary_color || "#4A2E5A";
 
   return (
     <div dir="rtl" style={containerStyle}>
       <style>{`
         @keyframes fadeIn { from {opacity:0;transform:translateY(8px)} to {opacity:1;transform:translateY(0)} }
         .step-body { animation: fadeIn 0.28s ease-out; }
-        .ob-input:focus { border-color: ${pc} !important; background: #fff !important; }
+        .ob-input:focus { border-color: ${pc} !important; background: var(--surface) !important; }
         .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px ${pc}55; }
-        .ob-btn-secondary:hover { background: #FAF7F5; }
+        .ob-btn-secondary:hover { background: var(--brand-cream, #FEFAF7); }
         .swatch:hover { transform: scale(1.1); }
       `}</style>
 
@@ -142,16 +142,16 @@ export default function OnboardingPage() {
         {/* Brand mark */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div style={{ fontSize: 26, marginBottom: 4 }}>💎</div>
-          <p style={{ fontSize: 10, color: "#BBB", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
+          <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
         </div>
 
         {/* Progress */}
         <div style={{ marginBottom: 26 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 11, color: "#888", fontWeight: 600 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 11, color: "var(--ink-3)", fontWeight: 600 }}>
             <span>שלב {step} מתוך 3</span>
             <span>{Math.round((step / 3) * 100)}%</span>
           </div>
-          <div style={{ height: 6, background: "#EEE8E2", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: 6, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${(step / 3) * 100}%`, background: pc, transition: "width 0.35s ease", borderRadius: 3 }} />
           </div>
         </div>
@@ -199,7 +199,7 @@ export default function OnboardingPage() {
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
-                    style={{ width: 56, height: 44, border: "1.5px solid #EEE8E2", borderRadius: 10, cursor: "pointer", background: "#FAF7F5" }} />
+                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius: 10, cursor: "pointer", background: "var(--brand-cream, #FEFAF7)" }} />
                   <input
                     className="ob-input"
                     value={data.primary_color}
@@ -217,7 +217,7 @@ export default function OnboardingPage() {
                       title={c}
                       style={{
                         width: 30, height: 30, borderRadius: "50%", padding: 0,
-                        border: data.primary_color.toLowerCase() === c.toLowerCase() ? `3px solid #2C1A1A` : "2px solid #EEE8E2",
+                        border: data.primary_color.toLowerCase() === c.toLowerCase() ? `3px solid var(--ink)` : "2px solid var(--line)",
                         background: c, cursor: "pointer", transition: "transform 0.15s",
                       }}
                     />
@@ -243,7 +243,7 @@ export default function OnboardingPage() {
                     style={{ ...inputStyle, textAlign: "center" }}
                   />
                 </Field>
-                <span style={{ fontSize: 18, color: "#BBB", marginTop: 22, fontWeight: 600 }}>—</span>
+                <span style={{ fontSize: 18, color: "var(--ink-3)", marginTop: 22, fontWeight: 600 }}>—</span>
                 <Field label="סיום" inline>
                   <input
                     className="ob-input"
@@ -256,7 +256,7 @@ export default function OnboardingPage() {
                   />
                 </Field>
               </div>
-              <div style={{ background: "#FAF7F5", borderRadius: 11, padding: "11px 14px", fontSize: 12, color: "#666", lineHeight: 1.6 }}>
+              <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius: 11, padding: "11px 14px", fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
                 ✨ מצוין! בלחיצה על &quot;סיום&quot; נכין את החשבון ונעבור למערכת.
               </div>
             </>
@@ -265,7 +265,7 @@ export default function OnboardingPage() {
 
         {/* Error */}
         {error && (
-          <div style={{ background: "#FEEBEE", border: "1px solid #EF9A9A", color: "#C62828", padding: "10px 14px", borderRadius: 10, fontSize: 12, marginTop: 14, textAlign: "right" }}>
+          <div style={{ background: "rgba(224,91,111,0.10)", border: "1px solid var(--danger)", color: "var(--danger)", padding: "10px 14px", borderRadius: 10, fontSize: 12, marginTop: 14, textAlign: "right" }}>
             ⚠️ {error}
           </div>
         )}
@@ -280,7 +280,7 @@ export default function OnboardingPage() {
 
           {step < 3 ? (
             <>
-              <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "#888" }}>
+              <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                 דלג
               </button>
               <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc }}>
@@ -289,7 +289,7 @@ export default function OnboardingPage() {
             </>
           ) : (
             <button onClick={finish} disabled={saving} className="ob-btn-primary"
-              style={{ ...btnPrimaryStyle, background: saving ? "#CCC" : pc, marginRight: "auto", flex: 1, justifyContent: "center" }}>
+              style={{ ...btnPrimaryStyle, background: saving ? "var(--line-2)" : pc, marginRight: "auto", flex: 1, justifyContent: "center" }}>
               {saving ? "שומר..." : "סיום ✓"}
             </button>
           )}
@@ -297,7 +297,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Tiny footer hint */}
-      <p style={{ marginTop: 14, fontSize: 10, color: "#BBB", fontFamily: "'Heebo','Assistant',sans-serif" }}>
+      <p style={{ marginTop: 14, fontSize: 10, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
         תמיד אפשר לעדכן את כל ההגדרות מאוחר יותר ב-⚙️ הגדרות
       </p>
     </div>
@@ -308,7 +308,7 @@ export default function OnboardingPage() {
 function Field({ label, children, inline = false }: { label: string; children: React.ReactNode; inline?: boolean }) {
   return (
     <div style={{ marginBottom: inline ? 0 : 14, flex: inline ? 1 : undefined }}>
-      <label style={{ display: "block", fontSize: 11, color: "#666", fontWeight: 600, marginBottom: 6 }}>{label}</label>
+      <label style={{ display: "block", fontSize: 11, color: "var(--ink-2)", fontWeight: 600, marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   );
@@ -317,7 +317,7 @@ function Field({ label, children, inline = false }: { label: string; children: R
 // === Styles ===
 const containerStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #FAF7F5 0%, #F3EEE9 100%)",
+  background: "linear-gradient(180deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -329,39 +329,39 @@ const containerStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 460,
-  background: "#fff",
+  background: "var(--surface)",
   borderRadius: 18,
   padding: 28,
   boxShadow: "0 14px 44px rgba(44,26,26,0.08), 0 2px 8px rgba(44,26,26,0.04)",
-  border: "1px solid #EEE8E2",
+  border: "1px solid var(--line)",
 };
 
 const titleStyle: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
-  color: "#2C1A1A",
+  color: "var(--ink)",
   marginBottom: 6,
   lineHeight: 1.3,
 };
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: 12.5,
-  color: "#888",
+  color: "var(--ink-3)",
   marginBottom: 22,
   lineHeight: 1.6,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1.5px solid #EEE8E2",
+  border: "1.5px solid var(--line)",
   borderRadius: 10,
   padding: "11px 13px",
   fontSize: 13.5,
   fontFamily: "inherit",
   outline: "none",
   direction: "rtl",
-  background: "#FAF7F5",
-  color: "#2C1A1A",
+  background: "var(--brand-cream, #FEFAF7)",
+  color: "var(--ink)",
   transition: "border-color 0.15s, background 0.15s",
 };
 
@@ -369,7 +369,7 @@ const btnPrimaryStyle: React.CSSProperties = {
   padding: "11px 24px",
   border: "none",
   borderRadius: 10,
-  color: "#fff",
+  color: "var(--surface)",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
@@ -382,11 +382,11 @@ const btnPrimaryStyle: React.CSSProperties = {
 
 const btnSecondaryStyle: React.CSSProperties = {
   padding: "11px 16px",
-  border: "1.5px solid #EEE8E2",
+  border: "1.5px solid var(--line)",
   borderRadius: 10,
-  background: "#fff",
+  background: "var(--surface)",
   fontSize: 13,
-  color: "#666",
+  color: "var(--ink-2)",
   cursor: "pointer",
   fontFamily: "inherit",
   fontWeight: 500,
