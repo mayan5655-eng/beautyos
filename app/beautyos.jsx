@@ -456,6 +456,15 @@ export default function BeautyOS() {
   const [filterSkin,        setFilterSkin]         = useState("all");
   const [receiptFilter,     setReceiptFilter]      = useState("all");
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  // Bottom-bar "עוד" sheet: holds the tabs that do not fit in the bar itself.
+  const [showMoreSheet,     setShowMoreSheet]     = useState(false);
+  // Escape closes the sheet, matching every other overlay in the app.
+  useEffect(() => {
+    if (!showMoreSheet) return;
+    const onKey = (e) => { if (e.key === "Escape") setShowMoreSheet(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showMoreSheet]);
   // Unified approval queue: session-local set of dismissed item keys (Reject).
   const [queueDismissed,    setQueueDismissed]    = useState(()=>new Set());
   const [queueApproved,     setQueueApproved]     = useState(()=>new Set()); // mocked-approved skin keys (double-click guard)
@@ -2941,6 +2950,17 @@ export default function BeautyOS() {
       ? 0.58   // readable through, but the flowers clearly read as flowers
       : 0.8;   // everything else sits between the two
 
+  // Bottom bar: the five destinations she reaches most in a working day.
+  // Everything else lives behind "עוד" so the bar never crowds.
+  const BOTTOM_NAV = [
+    {id:"calendar",  label:"יומן"},
+    {id:"clients",   label:"לקוחות"},
+    {id:"leads",     label:"לידים"},
+    {id:"cashier",   label:"תשלום"},
+    {id:"dashboard", label:"בית"},
+  ];
+  const MORE_NAV = ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp"];
+
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
     {id:"insights", label:"תובנות"},
@@ -2990,6 +3010,11 @@ export default function BeautyOS() {
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}
+        /* Bottom-nav sheet rise. */
+        @keyframes sheetUp{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+        /* Clearance so the fixed bottom bar never covers the last row of any
+           tab. Matches the bar height plus the iPhone home-bar inset. */
+        .app-main{padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px))!important}
         /* Keyboard focus indicator (only for keyboard nav, not mouse). The
            !important overrides the many inline outline:none declarations. */
         button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pc)!important;outline-offset:2px;border-radius:10px}
@@ -5411,6 +5436,95 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowPackageModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={handleSavePackage} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>שמירה ✓</button>
+ </div>
+ </div>
+ </div>
+      )}
+
+      {/* ============================================================
+          BOTTOM NAVIGATION
+          Added ALONGSIDE the existing sidebar, not replacing it, so both can
+          be compared before anything is retired.
+
+          Accent tier: the bar follows --pc-*, so it recolours with her chosen
+          colour like the rest of her app. zIndex 1400 sits above content but
+          below modals (1500+), and the safe-area inset keeps the labels clear
+          of the iPhone home bar.
+          ============================================================ */}
+ <nav aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:1400,
+        background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
+        backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
+        borderTop:"1px solid var(--line)",boxShadow:"0 -2px 16px rgba(48,24,72,0.06)",
+        display:"flex",alignItems:"stretch",
+        paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
+        {BOTTOM_NAV.map(item=>{
+          const on = activeTab===item.id;
+          return (
+ <button key={item.id} onClick={()=>{setActiveTab(item.id);setShowMoreSheet(false);}}
+        aria-current={on?"page":undefined} aria-label={item.label}
+        style={{flex:1,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                gap:3,padding:"9px 2px 7px",color:on?"var(--pc)":"var(--ink-3)",
+                transition:"color 0.18s",position:"relative",minHeight:58}}>
+ <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:38,height:26,
+               borderRadius:13,background:on?"var(--pc-tint)":"transparent",transition:"background 0.18s"}}>
+              {navIcon(item.id)}
+              {item.id==="leads"&&newLeadsCount>0&&(
+ <span style={{position:"absolute",top:4,insetInlineEnd:"50%",transform:"translateX(50%) translateX(14px)",
+               background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,lineHeight:1,
+               padding:"2px 6px",borderRadius:20,boxShadow:`0 2px 6px ${pcShadow}`}}>{newLeadsCount}</span>
+              )}
+ </span>
+ <span style={{fontSize:10,fontWeight:on?700:500,letterSpacing:"-0.01em"}}>{item.label}</span>
+ </button>
+          );
+        })}
+        {/* עוד — opens the sheet with everything that does not fit above. */}
+ <button onClick={()=>setShowMoreSheet(v=>!v)} aria-expanded={showMoreSheet} aria-label="עוד"
+        style={{flex:1,background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",
+                display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                gap:3,padding:"9px 2px 7px",color:showMoreSheet?"var(--pc)":"var(--ink-3)",
+                transition:"color 0.18s",minHeight:58}}>
+ <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:38,height:26,
+               borderRadius:13,background:showMoreSheet?"var(--pc-tint)":"transparent",transition:"background 0.18s"}}>
+ <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+ <circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>
+ </svg>
+ </span>
+ <span style={{fontSize:10,fontWeight:showMoreSheet?700:500,letterSpacing:"-0.01em"}}>עוד</span>
+ </button>
+ </nav>
+
+      {/* "עוד" SHEET — the remaining tabs. */}
+      {showMoreSheet&&(
+ <div onClick={()=>setShowMoreSheet(false)}
+      style={{position:"fixed",inset:0,zIndex:1401,background:"rgba(48,24,72,0.34)",
+              backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",
+              display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+ <div onClick={e=>e.stopPropagation()} role="dialog" aria-label="עוד מסכים"
+      style={{width:"100%",maxWidth:560,background:"var(--surface)",
+              borderTopLeftRadius:26,borderTopRightRadius:26,
+              border:"1px solid var(--line)",borderBottom:"none",
+              boxShadow:"0 -20px 60px rgba(48,24,72,0.22)",
+              padding:"14px 16px calc(78px + env(safe-area-inset-bottom, 0px))",
+              animation:"sheetUp 0.22s cubic-bezier(.2,.7,.3,1)"}}>
+ <div aria-hidden style={{width:42,height:4,borderRadius:99,background:"var(--line-2)",margin:"2px auto 14px"}}/>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(96px,1fr))",gap:8}}>
+              {MORE_NAV.map(id=>{
+                const label=(NAV_ITEMS.find(n=>n.id===id)||{}).label||id;
+                const on=activeTab===id;
+                return (
+ <button key={id} onClick={()=>{setActiveTab(id);setShowMoreSheet(false);}}
+        style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,
+                padding:"14px 6px",borderRadius:16,cursor:"pointer",fontFamily:"inherit",
+                border:`1px solid ${on?"var(--pc)":"var(--line)"}`,
+                background:on?"var(--pc-tint)":"var(--surface-2)",
+                color:on?"var(--pc)":"var(--ink-2)",transition:"background 0.18s,border-color 0.18s"}}>
+                  {navIcon(id)}
+ <span style={{fontSize:11.5,fontWeight:on?700:600}}>{label}</span>
+ </button>
+                );
+              })}
  </div>
  </div>
  </div>
