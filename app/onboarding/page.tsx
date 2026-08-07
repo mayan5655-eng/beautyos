@@ -15,9 +15,13 @@ type OnboardingData = {
   working_hours_end: number;
 };
 
+// The three step names, matching the headings shown in each step body.
+const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה"];
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  // Written step flow, taken from the three step headings below.
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -145,16 +149,33 @@ export default function OnboardingPage() {
           <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
         </div>
 
-        {/* Progress */}
-        <div style={{ marginBottom: 26 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 11, color: "var(--ink-3)", fontWeight: 600 }}>
-            <span>שלב {step} מתוך 3</span>
-            <span>{Math.round((step / 3) * 100)}%</span>
-          </div>
-          <div style={{ height: 6, background: "var(--line)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${(step / 3) * 100}%`, background: pc, transition: "width 0.35s ease", borderRadius: 3 }} />
-          </div>
-        </div>
+        {/* Progress — written, not graphic. Step names with arrows between
+            them, the current one in her accent. RTL reads right to left, so
+            "←" points forward. */}
+        <nav aria-label="התקדמות" style={{ marginBottom: 26, display: "flex", alignItems: "center",
+              justifyContent: "center", flexWrap: "wrap", gap: 7, fontSize: 12.5, lineHeight: 1.6 }}>
+          {STEP_NAMES.map((name, i) => {
+            const n = i + 1;
+            const current = n === step;
+            const done = n < step;
+            return (
+              <span key={name} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <span
+                  aria-current={current ? "step" : undefined}
+                  style={{
+                    color: current ? pc : done ? "var(--ink-2)" : "var(--ink-3)",
+                    fontWeight: current ? 700 : 500,
+                  }}
+                >
+                  {name}
+                </span>
+                {n < STEP_NAMES.length && (
+                  <span aria-hidden style={{ color: "var(--ink-3)", fontSize: 11 }}>←</span>
+                )}
+              </span>
+            );
+          })}
+        </nav>
 
         {/* Steps */}
         <div key={step} className="step-body">
