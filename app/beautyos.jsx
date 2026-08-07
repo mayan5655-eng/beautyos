@@ -656,6 +656,13 @@ export default function BeautyOS() {
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
     { key:"whatsapp", done: !!(settings.green_api_instance && String(settings.green_api_instance).trim() && settings.green_api_token && String(settings.green_api_token).trim()), label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
   ];
+  // Which setup step is expanded. Defaults to the FIRST incomplete one, so the
+  // list opens on the next thing to do rather than on everything at once. null
+  // means the user collapsed it deliberately.
+  const nextSetupKey = (setupSteps.find(s=>!s.done)||{}).key || null;
+  const [openSetupStepRaw, setOpenSetupStep] = useState(undefined);
+  const openSetupStep = openSetupStepRaw === undefined ? nextSetupKey : openSetupStepRaw;
+
   const setupDone = setupSteps.filter(s=>s.done).length;
   const setupTotal = setupSteps.length;
   const setupPct = Math.round((setupDone/setupTotal)*100);
@@ -676,19 +683,40 @@ export default function BeautyOS() {
           <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
         </div>
       )}
+      {/* Progressive reveal: every row is collapsed to a single line, and only
+          ONE step is expanded at a time - the next incomplete one, or whichever
+          the user opened with its arrow. Seven expanded rows at once read as a
+          wall of work; one at a time reads as the next small thing to do. */}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {setupSteps.map((s)=>(
-          <div key={s.key} onClick={s.onClick} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:s.done?"rgba(70,179,123,0.10)":pcTint,borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":"var(--line)"}`,cursor:"pointer"}}>
-            <div style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":"○"}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</p>
-              <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{s.hint}</p>
-            </div>
-            {s.done
-              ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700,flexShrink:0}}>בוצע</span>
-              :<span style={{background:pcGrad,color:"var(--surface)",borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:600,flexShrink:0,whiteSpace:"nowrap"}}>הגדרה ←</span>}
+        {setupSteps.map((s)=>{
+          const open = openSetupStep===s.key;
+          return (
+          <div key={s.key} style={{background:s.done?"rgba(70,179,123,0.10)":open?pcTint:"var(--surface-2)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":open?pc:"var(--line)"}`,overflow:"hidden",transition:"border-color 0.18s,background 0.18s"}}>
+            {/* Collapsed row — always visible. */}
+            <button
+              onClick={()=>{ if(!s.done) setOpenSetupStep(open?null:s.key); }}
+              aria-expanded={s.done?undefined:open}
+              disabled={s.done}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
+              <span style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":"○"}</span>
+              <span style={{flex:1,minWidth:0}}>
+                <span style={{display:"block",fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</span>
+              </span>
+              {s.done
+                ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
+                :<span aria-hidden style={{fontSize:15,color:pc,flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>}
+            </button>
+
+            {/* Expanded body — the hint and the action, revealed on request. */}
+            {open&&!s.done&&(
+              <div style={{padding:"0 12px 12px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <p style={{flex:1,minWidth:120,fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
+                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"7px 16px",fontSize:11,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
