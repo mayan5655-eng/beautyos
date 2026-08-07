@@ -12,7 +12,7 @@ import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from 
 import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
-import { LOGO_COMPACT, BRAND_WASH } from "@/lib/brand";
+import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -2977,7 +2977,11 @@ export default function BeautyOS() {
                 {/* skipTop: no background blossom lands behind the header, so
                     the flowers in the BloomOS logo are the only ones there and
                     nothing competes with them. */}
- <FloralCorners idPrefix="app" fixed zIndex={1} blush={pc} gold={pcDeep} skipTop opacity={floralOpacity} />
+                {/* The same two-hue palette /login uses - peach blush plus
+                    lilac - rather than one tint of the tenant accent. Two
+                    distinct hues are what make the login florals read as
+                    colourful watercolor instead of a single-colour wash. */}
+ <FloralCorners idPrefix="app" fixed zIndex={1} blush={FLORAL_BLUSH} gold={FLORAL_LILAC} skipTop opacity={floralOpacity} />
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}
@@ -3362,7 +3366,12 @@ export default function BeautyOS() {
 
       {/* OMBRE PROMO BAR */}
       {/* HEADER */}
- <header className="app-header" style={{background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.82)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",boxShadow:"0 2px 12px rgba(43,34,51,0.03)",overflow:"visible"}}>
+                {/* No near-white panel: on /login the logo sits directly on the
+                    ombré wash with nothing behind it, and an opaque header bar
+                    is what made it read as a box here. Only the faint accent
+                    tint remains, so the page ombré shows straight through and
+                    the logo blends the same way it does on login. */}
+ <header className="app-header" style={{background:"var(--pc-chrome)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",overflow:"visible"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט">☰</button>
                 {/* Compact BloomOS lockup: florals + wordmark, no tagline.

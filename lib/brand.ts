@@ -55,10 +55,14 @@ export const LOGO_FULL_H = 394
 // Compact lockup: florals + wordmark, no tagline. For the nav sidebar.
 export const LOGO_COMPACT = '/bloomos-logo-compact.png'
 
-// The page wash used on every branded screen: cream lifting to a lavender
-// halo. Identical everywhere, so screens never drift to a "lighter version".
+// The page wash used on every branded screen. A true ombré: cream at the top,
+// warming through a blush mid-tone, settling into the lavender edge - the same
+// three families the logo's watercolor uses. Identical everywhere, so screens
+// never drift to a paler or flatter version of each other.
+const BLUSH_WASH = 'var(--brand-blush, #FADDCF)'
 export const BRAND_WASH =
-  `radial-gradient(120% 90% at 50% 22%, ${CREAM} 0%, ${CREAM} 38%, ${TINT} 100%)`
+  `radial-gradient(130% 100% at 50% 18%, ${CREAM} 0%, ${CREAM} 26%, ` +
+  `color-mix(in srgb, ${BLUSH_WASH} 38%, ${CREAM}) 58%, ${TINT} 100%)`
 
 // Softer, flatter variant for data-heavy screens where a strong halo behind
 // tables and the calendar grid would fight the content.
