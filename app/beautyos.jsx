@@ -337,7 +337,29 @@ const IMPORT_FIELDS = [
   { id:"notes",     label:"הערות" },
 ];
 
+// The service_prices fields a pasted column can map onto. Colour is absent on
+// purpose: it is assigned round-robin below rather than asked for.
+const SERVICE_IMPORT_FIELDS = [
+  { id:"ignore",   label:"התעלם" },
+  { id:"name",     label:"שם הטיפול" },
+  { id:"price",    label:"מחיר" },
+  { id:"duration", label:"משך (דקות)" },
+];
+
 const looksLikePhone = (s) => /^[\d\-+() ]{6,}$/.test(String(s||"").trim());
+
+// "₪ 1,200" -> 1200. Anything unparseable returns null so the caller can fall
+// back to the column default rather than writing a wrong number.
+const parseMoney = (s) => {
+  const n = parseFloat(String(s||"").replace(/[^\d.]/g,""));
+  return Number.isFinite(n) ? n : null;
+};
+// "45 דק׳" -> 45.
+const parseMinutes = (s) => {
+  const n = parseInt(String(s||"").replace(/[^\d]/g,""), 10);
+  return Number.isFinite(n) ? n : null;
+};
+const isNumericCell = (s) => /^[₪$\s]*[\d,.]+[\s֐-׿׳'"a-z.]*$/i.test(String(s||"").trim()) && /\d/.test(String(s||""));
 
 // Split one pasted line into cells. Tabs win when present (an Excel paste);
 // otherwise commas, but NOT commas inside quotes — "כהן, דנה" is one cell.
@@ -367,13 +389,22 @@ const parseImportGrid = (text) => {
 
 // Row 1 is a header when it contains a recognised heading AND no phone-shaped
 // cell. Requiring both avoids treating a real client named "שם" as a header.
+// Shared by both wizards, so it carries client AND price-list vocabulary. A
+// services paste headed "טיפול / מחיר / משך" is a header row too; without
+// these words it was imported as a service literally named "טיפול".
 const HEADER_WORDS = ["שם","טלפון","נייד","מייל","אימייל","הערות","כתובת","תאריך","לידה","עור","אלרגי","רפואי",
-                      "name","phone","mobile","email","notes","address","birthday","date","client","customer"];
+                      "name","phone","mobile","email","notes","address","birthday","date","client","customer",
+                      "טיפול","שירות","מחיר","עלות","משך","דקות","זמן",
+                      "service","treatment","price","cost","duration","min"];
 const detectHeaderRow = (rows) => {
   const first = rows[0]; if (!first) return false;
   const hasHeaderWord = first.some(c => HEADER_WORDS.some(w => String(c).toLowerCase().includes(w)));
   const hasPhone = first.some(looksLikePhone);
-  return hasHeaderWord && !hasPhone;
+  // A header row never carries a bare number. This is what stops a real
+  // service called "טיפול פנים" being eaten as a header just because it
+  // contains the word טיפול - its row also holds a price, so it is data.
+  const hasNumber = first.some(isNumericCell);
+  return hasHeaderWord && !hasPhone && !hasNumber;
 };
 
 // Pre-guess each column: by header text when there is one, otherwise by what
@@ -398,6 +429,61 @@ const guessColumns = (rows, hasHeader) => {
     if (/הערות|notes|comment/.test(head)) { guess[c]="notes"; continue; }
   }
   return guess;
+};
+
+// Column guessing for a services paste. Headers win when present. Without
+// them, numbers are split by magnitude: a treatment is far more likely to cost
+// 250 than to last 250 minutes, and to last 45 than to cost 45.
+const guessServiceColumns = (rows, hasHeader) => {
+  const width = (rows[0] || []).length;
+  const body = hasHeader ? rows.slice(1) : rows;
+  const guess = new Array(width).fill("ignore");
+  let nameTaken = false, priceTaken = false, durTaken = false;
+
+  for (let c = 0; c < width; c++) {
+    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
+    const cells = body.map(r=>r[c]).filter(Boolean);
+    const numeric = cells.length && cells.filter(isNumericCell).length >= cells.length*0.6;
+    const nums = cells.map(parseMoney).filter(n=>n!==null);
+    const median = nums.length ? nums.slice().sort((a,b)=>a-b)[Math.floor(nums.length/2)] : 0;
+
+    if (!priceTaken && (/מחיר|price|₪|עלות|תשלום/.test(head))) { guess[c]="price"; priceTaken=true; continue; }
+    if (!durTaken && (/משך|דקות|duration|min|זמן/.test(head)))  { guess[c]="duration"; durTaken=true; continue; }
+    if (!nameTaken && (/שם|טיפול|שירות|name|service|treatment/.test(head))) { guess[c]="name"; nameTaken=true; continue; }
+    if (head) continue; // a labelled column we did not recognise stays ignored
+
+    if (numeric) {
+      // Durations cluster low and in round steps; prices sit higher.
+      if (!durTaken && median <= 200) { guess[c]="duration"; durTaken=true; continue; }
+      if (!priceTaken) { guess[c]="price"; priceTaken=true; continue; }
+      continue;
+    }
+    if (!nameTaken && cells.length) { guess[c]="name"; nameTaken=true; }
+  }
+  return guess;
+};
+
+// Apply a services mapping. Price and duration fall back to the column
+// defaults (0 and 60) rather than guessing, so a blank cell never invents a
+// number she would have to hunt down later.
+const buildServiceRows = (grid, cols, hasHeader) => {
+  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
+  const out = [];
+  let noName = 0;
+  for (const r of body) {
+    const rec = { name:"", price:0, duration:60, active:true };
+    let hasName = false;
+    cols.forEach((field, i) => {
+      const v = String(r[i]||"").trim();
+      if (field === "ignore" || !field || !v) return;
+      if (field === "name")     { rec.name = v; hasName = true; }
+      if (field === "price")    { const n = parseMoney(v);   if (n !== null) rec.price = n; }
+      if (field === "duration") { const n = parseMinutes(v); if (n !== null) rec.duration = n; }
+    });
+    if (!hasName) { noName++; continue; }
+    out.push(rec);
+  }
+  return { rows: out, noName };
 };
 
 // Apply the mapping. Rows with no name are dropped — a client record without
@@ -460,6 +546,9 @@ export default function BeautyOS() {
   const [importCols,        setImportCols]         = useState([]);
   const [importHasHeader,   setImportHasHeader]    = useState(false);
   const [importResult,      setImportResult]       = useState(null);
+  // Which table the wizard is filling. The stages, parser and result panel are
+  // shared; only the field list, row builder and insert target differ.
+  const [importTarget,      setImportTarget]       = useState("clients"); // clients | services
   const [showLeadModal,     setShowLeadModal]      = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
@@ -1458,18 +1547,74 @@ export default function BeautyOS() {
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
+  // The wizard is shared; these three pick the right behaviour per target.
+  const importFields  = importTarget === "services" ? SERVICE_IMPORT_FIELDS : IMPORT_FIELDS;
+  const importGuesser = importTarget === "services" ? guessServiceColumns   : guessColumns;
+  const importBuilder = importTarget === "services" ? buildServiceRows      : buildImportRows;
+
   const goToImportMapping = () => {
     const grid = parseImportGrid(importText);
     if (!grid.rows.length) { toast("לא נמצאו שורות", "error"); return; }
     const hasHeader = detectHeaderRow(grid.rows);
     setImportHasHeader(hasHeader);
-    setImportCols(guessColumns(grid.rows, hasHeader));
+    setImportCols(importGuesser(grid.rows, hasHeader));
     setImportStage("map");
   };
 
   const resetImport = () => {
     setImportText(""); setImportCols([]); setImportHasHeader(false);
     setImportResult(null); setImportStage("paste");
+  };
+
+  // Services import. Same safety shape as the client import: explicit tenant,
+  // dedupe, chunked inserts, and a failing chunk counted rather than aborting.
+  const importServices = async () => {
+    if (guardWrite()) return;
+    if (importing) return;
+
+    const grid = parseImportGrid(importText);
+    const { rows, noName } = buildServiceRows(grid, importCols, importHasHeader);
+    if (rows.length === 0) { toast("לא נמצאו טיפולים להוספה", "error"); return; }
+
+    setImporting(true);
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+
+      // Skip treatments already on the price list, matched on trimmed name.
+      const existing = new Set(services.map(s => String(s.name||"").trim()));
+      const seen = new Set();
+      const fresh = [];
+      let dupes = 0;
+      // Continue the colour cycle from however many services already exist, so
+      // an import does not restart on colours she is already using.
+      let colorAt = services.length;
+      for (const r of rows) {
+        const key = r.name.trim();
+        if (existing.has(key) || seen.has(key)) { dupes++; continue; }
+        seen.add(key);
+        fresh.push({ ...r, color: SERVICE_COLOR_CYCLE[colorAt++ % SERVICE_COLOR_CYCLE.length], ...tenantField });
+      }
+
+      const CHUNK = 100;
+      let failed = 0;
+      let firstError = null;
+      const inserted = [];
+      for (let i = 0; i < fresh.length; i += CHUNK) {
+        const chunk = fresh.slice(i, i + CHUNK);
+        const { data, error } = await supabase.from("service_prices").insert(chunk).select();
+        if (error) { failed += chunk.length; if (!firstError) firstError = error; continue; }
+        if (data) inserted.push(...data);
+      }
+
+      if (inserted.length) setServices(prev => [...prev, ...inserted]);
+      setImportResult({ added: inserted.length, dupes, noName, failed,
+                        error: firstError ? firstError.message : null });
+      setImportStage("done");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const importContacts = async () => {
@@ -4195,7 +4340,7 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
- <button onClick={()=>{resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
+ <button onClick={()=>{setImportTarget("clients");resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>
  </div>
@@ -4219,7 +4364,7 @@ export default function BeautyOS() {
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
  <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
- <button className="empty-cta" onClick={()=>{resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
+ <button className="empty-cta" onClick={()=>{setImportTarget("clients");resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -5404,14 +5549,14 @@ export default function BeautyOS() {
       {showImportModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
- <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>ייבוא לקוחות</p>
+ <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>{importTarget==="services"?"ייבוא טיפולים ומחירים":"ייבוא לקוחות"}</p>
 
  {/* ---------- STAGE 1: PASTE ---------- */}
  {importStage==="paste"&&(<>
- <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importTarget==="services"?"יש לך מחירון בתוכנה אחרת או באקסל? העתיקי את העמודות והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.":"יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת."}</p>
 
- <button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
- <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p>
+ {importTarget!=="services"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
+ <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
 
  <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>הדביקי כאן (שורה לכל לקוחה):</p>
  <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן\t0541234567\nמיכל לוי\t0529876543"} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
@@ -5430,13 +5575,13 @@ export default function BeautyOS() {
  {importStage==="map"&&(()=>{
    const grid = parseImportGrid(importText);
    const preview = (importHasHeader?grid.rows.slice(1):grid.rows).slice(0,5);
-   const built = buildImportRows(grid, importCols, importHasHeader);
+   const built = importBuilder(grid, importCols, importHasHeader);
    const hasName = importCols.includes("name");
    return (<>
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.</p>
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:11.5,color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
- <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(guessColumns(grid.rows,h));}}/>
+ <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
    השורה הראשונה היא כותרות (לא לקוחה)
  </label>
 
@@ -5448,7 +5593,7 @@ export default function BeautyOS() {
  <th key={i} style={{padding:"8px 6px",background:"var(--pc-tint)",borderBottom:"1px solid var(--line)"}}>
  <select value={importCols[i]||"ignore"} onChange={e=>{const n=importCols.slice();n[i]=e.target.value;setImportCols(n);}}
          style={{width:"100%",fontSize:11,fontFamily:"inherit",padding:"5px 4px",borderRadius:8,border:`1px solid ${importCols[i]&&importCols[i]!=="ignore"?pc:"var(--line-2)"}`,background:"var(--surface)",color:"var(--ink)",outline:"none"}}>
-     {IMPORT_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+     {importFields.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
  </select>
  {importHasHeader&&<p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{grid.rows[0][i]||"—"}</p>}
  </th>
@@ -5476,7 +5621,7 @@ export default function BeautyOS() {
     </p>}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מייבא...":`ייבוא ${built.rows.length} לקוחות`}</button>
+ <button onClick={importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מייבא...":`ייבוא ${built.rows.length} לקוחות`}</button>
  <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
  </div>
  </>);
@@ -5486,7 +5631,7 @@ export default function BeautyOS() {
  {importStage==="done"&&importResult&&(<>
  <div style={{textAlign:"center",padding:"10px 0 16px"}}>
  <p className="serif" style={{fontSize:26,fontWeight:700,color:pcDeep,marginBottom:4}}>{importResult.added}</p>
- <p style={{fontSize:12.5,color:"var(--ink-2)"}}>לקוחות נוספו</p>
+ <p style={{fontSize:12.5,color:"var(--ink-2)"}}>{importTarget==="services"?"טיפולים נוספו":"לקוחות נוספו"}</p>
  </div>
  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
    {importResult.dupes>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
@@ -6229,7 +6374,13 @@ export default function BeautyOS() {
  <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
  </div>
-                  ):<button onClick={()=>setShowNewService(true)} style={{background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",width:"100%",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>+ הוסיפי שירות</button>}
+                  ):(
+ <div style={{display:"flex",gap:6,marginTop:6}}>
+ <button onClick={()=>setShowNewService(true)} style={{flex:2,background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit"}}>+ הוסיפי שירות</button>
+ {/* Same wizard as the client import, pointed at service_prices. */}
+ <button onClick={()=>{setImportTarget("services");resetImport();setShowImportModal(true);}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
+ </div>
+                  )}
  </div>
               )}
               {settingsTab==="faq"&&(
