@@ -47,19 +47,19 @@ function ConfirmContent() {
   // עיצוב לפי הסטטוס
   const getStyles = () => {
     if (status === 'loading') {
-      return { emoji: '⏳', title: 'רגע...', color: '#6b7280' };
+      return { emoji: '⏳', title: 'רגע...', color: 'var(--ink-2)' };
     }
     if (status === 'error') {
-      return { emoji: '❌', title: 'אופס!', color: '#dc2626' };
+      return { emoji: '❌', title: 'אופס!', color: 'var(--danger)' };
     }
     if (status === 'success' && action === 'confirm') {
-      return { emoji: '✅', title: 'התור אושר!', color: '#16a34a' };
+      return { emoji: '✅', title: 'התור אושר!', color: 'var(--success)' };
     }
     if (status === 'success' && action === 'cancel') {
-      return { emoji: '🚫', title: 'התור בוטל', color: '#ea580c' };
+      return { emoji: '🚫', title: 'התור בוטל', color: 'var(--warning)' };
     }
     if (status === 'already') {
-      return { emoji: 'ℹ️', title: 'כבר טופל', color: '#2563eb' };
+      return { emoji: 'ℹ️', title: 'כבר טופל', color: 'var(--pc)' };
     }
     return { emoji: '', title: '', color: '#000' };
   };
@@ -72,7 +72,7 @@ function ConfirmContent() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#f9fafb',
+      backgroundColor: 'var(--brand-cream, #FEFAF7)',
       padding: '20px',
       fontFamily: 'system-ui, -apple-system, sans-serif',
       direction: 'rtl'
@@ -99,7 +99,7 @@ function ConfirmContent() {
         </h1>
         <p style={{
           fontSize: '16px',
-          color: '#4b5563',
+          color: 'var(--ink)',
           lineHeight: '1.5'
         }}>
           {status === 'loading' ? 'מעדכן את התור שלך...' : message}
@@ -107,7 +107,7 @@ function ConfirmContent() {
         {(status === 'success' || status === 'already') && (
           <p style={{
             fontSize: '14px',
-            color: '#9ca3af',
+            color: 'var(--ink-3)',
             marginTop: '20px'
           }}>
             תוכלי לסגור את החלון

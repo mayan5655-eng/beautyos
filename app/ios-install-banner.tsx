@@ -67,9 +67,9 @@ export default function IOSInstallBanner() {
         alignItems: "flex-start",
         gap: "12px",
         padding: "14px 16px",
-        background: "var(--surface, #fff)",
-        color: "var(--ink, #2A2233)",
-        border: "1px solid var(--line, #ECE6F2)",
+        background: "var(--surface, var(--surface))",
+        color: "var(--ink, var(--ink))",
+        border: "1px solid var(--line, var(--line))",
         borderRadius: "var(--r-md, 16px)",
         boxShadow: "var(--shadow-lg, 0 18px 44px rgba(43,34,51,0.14))",
         fontFamily: "var(--sans, system-ui, sans-serif)",
@@ -84,8 +84,8 @@ export default function IOSInstallBanner() {
           width: "38px",
           height: "38px",
           borderRadius: "999px",
-          background: "var(--lavender-100, #F1E2F2)",
-          color: "var(--plum-600, #5B3E67)",
+          background: "var(--lavender-100, var(--pc-tint))",
+          color: "var(--plum-600, var(--pc))",
         }}
       >
         {/* iOS share glyph */}
@@ -111,7 +111,7 @@ export default function IOSInstallBanner() {
             fontWeight: 600,
             fontSize: "14px",
             lineHeight: 1.35,
-            color: "var(--plum-700, #4A3155)",
+            color: "var(--plum-700, var(--pc-deep))",
           }}
         >
           התקיני את BloomOS למסך הבית
@@ -121,7 +121,7 @@ export default function IOSInstallBanner() {
             marginTop: "2px",
             fontSize: "13px",
             lineHeight: 1.45,
-            color: "var(--ink-2, #6B6275)",
+            color: "var(--ink-2, var(--ink-2))",
           }}
         >
           הקישי על כפתור השיתוף ובחרי «הוספה למסך הבית».
@@ -137,7 +137,7 @@ export default function IOSInstallBanner() {
           appearance: "none",
           border: "none",
           background: "transparent",
-          color: "var(--ink-3, #9A93A4)",
+          color: "var(--ink-3, var(--ink-3))",
           cursor: "pointer",
           fontSize: "20px",
           lineHeight: 1,

@@ -47,7 +47,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
   const [designPost, setDesignPost] = useState<Post | null>(null)
 
   // Business branding pulled from settings (with safe fallbacks)
-  const primaryColor = settings?.primary_color || '#C77B92'
+  const primaryColor = settings?.primary_color || 'var(--pc, #4A2E5A)'
   const businessName = settings?.business_name || ''
   const businessPhone = settings?.business_phone || ''
 

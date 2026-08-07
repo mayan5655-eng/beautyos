@@ -43,7 +43,7 @@ export default function PostDesigner({
   const cardRef = useRef<HTMLDivElement>(null)
 
   // Derived accent color (the chosen business color) with a soft fallback
-  const pc = primaryColor || '#C77B92'
+  const pc = primaryColor || 'var(--pc)'
 
   // Read uploaded file as data URL
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -124,27 +124,27 @@ export default function PostDesigner({
           )}
 
           {/* Business name */}
-          <div style={{ position: 'absolute', top: 22, right: 24, color: '#fff', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+          <div style={{ position: 'absolute', top: 22, right: 24, color: 'var(--surface)', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
             {businessName || ''}
           </div>
 
           {/* Headline + body */}
           <div style={{ position: 'absolute', bottom: 96, right: 24, left: 24, textAlign: 'right' }}>
-            <div style={{ fontFamily: "'Suez One', serif", color: '#fff', fontSize: 30, lineHeight: 1.15, textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontFamily: "'Suez One', serif", color: 'var(--surface)', fontSize: 30, lineHeight: 1.15, textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
               {post.title}
             </div>
-            <div style={{ color: '#FBF3EC', fontSize: 14, fontWeight: 600, marginTop: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            <div style={{ color: 'var(--brand-cream, #FEFAF7)', fontSize: 14, fontWeight: 600, marginTop: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {post.body}
             </div>
           </div>
 
           {/* CTA pill */}
           <div style={{ position: 'absolute', bottom: 28, right: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ background: '#fff', color: pc, borderRadius: 999, padding: '10px 20px', fontWeight: 800, fontSize: 14, boxShadow: '0 6px 16px rgba(0,0,0,0.2)' }}>
+            <div style={{ background: 'var(--surface)', color: pc, borderRadius: 999, padding: '10px 20px', fontWeight: 800, fontSize: 14, boxShadow: '0 6px 16px rgba(0,0,0,0.2)' }}>
               {post.call_to_action} ›
             </div>
             {phone && (
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: 13, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+              <div style={{ color: 'var(--surface)', fontWeight: 600, fontSize: 13, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
                 {phone}
               </div>
             )}
@@ -152,28 +152,28 @@ export default function PostDesigner({
         </div>
 
         {/* ============ CONTROLS ============ */}
-        <div style={{ width: 360, background: '#fff', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+        <div style={{ width: 360, background: 'var(--surface)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
           {post.image_suggestion && (
-            <div style={{ fontSize: 13, color: '#8a6d3b', background: '#FDF6E3', borderRadius: 10, padding: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--warning)', background: 'var(--surface-2)', borderRadius: 10, padding: 10 }}>
               💡 הצעת תמונה: {post.image_suggestion}
             </div>
           )}
 
-          <label style={{ background: '#F4EFE9', border: `1px dashed ${pc}`, borderRadius: 10, padding: 12, textAlign: 'center', color: pc, fontWeight: 600, cursor: 'pointer' }}>
+          <label style={{ background: 'var(--brand-cream, #FEFAF7)', border: `1px dashed ${pc}`, borderRadius: 10, padding: 12, textAlign: 'center', color: pc, fontWeight: 600, cursor: 'pointer' }}>
             {image ? '✓ תמונה הועלתה — לחצי להחלפה' : '📷 העלי תמונה'}
             <input type="file" accept="image/*" onChange={handleImage} style={{ display: 'none' }} />
           </label>
 
           <button
             onClick={downloadImage}
-            style={{ background: pc, color: '#fff', border: 'none', borderRadius: 12, padding: 14, fontFamily: "'Heebo', sans-serif", fontWeight: 800, fontSize: 16, cursor: 'pointer' }}
+            style={{ background: pc, color: 'var(--surface)', border: 'none', borderRadius: 12, padding: 14, fontFamily: "'Heebo', sans-serif", fontWeight: 800, fontSize: 16, cursor: 'pointer' }}
           >
             📥 הורד תמונה לאינסטגרם
           </button>
 
           <button
             onClick={onClose}
-            style={{ background: 'transparent', color: '#6B7A6E', border: 'none', padding: 6, fontFamily: "'Heebo', sans-serif", fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+            style={{ background: 'transparent', color: 'var(--ink-2)', border: 'none', padding: 6, fontFamily: "'Heebo', sans-serif", fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
           >
             סגור
           </button>

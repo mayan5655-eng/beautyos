@@ -26,24 +26,24 @@ export default function ReadOnlyNotice({ plan }) {
       style={{
         maxWidth: 900,
         margin: "0 0 20px",
-        background: "#FBF7F4",
-        border: "1px solid #EADFD8",
+        background: "var(--brand-cream, #FEFAF7)",
+        border: "1px solid var(--line)",
         borderRadius: 16,
         padding: "16px 18px",
         fontFamily: "'Assistant', system-ui, sans-serif",
       }}
     >
-      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#4A3B33" }}>{title}</p>
-      <p style={{ margin: "5px 0 0", fontSize: 13, color: "#6B5B56", lineHeight: 1.65 }}>{body}</p>
-      <p style={{ margin: "3px 0 12px", fontSize: 12, color: "#8A7A70" }}>{CTA_RENEW_HINT_HE}</p>
+      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{title}</p>
+      <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.65 }}>{body}</p>
+      <p style={{ margin: "3px 0 12px", fontSize: 12, color: "var(--ink-3)" }}>{CTA_RENEW_HINT_HE}</p>
       <a
         href={supportWhatsAppUrl()}
         target="_blank"
         rel="noopener noreferrer"
         style={{
           display: "inline-block",
-          background: "linear-gradient(135deg, #E0A567 0%, #D4945A 100%)",
-          color: "#fff",
+          background: "linear-gradient(135deg, var(--pc-2, #6B5279) 0%, var(--pc) 100%)",
+          color: "var(--surface)",
           fontSize: 13,
           fontWeight: 600,
           padding: "10px 18px",
