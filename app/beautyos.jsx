@@ -303,6 +303,110 @@ function waPayment(phone, name, amount, service, method, businessPhone) {
 }
 
 const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medical:"",notes:"",status:"active"};
+
+// ============================================================
+// CLIENT IMPORT — paste + column mapping
+// A cosmetician moving from another system exports to Excel, copies the
+// columns and pastes them here. Excel copies as TAB-separated text, which is
+// why paste is the path rather than file upload: no parser library, and it is
+// the one thing every system can produce.
+// ============================================================
+
+// The client fields a pasted column can be mapped onto. Note skinType, not
+// skintype: the table has both, and the rest of the app writes camelCase.
+const IMPORT_FIELDS = [
+  { id:"ignore",    label:"התעלם" },
+  { id:"name",      label:"שם" },
+  { id:"phone",     label:"טלפון" },
+  { id:"birthday",  label:"תאריך לידה" },
+  { id:"skinType",  label:"סוג עור" },
+  { id:"allergies", label:"אלרגיות" },
+  { id:"medical",   label:"מצב רפואי" },
+  { id:"notes",     label:"הערות" },
+];
+
+const looksLikePhone = (s) => /^[\d\-+() ]{6,}$/.test(String(s||"").trim());
+
+// Split one pasted line into cells. Tabs win when present (an Excel paste);
+// otherwise commas, but NOT commas inside quotes — "כהן, דנה" is one cell.
+const splitImportLine = (line) => {
+  if (line.includes("\t")) return line.split("\t").map(c=>c.trim());
+  const out=[]; let cur=""; let q=false;
+  for (const ch of line) {
+    if (ch === '"') { q = !q; continue; }
+    if (ch === "," && !q) { out.push(cur.trim()); cur=""; continue; }
+    cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+};
+
+// Pasted text -> a rectangular grid. Short rows are padded so every row has
+// the same width as the widest, which keeps the mapping dropdowns aligned.
+const parseImportGrid = (text) => {
+  // Filter blank lines WITHOUT trimming the kept ones: trimming a line would
+  // eat a leading tab, and with it the empty first cell. A row like
+  // "<tab>0541234567" - a client with a phone but no name - would otherwise
+  // collapse to one cell and import the phone AS the name.
+  const rows = String(text||"").split("\n").filter(l=>l.trim()).map(splitImportLine);
+  const width = rows.reduce((w,r)=>Math.max(w,r.length),0);
+  return { rows: rows.map(r=>{ const c=r.slice(); while(c.length<width) c.push(""); return c; }), width };
+};
+
+// Row 1 is a header when it contains a recognised heading AND no phone-shaped
+// cell. Requiring both avoids treating a real client named "שם" as a header.
+const HEADER_WORDS = ["שם","טלפון","נייד","מייל","אימייל","הערות","כתובת","תאריך","לידה","עור","אלרגי","רפואי",
+                      "name","phone","mobile","email","notes","address","birthday","date","client","customer"];
+const detectHeaderRow = (rows) => {
+  const first = rows[0]; if (!first) return false;
+  const hasHeaderWord = first.some(c => HEADER_WORDS.some(w => String(c).toLowerCase().includes(w)));
+  const hasPhone = first.some(looksLikePhone);
+  return hasHeaderWord && !hasPhone;
+};
+
+// Pre-guess each column: by header text when there is one, otherwise by what
+// the cells look like. The first text-ish column becomes the name.
+const guessColumns = (rows, hasHeader) => {
+  const { length: width } = rows[0] || [];
+  const body = hasHeader ? rows.slice(1) : rows;
+  const guess = new Array(width).fill("ignore");
+  let nameTaken = false, phoneTaken = false;
+
+  for (let c = 0; c < width; c++) {
+    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
+    const cells = body.map(r=>r[c]).filter(Boolean);
+    const phoneish = cells.length && cells.filter(looksLikePhone).length >= cells.length*0.6;
+
+    if (!phoneTaken && (/טלפון|נייד|phone|mobile/.test(head) || (!head && phoneish))) { guess[c]="phone"; phoneTaken=true; continue; }
+    if (!nameTaken && (/שם|name|client|customer/.test(head) || (!head && !phoneish && cells.length))) { guess[c]="name"; nameTaken=true; continue; }
+    if (/לידה|birthday|תאריך|date/.test(head)) { guess[c]="birthday"; continue; }
+    if (/עור|skin/.test(head)) { guess[c]="skinType"; continue; }
+    if (/אלרגי|allerg/.test(head)) { guess[c]="allergies"; continue; }
+    if (/רפואי|medical/.test(head)) { guess[c]="medical"; continue; }
+    if (/הערות|notes|comment/.test(head)) { guess[c]="notes"; continue; }
+  }
+  return guess;
+};
+
+// Apply the mapping. Rows with no name are dropped — a client record without
+// a name is not usable, and silently creating blanks is worse than skipping.
+const buildImportRows = (grid, cols, hasHeader) => {
+  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
+  const out = [];
+  let noName = 0;
+  for (const r of body) {
+    const rec = {};
+    cols.forEach((field, i) => {
+      if (field === "ignore" || !field) return;
+      const v = String(r[i]||"").trim();
+      if (!v) return;
+      rec[field] = field === "phone" ? v.replace(/[^\d+]/g,"") : v;
+    });
+    if (!rec.name) { noName++; continue; }
+    out.push(rec);
+  }
+  return { rows: out, noName };
+};
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
 const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
@@ -338,6 +442,12 @@ export default function BeautyOS() {
   const [showImportModal,   setShowImportModal]    = useState(false);
   const [importText,        setImportText]         = useState("");
   const [importing,         setImporting]          = useState(false);
+  // Import wizard: paste -> map -> done. importCols holds one field id per
+  // pasted column; importResult holds the counts shown after the run.
+  const [importStage,       setImportStage]        = useState("paste");
+  const [importCols,        setImportCols]         = useState([]);
+  const [importHasHeader,   setImportHasHeader]    = useState(false);
+  const [importResult,      setImportResult]       = useState(null);
   const [showLeadModal,     setShowLeadModal]      = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
@@ -1334,20 +1444,74 @@ export default function BeautyOS() {
   };
 
   // Save all parsed contacts as new clients
+  // Move from paste to mapping: parse the grid, detect a header row, pre-guess
+  // each column. She corrects the guesses rather than starting from scratch.
+  const goToImportMapping = () => {
+    const grid = parseImportGrid(importText);
+    if (!grid.rows.length) { toast("לא נמצאו שורות", "error"); return; }
+    const hasHeader = detectHeaderRow(grid.rows);
+    setImportHasHeader(hasHeader);
+    setImportCols(guessColumns(grid.rows, hasHeader));
+    setImportStage("map");
+  };
+
+  const resetImport = () => {
+    setImportText(""); setImportCols([]); setImportHasHeader(false);
+    setImportResult(null); setImportStage("paste");
+  };
+
   const importContacts = async () => {
     if (guardWrite()) return;
     if (importing) return;
-    const rows = parseImportText(importText);
-    if (rows.length === 0) { toast("לא נמצאו אנשי קשר להוספה", "error"); return; }
+
+    const grid = parseImportGrid(importText);
+    const { rows, noName } = buildImportRows(grid, importCols, importHasHeader);
+    if (rows.length === 0) { toast("לא נמצאו לקוחות להוספה", "error"); return; }
+
     setImporting(true);
     try {
-      const toInsert = rows.map((r) => ({ ...emptyClient, name: r.name, phone: r.phone, status: "active" }));
-      const { data, error } = await supabase.from("clients").insert(toInsert).select();
-      if (error) { handleDbError(error, "import clients"); return; }
-      if (data) setClients((prev) => [...prev, ...data]);
-      setShowImportModal(false);
-      setImportText("");
-      toast(`${rows.length} לקוחות נוספו`);
+      // Tenant is set explicitly rather than relying on a column default, the
+      // same pattern handleSaveAppointment uses. Inserts run under RLS through
+      // the browser client, so each row is checked server-side regardless.
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+
+      // Skip clients already on file, matched on digits-only phone. A rerun of
+      // the same paste - which happens after a partial failure - must not
+      // double the list.
+      const existing = new Set(
+        clients.map(c => String(c.phone||"").replace(/\D/g,"")).filter(Boolean)
+      );
+      const seen = new Set();
+      const fresh = [];
+      let dupes = 0;
+      for (const r of rows) {
+        const key = String(r.phone||"").replace(/\D/g,"");
+        if (key && (existing.has(key) || seen.has(key))) { dupes++; continue; }
+        if (key) seen.add(key);
+        fresh.push({ ...emptyClient, ...r, status:"active", ...tenantField });
+      }
+
+      // Batched: a 500-row paste is 5 requests, not 500. A failing chunk is
+      // counted and the rest continue, so one bad row cannot lose the import.
+      const CHUNK = 100;
+      let failed = 0;
+      let firstError = null;
+      const inserted = [];
+      for (let i = 0; i < fresh.length; i += CHUNK) {
+        const chunk = fresh.slice(i, i + CHUNK);
+        const { data, error } = await supabase.from("clients").insert(chunk).select();
+        if (error) { failed += chunk.length; if (!firstError) firstError = error; continue; }
+        if (data) inserted.push(...data);
+      }
+
+      // Only rows the database actually returned go into local state, so the
+      // list on screen always matches what was really written.
+      if (inserted.length) setClients(prev => [...prev, ...inserted]);
+      setImportResult({ added: inserted.length, dupes, noName, failed,
+                        error: firstError ? firstError.message : null });
+      setImportStage("done");
     } finally {
       setImporting(false);
     }
@@ -4019,7 +4183,7 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
- <button onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
+ <button onClick={()=>{resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>
  </div>
@@ -4043,7 +4207,7 @@ export default function BeautyOS() {
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
  <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
- <button className="empty-cta" onClick={()=>{setImportText("");setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
+ <button className="empty-cta" onClick={()=>{resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -5229,20 +5393,105 @@ export default function BeautyOS() {
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>ייבוא לקוחות</p>
- <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>הוסיפי כמה לקוחות בבת אחת. כתבי כל לקוחה בשורה נפרדת, בפורמט: שם, טלפון</p>
+
+ {/* ---------- STAGE 1: PASTE ---------- */}
+ {importStage==="paste"&&(<>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.</p>
 
  <button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p>
 
- <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>או הדביקי כאן (שורה לכל לקוחה):</p>
- <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן, 0541234567\nמיכל לוי, 0529876543"} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
+ <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>הדביקי כאן (שורה לכל לקוחה):</p>
+ <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן\t0541234567\nמיכל לוי\t0529876543"} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
 
- {importText.trim()&&<p style={{fontSize:10.5,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {parseImportText(importText).length} לקוחות</p>}
+ {importText.trim()&&(()=>{ const g=parseImportGrid(importText); return (
+ <p style={{fontSize:10.5,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {g.rows.length} שורות ו-{g.width} עמודות</p>
+ );})()}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importContacts} disabled={importing} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:importing?0.6:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מוסיף...":"הוספת הלקוחות"}</button>
- <button onClick={()=>setShowImportModal(false)} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+ <button onClick={goToImportMapping} disabled={!importText.trim()} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:importText.trim()?1:0.5,boxShadow:`0 8px 18px ${pcShadow}`}}>המשך להתאמת עמודות ←</button>
+ <button onClick={()=>{setShowImportModal(false);resetImport();}} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  </div>
+ </>)}
+
+ {/* ---------- STAGE 2: MAP COLUMNS ---------- */}
+ {importStage==="map"&&(()=>{
+   const grid = parseImportGrid(importText);
+   const preview = (importHasHeader?grid.rows.slice(1):grid.rows).slice(0,5);
+   const built = buildImportRows(grid, importCols, importHasHeader);
+   const hasName = importCols.includes("name");
+   return (<>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.</p>
+
+ <label style={{display:"flex",alignItems:"center",gap:7,fontSize:11.5,color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
+ <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(guessColumns(grid.rows,h));}}/>
+   השורה הראשונה היא כותרות (לא לקוחה)
+ </label>
+
+ <div style={{overflowX:"auto",border:"1px solid var(--line)",borderRadius:12,marginBottom:12}}>
+ <table style={{borderCollapse:"collapse",width:"100%",minWidth:Math.max(320,grid.width*130)}}>
+ <thead>
+ <tr>
+   {Array.from({length:grid.width}).map((_,i)=>(
+ <th key={i} style={{padding:"8px 6px",background:"var(--pc-tint)",borderBottom:"1px solid var(--line)"}}>
+ <select value={importCols[i]||"ignore"} onChange={e=>{const n=importCols.slice();n[i]=e.target.value;setImportCols(n);}}
+         style={{width:"100%",fontSize:11,fontFamily:"inherit",padding:"5px 4px",borderRadius:8,border:`1px solid ${importCols[i]&&importCols[i]!=="ignore"?pc:"var(--line-2)"}`,background:"var(--surface)",color:"var(--ink)",outline:"none"}}>
+     {IMPORT_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+ </select>
+ {importHasHeader&&<p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{grid.rows[0][i]||"—"}</p>}
+ </th>
+   ))}
+ </tr>
+ </thead>
+ <tbody>
+   {preview.map((r,ri)=>(
+ <tr key={ri} style={{background:ri%2?"var(--surface-2)":"var(--surface)"}}>
+     {r.map((cell,ci)=>(
+ <td key={ci} style={{padding:"7px 8px",fontSize:11,color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
+     ))}
+ </tr>
+   ))}
+ </tbody>
+ </table>
+ </div>
+
+ {!hasName
+   ?<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה אחת בתור «שם» כדי להמשיך.</p>
+   :<p style={{fontSize:11,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
+      <strong style={{color:pcDeep}}>{built.rows.length} לקוחות ייווצרו</strong>
+      {built.noName>0&&<> · {built.noName} ידולגו (ללא שם)</>}
+      {preview.length<(importHasHeader?grid.rows.length-1:grid.rows.length)&&<> · מוצגות 5 שורות ראשונות</>}
+    </p>}
+
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מייבא...":`ייבוא ${built.rows.length} לקוחות`}</button>
+ <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
+ </div>
+ </>);
+ })()}
+
+ {/* ---------- STAGE 3: RESULT ---------- */}
+ {importStage==="done"&&importResult&&(<>
+ <div style={{textAlign:"center",padding:"10px 0 16px"}}>
+ <p className="serif" style={{fontSize:26,fontWeight:700,color:pcDeep,marginBottom:4}}>{importResult.added}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-2)"}}>לקוחות נוספו</p>
+ </div>
+ <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+   {importResult.dupes>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
+   {importResult.noName>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noName} דולגו — ללא שם</p>}
+   {importResult.failed>0&&(
+ <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:12,padding:"10px 12px"}}>
+ <p style={{fontSize:11.5,color:"var(--danger)",fontWeight:700,marginBottom:3}}>{importResult.failed} לא נוספו</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>שאר הלקוחות נוספו בהצלחה. אפשר להדביק שוב רק את מי שחסרה — לקוחות שכבר קיימות לא ייווצרו פעמיים.</p>
+ {importResult.error&&<p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:5,direction:"ltr",textAlign:"left"}}>{importResult.error}</p>}
+ </div>
+   )}
+ </div>
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={()=>{setShowImportModal(false);resetImport();}} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,boxShadow:`0 8px 18px ${pcShadow}`}}>סיום</button>
+ <button onClick={resetImport} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>ייבוא נוסף</button>
+ </div>
+ </>)}
  </div>
  </div>
       )}
