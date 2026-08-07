@@ -3012,9 +3012,6 @@ export default function BeautyOS() {
         .serif{font-family:var(--display)}
         /* Bottom-nav sheet rise. */
         @keyframes sheetUp{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
-        /* Clearance so the fixed bottom bar never covers the last row of any
-           tab. Matches the bar height plus the iPhone home-bar inset. */
-        .app-main{padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px))!important}
         /* Keyboard focus indicator (only for keyboard nav, not mouse). The
            !important overrides the many inline outline:none declarations. */
         button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[role="button"]:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--pc)!important;outline-offset:2px;border-radius:10px}
@@ -3077,6 +3074,14 @@ export default function BeautyOS() {
              modest floor on the drawer nav so labels stay legible on a phone. */
           .modal-card input,.modal-card select,.modal-card textarea{font-size:16px!important}
           .nav-item{font-size:14px!important}
+          /* Navigation adapts by width, from ONE markup tree rather than two
+             layouts. Above this breakpoint the persistent sidebar already
+             lists all 13 tabs with labels, so the bottom bar would only
+             duplicate it; below it, the sidebar collapses to an off-canvas
+             drawer and the bottom bar becomes the primary navigation.
+             Clearance for the bar is scoped here too, so desktop keeps its
+             full content height. */
+          .app-main{padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px))!important}
           /* Phase 3 — give content its width back (main uses inline 28px 30px).
              Slim 8px side gutter so content runs nearly edge-to-edge on phones. */
           .app-main{padding:12px 8px!important}
@@ -5451,7 +5456,7 @@ export default function BeautyOS() {
           below modals (1500+), and the safe-area inset keeps the labels clear
           of the iPhone home bar.
           ============================================================ */}
- <nav aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:1400,
+ <nav className="mobile-only" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:1400,
         background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
         backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
         borderTop:"1px solid var(--line)",boxShadow:"0 -2px 16px rgba(48,24,72,0.06)",
@@ -5497,7 +5502,7 @@ export default function BeautyOS() {
 
       {/* "עוד" SHEET — the remaining tabs. */}
       {showMoreSheet&&(
- <div onClick={()=>setShowMoreSheet(false)}
+ <div className="mobile-only" onClick={()=>setShowMoreSheet(false)}
       style={{position:"fixed",inset:0,zIndex:1401,background:"rgba(48,24,72,0.34)",
               backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",
               display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
