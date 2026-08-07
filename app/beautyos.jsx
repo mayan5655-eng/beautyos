@@ -549,6 +549,10 @@ export default function BeautyOS() {
   // Which table the wizard is filling. The stages, parser and result panel are
   // shared; only the field list, row builder and insert target differ.
   const [importTarget,      setImportTarget]       = useState("clients"); // clients | services
+  // The single import entry point. Reachable from Settings and from
+  // onboarding, so there is one obvious way in rather than buttons scattered
+  // across the screens that happen to show each kind of data.
+  const [showImportHub,     setShowImportHub]      = useState(false);
   const [showLeadModal,     setShowLeadModal]      = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
@@ -669,6 +673,20 @@ export default function BeautyOS() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   // Bottom-bar "עוד" sheet: holds the tabs that do not fit in the bar itself.
   const [showMoreSheet,     setShowMoreSheet]     = useState(false);
+  // Onboarding sends her here with /?import=1 when she says she has data to
+  // bring across, so that step and the Settings tab open the same screen.
+  // The param is stripped afterwards so a refresh does not reopen it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("import") === "1") {
+      setShowImportHub(true);
+      p.delete("import");
+      const qs = p.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
+
   // Escape closes the sheet, matching every other overlay in the app.
   useEffect(() => {
     if (!showMoreSheet) return;
@@ -1547,6 +1565,46 @@ export default function BeautyOS() {
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
+  // What she can bring across, in the order it is useful on day one: her
+  // client list, then her price list so she can take payment. Appointments are
+  // listed as coming soon rather than hidden, so she knows it is planned and
+  // does not go hunting for it.
+  const IMPORT_KINDS = [
+    { id:"clients",  icon:"👥", title:"לקוחות",           blurb:"שמות, טלפונים, הערות, אלרגיות",  ready:true },
+    { id:"services", icon:"✦",  title:"שירותים ומחירים",  blurb:"שם הטיפול, מחיר ומשך",           ready:true },
+    { id:"appts",    icon:"◴",  title:"תורים עתידיים",     blurb:"בקרוב",                          ready:false },
+  ];
+  const openImportFor = (kind) => {
+    setImportTarget(kind);
+    resetImport();
+    setShowImportHub(false);
+    setShowImportModal(true);
+  };
+
+  // The chooser body, rendered both inside the Settings tab and in the modal
+  // that onboarding lands on - one implementation, two placements.
+  const renderImportChooser = () => (
+    <div style={{display:"flex",flexDirection:"column",gap:9}}>
+      {IMPORT_KINDS.map(k=>(
+        <button key={k.id} onClick={()=>k.ready&&openImportFor(k.id)} disabled={!k.ready}
+          style={{display:"flex",alignItems:"center",gap:13,padding:"14px 15px",borderRadius:16,textAlign:"right",
+                  border:`1px solid ${k.ready?"var(--line)":"var(--line-2)"}`,background:k.ready?"var(--surface)":"var(--surface-2)",
+                  cursor:k.ready?"pointer":"default",fontFamily:"inherit",opacity:k.ready?1:0.6,width:"100%"}}>
+          <span style={{width:40,height:40,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+                        fontSize:18,background:k.ready?pcTint:"var(--surface)",color:pc}}>{k.icon}</span>
+          <span style={{flex:1,minWidth:0}}>
+            <span style={{display:"block",fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{k.title}</span>
+            <span style={{display:"block",fontSize:10.5,color:"var(--ink-3)",marginTop:2}}>{k.blurb}</span>
+          </span>
+          {k.ready&&<span aria-hidden style={{fontSize:16,color:pc,flexShrink:0}}>←</span>}
+        </button>
+      ))}
+      <p style={{fontSize:10.5,color:"var(--ink-3)",lineHeight:1.6,marginTop:2}}>
+        איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת — ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
+      </p>
+    </div>
+  );
+
   // The wizard is shared; these three pick the right behaviour per target.
   const importFields  = importTarget === "services" ? SERVICE_IMPORT_FIELDS : IMPORT_FIELDS;
   const importGuesser = importTarget === "services" ? guessServiceColumns   : guessColumns;
@@ -4340,7 +4398,7 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
- <button onClick={()=>{setImportTarget("clients");resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
+ <button onClick={()=>setShowImportHub(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>
  </div>
@@ -4364,7 +4422,7 @@ export default function BeautyOS() {
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
  <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
- <button className="empty-cta" onClick={()=>{setImportTarget("clients");resetImport();setShowImportModal(true);}} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
+ <button className="empty-cta" onClick={()=>setShowImportHub(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -5546,6 +5604,20 @@ export default function BeautyOS() {
       )}
 
       {/* IMPORT CONTACTS MODAL */}
+      {/* IMPORT HUB — the same chooser as the Settings tab, as a modal. This is
+          where onboarding lands via /?import=1, so both routes reach one
+          screen rather than two lookalikes. */}
+      {showImportHub&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportHub(false)}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:440,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
+ <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",marginBottom:6}}>ייבוא נתונים</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
+                {renderImportChooser()}
+ <button onClick={()=>setShowImportHub(false)} style={{width:"100%",marginTop:14,padding:"11px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:12.5,cursor:"pointer",fontFamily:"inherit"}}>אולי מאוחר יותר</button>
+ </div>
+ </div>
+      )}
+
       {showImportModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
@@ -6117,7 +6189,7 @@ export default function BeautyOS() {
  <span style={{fontSize:11,color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
+                {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"import",l:"ייבוא נתונים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:11.5,fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -6378,9 +6450,15 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,marginTop:6}}>
  <button onClick={()=>setShowNewService(true)} style={{flex:2,background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit"}}>+ הוסיפי שירות</button>
  {/* Same wizard as the client import, pointed at service_prices. */}
- <button onClick={()=>{setImportTarget("services");resetImport();setShowImportModal(true);}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
+ <button onClick={()=>setShowImportHub(true)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
  </div>
                   )}
+ </div>
+              )}
+              {settingsTab==="import"&&(
+ <div>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
+                  {renderImportChooser()}
  </div>
               )}
               {settingsTab==="faq"&&(

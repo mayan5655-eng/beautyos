@@ -16,7 +16,7 @@ type OnboardingData = {
 };
 
 // The three step names, matching the headings shown in each step body.
-const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה"];
+const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "ייבוא נתונים"];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -65,6 +65,7 @@ export default function OnboardingPage() {
           .select("id")
           .limit(1);
         if (existing && existing.length > 0) {
+          // Already onboarded: straight to the app, no import detour.
           router.replace("/");
           return;
         }
@@ -86,7 +87,7 @@ export default function OnboardingPage() {
   const next = () => setStep(s => Math.min(3, s + 1));
   const prev = () => setStep(s => Math.max(1, s - 1));
 
-  const finish = async () => {
+  const finish = async (goToImport = false) => {
     if (saving || !tenantId) return;
     setSaving(true);
     setError("");
@@ -112,7 +113,7 @@ export default function OnboardingPage() {
         await supabase.from("tenants").update({ name: data.business_name.trim() }).eq("id", tenantId);
       }
 
-      router.replace("/");
+      router.replace(goToImport ? "/?import=1" : "/");
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.error("[Onboarding save error]", err);
@@ -248,6 +249,21 @@ export default function OnboardingPage() {
             </>
           )}
 
+          {step === 4 && (
+            <>
+              <h1 style={titleStyle}>📥 יש לך נתונים בתוכנה אחרת?</h1>
+              <p style={subtitleStyle}>
+                אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות — בלי להקליד הכל מחדש.
+                מייצאים מהתוכנה הקודמת לאקסל, מעתיקים ומדביקים. אנחנו נשאל מה כל עמודה מייצגת.
+              </p>
+              <div style={{ background: "var(--pc-tint)", border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", marginTop: 4 }}>
+                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
+                  אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
+                </p>
+              </div>
+            </>
+          )}
+
           {step === 3 && (
             <>
               <h1 style={titleStyle}>🕐 שעות עבודה</h1>
@@ -299,7 +315,7 @@ export default function OnboardingPage() {
             </button>
           )}
 
-          {step < 3 ? (
+          {step < STEP_NAMES.length ? (
             <>
               <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                 דלג
@@ -309,10 +325,18 @@ export default function OnboardingPage() {
               </button>
             </>
           ) : (
-            <button onClick={finish} disabled={saving} className="ob-btn-primary"
-              style={{ ...btnPrimaryStyle, background: saving ? "var(--line-2)" : pc, marginRight: "auto", flex: 1, justifyContent: "center" }}>
-              {saving ? "שומר..." : "סיום ✓"}
-            </button>
+            // Final step offers both paths. Either way onboarding is saved
+            // first; the import flag only decides where she lands.
+            <>
+              <button onClick={()=>finish(false)} disabled={saving} className="ob-btn-secondary"
+                style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
+                {saving ? "שומר..." : "לא עכשיו"}
+              </button>
+              <button onClick={()=>finish(true)} disabled={saving} className="ob-btn-primary"
+                style={{ ...btnPrimaryStyle, background: saving ? "var(--line-2)" : pc }}>
+                {saving ? "שומר..." : "ייבוא נתונים ←"}
+              </button>
+            </>
           )}
         </div>
       </div>
