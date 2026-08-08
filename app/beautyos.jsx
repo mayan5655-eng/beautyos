@@ -14,6 +14,7 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
+import ImportChooser from "./ImportChooser";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -675,13 +676,22 @@ export default function BeautyOS() {
   const [showMoreSheet,     setShowMoreSheet]     = useState(false);
   // Onboarding sends her here with /?import=1 when she says she has data to
   // bring across, so that step and the Settings tab open the same screen.
-  // The param is stripped afterwards so a refresh does not reopen it.
+  // She picks WHAT to import while still in onboarding, so &kind=... skips the
+  // chooser and opens that wizard straight away rather than asking her twice.
+  // The params are stripped afterwards so a refresh does not reopen it.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
     if (p.get("import") === "1") {
-      setShowImportHub(true);
+      const kind = p.get("kind");
+      if (kind === "clients" || kind === "services") {
+        setImportTarget(kind);
+        setShowImportModal(true);
+      } else {
+        setShowImportHub(true);
+      }
       p.delete("import");
+      p.delete("kind");
       const qs = p.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     }
@@ -1565,15 +1575,6 @@ export default function BeautyOS() {
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
-  // What she can bring across, in the order it is useful on day one: her
-  // client list, then her price list so she can take payment. Appointments are
-  // listed as coming soon rather than hidden, so she knows it is planned and
-  // does not go hunting for it.
-  const IMPORT_KINDS = [
-    { id:"clients",  icon:"👥", title:"לקוחות",           blurb:"שמות, טלפונים, הערות, אלרגיות",  ready:true },
-    { id:"services", icon:"✦",  title:"שירותים ומחירים",  blurb:"שם הטיפול, מחיר ומשך",           ready:true },
-    { id:"appts",    icon:"◴",  title:"תורים עתידיים",     blurb:"בקרוב",                          ready:false },
-  ];
   const openImportFor = (kind) => {
     setImportTarget(kind);
     resetImport();
@@ -1581,28 +1582,11 @@ export default function BeautyOS() {
     setShowImportModal(true);
   };
 
-  // The chooser body, rendered both inside the Settings tab and in the modal
-  // that onboarding lands on - one implementation, two placements.
+  // The chooser itself lives in app/ImportChooser.tsx so onboarding - a
+  // separate route with none of this component's state - can render the exact
+  // same list without reaching into the wizard.
   const renderImportChooser = () => (
-    <div style={{display:"flex",flexDirection:"column",gap:9}}>
-      {IMPORT_KINDS.map(k=>(
-        <button key={k.id} onClick={()=>k.ready&&openImportFor(k.id)} disabled={!k.ready}
-          style={{display:"flex",alignItems:"center",gap:13,padding:"14px 15px",borderRadius:16,textAlign:"right",
-                  border:`1px solid ${k.ready?"var(--line)":"var(--line-2)"}`,background:k.ready?"var(--surface)":"var(--surface-2)",
-                  cursor:k.ready?"pointer":"default",fontFamily:"inherit",opacity:k.ready?1:0.6,width:"100%"}}>
-          <span style={{width:40,height:40,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
-                        fontSize:18,background:k.ready?pcTint:"var(--surface)",color:pc}}>{k.icon}</span>
-          <span style={{flex:1,minWidth:0}}>
-            <span style={{display:"block",fontSize:13.5,fontWeight:700,color:"var(--ink)"}}>{k.title}</span>
-            <span style={{display:"block",fontSize:10.5,color:"var(--ink-3)",marginTop:2}}>{k.blurb}</span>
-          </span>
-          {k.ready&&<span aria-hidden style={{fontSize:16,color:pc,flexShrink:0}}>←</span>}
-        </button>
-      ))}
-      <p style={{fontSize:10.5,color:"var(--ink-3)",lineHeight:1.6,marginTop:2}}>
-        איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת — ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
-      </p>
-    </div>
+    <ImportChooser onPick={openImportFor} accent={pc} accentTint={pcTint} />
   );
 
   // The wizard is shared; these three pick the right behaviour per target.

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../supabase";
+import ImportChooser, { type ImportKind } from "../ImportChooser";
+import { lighten } from "@/lib/theme";
 
 const PRESET_COLORS = ["#4A2E5A", "var(--pc-tint)", "#A7C4F4", "var(--success)", "var(--pc-tint)", "rgba(242,184,75,0.16)", "var(--pc)", "var(--ink)"];
 
@@ -26,6 +28,9 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tenantId, setTenantId] = useState<string | null>(null);
+  // The import chooser is rendered here, in this step, rather than waiting for
+  // the save round-trip and a redirect. Tapping the button must feel instant.
+  const [showChooser, setShowChooser] = useState(false);
 
   const [data, setData] = useState<OnboardingData>({
     business_name: "",
@@ -84,10 +89,15 @@ export default function OnboardingPage() {
     init();
   }, [router]);
 
-  const next = () => setStep(s => Math.min(3, s + 1));
+  // Capped by the step list, not a literal: adding the import step left this at
+  // 3 and made the last step unreachable from "הבא".
+  const next = () => setStep(s => Math.min(STEP_NAMES.length, s + 1));
   const prev = () => setStep(s => Math.max(1, s - 1));
 
-  const finish = async (goToImport = false) => {
+  // Saves onboarding, then lands her wherever she asked to go. importKind is
+  // set once she has already chosen what to bring across, so the app opens
+  // that wizard directly instead of asking her the same question again.
+  const finish = async (importKind: ImportKind | null = null) => {
     if (saving || !tenantId) return;
     setSaving(true);
     setError("");
@@ -113,7 +123,7 @@ export default function OnboardingPage() {
         await supabase.from("tenants").update({ name: data.business_name.trim() }).eq("id", tenantId);
       }
 
-      router.replace(goToImport ? "/?import=1" : "/");
+      router.replace(importKind ? `/?import=1&kind=${importKind}` : "/");
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.error("[Onboarding save error]", err);
@@ -131,6 +141,9 @@ export default function OnboardingPage() {
   }
 
   const pc = data.primary_color || "#4A2E5A";
+  // Onboarding runs before the app applies the --pc-* tokens, so derive the
+  // tint here rather than relying on a variable that is not set on this route.
+  const pcTint = lighten(pc, 0.90);
 
   return (
     <div dir="rtl" style={containerStyle}>
@@ -252,15 +265,28 @@ export default function OnboardingPage() {
           {step === 4 && (
             <>
               <h1 style={titleStyle}>📥 יש לך נתונים בתוכנה אחרת?</h1>
-              <p style={subtitleStyle}>
-                אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות — בלי להקליד הכל מחדש.
-                מייצאים מהתוכנה הקודמת לאקסל, מעתיקים ומדביקים. אנחנו נשאל מה כל עמודה מייצגת.
-              </p>
-              <div style={{ background: "var(--pc-tint)", border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", marginTop: 4 }}>
-                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
-                  אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
-                </p>
-              </div>
+              {!showChooser ? (
+                <>
+                  <p style={subtitleStyle}>
+                    אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות — בלי להקליד הכל מחדש.
+                    מייצאים מהתוכנה הקודמת לאקסל, מעתיקים ומדביקים. אנחנו נשאל מה כל עמודה מייצגת.
+                  </p>
+                  <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", marginTop: 4 }}>
+                    <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
+                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={subtitleStyle}>
+                    {saving
+                      ? "רגע, שומרים את ההגדרות ופותחים את הייבוא..."
+                      : "מה להעביר קודם? נשמור את ההגדרות ונמשיך ישר לשם."}
+                  </p>
+                  <ImportChooser onPick={k => finish(k)} accent={pc} accentTint={pcTint} />
+                </>
+              )}
             </>
           )}
 
@@ -294,7 +320,7 @@ export default function OnboardingPage() {
                 </Field>
               </div>
               <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius: 11, padding: "11px 14px", fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
-                ✨ מצוין! בלחיצה על &quot;סיום&quot; נכין את החשבון ונעבור למערכת.
+                ✨ כמעט סיימנו — עוד שלב אחד ואנחנו בפנים.
               </div>
             </>
           )}
@@ -325,17 +351,21 @@ export default function OnboardingPage() {
               </button>
             </>
           ) : (
-            // Final step offers both paths. Either way onboarding is saved
-            // first; the import flag only decides where she lands.
+            // "ייבוא נתונים" only opens the chooser - it deliberately does NOT
+            // save first. Saving before showing the list made the button feel
+            // broken: nothing happened until the round-trip came back. The save
+            // now runs once she picks a kind, on her way into the wizard.
             <>
-              <button onClick={()=>finish(false)} disabled={saving} className="ob-btn-secondary"
+              <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-secondary"
                 style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                 {saving ? "שומר..." : "לא עכשיו"}
               </button>
-              <button onClick={()=>finish(true)} disabled={saving} className="ob-btn-primary"
-                style={{ ...btnPrimaryStyle, background: saving ? "var(--line-2)" : pc }}>
-                {saving ? "שומר..." : "ייבוא נתונים ←"}
-              </button>
+              {!showChooser && (
+                <button onClick={()=>setShowChooser(true)} className="ob-btn-primary"
+                  style={{ ...btnPrimaryStyle, background: pc }}>
+                  ייבוא נתונים ←
+                </button>
+              )}
             </>
           )}
         </div>
