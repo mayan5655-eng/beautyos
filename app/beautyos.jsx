@@ -3496,6 +3496,14 @@ export default function BeautyOS() {
           /* Width-driven, matching /login: overriding height here would fight
              the aspect ratio the artwork sets. */
           .hdr-logo{width:140px!important;margin-inline-end:8px!important}
+          /* Dashboard greeting — the hero had no mobile rules at all, so it kept
+             desktop's 26px side padding and a 30px headline on a ~344px screen.
+             The greeting then wrapped onto two or three tight lines and ran into
+             the card below it. Shrink the headline, give the lines room, and
+             widen the gap to the "תורים להיום" list. !important because the card
+             carries these as inline styles, which otherwise outrank a class. */
+          .hero-card{margin-bottom:26px!important;padding:16px 16px!important}
+          .hero-greeting{font-size:23px!important;line-height:1.35!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -3981,8 +3989,8 @@ export default function BeautyOS() {
               ];
               return(<>
                 {/* ── TIER 1a: slim greeting bar + 2 primary inline actions ── */}
- <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}}
-   style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--grad-hero)",borderRadius:22,border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"20px 26px",position:"relative",overflow:"hidden"}}>
+ <motion.div className="hero-card" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}}
+   style={{maxWidth:1180,margin:"0 auto 22px",background:"var(--grad-hero)",borderRadius:22,border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"20px 26px",position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:-80,left:-60,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.5), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:18,flexWrap:"wrap"}}>
  <div style={{minWidth:220}}>
@@ -3990,7 +3998,11 @@ export default function BeautyOS() {
  <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"0 0 0 3px rgba(70,179,123,0.18)"}}/>
                       {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
  </div>
- <h1 className="serif" style={{fontSize:30,fontWeight:600,color:"var(--ink)",lineHeight:1.1,letterSpacing:"-0.01em"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
+                    {/* line-height 1.1 was shorter than this display face's own
+                        ascent+descent, so once the name wrapped - which it always
+                        does on a phone - the two lines collided, and background-clip:
+                        text sheared the italic name against the line above. */}
+ <h1 className="serif hero-greeting" style={{fontSize:30,fontWeight:600,color:"var(--ink)",lineHeight:1.3,letterSpacing:"-0.01em",margin:0}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
  <p style={{fontSize:13,color:"var(--ink-2)",marginTop:7,fontWeight:400,maxWidth:520,lineHeight:1.5}}>{warmMsg}</p>
  </div>
  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
