@@ -5877,12 +5877,18 @@ export default function BeautyOS() {
  </div>
       )}
 
-      {/* IMPORT CONTACTS MODAL */}
       {/* IMPORT HUB — the same chooser as the Settings tab, as a modal. This is
           where onboarding lands via /?import=1, so both routes reach one
           screen rather than two lookalikes. */}
+      {/* z-index 1050, above the Settings modal (1000) rather than level with it.
+          Both import entry points are launched from Settings - the chooser tab
+          and the "ייבוא מחירון" button - and at an equal z-index the later
+          element in the DOM wins, which is Settings. The hub was opening
+          instantly and rendering underneath it, so it only became visible once
+          Settings was dismissed. Kept low enough that the confirm dialog (4000)
+          and the drawers still come out on top. */}
       {showImportHub&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportHub(false)}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1050,padding:14}} onClick={()=>setShowImportHub(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:440,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",marginBottom:6}}>ייבוא נתונים</p>
  <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
@@ -5892,8 +5898,11 @@ export default function BeautyOS() {
  </div>
       )}
 
+      {/* 1060 - one step above the hub, so picking a kind visibly replaces it
+          rather than appearing behind it, and above Settings for the same
+          reason as the hub. */}
       {showImportModal&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1060,padding:14}} onClick={()=>setShowImportModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>{importSpec.title}</p>
 
