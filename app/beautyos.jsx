@@ -1752,9 +1752,19 @@ export default function BeautyOS() {
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
+  // Opening any import screen closes Settings first. The z-index already lifts
+  // these above it, but a modal that is gone cannot hide anything - and relying
+  // on a stacking comparison for whether a screen is visible at all is too
+  // fragile for the main way she moves her data in. Both import entry points
+  // live inside Settings, so this is the common case, not an edge one.
+  //
+  // editSettings is deliberately left alone: clearing it would throw away
+  // anything she had typed in Settings, and hiding the modal is enough.
+  const openImportHub = () => { setShowSettings(false); setShowImportHub(true); };
   const openImportFor = (kind) => {
     setImportTarget(kind);
     resetImport();
+    setShowSettings(false);
     setShowImportHub(false);
     setShowImportModal(true);
   };
@@ -4672,7 +4682,7 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
- <button onClick={()=>setShowImportHub(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
+ <button onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>
  </div>
@@ -4696,7 +4706,7 @@ export default function BeautyOS() {
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
  <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
- <button className="empty-cta" onClick={()=>setShowImportHub(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
+ <button className="empty-cta" onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"11px 22px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>⇪ ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -6767,7 +6777,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",gap:6,marginTop:6}}>
  <button onClick={()=>setShowNewService(true)} style={{flex:2,background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit"}}>+ הוסיפי שירות</button>
  {/* Same wizard as the client import, pointed at service_prices. */}
- <button onClick={()=>setShowImportHub(true)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
+ <button onClick={openImportHub} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
  </div>
                   )}
  </div>
