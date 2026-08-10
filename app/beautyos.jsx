@@ -3784,14 +3784,12 @@ export default function BeautyOS() {
           /* Width-driven, matching /login: overriding height here would fight
              the aspect ratio the artwork sets. */
           .hdr-logo{width:140px!important;margin-inline-end:8px!important}
-          /* Dashboard greeting — the hero had no mobile rules at all, so it kept
-             desktop's 26px side padding and a 30px headline on a ~344px screen.
-             The greeting then wrapped onto two or three tight lines and ran into
-             the card below it. Shrink the headline, give the lines room, and
-             widen the gap to the "תורים להיום" list. !important because the card
-             carries these as inline styles, which otherwise outrank a class. */
+          /* Dashboard hero — desktop's 26px side padding was far too wide on a
+             ~344px screen. Only the box is adjusted here: the greeting's own
+             size and leading are a clamp() on the element, so there is one
+             source of truth rather than a rule here fighting an inline style.
+             !important because the card carries padding/margin inline. */
           .hero-card{margin-bottom:26px!important;padding:16px 16px!important}
-          .hero-greeting{font-size:23px!important;line-height:1.35!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -4286,11 +4284,20 @@ export default function BeautyOS() {
  <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"0 0 0 3px rgba(70,179,123,0.18)"}}/>
                       {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
  </div>
-                    {/* line-height 1.1 was shorter than this display face's own
-                        ascent+descent, so once the name wrapped - which it always
-                        does on a phone - the two lines collided, and background-clip:
-                        text sheared the italic name against the line above. */}
- <h1 className="serif hero-greeting" style={{fontSize:30,fontWeight:600,color:"var(--ink)",lineHeight:1.3,letterSpacing:"-0.01em",margin:0}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic"}}>{settings.therapist_name}</span></>:""}</h1>
+                    {/* Two separate causes, both needed:
+                        1. font-size is a clamp, not a fixed 30px with a media
+                           query. One source of truth, and it scales on every
+                           width instead of stepping at 680px.
+                        2. The name span paints its gradient with
+                           background-clip:text, which only paints INSIDE the
+                           element's background box. Italic glyphs on this
+                           display face overhang that box, so their tops and
+                           descenders got no paint and read as cut off. That box
+                           is sized from the font metrics, NOT from line-height,
+                           which is why raising the line-height alone never
+                           fixed it. Vertical padding on the inline span widens
+                           the paint box without affecting layout at all. */}
+ <h1 className="serif hero-greeting" style={{fontSize:"clamp(21px, 6.2vw, 30px)",fontWeight:600,color:"var(--ink)",lineHeight:1.4,letterSpacing:"-0.01em",margin:"0 0 2px",overflowWrap:"break-word"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic",padding:"0.10em 0 0.22em",overflowWrap:"break-word"}}>{settings.therapist_name}</span></>:""}</h1>
  <p style={{fontSize:13,color:"var(--ink-2)",marginTop:7,fontWeight:400,maxWidth:520,lineHeight:1.5}}>{warmMsg}</p>
  </div>
  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
