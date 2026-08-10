@@ -3771,7 +3771,16 @@ export default function BeautyOS() {
              the left-side action icons off the viewport in RTL. Shrink the wordmark,
              hide the tagline, let the brand block shrink, and tighten header padding so
              the power/download/settings icons stay fully on-screen. */
-          .app-header{padding:0 8px!important;gap:6px!important}
+          /* Header fit, done as arithmetic rather than by eye. Budget at 360px:
+               padding 16 + brand 158 + gap 6 + search 64 + gap 6 + icons 86
+               = 336, with the brand being hamburger 40 + gap 6 + logo 104 + 8.
+             The old numbers came to 485 against a 390px iPhone, which is why the
+             action icons ran off the left edge in RTL and the logo appeared to
+             sit on top of the search field. Two of the four icons now live in
+             the nav drawer instead, which is most of the saving. */
+          .app-header{padding:0 8px!important;gap:6px!important;height:60px!important}
+          .hdr-brand{gap:6px!important}
+          .header-search{min-width:64px!important}
           /* The header's backdrop-filter creates a stacking context that (being
              earlier in the DOM than <main>) trapped the global-search results
              dropdown BEHIND the page content on mobile. Lift the whole header
@@ -3783,13 +3792,18 @@ export default function BeautyOS() {
           .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:visible}
           /* Width-driven, matching /login: overriding height here would fight
              the aspect ratio the artwork sets. */
-          .hdr-logo{width:140px!important;margin-inline-end:8px!important}
+          .hdr-logo{width:104px!important;margin-inline-end:8px!important}
           /* Dashboard hero — desktop's 26px side padding was far too wide on a
              ~344px screen. Only the box is adjusted here: the greeting's own
              size and leading are a clamp() on the element, so there is one
              source of truth rather than a rule here fighting an inline style.
              !important because the card carries padding/margin inline. */
           .hero-card{margin-bottom:26px!important;padding:16px 16px!important}
+        }
+        /* Small phones (SE, older Androids). Same budget as above but 316px:
+           the logo gives up another 20px so nothing spills at 320. */
+        @media (max-width:360px){
+          .hdr-logo{width:84px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -4143,9 +4157,13 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
           {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:10,color:pc}}>{upcomingBirthdays[0].name}</span>}
  <span className="desktop-only" style={{fontSize:11.5,color:"var(--ink-2)"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
- <button onClick={()=>setShowSetup(true)} className="icon-btn" title="הגדרת המערכת" aria-label="הגדרת המערכת">☑</button>
+          {/* ☑ and ↓ leave the header below 680px: four 40px buttons plus the
+              logo, hamburger and search cannot fit on any phone (see the
+              breakpoint block). Both keep a mobile home in the nav drawer, so
+              nothing becomes unreachable - only ⚙ and ⏻ stay in the bar. */}
+ <button onClick={()=>setShowSetup(true)} className="icon-btn desktop-only" title="הגדרת המערכת" aria-label="הגדרת המערכת">☑</button>
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">⚙</button>
- <button onClick={handleExportCSV} className="icon-btn" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
+ <button onClick={handleExportCSV} className="icon-btn desktop-only" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
  <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
  </div>
  </header>
@@ -4166,6 +4184,18 @@ export default function BeautyOS() {
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);setShowMobileSidebar(false);}} className="nav-item" style={{marginTop:8}}>
  <span className="nav-ico"><svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4L5.3 5.3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg></span>
  <span style={{flex:1}}>הגדרות</span>
+ </button>
+          {/* The two header icons that do not fit on a phone. Inline display
+              none + .mobile-only{display:flex!important} is this file's
+              established pattern - the inline value has to be the DESKTOP one,
+              because only the breakpoint rule carries !important. */}
+ <button className="nav-item mobile-only" style={{display:"none"}} onClick={()=>{setShowSetup(true);setShowMobileSidebar(false);}}>
+ <span className="nav-ico">☑</span>
+ <span style={{flex:1}}>הגדרת המערכת</span>
+ </button>
+ <button className="nav-item mobile-only" style={{display:"none"}} onClick={()=>{handleExportCSV();setShowMobileSidebar(false);}}>
+ <span className="nav-ico">↓</span>
+ <span style={{flex:1}}>ייצוא לקוחות (CSV)</span>
  </button>
  </aside>
 
@@ -6292,11 +6322,19 @@ export default function BeautyOS() {
           be compared before anything is retired.
 
           Accent tier: the bar follows --pc-*, so it recolours with her chosen
-          colour like the rest of her app. zIndex 1400 sits above content but
-          below modals (1500+), and the safe-area inset keeps the labels clear
-          of the iPhone home bar.
+          colour like the rest of her app. The safe-area inset keeps the labels
+          clear of the iPhone home bar.
+
+          zIndex 900, NOT 1400. The old value was chosen on the belief that
+          modals sat at 1500+, but every modal in this file is 1000-1060 and the
+          drawers are 1200-1300, so the bar was painting over all of them - and
+          a 90vh modal on a phone leaves less clearance at the bottom than the
+          bar is tall, so it covered exactly the row where every modal keeps its
+          action buttons. 900 puts it above page content and below every overlay.
+          The "עוד" sheet (1401) and the off-canvas drawer (1500) are opened FROM
+          the bar and still correctly sit above it.
           ============================================================ */}
- <nav className="mobile-only" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:1400,
+ <nav className="mobile-only" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:900,
         background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
         backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
         borderTop:"1px solid var(--line)",boxShadow:"0 -2px 16px rgba(48,24,72,0.06)",
