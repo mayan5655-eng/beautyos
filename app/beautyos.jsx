@@ -1088,8 +1088,8 @@ export default function BeautyOS() {
   const setupPct = Math.round((setupDone/setupTotal)*100);
   const renderSetupBody = () => (
     <>
-      <div style={{marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+      <div style={{marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
           <span style={{fontSize:12,fontWeight:700,color:pcDeep}}>{setupDone} מתוך {setupTotal} הושלמו</span>
           <span style={{fontSize:11,color:"var(--ink-3)"}}>{setupPct}%</span>
         </div>
@@ -1103,41 +1103,39 @@ export default function BeautyOS() {
           <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
         </div>
       )}
-      {/* One line per step. Three states, and only one of them is interactive:
-            done   - collapsed, ticked, not tappable
-            next   - the single step she can act on; its arrow expands it
-            later  - shown so the path ahead is visible, but not yet tappable
-          Seven expanded rows read as a wall of work. One reads as the next
-          small thing to do. */}
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {setupSteps.map((s)=>{
+      {/* ONE bordered box with hairline-separated rows, not seven cards each
+          with its own border, radius and 8px gap - that per-card chrome was
+          most of the height. A row is now a single ~34px line: small ring,
+          label, arrow. Completed steps keep a plain background and a green
+          tick rather than a filled green row, which is what made the card read
+          as a stack of blocks.
+          One step is open at a time. The next incomplete step is emphasised
+          (accent ring, bold label) but every incomplete step is tappable, so
+          the arrow on each line does what it looks like it does. */}
+      <div style={{border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
+        {setupSteps.map((s,i)=>{
           const isNext = !s.done && s.key===nextSetupKey;
-          const open   = isNext && expandedSetupKey===s.key;
-          const later  = !s.done && !isNext;
+          const open   = !s.done && expandedSetupKey===s.key;
           return (
-          <div key={s.key} style={{background:s.done?"rgba(70,179,123,0.10)":open?pcTint:"var(--surface-2)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":open?pc:"var(--line)"}`,overflow:"hidden",opacity:later?0.55:1,transition:"border-color 0.18s,background 0.18s,opacity 0.18s"}}>
-            {/* Collapsed row — always visible. */}
+          <div key={s.key} style={{borderTop:i===0?"none":"1px solid var(--line)",background:open?pcTint:"transparent",transition:"background 0.18s"}}>
+            {/* Collapsed line — always visible. */}
             <button
-              onClick={()=>{ if(isNext) setExpandedSetupKey(open?null:s.key); }}
-              aria-expanded={isNext?open:undefined}
-              disabled={!isNext}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:isNext?"pointer":"default"}}>
-              <span style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"var(--surface)":later?"var(--ink-3)":pc,border:s.done?"none":`1.5px solid ${later?"var(--line-2)":pc}`}}>{s.done?"✓":"○"}</span>
-              <span style={{flex:1,minWidth:0}}>
-                <span style={{display:"block",fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</span>
-              </span>
+              onClick={()=>{ if(!s.done) setExpandedSetupKey(open?null:s.key); }}
+              aria-expanded={s.done?undefined:open}
+              disabled={s.done}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"8px 11px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
+              <span style={{width:18,height:18,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,fontWeight:700,background:s.done?"var(--success)":"transparent",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${isNext?pc:"var(--line-2)"}`}}>{s.done?"✓":""}</span>
+              <span style={{flex:1,minWidth:0,fontSize:11.5,fontWeight:isNext?700:500,color:s.done?"var(--ink-2)":"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
               {s.done
-                ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
-                :isNext
-                ?<span aria-hidden style={{fontSize:15,color:pc,flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>
-                :<span style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,flexShrink:0}}>בהמשך</span>}
+                ?<span style={{fontSize:9.5,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
+                :<span aria-hidden style={{fontSize:13,color:isNext?pc:"var(--ink-3)",flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>}
             </button>
 
             {/* Expanded body — the hint and the action, revealed on request. */}
             {open&&(
-              <div style={{padding:"0 12px 12px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                <p style={{flex:1,minWidth:120,fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
-                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"7px 16px",fontSize:11,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
+              <div style={{padding:"0 11px 10px 11px",display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}>
+                <p style={{flex:1,minWidth:110,fontSize:10,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
+                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:18,padding:"6px 14px",fontSize:10.5,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
               </div>
             )}
           </div>
@@ -1146,6 +1144,33 @@ export default function BeautyOS() {
       </div>
     </>
   );
+  // Global-search result rows. Extracted because the search input now lives in
+  // two places: inline in the header on desktop, and inside the nav drawer on
+  // phones, where the header has no width to spare. Only the wrapper differs -
+  // the header floats a dropdown over the page, the drawer lists them in flow.
+  const renderSearchGroups = (onPick) => SEARCH_GROUPS.map(g=>{
+    const rows=globalResults.filter(r=>r.type===g.type);
+    if(rows.length===0) return null;
+    return(
+ <div key={g.type}>
+ <div style={{padding:"9px 14px 5px",background:"var(--surface-2)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:6,position:"sticky",top:0}}>
+ <span style={{fontSize:9.5,fontWeight:700,color:"var(--ink-2)",letterSpacing:"0.03em"}}>{g.label}</span>
+ <span style={{fontSize:9,color:"var(--ink-3)"}}>{rows.length}</span>
+ </div>
+        {rows.map((r,i)=>(
+ <div key={g.type+i} onClick={()=>{ openSearchResult(r); if(onPick) onPick(); }} className="client-row"
+          style={{padding:"9px 14px",borderBottom:"1px solid var(--line)",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}>
+ <span style={{width:26,height:26,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--pc)",background:"var(--pc-tint)"}}>{g.icon}</span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.label}</p>
+ <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</p>
+ </div>
+ </div>
+        ))}
+ </div>
+    );
+  });
+
   // Push the active palette into CSS variables for the static <style> block.
   // Shared with every other page via lib/theme.ts, which also derives
   // --pc-grad and --pc-contrast (readable text on the accent).
@@ -3800,18 +3825,21 @@ export default function BeautyOS() {
              It also hands 16px back to the width budget below. The first and
              last children are 40px icon buttons, so running them to the edge
              makes them easier to hit, not harder. */
-          /* The search moves to its own full-width row below the logo. Sharing
-             one row, the search had flex:1 and grew into whatever was left while
-             .hdr-brand was allowed to shrink around a logo that could not - so
-             the artwork ran under the search box, which paints later, and the
-             lockup appeared chopped off. Two rows removes the competition
-             entirely: the logo gets ~200px instead of ~104, and the search gets
-             the full width, which is easier to type in anyway.
-             Row-1 budget at 360px: hamburger 40 + gap 6 + logo 168 + gap 6 +
-             two icons 86 = 306, leaving room for the leads badge. */
-          .app-header{padding:6px 0!important;gap:6px!important;height:auto!important;flex-wrap:wrap!important}
+          /* One short row: hamburger, large logo, two icons. The search is gone
+             from the header entirely on phones and lives in the nav drawer - it
+             was competing with the logo for width when inline, and cost ~30px of
+             permanent height when it took its own row.
+
+             padding-top carries env(safe-area-inset-top) so that in a home-screen
+             (standalone) install the header starts below the clock and battery
+             instead of underneath them, which is what was letting the greeting
+             card sit against the status bar.
+
+             Budget at 360px: hamburger 40 + gap 6 + logo 168 + gap 6 + two
+             icons 86 = 306, leaving room for the leads badge. */
+          .app-header{padding:0 0 0 0!important;padding-top:env(safe-area-inset-top, 0px)!important;gap:6px!important;height:auto!important;min-height:56px!important;flex-wrap:nowrap!important}
           .hdr-brand{gap:6px!important}
-          .header-search{order:3!important;flex:0 0 calc(100% - 16px)!important;min-width:0!important;margin:0 8px 2px!important}
+          .header-search{display:none!important}
           /* The header's backdrop-filter creates a stacking context that (being
              earlier in the DOM than <main>) trapped the global-search results
              dropdown BEHIND the page content on mobile. Lift the whole header
@@ -4193,28 +4221,7 @@ export default function BeautyOS() {
             style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"8px 34px 8px 14px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",boxShadow:"var(--shadow-xs)"}}/>
           {globalResults.length>0&&(
  <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:16,boxShadow:"var(--shadow-lg)",zIndex:999,overflow:"hidden",marginTop:6,maxHeight:400,overflowY:"auto"}}>
-              {SEARCH_GROUPS.map(g=>{
-                const rows=globalResults.filter(r=>r.type===g.type);
-                if(rows.length===0) return null;
-                return(
- <div key={g.type}>
- <div style={{padding:"9px 14px 5px",background:"var(--surface-2)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:6,position:"sticky",top:0}}>
- <span style={{fontSize:9.5,fontWeight:700,color:"var(--ink-2)",letterSpacing:"0.03em"}}>{g.label}</span>
- <span style={{fontSize:9,color:"var(--ink-3)"}}>{rows.length}</span>
- </div>
-                  {rows.map((r,i)=>(
- <div key={g.type+i} onClick={()=>openSearchResult(r)} className="client-row"
-                    style={{padding:"9px 14px",borderBottom:"1px solid var(--line)",cursor:"pointer",display:"flex",gap:10,alignItems:"center"}}>
- <span style={{width:26,height:26,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--pc)",background:"var(--pc-tint)"}}>{g.icon}</span>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.label}</p>
- <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</p>
- </div>
- </div>
-                  ))}
- </div>
-                );
-              })}
+              {renderSearchGroups()}
  </div>
           )}
  </div>
@@ -4238,6 +4245,20 @@ export default function BeautyOS() {
         {/* NAVIGATION SIDEBAR (right, RTL) */}
  <aside className={`nav-aside${showMobileSidebar?" open":""}`} style={{order:0,width:212,background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.7)",borderLeft:"1px solid var(--line)",padding:"16px 12px",display:"flex",flexDirection:"column",gap:3,flexShrink:0,overflowY:"auto"}}>
  <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",alignSelf:"flex-start",background:"none",border:"none",fontSize:16,cursor:"pointer",color:"var(--ink-3)",marginBottom:4}}>✕</button>
+          {/* Search lives here on phones. It used to take a whole second row in
+              the header, which pushed the header to ~90px; the header cannot
+              afford the width inline next to the logo either. In the drawer it
+              gets full width, and results list in flow rather than as a floating
+              dropdown. Desktop keeps the header field and never renders this. */}
+ <div className="mobile-only" style={{display:"none",flexDirection:"column",marginBottom:10}}>
+ <input value={globalSearch} onChange={e=>setGlobalSearch(e.target.value)} placeholder="חיפוש לקוחה, תור, פנייה..."
+              style={{width:"100%",boxSizing:"border-box",border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 14px",fontSize:16,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)"}}/>
+            {globalResults.length>0&&(
+ <div style={{marginTop:8,border:"1px solid var(--line)",borderRadius:14,overflow:"hidden",maxHeight:300,overflowY:"auto"}}>
+                {renderSearchGroups(()=>setShowMobileSidebar(false))}
+ </div>
+            )}
+ </div>
           {NAV_ITEMS.map(item=>(
  <button key={item.id} onClick={()=>{setActiveTab(item.id);setShowMobileSidebar(false);}} className={`nav-item${activeTab===item.id?" active":""}`}>
  <span className="nav-ico">{navIcon(item.id)}</span>
