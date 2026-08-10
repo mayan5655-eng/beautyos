@@ -851,6 +851,25 @@ export default function BeautyOS() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   // Bottom-bar "עוד" sheet: holds the tabs that do not fit in the bar itself.
   const [showMoreSheet,     setShowMoreSheet]     = useState(false);
+  // Viewport width, for the things CSS cannot reach - currently the floral
+  // opacity, which is an SVG prop rather than a style.
+  //
+  // MUST stay up here with the other hooks. This pair originally sat beside
+  // floralOpacity further down, which is AFTER `if (loading) return (...)`:
+  // the first render bailed out before reaching them, the render after the data
+  // arrived did reach them, and React saw the hook count grow from N to N+2 and
+  // tore the tree down with "Rendered more hooks than during the previous
+  // render". Blank screen for every user, desktop included. tsc cannot see this,
+  // so the build passed and only the runtime broke.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width:680px)");
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   // Onboarding sends her here with /?import=1 when she says she has data to
   // bring across, so that step and the Settings tab open the same screen.
   // She picks WHAT to import while still in onboarding, so &kind=... skips the
@@ -3658,18 +3677,6 @@ export default function BeautyOS() {
   // clearly visible, not barely there.
   const DENSE_TABS = ["calendar", "cashier", "leads", "tax", "clients"];
   const SPARSE_TABS = ["dashboard", "insights", "advisor", "community"];
-  // A phone shows a fraction of the desktop canvas, so the same opacity reads
-  // as far less flower. The dense screens get most of the lift; the sparse ones
-  // are already at /login strength and stay there.
-  const [isNarrow, setIsNarrow] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(max-width:680px)");
-    const sync = () => setIsNarrow(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
   const floralOpacity = SPARSE_TABS.includes(activeTab)
     ? 1                        // same as /login
     : DENSE_TABS.includes(activeTab)
