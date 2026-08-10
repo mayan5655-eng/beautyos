@@ -27,7 +27,7 @@ export const IMPORT_KINDS: {
 }[] = [
   { id:'clients',  icon:'👥', title:'לקוחות',          blurb:'שמות, טלפונים, הערות, אלרגיות', ready:true },
   { id:'services', icon:'✦',  title:'שירותים ומחירים', blurb:'שם הטיפול, מחיר ומשך',          ready:true },
-  { id:'appts',    icon:'◴',  title:'תורים עתידיים',    blurb:'בקרוב',                         ready:false },
+  { id:'appts',    icon:'◴',  title:'תורים עתידיים',    blurb:'תאריך, שעה ולקוחה — היסטוריה לא מיובאת', ready:true },
 ];
 
 export default function ImportChooser({

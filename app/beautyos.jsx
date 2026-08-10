@@ -347,7 +347,26 @@ const SERVICE_IMPORT_FIELDS = [
   { id:"duration", label:"משך (דקות)" },
 ];
 
+// The appointment fields a pasted column can map onto. There is deliberately no
+// minutes field: appointments.hour is a whole-hour integer, the calendar grid is
+// keyed on it and every screen renders `${hour}:00`, so an imported 14:30 has to
+// become 15:00. That rounding is reported in the preview, never applied quietly.
+const APPT_IMPORT_FIELDS = [
+  { id:"ignore",   label:"התעלם" },
+  { id:"date",     label:"תאריך" },
+  { id:"time",     label:"שעה" },
+  { id:"name",     label:"שם הלקוחה" },
+  { id:"phone",    label:"טלפון" },
+  { id:"service",  label:"טיפול" },
+  { id:"duration", label:"משך (דקות)" },
+  { id:"price",    label:"מחיר" },
+  { id:"notes",    label:"הערות" },
+];
+
 const looksLikePhone = (s) => /^[\d\-+() ]{6,}$/.test(String(s||"").trim());
+const looksLikeDate = (s) => /^\d{1,4}[./-]\d{1,2}[./-]\d{2,4}$/.test(String(s||"").trim());
+const looksLikeTime = (s) => /^\d{1,2}[:.]\d{2}$/.test(String(s||"").trim())
+                          || /^\d{1,2}\s*(am|pm)$/i.test(String(s||"").trim());
 
 // "₪ 1,200" -> 1200. Anything unparseable returns null so the caller can fall
 // back to the column default rather than writing a wrong number.
@@ -396,7 +415,8 @@ const parseImportGrid = (text) => {
 const HEADER_WORDS = ["שם","טלפון","נייד","מייל","אימייל","הערות","כתובת","תאריך","לידה","עור","אלרגי","רפואי",
                       "name","phone","mobile","email","notes","address","birthday","date","client","customer",
                       "טיפול","שירות","מחיר","עלות","משך","דקות","זמן",
-                      "service","treatment","price","cost","duration","min"];
+                      "service","treatment","price","cost","duration","min",
+                      "שעה","לקוחה","hour","time"];
 const detectHeaderRow = (rows) => {
   const first = rows[0]; if (!first) return false;
   const hasHeaderWord = first.some(c => HEADER_WORDS.some(w => String(c).toLowerCase().includes(w)));
@@ -506,6 +526,163 @@ const buildImportRows = (grid, cols, hasHeader) => {
   }
   return { rows: out, noName };
 };
+// "12/08/2026", "12.8.26", "2026-08-12" -> "2026-08-12". Day-first, because
+// that is what Israeli exports produce. The wizard says so on screen rather
+// than sniffing per row, which would be right most of the time and silently
+// wrong for the rest - 03/04 is a real date either way round.
+const parseImportDate = (s) => {
+  const m = String(s||"").trim().match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (!m) return null;
+  let y, mo, d;
+  if (m[1].length === 4) { y = +m[1]; mo = +m[2]; d = +m[3]; }  // ISO, year first
+  else { d = +m[1]; mo = +m[2]; y = +m[3]; }
+  if (y < 100) y += 2000;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mo - 1, d);
+  // Rejects 31/02 and friends: the Date constructor rolls them into March
+  // instead of failing, so compare the parts back.
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+  return formatDate(dt);
+};
+
+// "14:30" -> hour 15, flagged as rounded. Half past rounds up, earlier rounds
+// down. The caller reports every change; nothing here moves a booking quietly.
+const parseImportTime = (s) => {
+  const t = String(s||"").trim().toLowerCase();
+  let h, min = 0;
+  let m = t.match(/^(\d{1,2})[:.](\d{2})$/);
+  if (m) { h = +m[1]; min = +m[2]; }
+  else {
+    m = t.match(/^(\d{1,2})\s*(am|pm)?$/);
+    if (!m) return null;
+    h = +m[1];
+    if (m[2] === "pm" && h < 12) h += 12;
+    if (m[2] === "am" && h === 12) h = 0;
+  }
+  if (h > 23 || min > 59) return null;
+  const rounded = min !== 0;
+  if (min >= 30) h += 1;
+  // 23:30 would round past midnight. Keep it on its own day rather than
+  // silently moving the appointment to tomorrow.
+  if (h > 23) h = 23;
+  return { hour: h, rounded, label: `${t} ← ${h}:00` };
+};
+
+// Column guessing for an appointments paste. Headers win; without them the
+// shape of the cells decides, date and time before phone so a "12/08/2026"
+// column is never mistaken for something else.
+const guessApptColumns = (rows, hasHeader) => {
+  const width = (rows[0] || []).length;
+  const body = hasHeader ? rows.slice(1) : rows;
+  const guess = new Array(width).fill("ignore");
+  const taken = {};
+  const mostly = (cells, fn) => cells.length && cells.filter(fn).length >= cells.length * 0.6;
+
+  for (let c = 0; c < width; c++) {
+    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
+    const cells = body.map(r=>r[c]).filter(Boolean);
+
+    if (!taken.date     && /תאריך|date/.test(head))                    { guess[c]="date";     taken.date=1;     continue; }
+    if (!taken.time     && /שעה|time|hour/.test(head))                 { guess[c]="time";     taken.time=1;     continue; }
+    if (!taken.phone    && /טלפון|נייד|phone|mobile/.test(head))       { guess[c]="phone";    taken.phone=1;    continue; }
+    if (!taken.name     && /שם|לקוח|name|client|customer/.test(head))  { guess[c]="name";     taken.name=1;     continue; }
+    if (!taken.service  && /טיפול|שירות|service|treatment/.test(head)) { guess[c]="service";  taken.service=1;  continue; }
+    if (!taken.duration && /משך|דקות|duration|min/.test(head))         { guess[c]="duration"; taken.duration=1; continue; }
+    if (!taken.price    && /מחיר|price|עלות|₪/.test(head))             { guess[c]="price";    taken.price=1;    continue; }
+    if (!taken.notes    && /הערות|notes|comment/.test(head))           { guess[c]="notes";    taken.notes=1;    continue; }
+    if (head) continue; // a labelled column we did not recognise stays ignored
+
+    if (!taken.date  && mostly(cells, looksLikeDate))  { guess[c]="date";  taken.date=1;  continue; }
+    if (!taken.time  && mostly(cells, looksLikeTime))  { guess[c]="time";  taken.time=1;  continue; }
+    if (!taken.phone && mostly(cells, looksLikePhone)) { guess[c]="phone"; taken.phone=1; continue; }
+    if (mostly(cells, isNumericCell)) {
+      // Same split as the price list: a treatment lasts 45 far more often than
+      // it costs 45, and costs 250 far more often than it lasts 250.
+      const nums = cells.map(parseMoney).filter(n=>n!==null);
+      const median = nums.length ? nums.slice().sort((a,b)=>a-b)[Math.floor(nums.length/2)] : 0;
+      if (!taken.duration && median <= 200) { guess[c]="duration"; taken.duration=1; continue; }
+      if (!taken.price) { guess[c]="price"; taken.price=1; continue; }
+      continue;
+    }
+    if (!cells.length) continue;
+    if (!taken.name)    { guess[c]="name";    taken.name=1;    continue; }
+    if (!taken.service) { guess[c]="service"; taken.service=1; continue; }
+  }
+  return guess;
+};
+
+// Apply an appointments mapping. Future only: anything already past is counted
+// and dropped, so a full export can be pasted as-is without back-filling a year
+// of history nobody asked for.
+//
+// Counters are committed only for rows that actually survive, which matters
+// most for `rounded`: tallying it during parsing would report the rounding of
+// hundreds of skipped historical rows she is never going to see.
+const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour) => {
+  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
+  const out = [];
+  let noName = 0, noDate = 0, past = 0, rounded = 0, noTime = 0;
+  const roundedSamples = [];
+
+  for (const r of body) {
+    const rec = { date:"", hour:null, name:"", phone:"", service:"", duration:60, price:0, note:"" };
+    let badDate = false, timeSeen = false, timeBad = false, roundLabel = null;
+
+    cols.forEach((field, i) => {
+      const v = String(r[i]||"").trim();
+      if (field === "ignore" || !field || !v) return;
+      if (field === "date")     { const d = parseImportDate(v); if (d) rec.date = d; else badDate = true; }
+      if (field === "time")     { timeSeen = true; const t = parseImportTime(v);
+                                  if (t) { rec.hour = t.hour; if (t.rounded) roundLabel = t.label; }
+                                  else timeBad = true; }
+      if (field === "name")     rec.name = v;
+      if (field === "phone")    rec.phone = v.replace(/[^\d+]/g,"");
+      if (field === "service")  rec.service = v;
+      if (field === "duration") { const n = parseMinutes(v); if (n !== null) rec.duration = n; }
+      if (field === "price")    { const n = parseMoney(v);   if (n !== null) rec.price = n; }
+      if (field === "notes")    rec.note = v;
+    });
+
+    if (!rec.name) { noName++; continue; }
+    if (!rec.date || badDate) { noDate++; continue; }
+    // No time column, or one this cannot read: park it at the start of the day
+    // rather than dropping a real booking. Counted so the preview can say so.
+    if (rec.hour === null) { if (timeSeen && timeBad) noTime++; rec.hour = 9; }
+    if (rec.date < todayStr || (rec.date === todayStr && rec.hour < nowHour)) { past++; continue; }
+
+    if (roundLabel) { rounded++; if (roundedSamples.length < 3) roundedSamples.push(roundLabel); }
+    out.push(rec);
+  }
+  return { rows: out, noName, noDate, past, rounded, roundedSamples, noTime };
+};
+
+// Everything that differs between the three imports, in one place. The wizard
+// itself - paste box, mapping table, preview, result - is identical for all of
+// them, and was starting to grow a ternary per target.
+const IMPORT_SPEC = {
+  clients: {
+    fields: IMPORT_FIELDS, guess: guessColumns, requires: ["name"], unit: "לקוחות",
+    title: "ייבוא לקוחות",
+    blurb: "יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.",
+    rowLabel: "הדביקי כאן (שורה לכל לקוחה):",
+    placeholder: "דנה כהן\t0541234567\nמיכל לוי\t0529876543",
+  },
+  services: {
+    fields: SERVICE_IMPORT_FIELDS, guess: guessServiceColumns, requires: ["name"], unit: "טיפולים",
+    title: "ייבוא טיפולים ומחירים",
+    blurb: "יש לך מחירון בתוכנה אחרת או באקסל? העתיקי את העמודות והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.",
+    rowLabel: "הדביקי כאן (שורה לכל טיפול):",
+    placeholder: "טיפול פנים\t250\t60\nעיצוב גבות\t80\t30",
+  },
+  appts: {
+    fields: APPT_IMPORT_FIELDS, guess: guessApptColumns, requires: ["name","date"], unit: "תורים",
+    title: "ייבוא תורים עתידיים",
+    blurb: "מעבירים רק תורים שעוד לא היו — היסטוריה לא מיובאת. ייצאי את היומן לאקסל, העתיקי והדביקי כאן, ובשלב הבא תבחרי מה כל עמודה מייצגת.",
+    rowLabel: "הדביקי כאן (שורה לכל תור):",
+    placeholder: "12/08/2026\t14:30\tדנה כהן\t0541234567\tטיפול פנים",
+  },
+};
+
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
 const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
@@ -684,7 +861,7 @@ export default function BeautyOS() {
     const p = new URLSearchParams(window.location.search);
     if (p.get("import") === "1") {
       const kind = p.get("kind");
-      if (kind === "clients" || kind === "services") {
+      if (kind && Object.prototype.hasOwnProperty.call(IMPORT_SPEC, kind)) {
         setImportTarget(kind);
         setShowImportModal(true);
       } else {
@@ -1589,10 +1766,15 @@ export default function BeautyOS() {
     <ImportChooser onPick={openImportFor} accent={pc} accentTint={pcTint} />
   );
 
-  // The wizard is shared; these three pick the right behaviour per target.
-  const importFields  = importTarget === "services" ? SERVICE_IMPORT_FIELDS : IMPORT_FIELDS;
-  const importGuesser = importTarget === "services" ? guessServiceColumns   : guessColumns;
-  const importBuilder = importTarget === "services" ? buildServiceRows      : buildImportRows;
+  // The wizard is shared; the spec supplies the copy, fields and guesser, and
+  // only the row builder needs binding - the appointments one has to know what
+  // "now" is to tell a future booking from history.
+  const importSpec    = IMPORT_SPEC[importTarget] || IMPORT_SPEC.clients;
+  const importFields  = importSpec.fields;
+  const importGuesser = importSpec.guess;
+  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()))
+                      : importTarget === "services" ? buildServiceRows
+                      : buildImportRows;
 
   const goToImportMapping = () => {
     const grid = parseImportGrid(importText);
@@ -1652,6 +1834,102 @@ export default function BeautyOS() {
 
       if (inserted.length) setServices(prev => [...prev, ...inserted]);
       setImportResult({ added: inserted.length, dupes, noName, failed,
+                        error: firstError ? firstError.message : null });
+      setImportStage("done");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Future-bookings import. Two writes, in order: any client in the paste we
+  // have never seen is created first, so the appointment attaches to a real
+  // record instead of being a loose name on the calendar.
+  const importAppointments = async () => {
+    if (guardWrite()) return;
+    if (importing) return;
+
+    const grid = parseImportGrid(importText);
+    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours());
+    if (built.rows.length === 0) { toast("לא נמצאו תורים עתידיים להוספה", "error"); return; }
+
+    setImporting(true);
+    let firstError = null;
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+
+      // Phone -> client id, digits only, so "054-123 4567" and "0541234567"
+      // are the same person however her old system wrote them.
+      const digits = (p) => String(p||"").replace(/\D/g,"");
+      const byPhone = new Map();
+      for (const c of clients) {
+        const k = digits(c.phone);
+        if (k && !byPhone.has(k)) byPhone.set(k, c.id);
+      }
+
+      const toCreate = [];
+      const queued = new Set();
+      for (const r of built.rows) {
+        const k = digits(r.phone);
+        if (!k || byPhone.has(k) || queued.has(k)) continue;
+        queued.add(k);
+        toCreate.push({ ...emptyClient, name:r.name, phone:r.phone, status:"active", ...tenantField });
+      }
+      const newClients = [];
+      for (let i = 0; i < toCreate.length; i += 100) {
+        const { data, error } = await supabase.from("clients").insert(toCreate.slice(i, i+100)).select();
+        if (error) { if (!firstError) firstError = error; continue; }
+        if (data) newClients.push(...data);
+      }
+      for (const c of newClients) { const k = digits(c.phone); if (k) byPhone.set(k, c.id); }
+      if (newClients.length) setClients(prev => [...prev, ...newClients]);
+
+      // Skip anything already on the calendar in that slot for that person.
+      // Reruns after a partial failure are normal, and the week grid renders
+      // only one appointment per date+hour, so a duplicate would just hide.
+      const slotKey = (date, hour, phone, name) =>
+        `${date}|${Number(hour)}|${digits(phone) || String(name||"").trim()}`;
+      const clientPhone = new Map(clients.map(c => [c.id, c.phone]));
+      const existingSlots = new Set(
+        appointments.map(a => slotKey(a.date, a.hour, clientPhone.get(a.client_id), a.name))
+      );
+
+      const seen = new Set();
+      const fresh = [];
+      let dupes = 0;
+      for (const r of built.rows) {
+        const k = slotKey(r.date, r.hour, r.phone, r.name);
+        if (existingSlots.has(k) || seen.has(k)) { dupes++; continue; }
+        seen.add(k);
+        const svc = services.find(s => String(s.name||"").trim() === String(r.service||"").trim());
+        fresh.push({
+          date: r.date, hour: r.hour, name: r.name, service: r.service || "",
+          duration: r.duration, price: r.price,
+          // Stored data, not styling: appointments.color is read back to tint
+          // the calendar block, so it must stay a literal hex.
+          color: svc?.color || DEFAULT_SERVICE_COLOR,
+          client_id: byPhone.get(digits(r.phone)) || null,
+          note: r.note || "",
+          confirmation_status: "pending", confirmation_sent: false,
+          ...tenantField,
+        });
+      }
+
+      const CHUNK = 100;
+      let failed = 0;
+      const inserted = [];
+      for (let i = 0; i < fresh.length; i += CHUNK) {
+        const chunk = fresh.slice(i, i + CHUNK);
+        const { data, error } = await supabase.from("appointments").insert(chunk).select();
+        if (error) { failed += chunk.length; if (!firstError) firstError = error; continue; }
+        if (data) inserted.push(...data);
+      }
+      if (inserted.length) setAppointments(prev => [...prev, ...inserted]);
+
+      setImportResult({ added: inserted.length, dupes, noName: built.noName, failed,
+                        newClients: newClients.length, past: built.past, noDate: built.noDate,
+                        rounded: built.rounded, noTime: built.noTime,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -5617,17 +5895,17 @@ export default function BeautyOS() {
       {showImportModal&&(
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>setShowImportModal(false)}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:420,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
- <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>{importTarget==="services"?"ייבוא טיפולים ומחירים":"ייבוא לקוחות"}</p>
+ <p className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>{importSpec.title}</p>
 
  {/* ---------- STAGE 1: PASTE ---------- */}
  {importStage==="paste"&&(<>
- <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importTarget==="services"?"יש לך מחירון בתוכנה אחרת או באקסל? העתיקי את העמודות והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.":"יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת."}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
- {importTarget!=="services"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
+ {importTarget==="clients"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
 
- <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>הדביקי כאן (שורה לכל לקוחה):</p>
- <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={"דנה כהן\t0541234567\nמיכל לוי\t0529876543"} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
+ <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
+ <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={importSpec.placeholder} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
 
  {importText.trim()&&(()=>{ const g=parseImportGrid(importText); return (
  <p style={{fontSize:10.5,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {g.rows.length} שורות ו-{g.width} עמודות</p>
@@ -5644,9 +5922,21 @@ export default function BeautyOS() {
    const grid = parseImportGrid(importText);
    const preview = (importHasHeader?grid.rows.slice(1):grid.rows).slice(0,5);
    const built = importBuilder(grid, importCols, importHasHeader);
-   const hasName = importCols.includes("name");
+   // Every target needs a name column; appointments also need a date, since a
+   // booking with no date cannot be placed on the calendar at all.
+   const missing = importSpec.requires.filter(f => !importCols.includes(f));
+   const hasName = missing.length === 0;
+   const missingLabels = missing.map(f => importFields.find(x=>x.id===f)?.label || f).join(" ו-");
+   // How many people in this paste we have never seen, so she knows before
+   // pressing the button that clients will be created too.
+   const newClientCount = importTarget!=="appts" ? 0 : (()=>{
+     const have = new Set(clients.map(c=>String(c.phone||"").replace(/\D/g,"")).filter(Boolean));
+     const s = new Set();
+     built.rows.forEach(r=>{ const k=String(r.phone||"").replace(/\D/g,""); if(k&&!have.has(k)) s.add(k); });
+     return s.size;
+   })();
    return (<>
- <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:11.5,color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
@@ -5681,15 +5971,32 @@ export default function BeautyOS() {
  </div>
 
  {!hasName
-   ?<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה אחת בתור «שם» כדי להמשיך.</p>
+   ?<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה בתור «{missingLabels}» כדי להמשיך.</p>
    :<p style={{fontSize:11,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
-      <strong style={{color:pcDeep}}>{built.rows.length} לקוחות ייווצרו</strong>
+      <strong style={{color:pcDeep}}>{built.rows.length} {importSpec.unit} ייווצרו</strong>
+      {newClientCount>0&&<> · {newClientCount} לקוחות חדשות ייווצרו גם</>}
+      {built.past>0&&<> · {built.past} דולגו — תאריך שכבר עבר</>}
+      {built.noDate>0&&<> · {built.noDate} דולגו — תאריך לא ברור</>}
       {built.noName>0&&<> · {built.noName} ידולגו (ללא שם)</>}
       {preview.length<(importHasHeader?grid.rows.length-1:grid.rows.length)&&<> · מוצגות 5 שורות ראשונות</>}
     </p>}
 
+ {/* Rounding is surfaced, never silent: the calendar stores whole hours only,
+     so a 14:30 booking becomes 15:00 and she gets to see it happen before
+     agreeing to it, with real examples from her own paste. */}
+ {hasName&&built.rounded>0&&(
+ <div style={{background:"var(--pc-tint)",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+ <p style={{fontSize:11,color:"var(--ink)",fontWeight:700,marginBottom:3}}>⏱ {built.rounded} תורים יעוגלו לשעה עגולה</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6}}>היומן עובד בשעות שלמות, אז שעה כמו 14:30 תישמר כ-15:00. כדאי לעבור עליהן אחרי הייבוא.</p>
+ {built.roundedSamples.length>0&&<p style={{fontSize:10,color:"var(--ink-3)",marginTop:4,direction:"ltr",textAlign:"left"}}>{built.roundedSamples.join("   ·   ")}</p>}
+ </div>
+ )}
+ {hasName&&built.noTime>0&&(
+ <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>· {built.noTime} תורים ללא שעה קריאה — ייקבעו ל-9:00 ואפשר להזיז אותם ביומן.</p>
+ )}
+
  <div style={{display:"flex",gap:8}}>
- <button onClick={importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מייבא...":`ייבוא ${built.rows.length} לקוחות`}</button>
+ <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:`0 8px 18px ${pcShadow}`}}>{importing?"מייבא...":`ייבוא ${built.rows.length} ${importSpec.unit}`}</button>
  <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:12,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
  </div>
  </>);
@@ -5699,9 +6006,14 @@ export default function BeautyOS() {
  {importStage==="done"&&importResult&&(<>
  <div style={{textAlign:"center",padding:"10px 0 16px"}}>
  <p className="serif" style={{fontSize:26,fontWeight:700,color:pcDeep,marginBottom:4}}>{importResult.added}</p>
- <p style={{fontSize:12.5,color:"var(--ink-2)"}}>{importTarget==="services"?"טיפולים נוספו":"לקוחות נוספו"}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-2)"}}>{importSpec.unit} נוספו</p>
  </div>
  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+   {importResult.newClients>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.newClients} לקוחות חדשות נוצרו מהתורים</p>}
+   {importResult.past>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.past} דולגו — תאריך שכבר עבר (היסטוריה לא מיובאת)</p>}
+   {importResult.rounded>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.rounded} עוגלו לשעה עגולה — כדאי לעבור עליהם ביומן</p>}
+   {importResult.noTime>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noTime} נקבעו ל-9:00 (שעה לא קריאה)</p>}
+   {importResult.noDate>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noDate} דולגו — תאריך לא ברור</p>}
    {importResult.dupes>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
    {importResult.noName>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noName} דולגו — ללא שם</p>}
    {importResult.failed>0&&(
