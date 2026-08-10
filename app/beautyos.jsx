@@ -4326,7 +4326,12 @@ export default function BeautyOS() {
    style={{maxWidth:1180,margin:"0 auto 22px",background:"var(--grad-hero)",borderRadius:22,border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"20px 26px",position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:-80,left:-60,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.5), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:18,flexWrap:"wrap"}}>
- <div style={{minWidth:220}}>
+                    {/* flex-basis 220 rather than min-width 220: it still asks
+                        for the same width, but it can now shrink below it. On a
+                        320px phone the card only offers ~272px of content, and
+                        a hard 220px floor plus the action buttons forced a wrap
+                        that left the greeting stranded on its own row. */}
+ <div style={{flex:"1 1 220px",minWidth:0}}>
  <div className="pill" style={{background:"rgba(255,255,255,0.7)",color:pcDeep,padding:"5px 12px",border:"1px solid var(--line-2)",boxShadow:"var(--shadow-xs)",marginBottom:10}}>
  <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"0 0 0 3px rgba(70,179,123,0.18)"}}/>
                       {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
