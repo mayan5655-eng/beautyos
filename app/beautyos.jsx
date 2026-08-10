@@ -1072,12 +1072,16 @@ export default function BeautyOS() {
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
     { key:"whatsapp", done: !!(settings.green_api_instance && String(settings.green_api_instance).trim() && settings.green_api_token && String(settings.green_api_token).trim()), label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
   ];
-  // Which setup step is expanded. Defaults to the FIRST incomplete one, so the
-  // list opens on the next thing to do rather than on everything at once. null
-  // means the user collapsed it deliberately.
+  // Guided, one step at a time - deliberately NOT an accordion. Only the next
+  // incomplete step can be opened; completed ones sit collapsed with their tick
+  // and the ones beyond the next are visible but not yet actionable. Everything
+  // starts collapsed, so the card is a short list of single lines instead of
+  // seven expanded blocks.
   const nextSetupKey = (setupSteps.find(s=>!s.done)||{}).key || null;
-  const [openSetupStepRaw, setOpenSetupStep] = useState(undefined);
-  const openSetupStep = openSetupStepRaw === undefined ? nextSetupKey : openSetupStepRaw;
+  // Holds the key she expanded, not a boolean. Once that step is completed the
+  // key stops matching nextSetupKey on its own, so the following step arrives
+  // collapsed and no effect is needed to reset anything.
+  const [expandedSetupKey, setExpandedSetupKey] = useState(null);
 
   const setupDone = setupSteps.filter(s=>s.done).length;
   const setupTotal = setupSteps.length;
@@ -1099,32 +1103,38 @@ export default function BeautyOS() {
           <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
         </div>
       )}
-      {/* Progressive reveal: every row is collapsed to a single line, and only
-          ONE step is expanded at a time - the next incomplete one, or whichever
-          the user opened with its arrow. Seven expanded rows at once read as a
-          wall of work; one at a time reads as the next small thing to do. */}
+      {/* One line per step. Three states, and only one of them is interactive:
+            done   - collapsed, ticked, not tappable
+            next   - the single step she can act on; its arrow expands it
+            later  - shown so the path ahead is visible, but not yet tappable
+          Seven expanded rows read as a wall of work. One reads as the next
+          small thing to do. */}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {setupSteps.map((s)=>{
-          const open = openSetupStep===s.key;
+          const isNext = !s.done && s.key===nextSetupKey;
+          const open   = isNext && expandedSetupKey===s.key;
+          const later  = !s.done && !isNext;
           return (
-          <div key={s.key} style={{background:s.done?"rgba(70,179,123,0.10)":open?pcTint:"var(--surface-2)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":open?pc:"var(--line)"}`,overflow:"hidden",transition:"border-color 0.18s,background 0.18s"}}>
+          <div key={s.key} style={{background:s.done?"rgba(70,179,123,0.10)":open?pcTint:"var(--surface-2)",borderRadius:12,border:`1px solid ${s.done?"rgba(70,179,123,0.35)":open?pc:"var(--line)"}`,overflow:"hidden",opacity:later?0.55:1,transition:"border-color 0.18s,background 0.18s,opacity 0.18s"}}>
             {/* Collapsed row — always visible. */}
             <button
-              onClick={()=>{ if(!s.done) setOpenSetupStep(open?null:s.key); }}
-              aria-expanded={s.done?undefined:open}
-              disabled={s.done}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
-              <span style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${pc}`}}>{s.done?"✓":"○"}</span>
+              onClick={()=>{ if(isNext) setExpandedSetupKey(open?null:s.key); }}
+              aria-expanded={isNext?open:undefined}
+              disabled={!isNext}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:isNext?"pointer":"default"}}>
+              <span style={{width:26,height:26,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,background:s.done?"var(--success)":"var(--surface)",color:s.done?"var(--surface)":later?"var(--ink-3)":pc,border:s.done?"none":`1.5px solid ${later?"var(--line-2)":pc}`}}>{s.done?"✓":"○"}</span>
               <span style={{flex:1,minWidth:0}}>
                 <span style={{display:"block",fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{s.label}</span>
               </span>
               {s.done
                 ?<span style={{fontSize:10,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
-                :<span aria-hidden style={{fontSize:15,color:pc,flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>}
+                :isNext
+                ?<span aria-hidden style={{fontSize:15,color:pc,flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>
+                :<span style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,flexShrink:0}}>בהמשך</span>}
             </button>
 
             {/* Expanded body — the hint and the action, revealed on request. */}
-            {open&&!s.done&&(
+            {open&&(
               <div style={{padding:"0 12px 12px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <p style={{flex:1,minWidth:120,fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
                 <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"7px 16px",fontSize:11,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
@@ -3790,9 +3800,18 @@ export default function BeautyOS() {
              It also hands 16px back to the width budget below. The first and
              last children are 40px icon buttons, so running them to the edge
              makes them easier to hit, not harder. */
-          .app-header{padding:0!important;gap:6px!important;height:60px!important}
+          /* The search moves to its own full-width row below the logo. Sharing
+             one row, the search had flex:1 and grew into whatever was left while
+             .hdr-brand was allowed to shrink around a logo that could not - so
+             the artwork ran under the search box, which paints later, and the
+             lockup appeared chopped off. Two rows removes the competition
+             entirely: the logo gets ~200px instead of ~104, and the search gets
+             the full width, which is easier to type in anyway.
+             Row-1 budget at 360px: hamburger 40 + gap 6 + logo 168 + gap 6 +
+             two icons 86 = 306, leaving room for the leads badge. */
+          .app-header{padding:6px 0!important;gap:6px!important;height:auto!important;flex-wrap:wrap!important}
           .hdr-brand{gap:6px!important}
-          .header-search{min-width:64px!important}
+          .header-search{order:3!important;flex:0 0 calc(100% - 16px)!important;min-width:0!important;margin:0 8px 2px!important}
           /* The header's backdrop-filter creates a stacking context that (being
              earlier in the DOM than <main>) trapped the global-search results
              dropdown BEHIND the page content on mobile. Lift the whole header
@@ -3801,10 +3820,15 @@ export default function BeautyOS() {
           .app-header{position:relative!important;z-index:100!important}
           /* overflow stays visible: the logo's petals reach the edge of the
              artwork and must never be cropped by this container. */
-          .hdr-brand{min-width:0!important;flex-shrink:1!important;overflow:visible}
+          /* flex-shrink 0, not 1. Letting the brand block shrink was the actual
+             clipping mechanism: the block narrowed, the img inside it did not
+             (fixed width, flex-shrink:0), and overflow:visible let the artwork
+             spill under the next sibling instead of pushing it aside. Nothing
+             shares its row now, so it has no reason to shrink. */
+          .hdr-brand{min-width:auto!important;flex-shrink:0!important;overflow:visible}
           /* Width-driven, matching /login: overriding height here would fight
              the aspect ratio the artwork sets. */
-          .hdr-logo{width:104px!important;margin-inline-end:8px!important}
+          .hdr-logo{width:168px!important;margin-inline-end:0!important}
           /* Dashboard hero — desktop's 26px side padding was far too wide on a
              ~344px screen. Only the box is adjusted here: the greeting's own
              size and leading are a clamp() on the element, so there is one
@@ -3843,7 +3867,7 @@ export default function BeautyOS() {
         /* Small phones (SE, older Androids). Same budget as above but 316px:
            the logo gives up another 20px so nothing spills at 320. */
         @media (max-width:360px){
-          .hdr-logo{width:84px!important}
+          .hdr-logo{width:132px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
