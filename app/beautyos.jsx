@@ -3760,10 +3760,17 @@ export default function BeautyOS() {
              drawer and the bottom bar becomes the primary navigation.
              Clearance for the bar is scoped here too, so desktop keeps its
              full content height. */
-          .app-main{padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px))!important}
-          /* Phase 3 — give content its width back (main uses inline 28px 30px).
-             Slim 8px side gutter so content runs nearly edge-to-edge on phones. */
-          .app-main{padding:12px 8px!important}
+          /* ONE rule, not two. This was previously a padding-bottom declaration
+             followed by a padding shorthand, and the shorthand reset the
+             bottom back to 12px - same specificity, both !important, so source
+             order won. The bar has therefore been covering the last row of every
+             scrolling tab ever since, which no z-index could fix because it is
+             spacing, not layering.
+
+             Zero side padding: content runs edge to edge like a native app, and
+             the cards' own internal padding keeps text off the glass. Vertical
+             padding stays, including the clearance for the bottom bar. */
+          .app-main{padding:12px 0 calc(74px + env(safe-area-inset-bottom, 0px))!important}
           /* Phase 4 — tap targets: round icon buttons up to a touch-friendly ~40px. */
           .icon-btn{width:40px!important;height:40px!important;font-size:15px!important}
           .wa-btn,.call-btn{padding:9px 14px!important}
@@ -3778,7 +3785,12 @@ export default function BeautyOS() {
              action icons ran off the left edge in RTL and the logo appeared to
              sit on top of the search field. Two of the four icons now live in
              the nav drawer instead, which is most of the saving. */
-          .app-header{padding:0 8px!important;gap:6px!important;height:60px!important}
+          /* Zero side padding here too, so the header's contents reach the same
+             edges as the content below it and the bar above the home button.
+             It also hands 16px back to the width budget below. The first and
+             last children are 40px icon buttons, so running them to the edge
+             makes them easier to hit, not harder. */
+          .app-header{padding:0!important;gap:6px!important;height:60px!important}
           .hdr-brand{gap:6px!important}
           .header-search{min-width:64px!important}
           /* The header's backdrop-filter creates a stacking context that (being
@@ -3816,6 +3828,17 @@ export default function BeautyOS() {
              order decides. */
           .glass-card{padding:16px 14px!important}
           .card-flush{padding:0!important}
+
+          /* Full bleed. Once the gutters are gone a card that keeps its rounded
+             corners and side borders still reads as a framed panel floating on a
+             page - the exact "website in a frame" look this is meant to remove.
+             Squaring the corners and dropping the left/right borders turns each
+             card into a full-width section, which is the native pattern. The top
+             and bottom borders stay, because they are what still separates one
+             section from the next.
+             .modal-card is a different class and keeps its 24px radius: a
+             centred sheet should still look like a sheet. */
+          .glass-card,.hero-card{border-radius:0!important;border-left:0!important;border-right:0!important}
         }
         /* Small phones (SE, older Androids). Same budget as above but 316px:
            the logo gives up another 20px so nothing spills at 320. */
