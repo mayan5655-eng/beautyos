@@ -3658,11 +3658,23 @@ export default function BeautyOS() {
   // clearly visible, not barely there.
   const DENSE_TABS = ["calendar", "cashier", "leads", "tax", "clients"];
   const SPARSE_TABS = ["dashboard", "insights", "advisor", "community"];
+  // A phone shows a fraction of the desktop canvas, so the same opacity reads
+  // as far less flower. The dense screens get most of the lift; the sparse ones
+  // are already at /login strength and stay there.
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width:680px)");
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   const floralOpacity = SPARSE_TABS.includes(activeTab)
-    ? 1        // same as /login
+    ? 1                        // same as /login
     : DENSE_TABS.includes(activeTab)
-      ? 0.58   // readable through, but the flowers clearly read as flowers
-      : 0.8;   // everything else sits between the two
+      ? (isNarrow ? 0.72 : 0.58)  // still readable through, distinctly floral
+      : (isNarrow ? 0.92 : 0.8);  // everything else sits between the two
 
   // Bottom bar: the five destinations she reaches most in a working day.
   // Everything else lives behind "עוד" so the bar never crowds.
@@ -3878,7 +3890,7 @@ export default function BeautyOS() {
              the two scrolling ones, inset the scroll area itself. It MUST stay
              below the rule above: same specificity, both !important, so source
              order decides. */
-          .glass-card{padding:16px 14px!important}
+          .glass-card{padding:19px 16px!important}
           .card-flush{padding:0!important}
 
           /* Full bleed. Once the gutters are gone a card that keeps its rounded
@@ -3891,6 +3903,56 @@ export default function BeautyOS() {
              .modal-card is a different class and keeps its 24px radius: a
              centred sheet should still look like a sheet. */
           .glass-card,.hero-card{border-radius:0!important;border-left:0!important;border-right:0!important}
+
+          /* ── Richness. The wash and the blossoms were already identical to
+             /login - BRAND_WASH, same two-hue florals, opacity 1 on the sparse
+             tabs against /login's 0.9. The problem was that --surface is
+             #FFFFFF, fully opaque, and going edge to edge turned every card
+             into a full-bleed white panel that buried the artwork completely.
+             Making the cards glass is what brings /login's world back: the
+             ombré and the flowers now read THROUGH the content instead of
+             behind it. Desktop keeps solid cards, where the wash is visible
+             around them anyway.
+
+             0.62 alpha with a blur is the readability line: ink on
+             near-white over a pale cream-to-lavender wash still clears AA
+             comfortably, and the blur stops the blossoms turning body text
+             into texture. */
+          .glass-card{background:rgba(255,255,255,0.62)!important;
+                      -webkit-backdrop-filter:blur(14px) saturate(1.25);
+                      backdrop-filter:blur(14px) saturate(1.25)}
+          /* The hero keeps its own gradient - washing it out would flatten the
+             one surface that already reads rich - but it lets a little through. */
+          .hero-card{background:linear-gradient(180deg,rgba(255,255,255,0.34),rgba(255,255,255,0.14)),var(--grad-hero)!important}
+
+          /* Tinted glass chrome, following HER accent rather than a hardcoded
+             purple, so the header sits in the same world as the wash instead of
+             capping it with a flat bar. */
+          .app-header{background:linear-gradient(180deg,
+                        color-mix(in srgb, var(--pc) 13%, rgba(255,255,255,0.74)),
+                        color-mix(in srgb, var(--pc) 5%,  rgba(255,255,255,0.52)))!important;
+                      -webkit-backdrop-filter:blur(16px) saturate(1.2);
+                      backdrop-filter:blur(16px) saturate(1.2)}
+
+          /* Gentle sheen on the flat chips, so they catch light like the rest of
+             the surface. background-image only - the base colour each pill sets
+             inline is left alone, which keeps the categorical status colours. */
+          .pill{background-image:linear-gradient(180deg,rgba(255,255,255,0.38),rgba(255,255,255,0))}
+
+          /* Same tinted glass as the header, so the two bars bracket the page in
+             one material instead of one being glass and the other flat paint.
+             The inline rgba(252,250,254,0.94) it replaces was near-opaque. */
+          .app-bottombar{background:linear-gradient(180deg,
+                           color-mix(in srgb, var(--pc) 6%,  rgba(255,255,255,0.60)),
+                           color-mix(in srgb, var(--pc) 13%, rgba(255,255,255,0.78)))!important;
+                         -webkit-backdrop-filter:blur(18px) saturate(1.2);
+                         backdrop-filter:blur(18px) saturate(1.2)}
+
+          /* Air above the first card. The per-card padding lives with the
+             .card-flush opt-out further up and must stay there: declaring
+             .glass-card padding again below .card-flush would win on source
+             order and re-pad the six cards that must stay flush. */
+          .app-main{padding-top:16px!important}
         }
         /* Small phones (SE, older Androids). Same budget as above but 316px:
            the logo gives up another 20px so nothing spills at 320. */
@@ -6424,7 +6486,7 @@ export default function BeautyOS() {
           The "עוד" sheet (1401) and the off-canvas drawer (1500) are opened FROM
           the bar and still correctly sit above it.
           ============================================================ */}
- <nav className="mobile-only" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:900,
+ <nav className="mobile-only app-bottombar" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:900,
         background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
         backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
         borderTop:"1px solid var(--line)",boxShadow:"0 -2px 16px rgba(48,24,72,0.06)",
