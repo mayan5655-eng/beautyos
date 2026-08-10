@@ -3799,6 +3799,23 @@ export default function BeautyOS() {
              source of truth rather than a rule here fighting an inline style.
              !important because the card carries padding/margin inline. */
           .hero-card{margin-bottom:26px!important;padding:16px 16px!important}
+
+          /* Card padding. Ten tabs (leads, cashier, tax, marketing, insights,
+             advisor, community, packages, protocols, whatsapp) had no mobile
+             rules at all, so their cards kept desktop's 24-26px inset. With
+             .app-main's 8px gutter that spent up to 68px of a 344px screen on
+             padding alone. .glass-card carries no padding of its own - it is
+             always inline - so this is the only place one rule can reach all of
+             them, and it needs !important to outrank those inline values.
+
+             .card-flush is the opt-out for the six cards whose children already
+             supply their own padding (the calendar grid, the tax table, and
+             four list cards). Padding them here would double the inset and, for
+             the two scrolling ones, inset the scroll area itself. It MUST stay
+             below the rule above: same specificity, both !important, so source
+             order decides. */
+          .glass-card{padding:16px 14px!important}
+          .card-flush{padding:0!important}
         }
         /* Small phones (SE, older Androids). Same budget as above but 316px:
            the logo gives up another 20px so nothing spills at 320. */
@@ -4599,7 +4616,7 @@ export default function BeautyOS() {
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
  </div>
- <div className={calView==="week"?"glass-card":"glass-card desktop-only"} style={{overflow:"auto",WebkitOverflowScrolling:"touch",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"auto",WebkitOverflowScrolling:"touch",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
  <div/>
                 {weekDates.map((d,i)=>{
@@ -5023,7 +5040,7 @@ export default function BeautyOS() {
                 {groups.map(g=>{
                   const withPhone=g.targets.filter(t=>t.phone);
                   return(
- <div key={g.key} className="glass-card">
+ <div key={g.key} className="glass-card card-flush">
  <div style={{background:lighten(g.color,0.86),padding:"13px 15px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,borderBottom:"1px solid var(--line)"}}>
  <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
  <span style={{width:34,height:34,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:g.color,background:"rgba(255,255,255,0.7)"}}>{g.icon}</span>
@@ -5133,7 +5150,7 @@ export default function BeautyOS() {
  )}
 
  {waMessages&&waMessages.length>0&&(
- <div className="glass-card" style={{overflow:"hidden"}}>
+ <div className="glass-card card-flush" style={{overflow:"hidden"}}>
  {/* Horizontal scroll on narrow phones so the six columns never crush. */}
  <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
  <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
@@ -5346,7 +5363,7 @@ export default function BeautyOS() {
  )}
 
  {postVariations&&postVariations.length>0&&postVariations.map((v,i)=>(
- <div key={i} className="glass-card" style={{marginBottom:14}}>
+ <div key={i} className="glass-card card-flush" style={{marginBottom:14}}>
  {v.image&&v.image.url&&(
  <div style={{position:"relative"}}>
  <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
@@ -5427,7 +5444,7 @@ export default function BeautyOS() {
  </div>
  )}
  {savedCampaigns&&savedCampaigns.length>0&&savedCampaigns.map(c=>(
- <div key={c.id} className="glass-card" style={{marginBottom:14}}>
+ <div key={c.id} className="glass-card card-flush" style={{marginBottom:14}}>
  <div style={{background:"var(--pc-tint)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,borderBottom:"1px solid var(--line)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink)"}}>{c.name||c.goal}</p>
@@ -5776,7 +5793,7 @@ export default function BeautyOS() {
  ):(
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
  {communityPosts.map(p=>(
- <div key={p.id} className="glass-card">
+ <div key={p.id} className="glass-card card-flush">
  {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
