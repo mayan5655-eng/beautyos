@@ -44,3 +44,6 @@ next-env.d.ts
 # antivirus/proxy on some dev machines. Never deployed - see instrumentation.node.ts.
 instrumentation.ts
 instrumentation.node.ts
+
+# Local-only copy of the confirm-link signing secret. Never commit.
+CONFIRM_LINK_SECRET.local.txt

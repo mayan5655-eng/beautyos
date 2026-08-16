@@ -81,7 +81,11 @@ export async function POST(request) {
     // One log line per tenant per run, not per appointment.
     const pausedLogged = new Set();
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    // Same fallback as send-reminder-manual. Without it, a missing env var in
+    // production silently produced links reading "undefined/confirm?id=..." -
+    // and only on the cron path, so the manual button would have looked fine
+    // while every automatic reminder went out broken.
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
 
     // Send a reminder to each appointment, using its tenant's business name.
     const results = [];

@@ -633,11 +633,12 @@ const guessApptColumns = (rows, hasHeader) => {
 // Counters are committed only for rows that actually survive, which matters
 // most for `rounded`: tallying it during parsing would report the rounding of
 // hundreds of skipped historical rows she is never going to see.
-const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour) => {
+const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour, knownServices) => {
   const body = hasHeader ? grid.rows.slice(1) : grid.rows;
   const out = [];
-  let noName = 0, noDate = 0, past = 0, rounded = 0, noTime = 0;
+  let noName = 0, noDate = 0, past = 0, rounded = 0, noTime = 0, nameIsService = 0;
   const roundedSamples = [];
+  const nameIsServiceSamples = [];
 
   for (const r of body) {
     const rec = { date:"", hour:null, name:"", phone:"", service:"", duration:60, price:0, note:"" };
@@ -659,6 +660,19 @@ const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour) => {
     });
 
     if (!rec.name) { noName++; continue; }
+
+    // A row whose "client name" is one of her own treatments is a mis-mapped
+    // column, not a booking. This really happened: a paste that led with the
+    // treatment put "עיצוב גבות" in the name column, which then created a
+    // CLIENT called עיצוב גבות and an appointment greeting her by treatment
+    // name. Rejecting the row also stops the bogus client being created,
+    // because clients are minted from these rows downstream.
+    if (knownServices && knownServices.has(rec.name.trim())) {
+      nameIsService++;
+      if (nameIsServiceSamples.length < 3) nameIsServiceSamples.push(rec.name.trim());
+      continue;
+    }
+
     if (!rec.date || badDate) { noDate++; continue; }
     // No time column, or one this cannot read: park it at the start of the day
     // rather than dropping a real booking. Counted so the preview can say so.
@@ -668,7 +682,8 @@ const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour) => {
     if (roundLabel) { rounded++; if (roundedSamples.length < 3) roundedSamples.push(roundLabel); }
     out.push(rec);
   }
-  return { rows: out, noName, noDate, past, rounded, roundedSamples, noTime };
+  return { rows: out, noName, noDate, past, rounded, roundedSamples, noTime,
+           nameIsService, nameIsServiceSamples };
 };
 
 // Everything that differs between the three imports, in one place. The wizard
@@ -1858,7 +1873,13 @@ export default function BeautyOS() {
   const importSpec    = IMPORT_SPEC[importTarget] || IMPORT_SPEC.clients;
   const importFields  = importSpec.fields;
   const importGuesser = importSpec.guess;
-  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()))
+  // Her own treatment names, so an appointments import can reject rows whose
+  // "client name" is actually a treatment - a mis-mapped column, not a booking.
+  const knownServiceNames = useMemo(
+    () => new Set(services.map(s => String(s.name||"").trim()).filter(Boolean)),
+    [services]
+  );
+  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours(),knownServiceNames))
                       : importTarget === "services" ? buildServiceRows
                       : buildImportRows;
 
@@ -1935,7 +1956,7 @@ export default function BeautyOS() {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours());
+    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours(), knownServiceNames);
     if (built.rows.length === 0) { toast("לא נמצאו תורים עתידיים להוספה", "error"); return; }
 
     setImporting(true);
@@ -2016,6 +2037,7 @@ export default function BeautyOS() {
       setImportResult({ added: inserted.length, dupes, noName: built.noName, failed,
                         newClients: newClients.length, past: built.past, noDate: built.noDate,
                         rounded: built.rounded, noTime: built.noTime,
+                        nameIsService: built.nameIsService,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -6223,6 +6245,7 @@ export default function BeautyOS() {
       {built.past>0&&<> · {built.past} דולגו — תאריך שכבר עבר</>}
       {built.noDate>0&&<> · {built.noDate} דולגו — תאריך לא ברור</>}
       {built.noName>0&&<> · {built.noName} ידולגו (ללא שם)</>}
+      {built.nameIsService>0&&<> · {built.nameIsService} ידולגו (שם הלקוחה הוא שם טיפול)</>}
       {preview.length<(importHasHeader?grid.rows.length-1:grid.rows.length)&&<> · מוצגות 5 שורות ראשונות</>}
     </p>}
 
@@ -6234,6 +6257,15 @@ export default function BeautyOS() {
  <p style={{fontSize:11,color:"var(--ink)",fontWeight:700,marginBottom:3}}>⏱ {built.rounded} תורים יעוגלו לשעה עגולה</p>
  <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6}}>היומן עובד בשעות שלמות, אז שעה כמו 14:30 תישמר כ-15:00. כדאי לעבור עליהן אחרי הייבוא.</p>
  {built.roundedSamples.length>0&&<p style={{fontSize:10,color:"var(--ink-3)",marginTop:4,direction:"ltr",textAlign:"left"}}>{built.roundedSamples.join("   ·   ")}</p>}
+ </div>
+ )}
+ {/* Loud, not a footnote: this almost always means the name column is
+     pointing at the wrong column, so the whole import is about to be wrong. */}
+ {hasName&&built.nameIsService>0&&(
+ <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
+ <p style={{fontSize:11,color:"var(--danger)",fontWeight:700,marginBottom:3}}>⚠ {built.nameIsService} שורות ידולגו — שם הלקוחה הוא שם של טיפול</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6}}>נראה שעמודת «שם הלקוחה» מצביעה על עמודת הטיפולים. בדקי את ההתאמה למעלה — אחרת ייווצרו לקוחות עם שם של טיפול.</p>
+ {built.nameIsServiceSamples.length>0&&<p style={{fontSize:10,color:"var(--ink-3)",marginTop:4}}>{built.nameIsServiceSamples.join("   ·   ")}</p>}
  </div>
  )}
  {hasName&&built.noTime>0&&(
@@ -6261,6 +6293,7 @@ export default function BeautyOS() {
    {importResult.noDate>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noDate} דולגו — תאריך לא ברור</p>}
    {importResult.dupes>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
    {importResult.noName>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noName} דולגו — ללא שם</p>}
+   {importResult.nameIsService>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.nameIsService} דולגו — שם הלקוחה היה שם של טיפול</p>}
    {importResult.failed>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:12,padding:"10px 12px"}}>
  <p style={{fontSize:11.5,color:"var(--danger)",fontWeight:700,marginBottom:3}}>{importResult.failed} לא נוספו</p>
