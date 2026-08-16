@@ -274,9 +274,24 @@ function waMsg(phone, msg) {
   const intl = clean.startsWith("0") ? "972" + clean.slice(1) : clean;
   return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
 }
-function waConfirmLink(phone, name, service, date, hour, apptId, origin) {
-  const confirmUrl = `${origin}/confirm?id=${apptId}&action=confirm`;
-  const cancelUrl  = `${origin}/confirm?id=${apptId}&action=cancel`;
+// The browser has no signing secret and must never be given one, so the signed
+// links are minted by /api/confirm/link, which checks the session and that the
+// appointment belongs to the caller's tenant. Returns null if that fails, so a
+// caller never sends a reminder carrying a link that cannot work.
+async function fetchConfirmLinks(apptId) {
+  try {
+    const res = await fetch(`/api/confirm/link?id=${encodeURIComponent(apptId)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) return null;
+    return { confirmUrl: data.confirmUrl, cancelUrl: data.cancelUrl };
+  } catch {
+    return null;
+  }
+}
+
+function waConfirmLink(phone, name, service, date, hour, links) {
+  const confirmUrl = links.confirmUrl;
+  const cancelUrl  = links.cancelUrl;
   return waMsg(
     phone,
     `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${hour}:00\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
@@ -1708,8 +1723,15 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const client=clients.find(c=>String(c.id)===String(appt.client_id));
     if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return;}
-    const link=waConfirmLink(client.phone,appt.name,appt.service,appt.date,appt.hour,appt.id,origin);
-    window.open(link,"_blank");
+    // The window is opened synchronously, inside the click, and only then
+    // pointed at the link. Awaiting the signed links first and opening
+    // afterwards would put window.open outside the user gesture, which Safari
+    // and Chrome block as a popup.
+    const w = window.open("", "_blank");
+    const links = await fetchConfirmLinks(appt.id);
+    if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return; }
+    const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, appt.hour, links);
+    if (w) w.location.href = link; else window.open(link, "_blank");
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
     if (error) { handleDbError(error, "mark confirmation_sent"); return; }
     if(data)setAppointments(prev=>prev.map(a=>a.id===appt.id?data[0]:a));
@@ -2727,10 +2749,16 @@ export default function BeautyOS() {
   // Manual appointment reminder text — identical to the automatic cron reminder
   // and the /api/send-reminder-manual server message, incl. confirm/cancel links.
   // Used for the zero-dependency wa.me fallback.
-  const reminderText = (appt) => {
+  // Async now: the confirm/cancel links have to be signed server-side. Both
+  // callers already await a fetch before opening WhatsApp, so this adds no new
+  // popup-blocker exposure. Returns null when the links cannot be minted, so a
+  // reminder is never sent carrying links that would be rejected.
+  const reminderText = async (appt) => {
     const businessName = settings.business_name || "העסק";
-    const confirmLink = `${origin}/confirm?id=${appt.id}&action=confirm`;
-    const cancelLink = `${origin}/confirm?id=${appt.id}&action=cancel`;
+    const links = await fetchConfirmLinks(appt.id);
+    if (!links) return null;
+    const confirmLink = links.confirmUrl;
+    const cancelLink = links.cancelUrl;
     return `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
       `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
       `✨ טיפול: ${appt.service}\n\n` +
@@ -2759,11 +2787,13 @@ export default function BeautyOS() {
       if (res.ok && data.success) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
       // Fallback: open WhatsApp with the reminder pre-filled.
       toast(data.notConnected ? "וואטסאפ לא מחובר — נפתחת שליחה ידנית" : "השליחה נכשלה — נפתחת שליחה ידנית", "error");
-      const link = waMsg(phone, reminderText(appt));
+      const text = await reminderText(appt);
+      const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
     } catch {
       toast("השליחה נכשלה — נפתחת שליחה ידנית", "error");
-      const link = waMsg(phone, reminderText(appt));
+      const text = await reminderText(appt);
+      const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
     } finally {
       setBusyKey("sendReminder", false);

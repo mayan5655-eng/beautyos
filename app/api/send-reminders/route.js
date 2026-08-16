@@ -6,6 +6,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { confirmLinks } from "../../../lib/confirmToken";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -105,8 +106,8 @@ export async function POST(request) {
       }
 
       const businessName = settingsByTenant[appt.tenant_id]?.business_name || "העסק";
-      const confirmLink = `${baseUrl}/confirm?id=${appt.id}&action=confirm`;
-      const cancelLink = `${baseUrl}/confirm?id=${appt.id}&action=cancel`;
+      // Signed: /api/confirm now requires a token binding the id to the action.
+      const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id);
 
       const message =
         `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +

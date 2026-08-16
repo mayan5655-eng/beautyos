@@ -1,112 +1,100 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyConfirm } from '@/lib/confirmToken';
 
-export async function GET(request: NextRequest) {
+/**
+ * Appointment confirm / cancel, called by the /confirm page.
+ *
+ * This route runs under the service-role key, which bypasses RLS, so it is
+ * responsible for its own authorisation. It previously had none: a GET carrying
+ * an appointment id would confirm or cancel that appointment in ANY tenant and
+ * hand back the entire row. Three things are fixed here.
+ *
+ * 1. A signed token is required, binding the id to the action. The id alone is
+ *    not a secret - it is mailed to the client in plaintext over WhatsApp, so
+ *    anyone a message is forwarded to could previously cancel the booking.
+ *    Binding the action too means a "confirm" link cannot be edited into a
+ *    "cancel" link.
+ *
+ * 2. POST, not GET. Link-preview crawlers (WhatsApp, iMessage, Slack) fetch
+ *    URLs automatically, so a GET with side effects meant a preview bot could
+ *    silently cancel a real appointment just by rendering the message.
+ *
+ * 3. The response carries no appointment data. The old one returned the whole
+ *    row - client name, service, price, note, client_id, tenant_id - to an
+ *    unauthenticated caller.
+ */
+
+const okResponse = (action: string, alreadyDone = false) =>
+  NextResponse.json({
+    success: true,
+    action,
+    alreadyDone,
+    message: alreadyDone
+      ? action === 'confirm' ? 'התור כבר אושר בעבר' : 'התור כבר בוטל בעבר'
+      : action === 'confirm' ? 'התור אושר בהצלחה' : 'התור בוטל בהצלחה',
+  });
+
+// One body for every failure - unknown id, wrong token, bad action. Varying it
+// would turn this endpoint into an oracle for which appointment ids exist.
+const reject = () =>
+  NextResponse.json({ error: 'הקישור אינו תקין או שפג תוקפו' }, { status: 404 });
+
+export async function POST(request: NextRequest) {
   try {
-    // 1. קבלת ה-ID והפעולה מה-URL
-    const { searchParams } = new URL(request.url);
-    const appointmentId = searchParams.get('id');
-    const action = searchParams.get('action') || 'confirm'; // ברירת מחדל: אישור
+    const body = await request.json().catch(() => ({} as Record<string, unknown>));
+    const appointmentId = String(body.id ?? '').trim();
+    const action = String(body.action ?? 'confirm').trim();
+    const token = String(body.token ?? '').trim();
 
-    if (!appointmentId) {
-      return NextResponse.json(
-        { error: 'חסר מזהה תור' },
-        { status: 400 }
-      );
-    }
+    // Signature is checked BEFORE the database is touched, so an unsigned
+    // request costs nothing and reveals nothing.
+    if (!verifyConfirm(appointmentId, action, token)) return reject();
 
-    // 2. בדיקה שהפעולה תקינה
-    if (action !== 'confirm' && action !== 'cancel') {
-      return NextResponse.json(
-        { error: 'פעולה לא חוקית' },
-        { status: 400 }
-      );
-    }
-
-    // 3. יצירת חיבור ל-Supabase עם service_role (עוקף RLS)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
     if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json(
-        { error: 'הגדרות שרת חסרות' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'הגדרות שרת חסרות' }, { status: 500 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 4. בדיקה שהתור קיים ומה הסטטוס הנוכחי שלו
-    const { data: existingAppointment, error: fetchError } = await supabase
+    const { data: appt, error: fetchError } = await supabase
       .from('appointments')
       .select('confirmation_status')
       .eq('id', appointmentId)
       .single();
 
-    if (fetchError || !existingAppointment) {
-      return NextResponse.json(
-        { error: 'תור לא נמצא' },
-        { status: 404 }
-      );
-    }
+    if (fetchError || !appt) return reject();
 
-    // 5. אם התור כבר נמצא במצב המבוקש — אין מה לעדכן (תגובה idempotent).
-    //    חשוב: משווים מול הפעולה המבוקשת ולא מול הסטטוס בלבד, אחרת תור שאושר
-    //    לא ניתן לביטול דרך קישור ה"לביטול התור" (ולהפך).
-    if (action === 'confirm' && existingAppointment.confirmation_status === 'confirmed') {
-      return NextResponse.json({
-        success: true,
-        alreadyDone: true,
-        action: 'confirm',
-        message: 'התור כבר אושר בעבר'
-      });
-    }
+    // Idempotent, and compared against the requested ACTION rather than the
+    // status alone - otherwise a confirmed appointment could never be cancelled
+    // through its own link.
+    if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true);
+    if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true);
 
-    if (action === 'cancel' && existingAppointment.confirmation_status === 'cancelled') {
-      return NextResponse.json({
-        success: true,
-        alreadyDone: true,
-        action: 'cancel',
-        message: 'התור כבר בוטל בעבר'
-      });
-    }
-
-    // 6. עדכון התור - אישור או ביטול
     const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
-
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('appointments')
       .update({ confirmation_status: newStatus })
-      .eq('id', appointmentId)
-      .select()
-      .single();
+      .eq('id', appointmentId);
 
     if (error) {
-      console.error('שגיאה בעדכון התור:', error);
-      return NextResponse.json(
-        { error: 'לא הצלחנו לעדכן את התור', details: error.message },
-        { status: 500 }
-      );
+      console.error('confirm: update failed', error.message);
+      return NextResponse.json({ error: 'לא הצלחנו לעדכן את התור' }, { status: 500 });
     }
 
-    // 7. החזרת תשובה חיובית
-    return NextResponse.json({
-      success: true,
-      action: action,
-      message: action === 'confirm' ? 'התור אושר בהצלחה' : 'התור בוטל בהצלחה',
-      appointment: data
-    });
-
+    return okResponse(action);
   } catch (error) {
-    console.error('שגיאה כללית:', error);
-    return NextResponse.json(
-      { error: 'שגיאה בשרת' },
-      { status: 500 }
-    );
+    console.error('confirm: unexpected error', error);
+    return NextResponse.json({ error: 'שגיאה בשרת' }, { status: 500 });
   }
+}
+
+// Removed rather than kept as an alias: every link already sent points at the
+// old GET, and leaving it in place would leave the hole open.
+export async function GET() {
+  return NextResponse.json({ error: 'method not allowed' }, { status: 405 });
 }

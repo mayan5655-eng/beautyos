@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
+import { confirmLinks } from "../../../lib/confirmToken";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -100,8 +101,8 @@ export async function POST(request) {
     const businessName = (settingsRows && settingsRows[0]?.business_name) || "העסק";
 
     // Same message as the automatic cron reminder, including confirm/cancel links.
-    const confirmLink = `${APP_URL}/confirm?id=${appt.id}&action=confirm`;
-    const cancelLink = `${APP_URL}/confirm?id=${appt.id}&action=cancel`;
+    // Signed: /api/confirm now requires a token binding the id to the action.
+    const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id);
     const message =
       `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
       `📅 ${appt.date} בשעה ${appt.hour}:00\n` +

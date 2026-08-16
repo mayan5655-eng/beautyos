@@ -21,7 +21,14 @@ function ConfirmContent() {
     }
 
     // קריאה ל-API
-    fetch(`/api/confirm?id=${id}&action=${actionParam}`)
+    // POST with the signed token. The old GET was unauthenticated and had side
+    // effects, so a WhatsApp/iMessage link-preview crawler fetching the URL
+    // could silently cancel a real appointment.
+    fetch('/api/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: actionParam, token: searchParams.get('t') || '' }),
+    })
       .then(res => res.json())
       .then(data => {
         if (data.success) {
