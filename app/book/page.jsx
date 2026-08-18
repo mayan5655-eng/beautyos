@@ -5,6 +5,7 @@ import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHo
 import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
+import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -176,14 +177,11 @@ export default function BookPage() {
   const slotTaken = (start) =>
     busyToday.some(([bs, be]) => overlaps(start, start + svcDuration, bs, be));
 
-  // Today only: never offer a slot that has already passed.
-  const nowMinutes = (() => {
-    if (!selectedDate) return null;
-    const now = new Date();
-    return formatDate(selectedDate) === formatDate(now)
-      ? now.getHours() * 60 + now.getMinutes()
-      : null;
-  })();
+  // Minimum notice for client self-booking. The server enforces the same rule -
+  // this only keeps the page from offering a slot that would then be rejected.
+  const selectedDateStr = selectedDate ? formatDate(selectedDate) : null;
+  const tooSoon = (start) =>
+    selectedDateStr !== null && isTooSoonForSelfBooking(selectedDateStr, start);
 
   const handleConfirm = async () => {
     setErrorMsg("");
@@ -597,7 +595,7 @@ export default function BookPage() {
                   <>
                     <p style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
-                      {allSlots.filter((m) => nowMinutes === null || m > nowMinutes).map((h) => {
+                      {allSlots.filter((m) => !tooSoon(m)).map((h) => {
                         const taken = slotTaken(h);
                         const isSel = selectedStart === h;
                         return (

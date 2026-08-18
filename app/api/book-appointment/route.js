@@ -8,6 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
+import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -59,6 +60,24 @@ export async function POST(request) {
       return Response.json(
         { success: false, error: "שעה לא תקינה" },
         { status: 400 }
+      );
+    }
+
+    // 0a. Minimum notice. Enforced HERE, not only by hiding slots in the page:
+    //     hiding is a display filter and anyone can post to this endpoint
+    //     directly. Same shape and same failure direction as the overlap check
+    //     below - unparseable input is refused rather than waved through.
+    //
+    //     Scoped to public self-booking only. The in-app modal does not come
+    //     through this route, so she can still add a walk-in starting now, and
+    //     gap-fill has its own lead rule in app/api/slots/offer.
+    if (isTooSoonForSelfBooking(date, newStart)) {
+      return Response.json(
+        {
+          success: false,
+          error: `ניתן לקבוע תור לפחות ${Math.round(SELF_BOOKING_MIN_LEAD_MINUTES / 60)} שעות מראש. נא לבחור מועד מאוחר יותר.`,
+        },
+        { status: 409 }
       );
     }
 
