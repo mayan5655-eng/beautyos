@@ -11,11 +11,20 @@
 // so the caller can tell the client the slot was just filled.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { startFields } from "./apptTime";
 
 export interface SlotBooking {
   tenant_id: string;
   date: string; // "YYYY-MM-DD"
-  hour: number; // whole hour (schema stores whole hours)
+  /**
+   * Start time as minutes from midnight (14:30 = 870).
+   *
+   * Explicitly NOT "hour or minutes, whichever it looks like": 23 would be
+   * ambiguous between 23:00 and 00:23, and guessing wrong in the one shared
+   * booking path is how a client ends up with an appointment at the wrong time.
+   * Callers convert with lib/apptTime.
+   */
+  startMinute: number;
   service?: string | null;
   duration?: number | null;
   client_id?: string | null;
@@ -40,7 +49,9 @@ export async function bookAppointmentSlot(
   const { error } = await admin.from("appointments").insert({
     tenant_id: b.tenant_id,
     date: b.date,
-    hour: b.hour,
+    // Both written during the transition: start_minute is the new truth, hour
+    // keeps an older deployment reading the row correctly.
+    ...startFields(b.startMinute),
     service: b.service ?? null,
     duration: b.duration ?? null,
     client_id: b.client_id ?? null,

@@ -15,6 +15,7 @@ import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import ImportChooser from "./ImportChooser";
+import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -1237,12 +1238,18 @@ export default function BeautyOS() {
   // That day's open/close from the per-day business_hours (null = closed that day).
   const apptDayHours = dayHoursFrom(settings, apptDay);
   // Bookable START hours for the day: open .. close-1 (can't start at closing time).
-  const apptHourOptions = apptDayHours ? Array.from({length:Math.max(0,apptDayHours.close-apptDayHours.open)},(_,i)=>apptDayHours.open+i) : [];
+  // Half-hour granularity. slotsBetween also refuses any start whose treatment
+  // would run past closing, which the old whole-hour list never checked.
+  const APPT_SLOT_STEP = 30;
+  const apptSlotOptions = apptDayHours ? slotsBetween(apptDayHours.open, apptDayHours.close, APPT_SLOT_STEP, Number(newAppt.duration)||0) : [];
   // Keep the shown hour inside the day's range even before the clamp effect runs,
   // so the label + select stay consistent when the date changes.
-  const apptEffectiveHour = apptHourOptions.includes(Number(newAppt.hour)) ? Number(newAppt.hour) : (apptHourOptions.length?apptHourOptions[0]:Number(newAppt.hour));
+  // startMinute once the picker has set one; hour*60 for the eight call sites
+  // that still construct newAppt with a whole hour, where hour N means N:00.
+  const apptRequestedStart = newAppt.startMinute != null ? Number(newAppt.startMinute) : Number(newAppt.hour) * 60;
+  const apptEffectiveStart = apptSlotOptions.includes(apptRequestedStart) ? apptRequestedStart : (apptSlotOptions.length ? apptSlotOptions[0] : apptRequestedStart);
   const fmtHM = (mins)=>`${String(Math.floor(mins/60)).padStart(2,"0")}:${String(((mins%60)+60)%60).padStart(2,"0")}`;
-  const apptStartMin = apptEffectiveHour*60;
+  const apptStartMin = apptEffectiveStart;
   const apptEndMin = apptStartMin + Number(newAppt.duration||0);
   // --- STAGE C: block double-booking ---
   // Busy [start,end) minute-intervals already taken on the picked date. Cancelled
@@ -1252,19 +1259,19 @@ export default function BeautyOS() {
   // as a conflict (an appointment can't clash with its own current slot).
   const apptBusy = appointments
     .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId)
-    .map(a=>{ const s=Number(a.hour)*60; return [s, s+Number(a.duration||0)]; });
+    .map(a=>[startMinute(a), endMinute(a)]).filter(([s,e])=>s!==null&&e!==null);
   // Is a candidate start hour taken, given the currently selected duration?
   // Recomputes every render, so changing the duration re-evaluates the picker.
-  const hourIsTaken = (h)=>{ const s=h*60, e=s+Number(newAppt.duration||0); return apptBusy.some(([bs,be])=>s<be&&bs<e); };
+  const slotIsTaken = (m)=>{ const s=m, e=s+Number(newAppt.duration||0); return apptBusy.some(([bs,be])=>s<be&&bs<e); };
   // Is the START hour currently shown in the picker itself taken? Drives the
   // persistent inline warning + the disabled Save button (derived, so it stays
   // visible until the therapist picks a free time — no toast to disappear).
-  const apptSelectedTaken = !!apptDayHours && apptHourOptions.length>0 && hourIsTaken(apptEffectiveHour);
+  const apptSelectedTaken = !!apptDayHours && apptSlotOptions.length>0 && slotIsTaken(apptEffectiveStart);
   // When the picked day changes and the current hour falls outside that day's
   // range, snap to the first open hour so a stale start can't be saved.
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
-    if(!apptHourOptions.includes(Number(newAppt.hour))) setNewAppt(prev=>({...prev,hour:apptHourOptions[0]}));
+    if(!apptSlotOptions.includes(apptRequestedStart)) setNewAppt(prev=>({...prev,startMinute:apptSlotOptions[0],hour:Math.floor(apptSlotOptions[0]/60)}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[showModal,newAppt.date,apptDayHours?.open,apptDayHours?.close]);
 
@@ -1580,7 +1587,14 @@ export default function BeautyOS() {
     else if (r.type === "service") { setEditSettings({ ...settings }); setSettingsTab("services"); setShowSettings(true); }
   };
 
-  const getAppt = (date,hour) => appointments.find(a=>a.date===formatDate(date)&&Number(a.hour)===Number(hour));
+  // Bucketed by hour on purpose: the grid still has one row per hour, so a
+  // 14:30 appointment must render in the 14:00 row rather than vanish. The row
+  // shows its real start time. A true minute-resolution grid is a separate job.
+  const getAppt = (date,hour) => appointments.find(a=>{
+    if(a.date!==formatDate(date)) return false;
+    const sm = startMinute(a);
+    return sm!==null && Math.floor(sm/60)===Number(hour);
+  });
 
   const getApptColor = (appt) => {
     if(appt.confirmation_status==="confirmed") return "var(--success)";
@@ -1596,7 +1610,7 @@ export default function BeautyOS() {
     if(getAppt(date,hour))return;
     const svc=activeServices[0];
     setEditingAppointmentId(null); // fresh create, not edit
-    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),hour,price:svc?.price||0});
+    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),hour,startMinute:Number(hour)*60,price:svc?.price||0});
     setApptNote("");setShowModal(true);
   };
 
@@ -1607,7 +1621,7 @@ export default function BeautyOS() {
   // the conflict checks.
   const handleApptClick = (appt) => {
     setEditingAppointmentId(appt.id);
-    setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),price:appt.price||0});
+    setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),startMinute:startMinute(appt),price:appt.price||0});
     setApptNote(appt.note||"");
     setShowModal(true);
   };
@@ -1629,12 +1643,12 @@ export default function BeautyOS() {
     // [start, start+duration) minutes; reject if it overlaps any non-cancelled
     // appointment already on that date. (Runs before the busy flag is set.)
     {
-      const newStart = Number(newAppt.hour)*60;
+      const newStart = apptEffectiveStart;
       const newEnd = newStart + Number(newAppt.duration||0);
       const clash = appointments.some(a=>{
         if(a.id===editingAppointmentId) return false; // don't clash with self when editing
         if(a.date!==newAppt.date || a.confirmation_status==="cancelled") return false;
-        const bs = Number(a.hour)*60, be = bs + Number(a.duration||0);
+        const bs = startMinute(a), be = endMinute(a); if(bs===null||be===null) return false;
         return newStart < be && bs < newEnd;
       });
       if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
@@ -1662,14 +1676,14 @@ export default function BeautyOS() {
         // EDIT/reschedule: update only the editable fields on the existing row.
         // confirmation_status/confirmation_sent are intentionally left untouched
         // (no change to unrelated confirmation logic).
-        const patch={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0};
+        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0};
         const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
         if(error){handleDbError(error, "update appointment"); return;}
         if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
         setShowModal(false);setApptNote("");setEditingAppointmentId(null);
         toast("התור עודכן בהצלחה");
       } else {
-        const appt={date:newAppt.date,hour:Number(newAppt.hour),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
+        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
         const {data,error}=await supabase.from("appointments").insert([appt]).select();
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
@@ -1691,7 +1705,7 @@ export default function BeautyOS() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: appt.date, hour: appt.hour, service: appt.service,
+          date: appt.date, startMinute: startMinute(appt), service: appt.service,
           duration: appt.duration, cancelledClientId: appt.client_id,
         }),
       });
@@ -2927,7 +2941,7 @@ export default function BeautyOS() {
       const newStart = hourNum*60, newEnd = newStart + duration;
       const clash = appointments.some(a=>{
         if(a.date!==b.date || a.confirmation_status==="cancelled") return false;
-        const bs=Number(a.hour)*60, be=bs+Number(a.duration||0);
+        const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
         return newStart<be && bs<newEnd;
       });
       if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
@@ -6116,7 +6130,7 @@ export default function BeautyOS() {
  <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveHour} onChange={e=>setNewAppt({...newAppt,hour:Number(e.target.value)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400}}>{apptHourOptions.map(h=>{const taken=hourIsTaken(h);return <option key={h} value={h} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{String(h).padStart(2,"0")}:00{taken?" ⛔ תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:10.5,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:10.5,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
  </div>
  <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>
  <option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price} ({s.duration}′)</option>)}

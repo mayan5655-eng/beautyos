@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { toMinutes, clashesWith, startFields } from "../../../lib/apptTime";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -37,6 +38,17 @@ export async function POST(request) {
     }
     const activeTenantId = tenantId;
 
+    // Accepts a whole hour (9), the old wire format, or "14:30" from a client
+    // that offers half-hour slots. Declared out here because the insert below
+    // needs it too.
+    const newStart = toMinutes(hour);
+    if (newStart === null) {
+      return Response.json(
+        { success: false, error: "שעה לא תקינה" },
+        { status: 400 }
+      );
+    }
+
     // 0. Reject double-booking: if a non-cancelled appointment already overlaps
     //    this slot on the same date for this tenant, fail with a friendly message
     //    instead of silently stacking a second appointment on top of it. Mirrors
@@ -44,17 +56,18 @@ export async function POST(request) {
     {
       const { data: sameDay } = await supabase
         .from("appointments")
-        .select("hour, duration, confirmation_status")
+        .select("start_minute, hour, duration, confirmation_status")
         .eq("tenant_id", activeTenantId)
         .eq("date", date);
-      const newStart = Number(hour) * 60;
-      const newEnd = newStart + Number(duration || 60);
-      const clash = (sameDay || []).some((a) => {
-        if (a.confirmation_status === "cancelled") return false;
-        const bs = Number(a.hour) * 60;
-        const be = bs + Number(a.duration || 0);
-        return newStart < be && bs < newEnd;
-      });
+      // start_minute is the truth; hour*60 is the fallback for rows written
+      // before the migration or by an older deployment mid-rollout. Doing this
+      // arithmetic by hand here was what let a half-hour booking look free
+      // against a full-hour one.
+      const clash = clashesWith(
+        newStart,
+        Number(duration || 60),
+        (sameDay || []).filter((a) => a.confirmation_status !== "cancelled")
+      );
       if (clash) {
         return Response.json(
           { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
@@ -72,7 +85,9 @@ export async function POST(request) {
         client_phone: phone,
         service: service,
         date: date,
-        hour: hour,
+        // Both written during the transition: start_minute is what the app now
+        // reads, hour keeps a deployment running the previous build correct.
+        ...startFields(newStart),
         duration: duration || 60,
         price: price || 0,
         color: color || "#E91E63",

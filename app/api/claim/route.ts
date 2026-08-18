@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
+import { startMinute, fmtTime } from "@/lib/apptTime";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
 function admin() {
@@ -41,7 +42,7 @@ function stateOf(offer: { status: string; expires_at: string }): string {
 async function loadOffer(supabase: ReturnType<typeof admin>, token: string) {
   const { data: offer } = await supabase
     .from("slot_offers")
-    .select("tenant_id, slot_date, slot_hour, service, client_name, status, expires_at")
+    .select("tenant_id, slot_date, slot_hour, slot_start_minute, service, client_name, status, expires_at")
     .eq("token", token)
     .maybeSingle();
   if (!offer) return null;
@@ -68,7 +69,8 @@ export async function GET(request: NextRequest) {
     state: stateOf(offer),
     service: offer.service,
     slotDate: offer.slot_date,
-    slotHour: offer.slot_hour,
+    slotHour: offer.slot_hour,   // kept for older clients
+    slotTime: fmtTime(startMinute({ start_minute: offer.slot_start_minute, hour: offer.slot_hour })),
     clientName: offer.client_name,
     businessName,
   });
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     .eq("token", token)
     .eq("status", "sent")
     .gt("expires_at", nowIso)
-    .select("tenant_id, slot_date, slot_hour, service, duration, client_id, client_name, phone")
+    .select("tenant_id, slot_date, slot_hour, slot_start_minute, service, duration, client_id, client_name, phone")
     .maybeSingle();
 
   // Lost the race (another sibling committed 'claimed' for this slot first).
@@ -117,10 +119,20 @@ export async function POST(request: NextRequest) {
   // path (also used by the concierge). The partial unique index
   // uniq_appt_slot_active guards against a parallel manual/online booking of the
   // same slot; if that fires, the slot was really taken -> undo our claim.
+  // slot_start_minute is the truth; slot_hour*60 covers offers written before
+  // the migration or by an older deployment.
+  const claimedStart = startMinute({
+    start_minute: claimed.slot_start_minute,
+    hour: claimed.slot_hour,
+  });
+  if (claimedStart === null) {
+    return NextResponse.json({ state: "error" }, { status: 500 });
+  }
+
   const booked = await bookAppointmentSlot(supabase, {
     tenant_id: claimed.tenant_id,
     date: claimed.slot_date,
-    hour: claimed.slot_hour,
+    startMinute: claimedStart,
     service: claimed.service,
     duration: claimed.duration,
     client_id: claimed.client_id,
@@ -139,18 +151,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Retire the other recipients' offers for this slot (best effort).
+  // Keyed on the exact start rather than the hour: once slots can be half past,
+  // two different offers can share an hour, and retiring by hour would cancel a
+  // 14:30 offer because someone claimed 14:00.
   await supabase.from("slot_offers")
     .update({ status: "superseded" })
     .eq("tenant_id", claimed.tenant_id)
     .eq("slot_date", claimed.slot_date)
-    .eq("slot_hour", claimed.slot_hour)
+    .eq("slot_start_minute", claimedStart)
     .eq("status", "sent");
 
   return NextResponse.json({
     state: "won",
     service: claimed.service,
     slotDate: claimed.slot_date,
-    slotHour: claimed.slot_hour,
+    slotHour: claimed.slot_hour,      // kept for older clients
+    slotTime: fmtTime(claimedStart),  // "14:30"
     clientName: claimed.client_name,
   });
 }

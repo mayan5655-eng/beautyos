@@ -15,6 +15,7 @@ import { createClient as createServerClient } from "../../../../lib/supabase/ser
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { clinicName } from "../../../../lib/clinicName";
+import { toMinutes, fmtTime } from "../../../../lib/apptTime";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -51,10 +52,12 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const service = typeof body.service === "string" ? body.service.trim() : "";
     const slotDate = typeof body.date === "string" ? body.date : "";
-    const slotHour = Number.parseInt(body.hour, 10);
+    // Accepts minutes-from-midnight, a whole hour, or "14:30". parseInt alone
+    // silently truncated "14:30" to 14, quietly moving the offered slot.
+    const slotStartMinute = toMinutes(body.startMinute != null ? body.startMinute : body.hour);
     const duration = body.duration != null ? Number(body.duration) : null;
     const excludeClientId = body.cancelledClientId ? String(body.cancelledClientId) : null;
-    if (!slotDate || !Number.isFinite(slotHour)) {
+    if (!slotDate || slotStartMinute === null) {
       return Response.json({ success: false, error: "פרטי תור חסרים" }, { status: 400 });
     }
 
@@ -89,7 +92,7 @@ export async function POST(request) {
     };
     const MIN_LEAD_MINUTES = 120;
     const leadMinutes =
-      wallMinutes(slotDate, slotHour) -
+      wallMinutes(slotDate, Math.floor(slotStartMinute / 60), slotStartMinute % 60) -
       wallMinutes(
         `${nowParts.year}-${nowParts.month}-${nowParts.day}`,
         Number(nowParts.hour),
@@ -98,7 +101,7 @@ export async function POST(request) {
 
     if (!Number.isFinite(leadMinutes) || leadMinutes < MIN_LEAD_MINUTES) {
       console.log(
-        `[slots/offer] skipped: slot ${slotDate} ${slotHour}:00 is ${Math.round(leadMinutes)} min away (min ${MIN_LEAD_MINUTES})`
+        `[slots/offer] skipped: slot ${slotDate} ${fmtTime(slotStartMinute)} is ${Math.round(leadMinutes)} min away (min ${MIN_LEAD_MINUTES})`
       );
       return Response.json({
         success: true,
@@ -193,7 +196,7 @@ export async function POST(request) {
       request.headers.get("origin") ||
       (request.headers.get("host") ? `https://${request.headers.get("host")}` : "");
     const expiresAt = new Date(Date.now() + OFFER_TTL_HOURS * 3600 * 1000).toISOString();
-    const hh = String(slotHour).padStart(2, "0");
+    const hh = fmtTime(slotStartMinute);
     const [yy, mm, dd] = slotDate.split("-");
     const niceDate = dd && mm ? `${dd}/${mm}` : slotDate;
 
@@ -204,7 +207,8 @@ export async function POST(request) {
         .insert({
           tenant_id: tenantId,
           slot_date: slotDate,
-          slot_hour: slotHour,
+          slot_start_minute: slotStartMinute,
+          slot_hour: Math.floor(slotStartMinute / 60),
           service: service || null,
           duration,
           client_id: cand.clientId,
@@ -220,7 +224,7 @@ export async function POST(request) {
       const claimUrl = `${origin}/claim/${offer.token}`;
       const message =
         `שלום${cand.name ? ` ${cand.name}` : ""}! ✦\n` +
-        `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}:00.\n` +
+        `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}.\n` +
         `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:\n${claimUrl}`;
 
       const res = await sendWhatsApp(cand.phone, message, {
