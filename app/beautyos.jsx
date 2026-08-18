@@ -363,10 +363,10 @@ const SERVICE_IMPORT_FIELDS = [
   { id:"duration", label:"משך (דקות)" },
 ];
 
-// The appointment fields a pasted column can map onto. There is deliberately no
-// minutes field: appointments.hour is a whole-hour integer, the calendar grid is
-// keyed on it and every screen renders `${hour}:00`, so an imported 14:30 has to
-// become 15:00. That rounding is reported in the preview, never applied quietly.
+// The appointment fields a pasted column can map onto. The "time" column carries
+// the whole start time, minutes included: start_minute stores the real minute, so
+// an imported 14:30 stays 14:30. It used to be rounded to 15:00 and reported in
+// the preview, because appointments.hour could not represent anything else.
 const APPT_IMPORT_FIELDS = [
   { id:"ignore",   label:"התעלם" },
   { id:"date",     label:"תאריך" },
@@ -561,8 +561,13 @@ const parseImportDate = (s) => {
   return formatDate(dt);
 };
 
-// "14:30" -> hour 15, flagged as rounded. Half past rounds up, earlier rounds
-// down. The caller reports every change; nothing here moves a booking quietly.
+// "14:30" -> 870 minutes from midnight. Also reads "14.30", "14", "2pm", "2 am".
+// Returns null on anything it cannot parse, so the caller counts the row instead
+// of inventing a time for it.
+//
+// Nothing is rounded: start_minute holds the real minute. This used to return the
+// nearest whole hour plus a `rounded` flag, and the caller tallied how many rows
+// it had moved, because appointments.hour could not represent anything else.
 const parseImportTime = (s) => {
   const t = String(s||"").trim().toLowerCase();
   let h, min = 0;
@@ -576,12 +581,7 @@ const parseImportTime = (s) => {
     if (m[2] === "am" && h === 12) h = 0;
   }
   if (h > 23 || min > 59) return null;
-  const rounded = min !== 0;
-  if (min >= 30) h += 1;
-  // 23:30 would round past midnight. Keep it on its own day rather than
-  // silently moving the appointment to tomorrow.
-  if (h > 23) h = 23;
-  return { hour: h, rounded, label: `${t} ← ${h}:00` };
+  return { startMinute: h * 60 + min };
 };
 
 // Column guessing for an appointments paste. Headers win; without them the
@@ -631,26 +631,28 @@ const guessApptColumns = (rows, hasHeader) => {
 // and dropped, so a full export can be pasted as-is without back-filling a year
 // of history nobody asked for.
 //
-// Counters are committed only for rows that actually survive, which matters
-// most for `rounded`: tallying it during parsing would report the rounding of
-// hundreds of skipped historical rows she is never going to see.
-const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour, knownServices) => {
+// Counters are committed only for rows that actually survive: tallying during
+// parsing would report on hundreds of skipped historical rows she never sees.
+//
+// nowMinute is minutes from midnight. Comparing on the hour would have dropped
+// a 14:30 booking as "past" at 14:05, and kept one at 14:00 that had already
+// started.
+const buildApptRows = (grid, cols, hasHeader, todayStr, nowMinute, knownServices) => {
   const body = hasHeader ? grid.rows.slice(1) : grid.rows;
   const out = [];
-  let noName = 0, noDate = 0, past = 0, rounded = 0, noTime = 0, nameIsService = 0;
-  const roundedSamples = [];
+  let noName = 0, noDate = 0, past = 0, noTime = 0, nameIsService = 0;
   const nameIsServiceSamples = [];
 
   for (const r of body) {
-    const rec = { date:"", hour:null, name:"", phone:"", service:"", duration:60, price:0, note:"" };
-    let badDate = false, timeSeen = false, timeBad = false, roundLabel = null;
+    const rec = { date:"", startMinute:null, name:"", phone:"", service:"", duration:60, price:0, note:"" };
+    let badDate = false, timeSeen = false, timeBad = false;
 
     cols.forEach((field, i) => {
       const v = String(r[i]||"").trim();
       if (field === "ignore" || !field || !v) return;
       if (field === "date")     { const d = parseImportDate(v); if (d) rec.date = d; else badDate = true; }
       if (field === "time")     { timeSeen = true; const t = parseImportTime(v);
-                                  if (t) { rec.hour = t.hour; if (t.rounded) roundLabel = t.label; }
+                                  if (t) rec.startMinute = t.startMinute;
                                   else timeBad = true; }
       if (field === "name")     rec.name = v;
       if (field === "phone")    rec.phone = v.replace(/[^\d+]/g,"");
@@ -677,14 +679,17 @@ const buildApptRows = (grid, cols, hasHeader, todayStr, nowHour, knownServices) 
     if (!rec.date || badDate) { noDate++; continue; }
     // No time column, or one this cannot read: park it at the start of the day
     // rather than dropping a real booking. Counted so the preview can say so.
-    if (rec.hour === null) { if (timeSeen && timeBad) noTime++; rec.hour = 9; }
-    if (rec.date < todayStr || (rec.date === todayStr && rec.hour < nowHour)) { past++; continue; }
+    // `hour` is not carried on the record: startFields() derives it from
+    // startMinute at insert time, so there is one source of truth for the start.
+    if (rec.startMinute === null) {
+      if (timeSeen && timeBad) noTime++;
+      rec.startMinute = 9 * 60;
+    }
+    if (rec.date < todayStr || (rec.date === todayStr && rec.startMinute < nowMinute)) { past++; continue; }
 
-    if (roundLabel) { rounded++; if (roundedSamples.length < 3) roundedSamples.push(roundLabel); }
     out.push(rec);
   }
-  return { rows: out, noName, noDate, past, rounded, roundedSamples, noTime,
-           nameIsService, nameIsServiceSamples };
+  return { rows: out, noName, noDate, past, noTime, nameIsService, nameIsServiceSamples };
 };
 
 // Everything that differs between the three imports, in one place. The wizard
@@ -1893,7 +1898,7 @@ export default function BeautyOS() {
     () => new Set(services.map(s => String(s.name||"").trim()).filter(Boolean)),
     [services]
   );
-  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours(),knownServiceNames))
+  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames))
                       : importTarget === "services" ? buildServiceRows
                       : buildImportRows;
 
@@ -1970,7 +1975,7 @@ export default function BeautyOS() {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours(), knownServiceNames);
+    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours()*60+now.getMinutes(), knownServiceNames);
     if (built.rows.length === 0) { toast("לא נמצאו תורים עתידיים להוספה", "error"); return; }
 
     setImporting(true);
@@ -2009,23 +2014,47 @@ export default function BeautyOS() {
       // Skip anything already on the calendar in that slot for that person.
       // Reruns after a partial failure are normal, and the week grid renders
       // only one appointment per date+hour, so a duplicate would just hide.
-      const slotKey = (date, hour, phone, name) =>
-        `${date}|${Number(hour)}|${digits(phone) || String(name||"").trim()}`;
+      // Keyed on the exact start rather than the hour: with minutes, an
+      // imported 14:00 and 14:30 for the same client are two bookings, and
+      // hour-granularity would have silently discarded the second as a dupe.
+      const slotKey = (date, startMin, phone, name) =>
+        `${date}|${Number(startMin)}|${digits(phone) || String(name||"").trim()}`;
       const clientPhone = new Map(clients.map(c => [c.id, c.phone]));
       const existingSlots = new Set(
-        appointments.map(a => slotKey(a.date, a.hour, clientPhone.get(a.client_id), a.name))
+        appointments.map(a => slotKey(a.date, startMinute(a), clientPhone.get(a.client_id), a.name))
       );
+
+      // Then refuse to double-book, which dedup does not do. The key above only
+      // catches an identical start for the same person; it says nothing about an
+      // imported 14:30+60 landing on top of an existing 14:00+60. That was
+      // unreachable while every imported time was rounded to a whole hour, and
+      // stage 3 makes it reachable, so the importer now runs the same [start,end)
+      // half-open test as the modal and the public booking route.
+      //
+      // Cancelled appointments free their slot, exactly as in handleSave.
+      // Accepted rows join the bucket as we go, so a single paste cannot overlap
+      // itself either - two 14:00 lash fills in the same file is the common case.
+      const byDate = new Map();
+      for (const a of appointments) {
+        if (a.confirmation_status === "cancelled") continue;
+        if (!byDate.has(a.date)) byDate.set(a.date, []);
+        byDate.get(a.date).push(a);
+      }
 
       const seen = new Set();
       const fresh = [];
-      let dupes = 0;
+      let dupes = 0, overlapping = 0;
       for (const r of built.rows) {
-        const k = slotKey(r.date, r.hour, r.phone, r.name);
+        const k = slotKey(r.date, r.startMinute, r.phone, r.name);
         if (existingSlots.has(k) || seen.has(k)) { dupes++; continue; }
+
+        const sameDay = byDate.get(r.date) || [];
+        if (clashesWith(r.startMinute, Number(r.duration||0), sameDay)) { overlapping++; continue; }
+
         seen.add(k);
         const svc = services.find(s => String(s.name||"").trim() === String(r.service||"").trim());
         fresh.push({
-          date: r.date, hour: r.hour, name: r.name, service: r.service || "",
+          date: r.date, ...startFields(r.startMinute), name: r.name, service: r.service || "",
           duration: r.duration, price: r.price,
           // Stored data, not styling: appointments.color is read back to tint
           // the calendar block, so it must stay a literal hex.
@@ -2035,6 +2064,8 @@ export default function BeautyOS() {
           confirmation_status: "pending", confirmation_sent: false,
           ...tenantField,
         });
+        sameDay.push({ start_minute: r.startMinute, duration: Number(r.duration||0) });
+        if (!byDate.has(r.date)) byDate.set(r.date, sameDay);
       }
 
       const CHUNK = 100;
@@ -2048,9 +2079,9 @@ export default function BeautyOS() {
       }
       if (inserted.length) setAppointments(prev => [...prev, ...inserted]);
 
-      setImportResult({ added: inserted.length, dupes, noName: built.noName, failed,
+      setImportResult({ added: inserted.length, dupes, overlapping, noName: built.noName, failed,
                         newClients: newClients.length, past: built.past, noDate: built.noDate,
-                        rounded: built.rounded, noTime: built.noTime,
+                        noTime: built.noTime,
                         nameIsService: built.nameIsService,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
@@ -6263,16 +6294,8 @@ export default function BeautyOS() {
       {preview.length<(importHasHeader?grid.rows.length-1:grid.rows.length)&&<> · מוצגות 5 שורות ראשונות</>}
     </p>}
 
- {/* Rounding is surfaced, never silent: the calendar stores whole hours only,
-     so a 14:30 booking becomes 15:00 and she gets to see it happen before
-     agreeing to it, with real examples from her own paste. */}
- {hasName&&built.rounded>0&&(
- <div style={{background:"var(--pc-tint)",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
- <p style={{fontSize:11,color:"var(--ink)",fontWeight:700,marginBottom:3}}>⏱ {built.rounded} תורים יעוגלו לשעה עגולה</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6}}>היומן עובד בשעות שלמות, אז שעה כמו 14:30 תישמר כ-15:00. כדאי לעבור עליהן אחרי הייבוא.</p>
- {built.roundedSamples.length>0&&<p style={{fontSize:10,color:"var(--ink-3)",marginTop:4,direction:"ltr",textAlign:"left"}}>{built.roundedSamples.join("   ·   ")}</p>}
- </div>
- )}
+ {/* The rounding warning that stood here is gone: the schema stores minutes
+     now, so 14:30 imports as 14:30 and there is nothing left to warn about. */}
  {/* Loud, not a footnote: this almost always means the name column is
      pointing at the wrong column, so the whole import is about to be wrong. */}
  {hasName&&built.nameIsService>0&&(
@@ -6302,10 +6325,13 @@ export default function BeautyOS() {
  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
    {importResult.newClients>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.newClients} לקוחות חדשות נוצרו מהתורים</p>}
    {importResult.past>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.past} דולגו — תאריך שכבר עבר (היסטוריה לא מיובאת)</p>}
-   {importResult.rounded>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.rounded} עוגלו לשעה עגולה — כדאי לעבור עליהם ביומן</p>}
    {importResult.noTime>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noTime} נקבעו ל-9:00 (שעה לא קריאה)</p>}
    {importResult.noDate>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noDate} דולגו — תאריך לא ברור</p>}
    {importResult.dupes>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
+   {/* Not the same as a duplicate, and not in grey: these are real future
+       bookings that were NOT imported because the slot was already busy. She
+       has to place them by hand, so the line has to be impossible to skim past. */}
+   {importResult.overlapping>0&&<p style={{fontSize:11.5,color:"var(--danger)",fontWeight:600}}>· {importResult.overlapping} דולגו — השעה כבר תפוסה ביומן. יש לקבוע אותן ידנית</p>}
    {importResult.noName>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.noName} דולגו — ללא שם</p>}
    {importResult.nameIsService>0&&<p style={{fontSize:11.5,color:"var(--ink-2)"}}>· {importResult.nameIsService} דולגו — שם הלקוחה היה שם של טיפול</p>}
    {importResult.failed>0&&(
