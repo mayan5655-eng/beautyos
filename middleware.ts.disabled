@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Public routes that should NEVER require login (clients use these).
 const PUBLIC_PREFIXES = [
   '/login',
+  '/reset-password',
   '/auth',
   '/signup',
   '/book',
