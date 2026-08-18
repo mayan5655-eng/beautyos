@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
+import { APP_URL } from '../../../../../lib/appUrl';
 import crypto from 'crypto';
 
 // TEMP: reduced to basic scopes that do NOT require App Review, so the OAuth
@@ -30,9 +31,13 @@ export async function GET(request: NextRequest) {
     }
 
     const appId = process.env.FACEBOOK_APP_ID;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    // Shared resolver: the redirect_uri built here must match the one the
+    // callback sends during the token exchange byte for byte, or Facebook
+    // rejects it. Previously this had no fallback at all, so a missing env var
+    // failed the whole integration with "not configured".
+    const appUrl = APP_URL;
 
-    if (!appId || !appUrl) {
+    if (!appId) {
       return NextResponse.json(
         { error: 'Facebook integration is not configured' },
         { status: 500 }

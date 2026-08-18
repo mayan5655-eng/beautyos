@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
 import { FacebookClient } from '../../../../../lib/facebook/client';
 import { encryptToken } from '../../../../../lib/facebook/encryption';
+import { APP_URL } from '../../../../../lib/appUrl';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -13,7 +14,12 @@ export async function GET(request: NextRequest) {
   const errorParam = searchParams.get('error');
   const errorReason = searchParams.get('error_reason');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  // Was `|| ''`, which is worse than no fallback: every redirect below became a
+  // bare path like "/dashboard?fb_error=...", and NextResponse.redirect needs an
+  // absolute URL, so the error paths threw instead of redirecting. Line 67 also
+  // feeds the token exchange, where this must match /oauth/start exactly - hence
+  // the shared resolver rather than a second literal.
+  const appUrl = APP_URL;
 
   if (errorParam) {
     console.error('Facebook OAuth error:', errorParam, errorReason);
