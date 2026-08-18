@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
+import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -57,7 +58,9 @@ export default function BookPage() {
   const [step, setStep] = useState(1); // 1=business card + service, 2=date+time, 3=details, 4=done
   const [selectedService, setSelectedService] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedHour, setSelectedHour] = useState(null);
+  // Minutes from midnight. Named for what it holds, so it cannot be confused
+  // with the whole-hour value the old wire format used.
+  const [selectedStart, setSelectedStart] = useState(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -95,7 +98,7 @@ export default function BookPage() {
         // direct anonymous settings access; never green_api_token or other secrets).
         fetchPublicSettings(supabase, t),
         supabase.from("service_prices").select("*").eq("tenant_id", t),
-        supabase.from("appointments").select("date, hour").eq("tenant_id", t),
+        supabase.from("appointments").select("date, hour, start_minute, duration, confirmation_status").eq("tenant_id", t),
       ]);
 
       if (row) {
@@ -150,14 +153,37 @@ export default function BookPage() {
 
   // === Build hours for the SELECTED day (its own open→close window) ===
   const selDayHours = selectedDate ? dayHoursFrom(settings, selectedDate.getDay()) : null;
-  const allHours = [];
-  if (selDayHours) {
-    for (let h = selDayHours.open; h < selDayHours.close; h++) allHours.push(h);
-  }
-
-  const takenHours = selectedDate
-    ? appointments.filter((a) => a.date === formatDate(selectedDate)).map((a) => Number(a.hour))
+  // Half-hour granularity, and slotsBetween refuses any start whose treatment
+  // would run past closing - the old loop offered the last hour of the day even
+  // when a 90-minute service could not possibly fit inside it.
+  const SLOT_STEP = 30;
+  const svcDuration = Number(selectedService?.duration) || 60;
+  const allSlots = selDayHours
+    ? slotsBetween(selDayHours.open, selDayHours.close, SLOT_STEP, svcDuration)
     : [];
+
+  // Busy INTERVALS, not busy hours. The old version marked only the hour an
+  // appointment started in, so a 90-minute booking at 14:00 left 15:00 on offer
+  // and the server refused it with a 409 after the client had already picked it.
+  // It also read `hour` alone, so a 14:30 booking made in the app was invisible
+  // here and a client could book straight over it.
+  const busyToday = selectedDate
+    ? appointments
+        .filter((a) => a.date === formatDate(selectedDate) && a.confirmation_status !== "cancelled")
+        .map((a) => [startMinute(a), endMinute(a)])
+        .filter(([bs, be]) => bs !== null && be !== null)
+    : [];
+  const slotTaken = (start) =>
+    busyToday.some(([bs, be]) => overlaps(start, start + svcDuration, bs, be));
+
+  // Today only: never offer a slot that has already passed.
+  const nowMinutes = (() => {
+    if (!selectedDate) return null;
+    const now = new Date();
+    return formatDate(selectedDate) === formatDate(now)
+      ? now.getHours() * 60 + now.getMinutes()
+      : null;
+  })();
 
   const handleConfirm = async () => {
     setErrorMsg("");
@@ -177,7 +203,9 @@ export default function BookPage() {
           phone: phone.trim(),
           service: selectedService.name,
           date: formatDate(selectedDate),
-          hour: selectedHour,
+          // Explicit minutes. The server reads startMinute in preference to
+          // hour precisely so a bare number can never be ambiguous.
+          startMinute: selectedStart,
           duration: selectedService.duration || 60,
           price: selectedService.price || 0,
           color: selectedService.color || pc,
@@ -555,7 +583,7 @@ export default function BookPage() {
                   {availableDays.map((d, i) => {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
-                      <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedHour(null); }}
+                      <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
                         style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius: 16, textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? `0 10px 24px -12px ${pc}` : "0 6px 16px -12px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize: 10, fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
@@ -569,19 +597,19 @@ export default function BookPage() {
                   <>
                     <p style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
-                      {allHours.map((h) => {
-                        const taken = takenHours.includes(h);
-                        const isSel = selectedHour === h;
+                      {allSlots.filter((m) => nowMinutes === null || m > nowMinutes).map((h) => {
+                        const taken = slotTaken(h);
+                        const isSel = selectedStart === h;
                         return (
-                          <button key={h} disabled={taken} onClick={() => setSelectedHour(h)}
+                          <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
                             style={{ padding: "12px 0", borderRadius: 12, fontSize: 14, fontWeight: 600, background: taken ? "var(--brand-cream, #FEFAF7)" : isSel ? pc : "var(--brand-surface, #FAF6FC)", color: taken ? faint : isSel ? "var(--brand-surface, #FAF6FC)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "0 4px 12px -8px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
-                            {h}:00
+                            {fmtTime(h)}
                           </button>
                         );
                       })}
                     </div>
-                    {selectedHour !== null && (
+                    {selectedStart !== null && (
                       <button onClick={() => setStep(3)} className="bk-btn"
                         style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow: `0 16px 34px -18px ${pc}` }}>
                         המשך ←
@@ -609,7 +637,7 @@ export default function BookPage() {
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize: 13, color: muted }}>שעה</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{selectedHour}:00</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{fmtTime(selectedStart)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${hair}`, paddingTop: 10, marginTop: 4 }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: ink }}>מחיר</span>
@@ -638,7 +666,7 @@ export default function BookPage() {
                 <div style={{ fontSize: 48, marginBottom: 14, color: pc }}>✦</div>
                 <h2 className="serif" style={{ fontSize: 26, fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
                 <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
-                  נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {selectedHour}:00
+                  נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}
                 </p>
                 <div style={{ background: cream, borderRadius: 18, padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 13, color: muted }}>טיפול</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{selectedService.name}</span></div>

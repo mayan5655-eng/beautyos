@@ -16,11 +16,11 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
-    const { name, phone, service, date, hour, duration, price, color, tenantId } =
+    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId } =
       await request.json();
 
     // Basic validation
-    if (!name || !phone || !service || !date || hour === undefined) {
+    if (!name || !phone || !service || !date || (hour === undefined && startMinute === undefined)) {
       return Response.json(
         { success: false, error: "חסרים פרטים" },
         { status: 400 }
@@ -38,10 +38,23 @@ export async function POST(request) {
     }
     const activeTenantId = tenantId;
 
-    // Accepts a whole hour (9), the old wire format, or "14:30" from a client
-    // that offers half-hour slots. Declared out here because the insert below
-    // needs it too.
-    const newStart = toMinutes(hour);
+    // Wire format, explicit on BOTH sides - never one field carrying two
+    // meanings:
+    //   startMinute : minutes from midnight (870 = 14:30)   <- preferred
+    //   hour        : a WHOLE hour (14), the legacy field
+    //
+    // A bare number in `hour` is HOURS. Passing it straight through toMinutes()
+    // read it as minutes instead, which silently turned every 09:00 public
+    // booking into 00:09. Declared out here because the insert below needs it.
+    let newStart = null;
+    if (startMinute !== undefined && startMinute !== null) {
+      newStart = toMinutes(startMinute);
+    } else if (typeof hour === "string" && hour.includes(":")) {
+      newStart = toMinutes(hour);
+    } else if (hour !== undefined && hour !== null && hour !== "") {
+      const asHour = Number(hour);
+      newStart = Number.isFinite(asHour) && asHour >= 0 && asHour <= 23 ? asHour * 60 : null;
+    }
     if (newStart === null) {
       return Response.json(
         { success: false, error: "שעה לא תקינה" },
