@@ -53,6 +53,73 @@ begin
   end if;
 end $$;
 
+-- 3b. THE TRIGGER THAT MAKES THE ROLLOUT WINDOW SAFE.
+--
+--     Between running this file and deploying the new code, production is still
+--     the OLD build: it writes `hour` and knows nothing about start_minute, so
+--     every row it inserts would land with start_minute NULL.
+--
+--     That matters because of step 4b. In PostgreSQL NULLs are DISTINCT in a
+--     unique index, so a table full of NULL start_minute rows satisfies
+--     uniq_appt_slot_active no matter how many share a slot - the double-booking
+--     guard would be silently disabled for the whole window. Silently is the bad
+--     part: bookAppointmentSlot detects a lost race by catching a 23505, and
+--     with no violation raised the race is simply won twice.
+--
+--     Keeping both columns in sync in the database removes the window entirely:
+--       old code writes hour        -> start_minute derived here
+--       new code writes both        -> hour recomputed here (same value)
+--       anything updates either one -> the other follows
+--
+--     It also means `hour` stays correct for free until it is dropped, so the
+--     eventual cleanup migration is just "drop trigger, drop column".
+create or replace function public.appointments_sync_start_minute()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'INSERT' then
+    -- start_minute wins when supplied; otherwise derive it from hour.
+    if new.start_minute is null and new.hour is not null then
+      new.start_minute := new.hour * 60;
+    end if;
+    if new.start_minute is not null then
+      new.hour := new.start_minute / 60;   -- integer division, floors
+    end if;
+    return new;
+  end if;
+
+  -- UPDATE. Which column actually moved decides the direction.
+  --
+  -- This distinction is not cosmetic. The old build reschedules by setting
+  -- `hour` alone, and on UPDATE new.start_minute still carries the row's
+  -- EXISTING value - so blindly recomputing hour from it would overwrite the
+  -- reschedule and silently put the appointment back where it was.
+  if new.start_minute is distinct from old.start_minute then
+    -- start_minute was set explicitly (new build): it is the truth.
+    if new.start_minute is not null then
+      new.hour := new.start_minute / 60;
+    end if;
+  elsif new.hour is distinct from old.hour then
+    -- only hour moved (old build): follow it.
+    if new.hour is not null then
+      new.start_minute := new.hour * 60;
+    end if;
+  end if;
+
+  -- Backstop for a row that somehow still has no start_minute.
+  if new.start_minute is null and new.hour is not null then
+    new.start_minute := new.hour * 60;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists appointments_sync_start_minute_trg on public.appointments;
+create trigger appointments_sync_start_minute_trg
+  before insert or update on public.appointments
+  for each row execute function public.appointments_sync_start_minute();
+
 -- 4. The calendar reads a day at a time and orders by start time.
 create index if not exists appointments_tenant_date_start_minute_idx
   on public.appointments (tenant_id, date, start_minute);
@@ -75,6 +142,10 @@ create index if not exists appointments_tenant_date_start_minute_idx
 --     btree_gist. That is a stronger fix and worth doing, but it needs an
 --     extension and would fail outright if any existing row already overlaps -
 --     so it is deliberately NOT bundled into this migration.
+--
+--     Depends on 3b: without the trigger, rows written by the old build would
+--     carry a NULL start_minute, and NULLs are distinct in a unique index, so
+--     this would enforce nothing at all until the new code shipped.
 drop index if exists uniq_appt_slot_active;
 create unique index if not exists uniq_appt_slot_active
   on public.appointments (tenant_id, date, start_minute)
@@ -98,6 +169,31 @@ begin
   end if;
 end $$;
 
--- 6. Verify. Expect zero rows from each.
---    select count(*) from public.appointments where start_minute is null;
---    select count(*) from public.appointments where start_minute <> hour * 60;
+-- 6. Verify. Run each separately; the SQL editor shows only the last result.
+--
+--    a) No row is missing the new value, and the two columns agree.
+--       Expect 0 and 0.
+--         select
+--           count(*) filter (where start_minute is null)          as missing,
+--           count(*) filter (where start_minute <> hour * 60
+--                              and start_minute is not null)      as disagreeing
+--         from public.appointments;
+--
+--    b) The trigger is installed. Expect one row.
+--         select tgname from pg_trigger
+--          where tgrelid = 'public.appointments'::regclass
+--            and not tgisinternal;
+--
+--    c) The unique index is keyed on start_minute, not hour.
+--         select indexdef from pg_indexes
+--          where tablename = 'appointments' and indexname = 'uniq_appt_slot_active';
+--
+--    d) OPTIONAL end-to-end check of the rollout window, in a transaction that
+--       is rolled back so nothing is left behind. Simulates the OLD build: it
+--       writes `hour` only, and start_minute must come out populated. Replace
+--       the tenant id with your own.
+--         begin;
+--           insert into public.appointments (tenant_id, date, hour, name, service, duration)
+--           values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 14, 'trigger test', 'test', 30)
+--           returning hour, start_minute;      -- expect 14, 840
+--         rollback;
