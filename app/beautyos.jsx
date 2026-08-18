@@ -295,7 +295,7 @@ function waConfirmLink(phone, name, service, date, hour, links) {
   const cancelUrl  = links.cancelUrl;
   return waMsg(
     phone,
-    `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${hour}:00\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
+    `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${hour}\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
   );
 }
 
@@ -1718,7 +1718,7 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     askConfirm({
       title: "מחיקת תור",
-      message: `למחוק את התור של ${appt.name} (${appt.service}, ${appt.date} ${appt.hour}:00)?`,
+      message: `למחוק את התור של ${appt.name} (${appt.service}, ${appt.date} ${fmtApptTime(appt)})?`,
       confirmText: "מחיקה",
       danger: true,
       onConfirm: async () => {
@@ -2592,8 +2592,8 @@ export default function BeautyOS() {
   const showDayInfo = (intent) => {
     const d = intent.date || today;
     const list = appointments.filter(a => a.date === d)
-      .sort((a,b) => (Number(a.hour)||0) - (Number(b.hour)||0));
-    setVoiceInfo({ kind: "day", date: d, items: list.map(a => ({ name: a.name, hour: a.hour, service: a.service })) });
+      .sort((a,b) => (startMinute(a)??0) - (startMinute(b)??0));
+    setVoiceInfo({ kind: "day", date: d, items: list.map(a => ({ name: a.name, hour: a.hour, startMinute: startMinute(a), service: a.service })) });
     setVoiceStatus("info");
   };
 
@@ -2796,7 +2796,7 @@ export default function BeautyOS() {
     const confirmLink = links.confirmUrl;
     const cancelLink = links.cancelUrl;
     return `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-      `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
+      `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
       `✨ טיפול: ${appt.service}\n\n` +
       `✅ לאישור התור: ${confirmLink}\n` +
       `🚫 לביטול התור: ${cancelLink}`;
@@ -2871,7 +2871,7 @@ export default function BeautyOS() {
     if (matches.length === 0) matches = appointments.filter(a => (a.name||"").toLowerCase().includes(low));
     if (intent.date) matches = matches.filter(a => a.date === intent.date);
     if (matches.length === 0) { setVoiceErr(`לא מצאתי תור תואם ל${nameSpoken}`); setVoiceStatus("error"); return; }
-    matches = [...matches].sort((a,b) => String(a.date||"").localeCompare(String(b.date||"")) || (Number(a.hour)||0)-(Number(b.hour)||0));
+    matches = [...matches].sort((a,b) => String(a.date||"").localeCompare(String(b.date||"")) || ((startMinute(a)??0)-(startMinute(b)??0)));
     setVoiceCancel({ matches, selected: matches.length === 1 ? matches[0] : null });
     setVoiceStatus("cancel");
   };
@@ -4182,7 +4182,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12.5,color:"var(--ink-3)",textAlign:"center",padding:"16px 0"}}>אין תורים ביום הזה</p>
                     ):voiceInfo.items.map((it,i)=>(
  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",background:pcTint,borderRadius:12,marginBottom:6}}>
- <span className="serif" style={{fontSize:16,fontWeight:600,color:pc,width:52,flexShrink:0}}>{it.hour}:00</span>
+ <span className="serif" style={{fontSize:16,fontWeight:600,color:pc,width:52,flexShrink:0}}>{fmtTime(it.startMinute ?? it.hour * 60)}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{it.name}</p>
  <p style={{fontSize:10.5,color:"var(--ink-2)"}}>{it.service}</p>
@@ -4210,7 +4210,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)",marginBottom:10}}>נמצאו כמה תורים — בחרי איזה לבטל:</p>
                     {voiceCancel.matches.map(a=>(
  <button key={a.id} onClick={()=>setVoiceCancel({...voiceCancel,selected:a})} style={{display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"right",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
- <span className="serif" style={{fontSize:15,fontWeight:600,color:pc,width:78,flexShrink:0}}>{(a.date||"").split("-").reverse().slice(0,2).join("/")} · {a.hour}:00</span>
+ <span className="serif" style={{fontSize:15,fontWeight:600,color:pc,width:78,flexShrink:0}}>{(a.date||"").split("-").reverse().slice(0,2).join("/")} · {fmtApptTime(a)}</span>
  <span style={{flex:1,minWidth:0}}><span style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.name}</span> <span style={{fontSize:10.5,color:"var(--ink-2)"}}>· {a.service}</span></span>
  </button>
                     ))}
@@ -4221,7 +4221,7 @@ export default function BeautyOS() {
  <div style={{background:"#FEECEC",border:"1px solid #F3C6C6",borderRadius:14,padding:"16px 16px",textAlign:"center",marginBottom:14}}>
  <p style={{fontSize:12.5,color:"var(--danger)",fontWeight:600,marginBottom:8}}>לבטל את התור?</p>
  <p style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>{voiceCancel.selected.name}</p>
- <p style={{fontSize:12,color:"var(--ink-2)",marginTop:3}}>{voiceCancel.selected.service} · {(voiceCancel.selected.date||"").split("-").reverse().join("/")} בשעה {voiceCancel.selected.hour}:00</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginTop:3}}>{voiceCancel.selected.service} · {(voiceCancel.selected.date||"").split("-").reverse().join("/")} בשעה {fmtApptTime(voiceCancel.selected)}</p>
  </div>
  <div style={{display:"flex",gap:8}}>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>לא, השאירי</button>
@@ -4427,7 +4427,7 @@ export default function BeautyOS() {
  <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",background:"none",border:"none",fontSize:14,cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
             {todayAppts.length===0?<p style={{fontSize:10.5,color:"var(--ink-3)"}}>אין תורים</p>
-              :todayAppts.sort((a,b)=>a.hour-b.hour).map(a=>(
+              :todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map(a=>(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--lavender-50),var(--surface))",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"7px 9px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
  <p style={{fontSize:9,color:"var(--ink-2)"}}>{workingHours[Number(a.hour)-settings.working_hours_start]||a.hour+":00"} · {a.service}</p>
@@ -4598,12 +4598,12 @@ export default function BeautyOS() {
  <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
  <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
  </div>
-                      ):todayAppts.sort((a,b)=>a.hour-b.hour).map((a,i,arr)=>{
+                      ):todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
                         const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
                         return(
  <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
  <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
- <span className="serif" style={{fontSize:16,fontWeight:700,color:pc,lineHeight:1}}>{a.hour}</span>
+ <span className="serif" style={{fontSize:15,fontWeight:700,color:pc,lineHeight:1}}>{fmtApptTime(a)}</span>
  <span style={{fontSize:8,color:"var(--ink-3)",fontWeight:600}}>:00</span>
  </span>
  <div style={{flex:1,minWidth:0}}>
@@ -5190,7 +5190,7 @@ export default function BeautyOS() {
             const reminderTargets=tomorrowAppts.map(a=>{
               const cl=clients.find(c=>String(c.id)===String(a.client_id));
               return {clientId:a.client_id,name:a.name,phone:cl?.phone,
-                message:`שלום ${a.name}! ✦\nתזכורת לתור מחר:\n${a.service}\nבשעה ${a.hour}:00\n\nמחכים לך! `};
+                message:`שלום ${a.name}! ✦\nתזכורת לתור מחר:\n${a.service}\nבשעה ${fmtApptTime(a)}\n\nמחכים לך! `};
             });
             const birthdayTargets=upcomingBirthdays.map(c=>{
               const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());
@@ -7224,7 +7224,7 @@ export default function BeautyOS() {
                     :appts.map(a=>(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
  <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>{a.date} · {a.hour}:00{a.price?` · ₪${a.price}`:""}</p></div>
+ <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--success)"}}>✓</span>}
                         {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:9.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✉ שלחי תזכורת</button>}
  </div>

@@ -7,7 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
-import { toMinutes, clashesWith, startFields } from "../../../lib/apptTime";
+import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -128,7 +128,7 @@ export async function POST(request) {
         `התור שלך נקבע בהצלחה ב${businessName} ✨\n\n` +
         `✨ טיפול: ${service}\n` +
         `📅 תאריך: ${date}\n` +
-        `🕐 שעה: ${hour}:00\n\n` +
+        `🕐 שעה: ${fmtTime(newStart)}\n\n` +
         `נשמח לראותך! 😊`;
       await sendWhatsApp(phone, clientMsg, { name: name, type: "booking_confirm", tenantId: activeTenantId });
     } catch (waErr) {
@@ -143,7 +143,7 @@ export async function POST(request) {
           `👤 ${name}\n` +
           `📞 ${phone}\n` +
           `✨ ${service}\n` +
-          `📅 ${date} בשעה ${hour}:00\n\n` +
+          `📅 ${date} בשעה ${fmtTime(newStart)}\n\n` +
           `(נקבע דרך דף ההזמנות)`;
         await sendWhatsApp(ownerPhone, ownerMsg, { name: "בעלת העסק", type: "owner_alert", tenantId: activeTenantId });
       } catch (waErr) {

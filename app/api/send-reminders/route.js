@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
+import { fmtApptTime } from "../../../lib/apptTime";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -40,7 +41,7 @@ export async function POST(request) {
     // We include tenant_id so we can label each message with the right business.
     const { data: appointments, error } = await supabase
       .from("appointments")
-      .select("id, name, service, date, hour, client_phone, tenant_id")
+      .select("id, name, service, date, hour, start_minute, client_phone, tenant_id")
       .eq("date", tomorrow);
 
     if (error) {
@@ -115,7 +116,7 @@ export async function POST(request) {
 
       const message =
         `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-        `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
+        `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
         `✨ טיפול: ${appt.service}\n\n` +
         `✅ לאישור התור: ${confirmLink}\n` +
         `🚫 לביטול התור: ${cancelLink}`;

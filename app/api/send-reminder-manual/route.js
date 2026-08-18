@@ -20,6 +20,7 @@ import { createClient as createServerClient } from "../../../lib/supabase/server
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
+import { fmtApptTime } from "../../../lib/apptTime";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -57,7 +58,7 @@ export async function POST(request) {
     // Load the appointment scoped to THIS tenant (never cross-tenant).
     const { data: apptRows, error: apptErr } = await supabase
       .from("appointments")
-      .select("id, name, service, date, hour, client_id, client_phone, tenant_id")
+      .select("id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id")
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId)
       .limit(1);
@@ -105,7 +106,7 @@ export async function POST(request) {
     const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id);
     const message =
       `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-      `📅 ${appt.date} בשעה ${appt.hour}:00\n` +
+      `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
       `✨ טיפול: ${appt.service}\n\n` +
       `✅ לאישור התור: ${confirmLink}\n` +
       `🚫 לביטול התור: ${cancelLink}`;

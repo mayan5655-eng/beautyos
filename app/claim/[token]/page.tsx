@@ -23,6 +23,7 @@ type Details = {
   service?: string | null;
   slotDate?: string | null;
   slotHour?: number | null;
+  slotTime?: string | null;
   clientName?: string | null;
   businessName?: string | null;
 };
@@ -35,7 +36,10 @@ function formatDate(slotDate?: string | null): string {
   return d.toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" });
 }
 
-function formatHour(slotHour?: number | null): string {
+// Prefer slotTime from the API, which is formatted from slot_start_minute.
+// slotHour is the pre-minutes fallback and only ever renders on the hour.
+function formatHour(slotHour?: number | null, slotTime?: string | null): string {
+  if (slotTime) return slotTime;
   if (slotHour === null || slotHour === undefined) return "";
   return `${String(slotHour).padStart(2, "0")}:00`;
 }
@@ -112,7 +116,7 @@ export default function ClaimPage() {
             <div style={{ background: PAPER, borderRadius: 16, padding: "18px 16px", margin: "0 0 24px", textAlign: "right" }}>
               <SlotRow label="טיפול" value={details.service || "טיפול"} />
               <SlotRow label="תאריך" value={formatDate(details.slotDate)} />
-              <SlotRow label="שעה" value={formatHour(details.slotHour)} last />
+              <SlotRow label="שעה" value={formatHour(details.slotHour, details.slotTime)} last />
             </div>
             <button
               onClick={claim}
@@ -131,7 +135,7 @@ export default function ClaimPage() {
 
         {state === "won" && (
           <Result emoji="✨" title="התור שלך! נתראה" tone={GOLD}
-            body={`שמרנו לך את ${details.service || "התור"}${details.slotDate ? ` · ${formatDate(details.slotDate)}` : ""}${details.slotHour !== null && details.slotHour !== undefined ? ` בשעה ${formatHour(details.slotHour)}` : ""}. נתראה! 🌸`} />
+            body={`שמרנו לך את ${details.service || "התור"}${details.slotDate ? ` · ${formatDate(details.slotDate)}` : ""}${formatHour(details.slotHour, details.slotTime) ? ` בשעה ${formatHour(details.slotHour, details.slotTime)}` : ""}. נתראה! 🌸`} />
         )}
 
         {state === "taken" && (
