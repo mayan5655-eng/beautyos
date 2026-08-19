@@ -16,6 +16,7 @@ import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/bran
 import TrialBanner from "./TrialBanner";
 import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
+import * as Sentry from "@sentry/nextjs";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -1469,6 +1470,12 @@ export default function BeautyOS() {
         const myRow = st.data.find(s => s.tenant_id === myTenantId)
           || [...st.data].sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
         setSettings(myRow);
+        // Tag every later error report with the business it happened in. This
+        // is what turns the six-character code a beta user reads out into
+        // "which salon, on which data" without having to ask her. The tenant
+        // UUID only - never her name, phone or email; see lib/sentryScrub for
+        // the rule this follows.
+        try { Sentry.setTag("tenant_id", myRow?.tenant_id || myTenantId || "unknown"); } catch {}
       }
       if(r.data)  setReceipts(r.data);
       if(ex?.data) setExpenses(ex.data);

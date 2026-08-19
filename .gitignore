@@ -40,10 +40,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Local dev-only startup guard: suppresses a TLS-interception crash caused by
-# antivirus/proxy on some dev machines. Never deployed - see instrumentation.node.ts.
-instrumentation.ts
-instrumentation.node.ts
+# instrumentation.ts / instrumentation.node.ts were ignored here. They are now
+# TRACKED ON PURPOSE. instrumentation.ts is where Sentry initialises, so an
+# ignored copy meant production booted with no error reporting and no startup
+# hook at all. The dev-only TLS/antivirus noise guard that was the original
+# reason for ignoring them still exists, but it is now gated to NODE_ENV !==
+# 'production' in two independent places instead of being kept out by .gitignore.
+
+# Sentry
+.sentryclirc
 
 # Local-only copy of the confirm-link signing secret. Never commit.
 CONFIRM_LINK_SECRET.local.txt
