@@ -8,6 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { upsertScanLead } from "../../../../lib/leads";
+import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -61,6 +62,13 @@ function buildOwnerMessage(report, clientName, clientPhone) {
 
 export async function POST(request) {
   try {
+    // Tightest of the three caps, checked before the body is even read. Every
+    // accepted call here sends TWO WhatsApp messages on the tenant's paid Green
+    // API quota, so an unbounded version of this route is a way to spend a
+    // cosmetician's money. See lib/rateLimit.ts.
+    const ipLimited = checkIpLimit(request, "skin-scan-send");
+    if (ipLimited) return ipLimited;
+
     const { report, clientName, clientPhone, tenantId } = await request.json();
 
     if (!report || !clientPhone) {
@@ -75,6 +83,11 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Per-tenant cap. Keyed on the business because the WhatsApp bill is, and
+    // because it is the cap that survives a caller rotating addresses.
+    const tenantLimited = checkTenantLimit(tenantId, "skin-scan-send");
+    if (tenantLimited) return tenantLimited;
 
     // Business name + owner phone for THIS tenant (per-tenant, from settings).
     const { data: settingsRows } = await supabase

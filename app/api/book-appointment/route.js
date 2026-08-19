@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
+import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -17,6 +18,13 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
+    // Abuse cap, per-IP, BEFORE the body is read - a flood should not get as
+    // far as parsing JSON. This route is unauthenticated and runs on the
+    // service-role key, so "how often" is the only lever there is.
+    // See lib/rateLimit.ts for the numbers and why they are what they are.
+    const ipLimited = checkIpLimit(request, "book-appointment");
+    if (ipLimited) return ipLimited;
+
     const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId } =
       await request.json();
 
@@ -38,6 +46,12 @@ export async function POST(request) {
       );
     }
     const activeTenantId = tenantId;
+
+    // The second cap, keyed on the business rather than the caller. This is the
+    // one that holds when the requests come from many addresses, and it is what
+    // stops a stranger filling one cosmetician's day.
+    const tenantLimited = checkTenantLimit(activeTenantId, "book-appointment");
+    if (tenantLimited) return tenantLimited;
 
     // Wire format, explicit on BOTH sides - never one field carrying two
     // meanings:

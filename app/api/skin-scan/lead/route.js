@@ -10,6 +10,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { upsertScanLead } from "../../../../lib/leads";
+import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,12 +19,22 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
+    // Loosest of the three caps. This one fires automatically (keepalive) as
+    // the scanner page navigates to /book, so it must never be the limit a real
+    // visitor trips - it is here to bound a script writing junk leads into
+    // someone else's account, nothing more. See lib/rateLimit.ts.
+    const ipLimited = checkIpLimit(request, "skin-scan-lead");
+    if (ipLimited) return ipLimited;
+
     const { tenantId, name, phone, report } = await request.json();
     // A lead needs a tenant + a phone (the dedup key). No phone -> nothing to
     // capture here; the /book flow will capture her on completion instead.
     if (!tenantId || !phone) {
       return Response.json({ success: false, error: "missing tenant or phone" }, { status: 400 });
     }
+    const tenantLimited = checkTenantLimit(tenantId, "skin-scan-lead");
+    if (tenantLimited) return tenantLimited;
+
     await upsertScanLead(supabase, { tenantId, name, phone, report });
     return Response.json({ success: true });
   } catch (err) {
