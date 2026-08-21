@@ -4277,7 +4277,7 @@ export default function BeautyOS() {
                     {voiceCancel.matches.map(a=>(
  <button key={a.id} onClick={()=>setVoiceCancel({...voiceCancel,selected:a})} style={{display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"right",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
  <span className="serif" style={{fontSize:15,fontWeight:600,color:pc,width:78,flexShrink:0}}>{(a.date||"").split("-").reverse().slice(0,2).join("/")} · {fmtApptTime(a)}</span>
- <span style={{flex:1,minWidth:0}}><span style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.name}</span> <span style={{fontSize:10.5,color:"var(--ink-2)"}}>· {a.service}</span></span>
+ <span style={{flex:1,minWidth:0}}><span style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{a.name}</span> <span style={{fontSize:12,color:"var(--ink-2)"}}>· {a.service}</span></span>
  </button>
                     ))}
  <button onClick={closeVoice} className="primary-btn" style={{width:"100%",marginTop:6,padding:"10px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>ביטול</button>
@@ -4341,20 +4341,20 @@ export default function BeautyOS() {
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}". בדקי ואשרי הוצאת קבלה:</p>
 
  <div style={{marginBottom:10}}>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>לקוחה</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:3}}>לקוחה</p>
  <input value={voiceReceipt.clientName} onChange={e=>setVoiceReceipt({...voiceReceipt,clientName:e.target.value})} placeholder="שם הלקוחה" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"9px 11px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
                   {voiceReceipt.clientName.trim()&&(isNew
-                    ? <p style={{fontSize:10,color:"var(--warning)",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceReceipt.clientName.trim()}" תיווצר עם האישור</p>
-                    : <p style={{fontSize:10,color:"var(--success)",marginTop:4}}>✓ לקוחה קיימת</p>)}
+                    ? <p style={{fontSize:12,color:"var(--warning)",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceReceipt.clientName.trim()}" תיווצר עם האישור</p>
+                    : <p style={{fontSize:12,color:"var(--success)",marginTop:4}}>✓ לקוחה קיימת</p>)}
  </div>
 
  <div style={{marginBottom:10}}>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>סכום (₪)</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:3}}>סכום (₪)</p>
  <input type="number" value={voiceReceipt.amount} onChange={e=>setVoiceReceipt({...voiceReceipt,amount:e.target.value})} placeholder="0" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"9px 11px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:pcTint}}/>
  </div>
 
  <div style={{marginBottom:12}}>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:4}}>אמצעי תשלום</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:4}}>אמצעי תשלום</p>
  <div style={{display:"flex",gap:6}}>
                     {["מזומן","אשראי","ביט"].map(pm=>{
                       const sel=voiceReceipt.payment===pm;
@@ -4427,7 +4427,7 @@ export default function BeautyOS() {
           )}
  </div>
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-          {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:10,color:pc}}>{upcomingBirthdays[0].name}</span>}
+          {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:12,color:pc}}>{upcomingBirthdays[0].name}</span>}
  <span className="desktop-only" style={{fontSize:11.5,color:"var(--ink-2)"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
           {/* ☑ and ↓ leave the header below 680px: four 40px buttons plus the
               logo, hamburger and search cannot fit on any phone (see the
@@ -4492,14 +4492,21 @@ export default function BeautyOS() {
  <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>היום ({todayAppts.length})</p>
  <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",background:"none",border:"none",fontSize:14,cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
-            {todayAppts.length===0?<p style={{fontSize:10.5,color:"var(--ink-3)"}}>אין תורים</p>
+            {todayAppts.length===0?<p style={{fontSize:12.5,color:"var(--ink-3)"}}>אין תורים</p>
               :todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map(a=>(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--lavender-50),var(--surface))",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"7px 9px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:9,color:"var(--ink-2)"}}>{workingHours[Number(a.hour)-settings.working_hours_start]||a.hour+":00"} · {a.service}</p>
-                  {a.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--success)",fontWeight:700}}>אישרה</span>}
-                  {a.confirmation_status==="cancelled"&&<span style={{fontSize:8,color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
- <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:8,cursor:"pointer",fontFamily:"inherit",marginTop:3,display:"block"}}>גבי</button>
+                  {/* fmtApptTime, not hand-built from `hour`. This indexed
+                      workingHours by (hour - working_hours_start) and fell back
+                      to `hour + ":00"` — so a 14:30 appointment read "14:00" in
+                      the Today panel, and any appointment outside her configured
+                      opening hours fell through to that same wrong string. The
+                      one display site the minutes migration missed; found while
+                      auditing type sizes here. */}
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{fmtApptTime(a)} · {a.service}</p>
+                  {a.confirmation_status==="confirmed"&&<span style={{fontSize:10.5,color:"var(--success)",fontWeight:700}}>אישרה</span>}
+                  {a.confirmation_status==="cancelled"&&<span style={{fontSize:10.5,color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
+ <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3,display:"block"}}>גבי</button>
  </div>
               ))}
  </div>
@@ -4508,9 +4515,9 @@ export default function BeautyOS() {
  <div>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>מחר ({tomorrowAppts.length})</p>
- <button onClick={handleSendAllConfirmations} style={{background:"rgba(212,175,55,0.12)",color:pc,border:"none",borderRadius:14,padding:"3px 8px",fontSize:8,cursor:"pointer",fontFamily:"inherit"}}>שליחה מרוכזת</button>
+ <button onClick={handleSendAllConfirmations} style={{background:"rgba(212,175,55,0.12)",color:pc,border:"none",borderRadius:14,padding:"3px 8px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>שליחה מרוכזת</button>
  </div>
- <div style={{background:pcTint,borderRadius:10,padding:"6px 9px",marginBottom:6,fontSize:9}}>
+ <div style={{background:pcTint,borderRadius:10,padding:"6px 9px",marginBottom:6,fontSize:11.5}}>
  <span style={{color:"var(--success)"}}>{tomorrowConfirmed} </span>
  <span style={{color:"var(--danger)"}}>{tomorrowCancelled} </span>
  <span style={{color:"var(--ink-2)"}}>⏳ {tomorrowPending}</span>
@@ -4521,11 +4528,11 @@ export default function BeautyOS() {
                 return(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--surface-2),#FFFFFF)",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"6px 8px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:9,color:"var(--ink-2)"}}>{a.service}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{a.service}</p>
                     {client?.phone&&!a.confirmation_sent&&(
- <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:"3px 8px",fontSize:8,cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
+ <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:"3px 8px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
-                    {a.confirmation_sent&&<span style={{fontSize:8,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
+                    {a.confirmation_sent&&<span style={{fontSize:10.5,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
  </div>
                 );
               })}
@@ -4537,8 +4544,8 @@ export default function BeautyOS() {
  <p className="serif" style={{fontSize:13,fontWeight:600,color:pc,marginBottom:5}}>תזכורות פניות</p>
               {leadsWithReminders.map(l=>(
  <div key={l.id} onClick={()=>{setSelectedLead(l);setActiveTab("leads");setShowMobileSidebar(false);}} style={{background:"#FFF3E0",borderRadius:10,padding:"5px 9px",marginBottom:3,cursor:"pointer"}}>
- <p style={{fontSize:10.5,fontWeight:600,color:"var(--ink)"}}>{l.name}</p>
- <p style={{fontSize:8.5,color:"var(--ink-2)"}}>{l.reminder_date}</p>
+ <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{l.name}</p>
+ <p style={{fontSize:10.5,color:"var(--ink-2)"}}>{l.reminder_date}</p>
  </div>
               ))}
  </div>
@@ -4548,7 +4555,7 @@ export default function BeautyOS() {
  <div>
  <p className="serif" style={{fontSize:13,fontWeight:600,color:"var(--ink-2)",marginBottom:4}}>להתחדשות</p>
               {coldClients.slice(0,3).map(c=>(
- <div key={c.id} onClick={()=>{setSelectedClient(c);setClientTab("info");setShowMobileSidebar(false);}} style={{fontSize:9.5,color:pc,marginBottom:3,cursor:"pointer"}}>{c.name} ({getDaysSince(c.id)}י)</div>
+ <div key={c.id} onClick={()=>{setSelectedClient(c);setClientTab("info");setShowMobileSidebar(false);}} style={{fontSize:12,color:pc,marginBottom:3,cursor:"pointer"}}>{c.name} ({getDaysSince(c.id)}י)</div>
               ))}
  </div>
           )}
@@ -4661,7 +4668,7 @@ export default function BeautyOS() {
  <div style={{textAlign:"center",padding:"20px 14px"}}>
  <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
  <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
+ <p style={{fontSize:13,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
  <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
  </div>
                       ):todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
@@ -4669,12 +4676,19 @@ export default function BeautyOS() {
                         return(
  <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
  <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
- <span className="serif" style={{fontSize:15,fontWeight:700,color:pc,lineHeight:1}}>{fmtApptTime(a)}</span>
- <span style={{fontSize:8,color:"var(--ink-3)",fontWeight:600}}>:00</span>
+                          {/* One line, not two. This used to render {a.hour}
+                              in the serif face with a separate ":00" beneath
+                              it, which composed to "14" + ":00". fmtApptTime
+                              now returns the whole "14:30", so the second span
+                              was appending a stray ":00" under every time on
+                              the dashboard - reading "14:30" above ":00".
+                              A leftover of the minutes migration, found while
+                              auditing type sizes on this screen. */}
+ <span className="serif" style={{fontSize:17,fontWeight:700,color:pc,lineHeight:1.1}}>{fmtApptTime(a)}</span>
  </span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
  </div>
  <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
  </div>
@@ -4710,12 +4724,12 @@ export default function BeautyOS() {
  <div style={{textAlign:"center",padding:"18px 10px"}}>
  <div style={{width:46,height:46,borderRadius:15,margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכל מטופל</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>אין פעולות שממתינות לך כרגע</p>
+ <p style={{fontSize:13,color:"var(--ink-3)",marginTop:3}}>אין פעולות שממתינות לך כרגע</p>
  </div>);
                       return(<>
-                        {paused&&<p style={{fontSize:9.5,color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
-                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:9.5,color:"var(--ink-3)",padding:"2px 2px 8px"}}>טוען הצעות מעקב עור…</p>}
-                        {skinQueueError&&<p style={{fontSize:9.5,color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
+                        {paused&&<p style={{fontSize:12,color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>⏸ האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
+                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:12,color:"var(--ink-3)",padding:"2px 2px 8px"}}>טוען הצעות מעקב עור…</p>}
+                        {skinQueueError&&<p style={{fontSize:12,color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:10,padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
  <div key={it.key} style={{border:"1px solid var(--line)",background:"var(--surface-2)",borderRadius:14,padding:"11px 13px",marginBottom:8}}>
  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
@@ -4723,15 +4737,15 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
  <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{it.what}</p>
- <span style={{fontSize:8.5,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
- <span style={{fontSize:8.5,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
+ <span style={{fontSize:10.5,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
+ <span style={{fontSize:10.5,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
  </div>
  <p style={{fontSize:11,color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
-                                {it.isSkin&&!it.hasPhone&&<p style={{fontSize:9,color:"var(--danger)",fontWeight:600,marginTop:3}}>⚠ אין מספר טלפון ללקוחה — לא ניתן לשלוח</p>}
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
+                                {it.isSkin&&!it.hasPhone&&<p style={{fontSize:12,color:"var(--danger)",fontWeight:600,marginTop:3}}>⚠ אין מספר טלפון ללקוחה — לא ניתן לשלוח</p>}
                                 {it.isSkin&&(
  <div style={{marginTop:6}}>
- <button onClick={()=>setSkinOpen(prev=>{const n=new Set(prev);if(n.has(it.key))n.delete(it.key);else n.add(it.key);return n;})} style={{background:"none",border:"none",color:pc,fontSize:9.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{skinOpen.has(it.key)?"▲ הסתר הודעה":"▼ צפייה ועריכה בהודעה"}</button>
+ <button onClick={()=>setSkinOpen(prev=>{const n=new Set(prev);if(n.has(it.key))n.delete(it.key);else n.add(it.key);return n;})} style={{background:"none",border:"none",color:pc,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{skinOpen.has(it.key)?"▲ הסתר הודעה":"▼ צפייה ועריכה בהודעה"}</button>
                                     {skinOpen.has(it.key)&&(
  <textarea value={skinEdits[it.key]??it.message} onChange={e=>setSkinEdits(prev=>({...prev,[it.key]:e.target.value}))} rows={3} dir="rtl" style={{width:"100%",marginTop:6,border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",direction:"rtl",background:"var(--surface)",resize:"vertical",color:"var(--ink)"}}/>
                                     )}
@@ -4739,11 +4753,11 @@ export default function BeautyOS() {
                                 )}
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                                   {it.isSkin?(
- <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"var(--surface)",fontSize:10.5,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
+ <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"var(--surface)",fontSize:13,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
                                   ):(
- <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",fontSize:10.5,padding:"7px 15px"}}>{it.primaryLabel}</button>
+ <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",fontSize:13,padding:"7px 15px"}}>{it.primaryLabel}</button>
                                   )}
- <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:20,fontSize:10.5,padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
+ <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:20,fontSize:13,padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
  </div>
  </div>
  </div>
@@ -4868,7 +4882,7 @@ export default function BeautyOS() {
           {activeTab==="calendar"&&(<>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div className={calView==="week"?undefined:"desktop-only"}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[5])}</h2>
  </div>
  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
@@ -4877,7 +4891,7 @@ export default function BeautyOS() {
  <button onClick={()=>setCalView("day")} style={{background:calView==="day"?pcGrad:"none",color:calView==="day"?"var(--surface)":"var(--ink-2)",border:"none",borderRadius:11,padding:"9px 16px",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>יום</button>
  <button onClick={()=>setCalView("week")} style={{background:calView==="week"?pcGrad:"none",color:calView==="week"?"var(--surface)":"var(--ink-2)",border:"none",borderRadius:11,padding:"9px 16px",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>שבוע</button>
  </div>
- <div className="desktop-only" style={{display:"flex",gap:10,fontSize:10,color:"var(--ink-2)",alignItems:"center"}}>
+ <div className="desktop-only" style={{display:"flex",gap:10,fontSize:12,color:"var(--ink-2)",alignItems:"center"}}>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--success)"}}/>אישרה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)"}}/>ביטלה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
@@ -4900,7 +4914,7 @@ export default function BeautyOS() {
                   const isClosed=!dayHoursFrom(settings,d.getDay());
                   return(
  <div key={i} style={{padding:"11px 4px",textAlign:"center",borderRight:i<5?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":hasCancel?"rgba(224,91,111,0.05)":"transparent",opacity:isClosed?0.5:1}}>
- <p style={{fontSize:9.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:600}}>{DAYS_HE[d.getDay()]}</p>
+ <p style={{fontSize:11.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:600}}>{DAYS_HE[d.getDay()]}</p>
  <p className="serif" style={{fontSize:18,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.2,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:26,height:26,borderRadius:"50%",...(isToday?{background:pcGrad,color:"var(--surface)",WebkitTextFillColor:"var(--surface)"}:{})}}>{d.getDate()}</p>
  <p style={{fontSize:7.5,color:"var(--ink-3)",marginTop:1}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
                       {isClosed&&<p style={{fontSize:7.5,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
@@ -4924,7 +4938,7 @@ export default function BeautyOS() {
                         {appt&&(
  <div className="appt-card" title="לחצי לעריכה / שינוי מועד" onClick={e=>{e.stopPropagation();handleApptClick(appt);}} onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
                             style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",cursor:"pointer",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:9.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
+ <p style={{fontSize:11.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
  <p style={{fontSize:7.5,color:"rgba(255,255,255,0.92)"}}>{appt.service}</p>
                             {appt.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--surface)"}}>✓</span>}
                             {appt.confirmation_status==="cancelled"&&<span style={{fontSize:8,color:"var(--surface)"}}>✕</span>}
@@ -5006,7 +5020,7 @@ export default function BeautyOS() {
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ניהול קשרי לקוחות</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ניהול קשרי לקוחות</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -5057,13 +5071,13 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
  <p style={{fontWeight:700,fontSize:13.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{client.name}</p>
-                        {client.status&&<span className="pill" style={{fontSize:8,background:statusColor,color:"var(--surface)",padding:"3px 8px"}}>{STATUS_LABELS[client.status]}</span>}
-                        {days>90&&<span className="pill" style={{fontSize:8,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
-                        {total>0&&<span className="pill" style={{fontSize:8,background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
+                        {client.status&&<span className="pill" style={{fontSize:10.5,background:statusColor,color:"var(--surface)",padding:"3px 8px"}}>{STATUS_LABELS[client.status]}</span>}
+                        {days>90&&<span className="pill" style={{fontSize:10.5,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
+                        {total>0&&<span className="pill" style={{fontSize:10.5,background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:10,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
  </div>
-                    {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:10}}>✆ הודעה</a>}
+                    {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:12}}>✆ הודעה</a>}
  <span style={{fontSize:13,color:pc}}>←</span>
  </div>
                 );
@@ -5076,7 +5090,7 @@ export default function BeautyOS() {
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>צינור מכירות</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>צינור מכירות</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פניות <span style={{color:"var(--ink-3)",fontWeight:400}}>({leads.length})</span></h2>
  </div>
  <button className="primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>
@@ -5100,13 +5114,13 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11,flexWrap:"wrap"}}>
  <span style={{width:30,height:30,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(37,211,102,0.12)",color:"var(--success)"}}>✆</span>
  <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>שליחת וואטסאפ לפי סטטוס</p>
- <span style={{fontSize:9.5,color:"var(--ink-3)"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
+ <span style={{fontSize:12,color:"var(--ink-3)"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
  </div>
  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {Object.entries(LEAD_STATUSES).map(([key,s])=>{
                   const withPhone=leads.filter(l=>l.status===key&&l.phone).length;
                   return(
- <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 13px",border:"1px solid",borderColor:withPhone===0?"var(--line)":s.color,borderRadius:20,background:withPhone===0?"var(--surface-2)":s.bg,color:withPhone===0?"var(--ink-3)":s.color,fontSize:10.5,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
+ <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 13px",border:"1px solid",borderColor:withPhone===0?"var(--line)":s.color,borderRadius:20,background:withPhone===0?"var(--surface-2)":s.bg,color:withPhone===0?"var(--ink-3)":s.color,fontSize:12.5,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
                   );
                 })}
  </div>
@@ -5128,13 +5142,13 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
  <p style={{fontWeight:700,fontSize:12.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{lead.name}</p>
- <span className="pill" style={{fontSize:8,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
-                        {hasReminder&&<span className="pill" style={{fontSize:8,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>◴ תזכורת</span>}
+ <span className="pill" style={{fontSize:10.5,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
+                        {hasReminder&&<span className="pill" style={{fontSize:10.5,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>◴ תזכורת</span>}
  </div>
- <p style={{fontSize:9.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
  </div>
-                    {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:9}}>✆</a>}
-                    {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"var(--surface)",border:"none",borderRadius:20,padding:"5px 11px",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
+                    {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:12}}>✆</a>}
+                    {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"var(--surface)",border:"none",borderRadius:20,padding:"5px 11px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
  </div>
                 );
               })}
@@ -5146,7 +5160,7 @@ export default function BeautyOS() {
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה וקבלות</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה וקבלות</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תשלומים</h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -5159,7 +5173,7 @@ export default function BeautyOS() {
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:"radial-gradient(circle at 100% 0%, var(--pc-tint), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
  <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:pc,background:"var(--pc-tint)"}}>₪</span>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600}}>הכנסות החודש</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>הכנסות החודש</p>
  </div>
  <p className="serif" style={{position:"relative",fontSize:26,fontWeight:600,color:pc,lineHeight:1}}>₪{thisMonthRevenue.toLocaleString()}</p>
  </motion.div>
@@ -5167,10 +5181,10 @@ export default function BeautyOS() {
  <motion.div key={p.key} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,delay:0.05*(i+1),ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)"}}>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
  <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--surface-2)",border:"1px solid var(--line)"}}>{p.icon}</span>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600}}>{p.key}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>{p.key}</p>
  </div>
  <p className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",lineHeight:1}}>₪{p.total.toLocaleString()}</p>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:6}}>{p.count} עסקאות</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:6}}>{p.count} עסקאות</p>
  </motion.div>
               ))}
  </div>
@@ -5188,15 +5202,15 @@ export default function BeautyOS() {
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 13px",background:paid?"rgba(70,179,123,0.08)":"var(--surface-2)",borderRadius:14,marginBottom:7,border:`1px solid ${paid?"rgba(70,179,123,0.35)":"var(--line)"}`,flexWrap:"wrap"}}>
  <div style={{flex:1,minWidth:120}}>
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{a.service} · ₪{a.price}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)"}}>{a.service} · ₪{a.price}</p>
  </div>
-                      {paid?<span className="pill" style={{fontSize:10,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>✓ שולם</span>
+                      {paid?<span className="pill" style={{fontSize:10.5,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>✓ שולם</span>
                         :<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                           {client?.phone&&PAYMENT_METHODS.slice(1).map(pm=>(
  <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer" title={pm.key}
-                              style={{background:pm.color,color:"var(--surface)",border:"none",borderRadius:16,padding:"5px 9px",fontSize:9,cursor:"pointer",textDecoration:"none",fontWeight:600}}>{pm.icon}</a>
+                              style={{background:pm.color,color:"var(--surface)",border:"none",borderRadius:16,padding:"5px 9px",fontSize:12,cursor:"pointer",textDecoration:"none",fontWeight:600}}>{pm.icon}</a>
                           ))}
- <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:16,padding:"5px 12px",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>₪ קופה</button>
+ <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:16,padding:"5px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>₪ קופה</button>
  </div>
                       }
  </div>
@@ -5213,7 +5227,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {["all",...PAYMENT_METHODS.map(p=>p.key)].map(m=>(
- <button key={m} onClick={()=>setReceiptFilter(m)} style={{background:receiptFilter===m?pcGrad:"var(--surface)",color:receiptFilter===m?"var(--surface)":"var(--ink-2)",border:`1px solid ${receiptFilter===m?"transparent":"var(--line-2)"}`,borderRadius:20,padding:"5px 12px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:receiptFilter===m?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>
+ <button key={m} onClick={()=>setReceiptFilter(m)} style={{background:receiptFilter===m?pcGrad:"var(--surface)",color:receiptFilter===m?"var(--surface)":"var(--ink-2)",border:`1px solid ${receiptFilter===m?"transparent":"var(--line-2)"}`,borderRadius:20,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:receiptFilter===m?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>
                       {m==="all"?"הכל":m}
  </button>
                   ))}
@@ -5236,7 +5250,7 @@ export default function BeautyOS() {
  </div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
- <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}</p>
  </div>
  <p className="serif" style={{fontSize:15,fontWeight:600,color:pc}}>₪{r.amount}</p>
  </div>
