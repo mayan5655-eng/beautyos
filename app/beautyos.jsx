@@ -292,12 +292,17 @@ async function fetchConfirmLinks(apptId) {
   }
 }
 
-function waConfirmLink(phone, name, service, date, hour, links) {
+// `time` is an ALREADY-FORMATTED "14:30", not an hour number. It used to take
+// appt.hour and interpolate it raw, which sent a client "בשעה 14" - the bare
+// integer, wrong for every half-hour appointment and badly formatted even for
+// whole ones. Callers pass fmtApptTime(appt); the parameter is named for what
+// it is so the next caller cannot make the same substitution.
+function waConfirmLink(phone, name, service, date, time, links) {
   const confirmUrl = links.confirmUrl;
   const cancelUrl  = links.cancelUrl;
   return waMsg(
     phone,
-    `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${hour}\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
+    `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${time}\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
   );
 }
 
@@ -1793,7 +1798,7 @@ export default function BeautyOS() {
     const w = window.open("", "_blank");
     const links = await fetchConfirmLinks(appt.id);
     if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return; }
-    const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, appt.hour, links);
+    const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, fmtApptTime(appt), links);
     if (w) w.location.href = link; else window.open(link, "_blank");
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
     if (error) { handleDbError(error, "mark confirmation_sent"); return; }
@@ -2990,15 +2995,18 @@ export default function BeautyOS() {
     if (!b.service) { toast("נא לבחור שירות", "error"); return; }
     if (!b.date || !b.time) { toast("נא לבחור תאריך ושעה", "error"); return; }
     const svc = activeServices.find(s => s.name === b.service);
-    // Whole-hour schema: parse the spoken start hour and reject anything we can't
-    // represent as a valid hour, so a malformed time never books silently at 00:00.
-    const hourNum = Number((b.time||"").split(":")[0]);
-    if (!Number.isInteger(hourNum) || hourNum < 0 || hourNum > 23) { toast("שעה לא תקינה", "error"); return; }
+    // Real minutes. This used to take Number(time.split(":")[0]) and store that
+    // as a whole hour, so "קבעי לרונית ב-שתיים וחצי" silently booked 14:00 -
+    // the one write path the minutes migration missed. toMinutes rejects
+    // anything unparseable rather than falling through to 0, so a malformed
+    // time still never books silently at 00:00.
+    const startMin = toMinutes(b.time);
+    if (startMin === null) { toast("שעה לא תקינה", "error"); return; }
     const duration = svc?.duration || 60;
     // Guard against double-booking, mirroring handleSave: reject if the new
     // [start,end) overlaps any non-cancelled appointment on that date.
     {
-      const newStart = hourNum*60, newEnd = newStart + duration;
+      const newStart = startMin, newEnd = newStart + duration;
       const clash = appointments.some(a=>{
         if(a.date!==b.date || a.confirmation_status==="cancelled") return false;
         const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
@@ -3030,7 +3038,8 @@ export default function BeautyOS() {
       }
       const appt = {
         date: b.date,
-        hour: hourNum,
+        // Both columns, exactly as every other write path does it.
+        ...startFields(startMin),
         name: b.clientName.trim(),
         service: b.service,
         duration: duration,
@@ -4197,7 +4206,6 @@ export default function BeautyOS() {
               const nameLow=(voiceBooking.clientName||"").trim().toLowerCase();
               const existsClient=nameLow?clients.find(c=>(c.name||"").trim().toLowerCase()===nameLow):null;
               const isNew=voiceBooking.clientName.trim()&&!existsClient;
-              const mm=(voiceBooking.time||"").split(":")[1];
               const ready=voiceBooking.clientName.trim()&&voiceBooking.service&&voiceBooking.date&&voiceBooking.time;
               return (
  <div>
@@ -4228,7 +4236,11 @@ export default function BeautyOS() {
  <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תאריך</p><input type="date" value={voiceBooking.date} onChange={e=>setVoiceBooking({...voiceBooking,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
  <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>שעה</p><input type="time" value={voiceBooking.time} onChange={e=>setVoiceBooking({...voiceBooking,time:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
  </div>
-                {mm&&mm!=="00"&&<p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>הערה: התור יישמר על השעה העגולה ({(voiceBooking.time||"").split(":")[0]}:00) — הסכימה הנוכחית תומכת בשעות שלמות.</p>}
+                {/* The "this will be saved on the round hour" notice that used
+                    to live here is gone, along with the rounding it was warning
+                    about. Half-hour starts are stored exactly since the minutes
+                    migration, so the notice was telling her the opposite of the
+                    truth. */}
 
  <div style={{display:"flex",gap:8,marginTop:8}}>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>ביטול</button>
