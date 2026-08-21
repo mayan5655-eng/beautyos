@@ -1037,6 +1037,18 @@ export default function BeautyOS() {
       toast(WRITE_BLOCKED_TOAST_HE, "error");
       return;
     }
+    // The double-booking guarantees, in her language rather than Postgres's.
+    //   23505 uniq_appt_slot_active   - same start minute.
+    //   23P01 appointments_no_overlap - overlapping range, e.g. a 14:30+30
+    //         dropped inside an existing 14:00+60.
+    // Both mean the same thing to her, and both are only reachable when the
+    // in-app overlap check lost a race with another writer (her phone and her
+    // laptop, or a client self-booking at the same moment) - so the raw
+    // constraint name would be the first she ever heard of it.
+    if (code === "23505" || code === "23P01") {
+      toast("השעה הזו כבר תפוסה. נא לבחור שעה אחרת.", "error");
+      return;
+    }
     toast(`שגיאה: ${message || "פעולה נכשלה"}`, "error");
   }, [toast]);
 

@@ -4,11 +4,16 @@
 // and next the booking concierge. Having ONE write path means the double-booking
 // guarantee and the row shape can never drift between callers.
 //
-// The partial unique index `uniq_appt_slot_active` enforces "at most one ACTIVE
-// appointment per (tenant_id, date, hour)". A 23505 unique-violation therefore
-// means the slot was taken by a parallel booking (manual, online, or another
-// claimant) between our availability check and our insert — reported as `taken`
-// so the caller can tell the client the slot was just filled.
+// Two database guarantees back this up, and a violation of either means the
+// slot was taken by a parallel booking (manual, online, or another claimant)
+// between our availability check and our insert — reported as `taken` so the
+// caller can tell the client the slot was just filled:
+//
+//   uniq_appt_slot_active   (23505) — at most one ACTIVE appointment per
+//                                     (tenant_id, date, start_minute).
+//   appointments_no_overlap (23P01) — no ACTIVE appointment may overlap
+//                                     another's [start, start+duration) range.
+//                                     See supabase/migrations/add_appointment_no_overlap.sql.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { startFields } from "./apptTime";
@@ -62,7 +67,11 @@ export async function bookAppointmentSlot(
   });
 
   if (error) {
-    if ((error as { code?: string }).code === "23505") return { ok: false, taken: true };
+    // 23505 = uniq_appt_slot_active (same start minute).
+    // 23P01 = appointments_no_overlap (an overlapping range). Both mean the
+    // same thing to a caller: the slot went while we were deciding.
+    const code = (error as { code?: string }).code;
+    if (code === "23505" || code === "23P01") return { ok: false, taken: true };
     return { ok: false, error };
   }
   return { ok: true };

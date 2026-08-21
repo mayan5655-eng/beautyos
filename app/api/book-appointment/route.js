@@ -145,9 +145,14 @@ export async function POST(request) {
       .single();
 
     if (error) {
-      // Unique-violation from a slot index (concurrent booking race) → treat as
-      // "slot taken" rather than surfacing a raw 500.
-      if (error.code === "23505") {
+      // A concurrent booking race → "slot taken", not a raw 500. Two codes,
+      // two guarantees:
+      //   23505 uniq_appt_slot_active  - someone took the same START MINUTE.
+      //   23P01 appointments_no_overlap - someone took an OVERLAPPING range,
+      //         e.g. her 14:30+30 landed inside an existing 14:00+60. This is
+      //         the case the overlap check above cannot win against a parallel
+      //         writer: both requests can read "free" before either inserts.
+      if (error.code === "23505" || error.code === "23P01") {
         return Response.json(
           { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
           { status: 409 }
