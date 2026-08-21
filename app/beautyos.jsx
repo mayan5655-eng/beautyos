@@ -17,6 +17,7 @@ import TrialBanner from "./TrialBanner";
 import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
+import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -1407,6 +1408,15 @@ export default function BeautyOS() {
     else { setClientScans([]); setClientPhotos([]); }
     /* eslint-disable-next-line */
   }, [selectedClient?.id]);
+
+  // Never sit on a tab this tenant cannot see. Filtering the nav lists is the
+  // only way into the three stub tabs today, so this is a backstop rather than
+  // a live path - but it is the one that matters if a flag is switched OFF
+  // while she is standing on that tab, and it means a future deep link or
+  // restored-tab feature cannot reopen a hidden screen by accident.
+  useEffect(() => {
+    if (!isTabVisible(settings, activeTab)) setActiveTab("dashboard");
+  }, [settings, activeTab]);
 
   // Load saved campaigns the first time the AI marketing view is opened
   useEffect(() => {
@@ -3808,7 +3818,13 @@ export default function BeautyOS() {
     {id:"cashier",   label:"תשלום"},
     {id:"dashboard", label:"בית"},
   ];
-  const MORE_NAV = ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp"];
+  // The three one-insert stubs (community, packages, protocols) are filtered
+  // out of BOTH nav lists unless this tenant has opted back in. Hidden, not
+  // deleted: every loader, render block and table below is untouched, so the
+  // flag brings a tab back with its data intact. campaigns and insights are
+  // never filtered - see lib/featureFlags.ts for why that is a deliberate
+  // exception and not an oversight.
+  const MORE_NAV = visibleTabIds(settings, ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp"]);
 
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
@@ -3824,7 +3840,7 @@ export default function BeautyOS() {
     {id:"packages", label:"מנויים"},
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
-  ];
+  ].filter(item => isTabVisible(settings, item.id));
   const navIcon = (id) => {
     const p = { fill:"none", stroke:"currentColor", strokeWidth:1.6, strokeLinecap:"round", strokeLinejoin:"round" };
     const svg = (children) => <svg viewBox="0 0 24 24" width="19" height="19">{children}</svg>;
