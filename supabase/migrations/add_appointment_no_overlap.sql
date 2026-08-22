@@ -1,7 +1,34 @@
 -- add_appointment_no_overlap.sql
 --
 -- The database-level overlap guarantee that add_appointment_start_minute.sql
--- deliberately left out, now that it is safe to add.
+-- deliberately left out.
+--
+-- ── STATUS: APPLIED to production on 2026-08-22 ─────────────────────────────
+-- Run by hand in the Supabase SQL Editor. This file previously said it had NOT
+-- been applied, and commit 3e54196's message still does; both were true when
+-- written and are now stale. The constraint is live.
+--
+-- Verified afterwards by behaviour, not by assuming the DDL took:
+-- verify-appointment-no-overlap.js (repo root) inserts through PostgREST, so
+-- lib/apptTime and every application guard are bypassed and cannot be what
+-- refuses a row. Against tenant b09637c8 on sentinel date 2020-01-09, all rows
+-- cleaned up afterwards and the day re-confirmed empty:
+--
+--     14:00+60 accepted
+--     14:30+30 REJECTED - SQLSTATE 23P01,
+--       'conflicting key value violates exclusion constraint
+--        "appointments_no_overlap"'
+--       (a different start_minute, so uniq_appt_slot_active cannot be what
+--        caught it - only this constraint can)
+--     15:00+30 accepted   - back-to-back is still allowed, not over-blocking
+--     cancelled 16:00+60, then active 16:00+60 accepted - cancelled rows still
+--                           free their slot, so the coalesce predicate works
+--
+-- btree_gist is therefore enabled too: a GiST exclusion constraint using
+-- `tenant_id WITH =` on uuid cannot exist without it.
+--
+-- Re-running this file is safe and is now a no-op - it notices the constraint
+-- and raises 'appointments_no_overlap already exists, skipping'.
 --
 -- ── Why it is needed ────────────────────────────────────────────────────────
 -- `uniq_appt_slot_active` enforces "at most one active appointment per
@@ -17,7 +44,7 @@
 -- call it, and never against a concurrent writer: two requests can both read
 -- "free", both pass the check, and both insert.
 --
--- ── Why it is safe to add NOW ───────────────────────────────────────────────
+-- ── Why it was safe to add ──────────────────────────────────────────────────
 -- PostgreSQL validates an exclusion constraint against every existing row when
 -- it is created. If one pre-existing pair overlaps, this ALTER TABLE fails and
 -- the only ways forward are to weaken the constraint or to change real
@@ -33,7 +60,10 @@
 --     439120af-987b-4471-8b9d-afc89bc6c480    1 row    0 overlapping pairs
 --     TENANTS WITH OVERLAPS: 0
 --
--- Re-run that script before applying if any time has passed. It is read-only.
+-- It held: the ALTER TABLE below succeeded on 2026-08-22 without touching a
+-- single existing row. If this ever has to be recreated on another database,
+-- re-run that script first - it is read-only, and one pre-existing overlapping
+-- pair is enough to make the ALTER TABLE fail outright.
 --
 -- Safe to run more than once.
 
@@ -140,6 +170,12 @@ end $$;
 -- before it is applied, since 23P01 simply never occurs.
 --
 -- ── Verify ──────────────────────────────────────────────────────────────────
+--
+-- b, c and d below were run as verify-appointment-no-overlap.js on 2026-08-22
+-- and all passed - see STATUS at the top. They are kept because they are the
+-- SQL-Editor form, and (a) in particular reads the catalog directly, which the
+-- script cannot do over PostgREST. Each block is wrapped begin/rollback: run
+-- each one whole, including the rollback, or it leaves test rows behind.
 --
 --   a) The constraint exists.
 --        select conname, pg_get_constraintdef(oid)
