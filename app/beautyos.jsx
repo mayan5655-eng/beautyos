@@ -885,6 +885,10 @@ export default function BeautyOS() {
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
   const [hoveredAppt,       setHoveredAppt]        = useState(null);
   const [loading,           setLoading]            = useState(true);
+  // Non-null when a core read in loadAll FAILED. Distinct from "she has no
+  // data": empty state is only ever allowed to mean empty. Renders a
+  // full-screen explanation with a retry, instead of an empty dashboard.
+  const [loadError,         setLoadError]          = useState(null);
   const [uploading,         setUploading]          = useState(false);
   const [searchQuery,       setSearchQuery]        = useState("");
   const [globalSearch,      setGlobalSearch]       = useState("");
@@ -1456,26 +1460,65 @@ export default function BeautyOS() {
       // RLS and often returns null, which then mis-selects the settings row.
       const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
       const myTenantId = rpcTenant || null;
-      const [a,c,f,l,sv,st,r,pk,wl,ex,tn] = await Promise.all([
-        supabase.from("appointments").select("*"),
-        supabase.from("clients").select("*"),
-        supabase.from("forms").select("*"),
-        supabase.from("leads").select("*"),
-        supabase.from("service_prices").select("*"),
-        supabase.from("settings").select("*"),
-        supabase.from("receipts").select("*"),
-        supabase.from("packages").select("*"),
-        supabase.from("waitlist").select("*"),
+      // Every read is NAMED, so a failure can say which one failed instead of
+      // vanishing. See the CORE_READS check below for why that matters.
+      const READS = [
+        ["appointments",   supabase.from("appointments").select("*")],
+        ["clients",        supabase.from("clients").select("*")],
+        ["forms",          supabase.from("forms").select("*")],
+        ["leads",          supabase.from("leads").select("*")],
+        ["service_prices", supabase.from("service_prices").select("*")],
+        ["settings",       supabase.from("settings").select("*")],
+        ["receipts",       supabase.from("receipts").select("*")],
+        ["packages",       supabase.from("packages").select("*")],
+        ["waitlist",       supabase.from("waitlist").select("*")],
         // Business expenses (for input-VAT in tax reports). RLS-scoped to tenant.
-        supabase.from("expenses").select("*"),
+        ["expenses",       supabase.from("expenses").select("*")],
         // Feature tier + trial/subscription state for this tenant.
         // Selects the whole row deliberately: the plan-state columns are added
         // by trial-state.sql, which is run by hand against Supabase, so naming
         // them explicitly would make this query fail outright on any
         // environment where that migration has not been run yet. The row is one
         // row on a tiny table, and RLS already scopes it to her own tenant.
-        supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle(),
-      ]);
+        ["tenants",        supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle()],
+      ];
+      const settled = await Promise.all(READS.map(([, q]) => q));
+      const res = {};
+      READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
+      const [a,c,f,l,sv,st,r,pk,wl,ex,tn] = settled;
+
+      // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
+      // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
+      // supabase-js does NOT throw on a query error - it returns
+      // { data: null, error } - so the catch below never fired, the error was
+      // dropped on the floor, and every state stayed at its initial []. The
+      // result was that a failed load rendered as a clean, EMPTY app:
+      // no clients, no appointments, no revenue, indistinguishable from a
+      // brand-new account. For a cosmetician with a year of history, "we could
+      // not load your data" showed up as "your data is gone".
+      //
+      // Now any core read that errors stops the render and shows her an
+      // explicit failure with a retry. Empty is only ever allowed to mean empty.
+      //
+      // `tenants` is deliberately NOT core. Its failure already has a
+      // considered answer directly below - planState() treats a null row as
+      // unblocked - because this is the BILLING row, and a transient error
+      // there must never lock her out of her own calendar. Failing open on
+      // billing and failing loud on data is the intended asymmetry.
+      const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants");
+      const failedReads = CORE_READS.filter((n) => res[n]?.error);
+      if (failedReads.length > 0) {
+        const first = res[failedReads[0]].error;
+        console.error("[BeautyOS] loadAll failed for:", failedReads.join(", "), first);
+        try {
+          Sentry.captureException(
+            new Error(`loadAll failed: ${failedReads.join(", ")} — ${first?.message || "unknown"}`)
+          );
+        } catch {}
+        setLoadError({ tables: failedReads, message: first?.message || "", code: first?.code || "" });
+        return; // the `finally` still clears `loading`
+      }
+
       // Safe default 'none' if the row/column is missing for any reason.
       const plan = tn?.data?.plan || "none";
       setCurrentPlan(plan);
@@ -1484,11 +1527,17 @@ export default function BeautyOS() {
       // never lock her out of her own data.
       setPlanRow(tn?.data || null);
       console.log("[BeautyOS] current plan:", plan, "| plan_status:", tn?.data?.plan_status || "(not migrated)");
-      if(a.data)  setAppointments(a.data);
-      if(c.data)  setClients(c.data);
-      if(f.data)  setForms(f.data);
-      if(l.data)  setLeads(l.data);
-      if(sv.data&&sv.data.length>0) setServices(sv.data);
+      // Past the guard above, every one of these succeeded, so an empty array
+      // is a real answer and can be trusted.
+      setAppointments(a.data || []);
+      setClients(c.data || []);
+      setForms(f.data || []);
+      setLeads(l.data || []);
+      setServices(sv.data || []);
+      // Zero settings rows now means SHE IS GENUINELY NEW, not "the settings
+      // read failed" - that case returned above. Before this change the two
+      // were the same branch, so a failed read could bounce an established user
+      // into onboarding, and finishing it inserts a SECOND settings row.
       if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
       if(st.data && st.data.length > 0) {
         // Pick the settings row for this user's tenant. Fall back to the most
@@ -1504,10 +1553,11 @@ export default function BeautyOS() {
         // the rule this follows.
         try { Sentry.setTag("tenant_id", myRow?.tenant_id || myTenantId || "unknown"); } catch {}
       }
-      if(r.data)  setReceipts(r.data);
-      if(ex?.data) setExpenses(ex.data);
-      if(pk.data) setPackages(pk.data);
-      if(wl.data) setWaitlist(wl.data);
+      setReceipts(r.data || []);
+      setExpenses(ex?.data || []);
+      setPackages(pk.data || []);
+      setWaitlist(wl.data || []);
+      setLoadError(null);
     } catch (err) {
       handleDbError(err, "loadAll");
     } finally {
@@ -3800,6 +3850,45 @@ export default function BeautyOS() {
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {[0,1,2,3,4].map(i=><div key={i} className="skel" style={{width:"100%",height:54,borderRadius:14}}/>)}
         </div>
+      </div>
+    </div>
+  );
+
+  // ── COULD NOT LOAD ────────────────────────────────────────────────────────
+  // Deliberately a full-screen stop, in the same position as the loading
+  // screen, rather than a toast over an empty dashboard. A toast can be missed
+  // and the app behind it still says "no clients" - which is the exact lie this
+  // exists to prevent. The copy leads with "your data is safe" because the
+  // first thing this screen has to answer, for someone with a year of history,
+  // is "have I lost everything".
+  if(loadError) return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"22px 18px",fontFamily:"'Heebo','Assistant',sans-serif",direction:"rtl"}}>
+      <div style={{width:"100%",maxWidth:440,background:"var(--surface,#FFFFFF)",border:"1px solid var(--line,#ECE4F0)",borderRadius:20,boxShadow:"0 18px 44px rgba(74,46,90,0.10)",padding:"32px 26px",textAlign:"center"}}>
+        <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#F1E2F2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>⚠️</div>
+        <h1 style={{fontSize:22,fontWeight:600,margin:"0 0 10px",color:"var(--ink,#2A2233)"}}>לא הצלחנו לטעון את הנתונים</h1>
+        <p style={{fontSize:14.5,lineHeight:1.7,color:"var(--ink-2,#6B6275)",margin:"0 0 22px"}}>
+          <strong>הנתונים שלך במקום.</strong> לא נמחק כלום. פשוט לא הצלחנו להביא אותם כרגע,
+          ולכן אנחנו לא מציגים לך מסך ריק שנראה כאילו אין לך לקוחות.
+          <br/>
+          אפשר לנסות שוב. אם זה חוזר, שלחי לנו את השורה הקטנה שלמטה.
+        </p>
+        <button
+          type="button"
+          onClick={()=>{ setLoadError(null); setLoading(true); loadAll(); }}
+          style={{width:"100%",padding:"14px 20px",borderRadius:999,border:"none",background:"linear-gradient(135deg,#7D6489 0%,#4C3457 100%)",color:"#FFFFFF",fontSize:16,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}
+        >
+          נסי שוב
+        </button>
+        <button
+          type="button"
+          onClick={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+          style={{width:"100%",padding:"12px 20px",borderRadius:999,border:"1px solid var(--line,#E2D6EA)",background:"transparent",color:"var(--ink-2,#5B3E67)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+        >
+          יציאה והתחברות מחדש
+        </button>
+        <p style={{fontSize:11,color:"var(--ink-3,#9A93A3)",margin:"18px 0 0",direction:"ltr",fontFamily:"ui-monospace,Menlo,Consolas,monospace",wordBreak:"break-word"}}>
+          {loadError.tables.join(", ")}{loadError.code ? ` · ${loadError.code}` : ""}
+        </p>
       </div>
     </div>
   );
