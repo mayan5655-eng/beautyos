@@ -10,9 +10,14 @@
 // from the browser SDK, over different source maps, so a passing client test
 // says nothing about whether this one works.
 //
-// `?go=1` is required before it throws. Without it the page renders normally.
-// /debug is publicly reachable on this project (middleware.ts is disabled), and
-// a page that threw on sight would let any crawler drain the Sentry quota.
+// `?go=1` is required before it throws. Without it the page renders normally,
+// so nothing files a Sentry event just for being visited.
+//
+// CORRECTION: this file originally said /debug was publicly reachable because
+// middleware was disabled. Wrong - `middleware.ts.disabled` is a leftover and
+// `proxy.ts` is the active gate, which redirects anonymous visitors to /login.
+// You must be signed in to reach this page at all. The ?go=1 requirement is a
+// second layer, kept regardless.
 //
 // searchParams is a Promise in Next 16 and must be awaited - accessing it
 // synchronously was deprecated after 14.

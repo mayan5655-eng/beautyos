@@ -12,15 +12,23 @@
 // transport, not that anything arrives at the other end.
 //
 // The layout is here to hold `metadata`, which a Client Component page cannot
-// export. noindex/nofollow because `middleware.ts` is disabled on this project,
-// so everything under /debug is publicly reachable and would otherwise be
-// crawlable - and a crawler that found a route which throws on sight would sit
-// there burning the Sentry quota.
+// export.
+//
+// CORRECTION to what this file said when it was first committed: it claimed
+// middleware was disabled and /debug therefore publicly reachable. That was
+// wrong. `middleware.ts.disabled` is a leftover; the ACTIVE gate is `proxy.ts`
+// (Next 16 renamed the convention), and /debug is not in the PUBLIC_PREFIXES
+// list in lib/supabase/middleware.ts - so an anonymous visitor gets a 307 to
+// /login and never reaches either page. Verified: GET /debug/sentry-test
+// returns 307, not 200.
+//
+// noindex/nofollow stays anyway: it costs nothing, and it is the right default
+// for a route whose only purpose is to fail.
 //
 // The matching safety rule, enforced in both pages: NEITHER page throws merely
 // because it was loaded. The client page throws on a button press, the server
-// page only with an explicit ?go=1. A bot following the bare URL gets a inert
-// page and files nothing.
+// page only with an explicit ?go=1. Belt and braces on top of the auth gate,
+// so nothing files a Sentry event just for being visited.
 
 import type { Metadata } from 'next';
 

@@ -75,6 +75,28 @@ export const RATE_POLICIES = {
       `סורק העור עמוס כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // A read, and one the booking page cannot work without: /book calls it on
+  // every load to find out which slots are already taken. So this is the
+  // LOOSEST policy of all, on purpose.
+  //
+  // Getting this wrong is worse than not having it. If a real visitor trips
+  // this limit she loses the availability data, and the page then has to admit
+  // it cannot tell her what is free - which is the exact failure this endpoint
+  // was added to remove. The cap is here to stop somebody scraping a
+  // cosmetician's whole diary in a loop, not to police browsing.
+  //
+  // 60 per IP per 10 minutes is roughly a page load every ten seconds, sustained.
+  // 400 per tenant covers every visitor a beta business could plausibly have at
+  // once, several times over.
+  availability: {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 400, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `יומן העסק עמוס כרגע בבקשות. אפשר לנסות שוב ${m}.`,
+  },
+
   // The cheap one: a single upsert, and it is fired automatically (keepalive) as
   // the scanner page navigates to /book. It must not be the limit a real visitor
   // trips, so it is the loosest.

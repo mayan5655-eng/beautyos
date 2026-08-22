@@ -52,6 +52,10 @@ export default function BookPage() {
   const [loading, setLoading] = useState(true);
   const [tenantId, setTenantId] = useState(null);
   const [tenantError, setTenantError] = useState(false);
+  // Whether the busy-slot list actually loaded. Distinct from "nothing is
+  // booked", and the distinction matters: conflating the two is what made the
+  // old bug invisible, because a failed read looked exactly like a free diary.
+  const [availabilityError, setAvailabilityError] = useState(false);
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
 
@@ -99,7 +103,17 @@ export default function BookPage() {
         // direct anonymous settings access; never green_api_token or other secrets).
         fetchPublicSettings(supabase, t),
         supabase.from("service_prices").select("*").eq("tenant_id", t),
-        supabase.from("appointments").select("date, hour, start_minute, duration, confirmation_status").eq("tenant_id", t),
+        // Busy slots come from the server, NOT from a direct table read.
+        //
+        // This used to be supabase.from("appointments") on the anon key. RLS
+        // denies anon on that table, so it returned zero rows to every real
+        // visitor - as data, not as an error - and the page cheerfully showed
+        // every slot as free. /api/availability does the read on the service
+        // role and returns TIMES ONLY (date, start_minute, hour, duration);
+        // no names, phones, services or prices.
+        fetch(`/api/availability?t=${encodeURIComponent(t)}`)
+          .then((r) => r.json())
+          .catch(() => ({ success: false })),
       ]);
 
       if (row) {
@@ -122,7 +136,17 @@ export default function BookPage() {
           if (match) { setSelectedService(match); setStep(2); }
         }
       }
-      if (ap.data) setAppointments(ap.data);
+      // Only treat this as availability when the server actually said so.
+      // Anything else - transport failure, rate limit, 500 - is recorded as an
+      // ERROR and surfaced to the visitor, never quietly rendered as "free".
+      if (ap && ap.success && Array.isArray(ap.busy)) {
+        setAppointments(ap.busy);
+        setAvailabilityError(false);
+      } else {
+        setAppointments([]);
+        setAvailabilityError(true);
+        console.error("availability load failed:", ap?.error || "unknown");
+      }
 
       // Her client-facing announcements feed. Read through the SAME vetted safe
       // public endpoint the standalone /community page uses (service role, returns
@@ -593,6 +617,28 @@ export default function BookPage() {
 
                 {selectedDate && (
                   <>
+                    {/* Availability could not be loaded. Say so plainly rather
+                        than presenting an unchecked grid as if it were checked.
+                        Booking is still allowed: /api/book-appointment re-checks
+                        server-side and the appointments_no_overlap constraint
+                        backs it, so the worst case is a rejection at submit,
+                        which is honest. Silently showing everything as free is
+                        the thing this must never do again. */}
+                    {availabilityError && (
+                      <div style={{
+                        background: "var(--brand-cream, #FEFAF7)",
+                        border: `1px solid ${hair}`,
+                        borderRadius: 12,
+                        padding: "10px 13px",
+                        marginBottom: 12,
+                        fontSize: 12.5,
+                        lineHeight: 1.6,
+                        color: ink,
+                      }}>
+                        לא הצלחנו לבדוק כרגע אילו שעות כבר תפוסות. אפשר להמשיך, אבל ייתכן
+                        שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
+                      </div>
+                    )}
                     <p style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
                       {allSlots.filter((m) => !tooSoon(m)).map((h) => {
