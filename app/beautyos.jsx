@@ -1453,12 +1453,46 @@ export default function BeautyOS() {
       // Get the logged-in user and their tenant, to load the correct settings row.
       // No session → redirect to login instead of rendering the app "logged out"
       // (which is what let writes fail silently with auth.uid() = NULL).
-      const { data: { user } } = await supabase.auth.getUser();
+      //
+      // BUT: "could not reach the auth server" is NOT "logged out". getUser()
+      // makes a network call, and offline it comes back with a retryable
+      // transport error and user = null. Treating that as logged-out sent her
+      // to /login, where she would try to sign in and fail again - the app
+      // telling someone with a valid session that she is not signed in. This is
+      // the same no-data/no-answer conflation as everywhere else, one step
+      // earlier in the same function. The app is a PWA (public/sw.js), so the
+      // shell genuinely does load with no network and this path is reachable.
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      const user = authData?.user || null;
+      const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+      const authTransportFailure =
+        isOffline ||
+        (!!authErr && (
+          authErr.name === "AuthRetryableFetchError" ||
+          !authErr.status ||
+          /fetch|network|load failed|timeout/i.test(String(authErr.message || ""))
+        ));
+      if (authTransportFailure) {
+        console.error("[BeautyOS] loadAll: could not verify session", authErr);
+        setLoadError({ tables: [], message: authErr?.message || "", code: isOffline ? "offline" : "auth", offline: true });
+        return; // the `finally` still clears `loading`
+      }
       if (!user) { router.replace("/login"); return; }
       // Resolve the tenant with the SAME function the RLS policies use.
       // Reading tenant_members directly from the client is itself gated by
       // RLS and often returns null, which then mis-selects the settings row.
-      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      //
+      // An ERROR here is fatal, unlike a null RESULT. A null result is a real
+      // answer ("this user belongs to no tenant"); an error means we do not
+      // know, and carrying on would pick a settings row by fallback and show
+      // her a dashboard assembled from a guess.
+      const { data: rpcTenant, error: rpcErr } = await supabase.rpc("get_user_tenant_id");
+      if (rpcErr) {
+        console.error("[BeautyOS] loadAll: get_user_tenant_id failed", rpcErr);
+        try { Sentry.captureException(new Error(`loadAll: get_user_tenant_id — ${rpcErr.message}`)); } catch {}
+        setLoadError({ tables: ["get_user_tenant_id"], message: rpcErr.message || "", code: rpcErr.code || "" });
+        return;
+      }
       const myTenantId = rpcTenant || null;
       // Every read is NAMED, so a failure can say which one failed instead of
       // vanishing. See the CORE_READS check below for why that matters.
@@ -1559,7 +1593,18 @@ export default function BeautyOS() {
       setWaitlist(wl.data || []);
       setLoadError(null);
     } catch (err) {
-      handleDbError(err, "loadAll");
+      // Anything unexpected is ALSO a failed load, not an empty one. This used
+      // to call handleDbError alone, which raises a toast and then lets the
+      // render fall through to a dashboard showing zero of everything - the
+      // toast can be missed, the empty dashboard cannot.
+      console.error("[BeautyOS] loadAll threw:", err);
+      try { Sentry.captureException(err); } catch {}
+      setLoadError({
+        tables: [],
+        message: err?.message || String(err),
+        code: err?.code || "",
+        offline: typeof navigator !== "undefined" && navigator.onLine === false,
+      });
     } finally {
       setLoading(false);
     }
@@ -3864,13 +3909,19 @@ export default function BeautyOS() {
   if(loadError) return (
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"22px 18px",fontFamily:"'Heebo','Assistant',sans-serif",direction:"rtl"}}>
       <div style={{width:"100%",maxWidth:440,background:"var(--surface,#FFFFFF)",border:"1px solid var(--line,#ECE4F0)",borderRadius:20,boxShadow:"0 18px 44px rgba(74,46,90,0.10)",padding:"32px 26px",textAlign:"center"}}>
-        <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#F1E2F2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>⚠️</div>
-        <h1 style={{fontSize:22,fontWeight:600,margin:"0 0 10px",color:"var(--ink,#2A2233)"}}>לא הצלחנו לטעון את הנתונים</h1>
+        <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#F1E2F2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{loadError.offline ? "📶" : "⚠️"}</div>
+        <h1 style={{fontSize:22,fontWeight:600,margin:"0 0 10px",color:"var(--ink,#2A2233)"}}>
+          {loadError.offline ? "אין חיבור לאינטרנט" : "לא הצלחנו לטעון את הנתונים"}
+        </h1>
         <p style={{fontSize:14.5,lineHeight:1.7,color:"var(--ink-2,#6B6275)",margin:"0 0 22px"}}>
-          <strong>הנתונים שלך במקום.</strong> לא נמחק כלום. פשוט לא הצלחנו להביא אותם כרגע,
-          ולכן אנחנו לא מציגים לך מסך ריק שנראה כאילו אין לך לקוחות.
+          <strong>הנתונים שלך במקום.</strong> לא נמחק כלום.
+          {loadError.offline
+            ? " הטלפון לא מחובר לרשת כרגע, אז לא הצלחנו להביא את היומן שלך. ברגע שיהיה חיבור, הכל יחזור כרגיל."
+            : " פשוט לא הצלחנו להביא אותם כרגע, ולכן אנחנו לא מציגים לך מסך ריק שנראה כאילו אין לך לקוחות."}
           <br/>
-          אפשר לנסות שוב. אם זה חוזר, שלחי לנו את השורה הקטנה שלמטה.
+          {loadError.offline
+            ? "בדקי את החיבור ונסי שוב."
+            : "אפשר לנסות שוב. אם זה חוזר, שלחי לנו את השורה הקטנה שלמטה."}
         </p>
         <button
           type="button"
@@ -3879,13 +3930,19 @@ export default function BeautyOS() {
         >
           נסי שוב
         </button>
-        <button
-          type="button"
-          onClick={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
-          style={{width:"100%",padding:"12px 20px",borderRadius:999,border:"1px solid var(--line,#E2D6EA)",background:"transparent",color:"var(--ink-2,#5B3E67)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
-        >
-          יציאה והתחברות מחדש
-        </button>
+        {/* Sign-out is hidden while offline ON PURPOSE. Signing out clears the
+            local session, and with no network she cannot sign back in - the
+            "fix it" button would lock her out of her own app until the
+            connection returns. It is only useful for a genuine auth problem. */}
+        {!loadError.offline && (
+          <button
+            type="button"
+            onClick={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+            style={{width:"100%",padding:"12px 20px",borderRadius:999,border:"1px solid var(--line,#E2D6EA)",background:"transparent",color:"var(--ink-2,#5B3E67)",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+          >
+            יציאה והתחברות מחדש
+          </button>
+        )}
         <p style={{fontSize:11,color:"var(--ink-3,#9A93A3)",margin:"18px 0 0",direction:"ltr",fontFamily:"ui-monospace,Menlo,Consolas,monospace",wordBreak:"break-word"}}>
           {loadError.tables.join(", ")}{loadError.code ? ` · ${loadError.code}` : ""}
         </p>
