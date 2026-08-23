@@ -1033,8 +1033,33 @@ export default function BeautyOS() {
 
   const isBusy = useCallback((key) => !!busy[key], [busy]);
 
+  // Is this a lost connection rather than a database refusal? The two look
+  // nothing alike to her and must never be reported the same way.
+  const isConnectionError = useCallback((err) => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+    const m = String(err?.message || "");
+    // The browsers' own wording, which differs per engine:
+    //   Chrome "Failed to fetch" | Safari "Load failed"
+    //   Firefox "NetworkError when attempting to fetch resource"
+    return /failed to fetch|load failed|networkerror|network request failed|fetch failed|err_internet_disconnected/i.test(m);
+  }, []);
+
   const handleDbError = useCallback((err, context = "") => {
     console.error(`[BeautyOS DB error] ${context}:`, err);
+    // A LOST CONNECTION IS NOT A DATABASE ERROR.
+    //
+    // Offline, supabase-js hands back the browser's own English string, and the
+    // fallback at the bottom of this function printed it raw:
+    //     "שגיאה: Failed to fetch"
+    // In an otherwise all-Hebrew app that reads as a broken system rather than a
+    // dropped signal, tells her nothing about what to do, and gives her no
+    // reason to believe her half-typed client is still safe on the screen
+    // behind the toast. It is - every save handler returns before clearing its
+    // form - so the message should say so.
+    if (isConnectionError(err)) {
+      toast("אין חיבור לאינטרנט. שום דבר לא אבד, והפרטים שהזנת עדיין כאן. נסי לשמור שוב כשהחיבור יחזור.", "error");
+      return;
+    }
     // A row-level-security denial on a write is exactly what the read-only gate
     // looks like from the browser. Translate it into the shared Hebrew
     // explanation rather than surfacing a raw Postgres string. This is the
@@ -1060,7 +1085,7 @@ export default function BeautyOS() {
       return;
     }
     toast(`שגיאה: ${message || "פעולה נכשלה"}`, "error");
-  }, [toast]);
+  }, [toast, isConnectionError]);
 
   const handleLogout = useCallback(() => {
     askConfirm({
@@ -2553,6 +2578,14 @@ export default function BeautyOS() {
       const tenantId = rpcTenant || settings.tenant_id || null;
       console.log("[SETTINGS DEBUG] resolved tenantId:", tenantId);
       if (!tenantId) {
+        // Offline, get_user_tenant_id cannot answer, so we can land here with a
+        // perfectly valid account. "Log out and back in" is the worst possible
+        // advice then: signing out clears the session and she cannot sign back
+        // in without a network. Same trap as the load-error screen.
+        if (isConnectionError(rpcErr) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+          toast("אין חיבור לאינטרנט. ההגדרות לא נשמרו, והפרטים עדיין כאן. נסי שוב כשהחיבור יחזור.", "error");
+          return;
+        }
         toast("לא זוהה עסק - נסי לצאת ולהיכנס שוב", "error");
         return;
       }
