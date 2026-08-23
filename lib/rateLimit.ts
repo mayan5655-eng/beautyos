@@ -75,6 +75,17 @@ export const RATE_POLICIES = {
       `סורק העור עמוס כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // Asking for help. She is already stuck, so the cap is only here to stop a
+  // stuck-and-hammering loop, never to be the thing that blocks her.
+  support: {
+    perIp: { limit: 10, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו כבר כמה הודעות. אפשר לשלוח שוב ${m}, או לכתוב לנו ישירות בוואטסאפ.`,
+    tenantMessage: (m: string) =>
+      `נשלחו כבר כמה הודעות. אפשר לשלוח שוב ${m}, או לכתוב לנו ישירות בוואטסאפ.`,
+  },
+
   // Opening a consent form. A read, and the client is standing in the clinic
   // waiting to sign, so it must not be the limit anyone trips. Loose, like
   // 'availability', for the same reason: making this fail is worse than not

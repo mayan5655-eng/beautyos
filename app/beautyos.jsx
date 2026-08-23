@@ -17,6 +17,7 @@ import TrialBanner from "./TrialBanner";
 import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
+import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -889,6 +890,43 @@ export default function BeautyOS() {
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
   const [loadError,         setLoadError]          = useState(null);
+  // -- "תקועה?" -- reaching a human from anywhere in the app ------------------
+  // Until now the only route to support was the WhatsApp link on the trial
+  // banner, which only appears when her PLAN needs attention. Someone stuck on
+  // day three with a perfectly healthy plan had nowhere to go.
+  const [showHelp,          setShowHelp]           = useState(false);
+  const [helpText,          setHelpText]           = useState("");
+  const [helpState,         setHelpState]          = useState("idle"); // idle|sending|sent|failed
+
+  const sendHelp = useCallback(async () => {
+    const message = helpText.trim();
+    if (!message || helpState === "sending") return;
+    setHelpState("sending");
+    // The last error her browser reported, so a vague "it broke" can still be
+    // traced to a real stack. Guarded: telemetry must never break the send.
+    let sentryEventId = null;
+    try { sentryEventId = (Sentry.lastEventId && Sentry.lastEventId()) || null; } catch { /* ignore */ }
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          tab: activeTab,
+          appVersion: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || "dev",
+          sentryEventId,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      // Success is rendered ONLY on an explicit success from the server. A
+      // "we got your message" that reached nobody is worse than an error: she
+      // stops asking and waits for a reply that is never coming.
+      if (res.ok && data && data.success) { setHelpState("sent"); return; }
+      setHelpState("failed");
+    } catch {
+      setHelpState("failed");
+    }
+  }, [helpText, helpState, activeTab]);
   const [uploading,         setUploading]          = useState(false);
   const [searchQuery,       setSearchQuery]        = useState("");
   const [globalSearch,      setGlobalSearch]       = useState("");
@@ -4291,6 +4329,79 @@ export default function BeautyOS() {
           #tax-report,#tax-report *{visibility:visible}
           #tax-report{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:720px;box-shadow:none!important;border:none!important;padding:32px 28px}}
       `}</style>
+
+      {/* -- "תקועה?" -- on every screen, above everything ------------------ */}
+      {!showHelp && (
+        <button
+          type="button"
+          onClick={() => { setShowHelp(true); setHelpState("idle"); }}
+          aria-label="תקועה? כתבי לנו"
+          style={{position:"fixed",insetInlineStart:14,bottom:14,zIndex:4500,padding:"10px 16px",borderRadius:999,border:"1px solid var(--line-2)",background:"var(--surface)",color:pcDeep,fontSize:12.5,fontWeight:700,fontFamily:"inherit",cursor:"pointer",boxShadow:"0 8px 20px rgba(74,46,90,0.16)"}}
+        >
+          תקועה?
+        </button>
+      )}
+
+      {showHelp && (
+        <div
+          dir="rtl"
+          onClick={() => setShowHelp(false)}
+          style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:5200,padding:14}}
+        >
+          <div onClick={(e)=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:"var(--surface)",borderRadius:20,padding:"22px 20px",boxShadow:"0 24px 60px rgba(74,46,90,0.28)"}}>
+            {helpState === "sent" ? (
+              <div style={{textAlign:"center"}}>
+                <div style={{fontSize:44,marginBottom:10}}>✅</div>
+                <h3 className="serif" style={{fontSize:19,fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
+                <p style={{fontSize:13,color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
+                  מעיין תחזור אלייך. אפשר להמשיך לעבוד בינתיים.
+                </p>
+                <button type="button" onClick={()=>{setShowHelp(false);setHelpText("");setHelpState("idle");}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--surface)",borderRadius:24,fontSize:13}}>סגירה</button>
+              </div>
+            ) : (
+              <>
+                <h3 className="serif" style={{fontSize:19,fontWeight:600,marginBottom:4,color:"var(--ink)"}}>תקועה?</h3>
+                <p style={{fontSize:12.5,color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
+                  כתבי מה קרה, ומעיין תחזור אלייך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
+                </p>
+                <textarea
+                  value={helpText}
+                  onChange={(e)=>{setHelpText(e.target.value); if(helpState==="failed") setHelpState("idle");}}
+                  rows={5}
+                  maxLength={4000}
+                  placeholder="מה קרה? אפשר גם רק במשפט אחד."
+                  style={{width:"100%",padding:"11px 12px",borderRadius:12,border:"1px solid var(--line-2)",fontSize:13,fontFamily:"inherit",resize:"vertical",lineHeight:1.6,boxSizing:"border-box",background:"var(--surface-2)",color:"var(--ink)"}}
+                />
+                {helpState === "failed" && (
+                  <div style={{marginTop:10,padding:"11px 12px",borderRadius:12,background:"var(--brand-cream, #FEFAF7)",border:"1px solid var(--line-2)"}}>
+                    <p style={{fontSize:12.5,fontWeight:700,color:"var(--danger)",marginBottom:4}}>ההודעה לא נשלחה</p>
+                    <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6,marginBottom:9}}>
+                      לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן, ואפשר לשלוח אותו ישירות בוואטסאפ.
+                    </p>
+                    <a
+                      href={supportWhatsAppUrl(helpText.trim() || SUPPORT_WHATSAPP_MESSAGE)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{display:"block",textAlign:"center",padding:"10px 0",borderRadius:24,background:"#25D366",color:"#fff",fontSize:12.5,fontWeight:700,textDecoration:"none"}}
+                    >
+                      ✆ שליחה בוואטסאפ
+                    </a>
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8,marginTop:12}}>
+                  <button type="button" onClick={()=>setShowHelp(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1.5px solid var(--line-2)",borderRadius:24,background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
+                  <button type="button" onClick={sendHelp} disabled={!helpText.trim()||helpState==="sending"} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",borderRadius:24,fontSize:12,opacity:(!helpText.trim()||helpState==="sending")?0.55:1}}>
+                    {helpState==="sending"?"שולחת...":helpState==="failed"?"נסי לשלוח שוב":"שליחה"}
+                  </button>
+                </div>
+                <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:10,lineHeight:1.5,textAlign:"center"}}>
+                  לא נשלחים שמות לקוחות, טלפונים או פרטי טיפול. רק מה שכתבת כאן.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TOASTS */}
       {toasts.length>0&&(
