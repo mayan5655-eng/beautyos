@@ -75,6 +75,30 @@ export const RATE_POLICIES = {
       `סורק העור עמוס כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // Opening a consent form. A read, and the client is standing in the clinic
+  // waiting to sign, so it must not be the limit anyone trips. Loose, like
+  // 'availability', for the same reason: making this fail is worse than not
+  // capping it.
+  'form-fetch': {
+    perIp: { limit: 40, windowMs: 10 * MINUTE },
+    perTenant: { limit: 200, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `המערכת עמוסה כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Signing one. A write, and a legal record, so tighter than the read - but
+  // still well above what one person filling in one form could ever need.
+  'form-sign': {
+    perIp: { limit: 10, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `המערכת עמוסה כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   // A read, and one the booking page cannot work without: /book calls it on
   // every load to find out which slots are already taken. So this is the
   // LOOSEST policy of all, on purpose.
