@@ -1917,30 +1917,80 @@ export default function BeautyOS() {
     } catch { /* non-fatal: the cancellation already succeeded */ }
   };
 
+  // ── SOFT CANCEL ───────────────────────────────────────────────────────────
+  // Her cancel used to DELETE the row while a client's cancel (app/api/confirm)
+  // set confirmation_status = 'cancelled'. Two meanings of "cancelled" in one
+  // calendar: a client-cancelled appointment stayed visible and marked, hers
+  // vanished without trace - no record that it ever existed, who cancelled it,
+  // or when. That is also the only copy of the appointment.
+  //
+  // Both paths now write the same soft cancel. The calendar was ALREADY built
+  // for this: red border, "ביטלה"/"בוטל" chips, the day-cell indicator and the
+  // dashboard's cancelled count all key off confirmation_status. They simply
+  // never saw one of hers.
+  //
+  // cancelled_at / cancelled_by are added by
+  // supabase/migrations/pending/appointment-cancel-audit.sql. Until that runs
+  // the columns do not exist, so a write naming them fails - and refusing to
+  // cancel because an audit column is missing would be the worse failure. So
+  // the write is retried without them, and the cancel still happens.
+  const softCancelAppointment = useCallback(async (appt, by = "business") => {
+    const withAudit = {
+      confirmation_status: "cancelled",
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: by,
+    };
+    let res = await supabase.from("appointments").update(withAudit).eq("id", appt.id).select();
+    const missingColumn =
+      res.error &&
+      (res.error.code === "42703" ||
+        res.error.code === "PGRST204" ||
+        /column .* does not exist|could not find the '.*' column/i.test(String(res.error.message || "")));
+    if (missingColumn) {
+      res = await supabase
+        .from("appointments")
+        .update({ confirmation_status: "cancelled" })
+        .eq("id", appt.id)
+        .select();
+    }
+    return res;
+  }, []);
+
   const handleDelete = (appt) => {
     if (guardWrite()) return;
     askConfirm({
-      title: "מחיקת תור",
-      message: `למחוק את התור של ${appt.name} (${appt.service}, ${appt.date} ${fmtApptTime(appt)})?`,
-      confirmText: "מחיקה",
+      title: "ביטול תור",
+      message: `לבטל את התור של ${appt.name} (${appt.service}, ${appt.date} ${fmtApptTime(appt)})? התור יסומן כמבוטל וישאר ביומן.`,
+      confirmText: "ביטול התור",
       danger: true,
       onConfirm: async () => {
-        const {error} = await supabase.from("appointments").delete().eq("id",appt.id);
-        if (error) { handleDbError(error, "delete appointment"); return; }
-        setAppointments(prev=>prev.filter(a=>a.id!==appt.id));
+        const previousStatus = appt.confirmation_status || "pending";
+        const { data, error } = await softCancelAppointment(appt);
+        if (error) { handleDbError(error, "cancel appointment"); return; }
+        const updated = (data && data[0]) || { ...appt, confirmation_status: "cancelled" };
+        setAppointments(prev=>prev.map(a=>a.id===appt.id?updated:a));
         setHoveredAppt(null);
-        // Undo: re-insert the appointment (DB assigns a fresh id; tenant_id is
-        // preserved so the RLS check still passes).
+        // Undo restores the previous status in place. No re-insert, so the row
+        // keeps its id and every receipt or form pointing at it stays valid -
+        // the old undo created a NEW row with a fresh id and silently orphaned
+        // anything that referenced the original.
         let restored = false;
         const restore = async () => {
           restored = true;
-          const { id, created_at, ...rest } = appt;
-          const { data, error: rErr } = await supabase.from("appointments").insert([rest]).select();
-          if (rErr) { handleDbError(rErr, "restore appointment"); return; }
-          if (data) setAppointments(prev=>[...prev, data[0]]);
+          let r = await supabase.from("appointments")
+            .update({ confirmation_status: previousStatus, cancelled_at: null, cancelled_by: null })
+            .eq("id", appt.id).select();
+          if (r.error && (r.error.code === "42703" || r.error.code === "PGRST204" ||
+              /column .* does not exist|could not find the '.*' column/i.test(String(r.error.message || "")))) {
+            r = await supabase.from("appointments")
+              .update({ confirmation_status: previousStatus })
+              .eq("id", appt.id).select();
+          }
+          if (r.error) { handleDbError(r.error, "restore appointment"); return; }
+          if (r.data && r.data[0]) setAppointments(prev=>prev.map(a=>a.id===appt.id?r.data[0]:a));
           toast("התור שוחזר");
         };
-        toast("התור נמחק", "success", { label: "ביטול", onClick: restore });
+        toast("התור בוטל", "success", { label: "החזרה", onClick: restore });
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
         // an appointment the cosmetician restored. Gated by the settings toggle.
@@ -3121,9 +3171,12 @@ export default function BeautyOS() {
     if (isBusy("voiceCancel")) return;
     setBusyKey("voiceCancel", true);
     try {
-      const {error} = await supabase.from("appointments").delete().eq("id", appt.id);
+      // Soft cancel, same as handleDelete - this used to DELETE the row, so a
+      // voice cancellation destroyed the appointment outright.
+      const { data, error } = await softCancelAppointment(appt);
       if (error) { handleDbError(error, "cancel appointment (voice)"); return; }
-      setAppointments(prev => prev.filter(a => a.id !== appt.id));
+      const updated = (data && data[0]) || { ...appt, confirmation_status: "cancelled" };
+      setAppointments(prev => prev.map(a => a.id === appt.id ? updated : a));
       closeVoice();
       toast("התור בוטל");
     } finally {
