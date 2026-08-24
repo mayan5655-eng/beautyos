@@ -35,24 +35,49 @@ export default function LandingPage() {
   const [settings, setSettings] = useState(null);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  // null | "notfound" | "failed". Splitting these is the point: a blocked or
+  // broken read used to render as "this business does not exist" on her public
+  // landing page, which is the page she puts in her Instagram bio.
+  const [loadError, setLoadError] = useState(null);
+  // Separate, because a failed SERVICES read must not blank the whole page -
+  // but it must not render as "she offers no treatments" either.
+  const [servicesFailed, setServicesFailed] = useState(false);
 
   useEffect(() => {
     if (slug) loadData();
   }, [slug]);
 
   const loadData = async () => {
+    setLoading(true);
+    setLoadError(null);
+    setServicesFailed(false);
     try {
-      // 1. Find the tenant by slug
-      const { data: tenantData, error: tenantErr } = await supabase
-        .from("tenants")
-        .select("*")
-        .eq("slug", slug)
-        .single();
+      // 1. Find the tenant by slug.
+      //
+      // Through get_public_tenant_by_slug (SECURITY DEFINER), NOT a direct
+      // table read. This page was the ONLY anonymous reader of public.tenants,
+      // and that read is what kept the world-readable public_read_tenants
+      // policy alive. The RPC returns exactly the two fields this page uses -
+      // id and name - so plan_status, plan_price, the trial dates,
+      // signup_source, business_description, target_audience and owner_id stop
+      // being reachable by anyone with the anon key.
+      //
+      // An unknown slug comes back as an empty array with no error, so "no such
+      // business" and "the lookup failed" are finally distinguishable.
+      const { data: rows, error: rpcErr } = await supabase
+        .rpc("get_public_tenant_by_slug", { p_slug: slug });
 
-      if (tenantErr || !tenantData) {
-        setNotFound(true);
-        setLoading(false);
+      if (rpcErr) {
+        // Could not find out. NOT the same as "does not exist" - this used to
+        // be the same branch, so a transient failure told a real client that a
+        // real business was not there.
+        console.error("Landing tenant lookup failed:", rpcErr.message);
+        setLoadError("failed");
+        return;
+      }
+      const tenantData = Array.isArray(rows) ? rows[0] : rows;
+      if (!tenantData) {
+        setLoadError("notfound");   // genuinely no business at this slug
         return;
       }
       setTenant(tenantData);
@@ -66,10 +91,18 @@ export default function LandingPage() {
       ]);
 
       if (settingsRow) setSettings(settingsRow);
-      if (servicesRes.data) setServices(servicesRes.data.filter((s) => s.active !== false));
+      // A failed services read is recorded, not swallowed. Before, the page
+      // simply rendered no treatment list - a business with a full price list
+      // looked like a business that offers nothing.
+      if (servicesRes.error) {
+        console.error("Landing services load failed:", servicesRes.error.message);
+        setServicesFailed(true);
+      } else {
+        setServices((servicesRes.data || []).filter((s) => s.active !== false));
+      }
     } catch (err) {
       console.error("Landing load error:", err);
-      setNotFound(true);
+      setLoadError("failed");
     } finally {
       setLoading(false);
     }
@@ -80,7 +113,12 @@ export default function LandingPage() {
   const therapistName = settings?.therapist_name || "";
   const bgSoft = lighten(pc, 0.92);
   const bgSoft2 = lighten(pc, 0.85);
-  const bookUrl = `/book?biz=${slug}`;
+  // /book reads ?t=<tenant uuid> (app/book/page.jsx line 79). This was
+  // ?biz=<slug>, which /book does not read at all: it found no tenant and
+  // showed its "link is not valid" screen. The primary call to action on every
+  // landing page - the button that turns a visitor into a booking - went
+  // nowhere. The id comes from the RPC above.
+  const bookUrl = tenant?.id ? `/book?t=${encodeURIComponent(tenant.id)}` : "/book";
 
   // === LOADING ===
   if (loading) {
@@ -92,7 +130,29 @@ export default function LandingPage() {
   }
 
   // === NOT FOUND ===
-  if (notFound) {
+  // Could not load. Deliberately NOT the "page does not exist" screen: telling
+  // a prospective client that a real business is not there is the worst
+  // possible answer to a dropped request.
+  if (loadError === "failed") {
+    return (
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>⚠️</div>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 8 }}>לא הצלחנו לטעון את הדף</h1>
+        <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", marginBottom: 20, maxWidth: 320, lineHeight: 1.7 }}>
+          העסק קיים, פשוט לא הצלחנו להביא את הפרטים כרגע. אפשר לנסות שוב.
+        </p>
+        <button
+          type="button"
+          onClick={() => loadData()}
+          style={{ padding: "12px 30px", borderRadius: 999, border: "none", background: "var(--ink, #2A2233)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          נסי שוב
+        </button>
+      </div>
+    );
+  }
+
+  if (loadError === "notfound") {
     return (
       <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🤔</div>
@@ -133,6 +193,15 @@ export default function LandingPage() {
         </a>
 
         {/* SERVICES */}
+        {/* The list could not be read. Saying so is the honest answer; an empty
+            section reads as "this clinic offers nothing". */}
+        {servicesFailed && services.length === 0 && (
+          <div className="ld-in" style={{ textAlign: "center", padding: "10px 14px", marginBottom: 14, borderRadius: 12, background: "rgba(255,255,255,0.6)" }}>
+            <p style={{ fontSize: 13, color: "var(--brand-muted, #98879B)", lineHeight: 1.7 }}>
+              לא הצלחנו לטעון את רשימת הטיפולים כרגע. אפשר לקבוע תור והעסק יחזור אלייך עם הפרטים.
+            </p>
+          </div>
+        )}
         {services.length > 0 && (
           <div className="ld-in">
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 14, textAlign: "center" }}>הטיפולים שלנו</h2>

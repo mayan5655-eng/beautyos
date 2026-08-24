@@ -1366,7 +1366,13 @@ export default function BeautyOS() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[showModal,newAppt.date,apptDayHours?.open,apptDayHours?.close]);
 
-  useEffect(()=>{ loadAll(); /* eslint-disable-next-line */ },[]);
+  // Mount only. loadAll is a plain function, recreated on every render, so
+  // listing it here would re-run the whole eleven-table load on every render.
+  // The previous directive was a BLOCK comment on this same line, so
+  // "next-line" pointed at the blank line below and suppressed nothing - the
+  // warning had been firing ever since.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{ loadAll(); },[]);
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
   // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
