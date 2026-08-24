@@ -24,6 +24,8 @@
 -- read the underlying tables anyway. Wrapping it keeps the panel working
 -- without handing the panel's role any table access of its own.
 
+begin;
+
 create or replace function public.platform_tenant_metrics()
 returns table (
   id                 uuid,
@@ -64,11 +66,19 @@ as $$
     -- "Is she still using it": the most recent thing she created, whichever
     -- table it landed in. A booking made FOR her counts too, which is the
     -- honest reading of an active business.
-    greatest(
+    -- The three created_at columns below are `timestamp WITHOUT time zone`,
+    -- while this function returns `timestamptz`. A LANGUAGE sql body is
+    -- validated at CREATE time, so without an explicit conversion the whole
+    -- function fails to create with "structure of query does not match function
+    -- result type" - and, because this file is not wrapped in a transaction,
+    -- admin_audit_log below would still be created, leaving a half-applied
+    -- migration that looks like it worked. `at time zone 'UTC'` is the correct
+    -- conversion: those columns are written by the app as UTC.
+    (greatest(
       (select max(a.created_at) from public.appointments a where a.tenant_id = t.id),
       (select max(c.created_at) from public.clients c      where c.tenant_id = t.id),
       (select max(r.created_at) from public.receipts r     where r.tenant_id = t.id)
-    ) as last_activity_at,
+    ) at time zone 'UTC') as last_activity_at,
     -- Setup progress, mirroring the seven-step checklist in app/beautyos.jsx so
     -- the panel can show who is stuck BEFORE she gives up. Counted here rather
     -- than shipped as raw settings, so no settings column leaves the database.
@@ -121,6 +131,8 @@ create index if not exists idx_admin_audit_created
   on public.admin_audit_log (created_at desc);
 create index if not exists idx_admin_audit_tenant
   on public.admin_audit_log (tenant_id, created_at desc);
+
+commit;
 
 -- ── Verify ─────────────────────────────────────────────────────────────────
 --
