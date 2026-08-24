@@ -97,7 +97,9 @@ ${customFieldsText}
   // Step 3: Call Claude
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      // Unsuffixed on purpose: the model id is complete as-is, and pinning a
+      // dated variant silently ties this to one snapshot.
+      model: 'claude-haiku-4-5',
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     })

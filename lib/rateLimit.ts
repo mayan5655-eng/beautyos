@@ -75,6 +75,19 @@ export const RATE_POLICIES = {
       `סורק העור עמוס כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // Analysing an uploaded CSV of leads. Each call costs one Claude request,
+  // so this is capped tighter than the read-only endpoints - but it is an
+  // authenticated action a cosmetician takes deliberately, a handful of times
+  // while she gets the column mapping right, so it must not fight her.
+  'leads-import': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נותחו יותר מדי קבצים מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `נותחו יותר מדי קבצים כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   // Asking for help. She is already stuck, so the cap is only here to stop a
   // stuck-and-hammering loop, never to be the thing that blocks her.
   support: {
