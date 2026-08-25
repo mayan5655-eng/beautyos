@@ -9,7 +9,7 @@
 // variable.
 //
 // ── What is encrypted, and what deliberately is not ────────────────────────
-//   green_api_token      ENCRYPTED. The only actual credential.
+//   green_api_token_encrypted   The only actual credential. AES-256-GCM.
 //   green_api_instance   PLAINTEXT, on purpose. app/api/whatsapp-webhook finds
 //                        the tenant with .eq("green_api_instance", idInstance),
 //                        and AES-GCM's random IV means the same plaintext
@@ -18,12 +18,11 @@
 //                        An idInstance is an account number, not a secret.
 //   green_api_url        PLAINTEXT. A hostname.
 //
-// ── Reads BOTH during the cutover ──────────────────────────────────────────
-// The migration runs in stages: add column -> deploy -> backfill -> drop. For
-// the window between the deploy and the drop, a row may hold either form. This
-// prefers the encrypted value and falls back to the plaintext one, so a request
-// in flight during the cutover keeps working. Once the plaintext column is
-// dropped the fallback becomes dead code and can go.
+// ── The cutover is done ────────────────────────────────────────────────────
+// public.settings.green_api_token was dropped, so there is exactly one form to
+// read and one to write. The dual-read that carried the migration is gone: it
+// could only ever have found a column that no longer exists, and leaving it in
+// would imply one still might.
 
 import { createClient } from '@supabase/supabase-js';
 // Relative + explicit .ts so node can load this module directly (node strips
@@ -36,8 +35,9 @@ export interface GreenApiCredentials {
   idInstance: string;
   apiToken: string;
   apiUrl: string | null;
-  /** Where the token came from. Useful while both columns exist. */
-  tokenSource: 'encrypted' | 'plaintext-legacy' | 'none';
+  /** Always 'encrypted' when a token is present. Kept so callers and logs can
+   *  assert it, rather than assuming. */
+  tokenSource: 'encrypted' | 'none';
 }
 
 function admin() {
@@ -46,26 +46,6 @@ function admin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
-}
-
-/** Column list that tolerates the plaintext column being absent post-drop. */
-async function selectSettings(tenantId: string) {
-  const db = admin();
-  const withLegacy = await db
-    .from('settings')
-    .select('green_api_instance, green_api_url, green_api_token, green_api_token_encrypted')
-    .eq('tenant_id', tenantId)
-    .limit(1);
-
-  if (!withLegacy.error) return withLegacy;
-
-  // After drop-green-api-token-plaintext.sql the legacy column is gone and the
-  // select above fails on an unknown column. Retry without it.
-  return db
-    .from('settings')
-    .select('green_api_instance, green_api_url, green_api_token_encrypted')
-    .eq('tenant_id', tenantId)
-    .limit(1);
 }
 
 /**
@@ -80,7 +60,11 @@ async function selectSettings(tenantId: string) {
 export async function readCredentials(tenantId: string): Promise<GreenApiCredentials | null> {
   if (!tenantId) return null;
 
-  const { data, error } = await selectSettings(tenantId);
+  const { data, error } = await admin()
+    .from('settings')
+    .select('green_api_instance, green_api_url, green_api_token_encrypted')
+    .eq('tenant_id', tenantId)
+    .limit(1);
   if (error) {
     console.error('[greenApi] settings read failed:', error.message);
     return null;
@@ -91,49 +75,33 @@ export async function readCredentials(tenantId: string): Promise<GreenApiCredent
   const idInstance = String(row.green_api_instance ?? '').trim();
   if (!idInstance) return null;
 
-  let apiToken = '';
-  let tokenSource: GreenApiCredentials['tokenSource'] = 'none';
-
   const enc = String(row.green_api_token_encrypted ?? '').trim();
-  if (enc) {
-    try {
-      apiToken = decryptToken(enc);
-      tokenSource = 'encrypted';
-    } catch (e) {
-      // A token that will not decrypt is NOT a token. Do not fall through to
-      // the plaintext column: if both exist and the ciphertext is broken,
-      // something is wrong that silently using the old value would hide.
-      console.error(
-        `[greenApi] decrypt FAILED for tenant ${tenantId}:`,
-        e instanceof Error ? e.message : String(e)
-      );
-      return null;
-    }
-  } else {
-    const legacy = String(row.green_api_token ?? '').trim();
-    if (legacy) {
-      apiToken = legacy;
-      tokenSource = 'plaintext-legacy';
-    }
-  }
+  if (!enc) return null;
 
+  let apiToken: string;
+  try {
+    apiToken = decryptToken(enc);
+  } catch (e) {
+    // A token that will not decrypt is NOT a token. Returning null means "not
+    // connected", so the caller refuses to send rather than reaching for
+    // another business's instance.
+    console.error(
+      `[greenApi] decrypt FAILED for tenant ${tenantId}:`,
+      e instanceof Error ? e.message : String(e)
+    );
+    return null;
+  }
   if (!apiToken) return null;
 
   return {
     idInstance,
     apiToken,
     apiUrl: String(row.green_api_url ?? '').trim() || null,
-    tokenSource,
+    tokenSource: 'encrypted',
   };
 }
 
-/**
- * Store a token, encrypted. The plaintext never touches the database.
- *
- * The legacy column is cleared in the same update when it is still present, so
- * saving a new token cannot leave a stale plaintext copy behind - which would
- * otherwise be the one thing this whole migration was meant to remove.
- */
+/** Store a token, encrypted. The plaintext never touches the database. */
 export async function writeToken(tenantId: string, plaintext: string): Promise<{ ok: boolean; error?: string }> {
   if (!tenantId) return { ok: false, error: 'no tenant' };
   const value = String(plaintext ?? '').trim();
@@ -149,45 +117,32 @@ export async function writeToken(tenantId: string, plaintext: string): Promise<{
     return { ok: false, error: 'encryption unavailable' };
   }
 
-  const db = admin();
-  const withLegacy = await db
-    .from('settings')
-    .update({ green_api_token_encrypted: encrypted, green_api_token: null })
-    .eq('tenant_id', tenantId)
-    .select('tenant_id');
-
-  if (!withLegacy.error) return { ok: (withLegacy.data?.length ?? 0) > 0 };
-
-  const post = await db
+  const { data, error } = await admin()
     .from('settings')
     .update({ green_api_token_encrypted: encrypted })
     .eq('tenant_id', tenantId)
     .select('tenant_id');
 
-  if (post.error) {
-    console.error('[greenApi] token write failed:', post.error.message);
-    return { ok: false, error: post.error.message };
+  if (error) {
+    console.error('[greenApi] token write failed:', error.message);
+    return { ok: false, error: error.message };
   }
-  return { ok: (post.data?.length ?? 0) > 0 };
+  return { ok: (data?.length ?? 0) > 0 };
 }
 
-/** Disconnect: clear both forms. */
+/** Disconnect. */
 export async function clearToken(tenantId: string): Promise<{ ok: boolean; error?: string }> {
   if (!tenantId) return { ok: false, error: 'no tenant' };
-  const db = admin();
 
-  const withLegacy = await db
-    .from('settings')
-    .update({ green_api_token_encrypted: null, green_api_token: null })
-    .eq('tenant_id', tenantId)
-    .select('tenant_id');
-  if (!withLegacy.error) return { ok: true };
-
-  const post = await db
+  const { error } = await admin()
     .from('settings')
     .update({ green_api_token_encrypted: null })
     .eq('tenant_id', tenantId)
     .select('tenant_id');
-  if (post.error) return { ok: false, error: post.error.message };
+
+  if (error) {
+    console.error('[greenApi] token clear failed:', error.message);
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }

@@ -2735,12 +2735,11 @@ export default function BeautyOS() {
       delete payload.id;
       delete payload.created_at;
       delete payload.tenant_id;
-      // The GreenAPI token is NOT written from the browser any more. It is
-      // encrypted server-side by /api/settings/whatsapp, which is the only
-      // writer. Sending it here would put plaintext back into the column this
-      // migration exists to empty. The encrypted column is stripped too - the
-      // browser has no business round-tripping ciphertext it cannot read.
-      delete payload.green_api_token;
+      // The GreenAPI token is NOT written from the browser. It is encrypted
+      // server-side by /api/settings/whatsapp, the only writer. The ciphertext
+      // is stripped here because the browser has no business round-tripping a
+      // value it cannot read - and sending it back would overwrite a token
+      // saved since this screen was opened.
       delete payload.green_api_token_encrypted;
       payload.tenant_id = tenantId;
       if ("bot_active" in payload) {
