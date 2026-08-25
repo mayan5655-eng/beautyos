@@ -166,6 +166,14 @@ const _PLAN_PRO     = [..._PLAN_BASIC, "marketing","leads","whatsapp","birthdays
 const _PLAN_PREMIUM = [..._PLAN_PRO, "advisor","skinscan","reels","community"];
 const PLAN_FEATURES = {
   none:    [],            // עסק שעדיין לא בחר מנוי
+  // A tenant in her 30-day trial. The signup trigger writes plan = 'trial'
+  // (verified against a real test signup), and this map had no such key - so
+  // PLAN_FEATURES['trial'] was undefined and planAllows fell through to
+  // (undefined || []).includes(...), i.e. FALSE for every feature. A trialling
+  // cosmetician would have seen an empty product on day one, which is the
+  // opposite of what a trial is for. Harmless until now only because
+  // planAllows has no callers yet.
+  trial:   _PLAN_PREMIUM, // a trial shows the whole product
   basic:   _PLAN_BASIC,
   pro:     _PLAN_PRO,
   premium: _PLAN_PREMIUM,
@@ -174,9 +182,16 @@ const PLAN_FEATURES = {
 // planAllows(plan, feature) -> true/false: האם לרמה יש גישה לפיצ'ר.
 //  • premium מקבל תמיד הכל — כולל פיצ'רים עתידיים שלא רשומים במיפוי
 //    (כך שמשתמשת premium לעולם לא תיחסם בטעות).
+//  • trial מקבל בדיוק כמו premium — כולל פיצ'רים עתידיים.
 //  • פיצ'ר שלא רשום במיפוי של basic/pro -> false עבורן (= premium-only כברירת מחדל).
+//
+// 'trial' is in the catch-all as well as in the map above, and needs to be in
+// BOTH. The map alone would give a trialling tenant today's premium features
+// but silently withhold any feature added later and not registered - so a trial
+// would drift out of "the full product" over time, in exactly the quiet way
+// this whole fix exists to prevent.
 const planAllows = (plan, feature) => {
-  if (plan === "premium") return true;
+  if (plan === "premium" || plan === "trial") return true;
   return (PLAN_FEATURES[plan] || []).includes(feature);
 };
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
