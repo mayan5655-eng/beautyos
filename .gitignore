@@ -52,3 +52,7 @@ next-env.d.ts
 
 # Local-only copy of the confirm-link signing secret. Never commit.
 CONFIRM_LINK_SECRET.local.txt
+
+# Real client data. Lead exports are copied here to be dry-run and then
+# deleted; they must never be committable even by accident.
+*.csv
