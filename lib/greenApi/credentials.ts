@@ -26,7 +26,11 @@
 // dropped the fallback becomes dead code and can go.
 
 import { createClient } from '@supabase/supabase-js';
-import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
+// Relative + explicit .ts so node can load this module directly (node strips
+// types natively). That is what lets the decrypt path be exercised by a real
+// script instead of a second copy of the crypto - the drift that has already
+// bitten twice in this codebase. Next resolves it the same way.
+import { encryptToken, decryptToken } from '../facebook/encryption.ts';
 
 export interface GreenApiCredentials {
   idInstance: string;
