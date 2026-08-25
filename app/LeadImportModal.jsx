@@ -2,12 +2,21 @@
 
 // app/LeadImportModal.jsx
 //
-// STAGE 2 of the CSV lead importer: pick a file, review the proposed mapping,
-// correct it, and see exactly what would land.
+// The CSV lead importer: pick a file, review the proposed mapping, correct it,
+// see exactly what would land, then import.
 //
-// NOTHING IS WRITTEN. The confirm button is disabled by design and says so.
-// The only network call is POST /api/leads/import/analyze, which itself writes
-// nothing and does not touch public.leads. Stage 3 adds the insert.
+// ── Where the write is ─────────────────────────────────────────────────────
+// THIS MODAL CAN NOW WRITE, on exactly one path:
+//
+//   preview  ->  [ייבוא N פניות]      opens the confirmation panel. No write.
+//   confirming -> [כן, ייבא N פניות]  the only place dryRun:false is sent.
+//
+// Two clicks, with the row count stated in between. The endpoint also treats a
+// missing or malformed dryRun field as a dry run, so a request that loses it
+// writes nothing rather than writing by accident.
+//
+// Analysing (/api/leads/import/analyze) still writes nothing and never touches
+// public.leads.
 //
 // ── Why the preview recomputes locally ─────────────────────────────────────
 // The analyze response carries the parsed rows, so changing a column in a
@@ -33,9 +42,17 @@ const FIELD_LABELS = {
 };
 const FIELD_ORDER = ['name', 'phone', 'email', 'source', 'notes', 'service_interest'];
 
-export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow }) {
+export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad, pcShadow }) {
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
+  // The File itself is kept because the commit re-posts it: the server rebuilds
+  // the rows from the bytes rather than trusting rows the client derived.
+  const [file, setFile] = useState(null);
+  // 'preview' -> 'confirming' -> 'importing' -> 'done'. The write happens only
+  // on the button in 'confirming', never on the one in 'preview'.
+  const [stage, setStage] = useState('preview');
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
@@ -44,6 +61,7 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
 
   const reset = useCallback(() => {
     setFileName(''); setAnalyzing(false); setError(''); setResult(null); setMapping({});
+    setFile(null); setStage('preview'); setImportResult(null); setImportError('');
     if (fileRef.current) fileRef.current.value = '';
   }, []);
 
@@ -51,6 +69,7 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
 
   const analyze = useCallback(async (file) => {
     setAnalyzing(true); setError(''); setResult(null); setMapping({});
+    setStage('preview'); setImportResult(null); setImportError('');
     try {
       const form = new FormData();
       form.append('file', file);
@@ -73,10 +92,11 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
   }, []);
 
   const onPick = useCallback((e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setFileName(file.name);
-    analyze(file);
+    const picked = e.target.files && e.target.files[0];
+    if (!picked) return;
+    setFileName(picked.name);
+    setFile(picked);
+    analyze(picked);
   }, [analyze]);
 
   // The whole preview, recomputed whenever she changes a dropdown.
@@ -86,6 +106,40 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
   }, [result, mapping]);
 
   const phoneMapped = !!mapping.phone;
+
+  // THE ONLY PLACE dryRun:false IS EVER SENT.
+  //
+  // Reachable from exactly one button, in the 'confirming' stage, after a panel
+  // that states the row count. The preview's button does not write - it only
+  // moves to that panel. The endpoint also defaults to a dry run, so a request
+  // that loses this field writes nothing rather than writing by accident.
+  const runImport = useCallback(async () => {
+    if (!file || !mapping.phone) return;
+    setStage('importing'); setImportError(''); setImportResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('mapping', JSON.stringify(mapping));
+      form.append('dryRun', 'false');   // explicit, on this click only
+      const res = await fetch('/api/leads/import/commit', { method: 'POST', body: form });
+      const data = await res.json().catch(() => null);
+      if (!data) {
+        setImportError('לא קיבלנו תשובה מהשרת. ייתכן שחלק מהפניות נשמרו — רענני ובדקי לפני ניסיון נוסף.');
+        setStage('done');
+        return;
+      }
+      setImportResult(data);
+      // Partial failures still land rows, so the list is reloaded either way.
+      if (data.result && data.result.landed > 0 && onImported) onImported();
+      if (!data.success && !data.result) setImportError(data.error || 'הייבוא נכשל');
+      setStage('done');
+    } catch {
+      // The request may have reached the server and committed before the
+      // connection dropped, so this must NOT claim nothing was written.
+      setImportError('החיבור נקטע. ייתכן שחלק מהפניות כבר נשמרו — רענני ובדקי לפני ניסיון נוסף.');
+      setStage('done');
+    }
+  }, [file, mapping, onImported]);
 
   if (!open) return null;
 
@@ -106,7 +160,13 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
           <div>
             <h3 className="serif" style={{ fontSize: 21, fontWeight: 600, color: 'var(--ink)' }}>ייבוא פניות מקובץ</h3>
             <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
-              שלב התצוגה בלבד. שום דבר עדיין לא נשמר.
+              {stage === 'done'
+                ? 'הייבוא הסתיים.'
+                : stage === 'importing'
+                  ? 'מייבאת — נא לא לסגור את החלון.'
+                  : stage === 'confirming'
+                    ? 'אישור אחרון לפני שמירה.'
+                    : 'תצוגה מקדימה. שום דבר עדיין לא נשמר.'}
             </p>
           </div>
           <button type="button" onClick={close} aria-label="סגירה"
@@ -263,21 +323,93 @@ export default function LeadImportModal({ open, onClose, pc, pcGrad, pcShadow })
           </>
         )}
 
+        {/* ── the confirmation step: states the count before anything fires ── */}
+        {stage === 'confirming' && preview && (
+          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: `1px solid ${pc}` }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
+              לייבא {preview.counts.valid} פניות?
+            </p>
+            <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75, marginBottom: 5 }}>
+              ייווצרו <strong>{preview.counts.valid}</strong> פניות חדשות בסטטוס <strong>{IMPORT_STATUS}</strong> ובמקור <strong>{IMPORT_SOURCE}</strong>.
+              {preview.counts.skipped > 0 && <> {preview.counts.skipped} שורות ידולגו.</>}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.7 }}>
+              זו הפעולה הראשונה שכותבת לבסיס הנתונים. אפשר להריץ שוב בבטחה אם משהו נכשל: הייבוא מזוהה לפי מספר הטלפון ולא יוצר כפילויות.
+            </p>
+          </div>
+        )}
+
+        {/* ── the result ── */}
+        {stage === 'done' && (
+          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
+            {importError ? (
+              <>
+                <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>הייבוא לא הושלם</p>
+                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.7 }}>{importError}</p>
+              </>
+            ) : importResult?.result ? (
+              <>
+                <p style={{ fontSize: 13.5, fontWeight: 700, color: importResult.success ? 'var(--success)' : 'var(--danger)', marginBottom: 6 }}>
+                  {importResult.success ? 'הייבוא הושלם' : 'הייבוא הושלם חלקית'}
+                </p>
+                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75 }}>{importResult.message}</p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                  <Stat label="נשמרו" value={importResult.result.landed} tone="ok" />
+                  {importResult.result.notLanded > 0 && <Stat label="לא נשמרו" value={importResult.result.notLanded} tone="warn" />}
+                  {typeof importResult.result.followUpLaterCountForTenant === 'number' && (
+                    <Stat label={`סה"כ ב-${IMPORT_STATUS}`} value={importResult.result.followUpLaterCountForTenant} />
+                  )}
+                </div>
+                {importResult.result.failedChunks > 0 && (
+                  <p style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 9, lineHeight: 1.7 }}>
+                    {importResult.result.failedChunks} מקטעים נכשלו. אפשר לסגור ולהריץ את אותו קובץ שוב — מה שכבר נשמר לא ישוכפל.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>{importResult?.error || 'הייבוא נכשל'}</p>
+            )}
+          </div>
+        )}
+
         {/* ── actions ── */}
         <div style={{ display: 'flex', gap: 9, alignItems: 'center', borderTop: '1px solid var(--line-2)', paddingTop: 14 }}>
-          <button type="button" onClick={close} className="primary-btn"
-            style={{ flex: 1, padding: '11px 0', border: '1.5px solid var(--line-2)', borderRadius: 24, background: 'var(--surface)', fontSize: 12, color: 'var(--ink-2)' }}>
-            סגירה
-          </button>
-          {/* Disabled on purpose, and it says why rather than looking broken. */}
-          <button type="button" disabled title="שלב 3 - עדיין לא פעיל"
-            style={{ flex: 2, padding: '11px 0', borderRadius: 24, border: 'none', background: 'var(--line-2)', color: 'var(--ink-3)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'not-allowed' }}>
-            ייבוא {preview ? preview.counts.valid : 0} פניות — עדיין לא פעיל
-          </button>
+          {stage === 'done' ? (
+            <button type="button" onClick={close} className="primary-btn"
+              style={{ flex: 1, padding: '11px 0', borderRadius: 24, border: 'none', background: pcGrad, color: 'var(--surface)', fontSize: 12, fontWeight: 700 }}>
+              סגירה
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={stage === 'confirming' ? () => setStage('preview') : close}
+                disabled={stage === 'importing'} className="primary-btn"
+                style={{ flex: 1, padding: '11px 0', border: '1.5px solid var(--line-2)', borderRadius: 24, background: 'var(--surface)', fontSize: 12, color: 'var(--ink-2)', opacity: stage === 'importing' ? 0.5 : 1 }}>
+                {stage === 'confirming' ? 'חזרה' : 'סגירה'}
+              </button>
+
+              {stage === 'preview' ? (
+                // Does NOT write. It only opens the confirmation panel above.
+                <button type="button"
+                  onClick={() => setStage('confirming')}
+                  disabled={!preview || preview.counts.valid === 0 || !phoneMapped}
+                  style={{ flex: 2, padding: '11px 0', borderRadius: 24, border: 'none', background: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--line-2)' : pcGrad, color: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--ink-3)' : 'var(--surface)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'not-allowed' : 'pointer' }}>
+                  ייבוא {preview ? preview.counts.valid : 0} פניות
+                </button>
+              ) : (
+                // THE WRITE. Only this button sends dryRun:false.
+                <button type="button" onClick={runImport} disabled={stage === 'importing'}
+                  style={{ flex: 2, padding: '11px 0', borderRadius: 24, border: 'none', background: pcGrad, color: 'var(--surface)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: stage === 'importing' ? 'wait' : 'pointer', opacity: stage === 'importing' ? 0.7 : 1 }}>
+                  {stage === 'importing' ? 'מייבאת…' : `כן, ייבא ${preview ? preview.counts.valid : 0} פניות`}
+                </button>
+              )}
+            </>
+          )}
         </div>
-        <p style={{ fontSize: 10.5, color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
-          שום דבר לא נשמר בשלב הזה. כפתור הייבוא ייפתח בשלב הבא, אחרי אישור.
-        </p>
+        {stage === 'preview' && (
+          <p style={{ fontSize: 10.5, color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
+            עדיין לא נשמר כלום. הכפתור פותח מסך אישור לפני הייבוא.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -4483,6 +4483,7 @@ export default function BeautyOS() {
       <LeadImportModal
         open={showLeadImport}
         onClose={()=>setShowLeadImport(false)}
+        onImported={()=>{ loadAll(); }}
         pc={pc}
         pcGrad={pcGrad}
         pcShadow={pcShadow}
