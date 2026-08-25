@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { decodeCsv, parseCsv, diagnoseCsv, maskValue } from './lib/leads/csvImport.ts';
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from './lib/leads/buildRows.ts';
+import { fallbackMapping, TARGET_FIELDS } from './lib/leads/mapHeaders.ts';
 
 const TENANT = 'b09637c8-a5c8-4b80-bda8-ff603f7ada60';
 const CHUNK = 50;
@@ -77,15 +78,32 @@ if (diagnosis.problem) {
 }
 line('diagnosis         : usable');
 
-// The mapping the preview would have produced for this shape.
-const mapping = {
-  name: headers.find((h) => /שם/.test(h)) ?? null,
-  phone: headers.find((h) => /טלפון|נייד/.test(h)) ?? null,
-  email: headers.find((h) => /מייל|mail/i.test(h)) ?? null,
-  source: headers.find((h) => /מאיפה|מקור/.test(h)) ?? null,
-  notes: headers.find((h) => /הערה|הערות/.test(h)) ?? null,
-  service_interest: headers.find((h) => /טיפול|שירות/.test(h)) ?? null,
-};
+// The mapping the preview would produce, from THE REAL fallbackMapping in
+// lib/leads/mapHeaders.ts - not a copy of it.
+//
+// This script originally carried its own little Hebrew-only regex here
+// (/טלפון|נייד/). On a file with LATIN headers - name, phone_local,
+// phone_intl - it matched nothing, reported 0 valid and 247 skipped for
+// "no phone", and looked exactly like a broken importer. The importer was
+// fine; the script had a second, worse implementation of a decision the
+// app already makes. Precisely the drift buildRows exists to prevent, so
+// the script now calls the same function the app calls.
+//
+// fallbackMapping is used rather than proposeMapping so the dry run stays
+// offline and deterministic - no API call, no key needed. Override any
+// column from the command line:  --phone=phone_intl  --name=name
+const overrides: Record<string, string> = {};
+for (const a of process.argv.slice(3)) {
+  const m = a.match(/^--([a-z_]+)=(.*)$/);
+  if (m) overrides[m[1]] = m[2];
+}
+const proposal = fallbackMapping(headers, 'dry run (offline, header matching)');
+const mapping: Record<string, string | null> = {};
+for (const f of TARGET_FIELDS) {
+  mapping[f] = overrides[f] !== undefined
+    ? (overrides[f] || null)
+    : proposal.mapping[f].csvColumn;
+}
 line('\nmapping used:');
 for (const [k, v] of Object.entries(mapping)) line(`  ${k.padEnd(18)} -> ${v ?? '— not imported —'}`);
 
