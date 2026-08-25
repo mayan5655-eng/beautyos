@@ -90,8 +90,13 @@ as $$
       + (case when exists (select 1 from public.service_prices sp where sp.tenant_id = t.id) then 1 else 0 end)
       + (case when s.working_hours_start is not null and s.working_hours_end is not null then 1 else 0 end)
       + (case when coalesce(nullif(btrim(s.primary_color), ''), '') <> '' then 1 else 0 end)
+      -- green_api_token_encrypted, NOT green_api_token: the plaintext column is
+      -- removed by drop-green-api-token-plaintext.sql, and this function would
+      -- fail to create against a column that no longer exists. Presence is all
+      -- the score needs - it never reads the value, and could not decrypt it
+      -- anyway, since the key lives in the app environment.
       + (case when coalesce(nullif(btrim(s.green_api_instance), ''), '') <> ''
-               and coalesce(nullif(btrim(s.green_api_token), ''), '') <> '' then 1 else 0 end)
+               and coalesce(nullif(btrim(s.green_api_token_encrypted), ''), '') <> '' then 1 else 0 end)
       from public.settings s
      where s.tenant_id = t.id
      limit 1

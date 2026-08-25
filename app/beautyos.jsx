@@ -908,6 +908,27 @@ export default function BeautyOS() {
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
   const [loadError,         setLoadError]          = useState(null);
+  // ── WhatsApp connection status ────────────────────────────────────────────
+  // The token is AES-256-GCM at rest and the server never returns it, so the
+  // browser can no longer tell "connected" by looking at settings.green_api_token
+  // - that field is gone from what it receives. This asks the server instead.
+  // { connected, idInstance } or null when unknown.
+  const [waStatus,          setWaStatus]           = useState(null);
+  const [waTokenInput,      setWaTokenInput]       = useState("");
+  const [waReplacing,       setWaReplacing]        = useState(false);
+  const [waSavingToken,     setWaSavingToken]      = useState(false);
+
+  const refreshWaStatus = useCallback(async () => {
+    try {
+      const r = await fetch("/api/settings/whatsapp");
+      const d = await r.json().catch(() => null);
+      // Unknown is NOT the same as disconnected: leave it null on failure so
+      // the UI can say "we could not check" rather than assert she is offline.
+      setWaStatus(d && d.success ? { connected: !!d.connected, idInstance: d.idInstance ?? null } : null);
+    } catch {
+      setWaStatus(null);
+    }
+  }, []);
   // -- "תקועה?" -- reaching a human from anywhere in the app ------------------
   // Until now the only route to support was the WhatsApp link on the trial
   // banner, which only appears when her PLAN needs attention. Someone stuck on
@@ -1229,7 +1250,8 @@ export default function BeautyOS() {
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
-    { key:"whatsapp", done: !!(settings.green_api_instance && String(settings.green_api_instance).trim() && settings.green_api_token && String(settings.green_api_token).trim()), label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
+    // Was: settings.green_api_token, which the browser no longer receives.
+    { key:"whatsapp", done: !!waStatus?.connected, label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
   ];
   // Guided, one step at a time - deliberately NOT an accordion. Only the next
   // incomplete step can be opened; completed ones sit collapsed with their tick
@@ -1391,6 +1413,10 @@ export default function BeautyOS() {
   // warning had been firing ever since.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ loadAll(); },[]);
+
+  // Separate from loadAll on purpose: this is one small status read, and a
+  // failure here must not be able to blank the dashboard.
+  useEffect(()=>{ refreshWaStatus(); },[refreshWaStatus]);
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
   // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
@@ -2709,6 +2735,13 @@ export default function BeautyOS() {
       delete payload.id;
       delete payload.created_at;
       delete payload.tenant_id;
+      // The GreenAPI token is NOT written from the browser any more. It is
+      // encrypted server-side by /api/settings/whatsapp, which is the only
+      // writer. Sending it here would put plaintext back into the column this
+      // migration exists to empty. The encrypted column is stripped too - the
+      // browser has no business round-tripping ciphertext it cannot read.
+      delete payload.green_api_token;
+      delete payload.green_api_token_encrypted;
       payload.tenant_id = tenantId;
       if ("bot_active" in payload) {
         payload.bot_active = !(payload.bot_active === false || payload.bot_active === "false");
@@ -7396,7 +7429,8 @@ export default function BeautyOS() {
                 const receiptOn=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");
                 // Connected = her own instance id + token are both set (mirrors
                 // isWhatsAppConnected's per-tenant rule; url is optional).
-                const waConnected=!!(String(editSettings.green_api_instance||"").trim()&&String(editSettings.green_api_token||"").trim());
+                // From the server, not from a field the browser no longer holds.
+                const waConnected=!!waStatus?.connected;
                 const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});
                 // Structured automation config lives in the settings.automations JSONB
                 // (same store as business_hours/faq). Read/write defensively.
@@ -7469,7 +7503,45 @@ export default function BeautyOS() {
  <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>חברי את מספר הוואטסאפ שלך דרך GreenAPI כדי שההודעות (תזכורות, קבלות ועוד) יישלחו מהמספר שלך. את הפרטים תמצאי בקונסולת GreenAPI. אם לא תחברי — נשלח מהמספר הכללי של המערכת.</p>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מזהה מכשיר (idInstance)</p><input value={editSettings.green_api_instance||""} onChange={e=>setEditSettings({...editSettings,green_api_instance:e.target.value})} placeholder="7103000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
- <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p><input value={editSettings.green_api_token||""} onChange={e=>setEditSettings({...editSettings,green_api_token:e.target.value})} placeholder="••••••••••••••••" autoComplete="off" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ <div>
+ <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p>
+ {/* WRITE-ONLY. The server never sends the token back, so there is nothing
+     to prefill and nothing sitting in a form field. It goes out through
+     /api/settings/whatsapp, which encrypts it before it reaches the table. */}
+ {waStatus?.connected && !waReplacing ? (
+ <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+ <span style={{fontSize:11.5,fontWeight:700,color:"var(--success)"}}>✓ טוקן שמור</span>
+ <button type="button" onClick={()=>{setWaReplacing(true);setWaTokenInput("");}} style={{fontSize:11,fontWeight:600,color:"var(--ink-2)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>החלפה</button>
+ <button type="button" onClick={async()=>{
+   if(!window.confirm("לנתק את וואטסאפ? תזכורות והודעות אוטומטיות יפסיקו להישלח."))return;
+   setWaSavingToken(true);
+   try{
+     const r=await fetch("/api/settings/whatsapp",{method:"DELETE"});
+     const d=await r.json().catch(()=>null);
+     if(d&&d.success){toast("וואטסאפ נותק");await refreshWaStatus();}
+     else toast("הניתוק נכשל","error");
+   }catch{toast("הניתוק נכשל — בדקי את החיבור","error");}
+   finally{setWaSavingToken(false);}
+ }} disabled={waSavingToken} style={{fontSize:11,fontWeight:600,color:"var(--danger)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>ניתוק</button>
+ </div>
+ ) : (
+ <div style={{display:"flex",gap:7,alignItems:"stretch"}}>
+ <input type="password" value={waTokenInput} onChange={e=>setWaTokenInput(e.target.value)} placeholder="••••••••••••••••" autoComplete="new-password" style={{flex:1,minWidth:0,border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/>
+ <button type="button" disabled={!waTokenInput.trim()||waSavingToken} onClick={async()=>{
+   setWaSavingToken(true);
+   try{
+     const r=await fetch("/api/settings/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:waTokenInput.trim()})});
+     const d=await r.json().catch(()=>null);
+     if(d&&d.success){setWaTokenInput("");setWaReplacing(false);toast("הטוקן נשמר מוצפן");await refreshWaStatus();}
+     else toast((d&&d.error)||"שמירת הטוקן נכשלה","error");
+   }catch{toast("שמירת הטוקן נכשלה — בדקי את החיבור","error");}
+   finally{setWaSavingToken(false);}
+ }} className="primary-btn" style={{padding:"0 14px",borderRadius:12,background:(!waTokenInput.trim()||waSavingToken)?"var(--line-2)":pcGrad,color:(!waTokenInput.trim()||waSavingToken)?"var(--ink-3)":"var(--surface)",fontSize:11.5,fontWeight:700,whiteSpace:"nowrap"}}>{waSavingToken?"שומרת…":"שמירה"}</button>
+ {waReplacing&&<button type="button" onClick={()=>{setWaReplacing(false);setWaTokenInput("");}} style={{fontSize:11,color:"var(--ink-3)",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:"0 4px"}}>ביטול</button>}
+ </div>
+ )}
+ <p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטוקן נשמר מוצפן ולא מוצג שוב. שמירת ההגדרות למטה לא משנה אותו.</p>
+ </div>
  <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
  </div>
  </div>
