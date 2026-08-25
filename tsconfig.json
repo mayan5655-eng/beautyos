@@ -6,6 +6,10 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Lets lib modules use explicit .ts specifiers so Node can run them
+    // directly (node strips types natively). That is what makes these
+    // modules testable without a build step. Valid only with noEmit.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -30,5 +34,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "test-*.ts"]
+  "exclude": ["node_modules"]
 }

@@ -145,6 +145,15 @@ export async function POST(request: Request) {
       delimiter,
       rowCount: rows.length,
       headers,
+      // The parsed rows, so the preview can recompute instantly when she
+      // changes a column in a dropdown. Without them the client would have to
+      // re-upload and re-run the Claude call on every dropdown change, which
+      // would be slow and would spend a request per keystroke.
+      //
+      // This is HER OWN file going back to HER OWN browser over HTTPS. The
+      // masking promise is about what reaches the Anthropic API, and that is
+      // unchanged: only `sample` below is ever sent there, and only masked.
+      rows,
       samplesWereMasked: !sendRawSamples,
       mappingSource: proposal.source,
       fallbackReason: proposal.fallbackReason ?? null,

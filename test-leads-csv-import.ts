@@ -151,3 +151,56 @@ console.log('\n' + '='.repeat(66));
 console.log(`${passed} passed, ${failed} failed`);
 console.log('='.repeat(66));
 process.exitCode = failed ? 1 : 0;
+
+// ── 6. buildRows — the preview and the eventual insert share this ───────────
+console.log('\n[6] buildRows — preview counts must equal what Stage 3 would write');
+
+const { buildRows, IMPORT_STATUS, IMPORT_SOURCE } = await import('./lib/leads/buildRows.ts');
+
+const H2 = ['שם', 'נייד', 'אימייל', 'מאיפה', 'הערות'];
+const R2 = [
+  ['דנה',  '054-1234567', 'd@x.com',  'אינסטגרם', 'פילינג'],
+  ['מיכל', '0529876543',  'm@x.com',  'חברה',     ''],
+  ['רונית','לא ידוע',      'r@x.com',  '',         ''],   // bad_phone
+  ['שירה', '',            's@x.com',  '',         ''],   // no_phone
+  ['כפולה','+972541234567','k@x.com',  '',         ''],   // duplicate of row 2
+  ['נועה', '03-1234567',  'n@x.com',  '',         ''],   // landline -> bad_phone
+];
+const M2 = { name:'שם', phone:'נייד', email:'אימייל', source:'מאיפה', notes:'הערות' };
+const b = buildRows(H2, R2, M2);
+
+check('total counted', b.counts.total, 6);
+check('valid counted', b.counts.valid, 2);
+check('skipped counted', b.counts.skipped, 4);
+check('valid + skipped === total', b.counts.valid + b.counts.skipped, b.counts.total);
+check('no_phone reason', b.counts.byReason.no_phone, 1);
+check('bad_phone reason', b.counts.byReason.bad_phone, 2);
+check('duplicate_in_file reason', b.counts.byReason.duplicate_in_file, 1);
+
+check('phone normalised on the built row', b.valid[0].phone, '972541234567');
+check('external_id equals the phone', b.valid[0].external_id, b.valid[0].phone);
+ok('external_id is never empty', b.valid.every((r) => r.external_id && r.external_id.length > 0));
+check('status is the agreed one', b.valid[0].status, IMPORT_STATUS);
+check('source is the agreed one', b.valid[0].source, IMPORT_SOURCE);
+ok('the CSV source column does NOT overwrite source',
+  b.valid.every((r) => r.source === IMPORT_SOURCE));
+ok('the CSV source value is preserved in notes',
+  (b.valid[0].notes || '').includes('אינסטגרם'), b.valid[0].notes || '(null)');
+
+// Row numbers must point at the real line in her file, header counted as 1.
+check('skipped row numbers are file line numbers', b.skipped.map((s) => s.row), [4, 5, 6, 7]);
+
+// Unmapped optional fields must not throw and must come back null.
+const b2 = buildRows(H2, R2, { phone: 'נייד' });
+check('unmapped name -> empty string', b2.valid[0].name, '');
+check('unmapped email -> null', b2.valid[0].email, null);
+check('still finds the same valid rows', b2.counts.valid, 2);
+
+// No phone column at all: everything skips, nothing throws.
+const b3 = buildRows(H2, R2, { name: 'שם' });
+check('no phone column -> zero valid', b3.counts.valid, 0);
+check('no phone column -> all skipped', b3.counts.skipped, 6);
+
+// Re-running the same file must produce identical keys (idempotent upsert).
+const again = buildRows(H2, R2, M2);
+check('deterministic external_ids', again.valid.map((r) => r.external_id), b.valid.map((r) => r.external_id));

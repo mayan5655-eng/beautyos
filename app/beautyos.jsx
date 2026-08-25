@@ -18,6 +18,7 @@ import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
+import LeadImportModal from "./LeadImportModal";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -791,6 +792,8 @@ export default function BeautyOS() {
   // across the screens that happen to show each kind of data.
   const [showImportHub,     setShowImportHub]      = useState(false);
   const [showLeadModal,     setShowLeadModal]      = useState(false);
+  // CSV lead import (stage 2: preview only, writes nothing).
+  const [showLeadImport,    setShowLeadImport]     = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
   const [showReceipt,       setShowReceipt]        = useState(null);
@@ -4477,6 +4480,14 @@ export default function BeautyOS() {
         </div>
       )}
 
+      <LeadImportModal
+        open={showLeadImport}
+        onClose={()=>setShowLeadImport(false)}
+        pc={pc}
+        pcGrad={pcGrad}
+        pcShadow={pcShadow}
+      />
+
       {/* TOASTS */}
       {toasts.length>0&&(
  <div aria-live="polite" aria-atomic="true" style={{position:"fixed",top:14,left:"50%",transform:"translateX(-50%)",zIndex:5000,display:"flex",flexDirection:"column",gap:7,alignItems:"center",pointerEvents:"none"}}>
@@ -5469,7 +5480,10 @@ export default function BeautyOS() {
  <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>צינור מכירות</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פניות <span style={{color:"var(--ink-3)",fontWeight:400}}>({leads.length})</span></h2>
  </div>
+ <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ <button className="primary-btn" onClick={()=>setShowLeadImport(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"10px 16px",fontSize:12,boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא פניות</button>
  <button className="primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>
+ </div>
  </div>
  <div style={{display:"flex",gap:7,marginBottom:12,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:2}}>
  <button onClick={()=>setLeadFilter("all")} style={{background:leadFilter==="all"?pcGrad:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter==="all"?"transparent":"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:600,color:leadFilter==="all"?"var(--surface)":"var(--ink-2)",boxShadow:leadFilter==="all"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)",transition:"transform 0.12s"}}>הכל ({leads.length})</button>
