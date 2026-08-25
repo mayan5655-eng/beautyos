@@ -8,7 +8,7 @@
 // validates.
 
 /** Which encoding decodeCsv settled on, so the caller can show it. */
-export type CsvEncoding = 'utf-8' | 'windows-1255';
+export type CsvEncoding = 'utf-8' | 'windows-1255' | 'utf-16le' | 'utf-16be';
 
 export interface DecodedCsv {
   text: string;
@@ -37,6 +37,18 @@ export interface ParsedCsv {
 const BOM = '﻿';
 
 export function decodeCsv(buffer: Uint8Array): DecodedCsv {
+  // UTF-16 FIRST, and the ordering is the fix. Excel's "Unicode Text" export is
+  // UTF-16LE. UTF-16 bytes are not valid UTF-8, so the old code fell straight
+  // through to windows-1255 - which decodes ANY byte sequence without
+  // complaining. The file then "parsed": three headers, three rows, every one
+  // of them mojibake. It did not error. It would have imported garbage names
+  // and garbage phone numbers. Failing loudly is bad; succeeding wrongly is
+  // worse.
+  const utf16 = detectUtf16(buffer);
+  if (utf16) {
+    return { text: stripBom(new TextDecoder(utf16).decode(buffer)), encoding: utf16 };
+  }
+
   let text: string | null = null;
   try {
     text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
@@ -52,6 +64,31 @@ export function decodeCsv(buffer: Uint8Array): DecodedCsv {
 
 function stripBom(s: string): string {
   return s.startsWith(BOM) ? s.slice(1) : s;
+}
+
+/**
+ * UTF-16 by BOM, or by the NUL pattern when there is no BOM.
+ *
+ * A UTF-16LE file of mostly-ASCII text carries 0x00 in every ODD byte position;
+ * UTF-16BE carries it in every EVEN one. No single-byte encoding produces that,
+ * so the pattern is a reliable signal and costs one pass over a 512-byte sample.
+ */
+function detectUtf16(b: Uint8Array): 'utf-16le' | 'utf-16be' | null {
+  if (b.length >= 2) {
+    if (b[0] === 0xff && b[1] === 0xfe) return 'utf-16le';
+    if (b[0] === 0xfe && b[1] === 0xff) return 'utf-16be';
+  }
+  const sample = Math.min(b.length, 512);
+  if (sample < 8) return null;
+  let oddNuls = 0, evenNuls = 0;
+  for (let i = 0; i < sample; i++) {
+    if (b[i] !== 0) continue;
+    if (i % 2 === 0) evenNuls++; else oddNuls++;
+  }
+  const half = sample / 2;
+  if (oddNuls > half * 0.6 && evenNuls === 0) return 'utf-16le';
+  if (evenNuls > half * 0.6 && oddNuls === 0) return 'utf-16be';
+  return null;
 }
 
 // ── Delimiter ───────────────────────────────────────────────────────────────
@@ -117,7 +154,18 @@ export function parseCsv(text: string): ParsedCsv {
 
     if (ch === '"') { inQuotes = true; continue; }
     if (ch === delimiter) { record.push(field); field = ''; continue; }
-    if (ch === '\r') continue;             // CRLF and lone CR both handled
+    if (ch === '\r') {
+      // CRLF: skip the CR and let the LF end the record.
+      // LONE CR: this IS the record separator. The old code skipped every \r
+      // unconditionally and ended records only on \n, so a CR-only file - the
+      // Excel-for-Mac / old-export line ending - collapsed into ONE record. The
+      // header swallowed the whole file, rows came back empty, and the importer
+      // reported "no data rows" for a file that was full of them.
+      if (text[i + 1] === '\n') continue;
+      record.push(field); field = '';
+      records.push(record); record = [];
+      continue;
+    }
     if (ch === '\n') {
       record.push(field); field = '';
       records.push(record); record = [];
@@ -141,7 +189,10 @@ function findFirstUnquotedNewline(text: string): number {
     if (ch === '"') {
       if (inQuotes && text[i + 1] === '"') { i++; continue; }
       inQuotes = !inQuotes;
-    } else if (ch === '\n' && !inQuotes) {
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      // \r included: on a CR-only file there is no \n at all, so without this
+      // the "first line" was the whole file and the delimiter vote counted
+      // every separator in every row.
       return i;
     }
   }
@@ -229,3 +280,84 @@ export const PHONE_REASON_HE: Record<PhoneReason, string> = {
   no_digits: 'הטלפון לא מכיל ספרות',
   not_israeli_mobile: 'לא מספר נייד ישראלי תקין',
 };
+
+
+// ── Why a file could not be used ────────────────────────────────────────────
+//
+// "The file contains no data rows" used to be the only failure message, and it
+// is wrong for every cause except the one where it is literally true. A file
+// that was unreadable, or split on the wrong delimiter, or written in an
+// encoding we mis-guessed, all reported "no data rows" - sending her to look
+// for missing rows in a file that was full of them.
+
+export type CsvProblem =
+  | 'empty-file'
+  | 'no-header'
+  | 'header-only'
+  | 'unreadable'
+  | 'single-column';
+
+export interface CsvDiagnosis {
+  problem: CsvProblem | null;
+  /** Hebrew, aimed at the cosmetician, saying what to actually do next. */
+  message: string;
+}
+
+/** Fraction of characters that are neither printable nor ordinary whitespace. */
+function garbageRatio(text: string): number {
+  const sample = [...text.slice(0, 2000)];
+  if (sample.length === 0) return 0;
+  let bad = 0;
+  for (const ch of sample) {
+    if (ch === '\n' || ch === '\r' || ch === '\t') continue;
+    const c = ch.codePointAt(0)!;
+    // C0/C1 controls and the replacement character are the tells for a file
+    // decoded with the wrong encoding.
+    if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0xfffd) bad++;
+  }
+  return bad / sample.length;
+}
+
+export function diagnoseCsv(
+  text: string,
+  headers: string[],
+  rows: string[][]
+): CsvDiagnosis {
+  if (!text.trim()) {
+    return { problem: 'empty-file', message: 'הקובץ ריק.' };
+  }
+
+  if (garbageRatio(text) > 0.1) {
+    return {
+      problem: 'unreadable',
+      message:
+        'לא הצלחנו לקרוא את הקובץ - נראה שהוא נשמר בקידוד שאנחנו לא מזהים. ' +
+        'באקסל: קובץ > שמירה בשם > "CSV UTF-8 (מופרד בפסיקים)", ואז לנסות שוב.',
+    };
+  }
+
+  if (headers.length === 0) {
+    return { problem: 'no-header', message: 'לא נמצאה שורת כותרות בקובץ.' };
+  }
+
+  // One column across the whole file, while the header itself clearly contains
+  // another separator, means we split on the wrong thing - not that the file is
+  // empty.
+  if (headers.length === 1 && [',', ';', '\t', '|'].some((d) => headers[0].includes(d))) {
+    return {
+      problem: 'single-column',
+      message:
+        'זיהינו עמודה אחת בלבד, אבל בשורת הכותרות יש מפרידים אחרים. ' +
+        'כנראה הקובץ נשמר עם מפריד אחר. באקסל: שמירה בשם > "CSV UTF-8 (מופרד בפסיקים)".',
+    };
+  }
+
+  if (rows.length === 0) {
+    return {
+      problem: 'header-only',
+      message: 'הקובץ מכיל שורת כותרות בלבד, בלי שורות נתונים.',
+    };
+  }
+
+  return { problem: null, message: '' };
+}

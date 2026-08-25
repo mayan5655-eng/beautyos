@@ -24,6 +24,7 @@ import {
   decodeCsv,
   parseCsv,
   maskRow,
+  diagnoseCsv,
   normalizeIsraeliMobile,
   PHONE_REASON_HE,
   type PhoneReason,
@@ -88,12 +89,17 @@ export async function POST(request: Request) {
     const { text, encoding } = decodeCsv(bytes);
     const { headers, rows, delimiter } = parseCsv(text);
 
-    if (headers.length === 0) {
-      return NextResponse.json({ success: false, error: 'לא נמצאה שורת כותרות' }, { status: 400 });
-    }
-    if (rows.length === 0) {
-      // An empty file is a real answer, and distinct from a failure to read it.
-      return NextResponse.json({ success: false, error: 'הקובץ לא מכיל שורות נתונים' }, { status: 400 });
+    // Say what actually went wrong. "The file contains no data rows" used to be
+    // the answer to every parse failure, including files that were full of rows
+    // but written in an encoding or with a line ending we mishandled - which
+    // sent her hunting for missing rows in a file that had none missing.
+    const diagnosis = diagnoseCsv(text, headers, rows);
+    if (diagnosis.problem) {
+      console.error(`[leads/import/analyze] unusable file: ${diagnosis.problem}`);
+      return NextResponse.json(
+        { success: false, error: diagnosis.message, problem: diagnosis.problem },
+        { status: 400 }
+      );
     }
     if (rows.length > MAX_ROWS) {
       return NextResponse.json({ success: false, error: 'יותר מדי שורות בקובץ' }, { status: 400 });

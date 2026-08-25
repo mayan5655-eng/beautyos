@@ -147,10 +147,6 @@ ok('no API key: falls back instead of throwing', noKey.source === 'fallback');
 ok('  and says so', /ANTHROPIC_API_KEY/.test(noKey.fallbackReason ?? ''));
 if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
 
-console.log('\n' + '='.repeat(66));
-console.log(`${passed} passed, ${failed} failed`);
-console.log('='.repeat(66));
-process.exitCode = failed ? 1 : 0;
 
 // ── 6. buildRows — the preview and the eventual insert share this ───────────
 console.log('\n[6] buildRows — preview counts must equal what Stage 3 would write');
@@ -204,3 +200,83 @@ check('no phone column -> all skipped', b3.counts.skipped, 6);
 // Re-running the same file must produce identical keys (idempotent upsert).
 const again = buildRows(H2, R2, M2);
 check('deterministic external_ids', again.valid.map((r) => r.external_id), b.valid.map((r) => r.external_id));
+
+// ── 7. Excel round-trip: one case per format variant ────────────────────────
+console.log('\n[7] Excel variants — encoding x delimiter x line ending');
+
+const { diagnoseCsv } = await import('./lib/leads/csvImport.ts');
+
+function toCp1255(str: string): Uint8Array {
+  const o: number[] = [];
+  for (const ch of str) {
+    const c = ch.codePointAt(0)!;
+    o.push(c < 0x80 ? c : (c >= 0x05d0 && c <= 0x05ea ? c - 0x05d0 + 0xe0 : 0x3f));
+  }
+  return new Uint8Array(o);
+}
+const toU16LE = (str: string, bom = true): Uint8Array => {
+  const o: number[] = bom ? [0xff, 0xfe] : [];
+  for (const ch of str) { const c = ch.codePointAt(0)!; o.push(c & 0xff, (c >> 8) & 0xff); }
+  return new Uint8Array(o);
+};
+const toU16BE = (str: string): Uint8Array => {
+  const o: number[] = [0xfe, 0xff];
+  for (const ch of str) { const c = ch.codePointAt(0)!; o.push((c >> 8) & 0xff, c & 0xff); }
+  return new Uint8Array(o);
+};
+
+const XH = ['שם', 'טלפון', 'אימייל'];
+const XR = [['דנה', '0541234567', 'd@x.com'], ['מיכל', '0529876543', 'm@x.com']];
+const xbuild = (d: string, eol: string) =>
+  [XH.join(d), ...XR.map((r) => r.join(d))].join(eol) + eol;
+
+const variants: Array<[string, Uint8Array, string]> = [
+  ['utf-8 / , / LF',            new TextEncoder().encode(xbuild(',', '\n')), 'utf-8'],
+  ['utf-8 / ; / CRLF',          new TextEncoder().encode(xbuild(';', '\r\n')), 'utf-8'],
+  ['utf-8+BOM / , / CRLF',      new TextEncoder().encode('\uFEFF' + xbuild(',', '\r\n')), 'utf-8'],
+  ['cp1255 / ; / CRLF (Excel he-IL)', toCp1255(xbuild(';', '\r\n')), 'windows-1255'],
+  ['cp1255 / TAB / CRLF',       toCp1255(xbuild('\t', '\r\n')), 'windows-1255'],
+  ['cp1255 / ; / CR only',      toCp1255(xbuild(';', '\r')), 'windows-1255'],
+  ['utf-8 / , / CR only',       new TextEncoder().encode(xbuild(',', '\r')), 'utf-8'],
+  ['utf-16le+BOM / TAB / CRLF (Unicode Text)', toU16LE(xbuild('\t', '\r\n')), 'utf-16le'],
+  ['utf-16le no BOM / ; / CRLF', toU16LE(xbuild(';', '\r\n'), false), 'utf-16le'],
+  ['utf-16be+BOM / ; / CRLF',   toU16BE(xbuild(';', '\r\n')), 'utf-16be'],
+];
+
+for (const [label, bytes, expectedEncoding] of variants) {
+  const dec = decodeCsv(bytes);
+  const p = parseCsv(dec.text);
+  ok(`${label}: encoding detected as ${expectedEncoding}`, dec.encoding === expectedEncoding, `got ${dec.encoding}`);
+  check(`${label}: 3 headers`, p.headers.length, 3);
+  check(`${label}: 2 rows`, p.rows.length, 2);
+  check(`${label}: header text intact`, p.headers[0], 'שם');
+  check(`${label}: phone cell intact`, p.rows[0][1], '0541234567');
+  ok(`${label}: diagnosed usable`, diagnoseCsv(dec.text, p.headers, p.rows).problem === null);
+}
+
+// ── 8. The error message must name the real problem ─────────────────────────
+console.log('\n[8] Diagnosis — the right message per cause');
+
+const diag = (bytes: Uint8Array) => {
+  const d = decodeCsv(bytes);
+  const p = parseCsv(d.text);
+  return diagnoseCsv(d.text, p.headers, p.rows);
+};
+check('empty file', diag(new TextEncoder().encode('   ')).problem, 'empty-file');
+check('header only -> header-only, NOT a parse failure',
+  diag(new TextEncoder().encode('שם;טלפון\r\n')).problem, 'header-only');
+check('binary garbage -> unreadable',
+  diag(new Uint8Array(Array.from({ length: 60 }, (_, i) => [0x01, 0x02, 0x1b, 0x1c, 0x7f, 0x81][i % 6]))).problem,
+  'unreadable');
+ok('unreadable message tells her what to do in Excel',
+  /CSV UTF-8/.test(diag(new Uint8Array(Array.from({ length: 60 }, (_, i) => [0x01, 0x02, 0x1b, 0x1c, 0x7f, 0x81][i % 6]))).message));
+check('a good file has no problem', diag(toCp1255(xbuild(';', '\r\n'))).problem, null);
+
+// The summary MUST be last. It was stranded mid-file once sections 6-8 were
+// appended, so it printed a stale count and - worse - set process.exitCode
+// before the later tests had run. A suite that reports success before it has
+// finished is the same class of bug this importer keeps tripping over.
+console.log('\n' + '='.repeat(66));
+console.log(`${passed} passed, ${failed} failed`);
+console.log('='.repeat(66));
+process.exitCode = failed ? 1 : 0;
