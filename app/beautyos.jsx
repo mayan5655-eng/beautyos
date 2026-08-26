@@ -1771,8 +1771,38 @@ export default function BeautyOS() {
   const weekAppts     = useMemo(() => { const ws=formatDate(weekStart); const weEnd=new Date(weekStart); weEnd.setDate(weEnd.getDate()+5); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
   const thisMonthAppts = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [appointments, thisMonth, thisYear]);
 
-  const getLastAppt    = (cid) => appointments.filter(a=>String(a.client_id)===String(cid)).sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
-  const getDaysSince   = (cid) => {const l=getLastAppt(cid);if(!l?.date)return 999;return Math.floor((now-new Date(l.date))/(1000*60*60*24));};
+  // ── Last-visit index ──────────────────────────────────────────────────────
+  // getDaysSince used to call getLastAppt, which filtered AND sorted the whole
+  // appointments array for one client. filteredClients calls it per client on
+  // every keystroke, so at 200 clients and 300 appointments that was ~60,000
+  // filter operations plus 200 sorts per character typed - and activeClients
+  // and coldClients each did the same again.
+  //
+  // One pass over appointments, then O(1) lookups. Built with useMemo keyed on
+  // appointments alone: `now` is not a dependency because the index stores the
+  // DATE, and the day arithmetic still happens per call.
+  //
+  // Deliberately identical to the old behaviour, including the parts that look
+  // like bugs: cancelled appointments still count as visits here. The reminder
+  // engine's computeLastVisits excludes them, and swapping that in would make
+  // clients look more lapsed than they do today - a real change to who appears
+  // in "cold", dressed up as a refactor. If cancelled visits should not count,
+  // that is a product decision and its own change.
+  const lastApptDateByClient = useMemo(() => {
+    const m = new Map();
+    for (const a of appointments) {
+      if (!a.client_id || !a.date) continue;   // matches the old `!l?.date` -> 999
+      const k = String(a.client_id);
+      const prev = m.get(k);
+      // Lexicographic max over YYYY-MM-DD is chronological max, which is what
+      // the old descending localeCompare sort selected.
+      if (!prev || a.date > prev) m.set(k, a.date);
+    }
+    return m;
+  }, [appointments]);
+
+  const getLastApptDate = (cid) => lastApptDateByClient.get(String(cid));
+  const getDaysSince   = (cid) => {const d=getLastApptDate(cid);if(!d)return 999;return Math.floor((now-new Date(d))/(1000*60*60*24));};
   const getClientTotal = (cid) => receipts.filter(r=>String(r.client_id)===String(cid)).reduce((s,r)=>s+(Number(r.amount)||0),0);
   const getClientAppts = (cid) => appointments.filter(a=>String(a.client_id)===String(cid));
   const getClientForms = (cid) => forms.filter(f=>String(f.client_id)===String(cid));
