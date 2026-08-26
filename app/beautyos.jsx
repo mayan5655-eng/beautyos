@@ -801,6 +801,23 @@ export default function BeautyOS() {
   // is enforced against her CLIENTS in a request she is not part of, so without
   // this she would learn about it by noticing her leads had stopped.
   const [scanQuota,         setScanQuota]          = useState(null);
+
+  // ── List windows ────────────────────────────────────────────────────────
+  // The leads and clients screens render every matching row. A lead card is
+  // ~66 JSX elements, so 250 leads is ~16,500 DOM nodes, rebuilt on every
+  // keystroke because the search box feeds the same memo. That is a RENDER
+  // cost, not a query cost - the rows are already in memory and every stat on
+  // the screen (conversion rate, per-status counts, per-source breakdown) is
+  // derived from the full array. So the window caps what is DRAWN and nothing
+  // else; the numbers in the header keep counting all of them.
+  //
+  // The window is keyed by a signature of the active filters and resolved
+  // during render rather than reset from an effect: changing a filter makes
+  // the old window stale immediately, with no second render and no setState
+  // in an effect body.
+  const LIST_PAGE = 50;
+  const [leadWindow,   setLeadWindow]   = useState({ sig: '', n: LIST_PAGE });
+  const [clientWindow, setClientWindow] = useState({ sig: '', n: LIST_PAGE });
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
   const [showReceipt,       setShowReceipt]        = useState(null);
@@ -1824,6 +1841,16 @@ export default function BeautyOS() {
     const matchSkin=filterSkin==="all"||c.skinType===filterSkin;
     return matchSearch&&matchStatus&&matchSkin;
   }), [clients, appointments, searchQuery, filterStatus, filterSkin, today]);
+
+  // How many rows each list is currently drawing. Derived, not stored: when the
+  // filter signature changes the previous window is simply not hers any more
+  // and the count falls back to the first page, without a state write.
+  const leadFilterSig   = `${leadSearch}|${leadFilter}|${leadSourceFilter}`;
+  const clientFilterSig = `${searchQuery}|${filterStatus}|${filterSkin}`;
+  const leadsShown   = leadWindow.sig   === leadFilterSig   ? leadWindow.n   : LIST_PAGE;
+  const clientsShown = clientWindow.sig === clientFilterSig ? clientWindow.n : LIST_PAGE;
+  const showMoreLeads   = () => setLeadWindow({ sig: leadFilterSig, n: leadsShown + LIST_PAGE });
+  const showMoreClients = () => setClientWindow({ sig: clientFilterSig, n: clientsShown + LIST_PAGE });
 
   // Global top-bar search. Normalizes the query once (trim + lowercase) and
   // matches against lowercased fields across five sources. Each source is
@@ -5533,7 +5560,7 @@ export default function BeautyOS() {
  )}
  </div>
  )
-              :filteredClients.map(client=>{
+              :filteredClients.slice(0,clientsShown).map(client=>{
                 const appts=getClientAppts(client.id);
                 // Most recent visit by actual date (then hour) - not by row id,
                 // so a later-created past appointment can't masquerade as "last".
@@ -5563,6 +5590,7 @@ export default function BeautyOS() {
                 );
               })}
  </div>
+ <ListMore shown={clientsShown} total={filteredClients.length} onMore={showMoreClients} pc={pc} noun="לקוחות"/>
  </>)}
 
           {/* LEADS */}
@@ -5616,7 +5644,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{leadSearch||leadFilter!=="all"?"נסי לשנות את החיפוש או הסינון.":"פניות מהאתר ומפייסבוק יופיעו כאן. אפשר גם להוסיף פנייה ידנית."}</p>
  {!(leadSearch||leadFilter!=="all")&&<button className="empty-cta primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>}
  </div>
-              ):filteredLeads.map(lead=>{
+              ):filteredLeads.slice(0,leadsShown).map(lead=>{
                 const st=leadStatusMeta(lead.status);
                 const hasReminder=lead.reminder_date&&lead.reminder_date<=tomorrow;
                 return(
@@ -5740,6 +5768,7 @@ export default function BeautyOS() {
                 );
               })}
  </div>
+ <ListMore shown={leadsShown} total={filteredLeads.length} onMore={showMoreLeads} pc={pc} noun="פניות"/>
  </div>
  </>)}
 
@@ -8107,5 +8136,37 @@ export default function BeautyOS() {
       )}
 
  </div>
+  );
+}
+
+// ── "showing N of M" + הצג עוד ──────────────────────────────────────────────
+//
+// Shared by the leads and clients lists. Renders NOTHING when everything is
+// already on screen, so a short list looks exactly as it did before.
+//
+// The count line is always shown once the list is windowed, not just the
+// button: a list that silently stops at 50 with no explanation reads as "that
+// is all there is", which is precisely the wrong impression when she has 250.
+function ListMore({ shown, total, onMore, pc, noun }) {
+  if (total <= shown) return null;
+  const remaining = total - shown;
+  const next = Math.min(50, remaining);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, padding: "16px 0 4px" }}>
+      <p style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
+        מציג {shown} מתוך {total} {noun}
+      </p>
+      <button
+        type="button"
+        onClick={onMore}
+        style={{
+          border: `1px solid ${pc}`, background: "var(--surface)", color: pc,
+          borderRadius: 24, padding: "9px 22px", fontSize: 12, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        הצג עוד {next}
+      </button>
+    </div>
   );
 }
