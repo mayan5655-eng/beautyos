@@ -10,6 +10,7 @@ import { planState } from "@/lib/planState";
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
 import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
 import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
+import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
@@ -1805,15 +1806,20 @@ export default function BeautyOS() {
   const paymentBreakdown = useMemo(() => PAYMENT_METHODS.map(m=>({...m,total:receipts.filter(r=>r.payment_method===m.key).reduce((s,r)=>s+(Number(r.amount)||0),0),count:receipts.filter(r=>r.payment_method===m.key).length})).filter(m=>m.count>0), [receipts]);
   const filteredReceipts = receiptFilter==="all"?receipts:receipts.filter(r=>r.payment_method===receiptFilter);
 
+  // Search on both screens goes through lib/search/matchQuery. The old
+  // `phone?.includes(q)` could not find an imported lead at all: the importer
+  // stores E.164 (972526666306) and the app stores what she typed
+  // (0542845655), so typing the number off her own phone matched nothing. It
+  // was also case-sensitive, which broke every Latin name in her import.
   const filteredLeads = useMemo(() => leads.filter(l=>{
-    const matchSearch=!leadSearch||l.name?.includes(leadSearch)||l.phone?.includes(leadSearch);
+    const matchSearch=matchesQuery(leadSearch,{text:[l.name,l.service_interest,l.source],phones:[l.phone]});
     const matchFilter=leadFilter==="all"||l.status===leadFilter;
     const matchSource=leadSourceFilter==="all"||l.source===leadSourceFilter;
     return matchSearch&&matchFilter&&matchSource;
   }).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")), [leads, leadSearch, leadFilter, leadSourceFilter]);
 
   const filteredClients = useMemo(() => clients.filter(c=>{
-    const matchSearch=!searchQuery||c.name?.includes(searchQuery)||c.phone?.includes(searchQuery);
+    const matchSearch=matchesQuery(searchQuery,{text:[c.name],phones:[c.phone]});
     const matchStatus=filterStatus==="all"||c.status===filterStatus||(filterStatus==="cold"&&getDaysSince(c.id)>60)||(filterStatus==="active"&&getDaysSince(c.id)<=60);
     const matchSkin=filterSkin==="all"||c.skinType===filterSkin;
     return matchSearch&&matchStatus&&matchSkin;
