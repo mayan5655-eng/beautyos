@@ -19,6 +19,7 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
+import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -794,6 +795,7 @@ export default function BeautyOS() {
   const [showLeadModal,     setShowLeadModal]      = useState(false);
   // CSV lead import (stage 2: preview only, writes nothing).
   const [showLeadImport,    setShowLeadImport]     = useState(false);
+  const [showLapsed,        setShowLapsed]         = useState(false);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
   const [showReceipt,       setShowReceipt]        = useState(null);
@@ -4512,6 +4514,14 @@ export default function BeautyOS() {
         </div>
       )}
 
+      <LapsedClientsModal
+        open={showLapsed}
+        onClose={()=>setShowLapsed(false)}
+        pc={pc}
+        pcGrad={pcGrad}
+        pcShadow={pcShadow}
+      />
+
       <LeadImportModal
         open={showLeadImport}
         onClose={()=>setShowLeadImport(false)}
@@ -5444,6 +5454,7 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>לקוחות <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ <button onClick={()=>setShowLapsed(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>מזמן לא הגיעו</button>
  <button onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ מטופלת חדשה</button>
  </div>

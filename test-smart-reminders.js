@@ -30,6 +30,9 @@ import {
   dateNDaysAgo,
   DEFAULT_CAPS,
   TYPE_PRIORITY,
+  computeLastVisits,
+  winbackLogRow,
+  WINBACK_TYPE,
 } from './lib/reminders/smartReminders.js';
 
 let passed = 0;
@@ -323,6 +326,55 @@ group('collectOnly (backlog marking)');
   const after = await runSmartReminders({ db, send: sender.send, now: w.now });
   eq('after marking, the cron sends nothing', sender.calls.length, 0);
   eq('and reports them as already-sent', after.stats.skipped.alreadySent, 500);
+}
+
+// ── 10. the manual lapsed-send must silence the automation ─────────────────
+//
+// This is the coupling that would fail silently. The lapsed-clients view writes
+// a suppression row when she messages someone by hand; if its key does not
+// match the key the winback pass looks up, the cron messages that client a
+// second time - after she has already spoken to them personally.
+group('manual send suppresses the automated winback');
+{
+  const w = buildWorld({ tenants: 3, clientsPer: 40, stalePct: 1 });
+  const tables = {
+    settings: w.settings, clients: w.clients, appointments: w.appointments,
+    packages: w.packages, auto_reminders_log: w.auto_reminders_log,
+  };
+  const db = makeDb(tables);
+
+  // What the route does: compute last visits the shared way, write the shared row.
+  const lastVisits = computeLastVisits(w.appointments);
+  const handled = w.clients.slice(0, 25);
+  for (const c of handled) {
+    w.auto_reminders_log.push(winbackLogRow(c.tenant_id, c.id, lastVisits[c.id]));
+  }
+  eq('a row was written per client she messaged', w.auto_reminders_log.length, 25);
+  ok('reference_id is the last visit date, not a timestamp',
+    w.auto_reminders_log.every((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.reference_id)));
+  eq('reminder_type matches the winback pass', w.auto_reminders_log[0].reminder_type, WINBACK_TYPE);
+
+  const sender = makeSender();
+  const { stats } = await runSmartReminders({ db, send: sender.send, now: w.now });
+  const messaged = new Set(sender.calls.map((c) => c.name + '|' + c.tenantId));
+  const handledKeys = handled.map((c) => c.name + '|' + c.tenant_id);
+
+  eq('the cron skipped exactly the ones she handled', stats.skipped.alreadySent, 25);
+  ok('and messaged none of them', handledKeys.every((k) => !messaged.has(k)));
+  ok('while still messaging the others', sender.calls.length > 0);
+
+  // If she messages someone and they come BACK and lapse again, the date moves,
+  // the key changes, and they become eligible again. That is intended.
+  const returner = handled[0];
+  w.appointments.push({
+    id: `${returner.id}-return`, client_id: returner.id, tenant_id: returner.tenant_id,
+    date: dateNDaysAgo(200, w.now), confirmation_status: 'confirmed', service: 'פילינג',
+  });
+  const db2 = makeDb(tables);
+  const sender2 = makeSender();
+  await runSmartReminders({ db: db2, send: sender2.send, now: w.now });
+  ok('a client who returned and lapsed again is eligible once more',
+    sender2.calls.some((c) => c.name === returner.name && c.tenantId === returner.tenant_id));
 }
 
 console.log('\n' + '='.repeat(64));
