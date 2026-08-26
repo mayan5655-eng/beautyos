@@ -2,6 +2,7 @@
 // Uses Claude to analyze lead quality and suggest priority
 
 import Anthropic from '@anthropic-ai/sdk'
+import { trackedCreate } from './usage.ts'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -46,7 +47,10 @@ function isObviousSpam(lead: LeadInput): boolean {
   return false
 }
 // Main scoring function - call this for every incoming lead
-export async function scoreLead(lead: LeadInput): Promise<LeadScore> {
+// tenantId is only for metering the AI spend below - the scoring itself is
+// unchanged. Optional so an existing caller that has not been updated still
+// works; it simply records the call as unattributed.
+export async function scoreLead(lead: LeadInput, tenantId?: string | null): Promise<LeadScore> {
   // Step 1: Quick spam filter (saves AI cost)
   if (isObviousSpam(lead)) {
     return {
@@ -96,13 +100,13 @@ ${customFieldsText}
 
   // Step 3: Call Claude
   try {
-    const message = await anthropic.messages.create({
+    const message = await trackedCreate(anthropic, {
       // Unsuffixed on purpose: the model id is complete as-is, and pinning a
       // dated variant silently ties this to one snapshot.
       model: 'claude-haiku-4-5',
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { tenantId: tenantId || null, callSite: 'score-lead' })
 
     // Extract text from response
     const textBlock = message.content.find((block) => block.type === 'text')

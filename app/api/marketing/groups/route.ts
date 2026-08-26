@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const profile = await loadBusinessProfile(supabase, tenantId)
 
     // Step 4: Call AI to suggest groups (default 10)
-    const groups = await suggestFacebookGroups(profile, count || 10)
+    const groups = await suggestFacebookGroups(profile, count || 10, tenantId)
 
     // Step 5: Return to client
     return NextResponse.json({ groups })

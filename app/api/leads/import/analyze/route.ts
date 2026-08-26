@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     const rawSamples = rows.slice(0, SAMPLE_ROWS);
     const samplesForModel = sendRawSamples ? rawSamples : rawSamples.map(maskRow);
 
-    const proposal = await proposeMapping(headers, samplesForModel);
+    const proposal = await proposeMapping(headers, samplesForModel, { tenantId: tenantId as string });
 
     // Validate the proposed phone column across the WHOLE file, so the preview
     // can state exactly how many rows are importable before anything is written.

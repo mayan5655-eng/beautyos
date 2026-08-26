@@ -171,7 +171,9 @@ export async function POST(request: NextRequest) {
             customFields: parsedFields,
             source: 'facebook_lead_ad',
             campaignName: change.value.ad_id || undefined,
-          });
+            // VERIFIED tenant: resolved from the facebook_pages row for the
+            // page id on the webhook, not from anything the sender controls.
+          }, pageData.tenant_id);
 
           // Save the lead - using YOUR actual column names
           const { error: insertError } = await supabase

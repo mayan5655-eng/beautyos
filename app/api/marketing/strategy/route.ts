@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 5: Call the AI function to generate the strategy
-    const strategy = await generateCampaignStrategy(input, profile)
+    const strategy = await generateCampaignStrategy(input, profile, tenantId)
 
     // Step 6: Return the strategy to the client
     return NextResponse.json({ strategy })

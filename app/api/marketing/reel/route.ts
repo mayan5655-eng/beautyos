@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
+import { trackedCreate } from '@/lib/ai/usage'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -101,11 +102,11 @@ ${vibe ? `== ווייב מבוקש ==\n${vibe}` : ''}
   "music_vibe": "תיאור סגנון המוזיקה המומלץ (למשל: אפביט קליל, רגוע ומפנק)"
 }`
 
-    const message = await anthropic.messages.create({
+    const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-4-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { tenantId, callSite: 'marketing/reel' })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {

@@ -19,6 +19,7 @@
 // than merely written - see test-leads-csv-import.ts.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { trackedCreate } from '../ai/usage.ts';
 
 /** The lead fields this importer can fill. Nothing else is writable. */
 export const TARGET_FIELDS = [
@@ -51,6 +52,11 @@ export interface ProposeOptions {
   /** Injected for testing. Defaults to a real client built from the env. */
   client?: Pick<Anthropic, 'messages'>;
   model?: string;
+  /**
+   * Metering only - the mapping itself is unchanged. Optional so the existing
+   * tests, which inject a fake client and never touch a database, keep working.
+   */
+  tenantId?: string | null;
 }
 
 // Header matching. Runs when Claude is unavailable, and is also what the schema
@@ -159,7 +165,7 @@ export async function proposeMapping(
   ].join('\n');
 
   try {
-    const response = await client.messages.create({
+    const response = await trackedCreate(client, {
       model,
       max_tokens: 2048,
       system: SYSTEM,
@@ -170,7 +176,8 @@ export async function proposeMapping(
           content: `Columns and masked sample rows:\n\n${table}\n\nMap them onto: ${TARGET_FIELDS.join(', ')}.`,
         },
       ],
-    } as Anthropic.MessageCreateParamsNonStreaming);
+    } as Anthropic.MessageCreateParamsNonStreaming,
+      { tenantId: options.tenantId || null, callSite: 'leads/map-headers' });
 
     const block = response.content.find((b) => b.type === 'text');
     if (!block || block.type !== 'text') {

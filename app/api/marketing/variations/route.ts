@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     const variations = await generatePostVariations(
       strategy as CampaignStrategy,
       profile,
-      count || 5
+      count || 5,
+      tenantId
     )
 
     // Step 5: Fetch images for the whole batch in ONE Unsplash call, then give

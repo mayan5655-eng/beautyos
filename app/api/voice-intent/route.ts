@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
+import { trackedCreate } from '@/lib/ai/usage'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -28,6 +29,13 @@ export async function POST(request: NextRequest) {
     // never costs money. Fails open, so it cannot lock out a paying user.
     const guard = await requireActiveTenant(supabase)
     if (!guard.ok) return guard.response
+
+    // Resolved purely so the AI spend below can be attributed. This route has
+    // always had a session but never needed the tenant id for anything, so it
+    // never asked for it. A null here does not block the request - failing to
+    // meter must not cost her the feature - it just records the call as
+    // unattributed.
+    const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
 
     const body = await request.json()
     const transcript: string = (body?.transcript || '').toString().trim()
@@ -71,12 +79,12 @@ export async function POST(request: NextRequest) {
 - אם חסר מידע קריטי (למשל ביטול בלי שם לקוחה) — מלאי "clarification" בשאלה קצרה בעברית.
 - החזירי JSON בלבד.`
 
-    const aiResponse = await anthropic.messages.create({
+    const aiResponse = await trackedCreate(anthropic, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: systemPrompt,
       messages: [{ role: 'user', content: transcript }],
-    })
+    }, { tenantId: (tenantId as string) || null, callSite: 'voice-intent' })
 
     const rawText = aiResponse.content
       .map((b: any) => (b.type === 'text' ? b.text : ''))

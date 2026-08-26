@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
       customFields: lead.raw_data || {},
       source: lead.source || 'manual',
       campaignName: lead.facebook_ad_id || undefined,
-    });
+      // VERIFIED: the lead row was read through the user's own session, so RLS
+      // already proved this tenant is hers.
+    }, lead.tenant_id);
 
     // Save the results back to the lead
     const { error: updateError } = await supabase

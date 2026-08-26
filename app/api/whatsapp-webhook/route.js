@@ -8,6 +8,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { trackedCreate } from "@/lib/ai/usage";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
@@ -90,7 +91,10 @@ async function generateReply({ message, clientName, tenantId }) {
 
   const systemPrompt = buildSystemPrompt({ settings, services, tenantId, appUrl: APP_URL });
 
-  const aiResponse = await anthropic.messages.create({
+  // tenantId here is VERIFIED: the caller resolved it server-side from the
+  // GreenAPI instance id on the inbound webhook, not from anything the sender
+  // could set.
+  const aiResponse = await trackedCreate(anthropic, {
     model: "claude-haiku-4-5-20251001",
     max_tokens: 400,
     system: systemPrompt,
@@ -100,7 +104,7 @@ async function generateReply({ message, clientName, tenantId }) {
         content: `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`,
       },
     ],
-  });
+  }, { tenantId, callSite: "whatsapp-webhook" });
 
   return aiResponse.content
     .map((b) => (b.type === "text" ? b.text : ""))

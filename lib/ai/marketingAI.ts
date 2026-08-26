@@ -3,6 +3,7 @@
 // Generates campaign strategies, post variations, and Facebook group suggestions
 
 import Anthropic from '@anthropic-ai/sdk'
+import { trackedCreate } from './usage.ts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -137,7 +138,10 @@ function parseClaudeJSON<T>(text: string): T {
 
 export async function generateCampaignStrategy(
   input: CampaignInput,
-  profile: BusinessProfile
+  profile: BusinessProfile,
+  // Metering only - the generation is unchanged. Optional so an un-updated
+  // caller records as unattributed rather than failing to compile.
+  tenantId?: string | null
 ): Promise<CampaignStrategy> {
   const businessContext = buildBusinessContext(profile)
 
@@ -171,11 +175,11 @@ ${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''
 }`
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-4-5',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { tenantId: tenantId || null, callSite: 'marketing/strategy' })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {
@@ -203,7 +207,8 @@ ${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''
 export async function generatePostVariations(
   strategy: CampaignStrategy,
   profile: BusinessProfile,
-  count: number = 5
+  count: number = 5,
+  tenantId?: string | null
 ): Promise<PostVariation[]> {
   const businessContext = buildBusinessContext(profile)
 
@@ -249,11 +254,11 @@ Tone: ${strategy.tone}
 }`
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-4-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { tenantId: tenantId || null, callSite: 'marketing/variations' })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {
@@ -276,7 +281,8 @@ Tone: ${strategy.tone}
 
 export async function suggestFacebookGroups(
   profile: BusinessProfile,
-  count: number = 10
+  count: number = 10,
+  tenantId?: string | null
 ): Promise<GroupSuggestion[]> {
   const businessContext = buildBusinessContext(profile)
 
@@ -313,11 +319,11 @@ ${businessContext}
 }`
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-4-5',
       max_tokens: 3072,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { tenantId: tenantId || null, callSite: 'marketing/groups' })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {

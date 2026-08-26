@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { trackedCreate } from "@/lib/ai/usage";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -98,7 +99,11 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // structured-report task. max_tokens is generous enough that the full JSON
     // report is never truncated (1500 was too tight and cut the JSON off), while
     // still well below Sonnet's old 4000.
-    const aiResponse = await anthropic.messages.create({
+    // attribution: 'claimed'. THIS ROUTE IS PUBLIC - no session, no auth - and
+    // tenantId arrives in the request body, so it cannot be verified and must
+    // not be billed to a tenant without reconciliation. Recorded anyway,
+    // because a call that spends money and leaves no trace is worse.
+    const aiResponse = await trackedCreate(anthropic, {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 3000,
       system: systemPrompt,
@@ -121,7 +126,7 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
           ],
         },
       ],
-    });
+    }, { tenantId: tenantId || null, callSite: "skin-scan", attribution: "claimed" });
 
     // 4. Extract + parse safely
     const raw = aiResponse.content

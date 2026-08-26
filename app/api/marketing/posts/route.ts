@@ -55,10 +55,10 @@ export async function POST(request: NextRequest) {
 
     // 4. Step 1 - strategy
     const input: CampaignInput = { goal, serviceType, targetAudience, additionalContext }
-    const strategy = await generateCampaignStrategy(input, profile)
+    const strategy = await generateCampaignStrategy(input, profile, tenantId)
 
     // 5. Step 2 - post variations based on that strategy
-    const variations = await generatePostVariations(strategy, profile, 5)
+    const variations = await generatePostVariations(strategy, profile, 5, tenantId)
 
     // 6. Return everything
     return NextResponse.json({ strategy, variations })

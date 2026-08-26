@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
+import { trackedCreate } from '@/lib/ai/usage'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
@@ -227,12 +228,12 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     // Persist the user's question.
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
-    const aiResponse = await anthropic.messages.create({
+    const aiResponse = await trackedCreate(anthropic, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [...priorTurns, { role: 'user', content: message }] as any,
-    })
+    }, { tenantId, callSite: 'advisor' })
 
     const reply = aiResponse.content
       .map((b: any) => (b.type === 'text' ? b.text : ''))
