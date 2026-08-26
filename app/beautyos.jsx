@@ -253,6 +253,25 @@ const leadStatusMeta = (status) =>
  LEAD_STATUSES[status] || LEGACY_LEAD_STATUSES[status] ||
  {label: status || "ללא סטטוס", color:"var(--ink-2)", bg:"var(--surface-2)"};
 const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל":"◦","טיקטוק":"◦","המלצה":"◦","הליכה ברחוב":"◦","סורק העור":"✦","אחר":"◦"};
+
+// Hebrew for the source values that are NOT already Hebrew.
+//
+// LEAD_SOURCES above is the list she picks from by hand, so those values are
+// their own labels. Machine-written sources are not: the importer stamps
+// csv_import on every row it creates, which is 247 of her leads - by far the
+// largest single source - and it would otherwise appear in her own attribution
+// report as a raw English key.
+const SOURCE_LABELS_HE = {
+  csv_import: "ייבוא מקובץ",
+  facebook_lead_ad: "מודעת לידים בפייסבוק",
+  skin_scan: "סורק העור",
+};
+/** The label to SHOW for a stored source value. Unknown values pass through. */
+const sourceLabelHe = (src) => {
+  const s = String(src ?? "").trim();
+  if (!s) return "לא ידוע";
+  return SOURCE_LABELS_HE[s] || s;
+};
 const PAYMENT_METHODS = [
   {key:"מזומן",icon:"◦",color:"#C9A24B"},
   {key:"אשראי",icon:"◦",color:"#A67C52"},
@@ -1855,6 +1874,61 @@ export default function BeautyOS() {
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
   const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
 
+  // ── Attribution ───────────────────────────────────────────────────────────
+  // Where a client came from is DERIVED, not copied. handleConvertLead already
+  // writes leads.client_id, so the lead is the single source of truth for
+  // source and campaign, and looking it up costs nothing extra - the leads are
+  // already in memory. Copying source onto clients would have meant a new
+  // column, a migration, a backfill, and two places to disagree.
+  //
+  // It also works retroactively: any conversion that set client_id is
+  // attributable today, with no data change.
+  const leadByClientId = useMemo(() => {
+    const m = new Map();
+    for (const l of leads) {
+      if (!l.client_id) continue;
+      const k = String(l.client_id);
+      // If two leads somehow point at one client, keep the EARLIEST - that is
+      // the one that actually brought her in.
+      const prev = m.get(k);
+      if (!prev || String(l.created_at||"") < String(prev.created_at||"")) m.set(k, l);
+    }
+    return m;
+  }, [leads]);
+
+  /** The lead a client came from, or null when nothing points at her. */
+  const getClientLead = (cid) => leadByClientId.get(String(cid)) || null;
+
+  /**
+   * Clients grouped by where they came from, with what they have spent.
+   *
+   * Client-centric on purpose: she asked how many CLIENTS each source produced,
+   * which is not the same as how many leads converted. A client with no lead
+   * pointing at her - imported directly, added by hand, or converted before
+   * client_id was written - lands in "לא ידוע" rather than being guessed into a
+   * source or silently dropped.
+   *
+   * Spend comes from receipts via the clientTotalById index, never from
+   * clients.total_spent, which is a column nothing in this app has ever
+   * written.
+   */
+  const clientSourceStats = useMemo(() => {
+    const rows = new Map();
+    const bump = (key) => {
+      if (!rows.has(key)) rows.set(key, { key, label: sourceLabelHe(key), clients: 0, revenue: 0 });
+      return rows.get(key);
+    };
+    for (const c of clients) {
+      const lead = leadByClientId.get(String(c.id));
+      const r = bump(lead && lead.source ? lead.source : "__unknown__");
+      r.clients += 1;
+      r.revenue += clientTotalById.get(String(c.id)) || 0;
+    }
+    const unknown = rows.get("__unknown__");
+    if (unknown) unknown.label = "לא ידוע";
+    return [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.clients - a.clients);
+  }, [clients, leadByClientId, clientTotalById]);
+
   const campaignStats = useMemo(() => LEAD_SOURCES.map(source=>{
     const sourceLeads=leads.filter(l=>l.source===source);
     const converted=sourceLeads.filter(l=>l.status==="closed");
@@ -2686,7 +2760,12 @@ export default function BeautyOS() {
       message: `להמיר את ${lead.name} ללקוחה רשומה?`,
       confirmText: "המרה",
       onConfirm: async () => {
-        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${lead.source}`,status:"active"}]).select();
+        // ...tenantField was missing here while every other client insert in
+        // this file carries it. No orphaned rows exist today, so a database
+        // default has been covering it - but a default covering a bug is not
+        // the same as the code being right, and the failure mode is a client
+        // landing in the wrong business.
+        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
         if(!cd||!cd[0]){toast("ההמרה נכשלה","error");return;}
         const {data:ld, error:le}=await supabase.from("leads").update({status:"closed",converted_at:new Date().toISOString(),client_id:cd[0].id}).eq("id",lead.id).select();
@@ -6283,6 +6362,38 @@ export default function BeautyOS() {
  </div>
               ))}
  </div>
+ {/* CLIENTS by source — distinct from "ביצועים לפי מקור" below, which
+                counts LEADS. This one counts the clients she actually has and
+                what they have spent, which is the question "where do my
+                customers come from" rather than "which source sends traffic".
+                Every client appears exactly once, including under לא ידוע. */}
+ <div className="glass-card" style={{padding:18,marginBottom:14}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>לקוחות לפי מקור</h3>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:14,lineHeight:1.6}}>
+                לקוחות רשומות, לפי מאיפה הגיעו. &quot;לא ידוע&quot; הן לקוחות שנוספו לפני שהמעקב היה קיים או שנוספו ידנית — לא ניחוש.
+ </p>
+              {clients.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין לקוחות עדיין</p>
+                :clientSourceStats.map((s)=>{
+                  const pct=clients.length>0?Math.round((s.clients/clients.length)*100):0;
+                  const unknown=s.key==="__unknown__";
+                  return(
+ <div key={s.key} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:8}}>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:11.5,fontWeight:700,color:unknown?"var(--ink-3)":"var(--ink)"}}>{s.label}</p>
+ <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
+ <span style={{fontSize:8.5,color:"var(--ink-3)"}}>{s.clients} לקוחות</span>
+ <span style={{fontSize:8.5,color:pc,fontWeight:700}}>{pct}%</span>
+ </div>
+ <div style={{background:"var(--line)",borderRadius:4,height:5,marginTop:5,overflow:"hidden"}}>
+ <div style={{background:unknown?"var(--line-2)":pcGrad,borderRadius:4,height:5,width:`${pct}%`}}/>
+ </div>
+ </div>
+ <p className="serif" style={{fontSize:14,fontWeight:600,color:unknown?"var(--ink-3)":pc}}>₪{s.revenue.toLocaleString()}</p>
+ </div>
+                  );
+                })}
+ </div>
+
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>ביצועים לפי מקור</h3>
               {campaignStats.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין נתונים עדיין</p>
@@ -8058,6 +8169,19 @@ export default function BeautyOS() {
  <div style={{padding:"16px 22px"}}>
                   {clientTab==="info"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:11.5}}>
+                      {/* Where she came from. Always shown, including when the
+                          answer is "we do not know" - a blank row would read as
+                          "no source", and לא ידוע is the honest version for a
+                          client who predates the lead pipeline or was added by
+                          hand. Never inferred from anything. */}
+                      {(()=>{ const lead=getClientLead(c.id); return (
+ <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}>
+ <span style={{color:"var(--ink-3)"}}>הגיעה מ</span>
+ <span style={{fontWeight:600,color:lead?"var(--ink)":"var(--ink-3)"}}>
+                            {lead ? sourceLabelHe(lead.source) : "לא ידוע"}
+                          </span>
+ </div>
+                      ); })()}
                       {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
                       {c.skinType&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>סוג עור</span><span style={{fontWeight:600}}>{c.skinType}</span></div>}
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:9,marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
