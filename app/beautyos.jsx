@@ -4414,6 +4414,14 @@ export default function BeautyOS() {
           .app-main{padding:12px 0 calc(74px + env(safe-area-inset-bottom, 0px))!important}
           /* Phase 4 — tap targets: round icon buttons up to a touch-friendly ~40px. */
           .icon-btn{width:40px!important;height:40px!important;font-size:15px!important}
+          /* Floating buttons must clear the bottom bar, which only exists below
+             this breakpoint. Both are position:fixed with a small bottom offset
+             and a z-index far above the nav's 900, so at bottom:14 and bottom:22
+             they sat ON TOP of it and clipped the nav items underneath.
+             74px is the same bar height .app-main reserves above, plus the same
+             home-indicator inset the bar itself pads with, plus a gap. */
+          .fab-help{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
+          .fab-voice{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
           .wa-btn,.call-btn{padding:9px 14px!important}
           /* Header fit — the desktop logo (30px, 6px letter-spacing, no shrink) pushed
              the left-side action icons off the viewport in RTL. Shrink the wordmark,
@@ -4462,7 +4470,7 @@ export default function BeautyOS() {
           .hdr-brand{min-width:auto!important;flex-shrink:0!important;overflow:visible}
           /* Width-driven, matching /login: overriding height here would fight
              the aspect ratio the artwork sets. */
-          .hdr-logo{width:168px!important;margin-inline-end:0!important}
+          .hdr-logo{width:132px!important;margin-inline-end:0!important}
           /* Dashboard hero — desktop's 26px side padding was far too wide on a
              ~344px screen. Only the box is adjusted here: the greeting's own
              size and leading are a clamp() on the element, so there is one
@@ -4551,7 +4559,7 @@ export default function BeautyOS() {
         /* Small phones (SE, older Androids). Same budget as above but 316px:
            the logo gives up another 20px so nothing spills at 320. */
         @media (max-width:360px){
-          .hdr-logo{width:132px!important}
+          .hdr-logo{width:118px!important}
         }
         @media print{body *{visibility:hidden}.receipt-print,.receipt-print *{visibility:visible}.receipt-print{position:fixed;top:0;left:0;width:100%;padding:40px}
           /* Tax report: print only the report card, clean A4, centered. */
@@ -4565,6 +4573,7 @@ export default function BeautyOS() {
           type="button"
           onClick={() => { setShowHelp(true); setHelpState("idle"); }}
           aria-label="תקועה? כתבי לנו"
+          className="fab-help"
           style={{position:"fixed",insetInlineStart:14,bottom:14,zIndex:4500,padding:"10px 16px",borderRadius:999,border:"1px solid var(--line-2)",background:"var(--surface)",color:pcDeep,fontSize:12.5,fontWeight:700,fontFamily:"inherit",cursor:"pointer",boxShadow:"0 8px 20px rgba(74,46,90,0.16)"}}
         >
           תקועה?
@@ -4681,7 +4690,7 @@ export default function BeautyOS() {
       )}
 
       {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
- <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית — Beauty Voice" title="Beauty Voice"
+ <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית — Beauty Voice" title="Beauty Voice" className="fab-voice"
         style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"var(--surface)",boxShadow:`0 8px 22px ${pcShadow}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
  <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
  </button>
@@ -4982,7 +4991,18 @@ export default function BeautyOS() {
               breakpoint block). Both keep a mobile home in the nav drawer, so
               nothing becomes unreachable - only ⚙ and ⏻ stay in the bar. */}
  <button onClick={()=>setShowSetup(true)} className="icon-btn desktop-only" title="הגדרת המערכת" aria-label="הגדרת המערכת">☑</button>
- <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">⚙</button>
+                {/* An inline SVG, not the ⚙ character. U+2699 has an EMOJI
+                    presentation by default on iOS, so it rendered as a full
+                    colour glyph sitting among flat, tinted chrome. The variation
+                    selector (⚙︎) would only ask the font nicely; an SVG settles
+                    it. Same stroke idiom as the Beauty Voice mic below -
+                    currentColor, 1.7 stroke - so it inherits .icon-btn's tint. */}
+ <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">
+ <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
+ <circle cx="12" cy="12" r="3.1"/>
+ <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+ </svg>
+ </button>
  <button onClick={handleExportCSV} className="icon-btn desktop-only" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
  <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
  </div>
