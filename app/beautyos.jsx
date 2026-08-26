@@ -1955,6 +1955,22 @@ export default function BeautyOS() {
     setApptNote("");setShowModal(true);
   };
 
+  // The "+" on a mobile week day header: a fresh appointment on that DATE.
+  //
+  // Deliberately without handleSlotClick's "is this slot already taken" guard.
+  // That guard exists because an hour CELL can only hold one appointment, and
+  // the mobile week strip has no hour cells - she picks the time in the modal.
+  // Seeding it with the day's opening hour rather than a fixed 9:00 means a
+  // clinic that opens at 10 does not get a booking an hour before it unlocks.
+  const handleNewApptOnDate = (date) => {
+    const dh = dayHoursFrom(settings, date.getDay());
+    const hour = dh ? dh.open : (settings?.working_hours_start || 9);
+    const svc = activeServices[0];
+    setEditingAppointmentId(null);
+    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),hour,startMinute:Number(hour)*60,price:svc?.price||0});
+    setApptNote("");setShowModal(true);
+  };
+
   // Open the appointment modal in EDIT mode, pre-filled with an existing
   // appointment's values so its date/time/service/etc. can be rescheduled.
   // Reuses the exact same modal + per-day-hours + double-booking logic as create;
@@ -4385,9 +4401,30 @@ export default function BeautyOS() {
         @keyframes sheen{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}
         .empty-cta{transition:transform 0.14s,box-shadow 0.2s,filter 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:var(--shadow-glow);filter:saturate(1.06)}
         .mobile-only{display:none}
+        /* Week view: hour grid on desktop, chip strip on phones. Both are
+           always rendered; only one is ever displayed. */
+        .wk-chips{display:none}
+        .wk-add{display:none}
         @media (max-width:680px){
           .desktop-only{display:none!important}
           .mobile-only{display:flex!important}
+
+          /* ── Week view on a phone ──────────────────────────────────────────
+             The hour grid needs 52px of time gutter plus 6 columns at a 70px
+             minimum - 480px floor on a 440px screen, so it could only ever be
+             reached by scrolling sideways. Below this breakpoint it is replaced
+             rather than squeezed: the day headers stay, the hour rows go, and
+             the chip strip takes their place.
+
+             The header keeps its six columns but drops the time gutter, so the
+             headers still line up with the chip columns beneath them. */
+          .wk-gutter{display:none!important}
+          .wk-head{grid-template-columns:repeat(6,1fr)!important;min-width:0!important}
+          .wk-hours{display:none!important}
+          .wk-chips{display:grid!important;grid-template-columns:repeat(6,1fr)}
+          /* .mobile-only would force display:flex; this needs inline-flex to
+             stay a small round button rather than stretching the header cell. */
+          .wk-add{display:inline-flex!important}
           .sidebar-aside{position:fixed!important;top:0;bottom:0;right:0;width:80%!important;max-width:280px;z-index:1500;transform:translateX(100%);transition:transform 0.25s}
           .sidebar-aside.open{transform:translateX(0)}
           /* The closed drawer sits at right:0 translated fully off to the right,
@@ -5499,8 +5536,8 @@ export default function BeautyOS() {
  </div>
  </div>
  <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"auto",WebkitOverflowScrolling:"touch",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
- <div/>
+ <div className="wk-head" style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
+ <div className="wk-gutter"/>
                 {weekDates.map((d,i)=>{
                   const isToday=formatDate(d)===today;
                   const dayAppts=appointments.filter(a=>a.date===formatDate(d));
@@ -5513,10 +5550,25 @@ export default function BeautyOS() {
  <p style={{fontSize:7.5,color:"var(--ink-3)",marginTop:1}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
                       {isClosed&&<p style={{fontSize:7.5,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
                       {hasCancel&&<p style={{fontSize:7.5,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
+                      {/* Booking on mobile. The hour cells below are the only
+                          place the week view could start a booking, and they are
+                          hidden on a phone - so without this the mobile week
+                          view would be read-only. Opens on THIS date; she picks
+                          the time in the modal. */}
+ <button className="wk-add mobile-only" aria-label={`תור חדש ליום ${DAYS_HE[d.getDay()]}`} title="תור חדש"
+                        onClick={e=>{e.stopPropagation();handleNewApptOnDate(d);}}
+                        style={{marginTop:3,width:22,height:22,borderRadius:"50%",border:"none",background:"var(--pc-tint)",color:pcDeep,fontSize:13,lineHeight:1,cursor:"pointer",fontFamily:"inherit",alignItems:"center",justifyContent:"center"}}>+</button>
  </div>
                   );
                 })}
  </div>
+
+              {/* Hour grid: DESKTOP only below 680px. 11 working hours x 6 days
+                  is 66 cells for a typical handful of appointments a day, which
+                  on a phone is mostly empty rows and 64px columns too narrow to
+                  read a service name in. The mobile strip after it shows the
+                  same week as chips instead. */}
+ <div className="wk-hours">
               {workingHours.map((hour,hi)=>(
  <div key={hour} style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:hi<workingHours.length-1?"1px solid var(--line)":"none",minHeight:56,minWidth:480}}>
  <div style={{padding:"5px 3px 0",fontSize:9,color:"var(--ink-3)",fontWeight:600,textAlign:"center",borderLeft:"1px solid var(--line)"}}>{hour}</div>
@@ -5549,6 +5601,42 @@ export default function BeautyOS() {
                   })}
  </div>
               ))}
+ </div>
+
+              {/* MOBILE week strip — the same six days, as chips instead of an
+                  hour grid. One column per day, one chip per appointment, in
+                  time order. At a handful of appointments a day the whole week
+                  fits on one screen with no horizontal scroll, which is the
+                  entire point: the hour grid needs 480px minimum and a phone
+                  has 440.
+
+                  What it deliberately does NOT do is show a time axis, so
+                  "is 10:00 free on Tuesday" is not answerable here. That is the
+                  day view's job and it is one tap away - tapping a column opens
+                  it on that date. Tapping a chip opens the appointment. */}
+ <div className="wk-chips">
+                {weekDates.map((date,di)=>{
+                  const ds=formatDate(date);
+                  const dayAppts=appointments.filter(a=>a.date===ds).sort((a,b)=>startMinute(a)-startMinute(b));
+                  return(
+ <div key={di} onClick={()=>{setCalDay(date);setCalView("day");}} title={`יום ${DAYS_HE[date.getDay()]}`}
+                      style={{borderRight:di<5?"1px solid var(--line)":"none",padding:"6px 3px",display:"flex",flexDirection:"column",gap:3,minHeight:104,cursor:"pointer"}}>
+                      {dayAppts.length===0
+                        ? <span style={{fontSize:9,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>—</span>
+                        : dayAppts.map(appt=>(
+ <button key={appt.id} onClick={e=>{e.stopPropagation();handleApptClick(appt);}} title={`${appt.name} · ${appt.service}`}
+                              style={{background:getApptColor(appt),border:"none",borderRadius:8,padding:"3px 2px",cursor:"pointer",fontFamily:"inherit",width:"100%",display:"block",textAlign:"center",opacity:appt.confirmation_status==="cancelled"?0.45:1}}>
+ <span style={{display:"block",fontSize:8.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.3)"}}>{fmtApptTime(appt)}</span>
+                              {/* First word only: a 65px column holds about
+                                  eight Hebrew characters, and a truncated full
+                                  name reads worse than a clean first name. */}
+ <span style={{display:"block",fontSize:9,fontWeight:600,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(appt.name||"").split(" ")[0]}</span>
+ </button>
+                          ))}
+ </div>
+                  );
+                })}
+ </div>
  </div>
               {/* MOBILE single-day agenda — mobile-only + rendered only in day view.
                   Desktop never shows this (calView stays "day" but .mobile-only hides it),
