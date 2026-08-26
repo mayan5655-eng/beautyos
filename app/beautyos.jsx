@@ -127,6 +127,9 @@ function VoiceCommandList() {
 // No default/demo services: a new cosmetician starts with an empty list and is
 // guided (empty state + first-run checklist) to add her own real services.
 
+// Pixels per 30-minute row in the week grid. 28 gives a 60-minute
+// appointment 56px - enough for a name plus one detail line at 62px wide.
+const WK_ROW_H = 28;
 const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 // Reassuring steps cycled through while the AI skin scan is processing, so the
@@ -286,7 +289,9 @@ const PAYMENT_METHODS = [
 
 function getWeekDates(startDate) {
   const days = [];
-  for (let i = 0; i < 6; i++) {
+  // SEVEN days. This was 6, which silently dropped שבת from the week view -
+  // never a decision, just a number nobody revisited.
+  for (let i = 0; i < 7; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
     days.push(d);
@@ -789,6 +794,9 @@ export default function BeautyOS() {
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
+  // The week grid scroller, so it can open at the first appointment rather
+  // than at the top of an axis that may start hours before anything happens.
+  const weekScrollRef = useRef(null);
   // Mobile calendar: "day" = single-day agenda (default on phones), "week" = the
   // desktop grid. Toggle is mobile-only; on desktop calView stays "day" and the
   // desktop-only week grid always renders, so the desktop calendar is unchanged.
@@ -1478,6 +1486,7 @@ export default function BeautyOS() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeTab]);
 
+
   // Scanner ceiling, loaded when she opens Settings — where the link lives.
   // Silent on failure: a number she cannot see is better than a wrong one, and
   // the card renders nothing rather than a confident zero.
@@ -1787,7 +1796,7 @@ export default function BeautyOS() {
   // Compare on local YYYY-MM-DD strings (via formatDate), not Date objects:
   // weekStart carries a time-of-day while new Date("YYYY-MM-DD") is UTC midnight,
   // which previously dropped today's appointments from the weekly count.
-  const weekAppts     = useMemo(() => { const ws=formatDate(weekStart); const weEnd=new Date(weekStart); weEnd.setDate(weEnd.getDate()+5); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
+  const weekAppts     = useMemo(() => { const ws=formatDate(weekStart); const weEnd=new Date(weekStart); weEnd.setDate(weEnd.getDate()+6); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
   const thisMonthAppts = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [appointments, thisMonth, thisYear]);
 
   // ── Last-visit index ──────────────────────────────────────────────────────
@@ -2011,19 +2020,97 @@ export default function BeautyOS() {
     return sm!==null && Math.floor(sm/60)===Number(hour);
   });
 
-  // EVERY appointment starting in that hour, earliest first.
+  // ── Week view geometry ────────────────────────────────────────────────────
   //
-  // getAppt above is a .find(), so the week grid rendered exactly one card per
-  // hour cell and any second appointment in the same hour simply did not
-  // appear - no card, no "+1", nothing. A booking that is in the database, on
-  // the calendar she is looking at, and invisible, is how a client gets missed.
-  // getAppt is kept because handleSlotClick still uses it to answer a different
-  // question ("is this hour occupied at all").
-  const getAppts = (date,hour) => appointments.filter(a=>{
-    if(a.date!==formatDate(date)) return false;
-    const sm = startMinute(a);
-    return sm!==null && Math.floor(sm/60)===Number(hour);
-  }).sort((a,b)=>startMinute(a)-startMinute(b));
+  // The week grid is positioned blocks, not table cells: an appointment's TOP
+  // is its start time and its HEIGHT is its duration. That is what makes
+  // overlaps visible - two bookings at 10:00 and 10:30 simply sit at different
+  // offsets - and it removes the one-appointment-per-hour-cell assumption that
+  // was silently hiding the second of any pair.
+  //
+  // The axis is 30-minute rows over the working day, EXTENDED to cover any
+  // appointment in the displayed week that falls outside those hours. Clamping
+  // an out-of-hours appointment to the edge would hide it, which is the same
+  // class of bug: if it exists, it has to be on screen.
+  const weekAxis = useMemo(() => {
+    let lo = (settings?.working_hours_start ?? 8) * 60;
+    let hi = (settings?.working_hours_end ?? 19) * 60;
+    const inWeek = new Set(weekDates.map(formatDate));
+    for (const a of appointments) {
+      if (!inWeek.has(a.date)) continue;
+      const s = startMinute(a);
+      if (s === null) continue;
+      const e = endMinute(a) ?? s + 60;
+      if (s < lo) lo = s;
+      if (e > hi) hi = e;
+    }
+    lo = Math.floor(lo / 30) * 30;
+    hi = Math.ceil(hi / 30) * 30;
+    if (hi <= lo) hi = lo + 30;
+    return { lo, hi, rows: (hi - lo) / 30 };
+  }, [weekDates, appointments, settings]);
+
+  /**
+   * One day's appointments, each with a lane so overlaps sit side by side.
+   *
+   * Classic interval packing: an appointment takes the first lane whose
+   * previous occupant has already ended. Non-overlapping appointments all reuse
+   * lane 0 and get the full column; only genuine overlaps split it.
+   */
+  const dayLanes = (date) => {
+    const ds = formatDate(date);
+    const list = appointments
+      .filter(a => a.date === ds && startMinute(a) !== null)
+      .sort((a, b) => startMinute(a) - startMinute(b));
+    const laid = [];
+    for (const appt of list) {
+      const s = startMinute(appt);
+      const e = Math.max(endMinute(appt) ?? s + 30, s + 30); // never zero-height
+      let lane = 0;
+      while (laid.some(x => x.lane === lane && x.e > s)) lane += 1;
+      laid.push({ appt, s, e, lane });
+    }
+    const lanes = laid.reduce((m, x) => Math.max(m, x.lane + 1), 1);
+    return { laid, lanes };
+  };
+
+  // Booking from a click on empty space, to the nearest half hour. The old grid
+  // could only book on the hour because its cells WERE hours; blocks give the
+  // Y offset, so 10:30 is now reachable.
+  const handleSlotAtMinute = (date, minutes) => {
+    const svc = activeServices[0];
+    setEditingAppointmentId(null);
+    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),...startFields(minutes),price:svc?.price||0});
+    setApptNote("");setShowModal(true);
+  };
+
+  // Open the week grid at the first appointment of that week, not at the top
+  // of the axis. The axis now stretches to cover anything out of hours, so a
+  // single 06:00 appointment would otherwise mean scrolling past two empty
+  // hours every time she opens the week. Falls back to the top when the week
+  // is empty. Sets a DOM property rather than state, which is what an effect
+  // is for.
+  useEffect(()=>{
+    if(calView!=="week") return;
+    const el=weekScrollRef.current;
+    if(!el) return;
+    const inWeek=new Set(weekDates.map(formatDate));
+    let first=null;
+    for(const a of appointments){
+      if(!inWeek.has(a.date)) continue;
+      const s=startMinute(a);
+      if(s===null) continue;
+      if(first===null||s<first) first=s;
+    }
+    el.scrollTop = first===null ? 0 : Math.max(0,((first-weekAxis.lo)/30)*WK_ROW_H - WK_ROW_H);
+  },[calView,weekStart,weekDates,appointments,weekAxis.lo]);
+
+  // getAppts (every appointment in an hour, for side-by-side rendering in a
+  // cell) is gone with the hour-cell grid it existed for. Positioned blocks
+  // make overlap a matter of geometry rather than something a cell has to
+  // special-case, so dayLanes above replaces it outright.
+  // getAppt survives: handleSlotClick still asks "is this hour occupied at
+  // all", where one match is the right answer.
 
   const getApptColor = (appt) => {
     if(appt.confirmation_status==="confirmed") return "var(--success)";
@@ -4494,30 +4581,9 @@ export default function BeautyOS() {
         @keyframes sheen{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}
         .empty-cta{transition:transform 0.14s,box-shadow 0.2s,filter 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:var(--shadow-glow);filter:saturate(1.06)}
         .mobile-only{display:none}
-        /* Week view: hour grid on desktop, chip strip on phones. Both are
-           always rendered; only one is ever displayed. */
-        .wk-chips{display:none}
-        .wk-add{display:none}
         @media (max-width:680px){
           .desktop-only{display:none!important}
           .mobile-only{display:flex!important}
-
-          /* ── Week view on a phone ──────────────────────────────────────────
-             The hour grid needs 52px of time gutter plus 6 columns at a 70px
-             minimum - 480px floor on a 440px screen, so it could only ever be
-             reached by scrolling sideways. Below this breakpoint it is replaced
-             rather than squeezed: the day headers stay, the hour rows go, and
-             the chip strip takes their place.
-
-             The header keeps its six columns but drops the time gutter, so the
-             headers still line up with the chip columns beneath them. */
-          .wk-gutter{display:none!important}
-          .wk-head{grid-template-columns:repeat(6,1fr)!important;min-width:0!important}
-          .wk-hours{display:none!important}
-          .wk-chips{display:grid!important;grid-template-columns:repeat(6,1fr)}
-          /* .mobile-only would force display:flex; this needs inline-flex to
-             stay a small round button rather than stretching the header cell. */
-          .wk-add{display:inline-flex!important}
           .sidebar-aside{position:fixed!important;top:0;bottom:0;right:0;width:80%!important;max-width:280px;z-index:1500;transform:translateX(100%);transition:transform 0.25s}
           .sidebar-aside.open{transform:translateX(0)}
           /* The closed drawer sits at right:0 translated fully off to the right,
@@ -5607,7 +5673,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div className={calView==="week"?undefined:"desktop-only"}>
  <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
- <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[5])}</h2>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[6])}</h2>
  </div>
  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
  {/* Mobile-only day/week toggle. Hidden on desktop, so desktop always shows the week grid. */}
@@ -5621,119 +5687,116 @@ export default function BeautyOS() {
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
  </div>
  <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
+ <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:11,padding:"7px 14px",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+6);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
+ <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
  </div>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
  </div>
- <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"auto",WebkitOverflowScrolling:"touch",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div className="wk-head" style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))",minWidth:480}}>
- <div className="wk-gutter"/>
-                {weekDates.map((d,i)=>{
-                  const isToday=formatDate(d)===today;
-                  const dayAppts=appointments.filter(a=>a.date===formatDate(d));
-                  const hasCancel=dayAppts.some(a=>a.confirmation_status==="cancelled");
-                  const isClosed=!dayHoursFrom(settings,d.getDay());
-                  return(
- <div key={i} style={{padding:"11px 4px",textAlign:"center",borderRight:i<5?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":hasCancel?"rgba(224,91,111,0.05)":"transparent",opacity:isClosed?0.5:1}}>
- <p style={{fontSize:11.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:600}}>{DAYS_HE[d.getDay()]}</p>
- <p className="serif" style={{fontSize:18,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.2,display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:26,height:26,borderRadius:"50%",...(isToday?{background:pcGrad,color:"var(--surface)",WebkitTextFillColor:"var(--surface)"}:{})}}>{d.getDate()}</p>
- <p style={{fontSize:7.5,color:"var(--ink-3)",marginTop:1}}>{d.getMonth()+1}/{d.getFullYear().toString().slice(2)}</p>
-                      {isClosed&&<p style={{fontSize:7.5,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
-                      {hasCancel&&<p style={{fontSize:7.5,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
-                      {/* Booking on mobile. The hour cells below are the only
-                          place the week view could start a booking, and they are
-                          hidden on a phone - so without this the mobile week
-                          view would be read-only. Opens on THIS date; she picks
-                          the time in the modal. */}
- <button className="wk-add mobile-only" aria-label={`תור חדש ליום ${DAYS_HE[d.getDay()]}`} title="תור חדש"
-                        onClick={e=>{e.stopPropagation();handleNewApptOnDate(d);}}
-                        style={{marginTop:3,width:22,height:22,borderRadius:"50%",border:"none",background:"var(--pc-tint)",color:pcDeep,fontSize:13,lineHeight:1,cursor:"pointer",fontFamily:"inherit",alignItems:"center",justifyContent:"center"}}>+</button>
+ <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"hidden",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+                {/* ONE implementation for phone and desktop.
+                    It used to be two - an hour-cell grid for desktop and a chip
+                    strip for phones - which is how the same bug gets fixed
+                    twice and then diverges. The axis column is 34px and the
+                    seven days share what is left, so 440px is enough without
+                    horizontal scroll: names truncate rather than forcing the
+                    column wider.
+                    In RTL the first grid column renders on the RIGHT, which is
+                    where the hour axis belongs. */}
+ <div ref={weekScrollRef} style={{maxHeight:"72vh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch"}}>
+
+                  {/* Day headers. Sticky, so they stay readable while the hours
+                      scroll under them. */}
+ <div style={{display:"grid",gridTemplateColumns:"34px repeat(7,1fr)",position:"sticky",top:0,zIndex:3,borderBottom:"1px solid var(--line)",background:"linear-gradient(100deg,var(--lavender-100),var(--surface))"}}>
+ <div/>
+                    {weekDates.map((d,i)=>{
+                      const isToday=formatDate(d)===today;
+                      const dayAppts=appointments.filter(a=>a.date===formatDate(d));
+                      const hasCancel=dayAppts.some(a=>a.confirmation_status==="cancelled");
+                      const isClosed=!dayHoursFrom(settings,d.getDay());
+                      return(
+ <div key={i} onClick={()=>{setCalDay(d);setCalView("day");}} title={`יום ${DAYS_HE[d.getDay()]}`}
+                          style={{padding:"7px 2px",textAlign:"center",cursor:"pointer",borderRight:i<6?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":undefined,boxShadow:isToday?`inset 0 -2px 0 ${pc}`:undefined}}>
+ <p style={{fontSize:9.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:isToday?700:600}}>{DAYS_HE[d.getDay()]}</p>
+ <p className="serif" style={{fontSize:15,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.25}}>{d.getDate()}</p>
+                          {isClosed&&<p style={{fontSize:7,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
+                          {hasCancel&&<p style={{fontSize:7,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
+                          {/* Booking without hunting for empty space, and the
+                              only booking affordance on a phone. */}
+ <button aria-label={`תור חדש ליום ${DAYS_HE[d.getDay()]}`} title="תור חדש"
+                            onClick={e=>{e.stopPropagation();handleNewApptOnDate(d);}}
+                            style={{marginTop:2,width:20,height:20,borderRadius:"50%",border:"none",background:"var(--pc-tint)",color:pcDeep,fontSize:12,lineHeight:1,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>+</button>
  </div>
-                  );
-                })}
+                      );
+                    })}
  </div>
 
-              {/* Hour grid: DESKTOP only below 680px. 11 working hours x 6 days
-                  is 66 cells for a typical handful of appointments a day, which
-                  on a phone is mostly empty rows and 64px columns too narrow to
-                  read a service name in. The mobile strip after it shows the
-                  same week as chips instead. */}
- <div className="wk-hours">
-              {workingHours.map((hour,hi)=>(
- <div key={hour} style={{display:"grid",gridTemplateColumns:"52px repeat(6,minmax(70px,1fr))",borderBottom:hi<workingHours.length-1?"1px solid var(--line)":"none",minHeight:56,minWidth:480}}>
- <div style={{padding:"5px 3px 0",fontSize:9,color:"var(--ink-3)",fontWeight:600,textAlign:"center",borderLeft:"1px solid var(--line)"}}>{hour}</div>
-                  {weekDates.map((date,di)=>{
-                    const actualHour=settings.working_hours_start+hi;
-                    const cellAppts=getAppts(date,actualHour);
-                    const dh=dayHoursFrom(settings,date.getDay());
-                    const openCell=!!dh&&actualHour>=dh.open&&actualHour<dh.close;
-                    const blocked=!cellAppts.length&&!openCell; // closed day / outside that day's hours -> not bookable
-                    return(
- <div key={di} className={(!cellAppts.length&&openCell)?"slot":""} onClick={blocked?undefined:()=>handleSlotClick(date,actualHour)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,display:"flex",gap:2,transition:"background 0.15s",cursor:blocked?"default":undefined,background:blocked?"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.06) 5px,rgba(122,90,136,0.06) 10px)":undefined}}>
-                        {/* Side by side rather than one-per-cell: two 30-minute
-                            appointments in the same hour both show, each taking half the
-                            column. Cramped beats invisible. */}
-                        {cellAppts.map(appt=>{
-                          const apptColor=getApptColor(appt);
-                          return(
- <div key={appt.id} className="appt-card" title="לחצי לעריכה / שינוי מועד" onClick={e=>{e.stopPropagation();handleApptClick(appt);}} onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
-                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",flex:1,minWidth:0,overflow:"hidden",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",cursor:"pointer",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:11.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
- <p style={{fontSize:7.5,color:"rgba(255,255,255,0.92)"}}>{appt.service}</p>
-                            {appt.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--surface)"}}>✓</span>}
-                            {appt.confirmation_status==="cancelled"&&<span style={{fontSize:8,color:"var(--surface)"}}>✕</span>}
- <div style={{display:"flex",gap:3,position:"absolute",bottom:3,right:3}}>
-                              {appt.client_id&&<button title="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>♥</button>}
-                              {(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone)&&<button title="שלחי תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>✉</button>}
- <button title="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={{background:"rgba(255,255,255,0.85)",border:"none",borderRadius:6,width:17,height:17,fontSize:8,cursor:"pointer",lineHeight:1}}>₪</button>
- </div>
-                            {hoveredAppt===appt.id&&<button onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.28)",border:"none",borderRadius:6,width:15,height:15,fontSize:8,cursor:"pointer",color:"var(--surface)"}}>✕</button>}
- </div>
-                          );
-                        })}
- </div>
-                    );
-                  })}
- </div>
-              ))}
+                  {/* Axis + seven day columns. Same template as the header, so
+                      the columns line up. */}
+ <div style={{display:"grid",gridTemplateColumns:"34px repeat(7,1fr)"}}>
+
+                    {/* Hour axis. A label on each full hour only; the half-hour
+                        rows are still there, just unlabelled. */}
+ <div style={{position:"relative",height:weekAxis.rows*WK_ROW_H,borderLeft:"1px solid var(--line)"}}>
+                      {Array.from({length:weekAxis.rows}).map((_,r)=>{
+                        const m=weekAxis.lo+r*30;
+                        if(m%60!==0) return null;
+                        return(
+ <div key={r} style={{position:"absolute",top:r*WK_ROW_H-1,insetInlineStart:0,insetInlineEnd:2,textAlign:"center",fontSize:8.5,color:"var(--ink-3)",fontWeight:600}}>{fmtTime(m)}</div>
+                        );
+                      })}
  </div>
 
-              {/* MOBILE week strip — the same six days, as chips instead of an
-                  hour grid. One column per day, one chip per appointment, in
-                  time order. At a handful of appointments a day the whole week
-                  fits on one screen with no horizontal scroll, which is the
-                  entire point: the hour grid needs 480px minimum and a phone
-                  has 440.
+                    {weekDates.map((date,di)=>{
+                      const {laid,lanes}=dayLanes(date);
+                      const dh=dayHoursFrom(settings,date.getDay());
+                      return(
+ <div key={di}
+                          onClick={e=>{
+                            // Empty space books at the half hour under the tap.
+                            const rect=e.currentTarget.getBoundingClientRect();
+                            const row=Math.floor((e.clientY-rect.top)/WK_ROW_H);
+                            handleSlotAtMinute(date,weekAxis.lo+Math.max(0,row)*30);
+                          }}
+                          style={{position:"relative",height:weekAxis.rows*WK_ROW_H,borderRight:di<6?"1px solid var(--line)":"none",cursor:"pointer"}}>
 
-                  What it deliberately does NOT do is show a time axis, so
-                  "is 10:00 free on Tuesday" is not answerable here. That is the
-                  day view's job and it is one tap away - tapping a column opens
-                  it on that date. Tapping a chip opens the appointment. */}
- <div className="wk-chips">
-                {weekDates.map((date,di)=>{
-                  const ds=formatDate(date);
-                  const dayAppts=appointments.filter(a=>a.date===ds).sort((a,b)=>startMinute(a)-startMinute(b));
-                  return(
- <div key={di} onClick={()=>{setCalDay(date);setCalView("day");}} title={`יום ${DAYS_HE[date.getDay()]}`}
-                      style={{borderRight:di<5?"1px solid var(--line)":"none",padding:"6px 3px",display:"flex",flexDirection:"column",gap:3,minHeight:104,cursor:"pointer"}}>
-                      {dayAppts.length===0
-                        ? <span style={{fontSize:9,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>—</span>
-                        : dayAppts.map(appt=>(
- <button key={appt.id} onClick={e=>{e.stopPropagation();handleApptClick(appt);}} title={`${appt.name} · ${appt.service}`}
-                              style={{background:getApptColor(appt),border:"none",borderRadius:8,padding:"3px 2px",cursor:"pointer",fontFamily:"inherit",width:"100%",display:"block",textAlign:"center",opacity:appt.confirmation_status==="cancelled"?0.45:1}}>
- <span style={{display:"block",fontSize:8.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.3)"}}>{fmtApptTime(appt)}</span>
-                              {/* First word only: a 65px column holds about
-                                  eight Hebrew characters, and a truncated full
-                                  name reads worse than a clean first name. */}
- <span style={{display:"block",fontSize:9,fontWeight:600,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(appt.name||"").split(" ")[0]}</span>
- </button>
-                          ))}
+                          {/* Half-hour rules, and shading for the hours this
+                              day is not open. The shading is informational: the
+                              slot is still bookable, because she does take the
+                              occasional appointment outside her posted hours. */}
+                          {Array.from({length:weekAxis.rows}).map((_,r)=>{
+                            const m=weekAxis.lo+r*30;
+                            const open=!!dh&&m>=dh.open*60&&m<dh.close*60;
+                            return(
+ <div key={r} style={{position:"absolute",top:r*WK_ROW_H,insetInlineStart:0,insetInlineEnd:0,height:WK_ROW_H,boxSizing:"border-box",borderBottom:m%60===30?"1px dashed var(--surface-2)":"1px solid var(--line)",background:open?undefined:"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.05) 5px,rgba(122,90,136,0.05) 10px)"}}/>
+                            );
+                          })}
+
+                          {laid.map(({appt,s,e,lane})=>{
+                            const top=(s-weekAxis.lo)/30*WK_ROW_H;
+                            const h=Math.max(WK_ROW_H-2,(e-s)/30*WK_ROW_H-2);
+                            // Below ~46px there is only room for the name; the
+                            // rest would clip mid-word, which reads worse than
+                            // being absent.
+                            const compact=h<46;
+                            const cancelled=appt.confirmation_status==="cancelled";
+                            return(
+ <div key={appt.id} className="appt-card" title={`${appt.name} · ${appt.service} · ${fmtTime(s)}–${fmtTime(e)}`}
+                                onClick={ev=>{ev.stopPropagation();handleApptClick(appt);}}
+                                style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:8,padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"0 2px 6px rgba(43,34,51,0.16)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)"}}>
+ <p style={{fontSize:9.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
+                                {!compact&&(<>
+ <p style={{fontSize:8,color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.service}</p>
+ <p style={{fontSize:7.5,color:"rgba(255,255,255,0.85)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>עד {fmtTime(e)}</p>
+                                </>)}
  </div>
-                  );
-                })}
+                            );
+                          })}
+ </div>
+                      );
+                    })}
+ </div>
  </div>
  </div>
               {/* MOBILE single-day agenda — mobile-only + rendered only in day view.
