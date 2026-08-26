@@ -209,7 +209,7 @@ const pageStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 0,
   overflow: 'hidden',
-  minHeight: '100vh',
+  minHeight: '100dvh',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',

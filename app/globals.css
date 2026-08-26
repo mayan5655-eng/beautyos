@@ -162,6 +162,30 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Nothing may scroll the PAGE sideways.
+ *
+ * A safety net, not the fix: the three wide grids (weekly calendar, and the two
+ * wide tables) already sit inside their own overflow:auto wrappers and scroll
+ * within themselves. This exists so that ONE mis-sized element somewhere can no
+ * longer drag the whole document sideways and cut off the right edge.
+ *
+ * On html AND body, because iOS Safari honours it on one or the other depending
+ * on which element ends up as the scrolling box.
+ *
+ * The trade, stated plainly: this HIDES horizontal overflow rather than
+ * preventing it. If something genuinely is too wide, its right-hand content
+ * becomes unreachable instead of scrollable. That is the right default for a
+ * page - a sideways-sliding app is broken either way - but it means a future
+ * layout bug will present as "content missing" rather than "page scrolls", so
+ * check this rule before hunting elsewhere.
+ *
+ * overflow-x only. Never overflow:hidden, which would kill vertical scrolling
+ * and break position:sticky throughout the app. */
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);

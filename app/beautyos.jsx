@@ -4184,7 +4184,7 @@ export default function BeautyOS() {
   };
 
   if(loading) return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",padding:"22px 18px",fontFamily:"'Heebo',sans-serif"}}>
+    <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",padding:"22px 18px",fontFamily:"'Heebo',sans-serif"}}>
       <style>{`@keyframes shimmer{0%{background-position:-360px 0}100%{background-position:360px 0}}.skel{background:linear-gradient(90deg,var(--pc-tint) 25%,#F8F1F4 50%,var(--pc-tint) 75%);background-size:720px 100%;animation:shimmer 1.3s infinite linear;border-radius:10px}`}</style>
       <div style={{maxWidth:1180,margin:"0 auto"}}>
         <div className="skel" style={{width:180,height:26,marginBottom:22}}/>
@@ -4207,7 +4207,7 @@ export default function BeautyOS() {
   // first thing this screen has to answer, for someone with a year of history,
   // is "have I lost everything".
   if(loadError) return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"22px 18px",fontFamily:"'Heebo','Assistant',sans-serif",direction:"rtl"}}>
+    <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"22px 18px",fontFamily:"'Heebo','Assistant',sans-serif",direction:"rtl"}}>
       <div style={{width:"100%",maxWidth:440,background:"var(--surface,#FFFFFF)",border:"1px solid var(--line,#ECE4F0)",borderRadius:20,boxShadow:"0 18px 44px rgba(74,46,90,0.10)",padding:"32px 26px",textAlign:"center"}}>
         <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#F1E2F2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{loadError.offline ? "📶" : "⚠️"}</div>
         <h1 style={{fontSize:22,fontWeight:600,margin:"0 0 10px",color:"var(--ink,#2A2233)"}}>
@@ -4317,8 +4317,14 @@ export default function BeautyOS() {
     }
   };
 
+  // backgroundAttachment:"fixed" was removed from the shell below, not
+  // restyled. iOS has never implemented it properly, and in a standalone
+  // install it paints the wash into a wrong-sized box, letting the white body
+  // show through at the screen edges - which reads as side gutters even though
+  // the content is full width. The gradient itself is unchanged; only the
+  // attachment mode is gone, so this is a paint fix, not a visual change.
   return (
- <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:BRAND_WASH,backgroundAttachment:"fixed",minHeight:"100vh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
+ <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:BRAND_WASH,minHeight:"100dvh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
                 {/* skipTop: no background blossom lands behind the header, so
                     the flowers in the BloomOS logo are the only ones there and
                     nothing competes with them. */}

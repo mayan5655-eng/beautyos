@@ -75,7 +75,7 @@ function ConfirmContent() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -129,7 +129,7 @@ export default function ConfirmPage() {
   return (
     <Suspense fallback={
       <div style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center'

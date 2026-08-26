@@ -154,7 +154,7 @@ function Email() {
 
 // === Styles (quiet-luxury, warm neutrals, serif headings) ===
 const pageStyle: CSSProperties = {
-  minHeight: "100vh",
+  minHeight: "100dvh",
   background: BRAND_WASH_SOFT,
   padding: "48px 18px",
   display: "flex",

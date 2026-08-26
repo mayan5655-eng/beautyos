@@ -391,7 +391,7 @@ function Field({ label, children, inline = false }: { label: string; children: R
 
 // === Styles ===
 const containerStyle: React.CSSProperties = {
-  minHeight: "100vh",
+  minHeight: "100dvh",
   background: "linear-gradient(180deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)",
   display: "flex",
   flexDirection: "column",

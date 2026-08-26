@@ -249,7 +249,7 @@ export default function BookPage() {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize: 15, letterSpacing: "1px", color: pc }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize: 15, letterSpacing: "1px", color: pc }}>
         ✦ טוען
       </div>
     );
@@ -258,7 +258,7 @@ export default function BookPage() {
   // Invalid / missing tenant - show a friendly message instead of the wrong data
   if (tenantError) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)", padding: 24, textAlign: "center" }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)", padding: 24, textAlign: "center" }}>
         <div style={{ fontSize: 40, marginBottom: 16, color: "var(--pc, #4A2E5A)" }}>✦</div>
         <h1 className="serif" style={{ fontSize: 23, fontWeight: 600, color: "var(--brand-muted, #98879B)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
         <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", maxWidth: 320, lineHeight: 1.7 }}>
@@ -318,7 +318,7 @@ export default function BookPage() {
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       {/* Subtle brand-tinted floral watermark, behind all content */}
       <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.9} />
       <style>{`

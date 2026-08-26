@@ -212,7 +212,7 @@ export default function ResetPasswordPage() {
     <div
       dir="rtl"
       style={{
-        position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
+        position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100dvh',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
         // Wash comes from BrandBackdrop, identical on every branded screen.
         fontFamily: 'var(--sans)',

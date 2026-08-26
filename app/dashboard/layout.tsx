@@ -21,7 +21,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div style={{ minHeight: '100vh', direction: 'rtl' }}>
+    <div style={{ minHeight: '100dvh', direction: 'rtl' }}>
       {/* Main content - full width */}
       <main style={{ padding: '32px', backgroundColor: 'white' }}>
         {children}

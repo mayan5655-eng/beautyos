@@ -209,7 +209,7 @@ export default function FormPage() {
   };
 
   if (loading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontSize:18,fontFamily:"Heebo"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:18,fontFamily:"Heebo"}}>
       💎 טוען טופס...
     </div>
   );
@@ -218,7 +218,7 @@ export default function FormPage() {
   // Conflating "could not load" with "does not exist" is what made this page's
   // failure invisible for months.
   if (loadError === "failed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24,textAlign:"center"}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24,textAlign:"center"}}>
       <div style={{fontSize:52,marginBottom:14}}>⚠️</div>
       <h2 style={{fontSize:20,fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>לא הצלחנו לטעון את הטופס</h2>
       <p style={{fontSize:14,color:"var(--brand-muted, #98879B)",marginBottom:20,maxWidth:320,lineHeight:1.7}}>
@@ -235,7 +235,7 @@ export default function FormPage() {
   );
 
   if (loadError === "notfound" || !formData) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",fontSize:18,fontFamily:"Heebo"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:18,fontFamily:"Heebo"}}>
       הטופס לא נמצא
     </div>
   );
@@ -244,7 +244,7 @@ export default function FormPage() {
   // and NOT the same as a missing form - saying "not found" here sends her
   // chasing a link that is perfectly fine.
   if (!formTemplate) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24,textAlign:"center"}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24,textAlign:"center"}}>
       <div style={{fontSize:52,marginBottom:14}}>⚠️</div>
       <h2 style={{fontSize:20,fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>לא הצלחנו להציג את הטופס</h2>
       <p style={{fontSize:14,color:"var(--brand-muted, #98879B)",maxWidth:320,lineHeight:1.7}}>
@@ -254,7 +254,7 @@ export default function FormPage() {
   );
 
   if (submitted) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
       <div style={{fontSize:60,marginBottom:16}}>✅</div>
       <h2 style={{fontSize:22,fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
       <p style={{fontSize:14,color:"var(--brand-muted, #98879B)"}}>תודה {formData.client_name}, הטופס נשמר בכרטיס שלך</p>
@@ -262,7 +262,7 @@ export default function FormPage() {
   );
 
   if (formData.status === "signed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FEFAF7)",padding:24}}>
       <div style={{fontSize:60,marginBottom:16}}>✅</div>
       <h2 style={{fontSize:22,fontWeight:800,color:"var(--ink, #2A2233)"}}>הטופס כבר נחתם</h2>
     </div>
@@ -272,7 +272,7 @@ export default function FormPage() {
   const progress = Math.round((answeredCount / formTemplate.questions.length) * 100);
 
   return (
-    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100vh",padding:"24px 16px"}}>
+    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100dvh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
 
         <div style={{background:"var(--ink, #2A2233)",borderRadius:16,padding:"20px 24px",marginBottom:20,textAlign:"center"}}>

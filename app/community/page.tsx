@@ -49,7 +49,7 @@ export default function CommunityPage() {
   }, []);
 
   return (
-    <div dir="rtl" style={{ minHeight: "100vh", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", fontFamily: "Arial, sans-serif" }}>
+    <div dir="rtl" style={{ minHeight: "100dvh", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 14px 48px" }}>
         {/* Header */}
         <div style={{ textAlign: "center", padding: "34px 16px 22px" }}>

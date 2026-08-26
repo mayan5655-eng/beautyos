@@ -123,7 +123,7 @@ export default function LandingPage() {
   // === LOADING ===
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--pc-tint, #EDE7F0)", fontSize: 18, color: "#4A2E5A" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Heebo',sans-serif", background: "var(--pc-tint, #EDE7F0)", fontSize: 18, color: "#4A2E5A" }}>
         טוען... 💗
       </div>
     );
@@ -135,7 +135,7 @@ export default function LandingPage() {
   // possible answer to a dropped request.
   if (loadError === "failed") {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>⚠️</div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 8 }}>לא הצלחנו לטעון את הדף</h1>
         <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", marginBottom: 20, maxWidth: 320, lineHeight: 1.7 }}>
@@ -154,7 +154,7 @@ export default function LandingPage() {
 
   if (loadError === "notfound") {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Heebo',sans-serif", background: "var(--brand-cream, #FEFAF7)", textAlign: "center", padding: 20 }}>
         <div style={{ fontSize: 56, marginBottom: 12 }}>🤔</div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--ink, #2A2233)", marginBottom: 8 }}>הדף לא נמצא</h1>
         <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)" }}>הכתובת שחיפשת לא קיימת. בדקי שהקישור נכון.</p>
@@ -164,7 +164,7 @@ export default function LandingPage() {
 
   // === MAIN LANDING ===
   return (
-    <div dir="rtl" style={{ fontFamily: "'Heebo','Assistant',sans-serif", background: `linear-gradient(165deg, ${bgSoft} 0%, ${bgSoft2} 100%)`, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div dir="rtl" style={{ fontFamily: "'Heebo','Assistant',sans-serif", background: `linear-gradient(165deg, ${bgSoft} 0%, ${bgSoft2} 100%)`, minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }

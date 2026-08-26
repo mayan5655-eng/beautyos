@@ -110,7 +110,7 @@ export default function LoginPage() {
 
   return (
     <div dir="rtl" style={{
-      position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100vh',
+      position: 'relative', zIndex: 0, overflow: 'hidden', minHeight: '100dvh',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px 20px 40px',
       // Cream page lifting to a soft lavender halo behind the card.
       fontFamily: 'var(--sans)',

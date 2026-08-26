@@ -81,7 +81,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
     <div
       dir="rtl"
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
