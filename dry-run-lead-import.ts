@@ -2,17 +2,22 @@
 //
 // DRY RUN ONLY. Makes NO database call of any kind - not a write, not a read,
 // not a count. It runs the exact modules the commit endpoint runs
-// (decodeCsv -> parseCsv -> diagnoseCsv -> buildRows -> chunk plan) and prints
-// what a real import WOULD do.
+// (readUpload -> buildRows -> chunk plan) and prints what a real import WOULD
+// do. Handles .csv, .xlsx and .xls, because readUpload does.
 //
-//   node dry-run-lead-import.ts                 # generated 247-row fixture
-//   node dry-run-lead-import.ts path/to/her.csv # a real file
+//   node dry-run-lead-import.ts                  # generated 247-row fixture
+//   node dry-run-lead-import.ts path/to/her.csv  # a real file
+//   node dry-run-lead-import.ts her.xlsx --sheet=לידים
 //
 // Nothing here imports supabase. That is deliberate: a dry-run script that
 // could reach the database is one typo away from not being a dry run.
 
 import { readFileSync } from 'node:fs';
-import { decodeCsv, parseCsv, diagnoseCsv, maskValue } from './lib/leads/csvImport.ts';
+import { maskValue } from './lib/leads/csvImport.ts';
+// The SAME entry point both routes use. This script used to call decodeCsv and
+// parseCsv directly, which was already a second path through the same decision
+// and would have silently failed to read a workbook at all.
+import { readUpload } from './lib/leads/readUpload.ts';
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from './lib/leads/buildRows.ts';
 import { fallbackMapping, TARGET_FIELDS } from './lib/leads/mapHeaders.ts';
 
@@ -62,20 +67,32 @@ line(`source: ${path ? path : 'generated 247-row fixture (windows-1255, ";", CRL
 line(`TENANT FILTER that a real run would use: tenant_id = ${TENANT}`);
 line('='.repeat(74));
 
-const { text, encoding } = decodeCsv(bytes);
-const { headers, rows, delimiter } = parseCsv(text);
+const sheetArg = process.argv.slice(3).find((a) => a.startsWith('--sheet='));
+const read = readUpload(bytes, {
+  filename: path ?? 'fixture.csv',
+  sheet: sheetArg ? sheetArg.slice('--sheet='.length) : null,
+  maxRows: 20_000,
+});
 
-line(`\nencoding detected : ${encoding}`);
-line(`delimiter detected: ${delimiter === '\t' ? 'TAB' : `"${delimiter}"`}`);
-line(`header row        : ${headers.join(' | ')}`);
-line(`data rows         : ${rows.length}`);
-
-const diagnosis = diagnoseCsv(text, headers, rows);
-if (diagnosis.problem) {
-  line(`\nFILE UNUSABLE — ${diagnosis.problem}`);
-  line(`  ${diagnosis.message}`);
+if (!read.ok) {
+  line(`\nFILE UNUSABLE — ${read.problem}`);
+  line(`  ${read.message}`);
+  if (read.sheetNames.length > 0) line(`  sheets in file: ${read.sheetNames.join(' | ')}`);
   process.exit(1);
 }
+
+const { format, headers, rows, delimiter, encoding, sheetNames, sheetName } = read;
+
+line(`\nformat detected   : ${format}`);
+if (format === 'csv') {
+  line(`encoding detected : ${encoding}`);
+  line(`delimiter detected: ${delimiter === '\t' ? 'TAB' : `"${delimiter}"`}`);
+} else {
+  line(`sheets in file    : ${sheetNames.length} — ${sheetNames.join(' | ')}`);
+  line(`sheet read        : ${sheetName}`);
+}
+line(`header row        : ${headers.join(' | ')}`);
+line(`data rows         : ${rows.length}`);
 line('diagnosis         : usable');
 
 // The mapping the preview would produce, from THE REAL fallbackMapping in
