@@ -9,6 +9,12 @@ import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { fmtApptTime } from "../../../lib/apptTime";
 
+// Vercel's default function timeout is short (10-15s depending on plan) and was
+// never declared here. This job sends serially to every tenant's appointments
+// for tomorrow, so at ~40 sends/day across 50 tenants it needs headroom the
+// default does not give.
+export const maxDuration = 300;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY

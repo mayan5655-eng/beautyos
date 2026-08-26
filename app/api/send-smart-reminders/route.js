@@ -1,58 +1,41 @@
 // app/api/send-smart-reminders/route.js
-// Sends THREE kinds of automated WhatsApp reminders, for ALL tenants:
+//
+// Sends FOUR kinds of automated WhatsApp reminders, for ALL tenants:
 //   1. winback      - clients whose last visit was 90+ days ago
 //   2. package_done - clients who finished a treatment package
-//   3. review       - clients who had a treatment ~2 days ago (review request)
+//   3. review       - clients who had a treatment ~2 days ago
+//   4. birthday     - clients whose birthday is today
 //
 // Anti-spam: every send is logged to auto_reminders_log so the same client
 // never gets the same reminder twice.
 //
 // Runs via Vercel Cron once a day. Multi-tenant aware.
 // Supports ?dryRun=1 to PREVIEW without sending (used for manual testing).
+//
+// ── The logic lives in lib/reminders/smartReminders.js ─────────────────────
+// This route is a thin wrapper that supplies the real database and the real
+// WhatsApp sender. The engine is separate so it can be run against a synthetic
+// 50-tenant dataset with a fake db and a fake sender - production data is far
+// too small to exercise the scaling behaviour (9 clients, 0 lapsed), so that
+// harness is the only honest proof the caps and the query-count fix work.
+// See test-smart-reminders.js.
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { runSmartReminders, DEFAULT_CAPS, DEFAULT_CONCURRENCY } from "../../../lib/reminders/smartReminders";
+
+// Vercel's default function timeout is short (10-15s depending on plan) and was
+// never declared here. This job makes several round trips before it sends
+// anything, so state the ceiling rather than inherit whatever the plan gives.
+// The caps in the engine keep the actual work well inside this.
+export const maxDuration = 300;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Returns "YYYY-MM-DD" for `daysAgo` days before today (Israel timezone)
-function dateNDaysAgo(daysAgo) {
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })
-  );
-  now.setDate(now.getDate() - daysAgo);
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-// Check whether a given reminder was already logged (anti-spam)
-async function alreadySent(tenantId, clientId, type, referenceId) {
-  const { data } = await supabase
-    .from("auto_reminders_log")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("client_id", clientId)
-    .eq("reminder_type", type)
-    .eq("reference_id", referenceId || "")
-    .limit(1);
-  return !!(data && data.length > 0);
-}
-
-// Record that a reminder was sent (anti-spam)
-async function logSent(tenantId, clientId, type, referenceId) {
-  await supabase.from("auto_reminders_log").insert({
-    tenant_id: tenantId,
-    client_id: clientId,
-    reminder_type: type,
-    reference_id: referenceId || "",
-  });
-}
 export async function POST(request) {
   // Guard: only Vercel Cron (or a caller holding CRON_SECRET) may trigger this
   // all-tenant WhatsApp blast.
@@ -62,197 +45,22 @@ export async function POST(request) {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get("dryRun") === "1";
 
-    // Load all settings rows once, keyed by tenant_id. We read the whole row
-    // (select "*") rather than named columns because the automation-toggle
-    // columns may not exist yet in every environment, and "*" can't fail on a
-    // missing column the way an explicit select would.
-    const { data: settingsRows } = await supabase.from("settings").select("*");
-    const businessNameByTenant = {};
-    const reviewUrlByTenant = {};
-    const settingsByTenant = {};
-    (settingsRows || []).forEach((row) => {
-      settingsByTenant[row.tenant_id] = row;
-      businessNameByTenant[row.tenant_id] = row.business_name || "העסק";
-      if (row.review_url) reviewUrlByTenant[row.tenant_id] = row.review_url;
+    const { results, stats } = await runSmartReminders({
+      db: supabase,
+      send: sendWhatsApp,
+      dryRun,
+      caps: DEFAULT_CAPS,
+      concurrency: DEFAULT_CONCURRENCY,
     });
 
-    // Each reminder type is ON by default: a tenant's type is skipped only when
-    // its flag is explicitly false. undefined/null (column absent or never set)
-    // counts as ON, so behavior matches how the cron ran before the toggles
-    // existed. Note: the birthday greeting has no toggle and always runs.
-    // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
-    // A tenant-wide gate ON TOP of the per-type toggles below - when it is on,
-    // nothing automated goes out for that tenant at all.
-    // Fails open: only a literal true pauses, so a missing column or a
-    // malformed JSONB value can never silently stop a paying tenant's messages.
-    const tenantPaused = (tenantId) => {
-      const autos = settingsByTenant[tenantId]?.automations;
-      return !!(autos && typeof autos === "object" && autos.paused === true);
-    };
-    // One log line per tenant per run, not per message.
-    const pausedLogged = new Set();
-
-    const flagEnabled = (tenantId, flag) =>
-      settingsByTenant[tenantId]?.[flag] !== false;
-
-    // Load all clients once (we need phone + tenant + id + birthday)
-    const { data: clients } = await supabase
-      .from("clients")
-      .select("id, name, phone, tenant_id, birthday");
-    const clientById = {};
-    (clients || []).forEach((c) => { clientById[c.id] = c; });
-
-    const results = { winback: [], package_done: [], review: [], birthday: [] };
-
-    // Helper: send (or preview) one reminder + log it
-    async function handleReminder(client, type, referenceId, message) {
-      // Master pause beats everything, including the birthday greeting, which
-      // has no per-type toggle of its own. Every send path routes through this
-      // helper, so one check here covers all four reminder types.
-      if (client && tenantPaused(client.tenant_id)) {
-        if (!pausedLogged.has(client.tenant_id)) {
-          console.log(`[send-smart-reminders] skipped: automations paused for tenant ${client.tenant_id}`);
-          pausedLogged.add(client.tenant_id);
-        }
-        results[type].push({ name: client.name || "?", status: "מושהה (השהיית אוטומציות)" });
-        return;
-      }
-      if (!client || !client.phone) {
-        results[type].push({ name: client?.name || "?", status: "אין טלפון" });
-        return;
-      }
-      // Skip if we already sent this exact reminder
-      if (await alreadySent(client.tenant_id, client.id, type, referenceId)) {
-        return;
-      }
-      if (dryRun) {
-        results[type].push({ name: client.name, status: "תצוגה מקדימה (לא נשלח)" });
-        return;
-      }
-      const res = await sendWhatsApp(client.phone, message, {
-        name: client.name,
-        type: `auto_${type}`,
-        tenantId: client.tenant_id,
-      });
-      if (res.ok) await logSent(client.tenant_id, client.id, type, referenceId);
-      results[type].push({ name: client.name, status: res.ok ? "נשלח" : "נכשל" });
-    }
-
-    // ============================================================
-    // 1. WINBACK - clients whose last appointment was 90+ days ago
-    // ============================================================
-    const cutoff90 = dateNDaysAgo(90);
-    const { data: allAppts } = await supabase
-      .from("appointments")
-      .select("client_id, date, tenant_id, confirmation_status");
-    const lastVisitByClient = {};
-    (allAppts || []).forEach((a) => {
-      if (!a.client_id || !a.date) return;
-      if (a.confirmation_status === "cancelled") return; // a cancelled appointment is not a real visit
-      const prev = lastVisitByClient[a.client_id];
-      if (!prev || a.date > prev) lastVisitByClient[a.client_id] = a.date;
-    });
-
-    for (const [clientId, lastDate] of Object.entries(lastVisitByClient)) {
-      if (lastDate >= cutoff90) continue; // visited recently - skip
-      const client = clientById[clientId];
-      if (!client) continue;
-      if (!flagEnabled(client.tenant_id, "winback_enabled")) continue; // tenant disabled win-back
-      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
-      const message =
-        `שלום ${client.name}! 💗\n` +
-        `מתגעגעים אלייך ב${businessName}!\n` +
-        `מזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\n` +
-        `רוצה לקבוע תור? פשוט כתבי לנו 😊`;
-      await handleReminder(client, "winback", lastDate, message);
-    }
-
-    // ============================================================
-    // 2. PACKAGE DONE - finished packages not yet notified
-    // ============================================================
-    const { data: pkgs } = await supabase
-      .from("packages")
-      .select("id, client_id, service, total_sessions, used_sessions, active, tenant_id");
-    for (const pkg of pkgs || []) {
-      const finished =
-        pkg.active === false ||
-        (pkg.total_sessions != null &&
-          pkg.used_sessions != null &&
-          Number(pkg.used_sessions) >= Number(pkg.total_sessions));
-      if (!finished) continue;
-      const client = clientById[pkg.client_id];
-      if (!client) continue;
-      if (!flagEnabled(client.tenant_id, "package_reminders_enabled")) continue; // tenant disabled package reminders
-      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
-      const message =
-        `שלום ${client.name}! ✨\n` +
-        `סיימת את חבילת ${pkg.service} ב${businessName} — כל הכבוד! 💆‍♀️\n` +
-        `רוצה לחדש ולהמשיך את הטיפולים? נשמח להכין לך חבילה חדשה 💗`;
-      await handleReminder(client, "package_done", pkg.id, message);
-    }
-
-    // ============================================================
-    // 3. REVIEW REQUEST - treatment ~2 days ago
-    // ============================================================
-    const reviewDay = dateNDaysAgo(2);
-    const { data: reviewAppts } = await supabase
-      .from("appointments")
-      .select("id, client_id, service, date, tenant_id, confirmation_status")
-      .eq("date", reviewDay);
-    for (const appt of reviewAppts || []) {
-      if (appt.confirmation_status === "cancelled") continue; // don't request a review for a cancelled visit
-      const client = clientById[appt.client_id];
-      if (!client) continue;
-      if (!flagEnabled(client.tenant_id, "review_requests_enabled")) continue; // tenant disabled review requests
-      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
-      const reviewUrl = reviewUrlByTenant[client.tenant_id];
-      const message =
-        `שלום ${client.name}! 💗\n` +
-        `תודה שביקרת אצלנו ב${businessName}!\n` +
-        `נשמח מאוד אם תשאירי לנו ביקורת ⭐\n` +
-        `זה לוקח רק דקה ועוזר לנו מאוד 🙏` +
-        // Append the direct review link only if this tenant configured one.
-        (reviewUrl ? `\n\nנשמח אם תשאירי לנו ביקורת קצרה:\n${reviewUrl}` : "");
-      await handleReminder(client, "review", appt.id, message);
-    }
-
-    // ============================================================
-    // 4. BIRTHDAY - clients whose birthday (month+day) is today
-    // ============================================================
-    const todayIsrael = new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" })
+    console.log(
+      `[send-smart-reminders] ${dryRun ? "DRY RUN" : "live"} — ` +
+      `queries=${stats.queries} considered=${stats.considered} ` +
+      `selected=${stats.selected} deferred=${stats.deferredByCap} ` +
+      `sent=${stats.sent} failed=${stats.failed} ms=${stats.ms}`
     );
-    const todayMonth = todayIsrael.getMonth() + 1; // 1-12
-    const todayDay = todayIsrael.getDate();        // 1-31
-    const todayYear = String(todayIsrael.getFullYear());
 
-    for (const client of clients || []) {
-      if (!client.birthday) continue; // no birthday -> skip silently
-      // birthday is "YYYY-MM-DD" (HTML date input); parse month/day robustly.
-      let bMonth, bDay;
-      const m = String(client.birthday).match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (m) {
-        bMonth = Number(m[2]);
-        bDay = Number(m[3]);
-      } else {
-        const d = new Date(client.birthday);
-        if (isNaN(d.getTime())) continue; // unparseable -> skip
-        bMonth = d.getMonth() + 1;
-        bDay = d.getDate();
-      }
-      if (bMonth !== todayMonth || bDay !== todayDay) continue; // not today
-
-      const businessName = businessNameByTenant[client.tenant_id] || "העסק";
-      const message =
-        `שלום ${client.name}! 🎉\n` +
-        `יום הולדת שמח מ${businessName}! 💗\n` +
-        `שיהיה לך יום מתוק ומפנק — מגיע לך 🎂\n` +
-        `לרגל היום המיוחד נשמח לפנק אותך בטיפול ✨`;
-      // reference_id = year -> greet at most once per birthday, per year.
-      await handleReminder(client, "birthday", todayYear, message);
-    }
-
-    return Response.json({ success: true, dryRun, results });
+    return Response.json({ success: true, dryRun, results, stats });
   } catch (err) {
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }

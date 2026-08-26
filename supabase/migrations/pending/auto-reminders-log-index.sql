@@ -1,0 +1,48 @@
+-- auto-reminders-log-index.sql
+--
+-- The anti-spam lookup in the smart-reminder cron had NO index behind it.
+--
+-- send-smart-reminders asked, once per candidate, "did I already send this?":
+--
+--   select id from auto_reminders_log
+--    where tenant_id = ? and client_id = ? and reminder_type = ? and reference_id = ?
+--
+-- Two things made that expensive at the same time. The candidate set grows
+-- monotonically - a client whose last visit was 90+ days ago stays a winback
+-- candidate forever, and was re-queried every single day - and the table each
+-- query scanned grows with every reminder ever sent. Without an index that is a
+-- sequential scan per candidate, per day, over an ever-larger table.
+--
+-- The code no longer issues that query at all: it reads the whole log once into
+-- a Set. This index still matters for two reasons - the paged read below, and
+-- the fact that nothing stops a future caller from writing the point lookup
+-- again. It is cheap insurance either way.
+--
+-- Column order matches the lookup exactly, most selective first.
+--
+-- NOT "concurrently": supabase/migrations/legacy/indexes.sql uses CREATE INDEX
+-- CONCURRENTLY, which cannot run inside a transaction block - if that file was
+-- pasted into the SQL editor as one script it may have silently failed. This
+-- one is a plain CREATE INDEX so it works however you run it. The table is
+-- small (single-digit rows today), so there is no lock concern.
+
+create index if not exists idx_auto_reminders_lookup
+  on public.auto_reminders_log (tenant_id, client_id, reminder_type, reference_id);
+
+-- ── Verify ─────────────────────────────────────────────────────────────────
+--
+--   a) The index exists. EXPECT one row.
+--        select indexname, indexdef from pg_indexes
+--         where schemaname = 'public' and tablename = 'auto_reminders_log';
+--
+--   b) It is actually used by the lookup shape. EXPECT an Index Scan, not a
+--      Seq Scan, in the plan:
+--        explain
+--        select id from public.auto_reminders_log
+--         where tenant_id = '00000000-0000-0000-0000-000000000000'
+--           and client_id = '00000000-0000-0000-0000-000000000000'
+--           and reminder_type = 'winback'
+--           and reference_id = '2020-01-01';
+--      (On a table this small Postgres may still choose a Seq Scan because it
+--       is cheaper - that is correct behaviour, not a failure. Re-check once
+--       the table has a few thousand rows.)
