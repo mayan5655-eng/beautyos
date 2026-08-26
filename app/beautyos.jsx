@@ -1803,7 +1803,19 @@ export default function BeautyOS() {
 
   const getLastApptDate = (cid) => lastApptDateByClient.get(String(cid));
   const getDaysSince   = (cid) => {const d=getLastApptDate(cid);if(!d)return 999;return Math.floor((now-new Date(d))/(1000*60*60*24));};
-  const getClientTotal = (cid) => receipts.filter(r=>String(r.client_id)===String(cid)).reduce((s,r)=>s+(Number(r.amount)||0),0);
+  // Same shape as the last-visit index above. topClients sorts every client
+  // with a comparator that called this, and a comparator runs O(n log n) times
+  // - so a full scan of receipts per comparison, then again in the filter.
+  const clientTotalById = useMemo(() => {
+    const m = new Map();
+    for (const r of receipts) {
+      if (!r.client_id) continue;
+      const k = String(r.client_id);
+      m.set(k, (m.get(k) || 0) + (Number(r.amount) || 0));
+    }
+    return m;
+  }, [receipts]);
+  const getClientTotal = (cid) => clientTotalById.get(String(cid)) || 0;
   const getClientAppts = (cid) => appointments.filter(a=>String(a.client_id)===String(cid));
   const getClientForms = (cid) => forms.filter(f=>String(f.client_id)===String(cid));
   const getClientReceipts = (cid) => receipts.filter(r=>String(r.client_id)===String(cid));
