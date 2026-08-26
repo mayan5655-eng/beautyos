@@ -34,7 +34,7 @@ import {
   serialToDate,
   type Workbook,
 } from './lib/leads/xlsxImport.ts';
-import { readUpload } from './lib/leads/readUpload.ts';
+import { readUpload, detectForeignFormat, foreignFormatMessage, sniffZipKind } from './lib/leads/readUpload.ts';
 import { normalizeIsraeliMobile } from './lib/leads/csvImport.ts';
 
 let passed = 0;
@@ -426,6 +426,128 @@ group('end to end');
     eq('row 4 landline refused', results[3], { ok: false, reason: 'not_israeli_mobile' });
     eq('row 5 duplicate of row 1', results[4], { ok: true, e164: '972541234567' });
     eq('valid count', results.filter((x) => x.ok).length, 3);
+  }
+}
+
+// ── 13. files that are not spreadsheets at all ─────────────────────────────
+group('wrong file type');
+{
+  const bytesOf = (...parts: Array<number[] | string>) => {
+    const out: number[] = [];
+    for (const p of parts) {
+      if (typeof p === 'string') for (const ch of p) out.push(ch.charCodeAt(0));
+      else out.push(...p);
+    }
+    return new Uint8Array(out);
+  };
+
+  const pdf = bytesOf('%PDF-1.7\n\n4 0 obj', [0x0a]);
+  const png = bytesOf([0x89], 'PNG', [0x0d, 0x0a, 0x1a, 0x0a], [0, 0, 0, 13]);
+  const jpeg = bytesOf([0xff, 0xd8, 0xff, 0xe0], 'JFIF');
+  const gif = bytesOf('GIF89a', [1, 0, 1, 0]);
+  const webp = bytesOf('RIFF', [0x24, 0, 0, 0], 'WEBPVP8 ');
+
+  eq('pdf detected', detectForeignFormat(pdf), 'pdf');
+  eq('png detected', detectForeignFormat(png), 'png');
+  eq('jpeg detected', detectForeignFormat(jpeg), 'jpeg');
+  eq('gif detected', detectForeignFormat(gif), 'gif');
+  eq('webp detected', detectForeignFormat(webp), 'webp');
+
+  // BMP needs its declared size to match, so build a real 12-byte one.
+  const bmp = new Uint8Array(12);
+  bmp[0] = 0x42; bmp[1] = 0x4d;
+  bmp[2] = 12; bmp[3] = 0; bmp[4] = 0; bmp[5] = 0;
+  eq('bmp detected when the size field agrees', detectForeignFormat(bmp), 'bmp');
+
+  // THE FALSE POSITIVE THAT MATTERS: "BM" is two ordinary letters, and a real
+  // Hebrew-clinic export could easily open with a BMI column.
+  const bmiCsv = new TextEncoder().encode('BMI,שם,טלפון\n22.4,דנה,0541234567\n');
+  eq('a CSV starting "BMI" is NOT a bitmap', detectForeignFormat(bmiCsv), null);
+  const bmiRead = readUpload(bmiCsv, { maxRows: 100, filename: 'x.csv' });
+  eq('and it still imports', bmiRead.ok, true);
+  if (bmiRead.ok) eq('BMI csv headers intact', bmiRead.headers, ['BMI', 'שם', 'טלפון']);
+
+  // Real files must not be mistaken for foreign ones.
+  eq('a real xlsx is not foreign', detectForeignFormat(book([{ name: 'a', cells: [[S('h')], [S('v')]] }])), null);
+  eq('a real xls is not foreign', detectForeignFormat(book([{ name: 'a', cells: [[S('h')], [S('v')]] }], 'xls')), null);
+  eq('a plain csv is not foreign', detectForeignFormat(new TextEncoder().encode('a,b\n1,2')), null);
+  eq('empty bytes are not foreign', detectForeignFormat(new Uint8Array([])), null);
+  eq('two bytes do not overrun', detectForeignFormat(new Uint8Array([0x42, 0x4d])), null);
+
+  // End to end: the whole point is the MESSAGE, not the rejection.
+  const r = readUpload(pdf, { maxRows: 100, filename: 'leads_clean_247.csv' });
+  eq('pdf rejected', r.ok, false);
+  if (!r.ok) {
+    eq('pdf problem is wrong-file-type, not unreadable', r.problem, 'wrong-file-type');
+    ok('message says it is a PDF', r.message.includes('PDF'));
+    ok('message does NOT give CSV-encoding advice', !/CSV UTF-8|קידוד/.test(r.message));
+    ok('message points at the .xlsx export', r.message.includes('.xlsx'));
+  }
+
+  const rp = readUpload(png, { maxRows: 100, filename: 'list.png' });
+  if (!rp.ok) {
+    ok('image message says it is an image', rp.message.includes('תמונה'));
+    ok('image message mentions screenshots', rp.message.includes('צילום מסך'));
+    ok('image message does NOT give CSV-encoding advice', !/CSV UTF-8|קידוד/.test(rp.message));
+  }
+
+  for (const f of ['pdf', 'png', 'jpeg', 'gif', 'bmp', 'webp', 'xps', 'docx', 'pptx'] as const) {
+    const m = foreignFormatMessage(f);
+    ok(`${f} message is non-empty`, m.length > 0);
+    ok(`${f} message never says "encoding"`, !/קידוד/.test(m));
+    ok(`${f} message never says "damaged"`, !/פגום/.test(m));
+  }
+}
+
+// ── 14. ZIPs that are not workbooks ────────────────────────────────────────
+group('zip that is not a workbook');
+{
+  // Build real zips whose entry names carry the signature. Content does not
+  // matter - the sniff reads the directory, which is what a real file has too.
+  const zipOf = (names: string[]): Uint8Array => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['x'], ['1']]), 's');
+    const real = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
+    // Prepend the marker names as raw bytes; sniffZipKind scans the buffer, and
+    // a real file has these names in its directory just the same.
+    const extra = new TextEncoder().encode(names.join(' '));
+    const out = new Uint8Array(extra.length + real.length);
+    out.set(extra, 0);
+    out.set(real, extra.length);
+    return out;
+  };
+
+  // A REAL workbook must always win, even with foreign-looking names present.
+  const realXlsx = book([{ name: 'לידים', cells: [[S('שם')], [S('דנה')]] }]);
+  eq('a real xlsx sniffs as a workbook', sniffZipKind(realXlsx), null);
+  eq('a real xlsx still imports', readUpload(realXlsx, { maxRows: 100 }).ok, true);
+
+  // xl/ markers take precedence over an XPS-looking name in the same buffer.
+  eq('workbook markers win over stray names', sniffZipKind(zipOf(['Metadata/Job_PT.xml'])), null);
+
+  // Pure-signature buffers (no xl/ anywhere).
+  const fakeZip = (names: string[]): Uint8Array =>
+    new TextEncoder().encode('PK' + names.join(' '));
+  eq('XPS by Job_PT.xml', sniffZipKind(fakeZip(['Metadata/Job_PT.xml'])), 'xps');
+  eq('XPS by .fpage', sniffZipKind(fakeZip(['Documents/1/Pages/1.fpage'])), 'xps');
+  eq('docx', sniffZipKind(fakeZip(['word/document.xml'])), 'docx');
+  eq('pptx', sniffZipKind(fakeZip(['ppt/slides/slide1.xml'])), 'pptx');
+
+  // .ods must pass through - SheetJS reads OpenDocument spreadsheets.
+  eq('ods is NOT flagged', sniffZipKind(fakeZip(['META-INF/manifest.xml', 'content.xml'])), null);
+  // An unrecognised zip falls through to SheetJS, keeping 'corrupt' meaningful.
+  eq('unknown zip falls through', sniffZipKind(fakeZip(['random/thing.txt'])), null);
+
+  // End to end on an XPS: the message must not say "damaged".
+  const xps = fakeZip(['Metadata/Job_PT.xml', 'Documents/1/Pages/1.fpage']);
+  const r = readUpload(xps, { maxRows: 100, filename: 'leads.csv' });
+  eq('xps rejected', r.ok, false);
+  if (!r.ok) {
+    eq('xps problem is wrong-file-type, not corrupt', r.problem, 'wrong-file-type');
+    ok('xps message says XPS', r.message.includes('XPS'));
+    ok('xps message says it is a print-out', r.message.includes('מודפסת'));
+    ok('xps message does NOT say damaged', !/פגום/.test(r.message));
+    ok('xps message does NOT suggest re-saving in Excel to fix it', !/מוגן בסיסמה/.test(r.message));
   }
 }
 
