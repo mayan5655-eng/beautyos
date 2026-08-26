@@ -88,6 +88,27 @@ export const metadata: Metadata = {
   icons: {
     apple: "/icons/apple-touch-icon.png",
   },
+
+  // ── The tag that actually turns standalone on ─────────────────────────────
+  //
+  // appleWebApp.capable above makes Next emit <meta name="mobile-web-app-capable">
+  // and nothing else. That is the modern, cross-browser name, and it is the
+  // correct thing for Next to prefer - but iOS Safari still reads the
+  // apple-prefixed one, and without it a home-screen launch opens in a normal
+  // Safari tab with the address bar showing. Which is exactly what happened:
+  // viewport-fit and the status bar style were both landing correctly, and the
+  // app still was not running standalone, because iOS never entered that mode
+  // to begin with.
+  //
+  // There is no field for it - `capable` owns that slot - so it goes through
+  // `other`, which emits a raw meta tag. The two names coexist happily: any
+  // browser that reads the unprefixed one keeps doing so.
+  //
+  // Verify in the BUILT html, not here:
+  //   grep -o '<meta name="apple-mobile-web-app-capable"[^>]*>' .next/server/app/login.html
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
