@@ -217,6 +217,41 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
           {fileName && <span style={{ fontSize: 11.5, color: 'var(--ink-2)', marginInlineStart: 10 }}>{fileName}</span>}
         </div>
 
+        {/* ── inline help ──
+            Collapsed by default: someone who already has her file should not
+            have to scroll past six paragraphs to reach the picker. Open, it
+            answers the questions that actually cost us time - a PDF or a print-
+            out instead of the data, and phone numbers stored as numbers. */}
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ fontSize: 12, color: 'var(--ink-2)', cursor: 'pointer', userSelect: 'none', padding: '4px 0' }}>
+            לא בטוחה איזה קובץ להעלות?
+          </summary>
+          <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--line-2)', fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.85 }}>
+            <p style={{ marginBottom: 9 }}>
+              <strong style={{ color: 'var(--ink)' }}>מה צריך:</strong> קובץ עם לפחות עמודת שם ועמודת טלפון. כל שאר העמודות — אופציונליות.
+            </p>
+            <p style={{ marginBottom: 9 }}>
+              <strong style={{ color: 'var(--ink)' }}>מאקסל:</strong> קובץ ← שמירה בשם ← <strong>חוברת עבודה של Excel‏ (.xlsx)</strong>.
+              <br />
+              <span style={{ color: 'var(--danger)' }}>לא</span> להשתמש בהדפסה ולא לשמור כ‑PDF — אלה גרסאות מודפסות של הרשימה, לא הנתונים עצמם, ואי אפשר לייבא מהן.
+            </p>
+            <p style={{ marginBottom: 9 }}>
+              <strong style={{ color: 'var(--ink)' }}>מגוגל שיטס:</strong> קובץ ← הורדה ← <strong>Microsoft Excel‏ (.xlsx)</strong>.
+              <br />
+              שימי לב ש‑PDF נמצא ממש מתחתיו באותו תפריט — קל ללחוץ עליו בטעות.
+            </p>
+            <p style={{ marginBottom: 9 }}>
+              <strong style={{ color: 'var(--ink)' }}>ממערכת אחרת:</strong> לחפש כפתור <strong>ייצוא</strong> / <strong>Export</strong> / <strong>הורדת לקוחות</strong>, ולבחור Excel או CSV.
+            </p>
+            <p style={{ marginBottom: 9 }}>
+              <strong style={{ color: 'var(--ink)' }}>מספרי טלפון ששמורים כמספר?</strong> זה בסדר גמור — המערכת יודעת להתמודד עם זה, כולל אפס מוביל שנעלם באקסל.
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              <strong style={{ color: 'var(--ink)' }}>אם כלום לא עובד:</strong> לפנות לתמיכה ונעשה את זה במקומך.
+            </p>
+          </div>
+        </details>
+
         {/* ── sheet picker: only when the workbook really has more than one tab ── */}
         {sheetNames.length > 1 && (
           <div style={{ margin: '10px 0 2px', display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
