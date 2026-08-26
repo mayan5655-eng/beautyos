@@ -796,6 +796,10 @@ export default function BeautyOS() {
   // CSV lead import (stage 2: preview only, writes nothing).
   const [showLeadImport,    setShowLeadImport]     = useState(false);
   const [showLapsed,        setShowLapsed]         = useState(false);
+  // Where she stands against the scanner ceiling. Fetched, not derived: the cap
+  // is enforced against her CLIENTS in a request she is not part of, so without
+  // this she would learn about it by noticing her leads had stopped.
+  const [scanQuota,         setScanQuota]          = useState(null);
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
   const [showReceipt,       setShowReceipt]        = useState(null);
@@ -1435,6 +1439,19 @@ export default function BeautyOS() {
       .finally(()=>{ if(!cancelled) setSkinQueueLoading(false); });
     return ()=>{cancelled=true;};
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeTab]);
+
+  // Scanner ceiling, loaded when she opens Settings — where the link lives.
+  // Silent on failure: a number she cannot see is better than a wrong one, and
+  // the card renders nothing rather than a confident zero.
+  useEffect(()=>{
+    if(activeTab!=="settings") return;
+    let cancelled=false;
+    fetch("/api/skin-scan/link")
+      .then(r=>r.ok?r.json():null)
+      .then(d=>{ if(!cancelled && d && d.success) setScanQuota(d); })
+      .catch(()=>{});
+    return ()=>{cancelled=true;};
   },[activeTab]);
 
   // Approve a Skin Follow-up suggestion — MOCKED test mode ONLY. Validates the
@@ -3775,11 +3792,37 @@ export default function BeautyOS() {
   };
 
   // Copy a public link (scanner / booking) for the current tenant
+  //
+  // The SCANNER link is now signed, and the signing secret is server-only, so
+  // it cannot be assembled here any more - it is fetched. Booking and community
+  // links are unchanged.
   const copyPublicLink = async (kind) => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק - נסי לרענן", "error"); return; }
     const base = "https://beautyos-theta.vercel.app";
-    const url = kind === "scan" ? `${base}/skin-scan?t=${t}` : kind === "community" ? `${base}/community?t=${t}` : `${base}/book?t=${t}`;
+
+    if (kind === "scan") {
+      try {
+        const res = await fetch("/api/skin-scan/link");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.success || !data.url) {
+          toast((data && data.error) || "לא הצלחנו להפיק את הקישור", "error");
+          return;
+        }
+        setScanQuota(data);
+        try {
+          await navigator.clipboard.writeText(data.url);
+          toast("קישור הסורק הועתק");
+        } catch {
+          toast(data.url, "info");
+        }
+      } catch {
+        toast("לא הצלחנו להפיק את הקישור. בדקי את החיבור ונסי שוב.", "error");
+      }
+      return;
+    }
+
+    const url = kind === "community" ? `${base}/community?t=${t}` : `${base}/book?t=${t}`;
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
@@ -7329,6 +7372,31 @@ export default function BeautyOS() {
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{width:"100%",padding:"11px 0",background:pcGrad,color:"var(--surface)",borderRadius:12,fontSize:12,marginBottom:7,boxShadow:`0 6px 14px ${pcShadow}`}}>✦ העתקת קישור לסורק העור</button>
+ {/* The ceiling, shown BEFORE it is reached. When it is hit, the client sees
+     the refusal and she is not in that request at all - so this is the only
+     place she can find out, and it has to be visible early enough to act on. */}
+ {scanQuota && !scanQuota.unknown && (()=>{
+   const pct = scanQuota.limit>0 ? scanQuota.used/scanQuota.limit : 0;
+   const tone = pct>=1 ? "var(--danger)" : pct>=0.8 ? "#B26B00" : "var(--ink-3)";
+   return (
+     <div style={{marginBottom:7}}>
+       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+         <span style={{fontSize:10,color:"var(--ink-3)"}}>סריקות החודש</span>
+         <span style={{fontSize:11,fontWeight:700,color:tone}}>{scanQuota.used} / {scanQuota.limit}</span>
+       </div>
+       <div style={{height:4,borderRadius:3,background:"var(--line-2)",overflow:"hidden"}}>
+         <div style={{height:"100%",width:`${Math.min(100,Math.round(pct*100))}%`,background:tone==="var(--ink-3)"?pc:tone}}/>
+       </div>
+       {pct>=0.8 && (
+         <p style={{fontSize:10,color:tone,marginTop:5,lineHeight:1.5}}>
+           {pct>=1
+             ? "הגעת למכסת הסריקות החודשית. לקוחות שינסו לסרוק יקבלו הודעה שאפשר לפנות אלייך ישירות."
+             : `נשארו ${scanQuota.remaining} סריקות החודש.`}
+         </p>
+       )}
+     </div>
+   );
+ })()}
  <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>

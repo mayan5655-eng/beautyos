@@ -66,6 +66,31 @@ export const RATE_POLICIES = {
 
   // The expensive one: every accepted call sends two WhatsApp messages on the
   // tenant's paid quota. Tightest limits of the three.
+  // The ANALYSIS call itself - the expensive one. It was the only skin-scan
+  // route with no limit at all, while its two cheaper siblings below both had
+  // one: a public, unauthenticated endpoint that calls Claude with an image and
+  // max_tokens 3000, at roughly $0.0135 a go.
+  //
+  // 8 per 10 minutes, NOT the 3 its siblings use, and the difference is
+  // deliberate. A client who dislikes her first selfie retakes it two or three
+  // times, which is normal use and must not be refused. More importantly
+  // Israeli mobile carriers sit behind CGNAT, so unrelated clients share a
+  // public IP - as do several clients on the salon's own WiFi at an event. A
+  // tight per-IP number would block real clients long before it inconvenienced
+  // a script.
+  //
+  // This is a speed bump, not the cap: `buckets` is an in-memory Map, so on
+  // serverless each instance has its own and the effective limit is 8 x
+  // instances. The hard ceiling is the monthly quota in lib/skinScanQuota.ts.
+  'skin-scan': {
+    perIp: { limit: 8, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי סריקות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `סורק העור עמוס כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   'skin-scan-send': {
     perIp: { limit: 3, windowMs: 10 * MINUTE },
     perTenant: { limit: 10, windowMs: 10 * MINUTE },

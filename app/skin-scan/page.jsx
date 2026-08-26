@@ -57,6 +57,7 @@ export default function SkinScanPage() {
   const [sendError, setSendError] = useState("");
 
   const [tenantId, setTenantId] = useState("");
+  const [scanSig, setScanSig] = useState("");
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
 
   const fileRef = useRef(null);
@@ -68,6 +69,11 @@ export default function SkinScanPage() {
       const params = new URLSearchParams(window.location.search);
       const t = params.get("t");
       if (t) setTenantId(t);
+      // The link signature. Absent on links shared before signing existed -
+      // the route still accepts those during phase 1, recording them as
+      // 'claimed' so the flip to enforcement can be made on evidence.
+      const sig = params.get("s");
+      if (sig) setScanSig(sig);
     } catch {}
   }, []);
 
@@ -130,7 +136,7 @@ export default function SkinScanPage() {
     if (!imageData || loading) return;
     setLoading(true); setErrorMsg(""); setReport(null);
     try {
-      const res = await fetch("/api/skin-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: imageData, mediaType, tenantId }) });
+      const res = await fetch("/api/skin-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: imageData, mediaType, tenantId, s: scanSig }) });
       const data = await res.json();
       if (data.success) { setReport(data.report); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {} }
       else setErrorMsg(data.error || "אירעה שגיאה. נסי שוב.");

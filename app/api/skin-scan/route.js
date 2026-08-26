@@ -8,6 +8,9 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
+import { checkIpLimit, checkTenantLimit } from "@/lib/rateLimit";
+import { verifyScanLink } from "@/lib/scanToken";
+import { getQuotaStatus } from "@/lib/skinScanQuota";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,12 +19,88 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// PHASE 1. Unsigned links still work, because every link she has already shared
+// - Instagram bio, printed QR codes, old WhatsApp messages - has no signature,
+// and enforcing on day one would break her funnel silently. Signed calls record
+// attribution 'verified'; unsigned record 'claimed' and log a warning, so the
+// flip to enforcement can be made on evidence. The query that says when:
+//
+//   select attribution, count(*) from ai_usage
+//    where call_site = 'skin-scan' and created_at > now() - interval '30 days'
+//    group by 1;
+//
+// When 'claimed' reaches zero, set REQUIRE_SIGNATURE to true.
+//
+// Note this only gates ATTRIBUTION, not spend: the rate limit and the monthly
+// ceiling below are enforced from day one regardless of signature.
+const REQUIRE_SIGNATURE = false;
+
 export async function POST(request) {
   try {
-    const { image, mediaType, tenantId } = await request.json();
+    // ── Check order is chosen for cost ──────────────────────────────────────
+    // Cheapest and most certain first, so a flood costs us nothing: the IP
+    // limit is an in-memory lookup, the signature is an HMAC, and only then do
+    // we spend a database round trip on the quota. Reversed, an attacker would
+    // generate one query per attempt.
+
+    // 1. Per-IP. No I/O.
+    const ipLimited = checkIpLimit(request, "skin-scan");
+    if (ipLimited) return ipLimited;
+
+    const { image, mediaType, tenantId, s: signature } = await request.json();
 
     if (!image) {
       return Response.json({ success: false, error: "חסרה תמונה" }, { status: 400 });
+    }
+
+    // 2. Signature. No I/O. Decides ATTRIBUTION now, and admission later.
+    const signed = !!tenantId && verifyScanLink(tenantId, signature);
+    if (tenantId && !signed) {
+      console.warn(
+        `[skin-scan] UNSIGNED request for tenant ${tenantId} — recording as 'claimed'. ` +
+        `Phase 1: allowed. See REQUIRE_SIGNATURE in this file.`
+      );
+      if (REQUIRE_SIGNATURE) {
+        return Response.json(
+          {
+            success: false,
+            error:
+              "הקישור לסורק אינו תקין או שפג תוקפו. כדאי לבקש מהקוסמטיקאית קישור מעודכן.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 3. Per-tenant burst limit. Still no I/O.
+    const tenantLimited = checkTenantLimit(tenantId, "skin-scan");
+    if (tenantLimited) return tenantLimited;
+
+    // 4. The monthly ceiling — the only hard cap on spend. One indexed count.
+    //    Fails OPEN if ai_usage cannot be read: a database wobble must not
+    //    switch off every cosmetician's lead capture.
+    if (tenantId) {
+      const quota = await getQuotaStatus(tenantId);
+      console.log(
+        `[skin-scan] TENANT FILTER: tenant_id = ${tenantId} | ` +
+        `quota ${quota.used}/${quota.limit}${quota.unknown ? " (UNKNOWN — failing open)" : ""} | ` +
+        `signed=${signed}`
+      );
+      if (quota.exceeded) {
+        // The CLIENT sees this, not the cosmetician - she is not in this
+        // request at all. Her own warning lives on the scanner card in the app,
+        // which is why the quota is surfaced there before it is reached.
+        return Response.json(
+          {
+            success: false,
+            quotaExceeded: true,
+            error:
+              "סורק העור הגיע למכסת הסריקות החודשית של העסק. " +
+              "אפשר לפנות ישירות לקוסמטיקאית והיא תשמח לעזור.",
+          },
+          { status: 429 }
+        );
+      }
     }
 
     // 1. Load ONLY this business's services so the AI can match a real treatment.
@@ -99,10 +178,10 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // structured-report task. max_tokens is generous enough that the full JSON
     // report is never truncated (1500 was too tight and cut the JSON off), while
     // still well below Sonnet's old 4000.
-    // attribution: 'claimed'. THIS ROUTE IS PUBLIC - no session, no auth - and
-    // tenantId arrives in the request body, so it cannot be verified and must
-    // not be billed to a tenant without reconciliation. Recorded anyway,
-    // because a call that spends money and leaves no trace is worse.
+    // This route is PUBLIC - no session. In phase 1 the tenant may arrive
+    // either signed (verified above, attribution 'verified') or unsigned from a
+    // link shared before signing existed (attribution 'claimed'). Only the
+    // former should ever be billed to a tenant without reconciliation.
     const aiResponse = await trackedCreate(anthropic, {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 3000,
@@ -126,7 +205,14 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
           ],
         },
       ],
-    }, { tenantId: tenantId || null, callSite: "skin-scan", attribution: "claimed" });
+    }, {
+      tenantId: tenantId || null,
+      callSite: "skin-scan",
+      // The whole point of the signature in phase 1: this column is the
+      // evidence that says when unsigned traffic has stopped and enforcement
+      // can be switched on.
+      attribution: signed ? "verified" : "claimed",
+    });
 
     // 4. Extract + parse safely
     const raw = aiResponse.content
