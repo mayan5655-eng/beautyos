@@ -1937,6 +1937,20 @@ export default function BeautyOS() {
     return sm!==null && Math.floor(sm/60)===Number(hour);
   });
 
+  // EVERY appointment starting in that hour, earliest first.
+  //
+  // getAppt above is a .find(), so the week grid rendered exactly one card per
+  // hour cell and any second appointment in the same hour simply did not
+  // appear - no card, no "+1", nothing. A booking that is in the database, on
+  // the calendar she is looking at, and invisible, is how a client gets missed.
+  // getAppt is kept because handleSlotClick still uses it to answer a different
+  // question ("is this hour occupied at all").
+  const getAppts = (date,hour) => appointments.filter(a=>{
+    if(a.date!==formatDate(date)) return false;
+    const sm = startMinute(a);
+    return sm!==null && Math.floor(sm/60)===Number(hour);
+  }).sort((a,b)=>startMinute(a)-startMinute(b));
+
   const getApptColor = (appt) => {
     if(appt.confirmation_status==="confirmed") return "var(--success)";
     if(appt.confirmation_status==="cancelled") return "var(--danger)";
@@ -5574,16 +5588,20 @@ export default function BeautyOS() {
  <div style={{padding:"5px 3px 0",fontSize:9,color:"var(--ink-3)",fontWeight:600,textAlign:"center",borderLeft:"1px solid var(--line)"}}>{hour}</div>
                   {weekDates.map((date,di)=>{
                     const actualHour=settings.working_hours_start+hi;
-                    const appt=getAppt(date,actualHour);
-                    const apptColor=appt?getApptColor(appt):null;
+                    const cellAppts=getAppts(date,actualHour);
                     const dh=dayHoursFrom(settings,date.getDay());
                     const openCell=!!dh&&actualHour>=dh.open&&actualHour<dh.close;
-                    const blocked=!appt&&!openCell; // closed day / outside that day's hours -> not bookable
+                    const blocked=!cellAppts.length&&!openCell; // closed day / outside that day's hours -> not bookable
                     return(
- <div key={di} className={(!appt&&openCell)?"slot":""} onClick={blocked?undefined:()=>handleSlotClick(date,actualHour)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,transition:"background 0.15s",cursor:blocked?"default":undefined,background:blocked?"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.06) 5px,rgba(122,90,136,0.06) 10px)":undefined}}>
-                        {appt&&(
- <div className="appt-card" title="לחצי לעריכה / שינוי מועד" onClick={e=>{e.stopPropagation();handleApptClick(appt);}} onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
-                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",cursor:"pointer",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
+ <div key={di} className={(!cellAppts.length&&openCell)?"slot":""} onClick={blocked?undefined:()=>handleSlotClick(date,actualHour)} style={{borderRight:di<5?"1px solid var(--line)":"none",position:"relative",padding:3,minHeight:56,display:"flex",gap:2,transition:"background 0.15s",cursor:blocked?"default":undefined,background:blocked?"repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(122,90,136,0.06) 5px,rgba(122,90,136,0.06) 10px)":undefined}}>
+                        {/* Side by side rather than one-per-cell: two 30-minute
+                            appointments in the same hour both show, each taking half the
+                            column. Cramped beats invisible. */}
+                        {cellAppts.map(appt=>{
+                          const apptColor=getApptColor(appt);
+                          return(
+ <div key={appt.id} className="appt-card" title="לחצי לעריכה / שינוי מועד" onClick={e=>{e.stopPropagation();handleApptClick(appt);}} onMouseEnter={()=>setHoveredAppt(appt.id)} onMouseLeave={()=>setHoveredAppt(null)}
+                            style={{background:apptColor,borderRadius:11,padding:"5px 7px",height:"calc(100% - 2px)",flex:1,minWidth:0,overflow:"hidden",position:"relative",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",cursor:"pointer",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:11.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.15}}>{appt.name}</p>
  <p style={{fontSize:7.5,color:"rgba(255,255,255,0.92)"}}>{appt.service}</p>
                             {appt.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--surface)"}}>✓</span>}
@@ -5595,7 +5613,8 @@ export default function BeautyOS() {
  </div>
                             {hoveredAppt===appt.id&&<button onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.28)",border:"none",borderRadius:6,width:15,height:15,fontSize:8,cursor:"pointer",color:"var(--surface)"}}>✕</button>}
  </div>
-                        )}
+                          );
+                        })}
  </div>
                     );
                   })}
