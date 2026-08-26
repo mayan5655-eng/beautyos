@@ -47,7 +47,16 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "BloomOS",
-    statusBarStyle: "default",
+    // "default" is an opaque light bar sitting ABOVE the app, which is the
+    // other half of why an install does not look fullscreen.
+    // "black-translucent" hands the status bar area to our own content, so the
+    // header's background runs all the way to the top of the screen.
+    //
+    // This only works BECAUSE viewportFit is "cover" below. On its own it would
+    // put the header underneath the clock and battery: the insets that push it
+    // clear are the same ones that stay 0px without viewport-fit. The two are a
+    // pair and must never be split.
+    statusBarStyle: "black-translucent",
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",
@@ -56,6 +65,29 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#4A2E5A",
+
+  // ── viewportFit: "cover" — the line that makes the app fullscreen on iPhone ──
+  //
+  // Without it iOS emits width=device-width, initial-scale=1 and nothing else,
+  // which does two things:
+  //
+  //   1. The web view is letterboxed INSIDE the safe area. It never reaches
+  //      under the notch or past the home indicator, so a home-screen install
+  //      looks like a web page in a frame rather than an app.
+  //   2. Every env(safe-area-inset-*) resolves to 0px.
+  //
+  // (2) matters more than it looks, because this codebase already carries the
+  // safe-area handling and it has never once executed:
+  //
+  //     beautyos.jsx  .app-main    padding-bottom calc(74px + env(...-bottom))
+  //     beautyos.jsx  .app-header  padding-top    env(...-top)
+  //     beautyos.jsx  bottom nav   padding-bottom env(...-bottom)
+  //
+  // All three are inside @media (max-width:680px), so this is mobile-only, and
+  // all three start doing something the moment this property exists. Layout
+  // that has never actually run will move - which is exactly why this ships on
+  // its own, ahead of splash screens and the native-feel CSS.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

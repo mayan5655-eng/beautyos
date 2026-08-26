@@ -125,6 +125,17 @@ export default function IOSInstallBanner() {
           }}
         >
           הקישי על כפתור השיתוף ובחרי «הוספה למסך הבית».
+          {/* iOS gives a home-screen app its OWN cookie jar, separate from
+              Safari's. So being signed in here does NOT carry across the
+              install, and the first launch opens on the login screen. That is
+              iOS behaviour, not something the app can carry over - and left
+              unexplained it reads as "the app forgot me" at the exact moment
+              she is forming her first impression of it. One sentence up front
+              costs nothing and turns a bug-looking moment into an expected
+              one. */}
+          <span style={{ display: "block", marginTop: "3px", opacity: 0.85 }}>
+            בפתיחה הראשונה תתבקשי להתחבר עוד פעם אחת — זו התנהגות רגילה של אייפון.
+          </span>
         </div>
       </div>
 
