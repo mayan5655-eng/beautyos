@@ -21,6 +21,8 @@ import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
+// TEMPORARY — layout measurement on the phone. Remove with app/layout-debug.tsx.
+import LayoutDebug from "./layout-debug";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -4646,6 +4648,8 @@ export default function BeautyOS() {
           </div>
         </div>
       )}
+
+      <LayoutDebug />
 
       <LapsedClientsModal
         open={showLapsed}
