@@ -39,12 +39,78 @@ function readInsets(): Record<string, string> {
   return out;
 }
 
-/** The widest element on the page, and how far past the viewport it reaches. */
+/** Short identifier for an element: tag#id.class1.class2 */
+function label(e: Element): string {
+  const id = (e as HTMLElement).id ? `#${(e as HTMLElement).id}` : "";
+  const cls =
+    typeof e.className === "string" && e.className.trim()
+      ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".")
+      : "";
+  return `${e.tagName.toLowerCase()}${id}${cls}`;
+}
+
+/**
+ * Every ancestor from the shell up to <html>, with the properties that can
+ * inset a child without appearing on the child itself.
+ *
+ * This is the measurement that matters: the shell reports no margin, no
+ * padding, no max-width and no horizontal safe-area inset, yet sits 32px in
+ * from each edge in standalone. Something above it is doing that, and the only
+ * way to find out which is to read every level rather than reason about it.
+ */
+function parentChain(): Row[] {
+  const start =
+    (document.querySelector(".app-header")?.parentElement as HTMLElement | null) ??
+    (document.body.firstElementChild as HTMLElement | null);
+  if (!start) return [{ k: "chain", v: "shell not found" }];
+
+  const out: Row[] = [];
+  let el: HTMLElement | null = start;
+  let depth = 0;
+  while (el && depth < 12) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    out.push({ k: `[${depth}] ${label(el)}`, v: "" });
+    out.push({ k: "   rect L/R/W", v: `${r.left.toFixed(1)} / ${r.right.toFixed(1)} / ${r.width.toFixed(1)}` });
+    out.push({ k: "   width / maxW", v: `${cs.width} / ${cs.maxWidth}` });
+    out.push({ k: "   pad L/R", v: `${cs.paddingLeft} / ${cs.paddingRight}` });
+    out.push({ k: "   mar L/R", v: `${cs.marginLeft} / ${cs.marginRight}` });
+    out.push({ k: "   bor L/R", v: `${cs.borderLeftWidth} / ${cs.borderRightWidth}` });
+    out.push({ k: "   position", v: cs.position });
+    // Any of these can scale or shift a subtree without touching its box model.
+    out.push({ k: "   transform", v: cs.transform === "none" ? "none" : cs.transform });
+    out.push({
+      k: "   scale/zoom",
+      v: `${(cs as unknown as { scale?: string }).scale ?? "-"} / ${(cs as unknown as { zoom?: string }).zoom ?? "-"}`,
+    });
+    out.push({ k: "   box-sizing", v: cs.boxSizing });
+    out.push({ k: "   overflow X/Y", v: `${cs.overflowX} / ${cs.overflowY}` });
+    if (cs.display === "flex" || cs.display === "grid" || cs.display === "inline-flex") {
+      out.push({ k: "   display", v: `${cs.display} justify:${cs.justifyContent} align:${cs.alignItems}` });
+    }
+    el = el.parentElement;
+    depth += 1;
+  }
+  return out;
+}
+
+/**
+ * The widest element that can actually affect layout, and how far past the
+ * viewport it reaches.
+ *
+ * Skips elements that are visibility:hidden or display:none, and skips
+ * position:fixed subtrees that are translated off-screen: a closed slide-out
+ * drawer legitimately sits beyond the right edge, paints nothing and scrolls
+ * nothing, so reporting it as an overflow sends the reader after a non-problem.
+ */
 function widestOverflower(viewportWidth: number): string {
   let worst: { el: Element; right: number } | null = null;
   for (const el of Array.from(document.body.querySelectorAll("*"))) {
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || cs.opacity === "0") continue;
+    if (cs.position === "fixed" && cs.transform !== "none") continue;
     if (r.right > viewportWidth + 1 && (!worst || r.right > worst.right)) {
       worst = { el, right: r.right };
     }
@@ -107,6 +173,8 @@ function collect(): Row[] {
     { k: "inset L / R", v: `${insets.left} / ${insets.right}` },
     { k: "— overflow —", v: "" },
     { k: "widest past viewport", v: widestOverflower(iw) },
+    { k: "— PARENT CHAIN: shell → html —", v: "" },
+    ...parentChain(),
   ];
 }
 

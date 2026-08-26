@@ -4392,8 +4392,19 @@ export default function BeautyOS() {
           .mobile-only{display:flex!important}
           .sidebar-aside{position:fixed!important;top:0;bottom:0;right:0;width:80%!important;max-width:280px;z-index:1500;transform:translateX(100%);transition:transform 0.25s}
           .sidebar-aside.open{transform:translateX(0)}
-          .nav-aside{position:fixed!important;top:0;bottom:0;right:0;width:78%!important;max-width:270px;z-index:1500;transform:translateX(100%);transition:transform 0.25s}
-          .nav-aside.open{transform:translateX(0)}
+          /* The closed drawer sits at right:0 translated fully off to the right,
+             so its box reaches viewport width + 270px - 710px on a 440pt screen,
+             which is what the layout probe was reporting as an overflow.
+             position:fixed means it never scrolled the page, but while it was
+             merely translated it stayed VISIBLE to hit-testing and to the
+             accessibility tree: a screen reader could walk into an off-screen
+             menu, and a stray tap at the right edge could land on it.
+             visibility:hidden takes it out of both. It is animated rather than
+             switched so the slide still works - visibility is not interpolable,
+             but it does honour a transition delay, so it flips at the end of the
+             close and at the start of the open. */
+          .nav-aside{position:fixed!important;top:0;bottom:0;right:0;width:78%!important;max-width:270px;z-index:1500;transform:translateX(100%);visibility:hidden;transition:transform 0.25s,visibility 0s linear 0.25s}
+          .nav-aside.open{transform:translateX(0);visibility:visible;transition:transform 0.25s,visibility 0s linear 0s}
           .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1499}
           .header-search{max-width:none!important}
           .modal-card{width:94%!important;max-width:380px!important}
