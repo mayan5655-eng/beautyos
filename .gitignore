@@ -54,5 +54,9 @@ next-env.d.ts
 CONFIRM_LINK_SECRET.local.txt
 
 # Real client data. Lead exports are copied here to be dry-run and then
-# deleted; they must never be committable even by accident.
+# deleted; they must never be committable even by accident. Workbooks carry
+# exactly the same data as the CSVs - a cosmetician migrating from another
+# system is more likely to bring one of these than a .csv.
 *.csv
+*.xlsx
+*.xls

@@ -1,9 +1,9 @@
 // app/api/leads/import/analyze/route.ts
 //
-// STAGE 1 of the CSV lead importer: analyse and propose. THIS ROUTE WRITES
-// NOTHING. It does not touch public.leads at all - it decodes the upload,
-// parses it, asks Claude to map the columns, validates the phone column, and
-// returns a preview for a human to approve. Stage 2 is what will insert.
+// STAGE 1 of the lead importer (.csv, .xlsx, .xls): analyse and propose. THIS
+// ROUTE WRITES NOTHING. It does not touch public.leads at all - it reads the
+// upload, parses it, asks Claude to map the columns, validates the phone
+// column, and returns a preview for a human to approve. Stage 3 is the insert.
 //
 // ── What leaves this process ───────────────────────────────────────────────
 // Only MASKED sample rows go to the Anthropic API by default: digits become 9,
@@ -21,14 +21,15 @@ import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import {
-  decodeCsv,
-  parseCsv,
   maskRow,
-  diagnoseCsv,
   normalizeIsraeliMobile,
   PHONE_REASON_HE,
   type PhoneReason,
 } from '@/lib/leads/csvImport';
+// ONE parser, shared with the commit route. See lib/leads/readUpload.ts for why
+// that matters: commit re-parses the bytes independently, and a workbook adds a
+// second way for the two parses to disagree (reading different sheets).
+import { readUpload } from '@/lib/leads/readUpload';
 import { proposeMapping, type TargetField } from '@/lib/leads/mapHeaders';
 
 /** How many rows the mapper sees. Three is enough to show a column's shape. */
@@ -61,19 +62,26 @@ export async function POST(request: Request) {
     // Accepts either a multipart upload or a raw JSON body carrying the text.
     let bytes: Uint8Array | null = null;
     let sendRawSamples = false;
+    let filename: string | null = null;
+    // Which sheet to read. Absent on the first analyse (we pick the default and
+    // tell her which); set when she changes the tab in the picker.
+    let sheet: string | null = null;
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       const form = await request.formData();
       const file = form.get('file');
       sendRawSamples = String(form.get('sendRawSamples') ?? '') === 'true';
+      sheet = String(form.get('sheet') ?? '') || null;
       if (!(file instanceof Blob)) {
         return NextResponse.json({ success: false, error: 'לא נבחר קובץ' }, { status: 400 });
       }
+      filename = file instanceof File ? file.name : null;
       bytes = new Uint8Array(await file.arrayBuffer());
     } else {
       const body = await request.json().catch(() => ({}));
       sendRawSamples = body?.sendRawSamples === true;
+      sheet = typeof body?.sheet === 'string' && body.sheet ? body.sheet : null;
       if (typeof body?.csv === 'string' && body.csv) {
         bytes = new TextEncoder().encode(body.csv);
       }
@@ -86,24 +94,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'הקובץ גדול מדי' }, { status: 400 });
     }
 
-    const { text, encoding } = decodeCsv(bytes);
-    const { headers, rows, delimiter } = parseCsv(text);
-
     // Say what actually went wrong. "The file contains no data rows" used to be
     // the answer to every parse failure, including files that were full of rows
     // but written in an encoding or with a line ending we mishandled - which
-    // sent her hunting for missing rows in a file that had none missing.
-    const diagnosis = diagnoseCsv(text, headers, rows);
-    if (diagnosis.problem) {
-      console.error(`[leads/import/analyze] unusable file: ${diagnosis.problem}`);
+    // sent her hunting for missing rows in a file that had none missing. A
+    // workbook gets workbook-shaped advice; telling her to re-save an .xlsx as
+    // "CSV UTF-8" would send her reformatting a file that is perfectly fine.
+    const read = readUpload(bytes, { filename, sheet, maxRows: MAX_ROWS });
+    if (!read.ok) {
+      console.error(`[leads/import/analyze] unusable file: ${read.problem}`);
       return NextResponse.json(
-        { success: false, error: diagnosis.message, problem: diagnosis.problem },
+        {
+          success: false,
+          error: read.message,
+          problem: read.problem,
+          // So the picker can still be shown when she landed on an empty tab.
+          sheetNames: read.sheetNames,
+        },
         { status: 400 }
       );
     }
-    if (rows.length > MAX_ROWS) {
-      return NextResponse.json({ success: false, error: 'יותר מדי שורות בקובץ' }, { status: 400 });
-    }
+    const { format, headers, rows, delimiter, encoding, sheetNames, sheetName } = read;
 
     const rawSamples = rows.slice(0, SAMPLE_ROWS);
     const samplesForModel = sendRawSamples ? rawSamples : rawSamples.map(maskRow);
@@ -147,8 +158,14 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       wroteAnything: false,
+      format,
       encoding,
       delimiter,
+      // Workbooks only. sheetNames drives the tab picker; sheetName says which
+      // tab these numbers describe, and MUST be echoed back on commit so the
+      // insert reads the same tab she approved.
+      sheetNames,
+      sheetName,
       rowCount: rows.length,
       headers,
       // The parsed rows, so the preview can recompute instantly when she

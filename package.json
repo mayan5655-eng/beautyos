@@ -8,6 +8,19 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "//xlsx": [
+    "xlsx (SheetJS) is installed from the vendor's own CDN, NOT the npm registry.",
+    "The npm package is frozen at 0.18.5 - SheetJS stopped publishing there - and",
+    "that version carries two unpatched high-severity advisories with no fix",
+    "available on npm: prototype pollution (GHSA-4r6h-8v6p-xvw6) and ReDoS",
+    "(GHSA-5pgg-2g8v-p4x9). Both are fixed in 0.20.3, which is what this URL",
+    "pins. The tradeoff, accepted deliberately: the Vercel build must be able to",
+    "reach cdn.sheetjs.com, and this dependency does not dedupe or audit like a",
+    "registry package. Do not 'fix' an install failure by swapping this for",
+    "xlsx@0.18.5 from npm - that silently reintroduces both CVEs.",
+    "The pin also matters behaviourally: 0.18.5 returned local-time Dates for",
+    "date cells and slipped a day. See lib/leads/xlsxImport.ts."
+  ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
     "@sentry/nextjs": "^10.70.0",
@@ -17,7 +30,8 @@
     "html2canvas": "^1.4.1",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

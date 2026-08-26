@@ -2,8 +2,9 @@
 
 // app/LeadImportModal.jsx
 //
-// The CSV lead importer: pick a file, review the proposed mapping, correct it,
-// see exactly what would land, then import.
+// The lead importer (.csv, .xlsx, .xls): pick a file, choose a sheet if it is
+// a workbook with several, review the proposed mapping, correct it, see exactly
+// what would land, then import.
 //
 // ── Where the write is ─────────────────────────────────────────────────────
 // THIS MODAL CAN NOW WRITE, on exactly one path:
@@ -58,29 +59,45 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
   const [result, setResult] = useState(null);
   // field -> csv column (or null). Seeded from the proposal, then hers to edit.
   const [mapping, setMapping] = useState({});
+  // Workbooks only. `sheet` is the tab she is looking at; it is sent with BOTH
+  // the analyse and the commit, so the insert can never read a different tab
+  // from the one she approved.
+  const [sheet, setSheet] = useState(null);
+  // Kept separately from `result` so the picker survives an error response -
+  // landing on an empty tab must let her switch, not dead-end.
+  const [sheetNames, setSheetNames] = useState([]);
 
   const reset = useCallback(() => {
     setFileName(''); setAnalyzing(false); setError(''); setResult(null); setMapping({});
     setFile(null); setStage('preview'); setImportResult(null); setImportError('');
+    setSheet(null); setSheetNames([]);
     if (fileRef.current) fileRef.current.value = '';
   }, []);
 
   const close = useCallback(() => { reset(); onClose(); }, [reset, onClose]);
 
-  const analyze = useCallback(async (file) => {
+  const analyze = useCallback(async (file, pickedSheet = null) => {
     setAnalyzing(true); setError(''); setResult(null); setMapping({});
     setStage('preview'); setImportResult(null); setImportError('');
     try {
       const form = new FormData();
       form.append('file', file);
+      if (pickedSheet) form.append('sheet', pickedSheet);
       const res = await fetch('/api/leads/import/analyze', { method: 'POST', body: form });
       const data = await res.json().catch(() => null);
+      // Even a rejected file may name its sheets, so she can switch tabs
+      // instead of being told the file is unusable.
+      if (data && Array.isArray(data.sheetNames)) setSheetNames(data.sheetNames);
       if (!res.ok || !data || !data.success) {
         // A failed analyse is an error, never an empty preview.
         setError((data && data.error) || 'לא הצלחנו לנתח את הקובץ');
         return;
       }
       setResult(data);
+      // Adopt the sheet the SERVER resolved, not the one we asked for: on the
+      // first analyse we send none and it picks the first non-empty tab. This
+      // is the value that must ride along to the commit.
+      setSheet(data.sheetName ?? null);
       const seeded = {};
       for (const f of FIELD_ORDER) seeded[f] = data.mapping?.[f]?.csvColumn ?? null;
       setMapping(seeded);
@@ -96,8 +113,15 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
     if (!picked) return;
     setFileName(picked.name);
     setFile(picked);
+    setSheet(null); setSheetNames([]);
     analyze(picked);
   }, [analyze]);
+
+  const onSheetChange = useCallback((name) => {
+    if (!file || name === sheet) return;
+    setSheet(name);
+    analyze(file, name);
+  }, [file, sheet, analyze]);
 
   // The whole preview, recomputed whenever she changes a dropdown.
   const preview = useMemo(() => {
@@ -120,6 +144,9 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
       const form = new FormData();
       form.append('file', file);
       form.append('mapping', JSON.stringify(mapping));
+      // The tab she previewed. Without this the server would re-resolve the
+      // default and could import a different sheet from the one she approved.
+      if (sheet) form.append('sheet', sheet);
       form.append('dryRun', 'false');   // explicit, on this click only
       const res = await fetch('/api/leads/import/commit', { method: 'POST', body: form });
       const data = await res.json().catch(() => null);
@@ -139,7 +166,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
       setImportError('החיבור נקטע. ייתכן שחלק מהפניות כבר נשמרו — רענני ובדקי לפני ניסיון נוסף.');
       setStage('done');
     }
-  }, [file, mapping, onImported]);
+  }, [file, mapping, sheet, onImported]);
 
   if (!open) return null;
 
@@ -175,13 +202,39 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
 
         {/* ── file picker ── */}
         <div style={{ margin: '14px 0 6px' }}>
-          <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" onChange={onPick} style={{ display: 'none' }} id="lead-csv-input" />
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            onChange={onPick}
+            style={{ display: 'none' }}
+            id="lead-csv-input"
+          />
           <label htmlFor="lead-csv-input" className="primary-btn"
             style={{ display: 'inline-block', background: pcGrad, color: 'var(--surface)', padding: '10px 18px', fontSize: 12, borderRadius: 24, cursor: 'pointer', boxShadow: `0 8px 18px ${pcShadow}` }}>
-            {fileName ? 'בחירת קובץ אחר' : '⇪ בחירת קובץ CSV'}
+            {fileName ? 'בחירת קובץ אחר' : '⇪ בחירת קובץ (Excel או CSV)'}
           </label>
           {fileName && <span style={{ fontSize: 11.5, color: 'var(--ink-2)', marginInlineStart: 10 }}>{fileName}</span>}
         </div>
+
+        {/* ── sheet picker: only when the workbook really has more than one tab ── */}
+        {sheetNames.length > 1 && (
+          <div style={{ margin: '10px 0 2px', display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+            <label htmlFor="lead-sheet-select" style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>גיליון</label>
+            <select
+              id="lead-sheet-select"
+              value={sheet ?? ''}
+              disabled={analyzing}
+              onChange={(e) => onSheetChange(e.target.value)}
+              style={{ fontSize: 12, padding: '7px 10px', borderRadius: 10, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', minWidth: 160 }}
+            >
+              {sheetNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+              בקובץ יש {sheetNames.length} גיליונות. הייבוא יכלול רק את הגיליון שנבחר.
+            </span>
+          </div>
+        )}
 
         {analyzing && <p style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 12 }}>מנתחת את הקובץ…</p>}
 
@@ -201,7 +254,12 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
               <Stat label="ידולגו" value={preview.counts.skipped} tone={preview.counts.skipped ? 'warn' : undefined} />
             </div>
             <p style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.7, marginBottom: 12 }}>
-              קידוד: {result.encoding} · מפריד: <code>{result.delimiter === '\t' ? 'טאב' : result.delimiter}</code>
+              {/* Encoding and delimiter are CSV concepts. A workbook has
+                  neither, so showing them (empty) would be noise at best and
+                  misleading at worst. */}
+              {result.format === 'csv'
+                ? <>קידוד: {result.encoding} · מפריד: <code>{result.delimiter === '\t' ? 'טאב' : result.delimiter}</code></>
+                : <>קובץ {result.format === 'xls' ? 'Excel (פורמט ישן)' : 'Excel'}{result.sheetName ? <> · גיליון: <strong>{result.sheetName}</strong></> : null}</>}
               {' · '}המיפוי הוצע {result.mappingSource === 'ai' ? 'אוטומטית' : 'לפי שמות העמודות בלבד'}
               {result.mappingSource !== 'ai' && result.fallbackReason ? ' (הזיהוי האוטומטי לא היה זמין)' : ''}
               {result.samplesWereMasked ? ' · הדוגמאות שנשלחו לזיהוי היו מוסתרות' : ''}
@@ -332,6 +390,9 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75, marginBottom: 5 }}>
               ייווצרו <strong>{preview.counts.valid}</strong> פניות חדשות בסטטוס <strong>{IMPORT_STATUS}</strong> ובמקור <strong>{IMPORT_SOURCE}</strong>.
               {preview.counts.skipped > 0 && <> {preview.counts.skipped} שורות ידולגו.</>}
+              {/* Name the tab at the moment of approval: with several sheets,
+                  "which one" is as much a part of the decision as "how many". */}
+              {sheetNames.length > 1 && sheet && <> הייבוא הוא מגיליון <strong>{sheet}</strong> בלבד.</>}
             </p>
             <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.7 }}>
               זו הפעולה הראשונה שכותבת לבסיס הנתונים. אפשר להריץ שוב בבטחה אם משהו נכשל: הייבוא מזוהה לפי מספר הטלפון ולא יוצר כפילויות.

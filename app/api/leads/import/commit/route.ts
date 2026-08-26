@@ -1,6 +1,6 @@
 // app/api/leads/import/commit/route.ts
 //
-// STAGE 3 of the CSV lead importer: the insert.
+// STAGE 3 of the lead importer (.csv, .xlsx, .xls): the insert.
 //
 // ── dryRun is the default ──────────────────────────────────────────────────
 // This route writes ONLY when the body carries `dryRun: false` explicitly.
@@ -30,7 +30,11 @@ import { NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { decodeCsv, parseCsv, diagnoseCsv, maskValue } from '@/lib/leads/csvImport';
+import { maskValue } from '@/lib/leads/csvImport';
+// The SAME parser the analyse route used. Given identical bytes and identical
+// options it is deterministic, including which sheet it picks - which is what
+// stops the preview and the insert reading different tabs of a workbook.
+import { readUpload } from '@/lib/leads/readUpload';
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from '@/lib/leads/buildRows';
 import type { ColumnMapping } from '@/lib/leads/buildRows';
 
@@ -64,6 +68,10 @@ export async function POST(request: Request) {
     if (!(file instanceof Blob)) {
       return NextResponse.json({ success: false, error: 'לא נבחר קובץ' }, { status: 400 });
     }
+    const filename = file instanceof File ? file.name : null;
+    // Which sheet she previewed. Travels with the commit precisely so the
+    // insert cannot read a different tab from the one she approved.
+    const sheet = String(form.get('sheet') ?? '') || null;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.length === 0 || bytes.length > MAX_BYTES) {
       return NextResponse.json({ success: false, error: 'הקובץ ריק או גדול מדי' }, { status: 400 });
@@ -85,26 +93,25 @@ export async function POST(request: Request) {
     // Writes require saying so. Everything else is a dry run.
     const dryRun = String(form.get('dryRun') ?? 'true') !== 'false';
 
-    const { text, encoding } = decodeCsv(bytes);
-    const { headers, rows, delimiter } = parseCsv(text);
-    const diagnosis = diagnoseCsv(text, headers, rows);
-    if (diagnosis.problem) {
+    const read = readUpload(bytes, { filename, sheet, maxRows: MAX_ROWS });
+    if (!read.ok) {
       return NextResponse.json(
-        { success: false, error: diagnosis.message, problem: diagnosis.problem },
+        { success: false, error: read.message, problem: read.problem, sheetNames: read.sheetNames },
         { status: 400 }
       );
     }
-    if (rows.length > MAX_ROWS) {
-      return NextResponse.json({ success: false, error: 'יותר מדי שורות בקובץ' }, { status: 400 });
-    }
+    const { format, headers, rows, delimiter, encoding, sheetName } = read;
 
     const built = buildRows(headers, rows, mapping);
     const chunkCount = Math.ceil(built.valid.length / CHUNK) || 0;
 
     // Everything the caller needs to see, identical in both modes.
     const plan = {
+      format,
       encoding,
       delimiter,
+      // Echoed so the dry-run output states which tab is about to be imported.
+      sheetName,
       tenantId,
       status: IMPORT_STATUS,
       source: IMPORT_SOURCE,
