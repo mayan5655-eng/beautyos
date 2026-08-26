@@ -5004,7 +5004,15 @@ export default function BeautyOS() {
  </svg>
  </button>
  <button onClick={handleExportCSV} className="icon-btn desktop-only" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
- <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">⏻</button>
+                {/* Same reason as the gear above: U+23FB renders as a colour
+                    emoji on iOS. Fixing one and leaving its neighbour is worse
+                    than leaving both. */}
+ <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">
+ <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
+ <path d="M12 3.2v8.4"/>
+ <path d="M17.4 6.1a7.5 7.5 0 1 1-10.8 0"/>
+ </svg>
+ </button>
  </div>
  </header>
 
