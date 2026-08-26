@@ -5752,6 +5752,7 @@ export default function BeautyOS() {
                 );
               })}
  </div>
+ <ListMore shown={leadsShown} total={filteredLeads.length} onMore={showMoreLeads} pc={pc} noun="פניות"/>
  </>)}
 
           {/* CASHIER */}
@@ -5856,7 +5857,6 @@ export default function BeautyOS() {
                 );
               })}
  </div>
- <ListMore shown={leadsShown} total={filteredLeads.length} onMore={showMoreLeads} pc={pc} noun="פניות"/>
  </div>
  </>)}
 
