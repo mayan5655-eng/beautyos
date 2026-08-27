@@ -7877,6 +7877,29 @@ export default function BeautyOS() {
  <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"var(--surface)",fontSize:12,marginTop:2}}>{isBusy("changePw")?"מעדכן...":"עדכון סיסמה"}</button>
  </div>
  </div>
+
+                {/* Build identity.
+                    Answers "am I actually running the latest version?" without
+                    her needing to send a support message to find out - which is
+                    literally how we answered it once. A diagnostic that needs a
+                    round trip through me is not a diagnostic she has.
+                    Falls back to "פיתוח" locally, where the Vercel env var is
+                    absent. Tap to copy, so reporting it is one gesture. */}
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:6,fontWeight:700}}>גרסה</p>
+ <button type="button"
+                    onClick={()=>{
+                      const v=process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA||"";
+                      if(!v){toast("גרסת פיתוח — אין מזהה build","info");return;}
+                      navigator.clipboard?.writeText(v).then(()=>toast("מזהה הגרסה הועתק"),()=>toast(v,"info"));
+                    }}
+                    style={{background:"var(--surface-2)",border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 11px",width:"100%",textAlign:"start",cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:11,color:"var(--ink-2)",direction:"ltr",display:"block",fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace"}}>
+                      {(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA||"").slice(0,7)||"פיתוח"}
+ </span>
+ <span style={{fontSize:9,color:"var(--ink-3)"}}>לחצי להעתקה</span>
+ </button>
+ </div>
  </div>
               )}
               {settingsTab==="branding"&&(()=>{
