@@ -162,6 +162,85 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── Native feel ─────────────────────────────────────────────────────────────
+ *
+ * Four small things that separate "a web page in a wrapper" from "an app".
+ * All of them are about SUPPRESSING browser behaviour, which is why each one
+ * below is scoped rather than global: every suppression takes something away,
+ * and taking the wrong thing away from a cosmetician mid-appointment is worse
+ * than the bounce it was meant to fix.
+ */
+
+/* 1. No rubber-band at the page edges. Dragging past the top or bottom in a
+ *    standalone install exposes the page background behind the app, which
+ *    instantly reads as a browser. Scroll containers inside the app still
+ *    scroll normally - this only stops the chain reaching the document. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* 2. Chrome is not text. Long-pressing the bottom bar, the header or a button
+ *    should do nothing, the way it does in a native app - not raise a
+ *    selection handle over the navigation. */
+.app-header,
+.app-bottombar,
+.nav-aside,
+button,
+[role="button"],
+.icon-btn,
+.primary-btn,
+.pill {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 3. ...but CONTENT stays selectable, and this is the half that matters.
+ *
+ *    A client's name and phone number are the two things she most often needs
+ *    to copy out of this app - to paste into WhatsApp, to dial, to send to
+ *    someone. A blanket user-select:none would have taken that away and the
+ *    loss would have been silent: nothing breaks, the text just stops being
+ *    copyable and she works around it forever.
+ *
+ *    A direct declaration on the element beats an inherited one regardless of
+ *    the ancestor's specificity, so these win over the chrome rule above even
+ *    for the search box that lives inside .app-header. */
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* 4. No 300ms wait for a possible double-tap before a tap registers. Applied
+ *    to things that are actually tapped, not to the document: manipulation
+ *    also disables double-tap-to-zoom on whatever it covers, and zoom is the
+ *    accessibility escape hatch we deliberately kept when we declined
+ *    maximum-scale=1. Inputs are left out for the same reason. */
+button,
+a,
+[role="button"],
+.icon-btn,
+.primary-btn,
+.pill,
+.appt-card {
+  touch-action: manipulation;
+}
+
+/* The header logo is the one image that is pure chrome. Long-pressing an image
+ * on iOS raises the save/copy sheet over the app; on the logo that is noise.
+ * NOT applied to img generally - client photos and skin-scan results are
+ * content she may legitimately want to save. */
+.hdr-logo {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Nothing may scroll the PAGE sideways.
  *
  * A safety net, not the fix: the three wide grids (weekly calendar, and the two
