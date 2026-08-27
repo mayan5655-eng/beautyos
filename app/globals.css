@@ -171,13 +171,31 @@
  * than the bounce it was meant to fix.
  */
 
-/* 1. No rubber-band at the page edges. Dragging past the top or bottom in a
- *    standalone install exposes the page background behind the app, which
- *    instantly reads as a browser. Scroll containers inside the app still
- *    scroll normally - this only stops the chain reaching the document. */
+/* 1. Overscroll, split by axis and by context - and the split matters.
+ *
+ *    This was `overscroll-behavior: none` on both axes everywhere, which broke
+ *    a real feature: PULL-TO-REFRESH. It is a standard gesture in Chrome on
+ *    Android and in Safari tabs on iOS, and suppressing the vertical axis
+ *    removes it. We were aiming at a cosmetic bounce in the installed app and
+ *    took out a function people actually use in the browser.
+ *
+ *    Horizontal is suppressed everywhere: nothing in this app should ever slide
+ *    sideways, in any context, so there is no gesture to preserve.
+ *
+ *    Vertical is suppressed ONLY in a standalone install, where there is no
+ *    pull-to-refresh to break and the rubber-band is the only thing it affects.
+ *    Scoping by display-mode rather than by platform is what makes this right
+ *    on both: an iPhone in a Safari tab keeps pull-to-refresh too. */
 html,
 body {
-  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+}
+
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
 }
 
 /* 2. Chrome is not text. Long-pressing the bottom bar, the header or a button

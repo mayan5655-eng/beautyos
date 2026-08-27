@@ -4720,7 +4720,23 @@ export default function BeautyOS() {
 
              Mobile only: the zoom is an iOS behaviour, and 11-12px on desktop
              is a deliberate density choice with no problem to solve. */
-          input,textarea,select{font-size:16px!important}
+          /* iOS ONLY. Chrome on Android does not zoom on focus at any font
+             size, so on Android this rule was enlarging every field to solve a
+             problem that platform does not have - a density change for half the
+             users for nothing.
+
+             @supports (-webkit-touch-callout: none) is the standard gate for
+             this: the property is implemented in WebKit and not in Blink, so it
+             is true on iOS Safari (and every iOS browser, which are all WebKit)
+             and false in Chrome on Android. If Blink ever ships it, Android
+             quietly gets larger fields back - untidy, not harmful. */
+          @supports (-webkit-touch-callout: none) {
+            input,textarea,select{font-size:16px!important}
+            /* Inside the same gate: this width exists purely to give the 16px
+               text room. On Android the fields stay at 11-12px, so widening
+               them would be the same unnecessary density change. */
+            input[type="number"]{min-width:62px!important}
+          }
 
           /* Narrow numeric fields need the BOX widened too, not just the text.
              Service duration is 44px wide with 6px of side padding - about 32px
@@ -4731,7 +4747,6 @@ export default function BeautyOS() {
              These sit in flex rows next to a name field that already carries
              minWidth:0, so the row absorbs the extra width by truncating the
              name, which truncates visibly. */
-          input[type="number"]{min-width:62px!important}
           /* The header's backdrop-filter creates a stacking context that (being
              earlier in the DOM than <main>) trapped the global-search results
              dropdown BEHIND the page content on mobile. Lift the whole header
