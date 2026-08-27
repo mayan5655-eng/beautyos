@@ -4701,6 +4701,37 @@ export default function BeautyOS() {
           .app-header{padding:0 0 0 0!important;padding-top:env(safe-area-inset-top, 0px)!important;gap:6px!important;height:auto!important;min-height:56px!important;flex-wrap:nowrap!important}
           .hdr-brand{gap:6px!important}
           .header-search{display:none!important}
+
+          /* ── 16px fields: the actual fix for Safari's zoom ─────────────────
+             iOS zooms the page in when a focused input is under 16px, and does
+             not zoom back out on blur. Every one of the 115 fields in this app
+             was between 9px and 13px, so tapping any of them left the layout
+             zoomed and overflowing - which is what "the app is too wide in
+             Safari" was, all along.
+
+             The alternative was maximum-scale=1 in the viewport, which
+             suppresses the symptom by disabling pinch-zoom for everyone, all
+             day, in a business app read at arm's length. Fixing the cause costs
+             a few pixels of density on a phone; fixing the symptom costs the
+             accessibility escape hatch permanently.
+
+             !important because the sizes are inline styles, and one rule rather
+             than 115 edits because a rule cannot miss a field.
+
+             Mobile only: the zoom is an iOS behaviour, and 11-12px on desktop
+             is a deliberate density choice with no problem to solve. */
+          input,textarea,select{font-size:16px!important}
+
+          /* Narrow numeric fields need the BOX widened too, not just the text.
+             Service duration is 44px wide with 6px of side padding - about 32px
+             of room, which at 16px is three digits. "120" only just fits and
+             anything longer clips. A silently clipped duration or price is the
+             worst kind of wrong: it looks like a number, so she would never
+             think to check it.
+             These sit in flex rows next to a name field that already carries
+             minWidth:0, so the row absorbs the extra width by truncating the
+             name, which truncates visibly. */
+          input[type="number"]{min-width:62px!important}
           /* The header's backdrop-filter creates a stacking context that (being
              earlier in the DOM than <main>) trapped the global-search results
              dropdown BEHIND the page content on mobile. Lift the whole header
