@@ -287,13 +287,31 @@ const PAYMENT_METHODS = [
 // HELPER FUNCTIONS
 // ============================================================
 
-function getWeekDates(startDate) {
+/** The Sunday that begins the Israeli week containing `date`. Midnight, local. */
+function weekSundayOf(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  // getDay(): 0 = Sunday, so subtracting it always lands on this week's Sunday.
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+
+/**
+ * The seven days of the Israeli week containing `date`: ראשון through שבת.
+ *
+ * SNAPS to Sunday rather than treating its argument as the first column. The
+ * week used to start on whatever day it happened to be, so the columns shifted
+ * every morning and "the week" meant a different seven days depending on when
+ * she opened it. Snapping here rather than at the call sites makes it
+ * impossible for any caller to disagree about where the week begins - which is
+ * exactly how the six-day version drifted into four places.
+ */
+function getWeekDates(date) {
+  const sunday = weekSundayOf(date);
   const days = [];
-  // SEVEN days. This was 6, which silently dropped שבת from the week view -
-  // never a decision, just a number nobody revisited.
   for (let i = 0; i < 7; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
     days.push(d);
   }
   return days;
@@ -1796,7 +1814,11 @@ export default function BeautyOS() {
   // Compare on local YYYY-MM-DD strings (via formatDate), not Date objects:
   // weekStart carries a time-of-day while new Date("YYYY-MM-DD") is UTC midnight,
   // which previously dropped today's appointments from the weekly count.
-  const weekAppts     = useMemo(() => { const ws=formatDate(weekStart); const weEnd=new Date(weekStart); weEnd.setDate(weEnd.getDate()+6); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
+  // Spans the SAME seven days the grid draws. It used to run from weekStart
+  // itself, so with an arbitrary weekStart the count covered Wednesday to
+  // Tuesday while the columns showed Sunday to Saturday - two different weeks,
+  // one screen. Deriving both from getWeekDates removes the possibility.
+  const weekAppts     = useMemo(() => { const ws=formatDate(weekSundayOf(weekStart)); const weEnd=new Date(weekSundayOf(weekStart)); weEnd.setDate(weEnd.getDate()+6); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
   const thisMonthAppts = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [appointments, thisMonth, thisYear]);
 
   // ── Last-visit index ──────────────────────────────────────────────────────
@@ -5699,9 +5721,9 @@ export default function BeautyOS() {
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
  </div>
  <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
+ <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:11,padding:"7px 14px",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
- <button onClick={()=>{const d=new Date(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
+ <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
  </div>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
