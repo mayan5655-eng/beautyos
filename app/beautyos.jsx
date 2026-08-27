@@ -2847,11 +2847,23 @@ export default function BeautyOS() {
       message: `להמיר את ${lead.name} ללקוחה רשומה?`,
       confirmText: "המרה",
       onConfirm: async () => {
-        // ...tenantField was missing here while every other client insert in
-        // this file carries it. No orphaned rows exist today, so a database
-        // default has been covering it - but a default covering a bug is not
-        // the same as the code being right, and the failure mode is a client
-        // landing in the wrong business.
+        // The tenant is derived HERE, in this function.
+        //
+        // tenantField is not a component-level variable - handleSave,
+        // importServices and importAppointments each declare their own local
+        // copy. Spreading `...tenantField` here without declaring it threw
+        // ReferenceError inside this async callback, where nothing awaited it:
+        // the dialog opened, the confirm did nothing, no client appeared and no
+        // error surfaced. tsc passes that happily, because it does not resolve
+        // identifiers in a .jsx file.
+        //
+        // Same fallback chain as the other three, and the same omit-rather-
+        // than-send-null behaviour so a missing tenant never regresses below
+        // the database default.
+        const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+        const tid = rpcTenant || settings?.tenant_id || null;
+        const tenantField = tid ? { tenant_id: tid } : {};
+        console.log(`[convert-lead] TENANT FILTER: tenant_id = ${tid ?? "(omitted — DB default)"} | lead ${lead.id}`);
         const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
         if(!cd||!cd[0]){toast("ההמרה נכשלה","error");return;}
