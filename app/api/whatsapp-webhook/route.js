@@ -12,6 +12,7 @@ import { trackedCreate } from "@/lib/ai/usage";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
+import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -82,7 +83,7 @@ async function shouldBotReply(tenantId) {
 async function generateReply({ message, clientName, tenantId }) {
   const [settingsRes, servicesRes] = await Promise.all([
     supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
-    supabase.from("service_prices").select("*").eq("tenant_id", tenantId).eq("active", true),
+    supabase.from("service_prices").select("*").eq("tenant_id", tenantId).or(ACTIVE_OR_NULL),
   ]);
 
   const settings =

@@ -16,6 +16,7 @@ import { trackedCreate } from '@/lib/ai/usage'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
+import { isServiceActive } from '@/lib/serviceActive'
 import type { BusinessProfile } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -70,7 +71,7 @@ async function buildBusinessSnapshot(
     ])
 
   const settings: any = settingsRes.data?.[0] || {}
-  const services = (servicesRes.data || []).filter((s: any) => s.active !== false)
+  const services = (servicesRes.data || []).filter(isServiceActive)
   const clients = clientsRes.data || []
   const appts = apptsRes.data || []
   const receipts = receiptsRes.data || []

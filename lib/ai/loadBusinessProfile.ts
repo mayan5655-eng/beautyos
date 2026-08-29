@@ -19,6 +19,7 @@ import {
   parseClinicAddress,
 } from './profileHygiene.ts'
 import { APP_URL } from '@/lib/appUrl'
+import { ACTIVE_OR_NULL } from '@/lib/serviceActive'
 
 // The server Supabase client (no generated DB types, so rows come back loosely typed).
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
@@ -61,7 +62,7 @@ export async function loadBusinessProfile(
       .from('service_prices')
       .select('name, price, duration')
       .eq('tenant_id', tenantId)
-      .eq('active', true),
+      .or(ACTIVE_OR_NULL),
   ])
 
   const row: Record<string, any> =
