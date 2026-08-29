@@ -8,15 +8,59 @@
 // All UI text is Hebrew; all code comments are English only.
 // ============================================================
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 // Vertical reel canvas size (Instagram/TikTok 9:16)
 const W = 1080;
 const H = 1920;
 const FPS = 30;
 
-export default function ReelStudio({ primaryColor = "var(--pc)", businessName = "" }) {
+// ---- Scene timing bounds ----
+// The AI returns `seconds` as free text - the prompt literally asks for
+// "כמה שניות בערך" - so it arrives as "3", "3-4", "כ-4 שניות", or occasionally
+// something it made up. These bounds are what stop a hallucinated "30" per
+// scene from producing a two-minute reel that Instagram will not take.
+const MIN_SCENE_SECONDS = 1.5;
+const MAX_SCENE_SECONDS = 10;
+const MAX_TOTAL_SECONDS = 90;
+
+/** First number found in whatever the model returned, clamped to one scene. */
+function parseSceneSeconds(raw, fallback = 3) {
+  const n =
+    typeof raw === 'number'
+      ? raw
+      : parseFloat(String(raw ?? '').replace(/[^\d.]+/g, ' ').trim().split(/\s+/)[0]);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(MAX_SCENE_SECONDS, Math.max(MIN_SCENE_SECONDS, n));
+}
+
+/**
+ * Second line of defence: per-scene clamping still allows 12 scenes x 10s.
+ * Scale the whole reel down proportionally rather than truncating it, so the
+ * pacing she was shown is preserved even when the total has to shrink.
+ */
+function fitTotalDuration(durations) {
+  const total = durations.reduce((a, b) => a + b, 0);
+  if (total <= MAX_TOTAL_SECONDS || total <= 0) return durations;
+  const k = MAX_TOTAL_SECONDS / total;
+  return durations.map((d) => d * k);
+}
+
+/**
+ * @param script - an AI reel from /api/marketing/reel, or null for the plain
+ *   slideshow. When present, the studio stops being a generic photo tool and
+ *   becomes "fill in the reel you were just given": the title comes from
+ *   cover_title, and each photo slot is bound to a scene, taking that scene's
+ *   on_screen_text as its caption and its `seconds` as its own duration.
+ */
+export default function ReelStudio({ primaryColor = "var(--pc)", businessName = "", script = null }) {
   const pc = primaryColor;
+
+  const scenes = useMemo(
+    () => (Array.isArray(script?.scenes) ? script.scenes : []),
+    [script]
+  );
+  const hasScript = scenes.length > 0;
 
   // The concrete hex behind `pc`.
   //
@@ -50,6 +94,32 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
   const canvasRef = useRef(null);
   const audioElRef = useRef(null);
 
+  // Cover title comes from the script, but only into an EMPTY box - regenerating
+  // or re-rendering must never overwrite a title she has typed herself.
+  useEffect(() => {
+    const t = script?.cover_title;
+    if (t) setTitle((prev) => (prev.trim() ? prev : t));
+  }, [script]);
+
+  /**
+   * Duration of each slide, in seconds, after both clamps.
+   *
+   * Without a script every slide shares the `secondsPer` slider, exactly as
+   * before. With one, each slide carries the duration its scene asked for.
+   */
+  const slideDurations = useMemo(
+    () =>
+      fitTotalDuration(
+        slides.map((s) => (typeof s.seconds === "number" ? s.seconds : secondsPer))
+      ),
+    [slides, secondsPer]
+  );
+  const totalSeconds = slideDurations.reduce((a, b) => a + b, 0);
+
+  // Scenes with no photo yet. She is NOT blocked on these - see the notice in
+  // the photos card for the reasoning.
+  const missingScenes = hasScript ? scenes.slice(slides.length) : [];
+
   // ---- Load an uploaded image file into an HTMLImageElement ----
   const fileToImage = (file) =>
     new Promise((resolve, reject) => {
@@ -60,18 +130,54 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       img.src = url;
     });
 
+  /**
+   * Fields a slide inherits from the scene at position `i`.
+   *
+   * Math.min pins anything past the last scene TO the last scene, which is the
+   * "extra photos inherit the last scene's caption" rule: if the script has 4
+   * scenes and she adds 7 photos, photos 5-7 continue the closing scene rather
+   * than falling back to blank captions and an arbitrary duration.
+   */
+  const sceneFieldsFor = useCallback(
+    (i) => {
+      if (!hasScript) return { caption: "", seconds: null, sceneNumber: null };
+      const sc = scenes[Math.min(i, scenes.length - 1)];
+      return {
+        caption: sc?.on_screen_text || "",
+        seconds: parseSceneSeconds(sc?.seconds),
+        sceneNumber: sc?.scene_number || Math.min(i, scenes.length - 1) + 1,
+      };
+    },
+    [hasScript, scenes]
+  );
+
   const addPhotos = async (fileList) => {
     setError(null);
     const files = Array.from(fileList || []);
     for (const file of files) {
       try {
         const { img, url } = await fileToImage(file);
-        setSlides((prev) => [...prev, { id: Date.now() + Math.random(), img, url, caption: "" }]);
+        setSlides((prev) => [
+          ...prev,
+          { id: Date.now() + Math.random(), img, url, ...sceneFieldsFor(prev.length) },
+        ]);
       } catch {
         // skip unreadable file
       }
     }
   };
+
+  /**
+   * Re-bind every slide to the scene at its CURRENT position.
+   *
+   * Captions are baked in on add, not derived on render, so that her edits
+   * survive - but that means reordering or deleting leaves the captions
+   * attached to their photos while the scene labels are positional, and the two
+   * can disagree. Rather than silently re-deriving (which would throw away her
+   * edits) this is an explicit button, so resyncing is always her choice.
+   */
+  const resyncToScript = () =>
+    setSlides((prev) => prev.map((s, i) => ({ ...s, ...sceneFieldsFor(i) })));
 
   const removeSlide = (id) => setSlides((prev) => prev.filter((s) => s.id !== id));
 
@@ -243,8 +349,18 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       recorder.start();
       setStatusText("מקליטה את הסרטון...");
 
-      // Animate through all slides in real time
-      const totalMs = slides.length * secondsPer * 1000;
+      // Animate through all slides in real time.
+      //
+      // Slides no longer share one duration, so the old `floor(elapsed /
+      // slideMs)` stride does not work: walk a cumulative timeline instead.
+      const durMs = slideDurations.map((d) => d * 1000);
+      const startsMs = [];
+      let acc = 0;
+      for (const d of durMs) {
+        startsMs.push(acc);
+        acc += d;
+      }
+      const totalMs = acc;
       const startT = performance.now();
 
       await new Promise((resolveAnim) => {
@@ -253,11 +369,10 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
           const overall = Math.min(elapsed / totalMs, 1);
           setProgress(Math.round(overall * 100));
 
-          // Which slide are we on?
-          const slideMs = secondsPer * 1000;
-          let idx = Math.floor(elapsed / slideMs);
-          if (idx >= slides.length) idx = slides.length - 1;
-          const tIn = (elapsed - idx * slideMs) / slideMs; // 0..1 within slide
+          // Which slide are we on? Linear scan - a reel is a handful of slides.
+          let idx = 0;
+          while (idx < slides.length - 1 && elapsed >= startsMs[idx + 1]) idx++;
+          const tIn = (elapsed - startsMs[idx]) / (durMs[idx] || 1); // 0..1 within slide
           drawFrame(ctx, slides[idx], Math.min(tIn, 1), idx === 0, idx === slides.length - 1, colors);
 
           if (elapsed < totalMs) {
@@ -311,10 +426,12 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
         <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-          🎬 סטודיו רילסים
+          🎬 {hasScript ? "הפכי את התסריט לסרטון" : "סטודיו רילסים"}
         </h2>
         <p style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
-          העלי תמונות וקבלי סרטון מוכן לאינסטגרם
+          {hasScript
+            ? `העלי תמונה לכל סצנה — הכיתובים והתזמונים כבר מוכנים מהתסריט שלמעלה`
+            : "העלי תמונות וקבלי סרטון מוכן לאינסטגרם"}
         </p>
       </div>
 
@@ -327,15 +444,27 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
           placeholder="לדוגמה: תוצאות טיפול פנים ✨"
           style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none", direction: "rtl", background: pcTint, boxSizing: "border-box", marginBottom: 12 }}
         />
-        <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
-          זמן לכל תמונה: {secondsPer} שניות
-        </p>
-        <input
-          type="range" min="1" max="5" step="0.5"
-          value={secondsPer}
-          onChange={(e) => setSecondsPer(Number(e.target.value))}
-          style={{ width: "100%", accentColor: pc }}
-        />
+        {/* With a script each slide has its own length, so one global slider
+            would be lying about what is going to happen. Show the total the
+            script actually adds up to instead. */}
+        {hasScript ? (
+          <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600 }}>
+            אורך הסרטון: <strong style={{ color: pc }}>{totalSeconds.toFixed(1)} שניות</strong>
+            {" "}— לפי הזמנים שבתסריט
+          </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
+              זמן לכל תמונה: {secondsPer} שניות
+            </p>
+            <input
+              type="range" min="1" max="5" step="0.5"
+              value={secondsPer}
+              onChange={(e) => setSecondsPer(Number(e.target.value))}
+              style={{ width: "100%", accentColor: pc }}
+            />
+          </>
+        )}
       </div>
 
       {/* PHOTOS */}
@@ -351,13 +480,17 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
         {slides.length === 0 ? (
           <p style={{ fontSize: 11, color: "var(--line-2)", textAlign: "center", padding: "20px 0" }}>
-            עוד לא הוספת תמונות. לחצי "הוספת תמונות" כדי להתחיל.
+            {hasScript
+              ? `עוד לא הוספת תמונות. התמונה הראשונה תקבל את סצנה ${scenes[0]?.scene_number || 1}.`
+              : 'עוד לא הוספת תמונות. לחצי "הוספת תמונות" כדי להתחיל.'}
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {slides.map((s, i) => (
               <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: pcTint, borderRadius: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: pc, width: 20 }}>{i + 1}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: pc, width: 20 }}>
+                  {hasScript ? `${Math.min(i, scenes.length - 1) + 1}` : i + 1}
+                </span>
                 <img alt="" src={s.url} style={{ width: 44, height: 60, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
                 <input
                   value={s.caption}
@@ -367,10 +500,47 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
                 />
                 <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
                 <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
+                {hasScript && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", whiteSpace: "nowrap" }}>
+                    {slideDurations[i]?.toFixed(1)}ש׳
+                  </span>
+                )}
                 <button onClick={() => removeSlide(s.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 15, cursor: "pointer" }}>✕</button>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Scenes still waiting for a photo.
+            Deliberately a notice and not a block: she may have decided three of
+            the five scenes are all she wants, and refusing to export would be
+            us overruling her. Naming the scenes means she can tell the
+            difference between "I skipped that" and "I forgot that". */}
+        {missingScenes.length > 0 && (
+          <div style={{ marginTop: 10, background: "var(--surface-2)", border: "1px dashed var(--line-2)", borderRadius: 12, padding: "10px 12px" }}>
+            <p style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>
+              עוד אין תמונה ל־{missingScenes.length} סצנות
+            </p>
+            <p style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5, marginBottom: 6 }}>
+              אפשר לייצר את הסרטון גם ככה — הסצנות האלה פשוט לא ייכנסו.
+            </p>
+            {missingScenes.map((sc, i) => (
+              <p key={i} style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.6 }}>
+                <strong style={{ color: pc }}>{sc.scene_number || slides.length + i + 1}.</strong>{" "}
+                {sc.on_screen_text || sc.spoken || "—"}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {hasScript && slides.length > 0 && (
+          <button
+            type="button"
+            onClick={resyncToScript}
+            style={{ marginTop: 10, width: "100%", background: "none", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 0", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: pc, cursor: "pointer" }}
+          >
+            ↻ מלאי מחדש את הכיתובים מהתסריט
+          </button>
         )}
       </div>
 

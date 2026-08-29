@@ -15,6 +15,7 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
+import ReelStudio from "./ReelStudio";
 import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
@@ -6831,6 +6832,16 @@ export default function BeautyOS() {
  {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--surface)",fontSize:9}}>העתיקי</button></div><p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
 
  {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
+
+ {/* The studio, inline, directly under the script that feeds it.
+     It lived at /dashboard/reel-studio, which nothing in the app ever linked
+     to - so the half that turns a script into a file was unreachable unless
+     you typed the URL. Rendering it here fixes that and the handoff at the
+     same time: reelData is right there in state, so the script never has to
+     survive a route change or be persisted to be passed along. */}
+ <div style={{borderTop:"1px solid var(--line)",marginTop:22,paddingTop:22}}>
+ <ReelStudio primaryColor={pc} businessName={settings.business_name||""} script={reelData}/>
+ </div>
  </div>)}
  </>)}
  </>)}
