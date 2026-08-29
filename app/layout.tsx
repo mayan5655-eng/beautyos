@@ -3,6 +3,7 @@ import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre } from "n
 import "./globals.css";
 import PWARegister from "./pwa-register";
 import IOSInstallBanner from "./ios-install-banner";
+import InstallPromptBanner from "./install-prompt-banner";
 
 // Elegant Latin serif for display headings (Latin glyphs only).
 const cormorant = Cormorant_Garamond({
@@ -193,9 +194,32 @@ export default function RootLayout({
       ].join(" ")}
     >
       <body className="min-h-full flex flex-col relative">
+        {/* Chromium fires beforeinstallprompt early - routinely before React
+            has hydrated - and the event is gone the moment it goes unhandled.
+            Catching it here, ahead of any app code, is what leaves
+            install-prompt-banner.tsx something to offer: the banner reads the
+            stash on mount, or waits for the re-announcement if it lands later.
+
+            A bare <script>, NOT next/script. `strategy="beforeInteractive"` is
+            what the docs point at and it does not work here - on 16.2.4 the
+            inline body never reaches <head>, it is only serialised into the
+            RSC payload, so it runs no earlier than hydration and the whole
+            point is lost. React renders this one into the streamed HTML where
+            it executes during parse - top of <body>, ahead of every bundle.
+            Verify a REAL tag in the BUILT html, not here; next/script put its copy
+            in the RSC payload only, which greps the same and runs far too late:
+              grep -o '<script id="capture-install-prompt">' .next/server/app/login.html
+            (any prerendered page will do). */}
+        <script
+          id="capture-install-prompt"
+          dangerouslySetInnerHTML={{
+            __html: `(function(){window.__bloomosInstallPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__bloomosInstallPrompt=e;window.dispatchEvent(new Event('bloomos:installprompt'))})})();`,
+          }}
+        />
         <PWARegister />
         {children}
         <IOSInstallBanner />
+        <InstallPromptBanner />
       </body>
     </html>
   );

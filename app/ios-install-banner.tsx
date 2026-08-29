@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import InstallBannerCard from "./InstallBannerCard";
 
 const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
@@ -13,6 +14,10 @@ const DISMISS_KEY = "bloomos-ios-install-dismissed";
  *   - the app is NOT already running installed (standalone), and
  *   - the user hasn't dismissed it before (remembered in localStorage).
  * Server-renders nothing, so there is no hydration mismatch.
+ *
+ * The Chromium half of this lives in install-prompt-banner.tsx. The two can
+ * never appear together: iOS Safari is the one engine that does not fire
+ * `beforeinstallprompt`, which is the only thing that shows the other banner.
  */
 export default function IOSInstallBanner() {
   const [render, setRender] = useState(false);
@@ -50,45 +55,13 @@ export default function IOSInstallBanner() {
   if (!render) return null;
 
   return (
-    <div
-      dir="rtl"
-      role="dialog"
-      aria-label="התקנת האפליקציה למסך הבית"
-      style={{
-        position: "fixed",
-        left: "50%",
-        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
-        transform: `translateX(-50%) translateY(${enter ? "0" : "12px"})`,
-        opacity: enter ? 1 : 0,
-        transition: "transform 200ms ease, opacity 200ms ease",
-        zIndex: 60,
-        width: "min(420px, calc(100vw - 24px))",
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "12px",
-        padding: "14px 16px",
-        background: "var(--surface, var(--surface))",
-        color: "var(--ink, var(--ink))",
-        border: "1px solid var(--line, var(--line))",
-        borderRadius: "var(--r-md, 16px)",
-        boxShadow: "var(--shadow-lg, 0 18px 44px rgba(43,34,51,0.14))",
-        fontFamily: "var(--sans, system-ui, sans-serif)",
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          flex: "0 0 auto",
-          display: "grid",
-          placeItems: "center",
-          width: "38px",
-          height: "38px",
-          borderRadius: "999px",
-          background: "var(--lavender-100, var(--pc-tint))",
-          color: "var(--plum-600, var(--pc))",
-        }}
-      >
-        {/* iOS share glyph */}
+    <InstallBannerCard
+      ariaLabel="התקנת האפליקציה למסך הבית"
+      enter={enter}
+      onDismiss={dismiss}
+      title="התקיני את BloomOS למסך הבית"
+      icon={
+        /* iOS share glyph */
         <svg
           width="20"
           height="20"
@@ -103,61 +76,20 @@ export default function IOSInstallBanner() {
           <path d="M12 4v11" />
           <path d="M7 10.5H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" />
         </svg>
+      }
+    >
+      הקישי על כפתור השיתוף ובחרי «הוספה למסך הבית».
+      {/* iOS gives a home-screen app its OWN cookie jar, separate from
+          Safari's. So being signed in here does NOT carry across the
+          install, and the first launch opens on the login screen. That is
+          iOS behaviour, not something the app can carry over - and left
+          unexplained it reads as "the app forgot me" at the exact moment
+          she is forming her first impression of it. One sentence up front
+          costs nothing and turns a bug-looking moment into an expected
+          one. */}
+      <span style={{ display: "block", marginTop: "3px", opacity: 0.85 }}>
+        בפתיחה הראשונה תתבקשי להתחבר עוד פעם אחת — זו התנהגות רגילה של אייפון.
       </span>
-
-      <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-        <div
-          style={{
-            fontWeight: 600,
-            fontSize: "14px",
-            lineHeight: 1.35,
-            color: "var(--plum-700, var(--pc-deep))",
-          }}
-        >
-          התקיני את BloomOS למסך הבית
-        </div>
-        <div
-          style={{
-            marginTop: "2px",
-            fontSize: "13px",
-            lineHeight: 1.45,
-            color: "var(--ink-2, var(--ink-2))",
-          }}
-        >
-          הקישי על כפתור השיתוף ובחרי «הוספה למסך הבית».
-          {/* iOS gives a home-screen app its OWN cookie jar, separate from
-              Safari's. So being signed in here does NOT carry across the
-              install, and the first launch opens on the login screen. That is
-              iOS behaviour, not something the app can carry over - and left
-              unexplained it reads as "the app forgot me" at the exact moment
-              she is forming her first impression of it. One sentence up front
-              costs nothing and turns a bug-looking moment into an expected
-              one. */}
-          <span style={{ display: "block", marginTop: "3px", opacity: 0.85 }}>
-            בפתיחה הראשונה תתבקשי להתחבר עוד פעם אחת — זו התנהגות רגילה של אייפון.
-          </span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="סגירה"
-        style={{
-          flex: "0 0 auto",
-          appearance: "none",
-          border: "none",
-          background: "transparent",
-          color: "var(--ink-3, var(--ink-3))",
-          cursor: "pointer",
-          fontSize: "20px",
-          lineHeight: 1,
-          padding: "2px 4px",
-          borderRadius: "8px",
-        }}
-      >
-        ×
-      </button>
-    </div>
+    </InstallBannerCard>
   );
 }
