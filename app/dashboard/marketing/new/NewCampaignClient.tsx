@@ -72,8 +72,12 @@ export default function NewCampaignClient() {
         body: JSON.stringify({ goal: campaignData.goal, serviceType: campaignData.service_type, targetAudience: campaignData.target_audience }),
       })
       const data = await res.json()
-      if (data.strategy) setStrategy(data.strategy)
-      else setError('שגיאה ביצירת אסטרטגיה. נסי שוב.')
+      // Prefer the server's message. The strategy generator no longer returns a
+      // fallback object on failure — it throws, and the route answers 502 with
+      // a Hebrew sentence explaining what happened. Swallowing that in favour of
+      // a generic line throws away the only specific thing we know.
+      if (res.ok && data.strategy) setStrategy(data.strategy)
+      else setError(data.error || 'שגיאה ביצירת אסטרטגיה. נסי שוב.')
     } catch { setError('שגיאה בחיבור. בדקי את האינטרנט ונסי שוב.') }
     setLoading(false)
   }
@@ -88,8 +92,13 @@ export default function NewCampaignClient() {
         body: JSON.stringify({ strategy, count: 5 }),
       })
       const data = await res.json()
-      if (data.variations) setVariations(data.variations)
-      else setError('שגיאה ביצירת פוסטים. נסי שוב.')
+      // Length-checked: [] is truthy, so an empty result used to render as an
+      // empty step with no error shown.
+      if (res.ok && Array.isArray(data.variations) && data.variations.length > 0) {
+        setVariations(data.variations)
+      } else {
+        setError(data.error || 'שגיאה ביצירת פוסטים. נסי שוב.')
+      }
     } catch { setError('שגיאה בחיבור. בדקי את האינטרנט ונסי שוב.') }
     setLoading(false)
   }

@@ -20,6 +20,24 @@ type ServerSupabase = Awaited<ReturnType<typeof createClient>>
 const clean = (v: unknown): string | undefined =>
   typeof v === 'string' && v.trim() ? v.trim() : undefined
 
+// unique_selling_points is a string[] on BusinessProfile, but she types it as
+// free text — one advantage per line, or comma-separated if she runs them
+// together. Accept either, and accept an actual array in case it is ever
+// stored that way.
+const toList = (v: unknown): string[] | undefined => {
+  if (Array.isArray(v)) {
+    const items = v.map((x) => clean(x)).filter((x): x is string => !!x)
+    return items.length > 0 ? items : undefined
+  }
+  const s = clean(v)
+  if (!s) return undefined
+  const items = s
+    .split(/[\n,]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  return items.length > 0 ? items : undefined
+}
+
 export async function loadBusinessProfile(
   supabase: ServerSupabase,
   tenantId: string | null | undefined
@@ -90,5 +108,20 @@ export async function loadBusinessProfile(
     welcome_message: clean(brand.welcome_message),
     brand_colors: brandColors,
     has_logo: !!clean(brand.logo_url),
+
+    // These three were declared on BusinessProfile and rendered by
+    // buildBusinessContext from the start, but nothing ever set them, so
+    // `קהל יעד`, `סגנון מותג` and `יתרונות תחרותיים` never once appeared in a
+    // prompt — while the strategy prompt went on asking "מי קהל היעד באמת".
+    // It was answering that from nothing.
+    //
+    // There was no column to read: no table in the app stores them. They now
+    // come from the branding jsonb, alongside the other free-text brand
+    // fields, and the settings screen collects them (the "מידע לתוכן השיווקי"
+    // block). Unset for an existing tenant until she fills it in — the same
+    // undefined as before, but now with a way out.
+    target_audience: clean(brand.target_audience),
+    brand_tone: clean(brand.brand_tone),
+    unique_selling_points: toList(brand.unique_selling_points),
   }
 }

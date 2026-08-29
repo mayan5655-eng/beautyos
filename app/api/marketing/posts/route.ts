@@ -14,6 +14,7 @@ import {
   type BusinessProfile,
   type CampaignInput,
 } from '@/lib/ai/marketingAI'
+import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,19 +40,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'נא לכתוב מה תרצי לפרסם' }, { status: 400 })
     }
 
-    // 3. Load this tenant's business profile
+    // 3. Load this tenant's business profile.
+    //
+    // This read `tenants` until now — the columns lib/ai/loadBusinessProfile.ts
+    // was written to replace, because the app never writes them. It therefore
+    // handed the generators an empty profile and produced ungrounded copy. Its
+    // three sibling routes were migrated to the loader and this one was missed;
+    // it has no callers today, which is the only reason it never showed.
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
-    let profile: BusinessProfile = {}
-    if (tenantId) {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select(
-          'business_name, business_description, services, target_audience, region, brand_tone, unique_selling_points, price_range'
-        )
-        .eq('id', tenantId)
-        .single()
-      if (tenant) profile = tenant as BusinessProfile
-    }
+    const profile: BusinessProfile = await loadBusinessProfile(supabase, tenantId)
 
     // 4. Step 1 - strategy
     const input: CampaignInput = { goal, serviceType, targetAudience, additionalContext }
