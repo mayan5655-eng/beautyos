@@ -888,6 +888,10 @@ export default function BeautyOS() {
   const [postGoal,       setPostGoal]       = useState("");
   // Optional free text sent as CampaignInput.additionalContext.
   const [postExtra,      setPostExtra]      = useState("");
+  // Treatments withheld from the copy as not-advertisable (botox, fillers,
+  // plasma...). Surfaced so a menu item quietly missing from every campaign
+  // has a visible reason rather than looking like the AI forgot it.
+  const [postRestricted, setPostRestricted] = useState(0);
   const [postVariations, setPostVariations] = useState(null);
   const [postStrategy,   setPostStrategy]   = useState(null);
   const [postLoading,    setPostLoading]    = useState(false);
@@ -4051,6 +4055,7 @@ export default function BeautyOS() {
       // to render as a blank screen with no error at all.
       if (vRes.ok && Array.isArray(vData.variations) && vData.variations.length > 0) {
         setPostVariations(vData.variations);
+        setPostRestricted(vData.restrictedServiceCount || 0);
       } else {
         setPostError(vData.error || "יצירת הפוסטים נכשלה");
       }
@@ -6612,6 +6617,15 @@ export default function BeautyOS() {
  {postLoading&&(
  <div style={{textAlign:"center",padding:"30px 0"}}>
  <p style={{fontSize:13,color:pc,fontWeight:500}}>ה-AI בונה אסטרטגיה וכותב 5 וריאציות... רגע אחד ✦</p>
+ </div>
+ )}
+
+ {postRestricted>0&&!postLoading&&(
+ <div style={{background:"var(--surface-2)",border:"1px dashed var(--line-2)",borderRadius:14,padding:"12px 16px",marginBottom:16}}>
+ <p style={{fontSize:11,color:"var(--ink-2)",lineHeight:1.6}}>
+ <strong>{postRestricted===1?"טיפול אחד לא נכלל":`${postRestricted} טיפולים לא נכללו`}</strong> בפוסטים.
+ בוטוקס, פילרים, הזרקות ופלזמה הם פעולות רפואיות, ופרסום שלהן בשם קוסמטיקאית אסור בישראל — לכן הם לא נכנסים לתוכן שנוצר כאן.
+ </p>
  </div>
  )}
 

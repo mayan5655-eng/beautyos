@@ -79,12 +79,11 @@ export async function POST(request: NextRequest) {
     const businessName = profile.business_name || 'העסק'
     const servicesText = (profile.services || []).map((s) => `- ${s}`).join('\n')
 
-    // region is the clinic address as "רחוב, עיר" — for a reel the city is the
-    // useful half (local reach), and the street is noise she may not want said
-    // out loud in a video. Take the last segment.
-    const city = profile.region
-      ? profile.region.split(',').map((p) => p.trim()).filter(Boolean).slice(-1)[0]
-      : undefined
+    // The city, when we have a usable one. This used to split profile.region
+    // inline and take the last segment, which happily produced "רג" out of a
+    // half-typed address; parseClinicAddress now rejects that upstream and
+    // loadBusinessProfile exposes the result, so there is one rule for it.
+    const city = profile.city || undefined
 
     // Her own words to her own customers. Passed as a VOICE SAMPLE rather than
     // as another labelled fact: it is the only real writing by her that the
@@ -155,7 +154,7 @@ ${GROUNDING_RULES}
 
     const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-5',
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId, callSite: 'marketing/reel' })
 

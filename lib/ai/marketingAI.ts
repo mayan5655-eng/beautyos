@@ -4,6 +4,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from './usage.ts'
+import { cityHashtag } from './profileHygiene.ts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -18,9 +19,14 @@ const anthropic = new Anthropic({
 export interface BusinessProfile {
   business_name?: string | null
   business_description?: string | null
-  services?: string[] | null            // real menu, formatted "name (₪price, duration)"
+  services?: string[] | null            // ADVERTISABLE menu only, "name (₪price, duration)"
+  /** How many treatments were withheld as not-advertisable. Never their names. */
+  restricted_service_count?: number | null
   target_audience?: string | null
-  region?: string | null                // clinic address ("street, city")
+  region?: string | null                // clinic address, only when complete
+  city?: string | null                  // derived from region; drives the geo hashtag
+  booking_url?: string | null           // public /book link for this tenant
+  booking_cta_label?: string | null     // her own wording for the booking button
   brand_tone?: string | null
   unique_selling_points?: string[] | null
   price_range?: string | null           // derived from real service prices
@@ -110,7 +116,12 @@ function buildBusinessContext(profile: BusinessProfile): string {
     parts.push(`קהל יעד: ${profile.target_audience}`)
   }
   if (profile.region) {
-    parts.push(`אזור / כתובת הקליניקה: ${profile.region}`)
+    // Only ever a complete address - loadBusinessProfile drops a half-typed one
+    // rather than let it publish. So it can be quoted verbatim, and must be.
+    parts.push(`אזור / כתובת הקליניקה (לצטט במלואה או בכלל לא): ${profile.region}`)
+  }
+  if (profile.booking_url) {
+    parts.push(`קישור לקביעת תור: ${profile.booking_url}`)
   }
   if (profile.welcome_headline) {
     parts.push(`משפט המפתח של המותג ללקוחה: ${profile.welcome_headline}`)
@@ -159,6 +170,8 @@ export const GROUNDING_RULES = `== כללי דיוק — מחייבים ==
 3. אין להבטיח תוצאה ואין לנסח טענה רפואית: לא "מרפא", לא "מעלים", לא "פותר", לא "תוצאות מובטחות", ולא הבטחה למספר טיפולים או לפרק זמן עד לתוצאה. מותר וכדאי לתאר חוויה, תחושה ותועלת קוסמטית.
 4. אין להמציא עדויות, ביקורות, שמות לקוחות, דירוגים או נתונים סטטיסטיים.
 5. אם חסר מידע — השמיטי אותו. פוסט קצר ונכון עדיף על פוסט מלא ומומצא.
+6. אסור בהחלט להזכיר טיפולים רפואיים או פולשניים — בוטוקס, פילרים, חומצה היאלורונית, כל סוג של הזרקה, מזותרפיה, פלזמה/PRP, ליפוליזה או חוטים — גם אם נראה לך שהעסק מציע אותם, גם אם הלקוחה תבקש, וגם אם הם מופיעים בהקשר אחר. בישראל אלה פעולות רפואיות, ופרסום שלהן בשם קוסמטיקאית הוא עבירה. רשימת השירותים שקיבלת כבר סוננה — אל תוסיפי אליה.
+7. את הכתובת יש לכתוב במלואה בדיוק כפי שנמסרה, או לא להזכיר כתובת בכלל. אין לקצר, להמציא שכונה או להוסיף עיר שלא נמסרה.
 
 אלה אינם כללי סגנון. זהו עסק אמיתי המפרסם בפומבי בישראל, והטקסט נכתב בשמה ומתפרסם באחריותה.`
 
@@ -227,7 +240,7 @@ ${GROUNDING_RULES}
   try {
     const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-5',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/strategy' })
 
@@ -270,6 +283,31 @@ export async function generatePostVariations(
 ): Promise<PostVariation[]> {
   const businessContext = buildBusinessContext(profile)
 
+  // A local clinic lives on local discovery, and the city tag is the single
+  // most valuable one it can carry - but only when we actually know the city.
+  // parseClinicAddress returns none rather than an abbreviation, so this line
+  // is simply absent when the address is not usable, instead of asking for a
+  // geo tag the model would then have to invent.
+  const geoHashtagLine = profile.city
+    ? `- חובה לכלול האשטג אחד של העיר: ${cityHashtag(profile.city)} — זה התג שמביא לקוחות מהאזור.`
+    : `- אין בידינו את העיר, אז אל תמציאי האשטג של עיר או אזור.`
+
+  // Her own button wording if she set one, so the post and the booking page
+  // speak with the same voice.
+  // Spelling out the literal URL, with an example, because "include the link"
+  // is not enough: told only to reference it, the model wrote "קבעי תור בקישור"
+  // in every CTA - pointing at a link that does not exist anywhere in the post,
+  // because it assumed something else would attach one. The example is what
+  // makes it paste the address instead of describing it.
+  const ctaLine = profile.booking_url
+    ? `- בלפחות 3 מתוך ${count} הווריאציות, שדה callToAction חייב להכיל את הכתובת המלאה, אות באות, בתוך הטקסט עצמו:
+  ${profile.booking_url}
+  אסור לכתוב "בקישור", "בלינק בביו" או "קישור בתגובות" בלי הכתובת עצמה — אין קישור מצורף לפוסט, מה שאת כותבת הוא הקישור היחיד.
+  לדוגמה: "לקביעת תור: ${profile.booking_url}"${
+        profile.booking_cta_label ? `\n  הניסוח שהיא משתמשת בו לכפתור הוא "${profile.booking_cta_label}" — כדאי להישאר קרובה אליו.` : ''
+      }`
+    : `- אין קישור לקביעת תור, אז ה-CTA יפנה ליצירת קשר ישירה.`
+
   const prompt = `את קופירייטרית מומחית לתחום היופי בישראל. עליך לכתוב ${count} וריאציות שונות של פוסט שיווקי לפייסבוק.
 
 == פרטי העסק ==
@@ -296,8 +334,21 @@ ${GROUNDING_RULES}
 - אורך 80-150 מילים לפוסט
 - שלבי emoji בחוכמה (לא מוגזם)
 - CTA ברור וספציפי בסוף
-- האשטגים רלוונטיים בעברית
-- בזווית ה-social_proof: כתבי הזמנה ללקוחות לשתף את החוויה שלהן, או תיאור כללי של מה שלקוחות מרגישות — לעולם לא ציטוט, שם או דירוג מומצא.
+
+מחיר — לכל היותר בפוסט אחד:
+- מותר לנקוב במחיר ב-וריאציה אחת בלבד מתוך ה-${count}, זו שהכי מתאימה לכך. בכל השאר: אין מספרים, אין "רק", אין "החל מ-".
+- מחיר בכל פוסט גורם לעמוד להיראות כמו מודעת מבצע ושוחק את המותג. פוסט אחד עם מחיר עובד; חמישה לא.
+
+האשטגים:
+- 3-5 האשטגים, כל אחד מילה אחת רצופה בעברית. אסור קו תחתון (#זמן_לעצמי הוא תג שבור שאיש לא מחפש) ואסור רווחים.
+- אל תשתמשי בשם העסק כהאשטג אלא אם הוא מותג מוכר.
+- העדיפי תגים שנשים באמת מחפשות: תחום הטיפול, סוג הטיפול, והעיר.
+${geoHashtagLine}
+קריאה לפעולה:
+${ctaLine}
+- הימנעי מ-CTA שמייצר עבודה ידנית ("שלחי לי הודעה", "כתבי בתגובות") ביותר מפוסט אחד. מטרת הקמפיין היא תורים ביומן, לא שיחות בדיוור.
+
+- בזווית ה-social_proof: כתבי הזמנה ללקוחות לשתף את החוויה שלהן, או תיאור כללי של מה שלקוחות מרגישות — לעולם לא ציטוט, שם או דירוג מומצא. שימי לב שהיא לא תצא זהה לזווית engaging_question: אחת מזמינה לשתף חוויה שכבר קרתה, השנייה שואלת שאלה פתוחה על הרצון עכשיו.
 
 החזירי תשובה בפורמט JSON בלבד, ללא markdown:
 {
@@ -317,7 +368,7 @@ ${GROUNDING_RULES}
   try {
     const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-5',
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/variations' })
 
@@ -389,7 +440,7 @@ ${businessContext}
   try {
     const message = await trackedCreate(anthropic, {
       model: 'claude-sonnet-5',
-      max_tokens: 3072,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/groups' })
 

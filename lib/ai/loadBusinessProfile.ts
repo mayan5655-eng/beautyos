@@ -13,6 +13,12 @@
 
 import type { createClient } from '@/lib/supabase/server'
 import type { BusinessProfile } from './marketingAI'
+import {
+  splitAdvertisable,
+  usableTherapistName,
+  parseClinicAddress,
+} from './profileHygiene.ts'
+import { APP_URL } from '@/lib/appUrl'
 
 // The server Supabase client (no generated DB types, so rows come back loosely typed).
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
@@ -64,19 +70,26 @@ export async function loadBusinessProfile(
     row.branding && typeof row.branding === 'object' ? row.branding : {}
   const services: Array<Record<string, any>> = servicesRes.data || []
 
+  // Performed is not the same as advertisable. Injectables and blood-derived
+  // procedures are medical acts in Israel; they can legitimately sit on her
+  // price list and still must never appear in a post written in her name. They
+  // are removed HERE, before the profile exists, so no prompt can reach them by
+  // accident - see lib/ai/profileHygiene.ts for the reasoning and the list.
+  const named = services.filter((s) => s && s.name)
+  const { advertisable, restricted } = splitAdvertisable(named, (s) => String(s.name))
+
   // Real service menu, formatted with price + duration so the AI can name actual
   // treatments at their actual prices instead of inventing generic ones.
-  const serviceLines = services
-    .filter((s) => s && s.name)
-    .map((s) => {
-      const price = s.price != null && s.price !== '' ? `₪${s.price}` : ''
-      const dur = s.duration ? `${s.duration} דק׳` : ''
-      const extra = [price, dur].filter(Boolean).join(', ')
-      return extra ? `${s.name} (${extra})` : String(s.name)
-    })
+  const serviceLines = advertisable.map((s) => {
+    const price = s.price != null && s.price !== '' ? `₪${s.price}` : ''
+    const dur = s.duration ? `${s.duration} דק׳` : ''
+    const extra = [price, dur].filter(Boolean).join(', ')
+    return extra ? `${s.name} (${extra})` : String(s.name)
+  })
 
-  // Derive a real price range from the actual service prices.
-  const prices = services
+  // Price range spans the ADVERTISABLE menu only. Including botox at ₪800 would
+  // put a number in front of her that no post is allowed to explain.
+  const prices = advertisable
     .map((s) => Number(s.price))
     .filter((n) => Number.isFinite(n) && n > 0)
   let priceRange: string | undefined
@@ -94,15 +107,26 @@ export async function loadBusinessProfile(
       .filter(Boolean)
       .join(', ') || undefined
 
+  // Full address or none. A city of two characters ("רג") is an abbreviation
+  // nobody can search for, and it published as "באחד העם 6, רג" in four posts.
+  const address = parseClinicAddress(brand.public_address)
+
   return {
     business_name: clean(row.business_name),
-    therapist_name: clean(row.therapist_name),
+    // Dropped when it is a login handle rather than a name: "mayan5655" made
+    // the model invent "מיין" and address her by it in public copy.
+    therapist_name: usableTherapistName(row.therapist_name),
     business_description: clean(brand.business_description),
     services: serviceLines.length > 0 ? serviceLines : undefined,
+    restricted_service_count: restricted.length || undefined,
     price_range: priceRange,
-    // No dedicated region column — the clinic address ("street, city") is the
-    // best available local-targeting signal.
-    region: clean(brand.public_address),
+    region: address?.full,
+    city: address?.city,
+    // The one link that turns a post into a booking. Every generated CTA used
+    // to be "write to me", which routes a customer into her DMs and leaves the
+    // calendar to be filled by hand.
+    booking_url: tenantId ? `${APP_URL}/book?t=${tenantId}` : undefined,
+    booking_cta_label: clean(brand.booking_cta_label),
     // Brand-voice hints she wrote for her own customers.
     welcome_headline: clean(brand.welcome_headline),
     welcome_message: clean(brand.welcome_message),

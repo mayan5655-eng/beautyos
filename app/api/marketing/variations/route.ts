@@ -87,7 +87,13 @@ export async function POST(request: NextRequest) {
     }))
 
     // Step 6: Return to client
-    return NextResponse.json({ variations: variationsWithImages })
+    // Tell her when treatments were held back. They are excluded from her posts
+    // for a real reason, but a menu item that quietly never appears in any
+    // campaign is the kind of thing she would eventually notice and mistrust.
+    return NextResponse.json({
+      variations: variationsWithImages,
+      restrictedServiceCount: profile.restricted_service_count || 0,
+    })
   } catch (error) {
     // generatePostVariations throws now rather than returning [], so a failure
     // lands here and she reads this sentence. Hebrew, same reason as strategy.
