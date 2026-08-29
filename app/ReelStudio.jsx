@@ -8,7 +8,7 @@
 // All UI text is Hebrew; all code comments are English only.
 // ============================================================
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 // Vertical reel canvas size (Instagram/TikTok 9:16)
 const W = 1080;
@@ -17,6 +17,24 @@ const FPS = 30;
 
 export default function ReelStudio({ primaryColor = "var(--pc)", businessName = "" }) {
   const pc = primaryColor;
+
+  // The concrete hex behind `pc`.
+  //
+  // primaryColor arrives as "var(--pc, #5B3E67)" so that CSS usages follow the
+  // tenant's live theme - but anything that has to *compute* on the colour
+  // needs a real value. lighten() below regex-matches a hex and silently falls
+  // back to a hardcoded pink (#C77B92) on anything else, so every tint and
+  // gradient in this component was rendering pink regardless of her accent.
+  // The canvas has the same problem for a different reason (see safeColor).
+  //
+  // Resolved in an effect rather than during render because this component is
+  // server-rendered by app/dashboard/reel-studio/page.jsx, where there is no
+  // document; starting at the default and correcting after mount also keeps
+  // the first client render identical to the server's, so no hydration warning.
+  const [pcHex, setPcHex] = useState("#5B3E67");
+  useEffect(() => {
+    setPcHex(safeColor(readCssVar(primaryColor, "#5B3E67"), "#5B3E67"));
+  }, [primaryColor]);
 
   const [slides, setSlides] = useState([]);      // [{id, img, url, caption}]
   const [title, setTitle] = useState("");
@@ -72,8 +90,11 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
     setSlides((prev) => prev.map((s) => (s.id === id ? { ...s, caption } : s)));
 
   // ---- Draw a single frame onto the canvas ----
+  // `colors` is resolved once per render in buildVideo and passed in, rather
+  // than read per frame: getComputedStyle forces a style recalc, and this runs
+  // 30 times a second for the length of the reel.
   const drawFrame = useCallback(
-    (ctx, slide, t, isFirst, isLast) => {
+    (ctx, slide, t, isFirst, isLast, colors) => {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
 
@@ -116,20 +137,23 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
       // Per-slide caption near bottom
       if (slide.caption) {
-        ctx.fillStyle = "var(--surface)";
+        ctx.fillStyle = colors.caption;
         ctx.font = "600 58px Arial";
         ctx.textAlign = "center";
         ctx.direction = "rtl";
         wrapText(ctx, slide.caption, W / 2, H - 350, W - 150, 72);
       }
 
-      // Business name watermark
-      ctx.fillStyle = pc;
-      ctx.font = "700 46px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(businessName, W / 2, H - 110);
+      // Business name watermark. Skipped entirely when there is no name, so a
+      // tenant who hasn't set one doesn't get a stray blank draw call.
+      if (businessName) {
+        ctx.fillStyle = colors.brand;
+        ctx.font = "700 46px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(businessName, W / 2, H - 110);
+      }
     },
-    [title, pc, businessName]
+    [title, businessName]
   );
 
   // ---- Pick a supported video mime type ----
@@ -171,8 +195,15 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       canvas.height = H;
       const ctx = canvas.getContext("2d");
 
+      // Resolve the CSS custom properties to real colours ONCE, here, where a
+      // document is guaranteed to exist. Canvas cannot read them itself.
+      const colors = {
+        caption: safeColor(readCssVar("var(--surface)", "#FFFFFF"), "#FFFFFF"),
+        brand: legibleOnDark(pcHex),
+      };
+
       // Draw first frame so the canvas isn't blank when capture starts
-      drawFrame(ctx, slides[0], 0, true, slides.length === 1);
+      drawFrame(ctx, slides[0], 0, true, slides.length === 1, colors);
 
       const mime = pickMime();
       const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
@@ -227,7 +258,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
           let idx = Math.floor(elapsed / slideMs);
           if (idx >= slides.length) idx = slides.length - 1;
           const tIn = (elapsed - idx * slideMs) / slideMs; // 0..1 within slide
-          drawFrame(ctx, slides[idx], Math.min(tIn, 1), idx === 0, idx === slides.length - 1);
+          drawFrame(ctx, slides[idx], Math.min(tIn, 1), idx === 0, idx === slides.length - 1, colors);
 
           if (elapsed < totalMs) {
             requestAnimationFrame(tick);
@@ -270,8 +301,8 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
     document.body.removeChild(a);
   };
 
-  const pcGrad = `linear-gradient(90deg, ${pc}, ${lighten(pc, 0.2)})`;
-  const pcTint = lighten(pc, 0.86);
+  const pcGrad = `linear-gradient(90deg, ${pcHex}, ${lighten(pcHex, 0.2)})`;
+  const pcTint = lighten(pcHex, 0.86);
 
   return (
     <div dir="rtl" style={{ fontFamily: "'Heebo', sans-serif", maxWidth: 640, margin: "0 auto" }}>
@@ -405,6 +436,88 @@ function lighten(hex, amt) {
 }
 
 // ---- Helper: draw wrapped, centered text with outline ----
+// ============================================================
+// Colour resolution for the canvas
+// ============================================================
+// A canvas 2D context cannot resolve CSS custom properties. Per spec, assigning
+// an UNPARSEABLE value to ctx.fillStyle is silently ignored - it does not throw
+// and it does not fall back to black, it leaves the previous fill in place. So
+// `ctx.fillStyle = "var(--surface)"` and `ctx.fillStyle = "var(--pc, #5B3E67)"`
+// were both no-ops, and the caption and the business name inherited whichever
+// fill was set last: the title's white when a title existed, and otherwise the
+// bottom gradient object - painting text in a near-black gradient on a
+// near-black scrim. Nothing errored, so it shipped.
+
+/** Resolve `var(--name, fallback)` against :root. Returns non-var input as-is. */
+function readCssVar(value, fallback) {
+  if (typeof value !== 'string') return fallback;
+  const v = value.trim();
+  if (!v.startsWith('var(') || !v.endsWith(')')) return v || fallback;
+  const inner = v.slice(4, -1);
+  const comma = inner.indexOf(',');
+  const name = (comma === -1 ? inner : inner.slice(0, comma)).trim();
+  const inlineFallback = comma === -1 ? '' : inner.slice(comma + 1).trim();
+  let resolved = '';
+  try {
+    resolved = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  } catch {
+    /* no document (SSR) or blocked - fall through */
+  }
+  if (resolved) return resolved;
+  // One level only: a fallback that is itself a var() is not worth chasing.
+  return inlineFallback && !inlineFallback.startsWith('var(') ? inlineFallback : fallback;
+}
+
+/**
+ * Return `value` only if the canvas can actually parse it, else `fallback`.
+ *
+ * Uses the ignore-on-invalid behaviour above as the test: assign a sentinel,
+ * assign the candidate, and see whether it took. Two different sentinels are
+ * needed because a candidate that happens to equal one of them would otherwise
+ * look like a failure.
+ */
+function safeColor(value, fallback) {
+  try {
+    const c = document.createElement('canvas').getContext('2d');
+    c.fillStyle = '#000000';
+    c.fillStyle = value;
+    const first = c.fillStyle;
+    c.fillStyle = '#ffffff';
+    c.fillStyle = value;
+    return first === c.fillStyle ? first : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Lift a colour until it reads against the dark scrim at the bottom of the
+ * frame (the gradient runs to rgba(0,0,0,0.7)).
+ *
+ * The accent this is called with is a deep purple by default - #5B3E67 sits at
+ * ~6% luminance, which on that scrim is all but invisible. So simply "fixing"
+ * the bug by resolving the variable correctly would replace white text with
+ * unreadable text and look like a regression. Blending toward white keeps the
+ * brand tint and makes it legible, which is what the watermark was for.
+ */
+function legibleOnDark(color) {
+  const c = document.createElement('canvas').getContext('2d');
+  c.fillStyle = color;
+  const m = /^#([0-9a-f]{6})$/i.exec(c.fillStyle);
+  if (!m) return color; // rgba()/named - leave it alone rather than guess
+  let r = parseInt(m[1].slice(0, 2), 16);
+  let g = parseInt(m[1].slice(2, 4), 16);
+  let b = parseInt(m[1].slice(4, 6), 16);
+  const lum = () => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  for (let i = 0; i < 12 && lum() < 0.62; i++) {
+    r += (255 - r) * 0.18;
+    g += (255 - g) * 0.18;
+    b += (255 - b) * 0.18;
+  }
+  const hex = (n) => Math.round(n).toString(16).padStart(2, '0');
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = String(text).split(" ");
   let line = "";
