@@ -11,6 +11,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
+import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
+import { GROUNDING_RULES } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -34,42 +36,91 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const topic: string = (body.topic || '').trim()
-    const duration: string = body.duration || '30'
-    const vibe: string = body.vibe || ''
+
+    // Both of these are now sent by the UI. They were accepted here from the
+    // start and never supplied, so every reel was silently 30 seconds with no
+    // vibe — the parameters existed only in this file.
+    //
+    // Whitelisted rather than passed through: these land inside the prompt, so
+    // an arbitrary client string is prompt-injection surface. Anything
+    // unrecognised falls back to the old default instead of erroring.
+    const ALLOWED_DURATIONS = ['15', '30', '60'] as const
+    const duration: string = ALLOWED_DURATIONS.includes(body.duration)
+      ? body.duration
+      : '30'
+
+    const ALLOWED_VIBES = [
+      'רגוע ומפנק',
+      'אנרגטי וקצבי',
+      'חם ואישי',
+      'מקצועי ומסביר',
+      'כיפי וצעיר',
+    ]
+    const vibe: string = ALLOWED_VIBES.includes(body.vibe) ? body.vibe : ''
 
     if (!topic) {
       return NextResponse.json({ error: 'חסר נושא לרילס' }, { status: 400 })
     }
 
-    // Load business context (name + services) for personalization
-    let businessName = 'העסק'
-    let servicesText = ''
-    if (tenantId) {
-      const [settingsRes, servicesRes] = await Promise.all([
-        supabase.from('settings').select('business_name').eq('tenant_id', tenantId).limit(1),
-        supabase.from('service_prices').select('name, price').eq('tenant_id', tenantId).eq('active', true),
-      ])
-      if (settingsRes.data && settingsRes.data.length > 0) {
-        businessName = settingsRes.data[0].business_name || 'העסק'
-      }
-      const services = servicesRes.data || []
-      if (services.length > 0) {
-        servicesText = services.map((s: any) => `- ${s.name}${s.price ? ` (${s.price} ש"ח)` : ''}`).join('\n')
-      }
-    }
+    // Load business context via the shared loader — the same one strategy,
+    // variations and groups use. This route used to run its own inline query
+    // for business_name plus service names, and nothing else: no description,
+    // no city, no brand voice. The most ambitious creative output in the app
+    // had the thinnest context behind it.
+    //
+    // (loadBusinessProfile's header says it "mirrors the pattern the reel route
+    // already uses successfully" — it was modelled on the query below, then
+    // grew past it, and this route was never moved over. It is now.)
+    //
+    // Tenant scoping lives inside loadBusinessProfile: every query there is
+    // .eq('tenant_id', tenantId), and it returns {} for a null tenantId.
+    const profile = await loadBusinessProfile(supabase, tenantId)
+
+    const businessName = profile.business_name || 'העסק'
+    const servicesText = (profile.services || []).map((s) => `- ${s}`).join('\n')
+
+    // region is the clinic address as "רחוב, עיר" — for a reel the city is the
+    // useful half (local reach), and the street is noise she may not want said
+    // out loud in a video. Take the last segment.
+    const city = profile.region
+      ? profile.region.split(',').map((p) => p.trim()).filter(Boolean).slice(-1)[0]
+      : undefined
+
+    // Her own words to her own customers. Passed as a VOICE SAMPLE rather than
+    // as another labelled fact: it is the only real writing by her that the
+    // system has, and matching a voice works from an example, not from an
+    // adjective. Both fields are optional and often empty.
+    const voiceSample = [profile.welcome_headline, profile.welcome_message]
+      .filter(Boolean)
+      .join(' / ')
+
+    const contextLines = [
+      `שם: ${businessName}`,
+      profile.therapist_name ? `שם הקוסמטיקאית: ${profile.therapist_name}` : null,
+      profile.business_description ? `על העסק: ${profile.business_description}` : null,
+      city ? `עיר: ${city}` : null,
+      profile.target_audience ? `קהל יעד: ${profile.target_audience}` : null,
+      profile.brand_tone ? `סגנון הפנייה: ${profile.brand_tone}` : null,
+      profile.unique_selling_points?.length
+        ? `יתרונות תחרותיים: ${profile.unique_selling_points.join(', ')}`
+        : null,
+      servicesText ? `שירותים ומחירים בפועל:\n${servicesText}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
 
     const prompt = `את במאית תוכן ומומחית רילסים לעסקי יופי בישראל. קוסמטיקאית רוצה ליצור רילס מקצועי לאינסטגרם/טיקטוק.
 
 == פרטי העסק ==
-שם: ${businessName}
-${servicesText ? `שירותים:\n${servicesText}` : ''}
-
+${contextLines}
+${voiceSample ? `\n== איך היא כותבת ללקוחות שלה (דוגמה אמיתית — כתבי בקול הזה) ==\n"${voiceSample}"\n` : ''}
 == הנושא של הרילס ==
 ${topic}
 
 == אורך מבוקש ==
-${duration} שניות
-${vibe ? `== ווייב מבוקש ==\n${vibe}` : ''}
+${duration} שניות${vibe ? `\n\n== ווייב מבוקש ==\n${vibe}` : ''}
+
+${GROUNDING_RULES}
 
 == המשימה ==
 בני חבילת רילס שלמה שהקוסמטיקאית תוכל להפיק לבד עם הטלפון ו-CapCut.
@@ -103,7 +154,7 @@ ${vibe ? `== ווייב מבוקש ==\n${vibe}` : ''}
 }`
 
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId, callSite: 'marketing/reel' })

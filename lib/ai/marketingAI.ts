@@ -35,9 +35,24 @@ export interface BusinessProfile {
 // Input for generating a campaign strategy
 export interface CampaignInput {
   goal: string                    // e.g. "fill appointments for facial treatments"
-  serviceType?: string            // e.g. "facial treatment"
-  targetAudience?: string         // optional override of business profile audience
-  additionalContext?: string      // any extra info the user wants to share
+
+  // All three are optional, and all three are now genuinely supplied.
+  //
+  // serviceType / targetAudience come from the step-1 form in
+  // app/dashboard/marketing/new/NewCampaignClient.tsx (the "לדוגמה: נשים 25-45"
+  // and "לדוגמה: הסרת שיער בלייזר" inputs). The quick generator in
+  // beautyos.jsx does not collect them and simply omits them.
+  //
+  // additionalContext had no sender at all until now; beautyos.jsx collects it
+  // as "משהו נוסף שכדאי שה-AI יידע".
+  //
+  // What was actually broken here was not the fields but the interpolation:
+  // absent values were rendered by inline ternaries that left their own blank
+  // lines behind, so the prompt shipped with a hole in it. See the assembly in
+  // generateCampaignStrategy.
+  serviceType?: string
+  targetAudience?: string
+  additionalContext?: string
 }
 
 // Output of strategy generation
@@ -124,6 +139,30 @@ function buildBusinessContext(profile: BusinessProfile): string {
 }
 
 // =====================
+// Grounding rules — shared by every generator that writes public copy
+// =====================
+// The prompts hand the model her real treatments at her real prices, which is
+// exactly what makes inventing a fourth treatment or a "מבצע" so plausible:
+// the surrounding context reads as permission. Naming what is off-limits is
+// the only thing that closes that, and it costs a few dozen tokens.
+//
+// The stakes are not stylistic. This copy is published under her name, to her
+// community, in a regulated-adjacent field: a hallucinated price is a customer
+// arriving expecting to pay it, and "מעלים כתמים" is a medical claim an
+// Israeli cosmetician is not allowed to make.
+//
+// Exported so app/api/marketing/reel/route.ts shares one copy of these rules
+// rather than drifting its own — same reasoning as lib/brand.ts.
+export const GROUNDING_RULES = `== כללי דיוק — מחייבים ==
+1. מותר להזכיר אך ורק טיפולים שמופיעים ברשימת השירותים שלמעלה. טיפול שאינו ברשימה — אין להזכיר, גם אם הוא נפוץ מאוד בעסקים דומים.
+2. מותר לנקוב אך ורק במחירים שמופיעים ברשימה, בדיוק כפי שהם. אין להמציא מחיר, ואין להמציא מבצע, הנחה, "מחיר השקה" או מתנה שלא נמסרו לך.
+3. אין להבטיח תוצאה ואין לנסח טענה רפואית: לא "מרפא", לא "מעלים", לא "פותר", לא "תוצאות מובטחות", ולא הבטחה למספר טיפולים או לפרק זמן עד לתוצאה. מותר וכדאי לתאר חוויה, תחושה ותועלת קוסמטית.
+4. אין להמציא עדויות, ביקורות, שמות לקוחות, דירוגים או נתונים סטטיסטיים.
+5. אם חסר מידע — השמיטי אותו. פוסט קצר ונכון עדיף על פוסט מלא ומומצא.
+
+אלה אינם כללי סגנון. זהו עסק אמיתי המפרסם בפומבי בישראל, והטקסט נכתב בשמה ומתפרסם באחריותה.`
+
+// =====================
 // Helper: Parse JSON from Claude (strips markdown fences)
 // =====================
 function parseClaudeJSON<T>(text: string): T {
@@ -145,6 +184,19 @@ export async function generateCampaignStrategy(
 ): Promise<CampaignStrategy> {
   const businessContext = buildBusinessContext(profile)
 
+  // Built as a filtered array, not inline ternaries. The ternaries left their
+  // own blank lines behind whenever a field was absent, so the prompt shipped
+  // with a hole in the middle of it.
+  const extra = [
+    input.serviceType ? `סוג שירות: ${input.serviceType}` : null,
+    input.targetAudience ? `קהל יעד ספציפי לקמפיין: ${input.targetAudience}` : null,
+    input.additionalContext
+      ? `מידע נוסף שהיא ביקשה לקחת בחשבון: ${input.additionalContext}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   const prompt = `את אסטרטגית שיווק מומחית לעסקי יופי בישראל. נשאלת לעזור לקוסמטיקאית לבנות אסטרטגיית קמפיין שיווקי.
 
 == פרטי העסק ==
@@ -152,10 +204,8 @@ ${businessContext}
 
 == מטרת הקמפיין ==
 ${input.goal}
-
-${input.serviceType ? `סוג שירות: ${input.serviceType}` : ''}
-${input.targetAudience ? `קהל יעד ספציפי לקמפיין: ${input.targetAudience}` : ''}
-${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''}
+${extra ? `\n${extra}\n` : ''}
+${GROUNDING_RULES}
 
 == המשימה שלך ==
 בני אסטרטגיית קמפיין שיווקי שתמלא את המטרה. תני המלצות מעשיות, ספציפיות וישראליות.
@@ -176,7 +226,7 @@ ${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''
 
   try {
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 2048,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/strategy' })
@@ -188,14 +238,22 @@ ${input.additionalContext ? `מידע נוסף: ${input.additionalContext}` : ''
 
     return parseClaudeJSON<CampaignStrategy>(textBlock.text)
   } catch (error) {
+    // THROW. Do not return a shaped object here.
+    //
+    // This used to return a "fallback strategy" whose .strategy field was the
+    // sentence "לא הצלחנו לייצר אסטרטגיה אוטומטית" and whose keyPoints were
+    // "בדוק את חיבור האינטרנט". That object is structurally valid, so nothing
+    // downstream could tell it apart from a real strategy: the route returned
+    // 200, the UI's `if (!sData.strategy)` guard passed, and the string went
+    // into generatePostVariations as `גישה:` and `מסרים מרכזיים:`. She got
+    // five confident, well-formed Facebook posts written around an error
+    // message - the most expensive possible way to fail, because it looks
+    // exactly like success.
+    //
+    // A thrown error reaches her as "לא הצלחנו לייצר אסטרטגיה" and stops the
+    // chain before a single post is written.
     console.error('Failed to generate campaign strategy:', error)
-    // Fallback strategy
-    return {
-      strategy: 'לא הצלחנו לייצר אסטרטגיה אוטומטית. נסי שוב או צרי קמפיין ידני.',
-      tone: 'friendly',
-      keyPoints: ['בדוק את חיבור האינטרנט', 'נסה שוב בעוד דקה'],
-      audienceInsights: 'נדרשת בדיקה ידנית.',
-    }
+    throw error instanceof Error ? error : new Error(String(error))
   }
 }
 // =====================
@@ -231,12 +289,15 @@ Tone: ${strategy.tone}
 4. חברתי (social_proof) - המלצות, ביקורות, תוצאות לקוחות
 5. שאלה מעוררת (engaging_question) - מתחיל בשאלה שגורמת לאינטראקציה
 
+${GROUNDING_RULES}
+
 הנחיות חשובות:
 - כל פוסט בעברית רהוטה וטבעית (לא תרגום!)
 - אורך 80-150 מילים לפוסט
 - שלבי emoji בחוכמה (לא מוגזם)
 - CTA ברור וספציפי בסוף
 - האשטגים רלוונטיים בעברית
+- בזווית ה-social_proof: כתבי הזמנה ללקוחות לשתף את החוויה שלהן, או תיאור כללי של מה שלקוחות מרגישות — לעולם לא ציטוט, שם או דירוג מומצא.
 
 החזירי תשובה בפורמט JSON בלבד, ללא markdown:
 {
@@ -255,7 +316,7 @@ Tone: ${strategy.tone}
 
   try {
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/variations' })
@@ -266,10 +327,16 @@ Tone: ${strategy.tone}
     }
 
     const parsed = parseClaudeJSON<{ variations: PostVariation[] }>(textBlock.text)
+    if (!Array.isArray(parsed.variations) || parsed.variations.length === 0) {
+      throw new Error('Claude returned no post variations')
+    }
     return parsed.variations
   } catch (error) {
+    // Same reasoning as the strategy above: `return []` was a silent failure.
+    // An empty array is truthy, so the UI's `if (vData.variations)` guard let
+    // it through and she got an empty screen with no error at all.
     console.error('Failed to generate post variations:', error)
-    return []
+    throw error instanceof Error ? error : new Error(String(error))
   }
 }
 
@@ -303,9 +370,10 @@ ${businessContext}
 - קבוצות בלעדיות לתחום היופי
 
 הנחיות:
-- שמות אמיתיים וסבירים שקיימים בפייסבוק ישראל
-- תני שמות שאפשר לחפש בפייסבוק כמו שהם
+- תני מונחי חיפוש שסביר למצוא בפייסבוק ישראל, בניסוח שאפשר להדביק ישירות בשורת החיפוש
 - אל תיתני את אותה קבוצה פעמיים
+- אלה הצעות לחיפוש, לא קבוצות מאומתות. אל תמציאי מספר חברים, קישור, כתובת URL או פרטי מנהלת, ואל תתארי קבוצה מסוימת כאילו את יודעת בוודאות שהיא קיימת.
+- אין להמציא נתונים על העסק, טיפולים או מחירים בנימוקים.
 
 החזירי תשובה בפורמט JSON בלבד, ללא markdown:
 {
@@ -320,7 +388,7 @@ ${businessContext}
 
   try {
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 3072,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/groups' })

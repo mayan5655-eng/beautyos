@@ -40,8 +40,26 @@ export async function POST(request: NextRequest) {
 
     if (!strategy) {
       return NextResponse.json(
-        { error: 'Strategy is required' },
+        { error: 'חסרה אסטרטגיה ליצירת הפוסטים' },
         { status: 400 }
+      )
+    }
+
+    // Never write posts from a strategy that isn't one. The client sends this
+    // back to us, so "the generator now throws" is not on its own enough - a
+    // stale tab, a replayed request or a half-filled object would still reach
+    // the copywriting prompt, and a thin strategy produces confident posts
+    // about nothing. Require the two fields the prompt actually interpolates.
+    const s = strategy as Partial<CampaignStrategy>
+    if (
+      typeof s.strategy !== 'string' ||
+      s.strategy.trim().length < 20 ||
+      !Array.isArray(s.keyPoints) ||
+      s.keyPoints.length === 0
+    ) {
+      return NextResponse.json(
+        { error: 'האסטרטגיה לא תקינה. צרי אסטרטגיה מחדש לפני יצירת הפוסטים.' },
+        { status: 422 }
       )
     }
 
@@ -71,10 +89,12 @@ export async function POST(request: NextRequest) {
     // Step 6: Return to client
     return NextResponse.json({ variations: variationsWithImages })
   } catch (error) {
+    // generatePostVariations throws now rather than returning [], so a failure
+    // lands here and she reads this sentence. Hebrew, same reason as strategy.
     console.error('Error in /api/marketing/variations:', error)
     return NextResponse.json(
-      { error: 'Failed to generate variations' },
-      { status: 500 }
+      { error: 'לא הצלחנו לייצר את הפוסטים כרגע. נסי שוב בעוד רגע.' },
+      { status: 502 }
     )
   }
 }

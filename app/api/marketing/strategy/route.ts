@@ -48,12 +48,7 @@ export async function POST(request: NextRequest) {
     const profile = await loadBusinessProfile(supabase, tenantId)
 
     // Step 4: Build the input for the AI function
-    const input: CampaignInput = {
-      goal,
-      serviceType,
-      targetAudience,
-      additionalContext,
-    }
+    const input: CampaignInput = { goal, serviceType, targetAudience, additionalContext }
 
     // Step 5: Call the AI function to generate the strategy
     const strategy = await generateCampaignStrategy(input, profile, tenantId)
@@ -61,10 +56,16 @@ export async function POST(request: NextRequest) {
     // Step 6: Return the strategy to the client
     return NextResponse.json({ strategy })
   } catch (error) {
+    // generateCampaignStrategy now THROWS instead of returning a plausible-
+    // looking fallback object, so this is the only path a failure can take -
+    // and the message here is what she actually reads. Hebrew, therefore:
+    // the UI renders `data.error` straight into the error banner, and
+    // "Failed to generate strategy" in the middle of an all-Hebrew screen
+    // reads as a crash rather than as something she can retry.
     console.error('Error in /api/marketing/strategy:', error)
     return NextResponse.json(
-      { error: 'Failed to generate strategy' },
-      { status: 500 }
+      { error: 'לא הצלחנו לייצר אסטרטגיה כרגע. נסי שוב בעוד רגע.' },
+      { status: 502 }
     )
   }
 }

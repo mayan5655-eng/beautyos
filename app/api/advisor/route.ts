@@ -229,7 +229,7 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
     const aiResponse = await trackedCreate(anthropic, {
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-haiku-4-5',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [...priorTurns, { role: 'user', content: message }] as any,

@@ -885,6 +885,8 @@ export default function BeautyOS() {
   const [fbPage,         setFbPage]         = useState(null);
   // AI content generator (posts)
   const [postGoal,       setPostGoal]       = useState("");
+  // Optional free text sent as CampaignInput.additionalContext.
+  const [postExtra,      setPostExtra]      = useState("");
   const [postVariations, setPostVariations] = useState(null);
   const [postStrategy,   setPostStrategy]   = useState(null);
   const [postLoading,    setPostLoading]    = useState(false);
@@ -925,6 +927,11 @@ export default function BeautyOS() {
   const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
+  // Length and vibe: /api/marketing/reel has always accepted these two and the
+  // UI never sent them, so every reel came back 30s with no vibe. The values
+  // here must stay in step with the whitelists in that route.
+  const [reelDuration, setReelDuration] = useState("30");
+  const [reelVibe,     setReelVibe]     = useState("");
   const [reelData,    setReelData]    = useState(null);
   const [reelLoading, setReelLoading] = useState(false);
   const [reelError,   setReelError]   = useState(null);
@@ -4022,7 +4029,7 @@ export default function BeautyOS() {
       const sRes = await fetch("/api/marketing/strategy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: postGoal.trim() }),
+        body: JSON.stringify({ goal: postGoal.trim(), additionalContext: postExtra.trim() || undefined }),
       });
       const sData = await sRes.json();
       if (!sRes.ok || !sData.strategy) {
@@ -4039,7 +4046,9 @@ export default function BeautyOS() {
         body: JSON.stringify({ strategy: sData.strategy, count: 5 }),
       });
       const vData = await vRes.json();
-      if (vRes.ok && vData.variations) {
+      // Length-checked, not just truthy: [] is truthy, so an empty result used
+      // to render as a blank screen with no error at all.
+      if (vRes.ok && Array.isArray(vData.variations) && vData.variations.length > 0) {
         setPostVariations(vData.variations);
       } else {
         setPostError(vData.error || "יצירת הפוסטים נכשלה");
@@ -4059,7 +4068,7 @@ export default function BeautyOS() {
       const res = await fetch("/api/marketing/reel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: reelTopic.trim() }),
+        body: JSON.stringify({ topic: reelTopic.trim(), duration: reelDuration, vibe: reelVibe }),
       });
       const data = await res.json();
       if (res.ok && data.success && data.reel) {
@@ -6580,6 +6589,14 @@ export default function BeautyOS() {
  <textarea value={postGoal} onChange={e=>setPostGoal(e.target.value)} rows={3}
  placeholder="לדוגמה: מבצע על טיפולי פנים לחודש הקרוב / להחזיר לקוחות שלא הגיעו מזמן"
  style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
+ {/* additionalContext. The strategy endpoint has always accepted it and the
+     UI never sent it, so the line interpolated to an empty string. Wired
+     rather than removed: unlike serviceType/targetAudience it says something
+     the goal does not — a season, a new device, a quiet week. */}
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>משהו נוסף שכדאי שה-AI יידע? <span style={{fontWeight:400}}>(לא חובה)</span></p>
+ <textarea value={postExtra} onChange={e=>setPostExtra(e.target.value)} rows={2}
+ placeholder="לדוגמה: נכנסה מכשיר חדש / שבוע חלש בדצמבר / רוצה למשוך דווקא כלות"
+ style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
  <button onClick={generatePosts} disabled={postLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"var(--surface)",fontSize:14}}>
  {postLoading?"יוצרת פוסטים... ✦":"✦ צרי לי 5 פוסטים"}
  </button>
@@ -6738,6 +6755,20 @@ export default function BeautyOS() {
  <textarea value={reelTopic} onChange={e=>setReelTopic(e.target.value)} rows={3}
  placeholder="לדוגמה: טיפול פנים לכלות / 3 טיפים לעור זוהר / למה כדאי לעשות פילינג באביב"
  style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
+ {/* Length + vibe. Chips rather than selects: two taps on a phone, and the
+     values are exactly the whitelists /api/marketing/reel accepts. */}
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>אורך</p>
+ <div style={{display:"flex",gap:6,marginBottom:12}}>
+ {[["15","15 שניות"],["30","30 שניות"],["60","60 שניות"]].map(([v,label])=>(
+ <button key={v} type="button" onClick={()=>setReelDuration(v)} style={{flex:1,padding:"8px 0",borderRadius:999,fontSize:11.5,fontWeight:600,fontFamily:"inherit",cursor:"pointer",border:reelDuration===v?"none":"1px solid var(--line-2)",background:reelDuration===v?pcGrad:"var(--surface-2)",color:reelDuration===v?"var(--surface)":"var(--ink-2)"}}>{label}</button>
+ ))}
+ </div>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>ווייב <span style={{fontWeight:400}}>(לא חובה)</span></p>
+ <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+ {["רגוע ומפנק","אנרגטי וקצבי","חם ואישי","מקצועי ומסביר","כיפי וצעיר"].map(v=>(
+ <button key={v} type="button" onClick={()=>setReelVibe(reelVibe===v?"":v)} style={{padding:"7px 13px",borderRadius:999,fontSize:11.5,fontWeight:600,fontFamily:"inherit",cursor:"pointer",border:reelVibe===v?"none":"1px solid var(--line-2)",background:reelVibe===v?pcGrad:"var(--surface-2)",color:reelVibe===v?"var(--surface)":"var(--ink-2)"}}>{v}</button>
+ ))}
+ </div>
  <button onClick={generateReel} disabled={reelLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"var(--surface)",fontSize:14}}>
  {reelLoading?"יוצרת רילס... 🎬":"🎬 צרי לי רילס"}
  </button>
@@ -7948,6 +7979,19 @@ export default function BeautyOS() {
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
  <div><p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
+ {/* Feeds the marketing AI only — these three are the fields loadBusinessProfile
+     renders into every prompt as קהל יעד / סגנון מותג / יתרונות תחרותיים.
+     They had no input anywhere, so they were always undefined and the
+     generators wrote about her audience without being told who it is. */}
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>✦ מידע לתוכן השיווקי</p>
+ <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:10}}>לא מוצג ללקוחות. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:10}}>
+ <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
+ <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד הקליניקה\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
+ </div>
+ </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>📷 גלריית תמונות</p>
  <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
