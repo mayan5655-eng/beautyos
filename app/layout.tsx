@@ -112,7 +112,43 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4A2E5A",
+  // ── theme-color: the header's colour, not the brand's ──────────────────
+  //
+  // This paints the browser/status-bar strip directly ABOVE the header, so
+  // its only job is to be invisible against it. Both halves of it used to be
+  // a raw brand purple - #4A2E5A here, #5B3E67 in the manifest - and neither
+  // is a colour the header has ever painted. The header is tinted GLASS:
+  //
+  //   beautyos.jsx @media (max-width:680px)
+  //     .app-header background linear-gradient(180deg,
+  //       color-mix(in srgb, var(--pc) 13%, rgba(255,255,255,0.74)), ...)
+  //
+  // 13% accent in 74%-opaque white is rgba(227.45,222.58,229.46,0.7738). What
+  // it composites OVER is BRAND_WASH's cream, not --bg: the wash is a radial
+  // whose inner 26% is flat CREAM #FEFAF7, and the header sits well inside
+  // that (skipTop keeps the blossoms out from behind it too). Through the
+  // header's own backdrop-filter saturate(1.2) that cream reads #FFFAF6, and
+  // the gradient over it resolves to #EAE5E9 - a pale mauve.
+  //
+  // So the two purples were not disagreeing with each other so much as both
+  // disagreeing with the app: a dark bar sat on top of a near-white header.
+  // Matching the render is what removes the seam, and it is what iOS already
+  // does on its own, since black-translucent runs the real header gradient up
+  // under the clock - .app-header takes padding-top:env(safe-area-inset-top),
+  // so it is literally the top stop that paints behind the status bar.
+  //
+  // Keep in lockstep with public/manifest.json theme_color, and re-derive if
+  // the .app-header gradient changes.
+  //
+  // Only the DEFAULT accent is baked in here. --pc is overwritten at runtime
+  // from settings.primary_color, so a tenant on a custom accent gets a header
+  // this misses by however far her colour sits from #5B3E67. Both of these are
+  // static files, so that is not fixable here; it would want a per-tenant
+  // <meta name="theme-color"> emitted once her accent is known.
+  //
+  // Pale, so the status bar icons must go dark: that follows from the
+  // luminance automatically, and needs no colorScheme declaration.
+  themeColor: "#EAE5E9",
 
   // ── viewportFit: "cover" — the line that makes the app fullscreen on iPhone ──
   //
