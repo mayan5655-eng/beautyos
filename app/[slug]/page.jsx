@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../supabase";
 import { fetchPublicSettings } from "@/lib/branding";
+import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 
 // ============================================================
 // DYNAMIC LANDING PAGE  —  /[slug]
@@ -87,7 +88,7 @@ export default function LandingPage() {
         // SECURITY: public-safe settings via the shared layer (hardened RPC; never
         // the full row / green_api_token). Strictly scoped to this tenant's UUID.
         fetchPublicSettings(supabase, tenantData.id),
-        supabase.from("service_prices").select("*").eq("tenant_id", tenantData.id),
+        supabase.from("service_prices").select("*").eq("tenant_id", tenantData.id).or(ACTIVE_OR_NULL),
       ]);
 
       if (settingsRow) setSettings(settingsRow);

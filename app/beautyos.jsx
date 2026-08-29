@@ -1887,7 +1887,37 @@ export default function BeautyOS() {
   const coldClients   = useMemo(() => clients.filter(c=>getDaysSince(c.id)>60), [clients, appointments, today]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, receipts]);
 
-  const serviceStats = useMemo(() => activeServices.map(s=>({name:s.name,color:s.color,count:appointments.filter(a=>a.service===s.name).length,revenue:receipts.filter(r=>r.service===s.name).reduce((sum,r)=>sum+(Number(r.amount)||0),0)})).sort((a,b)=>b.count-a.count), [activeServices, appointments, receipts]);
+  // Per-service breakdown.
+  //
+  // Built from the union of the CURRENT menu and every service name that
+  // actually appears in history — not from activeServices alone. Iterating the
+  // live menu meant archiving a treatment silently deleted its past revenue
+  // from this report while the receipts sat untouched in the database, and it
+  // also hid income she had genuinely earned under names that were never on
+  // the menu (this tenant has receipts for "ניקוי עור עמוק" and "תשלום").
+  // Totals elsewhere are summed straight off receipts, so they were always
+  // right — it was only this breakdown that disagreed with them.
+  const serviceStats = useMemo(() => {
+    const byName = new Map();
+    for (const s of activeServices) {
+      byName.set(s.name, { name: s.name, color: s.color, archived: false });
+    }
+    for (const row of [...appointments, ...receipts]) {
+      const n = row.service;
+      if (!n || byName.has(n)) continue;
+      // Present in history but not on the live menu: archived, renamed, or
+      // typed by hand at the till. Carry its colour over when we still have it.
+      const known = services.find(s => s.name === n);
+      byName.set(n, { name: n, color: known?.color || DEFAULT_SERVICE_COLOR, archived: true });
+    }
+    return [...byName.values()]
+      .map(s => ({
+        ...s,
+        count: appointments.filter(a => a.service === s.name).length,
+        revenue: receipts.filter(r => r.service === s.name).reduce((sum,r)=>sum+(Number(r.amount)||0),0),
+      }))
+      .sort((a,b)=>b.count-a.count);
+  }, [activeServices, services, appointments, receipts]);
   const avgTransaction = useMemo(() => receipts.length>0?Math.round(receipts.reduce((s,r)=>s+(Number(r.amount)||0),0)/receipts.length):0, [receipts]);
 
   const monthlyData = useMemo(() => Array.from({length:6},(_,i)=>{
@@ -3120,6 +3150,97 @@ export default function BeautyOS() {
       const {data,error}=await supabase.from("service_prices").update(svc).eq("id",svc.id).select();
       if(error){handleDbError(error, "update service"); return;}
       if(data&&data[0]){setServices(prev=>prev.map((s,i)=>i===idx?data[0]:s)); toast("המחיר עודכן");}
+    }
+  };
+
+  // Archive / restore a service.
+  //
+  // service_prices.active has existed all along and already drives every
+  // dropdown in the app through `activeServices` — there was simply never a
+  // button to flip it, so the only way to get a treatment off the list was to
+  // rename it, which rewrites what her past appointments say she did.
+  //
+  // Archiving is the safe half of "delete": history is untouched because
+  // appointments and receipts store the service NAME as text, never a foreign
+  // key, so an archived service keeps rendering everywhere it already appears.
+  const handleToggleServiceActive = async (svc, idx) => {
+    if (guardWrite()) return;
+    if (!svc.id || isBusy("toggleService")) return;
+    const nextActive = svc.active === false; // null/undefined counts as active
+    setBusyKey("toggleService", true);
+    try {
+      const { data, error } = await supabase
+        .from("service_prices")
+        .update({ active: nextActive })
+        .eq("id", svc.id)
+        .select();
+      if (error) { handleDbError(error, "toggle service"); return; }
+      if (data && data[0]) {
+        setServices(prev => prev.map((s,i)=>i===idx?data[0]:s));
+        toast(nextActive ? "השירות הוחזר לרשימה" : "השירות הועבר לארכיון");
+      }
+    } finally {
+      setBusyKey("toggleService", false);
+    }
+  };
+
+  // Permanent delete — allowed ONLY when nothing references the service.
+  //
+  // Archiving is right for a treatment she stopped offering, but a typo she
+  // made thirty seconds ago has nothing worth preserving, and forcing it into
+  // an archive list forever is the kind of tidiness tax that makes people stop
+  // trusting the button. So: if no appointment, receipt, package or lead names
+  // this service, the row can go.
+  //
+  // The check runs against the DATABASE, not the arrays in local state — those
+  // hold whatever this session happened to load, and "looks unreferenced from
+  // here" is not the same claim as "is unreferenced". Matching is by name
+  // because that is how history stores it; there is no service_id anywhere.
+  const handleDeleteService = async (svc, idx) => {
+    if (guardWrite()) return;
+    if (!svc.id || isBusy("deleteService")) return;
+    const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+    const tid = rpcTenant || settings?.tenant_id || null;
+    if (!tid) { toast("לא זוהה עסק — נסי לרענן", "error"); return; }
+
+    setBusyKey("deleteService", true);
+    try {
+      // Every count is tenant-filtered as well as name-filtered.
+      const checks = [
+        ["appointments", "service",          "תורים"],
+        ["receipts",     "service",          "קבלות"],
+        ["packages",     "service",          "חבילות"],
+        ["leads",        "service_interest", "לידים"],
+      ];
+      const results = await Promise.all(
+        checks.map(([table, col]) =>
+          supabase.from(table).select("id", { count: "exact", head: true })
+            .eq("tenant_id", tid).eq(col, svc.name)
+        )
+      );
+      const failed = results.find(r => r.error);
+      if (failed) { handleDbError(failed.error, "check service references"); return; }
+
+      const used = results
+        .map((r, i) => ({ label: checks[i][2], n: r.count || 0 }))
+        .filter(x => x.n > 0);
+
+      if (used.length > 0) {
+        // Not a dead end — say what is holding it and what she can do instead.
+        toast(
+          `אי אפשר למחוק: השירות מופיע ב־${used.map(u=>`${u.n} ${u.label}`).join(", ")}. אפשר להעביר אותו לארכיון במקום.`,
+          "error"
+        );
+        return;
+      }
+
+      const { error } = await supabase
+        .from("service_prices").delete().eq("id", svc.id).eq("tenant_id", tid);
+      if (error) { handleDbError(error, "delete service"); return; }
+      setServices(prev => prev.filter((_,i)=>i!==idx));
+      toast("השירות נמחק");
+    } finally {
+      setBusyKey("deleteService", false);
     }
   };
 
@@ -8231,15 +8352,22 @@ export default function BeautyOS() {
  <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי את השירותים שאת מציעה עם המחיר ומשך הטיפול — הם יופיעו בקביעת תור ובקופה.</p>
  </div>
                   )}
-                  {services.map((svc,idx)=>(
- <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:pcTint,borderRadius:12,marginBottom:5}}>
- <span style={{width:10,height:10,borderRadius:"50%",background:svc.color||"var(--warning)",flexShrink:0}}/>
+                  {services.map((svc,idx)=>{
+                  const svcActive = svc.active !== false;
+                  return (
+ <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svcActive?"none":"1px dashed var(--line-2)"}}>
+ <span style={{width:10,height:10,borderRadius:"50%",background:svcActive?(svc.color||"var(--warning)"):"var(--line-2)",flexShrink:0}}/>
  <input value={svc.name} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,name:e.target.value}:s))} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:11,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)"}}/>
  <input type="number" value={svc.price} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <input type="number" value={svc.duration} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
+ <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11}} title="שמירה">✓</button>
+ {/* Archive / restore. The treatment stays in every past appointment and
+     receipt either way — those store its name, not a reference to this row. */}
+ <button onClick={()=>handleToggleServiceActive(svc,idx)} disabled={isBusy("toggleService")} className="icon-btn" style={{width:26,height:26,fontSize:11}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"}>{svcActive?"🗄":"↩"}</button>
+ {/* Permanent delete. Refuses, with a count, when anything references it. */}
+ <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)"}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד">✕</button>
  </div>
-                  ))}
+                  );})}
                   {showNewService?(
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:12,marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 8px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>

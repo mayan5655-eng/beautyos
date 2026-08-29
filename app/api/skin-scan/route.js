@@ -11,6 +11,7 @@ import { trackedCreate } from "@/lib/ai/usage";
 import { checkIpLimit, checkTenantLimit } from "@/lib/rateLimit";
 import { verifyScanLink } from "@/lib/scanToken";
 import { getQuotaStatus } from "@/lib/skinScanQuota";
+import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -113,7 +114,8 @@ export async function POST(request) {
       const servicesRes = await supabase
         .from("service_prices")
         .select("name, price")
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .or(ACTIVE_OR_NULL);
       services = servicesRes.data || [];
     }
     const servicesText =
