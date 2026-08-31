@@ -27,6 +27,7 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
+import { getCallCapStatus, AiCapExceededError } from './callCaps';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /** How far to trust the tenant id on a usage row. */
@@ -192,6 +193,18 @@ export async function trackedCreate(
   params: Anthropic.MessageCreateParamsNonStreaming,
   { tenantId = null, callSite, attribution = 'verified', db = null }: TrackOptions
 ): Promise<Anthropic.Message> {
+  // Ceiling check BEFORE the call, so a refusal costs nothing. Fails open on
+  // a read failure - see lib/ai/callCaps.ts for why a spend control fails open
+  // where a security boundary would fail closed.
+  const cap = await getCallCapStatus(tenantId, callSite);
+  if (cap.exceeded) {
+    console.error(
+      `[ai-cap] REFUSED ${callSite} for tenant ${tenantId}: ` +
+      `${cap.used}/${cap.cap} calls used this month.`
+    );
+    throw new AiCapExceededError(callSite, cap.used, cap.cap as number);
+  }
+
   const message = (await client.messages.create(params)) as Anthropic.Message;
   await recordUsage({
     tenantId,

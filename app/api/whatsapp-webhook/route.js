@@ -13,6 +13,7 @@ import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
+import { hit } from "@/lib/rateLimit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -158,6 +159,43 @@ export async function POST(request) {
     const active = await shouldBotReply(tenantId);
     if (!active) {
       return Response.json({ ok: true, botOff: true });
+    }
+
+    // Burst guard, per SENDER and per TENANT.
+    //
+    // This is the one AI call in the product that a stranger can trigger at
+    // will: every inbound WhatsApp message becomes a Claude call, billed to her
+    // tenant. Nothing here is authenticated and nothing can be - the whole
+    // point is that her clients message her without an account.
+    //
+    // Per-IP would be meaningless: the request comes from GreenAPI's servers,
+    // not from the sender, so every message shares one IP. The two keys that
+    // mean anything are who sent it and whose business it lands in.
+    //
+    // A real conversation is a handful of messages. Twelve from one number in
+    // ten minutes is already generous; 60 across the whole business in ten
+    // minutes is busier than any beta clinic.
+    //
+    // We ACKNOWLEDGE the webhook rather than returning 429: GreenAPI retries a
+    // failed delivery, and a retry loop on a rate-limited endpoint would spend
+    // exactly what this is here to protect. Staying silent costs one bot reply;
+    // erroring costs the same reply several times over.
+    const senderKey = senderToPhone(senderChatId) || senderChatId || "unknown";
+    const senderBurst = hit(`wa-bot:sender:${tenantId}:${senderKey}`, {
+      limit: 12,
+      windowMs: 10 * 60_000,
+    });
+    if (!senderBurst.ok) {
+      console.warn(`[whatsapp-webhook] sender burst limit hit for tenant ${tenantId}`);
+      return Response.json({ ok: true, rateLimited: "sender" });
+    }
+    const tenantBurst = hit(`wa-bot:tenant:${tenantId}`, {
+      limit: 60,
+      windowMs: 10 * 60_000,
+    });
+    if (!tenantBurst.ok) {
+      console.warn(`[whatsapp-webhook] tenant burst limit hit for tenant ${tenantId}`);
+      return Response.json({ ok: true, rateLimited: "tenant" });
     }
 
     // Generate the reply directly
