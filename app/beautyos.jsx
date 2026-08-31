@@ -23,6 +23,9 @@ import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
+import ServiceTemplatePicker from "./ServiceTemplatePicker";
+import { insertPickedServices } from "@/lib/seedServices";
+import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -131,7 +134,21 @@ function VoiceCommandList() {
 // Pixels per 30-minute row in the week grid. 28 gives a 60-minute
 // appointment 56px - enough for a name plus one detail line at 62px wide.
 const WK_ROW_H = 28;
-const HOURS_ALL = ["07:00","08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
+// Every hour of the day, indexed BY THE HOUR: HOURS_ALL[9] === "09:00".
+//
+// This was 07:00–20:00, which meant a cosmetician who works evenings could not
+// describe her own week — the hours simply were not in the list, and every
+// reader compensated with a hardcoded -7 offset. Cosmeticians do not share a
+// schedule: some start at 07:00, some finish at 22:00, some work Saturday night
+// after Shabbat. The list is now the whole day and the index IS the hour, so
+// there is no offset left to get wrong.
+const HOURS_ALL = Array.from({length:24},(_,h)=>`${String(h).padStart(2,"0")}:00`);
+// Closing times run 01:00–24:00: a day that ends at midnight is a real answer,
+// and "24:00" is how it reads on a Hebrew price list.
+const CLOSE_HOURS = Array.from({length:24},(_,i)=>({value:i+1,label:`${String(i+1).padStart(2,"0")}:00`}));
+// 12.5px rather than the 11px these were: a 24-entry list is read, not glanced
+// at. On a phone the .modal-card rule raises every select to 16px anyway.
+const hourSelectStyle = {border:"1px solid var(--line-2)",borderRadius:10,padding:"7px 9px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)"};
 const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"];
 // Reassuring steps cycled through while the AI skin scan is processing, so the
 // wait feels alive and progressing rather than frozen.
@@ -395,12 +412,10 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 // must stay literal hex. A theme token here would persist a CSS variable
 // reference into the data layer, where it resolves only by accident inside a
 // styled context and breaks everywhere else.
-const DEFAULT_SERVICE_COLOR = "#D9B98C";
-
-// Palette for imported services, assigned round-robin so a pasted list gets
-// distinct calendar colours instead of one repeated tint. Same hues the seeded
-// services already use.
-const SERVICE_COLOR_CYCLE = ["#F4A7B9","#A7C4F4","#B5EAD7","#FFDAC1","#E2CFEA","#F9C6D0","#D9B98C","#C7E9E4"];
+//
+// Both now live in lib/serviceColors.ts: the onboarding template picker creates
+// services too, and /onboarding does not import this component at all, so a
+// third copy of the palette was the alternative.
 
 // ============================================================
 // CLIENT IMPORT — paste + column mapping
@@ -1128,6 +1143,11 @@ export default function BeautyOS() {
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});
   const [showNewService, setShowNewService] = useState(false);
   const [showSetup, setShowSetup] = useState(false); // always-accessible setup checklist modal
+  // Suggested-menu picker in Settings → שירותים. Selection is held here and
+  // written only on confirm, so nothing lands on her price list — or her public
+  // booking page — while she is still reading the list.
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templatePicks,      setTemplatePicks]      = useState([]);
   const [cashierAppt,     setCashierAppt]     = useState(null);
   const [cashierClient,   setCashierClient]   = useState(null);
   const [cashierSearch,   setCashierSearch]   = useState("");
@@ -1440,7 +1460,12 @@ export default function BeautyOS() {
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = useMemo(() => services.filter(s=>s.active!==false), [services]);
-  const workingHours = HOURS_ALL.slice(Math.max((settings?.working_hours_start||8)-7,0),Math.min((settings?.working_hours_end||19)-7,HOURS_ALL.length));
+  // Labels for the day-view rows. HOURS_ALL is now indexed by the hour itself,
+  // so the slice is the hour range directly - the old `-7` came from the list
+  // starting at 07:00 and silently clipped anyone opening earlier than that.
+  // The consumer pairs workingHours[hi] with working_hours_start + hi, so the
+  // start of the slice and that addend must stay the same number.
+  const workingHours = HOURS_ALL.slice(Math.max(settings?.working_hours_start||8,0),Math.min(settings?.working_hours_end||19,HOURS_ALL.length));
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
@@ -3256,6 +3281,38 @@ export default function BeautyOS() {
       setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});setShowNewService(false); toast("השירות נוסף");
     } finally {
       setBusyKey("addService", false);
+    }
+  };
+
+  // Add the treatments she ticked in the suggested-menu picker.
+  //
+  // The same picker onboarding uses, mounted here so that skipping it at signup
+  // is not a one-time door: a cosmetician who built her list by hand in March
+  // can still open it in June to top up. Everything it writes is an ordinary
+  // service_prices row of hers — there is no link back to the template, so a
+  // seeded treatment renames, reprices and archives exactly like a typed one.
+  const handleAddTemplateServices = async () => {
+    if (guardWrite()) return;
+    if (templatePicks.length === 0) { toast("לא סימנת אף טיפול","error"); return; }
+    if (isBusy("templateServices")) return;
+    setBusyKey("templateServices", true);
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const { inserted, skipped, error } = await insertPickedServices(
+        supabase, tid, templatePicks, services.map(s=>s.name)
+      );
+      if (error) { handleDbError(error, "add template services"); return; }
+      if (inserted.length) setServices(prev=>[...prev,...inserted]);
+      setTemplatePicks([]);
+      setShowTemplatePicker(false);
+      toast(
+        skipped > 0
+          ? `${inserted.length} טיפולים נוספו · ${skipped} כבר היו ברשימה`
+          : `${inserted.length} טיפולים נוספו למחירון`
+      );
+    } finally {
+      setBusyKey("templateServices", false);
     }
   };
 
@@ -8345,11 +8402,17 @@ export default function BeautyOS() {
               })()}
               {settingsTab==="services"&&(
  <div>
-                  {services.length===0&&!showNewService&&(
+                  {/* Shown whenever the list is empty and the picker is closed.
+                      It used to be hidden by `!showNewService`, which meant the
+                      one guided route in — the setup checklist, which opens
+                      this tab with the blank add-row already expanded — was the
+                      single path that never showed the explanation. */}
+                  {services.length===0&&!showTemplatePicker&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:14,marginBottom:8}}>
  <div style={{fontSize:26,marginBottom:8}}>✦</div>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שירותים</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי את השירותים שאת מציעה עם המחיר ומשך הטיפול — הם יופיעו בקביעת תור ובקופה.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,maxWidth:280,margin:"0 auto 12px"}}>הוסיפי את הטיפולים שאת מציעה עם המחיר ומשך הטיפול — הם יופיעו בקביעת תור, בקופה ובעמוד ההזמנות שלך.</p>
+ <button onClick={()=>setShowTemplatePicker(true)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:12,padding:"11px 20px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>בחרי מרשימת טיפולים מוכנה</button>
  </div>
                   )}
                   {services.map((svc,idx)=>{
@@ -8368,17 +8431,40 @@ export default function BeautyOS() {
  <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)"}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד">✕</button>
  </div>
                   );})}
+                  {/* The suggested menu. Same component onboarding uses, so
+                      skipping it at signup is not a door that closes: nothing
+                      here is a one-time step. */}
+                  {showTemplatePicker&&(
+ <div style={{border:`1px solid ${pc}`,borderRadius:14,padding:"12px 11px",marginTop:8,background:"var(--surface)"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)",marginBottom:3}}>רשימת טיפולים מוכנה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:10}}>סימני רק את מה שאת מבצעת. המחירים הם הצעה לפי המקובל בשוק — שני אותם כאן או אחר כך. טיפול שכבר במחירון שלך מסומן ולא ייווסף פעמיים.</p>
+ <ServiceTemplatePicker
+   value={templatePicks}
+   onChange={setTemplatePicks}
+   existingNames={services.map(s=>s.name)}
+   accent={pc}
+   accentTint={pcTint}
+ />
+ <div style={{display:"flex",gap:7,marginTop:12}}>
+ <button onClick={()=>{setShowTemplatePicker(false);setTemplatePicks([]);}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"11px 0",fontSize:12,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+ <button onClick={handleAddTemplateServices} disabled={templatePicks.length===0||isBusy("templateServices")} style={{flex:2,background:templatePicks.length===0?"var(--line-2)":pcGrad,color:templatePicks.length===0?"var(--ink-3)":"var(--surface)",border:"none",borderRadius:12,padding:"11px 0",fontSize:12,fontWeight:700,cursor:templatePicks.length===0?"default":"pointer",fontFamily:"inherit"}}>
+   {isBusy("templateServices")?"מוסיף…":templatePicks.length===0?"סימני טיפולים להוספה":`הוספת ${templatePicks.length} טיפולים`}
+ </button>
+ </div>
+ </div>
+                  )}
                   {showNewService?(
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:12,marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 8px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>
  <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
  </div>
-                  ):(
- <div style={{display:"flex",gap:6,marginTop:6}}>
- <button onClick={()=>setShowNewService(true)} style={{flex:2,background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"8px 0",fontSize:11,color:pc,cursor:"pointer",fontFamily:"inherit"}}>+ הוסיפי שירות</button>
+                  ):!showTemplatePicker&&(
+ <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+ <button onClick={()=>setShowNewService(true)} style={{flex:"2 1 130px",background:pcTint,border:`1px dashed ${pc}`,borderRadius:12,padding:"10px 0",fontSize:11.5,color:pc,cursor:"pointer",fontFamily:"inherit"}}>+ הוסיפי שירות</button>
+ <button onClick={()=>setShowTemplatePicker(true)} style={{flex:"2 1 130px",background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:12,padding:"10px 0",fontSize:11.5,color:pc,cursor:"pointer",fontFamily:"inherit"}}>רשימה מוכנה</button>
  {/* Same wizard as the client import, pointed at service_prices. */}
- <button onClick={openImportHub} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 0",fontSize:11,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
+ <button onClick={openImportHub} style={{flex:"1 1 100px",background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 0",fontSize:11.5,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ייבוא מחירון</button>
  </div>
                   )}
  </div>
@@ -8419,12 +8505,17 @@ export default function BeautyOS() {
                 // — keeping un-migrated readers correct. Save logic unchanged.
                 const bh=normalizeBusinessHours(editSettings);
                 const commit=(next)=>setEditSettings({...editSettings,business_hours:next,...legacyHoursFromMap(next)});
+                // Any hour, any day. Opening runs 00:00–23:00 and closing
+                // 01:00–24:00, so an evening clinic, a Friday morning and a
+                // Saturday night after Shabbat are all describable. The clamps
+                // below only keep close > open; they no longer pull the value
+                // back into a 07:00–20:00 window that was never anyone's rule.
                 const toggleDay=(d)=>{const next={...bh};next[d]=bh[d]?null:{open:9,close:18};commit(next);};
-                const setOpen=(d,val)=>{const cur=bh[d]||{open:9,close:18};const open=Number(val);let close=cur.close;if(close<=open)close=Math.min(open+1,20);commit({...bh,[d]:{open,close}});};
-                const setClose=(d,val)=>{const cur=bh[d]||{open:9,close:18};const close=Number(val);let open=cur.open;if(close<=open)open=Math.max(close-1,7);commit({...bh,[d]:{open,close}});};
+                const setOpen=(d,val)=>{const cur=bh[d]||{open:9,close:18};const open=Number(val);let close=cur.close;if(close<=open)close=Math.min(open+1,24);commit({...bh,[d]:{open,close}});};
+                const setClose=(d,val)=>{const cur=bh[d]||{open:9,close:18};const close=Number(val);let open=cur.open;if(close<=open)open=Math.max(close-1,0);commit({...bh,[d]:{open,close}});};
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:6}}>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:2}}>הגדירי לכל יום אם את עובדת ובאילו שעות. יום כבוי מסומן כ״סגור״.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:4}}>הגדירי לכל יום אם את עובדת ובאילו שעות — כל שעה בין 00:00 ל-24:00, בכל אחד משבעת הימים. יום כבוי מסומן כ״סגור״.</p>
  {DAYS_HE.map((label,d)=>{
    const dh=bh[d];const isOpen=!!dh;
    return(
@@ -8433,9 +8524,9 @@ export default function BeautyOS() {
  <Toggle on={isOpen} onChange={()=>toggleDay(d)} pc={pc} />
  {isOpen?(
  <div style={{display:"flex",alignItems:"center",gap:6,marginRight:"auto"}}>
- <select value={dh.open} onChange={e=>setOpen(d,e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:10,padding:"6px 8px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select>
- <span style={{fontSize:11,color:"var(--ink-3)"}}>–</span>
- <select value={dh.close} onChange={e=>setClose(d,e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:10,padding:"6px 8px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}>{HOURS_ALL.map((h,i)=><option key={h} value={7+i}>{h}</option>)}</select>
+ <select aria-label={`שעת פתיחה ביום ${label}`} value={dh.open} onChange={e=>setOpen(d,e.target.value)} style={hourSelectStyle}>{HOURS_ALL.map((h,i)=><option key={h} value={i}>{h}</option>)}</select>
+ <span style={{fontSize:12,color:"var(--ink-3)"}}>–</span>
+ <select aria-label={`שעת סגירה ביום ${label}`} value={dh.close} onChange={e=>setClose(d,e.target.value)} style={hourSelectStyle}>{CLOSE_HOURS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>
  </div>
  ):(
  <span style={{marginRight:"auto",fontSize:11,color:"var(--ink-3)",fontWeight:600}}>סגור</span>

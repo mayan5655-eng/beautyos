@@ -4,7 +4,22 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
+import ServiceTemplatePicker from "../ServiceTemplatePicker";
 import { lighten } from "@/lib/theme";
+import { buildSeedSettings, SEEDED_SETTINGS_KEYS } from "@/lib/tenantTemplate";
+import { insertPickedServices, type PickedService } from "@/lib/seedServices";
+
+// PostgREST reports an unknown column as PGRST204 ("column ... does not exist
+// in the schema cache"); Postgres itself uses SQLSTATE 42703. The message check
+// is the belt-and-braces third form, because this decides whether a failed
+// signup is retried or surfaced, and guessing wrong in the strict direction
+// costs a customer her account.
+function isMissingColumnError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === "PGRST204" || e.code === "42703") return true;
+  return /could not find|does not exist|schema cache|unknown column/i.test(e.message || "");
+}
 
 const PRESET_COLORS = ["#4A2E5A", "var(--pc-tint)", "#A7C4F4", "var(--success)", "var(--pc-tint)", "rgba(242,184,75,0.16)", "var(--pc)", "var(--ink)"];
 
@@ -17,8 +32,10 @@ type OnboardingData = {
   working_hours_end: number;
 };
 
-// The three step names, matching the headings shown in each step body.
-const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "ייבוא נתונים"];
+// The step names, matching the headings shown in each step body. The list IS
+// the step count — `next` and the footer both cap on its length, so adding a
+// step here and a `step === n` block below is the whole change.
+const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "השירותים שלך", "ייבוא נתונים"];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -31,6 +48,13 @@ export default function OnboardingPage() {
   // The import chooser is rendered here, in this step, rather than waiting for
   // the save round-trip and a redirect. Tapping the button must feel instant.
   const [showChooser, setShowChooser] = useState(false);
+
+  // Treatments she ticked in step 4. Held here rather than written on tap:
+  // onboarding is "complete" when a settings row exists, so services inserted
+  // before that row would leave an abandoned signup with a menu and no
+  // settings — and send her back through onboarding over populated tables.
+  // They go in inside finish(), straight after the settings insert.
+  const [pickedServices, setPickedServices] = useState<PickedService[]>([]);
 
   const [data, setData] = useState<OnboardingData>({
     business_name: "",
@@ -102,7 +126,21 @@ export default function OnboardingPage() {
     setSaving(true);
     setError("");
     try {
+      const openHour = Number(data.working_hours_start) || 8;
+      const closeHour = Number(data.working_hours_end) || 19;
+
       const settings = {
+        // Starting configuration every new cosmetician gets: a per-day week
+        // built around the hours just above, the automation toggles written
+        // down explicitly instead of left to a default buried in a render, and
+        // five blank FAQ questions for her bot. Hand-written generic values
+        // only — see lib/tenantTemplate.ts for what is deliberately absent and
+        // why, and scripts/check-template-clean.mjs for the build check that
+        // keeps it that way.
+        //
+        // Spread FIRST so that anything she actually typed below wins on any
+        // key the two ever come to share.
+        ...buildSeedSettings(openHour, closeHour),
         tenant_id: tenantId,
         // Left blank rather than backfilled with a fake placeholder: the app
         // shows a neutral greeting and a first-run checklist prompting her to
@@ -111,12 +149,54 @@ export default function OnboardingPage() {
         therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
         primary_color: data.primary_color,
-        working_hours_start: Number(data.working_hours_start) || 8,
-        working_hours_end: Number(data.working_hours_end) || 19,
+        // working_hours_start/end are NOT set here. They come from
+        // buildSeedSettings above, derived from the same per-day map as
+        // business_hours and working_days, so the four scheduling columns
+        // cannot disagree with one another. openHour/closeHour are what she
+        // typed; they reach the row through that one derivation.
       };
 
       const { error: insertErr } = await supabase.from("settings").insert([settings]);
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        // Every column the seed writes was verified against information_schema
+        // on 2026-08-31 and all 19 exist, so this branch should never run.
+        //
+        // It stays because of HOW schema changes reach this database: by hand,
+        // in the Supabase SQL editor, with finished migrations sometimes parked
+        // in supabase/migrations/pending for weeks. An insert naming one column
+        // that does not exist fails the WHOLE row — so the day someone adds a
+        // key to the seed ahead of its migration, signup breaks for every new
+        // cosmetician, and the only symptom is "שגיאה בשמירה".
+        //
+        // One retry with the seeded keys stripped. She still gets her account
+        // with what she typed; the seeded defaults are what is lost, and every
+        // one of them has a working fallback in its reader. When the migration
+        // does land, the full seed starts applying again on its own.
+        if (isMissingColumnError(insertErr)) {
+          console.warn("[Onboarding] settings insert rejected a seeded column; retrying with the seed stripped", insertErr);
+          const reduced: Record<string, unknown> = { ...settings };
+          for (const key of SEEDED_SETTINGS_KEYS) delete reduced[key];
+          const { error: retryErr } = await supabase.from("settings").insert([reduced]);
+          if (retryErr) throw retryErr;
+        } else {
+          throw insertErr;
+        }
+      }
+
+      // Her picked treatments, now that the settings row exists. A failure here
+      // is reported but does NOT block the redirect: she has an account, and
+      // the same picker is waiting in Settings → שירותים. Losing the menu is a
+      // retry; losing the finished signup is not.
+      if (pickedServices.length > 0) {
+        const { error: svcErr } = await insertPickedServices(
+          supabase,
+          tenantId,
+          pickedServices
+        );
+        if (svcErr) {
+          console.error("[Onboarding] service seed failed", svcErr);
+        }
+      }
 
       // Update tenant.name only if user actually filled it in
       if (data.business_name.trim()) {
@@ -264,6 +344,29 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <>
+              <h1 style={titleStyle}>✦ השירותים שלך</h1>
+              <p style={subtitleStyle}>
+                סימני את הטיפולים שאת מבצעת — רק אותם נוסיף. המחירים הם הצעה לפי המקובל בשוק
+                ואפשר לשנות כל אחד מהם כאן, או אחר כך בהגדרות. אפשר גם לדלג ולבנות את המחירון מאפס.
+              </p>
+              <ServiceTemplatePicker
+                value={pickedServices}
+                onChange={setPickedServices}
+                accent={pc}
+                accentTint={pcTint}
+              />
+              <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius: 14, padding: "12px 15px", marginTop: 12 }}>
+                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
+                  {pickedServices.length === 0
+                    ? "לא נוסיף שום טיפול שלא סימנת. אפשר להוסיף הכל ידנית מאוחר יותר תחת הגדרות ← שירותים."
+                    : `${pickedServices.length} טיפולים ייווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
+                </p>
+              </div>
+            </>
+          )}
+
+          {step === 5 && (
+            <>
               <h1 style={titleStyle}>📥 יש לך נתונים בתוכנה אחרת?</h1>
               {!showChooser ? (
                 <>
@@ -293,14 +396,14 @@ export default function OnboardingPage() {
           {step === 3 && (
             <>
               <h1 style={titleStyle}>🕐 שעות עבודה</h1>
-              <p style={subtitleStyle}>השעות האלה יקבעו אילו משבצות זמן יוצגו ביומן השבועי. תמיד אפשר לשנות בהגדרות.</p>
+              <p style={subtitleStyle}>שעות ההתחלה והסיום הרגילות שלך, מ-0 עד 24. בהגדרות ← שעות אפשר לקבוע שעות שונות לכל יום בנפרד, כולל שישי ושבת וכולל שעות ערב.</p>
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
                 <Field label="התחלה" inline>
                   <input
                     className="ob-input"
                     type="number"
-                    min={6}
-                    max={20}
+                    min={0}
+                    max={23}
                     value={data.working_hours_start}
                     onChange={e => setData({ ...data, working_hours_start: Number(e.target.value) })}
                     style={{ ...inputStyle, textAlign: "center" }}
@@ -311,8 +414,8 @@ export default function OnboardingPage() {
                   <input
                     className="ob-input"
                     type="number"
-                    min={7}
-                    max={22}
+                    min={1}
+                    max={24}
                     value={data.working_hours_end}
                     onChange={e => setData({ ...data, working_hours_end: Number(e.target.value) })}
                     style={{ ...inputStyle, textAlign: "center" }}

@@ -4,10 +4,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/check-template-clean.mjs && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:template": "node scripts/check-template-clean.mjs"
   },
+  "//check:template": [
+    "Runs BEFORE next build, on the same command Vercel runs, so it gates the",
+    "real deploy path rather than a local habit. It fails the build if",
+    "lib/tenantTemplate.ts - which is seeded into every new cosmetician's",
+    "account - contains anything resembling one real tenant's data: a UUID, a",
+    "phone number, a URL, an image filename, a GreenAPI field, a Supabase",
+    "query, or any of the identity-bearing settings keys."
+  ],
   "//xlsx": [
     "xlsx (SheetJS) is installed from the vendor's own CDN, NOT the npm registry.",
     "The npm package is frozen at 0.18.5 - SheetJS stopped publishing there - and",
