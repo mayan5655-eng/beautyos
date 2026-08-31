@@ -2866,11 +2866,51 @@ export default function BeautyOS() {
     }
   };
 
+  // Status chips in the lead drawer save on tap - there is no save button, and
+  // there should not be one: a status is a one-tap field and a confirm step
+  // would make it three.
+  //
+  // What was missing is the evidence that it saved. This and handleSetReminder
+  // were the ONLY two of the 26 async write handlers in this file with no
+  // toast, and the sole feedback was a 9.5px chip changing colour AFTER the
+  // round-trip returned. So on a slow phone you tapped, nothing moved, and the
+  // reasonable conclusion was that it had not worked.
+  //
+  // Four changes, in the order they matter:
+  //   1. Optimistic - the chip moves on the tap, not on the response.
+  //   2. Revert on failure, so an optimistic update can never leave the screen
+  //      claiming something the database did not accept.
+  //   3. A toast naming the new status, matching every other write in the app.
+  //   4. A busy guard. Rapid taps used to fire concurrent updates where the
+  //      last RESPONSE won rather than the last TAP, so she could land on a
+  //      status she did not choose.
   const handleUpdateLeadStatus = async (lead,status) => {
     if (guardWrite()) return;
-    const {data,error}=await supabase.from("leads").update({status}).eq("id",lead.id).select();
-    if(error){handleDbError(error, "update lead status"); return;}
-    if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
+    if (status === lead.status) return;              // re-tapping the active chip
+    if (isBusy("leadStatus")) return;
+    const prevStatus = lead.status;
+    const label = (LEAD_STATUSES[status] || {}).label || status;
+    // Functional updates throughout: the drawer can be closed, or switched to
+    // another lead, while the write is still in flight.
+    const applyStatus = (s) => {
+      setLeads(prev => prev.map(l => l.id === lead.id ? {...l, status:s} : l));
+      setSelectedLead(prev => prev && prev.id === lead.id ? {...prev, status:s} : prev);
+    };
+    applyStatus(status);
+    setBusyKey("leadStatus", true);
+    try {
+      const {data,error}=await supabase.from("leads").update({status}).eq("id",lead.id).select();
+      if(error){ applyStatus(prevStatus); handleDbError(error, "update lead status"); return; }
+      // Zero rows back is not success. It means RLS refused the write, which
+      // used to leave the old code showing nothing at all.
+      if(!data||!data[0]){ applyStatus(prevStatus); toast("עדכון הסטטוס נכשל","error"); return; }
+      const row = data[0];
+      setLeads(prev => prev.map(l => l.id === lead.id ? row : l));
+      setSelectedLead(prev => prev && prev.id === lead.id ? row : prev);
+      toast(`הסטטוס עודכן: ${label}`);
+    } finally {
+      setBusyKey("leadStatus", false);
+    }
   };
 
   // --- Bulk WhatsApp send per status group ---
@@ -2975,11 +3015,34 @@ export default function BeautyOS() {
     });
   };
 
+  // The follow-up date, same treatment as the status chips above and for the
+  // same reason - it is the other silent write in the lead drawer. A date
+  // picker is worse off than a chip, in fact: the field shows the new date the
+  // moment it is picked whether or not anything was saved, so there was no
+  // signal at all to distinguish a successful write from a failed one.
   const handleSetReminder = async (lead,date) => {
     if (guardWrite()) return;
-    const {data,error}=await supabase.from("leads").update({reminder_date:date}).eq("id",lead.id).select();
-    if(error){handleDbError(error, "set reminder"); return;}
-    if(data&&data[0]){setLeads(prev=>prev.map(l=>l.id===lead.id?data[0]:l));setSelectedLead(data[0]);}
+    if (isBusy("leadReminder")) return;
+    const prevDate = lead.reminder_date || "";
+    if (date === prevDate) return;
+    const applyDate = (d) => {
+      setLeads(prev => prev.map(l => l.id === lead.id ? {...l, reminder_date:d} : l));
+      setSelectedLead(prev => prev && prev.id === lead.id ? {...prev, reminder_date:d} : prev);
+    };
+    applyDate(date);
+    setBusyKey("leadReminder", true);
+    try {
+      const {data,error}=await supabase.from("leads").update({reminder_date:date}).eq("id",lead.id).select();
+      if(error){ applyDate(prevDate); handleDbError(error, "set reminder"); return; }
+      if(!data||!data[0]){ applyDate(prevDate); toast("שמירת התזכורת נכשלה","error"); return; }
+      const row = data[0];
+      setLeads(prev => prev.map(l => l.id === lead.id ? row : l));
+      setSelectedLead(prev => prev && prev.id === lead.id ? row : prev);
+      // Clearing the field is a real action and gets its own confirmation.
+      toast(date ? `תזכורת מעקב נקבעה ל-${date}` : "תזכורת המעקב בוטלה");
+    } finally {
+      setBusyKey("leadReminder", false);
+    }
   };
 
   const handleUploadImage = async (e,client) => {
@@ -4759,6 +4822,28 @@ export default function BeautyOS() {
  <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Frank+Ruhl+Libre:wght@400;500;600;700;900&family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
         .serif{font-family:var(--display)}
+
+        /* ── Safe area, for everything anchored to the TOP of the viewport ──
+           layout.tsx sets viewportFit:"cover", which is what lets the app run
+           edge to edge in a home-screen install - and what puts anything at
+           top:0 underneath the clock and the battery.
+
+           .app-header was given padding-top:env(safe-area-inset-top) when that
+           was found; nothing else was. These are the four surfaces that were
+           missed. The drawers and the toast stack are handled here rather than
+           inside the mobile media query because both are pinned to the viewport
+           top on every screen size, and the inset is 0px on a desktop anyway -
+           so one rule is correct everywhere instead of two that can drift.
+
+           The ✕ is positioned against the header, which starts at the very top
+           of the drawer, so it needs the same offset the header does. */
+        .drawer-head{padding-top:calc(22px + env(safe-area-inset-top, 0px))!important}
+        .drawer-close{top:calc(14px + env(safe-area-inset-top, 0px))!important}
+        /* A confirmation under the status bar is not a confirmation. This one
+           carries the toast for every write in the app, including the lead
+           status and reminder toasts added alongside it. */
+        .toast-stack{top:calc(14px + env(safe-area-inset-top, 0px))}
+
         /* Bottom-nav sheet rise. */
         @keyframes sheetUp{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
         /* Keyboard focus indicator (only for keyboard nav, not mouse). The
@@ -4824,7 +4909,12 @@ export default function BeautyOS() {
              switched so the slide still works - visibility is not interpolable,
              but it does honour a transition delay, so it flips at the end of the
              close and at the start of the open. */
-          .nav-aside{position:fixed!important;top:0;bottom:0;right:0;width:78%!important;max-width:270px;z-index:1500;transform:translateX(100%);visibility:hidden;transition:transform 0.25s,visibility 0s linear 0.25s}
+          /* padding-top carries the safe-area inset for the same reason
+             .app-header does: this is pinned to top:0 under viewport-fit:cover,
+             so at its inline 16px the first nav item sat under the clock in a
+             home-screen install. !important because it overrides the inline
+             padding shorthand on the element. */
+          .nav-aside{position:fixed!important;top:0;bottom:0;right:0;width:78%!important;max-width:270px;z-index:1500;transform:translateX(100%);visibility:hidden;transition:transform 0.25s,visibility 0s linear 0.25s;padding-top:calc(16px + env(safe-area-inset-top, 0px))!important}
           .nav-aside.open{transform:translateX(0);visibility:visible;transition:transform 0.25s,visibility 0s linear 0s}
           .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1499}
           .header-search{max-width:none!important}
@@ -5147,7 +5237,7 @@ export default function BeautyOS() {
 
       {/* TOASTS */}
       {toasts.length>0&&(
- <div aria-live="polite" aria-atomic="true" style={{position:"fixed",top:14,left:"50%",transform:"translateX(-50%)",zIndex:5000,display:"flex",flexDirection:"column",gap:7,alignItems:"center",pointerEvents:"none"}}>
+ <div aria-live="polite" aria-atomic="true" className="toast-stack" style={{position:"fixed",left:"50%",transform:"translateX(-50%)",zIndex:5000,display:"flex",flexDirection:"column",gap:7,alignItems:"center",pointerEvents:"none"}}>
           {toasts.map(t=>{
             const colors={success:{bg:"var(--ink)",fg:"var(--surface)",icon:"✓"},error:{bg:"var(--danger)",fg:"var(--surface)",icon:"!"},info:{bg:pcDeep,fg:"var(--surface)",icon:"i"}};
             const c=colors[t.type]||colors.success;
@@ -8566,8 +8656,8 @@ export default function BeautyOS() {
               const days=getDaysSince(c.id);
               const statusColor=STATUS_COLORS[c.status]||"var(--warning)";
               return(<>
- <div style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedClient(null)} style={{position:"absolute",top:14,left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:30,height:30,color:"var(--surface)",fontSize:14,cursor:"pointer"}}>✕</button>
+ <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
+ <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:15,cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:14}}>
  <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<SignedImage value={c.images[0]} alt={c.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={c.name[0]}/>:c.name[0]}</div>
  <div style={{flex:1}}>
@@ -8861,8 +8951,8 @@ export default function BeautyOS() {
               const l=selectedLead;
               const st=leadStatusMeta(l.status);
               return(<>
- <div style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedLead(null)} style={{position:"absolute",top:14,left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:30,height:30,color:"var(--surface)",fontSize:14,cursor:"pointer"}}>✕</button>
+ <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
+ <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:15,cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:13}}>
  <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
  <div style={{flex:1}}>
@@ -8884,8 +8974,13 @@ export default function BeautyOS() {
  <div style={{padding:"16px 22px"}}>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>סטטוס</p>
  <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:16}}>
+                    {/* aria-pressed, not just colour: the active chip was signalled
+                        only by a border and a background at 9.5px, which is the
+                        weakest confirmation in the app and says nothing to a screen
+                        reader. Type goes up to 11.5px and the tap target to 32px —
+                        these are read and hit one-handed. */}
                     {Object.entries(LEAD_STATUSES).map(([key,s])=>(
- <button key={key} onClick={()=>handleUpdateLeadStatus(l,key)} style={{padding:"6px 11px",border:"1px solid",borderColor:l.status===key?s.color:"var(--line-2)",borderRadius:20,background:l.status===key?s.bg:"var(--surface)",color:l.status===key?s.color:"var(--ink-2)",fontSize:9.5,cursor:"pointer",fontFamily:"inherit",fontWeight:l.status===key?700:500}}>{s.label}</button>
+ <button key={key} onClick={()=>handleUpdateLeadStatus(l,key)} disabled={isBusy("leadStatus")} aria-pressed={l.status===key} style={{padding:"7px 13px",minHeight:32,border:"1px solid",borderColor:l.status===key?s.color:"var(--line-2)",borderRadius:20,background:l.status===key?s.bg:"var(--surface)",color:l.status===key?s.color:"var(--ink-2)",fontSize:11.5,cursor:isBusy("leadStatus")?"default":"pointer",fontFamily:"inherit",fontWeight:l.status===key?700:500,opacity:isBusy("leadStatus")&&l.status!==key?0.55:1,transition:"background .15s,border-color .15s,opacity .15s"}}>{s.label}</button>
                     ))}
  </div>
                   {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
@@ -8895,7 +8990,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>
  <div style={{marginTop:12}}>
  <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
- <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} disabled={isBusy("leadReminder")} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",opacity:isBusy("leadReminder")?0.6:1}}/>
  </div>
                   {l.notes&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--pc-tint)",borderRadius:12}}><p style={{color:"var(--ink-3)",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p style={{fontSize:11,color:"var(--ink)"}}>{l.notes}</p></div>}
                   {l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant"&&(
