@@ -240,7 +240,7 @@ export default function OnboardingPage() {
         {/* Brand mark */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div style={{ fontSize: 26, marginBottom: 4 }}>💎</div>
-          <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
+          <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
         </div>
 
         {/* Progress — written, not graphic. Step names with arrows between
@@ -475,7 +475,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Tiny footer hint */}
-      <p style={{ marginTop: 14, fontSize: 10, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
+      <p style={{ marginTop: 14, fontSize: 12, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
         תמיד אפשר לעדכן את כל ההגדרות מאוחר יותר ב-⚙️ הגדרות
       </p>
     </div>

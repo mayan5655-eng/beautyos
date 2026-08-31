@@ -128,7 +128,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
 
   if (!open) return null;
 
-  const th = { textAlign: 'right', fontSize: 10.5, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
+  const th = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
   const td = { fontSize: 11.5, color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
 
   return (
@@ -352,7 +352,7 @@ function Stat({ label, value, tone }) {
   const color = tone === 'ok' ? 'var(--ok, #2E7D5B)' : tone === 'warn' ? 'var(--danger)' : 'var(--ink)';
   return (
     <div style={{ border: '1px solid var(--line-2)', borderRadius: 11, padding: '7px 12px', background: 'var(--surface-2)', minWidth: 86 }}>
-      <div style={{ fontSize: 10, color: 'var(--ink-3)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
     </div>
   );

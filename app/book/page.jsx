@@ -321,7 +321,7 @@ export default function BookPage() {
   const eyebrow = (text) => (
     <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
       <span style={{ width: 22, height: 1.5, background: pc, opacity: 0.55, borderRadius: 2 }} />
-      <span style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700 }}>{text}</span>
+      <span style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700 }}>{text}</span>
     </div>
   );
   const qaBtn = { border: "none", borderRadius: 999, padding: "12px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "0.4px", textDecoration: "none" };
@@ -570,10 +570,10 @@ export default function BookPage() {
                       )}
                       <div style={{ padding: "15px 17px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
                             {postTypeLabel(p.post_type)}
                           </span>
-                          <span style={{ fontSize: 10, color: faint, letterSpacing: "0.3px" }}>
+                          <span style={{ fontSize: 12, color: faint, letterSpacing: "0.3px" }}>
                             {new Date(p.created_at).toLocaleDateString("he-IL")}
                           </span>
                         </div>
@@ -642,16 +642,16 @@ export default function BookPage() {
                   <p className="serif" style={{ fontSize: 15, fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
                 </div>
 
-                <p style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
+                <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
                 <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 22 }}>
                   {availableDays.map((d, i) => {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
                       <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
                         style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius: 16, textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? `0 10px 24px -12px ${pc}` : "0 6px 16px -12px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
-                        <p style={{ fontSize: 10, fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
-                        <p style={{ fontSize: 9, opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
+                        <p style={{ fontSize: 11.5, opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
                       </div>
                     );
                   })}
@@ -681,7 +681,7 @@ export default function BookPage() {
                         שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
                       </div>
                     )}
-                    <p style={{ fontSize: 10.5, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
+                    <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
                       {allSlots.filter((m) => !tooSoon(m)).map((h) => {
                         const taken = slotTaken(h);
@@ -712,7 +712,7 @@ export default function BookPage() {
                 <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pc, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
 
                 <div style={{ background: cream, borderRadius: 18, padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
-                  <p style={{ fontSize: 10.5, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
+                  <p style={{ fontSize: 12, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize: 13, color: muted }}>טיפול</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{selectedService.name}</span>
@@ -731,7 +731,7 @@ export default function BookPage() {
                   </div>
                 </div>
 
-                <p style={{ fontSize: 10.5, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
+                <p style={{ fontSize: 12, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
@@ -773,7 +773,7 @@ export default function BookPage() {
         {addr && step === 1 && (
           <p style={{ fontSize: 12, color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
-        <p style={{ fontSize: 10.5, color: faint, letterSpacing: "1px" }}>מופעל ע"י BloomOS ✦</p>
+        <p style={{ fontSize: 12, color: faint, letterSpacing: "1px" }}>מופעל ע"י BloomOS ✦</p>
       </div>
     </div>
   );

@@ -73,7 +73,7 @@ function AutoToggleRow({ label, desc, on, onChange, pc }) {
         <span style={{ fontSize: 12, color: "var(--ink)" }}>{label}</span>
         <Toggle on={on} onChange={onChange} pc={pc} />
       </div>
-      {desc && <p style={{ fontSize: 9, color: "var(--ink-3)", marginTop: 6, lineHeight: 1.5 }}>{desc}</p>}
+      {desc && <p style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 6, lineHeight: 1.5 }}>{desc}</p>}
     </div>
   );
 }
@@ -114,8 +114,8 @@ function VoiceCommandList() {
           <div key={c.intent} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: 12 }}>
             <span style={{ width: 27, height: 27, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--pc)", background: "var(--pc-tint)" }}>{c.icon}</span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--ink)" }}>{c.label}</span>
-              <span style={{ display: "block", fontSize: 10.5, color: "var(--ink-2)" }}>&ldquo;{c.example}&rdquo;</span>
+              <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{c.label}</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>&ldquo;{c.example}&rdquo;</span>
             </span>
           </div>
         ))}
@@ -1406,18 +1406,18 @@ export default function BeautyOS() {
               aria-expanded={s.done?undefined:open}
               disabled={s.done}
               style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"8px 11px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
-              <span style={{width:18,height:18,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,fontWeight:700,background:s.done?"var(--success)":"transparent",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${isNext?pc:"var(--line-2)"}`}}>{s.done?"✓":""}</span>
+              <span style={{width:18,height:18,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11.5,fontWeight:700,background:s.done?"var(--success)":"transparent",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${isNext?pc:"var(--line-2)"}`}}>{s.done?"✓":""}</span>
               <span style={{flex:1,minWidth:0,fontSize:11.5,fontWeight:isNext?700:500,color:s.done?"var(--ink-2)":"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
               {s.done
-                ?<span style={{fontSize:9.5,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
+                ?<span style={{fontSize:11.5,color:"var(--success)",fontWeight:700,flexShrink:0}}>✓ בוצע</span>
                 :<span aria-hidden style={{fontSize:13,color:isNext?pc:"var(--ink-3)",flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>}
             </button>
 
             {/* Expanded body — the hint and the action, revealed on request. */}
             {open&&(
               <div style={{padding:"0 11px 10px 11px",display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}>
-                <p style={{flex:1,minWidth:110,fontSize:10,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
-                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:18,padding:"6px 14px",fontSize:10.5,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
+                <p style={{flex:1,minWidth:110,fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
+                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:18,padding:"6px 14px",fontSize:12,fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
               </div>
             )}
           </div>
@@ -1436,8 +1436,8 @@ export default function BeautyOS() {
     return(
  <div key={g.type}>
  <div style={{padding:"9px 14px 5px",background:"var(--surface-2)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:6,position:"sticky",top:0}}>
- <span style={{fontSize:9.5,fontWeight:700,color:"var(--ink-2)",letterSpacing:"0.03em"}}>{g.label}</span>
- <span style={{fontSize:9,color:"var(--ink-3)"}}>{rows.length}</span>
+ <span style={{fontSize:11.5,fontWeight:700,color:"var(--ink-2)",letterSpacing:"0.03em"}}>{g.label}</span>
+ <span style={{fontSize:11.5,color:"var(--ink-3)"}}>{rows.length}</span>
  </div>
         {rows.map((r,i)=>(
  <div key={g.type+i} onClick={()=>{ openSearchResult(r); if(onPick) onPick(); }} className="client-row"
@@ -1445,7 +1445,7 @@ export default function BeautyOS() {
  <span style={{width:26,height:26,borderRadius:8,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"var(--pc)",background:"var(--pc-tint)"}}>{g.icon}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.label}</p>
- <p style={{fontSize:9,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.sub}</p>
  </div>
  </div>
         ))}
@@ -5280,7 +5280,7 @@ export default function BeautyOS() {
                     {helpState==="sending"?"שולחת...":helpState==="failed"?"נסי לשלוח שוב":"שליחה"}
                   </button>
                 </div>
-                <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:10,lineHeight:1.5,textAlign:"center"}}>
+                <p style={{fontSize:12,color:"var(--ink-3)",marginTop:10,lineHeight:1.5,textAlign:"center"}}>
                   לא נשלחים שמות לקוחות, טלפונים או פרטי טיפול. רק מה שכתבת כאן.
                 </p>
               </>
@@ -5388,7 +5388,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.6,textAlign:"center",padding:"8px 0"}}>לא זיהיתי פעולה נתמכת. כרגע נתמכת קביעת תור — נסי לומר "קבעי תור ל...".</p>
                 )}
                 {voiceIntent.clarification&&<p style={{fontSize:11,color:"var(--warning)",marginTop:10}}>ℹ️ {voiceIntent.clarification}</p>}
- <p style={{fontSize:10,color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>שלב 2 — הצגת ההבנה בלבד. יצירת התור בפועל תיווסף בשלב הבא.</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>שלב 2 — הצגת ההבנה בלבד. יצירת התור בפועל תיווסף בשלב הבא.</p>
  <div style={{display:"flex",gap:8,marginTop:14}}>
  <button onClick={startVoice} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>🎙️ נסי שוב</button>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"10px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>סגירה</button>
@@ -5407,28 +5407,28 @@ export default function BeautyOS() {
 
                 {/* client */}
  <div style={{marginBottom:10}}>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>לקוחה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>לקוחה</p>
  <input value={voiceBooking.clientName} onChange={e=>setVoiceBooking({...voiceBooking,clientName:e.target.value})} placeholder="שם הלקוחה" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"9px 11px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/>
                   {voiceBooking.clientName.trim()&&(isNew
-                    ? <p style={{fontSize:10,color:"var(--warning)",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceBooking.clientName.trim()}" תיווצר עם האישור</p>
-                    : <p style={{fontSize:10,color:"var(--success)",marginTop:4}}>✓ לקוחה קיימת</p>)}
+                    ? <p style={{fontSize:12,color:"var(--warning)",marginTop:4}}>✦ לקוחה חדשה בשם "{voiceBooking.clientName.trim()}" תיווצר עם האישור</p>
+                    : <p style={{fontSize:12,color:"var(--success)",marginTop:4}}>✓ לקוחה קיימת</p>)}
  </div>
 
                 {/* service picker */}
  <div style={{marginBottom:10}}>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:4}}>שירות {voiceBooking.service?"":"— בחרי:"}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:4}}>שירות {voiceBooking.service?"":"— בחרי:"}</p>
  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {activeServices.map(s=>{
                       const sel=voiceBooking.service===s.name;
-                      return <button key={s.id||s.name} onClick={()=>setVoiceBooking({...voiceBooking,service:s.name})} style={{padding:"6px 11px",borderRadius:16,fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid var(--line)",background:sel?pcTint:"var(--surface)",color:sel?pc:"var(--ink-2)"}}>{s.name}</button>;
+                      return <button key={s.id||s.name} onClick={()=>setVoiceBooking({...voiceBooking,service:s.name})} style={{padding:"6px 11px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`2px solid ${pc}`:"1px solid var(--line)",background:sel?pcTint:"var(--surface)",color:sel?pc:"var(--ink-2)"}}>{s.name}</button>;
                     })}
  </div>
  </div>
 
                 {/* date + time */}
  <div style={{display:"flex",gap:8,marginBottom:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תאריך</p><input type="date" value={voiceBooking.date} onChange={e=>setVoiceBooking({...voiceBooking,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>שעה</p><input type="time" value={voiceBooking.time} onChange={e=>setVoiceBooking({...voiceBooking,time:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תאריך</p><input type="date" value={voiceBooking.date} onChange={e=>setVoiceBooking({...voiceBooking,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שעה</p><input type="time" value={voiceBooking.time} onChange={e=>setVoiceBooking({...voiceBooking,time:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
  </div>
                 {/* The "this will be saved on the round hour" notice that used
                     to live here is gone, along with the rounding it was warning
@@ -5457,7 +5457,7 @@ export default function BeautyOS() {
  <span className="serif" style={{fontSize:16,fontWeight:600,color:pc,width:52,flexShrink:0}}>{fmtTime(it.startMinute ?? it.hour * 60)}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{it.name}</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)"}}>{it.service}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{it.service}</p>
  </div>
  </div>
                     ))}
@@ -5619,8 +5619,8 @@ export default function BeautyOS() {
  <img className="hdr-logo" src={LOGO_COMPACT} alt="BloomOS" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
-          {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--surface)",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
-          {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:9,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
+          {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--surface)",fontSize:11.5,fontWeight:700,padding:"3px 8px",borderRadius:20,cursor:"pointer",boxShadow:`0 4px 10px ${pcShadow}`}}>{newLeadsCount}</span>}
+          {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:11.5,fontWeight:700,padding:"3px 8px",borderRadius:20}}>{tomorrowCancelled}</span>}
  </div>
  <div className="header-search" style={{position:"relative",flex:1,maxWidth:280,minWidth:80}}>
  <span style={{position:"absolute",top:"50%",right:13,transform:"translateY(-50%)",fontSize:12,color:"var(--ink-3)",pointerEvents:"none",zIndex:1}}>⌕</span>
@@ -5689,7 +5689,7 @@ export default function BeautyOS() {
  <button key={item.id} onClick={()=>{setActiveTab(item.id);setShowMobileSidebar(false);}} className={`nav-item${activeTab===item.id?" active":""}`}>
  <span className="nav-ico">{navIcon(item.id)}</span>
  <span style={{flex:1}}>{item.label}</span>
-              {item.id==="leads"&&newLeadsCount>0&&<span style={{background:pcGrad,color:"var(--surface)",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20}}>{newLeadsCount}</span>}
+              {item.id==="leads"&&newLeadsCount>0&&<span style={{background:pcGrad,color:"var(--surface)",fontSize:11.5,fontWeight:700,padding:"2px 7px",borderRadius:20}}>{newLeadsCount}</span>}
  </button>
           ))}
  <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);setShowMobileSidebar(false);}} className="nav-item" style={{marginTop:8}}>
@@ -5729,8 +5729,8 @@ export default function BeautyOS() {
                       one display site the minutes migration missed; found while
                       auditing type sizes here. */}
  <p style={{fontSize:12,color:"var(--ink-2)"}}>{fmtApptTime(a)} · {a.service}</p>
-                  {a.confirmation_status==="confirmed"&&<span style={{fontSize:10.5,color:"var(--success)",fontWeight:700}}>אישרה</span>}
-                  {a.confirmation_status==="cancelled"&&<span style={{fontSize:10.5,color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
+                  {a.confirmation_status==="confirmed"&&<span style={{fontSize:12,color:"var(--success)",fontWeight:700}}>אישרה</span>}
+                  {a.confirmation_status==="cancelled"&&<span style={{fontSize:12,color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
  <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3,display:"block"}}>גבי</button>
  </div>
               ))}
@@ -5757,7 +5757,7 @@ export default function BeautyOS() {
                     {client?.phone&&!a.confirmation_sent&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:"3px 8px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
-                    {a.confirmation_sent&&<span style={{fontSize:10.5,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
+                    {a.confirmation_sent&&<span style={{fontSize:12,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
  </div>
                 );
               })}
@@ -5770,7 +5770,7 @@ export default function BeautyOS() {
               {leadsWithReminders.map(l=>(
  <div key={l.id} onClick={()=>{setSelectedLead(l);setActiveTab("leads");setShowMobileSidebar(false);}} style={{background:"#FFF3E0",borderRadius:10,padding:"5px 9px",marginBottom:3,cursor:"pointer"}}>
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{l.name}</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)"}}>{l.reminder_date}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{l.reminder_date}</p>
  </div>
               ))}
  </div>
@@ -5962,8 +5962,8 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
  <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>{it.what}</p>
- <span style={{fontSize:10.5,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
- <span style={{fontSize:10.5,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
+ <span style={{fontSize:12,fontWeight:700,color:"var(--ink-3)",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:20,padding:"1px 7px"}}>{it.source}</span>
+ <span style={{fontSize:12,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.15)",borderRadius:20,padding:"1px 7px"}}>ממתין</span>
  </div>
  <p style={{fontSize:11,color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
  <p style={{fontSize:12,color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
@@ -6011,7 +6011,7 @@ export default function BeautyOS() {
               const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
               return(
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>סקירה עסקית</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>סקירה עסקית</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:18}}>תובנות</h2>
 
                 {/* STAT WIDGETS — full size */}
@@ -6028,9 +6028,9 @@ export default function BeautyOS() {
  <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"var(--success)":"var(--danger)",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
                         )}
  </div>
- <p style={{position:"relative",fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
+ <p style={{position:"relative",fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
  <p className="serif" style={{position:"relative",fontSize:38,fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
-                      {s.sub&&<p style={{position:"relative",fontSize:10.5,color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
+                      {s.sub&&<p style={{position:"relative",fontSize:12,color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
  </motion.div>
                     );
                   })}
@@ -6042,12 +6042,12 @@ export default function BeautyOS() {
  <div aria-hidden style={{position:"absolute",top:-70,left:-40,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle, var(--pc-soft), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:14,marginBottom:22,flexWrap:"wrap"}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:5}}>סקירת הכנסות</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:5}}>סקירת הכנסות</p>
  <h3 className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>6 החודשים האחרונים</h3>
  </div>
  <div style={{textAlign:"left"}}>
  <p className="serif" style={{fontSize:26,fontWeight:600,color:pc,lineHeight:1}}>₪{monthlyData.reduce((s,m)=>s+m.revenue,0).toLocaleString()}</p>
- <p style={{fontSize:10,color:"var(--ink-3)",marginTop:3}}>סה״כ בתקופה</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:3}}>סה״כ בתקופה</p>
  </div>
  </div>
  <div style={{position:"relative",display:"flex",alignItems:"flex-end",gap:12,height:168,paddingBottom:4,borderBottom:"1px solid var(--line)"}}>
@@ -6056,7 +6056,7 @@ export default function BeautyOS() {
                       const isCurrent=i===monthlyData.length-1;
                       return(
  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",gap:7,height:"100%"}}>
- <span style={{fontSize:9.5,fontWeight:700,color:isCurrent?pc:"var(--ink-3)"}}>{m.revenue>0?`₪${(m.revenue/1000).toFixed(m.revenue>=10000?0:1)}k`:""}</span>
+ <span style={{fontSize:11.5,fontWeight:700,color:isCurrent?pc:"var(--ink-3)"}}>{m.revenue>0?`₪${(m.revenue/1000).toFixed(m.revenue>=10000?0:1)}k`:""}</span>
  <motion.div initial={{height:0}} animate={{height:Math.max(h,4)}} transition={{duration:0.6,delay:0.15+0.06*i,ease:[0.2,0.7,0.3,1]}}
    title={`${m.month}: ₪${m.revenue.toLocaleString()}`}
    style={{width:"100%",maxWidth:44,borderRadius:"12px 12px 5px 5px",background:isCurrent?`linear-gradient(180deg,${pc2} 0%,${pcDeep} 100%)`:`linear-gradient(180deg,${lighten(pc,0.62)} 0%,${lighten(pc,0.4)} 100%)`,boxShadow:isCurrent?`0 8px 18px ${pcShadow}`:"none",cursor:"default"}}/>
@@ -6066,7 +6066,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",gap:12,marginTop:8}}>
                     {monthlyData.map((m,i)=>{const isCurrent=i===monthlyData.length-1;return(
- <span key={i} style={{flex:1,textAlign:"center",fontSize:10,color:isCurrent?"var(--ink)":"var(--ink-3)",fontWeight:isCurrent?700:500}}>{m.month}</span>
+ <span key={i} style={{flex:1,textAlign:"center",fontSize:12,color:isCurrent?"var(--ink)":"var(--ink-3)",fontWeight:isCurrent?700:500}}>{m.month}</span>
                     );})}
  </div>
  </motion.div>
@@ -6082,7 +6082,7 @@ export default function BeautyOS() {
  <div style={{textAlign:"center",padding:"22px 14px"}}>
  <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"rgba(224,91,111,0.10)"}}>🎂</div>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-2)"}}>אין ימי הולדת קרובים</p>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:3}}>ב-30 הימים הקרובים</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:3}}>ב-30 הימים הקרובים</p>
  </div>
                       ):upcomingBirthdays.slice(0,20).map((c)=>{
                         const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);
@@ -6091,7 +6091,7 @@ export default function BeautyOS() {
  <div className="serif" style={{width:44,height:44,borderRadius:13,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:700,color:"var(--surface)",background:pcGrad,boxShadow:`0 5px 12px ${pcShadow}`}}>{b.getDate()}</div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
- <p style={{fontSize:10,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
  </div>
                           {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>}
  </div>
@@ -6153,10 +6153,10 @@ export default function BeautyOS() {
                       return(
  <div key={i} onClick={()=>{setCalDay(d);setCalView("day");}} title={`יום ${DAYS_HE[d.getDay()]}`}
                           style={{padding:"7px 2px",textAlign:"center",cursor:"pointer",borderRight:i<6?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":undefined,boxShadow:isToday?`inset 0 -2px 0 ${pc}`:undefined}}>
- <p style={{fontSize:9.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:isToday?700:600}}>{DAYS_HE[d.getDay()]}</p>
+ <p style={{fontSize:11.5,color:isToday?pcDeep:"var(--ink-3)",fontWeight:isToday?700:600}}>{DAYS_HE[d.getDay()]}</p>
  <p className="serif" style={{fontSize:15,fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.25}}>{d.getDate()}</p>
-                          {isClosed&&<p style={{fontSize:7,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
-                          {hasCancel&&<p style={{fontSize:7,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
+                          {isClosed&&<p style={{fontSize:11,color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
+                          {hasCancel&&<p style={{fontSize:11,color:"var(--danger)",fontWeight:600}}>ביטול</p>}
                           {/* Booking without hunting for empty space, and the
                               only booking affordance on a phone. */}
  <button aria-label={`תור חדש ליום ${DAYS_HE[d.getDay()]}`} title="תור חדש"
@@ -6178,7 +6178,7 @@ export default function BeautyOS() {
                         const m=weekAxis.lo+r*30;
                         if(m%60!==0) return null;
                         return(
- <div key={r} style={{position:"absolute",top:r*WK_ROW_H-1,insetInlineStart:0,insetInlineEnd:2,textAlign:"center",fontSize:8.5,color:"var(--ink-3)",fontWeight:600}}>{fmtTime(m)}</div>
+ <div key={r} style={{position:"absolute",top:r*WK_ROW_H-1,insetInlineStart:0,insetInlineEnd:2,textAlign:"center",fontSize:11,color:"var(--ink-3)",fontWeight:600}}>{fmtTime(m)}</div>
                         );
                       })}
  </div>
@@ -6220,10 +6220,10 @@ export default function BeautyOS() {
  <div key={appt.id} className="appt-card" title={`${appt.name} · ${appt.service} · ${fmtTime(s)}–${fmtTime(e)}`}
                                 onClick={ev=>{ev.stopPropagation();handleApptClick(appt);}}
                                 style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:8,padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"0 2px 6px rgba(43,34,51,0.16)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:9.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
+ <p style={{fontSize:11.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
                                 {!compact&&(<>
- <p style={{fontSize:8,color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.service}</p>
- <p style={{fontSize:7.5,color:"rgba(255,255,255,0.85)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>עד {fmtTime(e)}</p>
+ <p style={{fontSize:11,color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.service}</p>
+ <p style={{fontSize:11,color:"rgba(255,255,255,0.85)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>עד {fmtTime(e)}</p>
                                 </>)}
  </div>
                             );
@@ -6350,9 +6350,9 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
  <p style={{fontWeight:700,fontSize:13.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{client.name}</p>
-                        {client.status&&<span className="pill" style={{fontSize:10.5,background:statusColor,color:"var(--surface)",padding:"3px 8px"}}>{STATUS_LABELS[client.status]}</span>}
-                        {days>90&&<span className="pill" style={{fontSize:10.5,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
-                        {total>0&&<span className="pill" style={{fontSize:10.5,background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
+                        {client.status&&<span className="pill" style={{fontSize:12,background:statusColor,color:"var(--surface)",padding:"3px 8px"}}>{STATUS_LABELS[client.status]}</span>}
+                        {days>90&&<span className="pill" style={{fontSize:12,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
+                        {total>0&&<span className="pill" style={{fontSize:12,background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
  <p style={{fontSize:12.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
  </div>
@@ -6458,8 +6458,8 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2,flexWrap:"wrap"}}>
  <p style={{fontWeight:700,fontSize:12.5,color:"var(--ink)",letterSpacing:"-0.01em"}}>{lead.name}</p>
- <span className="pill" style={{fontSize:10.5,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
-                        {hasReminder&&<span className="pill" style={{fontSize:10.5,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>◴ תזכורת</span>}
+ <span className="pill" style={{fontSize:12,background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
+                        {hasReminder&&<span className="pill" style={{fontSize:12,background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>◴ תזכורת</span>}
  </div>
  <p style={{fontSize:12.5,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
  </div>
@@ -6521,7 +6521,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
  <p style={{fontSize:12.5,color:"var(--ink-3)"}}>{a.service} · ₪{a.price}</p>
  </div>
-                      {paid?<span className="pill" style={{fontSize:10.5,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>✓ שולם</span>
+                      {paid?<span className="pill" style={{fontSize:12,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>✓ שולם</span>
                         :<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
                           {client?.phone&&PAYMENT_METHODS.slice(1).map(pm=>(
  <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer" title={pm.key}
@@ -6627,7 +6627,7 @@ export default function BeautyOS() {
 
             return(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>מרכז הודעות</h2>
  <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
 
@@ -6651,26 +6651,26 @@ export default function BeautyOS() {
  <span style={{width:34,height:34,borderRadius:11,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:g.color,background:"rgba(255,255,255,0.7)"}}>{g.icon}</span>
  <div style={{minWidth:0}}>
  <p style={{fontSize:11.5,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.title}</p>
- <p style={{fontSize:9,color:g.color,fontWeight:700}}>{withPhone.length} נמענים</p>
+ <p style={{fontSize:11.5,color:g.color,fontWeight:700}}>{withPhone.length} נמענים</p>
  </div>
  </div>
                         {withPhone.length>0&&(
- <button onClick={()=>waSendGroup(g.targets)} className="wa-btn" style={{padding:"7px 12px",fontSize:10,flexShrink:0}}>✆ שליחה מרוכזת</button>
+ <button onClick={()=>waSendGroup(g.targets)} className="wa-btn" style={{padding:"7px 12px",fontSize:12,flexShrink:0}}>✆ שליחה מרוכזת</button>
                         )}
  </div>
  <div style={{padding:"8px 12px",maxHeight:200,overflowY:"auto"}}>
-                        {g.targets.length===0?<p style={{fontSize:10,color:"var(--ink-3)",padding:"8px 2px"}}>{g.empty}</p>
+                        {g.targets.length===0?<p style={{fontSize:12,color:"var(--ink-3)",padding:"8px 2px"}}>{g.empty}</p>
                           :g.targets.map((t,i)=>(
  <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 4px",borderBottom:i<g.targets.length-1?"1px solid var(--line)":"none"}}>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:10.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+ <p style={{fontSize:12,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {waSentToday[t.clientId]&&<span style={{color:"var(--success)"}}>✓ </span>}{t.name}
  </p>
- <p style={{fontSize:8.5,color:"var(--ink-3)"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
+ <p style={{fontSize:11,color:"var(--ink-3)"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
  </div>
                               {t.phone?(
- <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"4px 10px",fontSize:9}}>שלחי</button>
-                              ):<span style={{fontSize:8,color:"var(--ink-3)"}}>—</span>}
+ <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"4px 10px",fontSize:11.5}}>שלחי</button>
+                              ):<span style={{fontSize:11,color:"var(--ink-3)"}}>—</span>}
  </div>
                           ))}
  </div>
@@ -6681,17 +6681,17 @@ export default function BeautyOS() {
 
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>שליחת הודעה לקבוצה</h3>
- <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
  <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
                   {[{k:"all",l:"כל המטופלות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
- <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:20,background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--surface)":"var(--ink-2)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>{a.l}</button>
+ <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:20,background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--surface)":"var(--ink-2)",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?`0 5px 12px ${pcShadow}`:"var(--shadow-xs)"}}>{a.l}</button>
                   ))}
  </div>
  <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
                   placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים "
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:14,padding:"11px 13px",fontSize:11.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
+ <p style={{fontSize:12,color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
  <button onClick={()=>{
                     if(!waBroadcastMsg.trim()){toast("נא לכתוב הודעה","error");return;}
                     waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:`שלום ${c.name}! ${waBroadcastMsg}`})));
@@ -6711,7 +6711,7 @@ export default function BeautyOS() {
                       {clients.filter(c=>c.name?.includes(waFreeSearch)||c.phone?.includes(waFreeSearch)).slice(0,6).map(c=>(
  <div key={c.id} onClick={()=>{setWaFreeClient(c);setWaFreeSearch(c.name);}} className="client-row" style={{padding:"10px 13px",borderBottom:"1px solid var(--line)",cursor:"pointer"}}>
  <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
- <p style={{fontSize:9,color:"var(--ink-3)"}}>{c.phone||"אין טלפון"}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{c.phone||"אין טלפון"}</p>
  </div>
                       ))}
  </div>
@@ -6735,7 +6735,7 @@ export default function BeautyOS() {
  <div className="glass-card" style={{padding:"16px 18px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
  <div>
  <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>יומן הודעות</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:2}}>100 ההודעות האחרונות שנשלחו מהמערכת בשמך.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:2}}>100 ההודעות האחרונות שנשלחו מהמערכת בשמך.</p>
  </div>
  <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"var(--surface)",fontSize:11}}>{waLogLoading?"טוען...":"רענני"}</button>
  </div>
@@ -6762,7 +6762,7 @@ export default function BeautyOS() {
  <thead>
  <tr style={{background:"var(--pc-tint)",textAlign:"right"}}>
                         {["שם","טלפון","סוג","סטטוס","תוכן","תאריך"].map(h=>(
- <th key={h} style={{padding:"11px 13px",fontSize:9.5,color:"var(--ink-3)",fontWeight:600}}>{h}</th>
+ <th key={h} style={{padding:"11px 13px",fontSize:11.5,color:"var(--ink-3)",fontWeight:600}}>{h}</th>
                         ))}
  </tr>
  </thead>
@@ -6771,10 +6771,10 @@ export default function BeautyOS() {
  <tr key={m.id||i} style={{borderTop:"1px solid var(--line)",background:i%2===0?"var(--surface)":"var(--surface-2)"}}>
  <td style={{padding:"10px 13px",fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{m.recipient_name||"—"}</td>
  <td style={{padding:"10px 13px",fontSize:11,color:"var(--ink-2)",whiteSpace:"nowrap"}}>{m.recipient_phone}</td>
- <td style={{padding:"10px 13px",fontSize:10}}><span className="pill" style={{background:"var(--pc-tint)",color:pc,padding:"3px 9px",fontWeight:600}}>{WA_TYPE_LABELS[m.message_type]||m.message_type}</span></td>
- <td style={{padding:"10px 13px",fontSize:10,fontWeight:700,whiteSpace:"nowrap",color:m.status==="sent"?"var(--success)":"var(--danger)"}}>{m.status==="sent"?"✓ נשלח":"✕ נכשל"}</td>
+ <td style={{padding:"10px 13px",fontSize:12}}><span className="pill" style={{background:"var(--pc-tint)",color:pc,padding:"3px 9px",fontWeight:600}}>{WA_TYPE_LABELS[m.message_type]||m.message_type}</span></td>
+ <td style={{padding:"10px 13px",fontSize:12,fontWeight:700,whiteSpace:"nowrap",color:m.status==="sent"?"var(--success)":"var(--danger)"}}>{m.status==="sent"?"✓ נשלח":"✕ נכשל"}</td>
  <td style={{padding:"10px 13px",fontSize:11,color:"var(--ink-2)",maxWidth:300}}>{m.message_body}</td>
- <td style={{padding:"10px 13px",fontSize:9.5,color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?new Date(m.created_at).toLocaleString("he-IL"):""}</td>
+ <td style={{padding:"10px 13px",fontSize:11.5,color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?new Date(m.created_at).toLocaleString("he-IL"):""}</td>
  </tr>
                       ))}
  </tbody>
@@ -6790,7 +6790,7 @@ export default function BeautyOS() {
           {/* CAMPAIGNS */}
           {activeTab==="campaigns"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>שיווק וצמיחה</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>שיווק וצמיחה</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:16}}>שיווק</h2>
 
  <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:15,padding:4,boxShadow:"var(--shadow-xs)"}}>
@@ -6804,11 +6804,11 @@ export default function BeautyOS() {
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קמפיינים בפייסבוק ואינסטגרם</h3>
  <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
  {fbPage?(
- <span title={fbPage.page_name} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:10,fontWeight:600,color:"var(--success)",background:"rgba(70,179,123,0.12)",borderRadius:20,padding:"6px 12px",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>מחובר ✓ · {fbPage.page_name}</span>
+ <span title={fbPage.page_name} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontWeight:600,color:"var(--success)",background:"rgba(70,179,123,0.12)",borderRadius:20,padding:"6px 12px",maxWidth:180,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>מחובר ✓ · {fbPage.page_name}</span>
  ):(
  <button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"7px 14px",background:"#1877F2",color:"#fff",fontSize:11}}>התחבר לפייסבוק</button>
  )}
- <select value={fbDatePreset} onChange={e=>{setFbDatePreset(e.target.value);loadFbCampaigns(e.target.value);}} style={{border:"1px solid var(--line)",borderRadius:20,padding:"6px 10px",fontSize:10,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:"var(--ink-2)"}}>
+ <select value={fbDatePreset} onChange={e=>{setFbDatePreset(e.target.value);loadFbCampaigns(e.target.value);}} style={{border:"1px solid var(--line)",borderRadius:20,padding:"6px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:"var(--ink-2)"}}>
  <option value="today">היום</option>
  <option value="last_7d">7 ימים</option>
  <option value="last_30d">30 ימים</option>
@@ -6825,26 +6825,26 @@ export default function BeautyOS() {
  {fbError&&(
  <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:12,padding:"11px 14px"}}>
  <p style={{fontSize:11,color:pc,fontWeight:600,marginBottom:3}}>לא ניתן לטעון כרגע</p>
- <p style={{fontSize:10,color:"var(--ink-2)"}}>{fbError}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{fbError}</p>
  </div>
  )}
 
  {fbTotals&&fbCampaigns&&fbCampaigns.length>0&&(
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12,marginBottom:14}}>
  <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סה״כ הוצאה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סה״כ הוצאה</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:pc}}>₪{Math.round(fbTotals.spend).toLocaleString()}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>לידים</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>לידים</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)"}}>{fbTotals.leads}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לליד</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לליד</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:pc}}>{fbTotals.cpl?`₪${fbTotals.cpl}`:"—"}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>חשיפות</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>חשיפות</p>
  <p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)"}}>{fbTotals.impressions.toLocaleString()}</p>
  </div>
  </div>
@@ -6855,20 +6855,20 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:140}}>
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
- <span className="pill" style={{fontSize:8,padding:"2px 8px",background:c.status==="ACTIVE"?"rgba(70,179,123,0.14)":"var(--line)",color:c.status==="ACTIVE"?"var(--success)":"var(--ink-3)"}}>{c.status==="ACTIVE"?"פעיל":"מושהה"}</span>
+ <span className="pill" style={{fontSize:11,padding:"2px 8px",background:c.status==="ACTIVE"?"rgba(70,179,123,0.14)":"var(--line)",color:c.status==="ACTIVE"?"var(--success)":"var(--ink-3)"}}>{c.status==="ACTIVE"?"פעיל":"מושהה"}</span>
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:2}}>{c.impressions.toLocaleString()} חשיפות · {c.clicks} קליקים</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:2}}>{c.impressions.toLocaleString()} חשיפות · {c.clicks} קליקים</p>
  </div>
  <div style={{textAlign:"center",minWidth:60}}>
- <p style={{fontSize:8,color:"var(--ink-3)"}}>הוצאה</p>
+ <p style={{fontSize:11,color:"var(--ink-3)"}}>הוצאה</p>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>₪{Math.round(c.spend).toLocaleString()}</p>
  </div>
  <div style={{textAlign:"center",minWidth:45}}>
- <p style={{fontSize:8,color:"var(--ink-3)"}}>לידים</p>
+ <p style={{fontSize:11,color:"var(--ink-3)"}}>לידים</p>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>{c.leads}</p>
  </div>
  <div style={{textAlign:"center",minWidth:55}}>
- <p style={{fontSize:8,color:"var(--ink-3)"}}>לליד</p>
+ <p style={{fontSize:11,color:"var(--ink-3)"}}>לליד</p>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:pc}}>{c.cpl?`₪${c.cpl}`:"—"}</p>
  </div>
  </div>
@@ -6888,7 +6888,7 @@ export default function BeautyOS() {
               ].map((s,i)=>(
  <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:18,padding:"16px 16px",border:`1px solid var(--line)`}}>
  <span style={{display:"inline-flex",width:30,height:30,borderRadius:9,alignItems:"center",justifyContent:"center",fontSize:14,color:pc,background:"var(--pc-tint)",marginBottom:8}}>{s.icon}</span>
- <p style={{fontSize:9.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>{s.label}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>{s.label}</p>
  <p className="serif" style={{fontSize:21,fontWeight:600,color:pc}}>{s.value}</p>
  </div>
               ))}
@@ -6900,7 +6900,7 @@ export default function BeautyOS() {
                 Every client appears exactly once, including under לא ידוע. */}
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>לקוחות לפי מקור</h3>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:14,lineHeight:1.6}}>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:14,lineHeight:1.6}}>
                 לקוחות רשומות, לפי מאיפה הגיעו. &quot;לא ידוע&quot; הן לקוחות שנוספו לפני שהמעקב היה קיים או שנוספו ידנית — לא ניחוש.
  </p>
               {clients.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין לקוחות עדיין</p>
@@ -6912,8 +6912,8 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:11.5,fontWeight:700,color:unknown?"var(--ink-3)":"var(--ink)"}}>{s.label}</p>
  <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
- <span style={{fontSize:8.5,color:"var(--ink-3)"}}>{s.clients} לקוחות</span>
- <span style={{fontSize:8.5,color:pc,fontWeight:700}}>{pct}%</span>
+ <span style={{fontSize:11,color:"var(--ink-3)"}}>{s.clients} לקוחות</span>
+ <span style={{fontSize:11,color:pc,fontWeight:700}}>{pct}%</span>
  </div>
  <div style={{background:"var(--line)",borderRadius:4,height:5,marginTop:5,overflow:"hidden"}}>
  <div style={{background:unknown?"var(--line-2)":pcGrad,borderRadius:4,height:5,width:`${pct}%`}}/>
@@ -6934,9 +6934,9 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:11.5,fontWeight:700,color:"var(--ink)"}}>{s.source}</p>
  <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
- <span style={{fontSize:8.5,color:"var(--ink-3)"}}>{s.total} לידים</span>
- <span style={{fontSize:8.5,color:"var(--success)"}}>{s.converted} הומרו</span>
- <span style={{fontSize:8.5,color:pc,fontWeight:700}}>{s.rate}%</span>
+ <span style={{fontSize:11,color:"var(--ink-3)"}}>{s.total} לידים</span>
+ <span style={{fontSize:11,color:"var(--success)"}}>{s.converted} הומרו</span>
+ <span style={{fontSize:11,color:pc,fontWeight:700}}>{s.rate}%</span>
  </div>
  <div style={{background:"var(--line)",borderRadius:4,height:5,marginTop:5,overflow:"hidden"}}>
  <div style={{background:pcGrad,borderRadius:4,height:5,width:`${s.rate}%`}}/>
@@ -7009,7 +7009,7 @@ export default function BeautyOS() {
  {postStrategy.keyPoints&&postStrategy.keyPoints.length>0&&(
  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
  {postStrategy.keyPoints.map((kp,i)=>(
- <span key={i} style={{fontSize:9.5,background:"rgba(255,255,255,0.7)",color:pc,padding:"3px 10px",borderRadius:20,fontWeight:500}}>{kp}</span>
+ <span key={i} style={{fontSize:11.5,background:"rgba(255,255,255,0.7)",color:pc,padding:"3px 10px",borderRadius:20,fontWeight:500}}>{kp}</span>
  ))}
  </div>
  )}
@@ -7022,7 +7022,7 @@ export default function BeautyOS() {
  <div style={{position:"relative"}}>
  <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
  {v.image.photographerName&&(
- <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:8,padding:"2px 7px",borderRadius:10}}>
+ <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:11,padding:"2px 7px",borderRadius:10}}>
  {/* Unsplash terms require the photographer name to link to their profile.
      This is the pre-save preview, so the field is the in-memory camelCase
      photographerUrl rather than the persisted image_credit_url column. */}
@@ -7035,9 +7035,9 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <span className="serif" style={{fontSize:22,fontWeight:600,color:pc}}>{i+1}</span>
- <span style={{fontSize:9,background:"var(--pc-tint)",color:pc,padding:"3px 10px",borderRadius:20,fontWeight:600}}>{({emotional:"רגשי",educational:"חינוכי",urgency:"דחיפות",social_proof:"המלצות",engaging_question:"שאלה מעוררת"})[v.variationType]||v.variationType}</span>
+ <span style={{fontSize:11.5,background:"var(--pc-tint)",color:pc,padding:"3px 10px",borderRadius:20,fontWeight:600}}>{({emotional:"רגשי",educational:"חינוכי",urgency:"דחיפות",social_proof:"המלצות",engaging_question:"שאלה מעוררת"})[v.variationType]||v.variationType}</span>
  </div>
- <button onClick={()=>copyPost(v)} className="primary-btn" style={{padding:"6px 14px",background:pcGrad,color:"var(--surface)",fontSize:10}}>העתיקי</button>
+ <button onClick={()=>copyPost(v)} className="primary-btn" style={{padding:"6px 14px",background:pcGrad,color:"var(--surface)",fontSize:12}}>העתיקי</button>
  </div>
  {v.title&&<p className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink)",marginBottom:6}}>{v.title}</p>}
  <p style={{fontSize:13,color:"var(--ink)",lineHeight:1.65,whiteSpace:"pre-wrap",marginBottom:10}}>{v.body}</p>
@@ -7051,7 +7051,7 @@ export default function BeautyOS() {
  <button onClick={()=>setDesignPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:pcGrad,color:"var(--surface)",border:"none",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🎨 עצבי כתמונה</button>
  {v.image&&v.image.url&&<button onClick={()=>downloadImage(v.image.url,v.variationNumber)} style={{flex:"1 1 auto",padding:"8px 12px",background:"var(--surface)",color:pc,border:"1px solid var(--line)",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הורדת תמונה</button>}
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
  </div>
  </div>
  ))}
@@ -7078,11 +7078,11 @@ export default function BeautyOS() {
  <div style={{flex:1,minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{g.name}</p>
- <span style={{fontSize:8.5,background:"var(--pc-tint)",color:pc,padding:"2px 8px",borderRadius:20,fontWeight:500}}>{g.category}</span>
+ <span style={{fontSize:11,background:"var(--pc-tint)",color:pc,padding:"2px 8px",borderRadius:20,fontWeight:500}}>{g.category}</span>
  </div>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>{g.reasoning}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>{g.reasoning}</p>
  </div>
- <a href={`https://www.facebook.com/search/groups/?q=${encodeURIComponent(g.name)}`} target="_blank" rel="noreferrer" className="wa-btn" style={{background:"#5580C4",padding:"5px 10px",fontSize:9,whiteSpace:"nowrap"}}>חפשי</a>
+ <a href={`https://www.facebook.com/search/groups/?q=${encodeURIComponent(g.name)}`} target="_blank" rel="noreferrer" className="wa-btn" style={{background:"#5580C4",padding:"5px 10px",fontSize:11.5,whiteSpace:"nowrap"}}>חפשי</a>
  </div>
  ))}
  </div>
@@ -7102,9 +7102,9 @@ export default function BeautyOS() {
  <div style={{background:"var(--pc-tint)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,borderBottom:"1px solid var(--line)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p className="serif" style={{fontSize:16,fontWeight:600,color:"var(--ink)"}}>{c.name||c.goal}</p>
- <p style={{fontSize:10,color:"var(--ink-2)",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
  </div>
- <button onClick={()=>deleteCampaign(c.id)} className="primary-btn" style={{padding:"5px 12px",background:"var(--surface)",color:"var(--danger)",border:"1px solid rgba(224,91,111,0.10)",fontSize:10}}>מחקי</button>
+ <button onClick={()=>deleteCampaign(c.id)} className="primary-btn" style={{padding:"5px 12px",background:"var(--surface)",color:"var(--danger)",border:"1px solid rgba(224,91,111,0.10)",fontSize:12}}>מחקי</button>
  </div>
  <div style={{padding:"14px 18px"}}>
  {c.ai_strategy&&<p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>{c.ai_strategy}</p>}
@@ -7116,7 +7116,7 @@ export default function BeautyOS() {
  <div style={{position:"relative",borderRadius:12,overflow:"hidden",marginBottom:8}}>
  <img alt={p.image_alt||p.title||""} src={p.image_thumb_url||p.image_url} style={{width:"100%",height:140,objectFit:"cover",objectPosition:"center",display:"block"}}/>
  {p.image_credit_name&&(
- <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:8,padding:"2px 7px",borderRadius:10}}>
+ <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:11,padding:"2px 7px",borderRadius:10}}>
  {/* Unsplash terms require the photographer name to link to their profile. */}
  צילום: {p.image_credit_url?<a href={p.image_credit_url} target="_blank" rel="noopener noreferrer" style={{color:"var(--surface)",textDecoration:"underline"}}>{p.image_credit_name}</a>:p.image_credit_name}
  </span>
@@ -7125,11 +7125,11 @@ export default function BeautyOS() {
  )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,gap:6}}>
  {p.title&&<p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{p.title}</p>}
- <button onClick={()=>copyPost({body:p.body,callToAction:p.call_to_action,hashtags:p.hashtags})} className="primary-btn" style={{padding:"4px 10px",background:pcGrad,color:"var(--surface)",fontSize:9,flexShrink:0}}>העתיקי</button>
+ <button onClick={()=>copyPost({body:p.body,callToAction:p.call_to_action,hashtags:p.hashtags})} className="primary-btn" style={{padding:"4px 10px",background:pcGrad,color:"var(--surface)",fontSize:11.5,flexShrink:0}}>העתיקי</button>
  </div>
  <p style={{fontSize:12,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>
  {p.call_to_action&&<p style={{fontSize:11.5,color:pc,fontWeight:600,marginTop:4}}>{p.call_to_action}</p>}
- {p.hashtags&&p.hashtags.length>0&&<p style={{fontSize:10,color:"var(--ink-2)",marginTop:4}}>{p.hashtags.join(" ")}</p>}
+ {p.hashtags&&p.hashtags.length>0&&<p style={{fontSize:12,color:"var(--ink-2)",marginTop:4}}>{p.hashtags.join(" ")}</p>}
  </div>
  ))}
  </div>
@@ -7176,7 +7176,7 @@ export default function BeautyOS() {
 
  {reelData&&!reelLoading&&(<div className="fade-in">
  <div style={{background:pcGrad,borderRadius:18,padding:"20px 22px",marginBottom:14,color:"var(--surface)",textAlign:"center"}}>
- <p style={{fontSize:10,opacity:0.85,fontWeight:600,marginBottom:4}}>כותרת לכריכה</p>
+ <p style={{fontSize:12,opacity:0.85,fontWeight:600,marginBottom:4}}>כותרת לכריכה</p>
  <p className="serif" style={{fontSize:24,fontWeight:700,marginBottom:8}}>{reelData.cover_title}</p>
  <p style={{fontSize:12,opacity:0.95}}>{reelData.hook}</p>
  </div>
@@ -7205,20 +7205,20 @@ export default function BeautyOS() {
  <div style={{position:"absolute",top:0,right:0,width:4,bottom:0,background:pcGrad}}/>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
  <span className="serif" style={{fontSize:20,fontWeight:700,color:pc}}>{sc.scene_number||i+1}</span>
- <span className="pill" style={{fontSize:9,background:"var(--pc-tint)",color:pcDeep,padding:"3px 10px"}}>סצנה{sc.seconds?` · ${sc.seconds} שניות`:""}</span>
+ <span className="pill" style={{fontSize:11.5,background:"var(--pc-tint)",color:pcDeep,padding:"3px 10px"}}>סצנה{sc.seconds?` · ${sc.seconds} שניות`:""}</span>
  </div>
- <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🗣️ מה אומרים</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🗣️ מה אומרים</p>
  <p style={{fontSize:13,color:"var(--ink)",lineHeight:1.6,marginBottom:8}}>{sc.spoken}</p>
- {sc.on_screen_text&&(<><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>📱 טקסט על המסך</p><p style={{fontSize:12,color:"var(--ink)",lineHeight:1.5,marginBottom:8}}>{sc.on_screen_text}</p></>)}
- {sc.filming&&(<><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎥 איך לצלם</p><p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>{sc.filming}</p></>)}
+ {sc.on_screen_text&&(<><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>📱 טקסט על המסך</p><p style={{fontSize:12,color:"var(--ink)",lineHeight:1.5,marginBottom:8}}>{sc.on_screen_text}</p></>)}
+ {sc.filming&&(<><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎥 איך לצלם</p><p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>{sc.filming}</p></>)}
  </div>
  ))}
 
- {reelData.call_to_action&&(<div style={{background:"var(--pc-tint)",borderRadius:14,padding:"14px 18px",marginBottom:10}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>📣 קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:13,color:pcDeep,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
+ {reelData.call_to_action&&(<div style={{background:"var(--pc-tint)",borderRadius:14,padding:"14px 18px",marginBottom:10}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>📣 קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:13,color:pcDeep,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
 
- {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--surface)",fontSize:9}}>העתיקי</button></div><p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
+ {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600}}>✍️ תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--surface)",fontSize:11.5}}>העתיקי</button></div><p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:11,color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
 
- {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
+ {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
 
  {/* The studio, inline, directly under the script that feeds it.
      It lived at /dashboard/reel-studio, which nothing in the app ever linked
@@ -7271,14 +7271,14 @@ export default function BeautyOS() {
             const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
             const Stat=({label,value,big,gold})=>(
  <div style={{flex:1,minWidth:120,background:gold?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${gold?pc:"var(--line)"}`,borderRadius:16,padding:"16px 14px",textAlign:"center"}}>
- <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:7,letterSpacing:"0.3px"}}>{label}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:7,letterSpacing:"0.3px"}}>{label}</p>
  <p className="serif" style={{fontSize:big?30:22,fontWeight:600,color:gold?pcDeep:"var(--ink)",lineHeight:1}}>{value}</p>
  </div>
             );
             return (
  <div style={{maxWidth:720,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{textAlign:"center",marginBottom:6}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>ניהול פיננסי</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>ניהול פיננסי</p>
  <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דוחות מס</h2>
  </div>
  <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-2)",marginBottom:16}}>סטטוס העסק: <b style={{color:pcDeep}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
@@ -7336,13 +7336,13 @@ export default function BeautyOS() {
  <Stat label="מס תשומות (על הוצאות)" value={nis(inputVat)}/>
  <Stat label={isRefund?"החזר מע\"מ":"מע\"מ סופי לתשלום"} value={nis(Math.abs(finalVat))} big gold/>
  </div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(VAT_RATE*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית — כלומר מגיע לך החזר מע\"מ מהרשויות.":"זהו הסכום לתשלום לרשויות בגין התקופה."}`}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(VAT_RATE*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית — כלומר מגיע לך החזר מע\"מ מהרשויות.":"זהו הסכום לתשלום לרשויות בגין התקופה."}`}</p>
  </>
                   )}
 
                   {/* LEGAL DISCLAIMER */}
  <div style={{marginTop:20,padding:"12px 14px",background:"rgba(242,184,75,0.12)",border:"1px solid rgba(242,184,75,0.35)",borderRadius:12}}>
- <p style={{fontSize:10.5,color:"var(--warning)",lineHeight:1.6,textAlign:"center"}}>⚠️ {TAX_DISCLAIMER}</p>
+ <p style={{fontSize:12,color:"var(--warning)",lineHeight:1.6,textAlign:"center"}}>⚠️ {TAX_DISCLAIMER}</p>
  </div>
  </div>
 
@@ -7350,20 +7350,20 @@ export default function BeautyOS() {
                 {status!=="exempt"&&(
  <div style={{marginTop:22}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>הוצאות העסק — {rangeLabel}</h3>
- <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:12}}>הוצאות (כולל מע"מ) משמשות לחישוב מס התשומות. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה.</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:12}}>הוצאות (כולל מע"מ) משמשות לחישוב מס התשומות. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה.</p>
 
                     {/* ADD FORM */}
  <div className="glass-card" style={{padding:"14px 16px",marginBottom:12}}>
  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
- <div style={{flex:"1 1 110px"}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>סכום (כולל מע"מ)</p><input type="number" value={newExpense.amount} onChange={e=>setNewExpense({...newExpense,amount:e.target.value})} placeholder="0" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:pcTint}}/></div>
- <div style={{flex:"1 1 130px"}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תאריך</p><input type="date" value={newExpense.expense_date} onChange={e=>setNewExpense({...newExpense,expense_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
- <div style={{flex:"2 1 160px"}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תיאור</p><input value={newExpense.description} onChange={e=>setNewExpense({...newExpense,description:e.target.value})} placeholder="למשל: חומרים מספק" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
+ <div style={{flex:"1 1 110px"}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>סכום (כולל מע"מ)</p><input type="number" value={newExpense.amount} onChange={e=>setNewExpense({...newExpense,amount:e.target.value})} placeholder="0" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:pcTint}}/></div>
+ <div style={{flex:"1 1 130px"}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תאריך</p><input type="date" value={newExpense.expense_date} onChange={e=>setNewExpense({...newExpense,expense_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",background:pcTint}}/></div>
+ <div style={{flex:"2 1 160px"}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תיאור</p><input value={newExpense.description} onChange={e=>setNewExpense({...newExpense,description:e.target.value})} placeholder="למשל: חומרים מספק" style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint}}/></div>
  </div>
  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
- <span style={{fontSize:9,color:"var(--ink-3)",fontWeight:600}}>קטגוריה:</span>
+ <span style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600}}>קטגוריה:</span>
                         {EXPENSE_CATEGORIES.map(cat=>{
                           const sel=newExpense.category===cat.k;
-                          return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 12px",borderRadius:16,fontSize:10.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{cat.l}</button>;
+                          return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 12px",borderRadius:16,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{cat.l}</button>;
                         })}
  <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"var(--surface)",padding:"8px 18px",fontSize:12}}>{isBusy("addExpense")?"מוסיף...":"✦ הוסף הוצאה"}</button>
  </div>
@@ -7377,8 +7377,8 @@ export default function BeautyOS() {
                         const catL=EXPENSE_CATEGORIES.find(c=>c.k===exp.category)?.l||"אחר";
                         return (
  <div key={exp.id} style={{display:"flex",alignItems:"center",gap:10,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:13,padding:"10px 13px",marginBottom:6,boxShadow:"var(--shadow-xs)"}}>
- <span style={{fontSize:10,color:"var(--ink-3)",width:74,flexShrink:0}}>{exp.expense_date}</span>
- <span className="pill" style={{fontSize:8,background:"var(--pc-tint)",color:pcDeep,padding:"2px 9px",flexShrink:0}}>{catL}</span>
+ <span style={{fontSize:12,color:"var(--ink-3)",width:74,flexShrink:0}}>{exp.expense_date}</span>
+ <span className="pill" style={{fontSize:11,background:"var(--pc-tint)",color:pcDeep,padding:"2px 9px",flexShrink:0}}>{catL}</span>
  <span style={{flex:1,minWidth:0,fontSize:11.5,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{exp.description||"—"}</span>
  <span className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)",flexShrink:0}}>{nis(Number(exp.amount)||0)}</span>
  <button onClick={()=>handleDeleteExpense(exp)} aria-label="מחיקת הוצאה" style={{background:"none",border:"none",color:"var(--danger)",fontSize:13,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>✕</button>
@@ -7400,7 +7400,7 @@ export default function BeautyOS() {
           {activeTab==="advisor"&&(
  <div style={{maxWidth:840,marginLeft:"auto",marginRight:"auto",display:"flex",flexDirection:"column",height:"100%"}}>
  <div style={{textAlign:"center",marginBottom:6}}>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>בינה מלאכותית</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>בינה מלאכותית</p>
  <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>יועץ עסקי AI</h2>
  </div>
  <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
@@ -7447,7 +7447,7 @@ export default function BeautyOS() {
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מרחב לקוחות</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מרחב לקוחות</p>
  <h2 className="serif" style={{fontSize:23,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מרחב הלקוחות</h2>
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים — הלקוחות שלך רואות הכל במקום אחד.</p>
  </div>
@@ -7475,14 +7475,14 @@ export default function BeautyOS() {
  {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
- <span className="pill" style={{fontSize:9.5,color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
- <span style={{fontSize:9,color:"var(--ink-3)"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
+ <span className="pill" style={{fontSize:11.5,color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
+ <span style={{fontSize:11.5,color:"var(--ink-3)"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
  </div>
  {p.title&&<p style={{fontSize:14.5,fontWeight:700,color:"var(--ink)",marginBottom:4}}>{p.title}</p>}
  {p.body&&<p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
  {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:pcGrad,color:"var(--surface)",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
  <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}>
- <button onClick={()=>deleteCommunityPost(p)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
+ <button onClick={()=>deleteCommunityPost(p)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
  </div>
  </div>
  </div>
@@ -7497,7 +7497,7 @@ export default function BeautyOS() {
             <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
                 <div>
-                  <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ספריית טיפולים</p>
+                  <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ספריית טיפולים</p>
                   <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פרוטוקולי טיפול</h2>
                   <p style={{fontSize:11.5,color:"var(--ink-2)",marginTop:2}}>ספריית הטיפולים שלך לפי מותג ובעיה.</p>
                 </div>
@@ -7517,11 +7517,11 @@ export default function BeautyOS() {
                     <div key={pr.id} className="glass-card" style={{padding:"14px 16px"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
                         <div>
-                          <span className="pill" style={{fontSize:9.5,color:pcDeep,background:"var(--pc-tint)",padding:"3px 10px"}}>{pr.brand}</span>
+                          <span className="pill" style={{fontSize:11.5,color:pcDeep,background:"var(--pc-tint)",padding:"3px 10px"}}>{pr.brand}</span>
                           <h3 style={{fontSize:14,fontWeight:700,color:"var(--ink)",marginTop:6}}>{pr.name}</h3>
                           {pr.concern&&<p style={{fontSize:11,color:"var(--ink-2)",marginTop:2}}>{pr.concern}</p>}
                         </div>
-                        <div style={{textAlign:"left",fontSize:10,color:"var(--ink-3)"}}>
+                        <div style={{textAlign:"left",fontSize:12,color:"var(--ink-3)"}}>
                           {pr.sessions_count?<div>{pr.sessions_count} מפגשים</div>:null}
                           {pr.price?<div style={{fontWeight:700,color:"var(--ink)",fontSize:13}}>₪{pr.price}</div>:null}
                         </div>
@@ -7538,7 +7538,7 @@ export default function BeautyOS() {
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
  <div>
- <p style={{fontSize:10.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מנויים וחבילות</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מנויים וחבילות</p>
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מנויי טיפולים</h2>
  </div>
  <div style={{display:"flex",gap:6}}>
@@ -7555,9 +7555,9 @@ export default function BeautyOS() {
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9,flexWrap:"wrap",gap:5}}>
  <div>
  <p style={{fontSize:12,fontWeight:700,color:"var(--ink)"}}>{pkg.client_name}</p>
- <p style={{fontSize:10,color:"var(--ink-3)"}}>{pkg.service} · ₪{pkg.price}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)"}}>{pkg.service} · ₪{pkg.price}</p>
  </div>
- <button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"6px 12px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+ <button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
                         ✓ השתמשי
  </button>
  </div>
@@ -7566,7 +7566,7 @@ export default function BeautyOS() {
  <div key={i} style={{flex:1,height:8,borderRadius:4,background:i<Number(pkg.used_sessions)?pcGrad:"var(--line)"}}/>
                       ))}
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)"}}>{pkg.used_sessions}/{pkg.total_sessions} טיפולים · נותרו {Number(pkg.total_sessions)-Number(pkg.used_sessions)}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{pkg.used_sessions}/{pkg.total_sessions} טיפולים · נותרו {Number(pkg.total_sessions)-Number(pkg.used_sessions)}</p>
  </div>
                 ))}
  </div>
@@ -7578,9 +7578,9 @@ export default function BeautyOS() {
  <div key={w.id} style={{background:"var(--surface-2)",borderRadius:14,padding:"11px 14px",marginBottom:6,border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{w.client_name}</p>
- <p style={{fontSize:9,color:"var(--ink-3)"}}>{w.service}{w.preferred_date&&` · ${w.preferred_date}`}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{w.service}{w.preferred_date&&` · ${w.preferred_date}`}</p>
  </div>
-                    {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:9}}>✆</a>}
+                    {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:11.5}}>✆</a>}
  </div>
                 ))}
  </div>
@@ -7599,13 +7599,13 @@ export default function BeautyOS() {
               {clients.length>0&&<select value={newAppt.clientId} onChange={e=>handleClientSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה קיימת —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}</select>}
  <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:10.5,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:12,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
  </div>
  <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>
  <option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price} ({s.duration}′)</option>)}
  </select>
- <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"var(--surface)":"var(--ink-2)",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
+ <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
               {apptDayHours&&<p style={{fontSize:11,color:apptSelectedTaken?"var(--danger)":pcDeep,fontWeight:600,textAlign:"center",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>⏱ {fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration||0)} דקות</p>}
               {apptSelectedTaken&&<p style={{fontSize:11.5,color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:10,padding:"7px 0",margin:"1px 0",boxShadow:"0 4px 10px rgba(224,91,111,0.35)"}}>⛔ השעה תפוסה — בחרי שעה אחרת</p>}
  <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
@@ -7653,13 +7653,13 @@ export default function BeautyOS() {
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
  {importTarget==="clients"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>📇 בחירה מאנשי הקשר בטלפון</button>
- <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
 
- <p style={{fontSize:10,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
  <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={importSpec.placeholder} style={{width:"100%",padding:"11px 13px",borderRadius:12,border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:12.5,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
 
  {importText.trim()&&(()=>{ const g=parseImportGrid(importText); return (
- <p style={{fontSize:10.5,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {g.rows.length} שורות ו-{g.width} עמודות</p>
+ <p style={{fontSize:12,color:"var(--success)",fontWeight:600,marginBottom:12}}>זוהו {g.rows.length} שורות ו-{g.width} עמודות</p>
  );})()}
 
  <div style={{display:"flex",gap:8}}>
@@ -7704,7 +7704,7 @@ export default function BeautyOS() {
          style={{width:"100%",fontSize:11,fontFamily:"inherit",padding:"5px 4px",borderRadius:8,border:`1px solid ${importCols[i]&&importCols[i]!=="ignore"?pc:"var(--line-2)"}`,background:"var(--surface)",color:"var(--ink)",outline:"none"}}>
      {importFields.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
  </select>
- {importHasHeader&&<p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{grid.rows[0][i]||"—"}</p>}
+ {importHasHeader&&<p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{grid.rows[0][i]||"—"}</p>}
  </th>
    ))}
  </tr>
@@ -7740,12 +7740,12 @@ export default function BeautyOS() {
  {hasName&&built.nameIsService>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:12,padding:"10px 12px",marginBottom:12}}>
  <p style={{fontSize:11,color:"var(--danger)",fontWeight:700,marginBottom:3}}>⚠ {built.nameIsService} שורות ידולגו — שם הלקוחה הוא שם של טיפול</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6}}>נראה שעמודת «שם הלקוחה» מצביעה על עמודת הטיפולים. בדקי את ההתאמה למעלה — אחרת ייווצרו לקוחות עם שם של טיפול.</p>
- {built.nameIsServiceSamples.length>0&&<p style={{fontSize:10,color:"var(--ink-3)",marginTop:4}}>{built.nameIsServiceSamples.join("   ·   ")}</p>}
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6}}>נראה שעמודת «שם הלקוחה» מצביעה על עמודת הטיפולים. בדקי את ההתאמה למעלה — אחרת ייווצרו לקוחות עם שם של טיפול.</p>
+ {built.nameIsServiceSamples.length>0&&<p style={{fontSize:12,color:"var(--ink-3)",marginTop:4}}>{built.nameIsServiceSamples.join("   ·   ")}</p>}
  </div>
  )}
  {hasName&&built.noTime>0&&(
- <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>· {built.noTime} תורים ללא שעה קריאה — ייקבעו ל-9:00 ואפשר להזיז אותם ביומן.</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>· {built.noTime} תורים ללא שעה קריאה — ייקבעו ל-9:00 ואפשר להזיז אותם ביומן.</p>
  )}
 
  <div style={{display:"flex",gap:8}}>
@@ -7776,8 +7776,8 @@ export default function BeautyOS() {
    {importResult.failed>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:12,padding:"10px 12px"}}>
  <p style={{fontSize:11.5,color:"var(--danger)",fontWeight:700,marginBottom:3}}>{importResult.failed} לא נוספו</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5}}>שאר הלקוחות נוספו בהצלחה. אפשר להדביק שוב רק את מי שחסרה — לקוחות שכבר קיימות לא ייווצרו פעמיים.</p>
- {importResult.error&&<p style={{fontSize:9.5,color:"var(--ink-3)",marginTop:5,direction:"ltr",textAlign:"left"}}>{importResult.error}</p>}
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5}}>שאר הלקוחות נוספו בהצלחה. אפשר להדביק שוב רק את מי שחסרה — לקוחות שכבר קיימות לא ייווצרו פעמיים.</p>
+ {importResult.error&&<p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:5,direction:"ltr",textAlign:"left"}}>{importResult.error}</p>}
  </div>
    )}
  </div>
@@ -7803,7 +7803,7 @@ export default function BeautyOS() {
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:4}}>סטטוס</p><div style={{display:"flex",gap:4}}>{Object.entries(STATUS_LABELS).map(([key,label])=><button key={key} onClick={()=>setNewClient({...newClient,status:key})} style={{flex:1,padding:"7px 2px",border:"1px solid",borderColor:newClient.status===key?pc:"var(--line)",borderRadius:12,background:newClient.status===key?STATUS_COLORS[key]:pcTint,color:newClient.status===key?"var(--surface)":"var(--ink-2)",fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>)}</div></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:4}}>סטטוס</p><div style={{display:"flex",gap:4}}>{Object.entries(STATUS_LABELS).map(([key,label])=><button key={key} onClick={()=>setNewClient({...newClient,status:key})} style={{flex:1,padding:"7px 2px",border:"1px solid",borderColor:newClient.status===key?pc:"var(--line)",borderRadius:12,background:newClient.status===key?STATUS_COLORS[key]:pcTint,color:newClient.status===key?"var(--surface)":"var(--ink-2)",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>)}</div></div>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowClientModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
@@ -7821,10 +7821,10 @@ export default function BeautyOS() {
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{LEAD_SOURCES.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:20,background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--surface)":"var(--ink-2)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{LEAD_SOURCES.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:20,background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--surface)":"var(--ink-2)",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
  <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"var(--line)",borderRadius:20,background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"var(--ink-2)",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תזכורת מעקב</p><input type="date" value={newLead.reminder_date} onChange={e=>setNewLead({...newLead,reminder_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"var(--line)",borderRadius:20,background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"var(--ink-2)",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תזכורת מעקב</p><input type="date" value={newLead.reminder_date} onChange={e=>setNewLead({...newLead,reminder_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
  <textarea value={newLead.notes} onChange={e=>setNewLead({...newLead,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
@@ -7851,7 +7851,7 @@ export default function BeautyOS() {
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={bulkStep==="sending"?undefined:closeBulk}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" dir="rtl" style={{background:"var(--surface)",borderRadius:22,padding:24,width:400,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
  <h3 className="serif" style={{fontSize:19,fontWeight:600,color:"var(--ink)",marginBottom:4}}>שליחת וואטסאפ — {s.label}</h3>
- <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
 
             {bulkStep==="compose"&&(<>
  <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?"כתבי כאן את ההודעה שתישלח לפניות שנבחרו...":"כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..."} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
@@ -7877,9 +7877,9 @@ export default function BeautyOS() {
 
             {bulkStep==="result"&&bulkResult&&(<>
  <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
- <div style={{flex:1,minWidth:88,background:"rgba(70,179,123,0.12)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--success)"}}>{bulkResult.sent}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>נשלחו</p></div>
- <div style={{flex:1,minWidth:88,background:"rgba(224,91,111,0.10)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--danger)"}}>{bulkResult.failed}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>נכשלו</p></div>
- <div style={{flex:1,minWidth:88,background:"var(--surface-2)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--ink-2)"}}>{bulkResult.skipped_no_phone}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>דילוג (אין טלפון)</p></div>
+ <div style={{flex:1,minWidth:88,background:"rgba(70,179,123,0.12)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--success)"}}>{bulkResult.sent}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>נשלחו</p></div>
+ <div style={{flex:1,minWidth:88,background:"rgba(224,91,111,0.10)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--danger)"}}>{bulkResult.failed}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>נכשלו</p></div>
+ <div style={{flex:1,minWidth:88,background:"var(--surface-2)",borderRadius:12,padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:22,fontWeight:700,color:"var(--ink-2)"}}>{bulkResult.skipped_no_phone}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>דילוג (אין טלפון)</p></div>
  </div>
  <button onClick={closeBulk} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>סגירה</button>
             </>)}
@@ -7899,7 +7899,7 @@ export default function BeautyOS() {
  <div style={{position:"absolute",top:"100%",right:0,left:0,background:"var(--surface)",borderRadius:12,boxShadow:"0 8px 24px rgba(212,175,55,0.12)",zIndex:99,overflow:"hidden",marginTop:3,maxHeight:160,overflowY:"auto"}}>
                   {clients.filter(c=>c.name?.includes(cashierSearch)||c.phone?.includes(cashierSearch)).slice(0,6).map(c=>(
  <div key={c.id} onClick={()=>{setCashierClient(c);setCashierSearch(c.name);}} className="client-row" style={{padding:"9px 12px",borderBottom:"1px solid var(--surface-2)",cursor:"pointer"}}>
- <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{c.name}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>{c.phone||"אין טלפון"}</p>
+ <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{c.name}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>{c.phone||"אין טלפון"}</p>
  </div>
                   ))}
  </div>
@@ -7907,10 +7907,10 @@ export default function BeautyOS() {
  </div>
  <div style={{marginBottom:10}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
- <p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600}}>פריטים</p>
- <select onChange={e=>{const svc=activeServices.find(s=>s.name===e.target.value);if(svc){setCashierItems(prev=>[...prev,{id:Date.now(),name:svc.name,price:svc.price,qty:1,color:svc.color}]);}e.target.value="";}} style={{border:"1px solid var(--line)",borderRadius:10,padding:"5px 9px",fontSize:10,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:pc}}><option value="">+ הוסיפי שירות</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price}</option>)}</select>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>פריטים</p>
+ <select onChange={e=>{const svc=activeServices.find(s=>s.name===e.target.value);if(svc){setCashierItems(prev=>[...prev,{id:Date.now(),name:svc.name,price:svc.price,qty:1,color:svc.color}]);}e.target.value="";}} style={{border:"1px solid var(--line)",borderRadius:10,padding:"5px 9px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:pc}}><option value="">+ הוסיפי שירות</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price}</option>)}</select>
  </div>
-              {cashierItems.length===0?<p style={{fontSize:10,color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>
+              {cashierItems.length===0?<p style={{fontSize:12,color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>
                 :cashierItems.map(item=>(
  <div key={item.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 9px",background:pcTint,borderRadius:10,marginBottom:4}}>
  <span style={{width:8,height:8,borderRadius:"50%",background:item.color||"var(--warning)",flexShrink:0}}/>
@@ -7918,7 +7918,7 @@ export default function BeautyOS() {
  <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:Math.max(1,i.qty-1)}:i))} className="icon-btn" style={{width:22,height:22,fontSize:11}}>−</button>
  <span style={{fontSize:11,minWidth:16,textAlign:"center"}}>{item.qty}</span>
  <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:i.qty+1}:i))} className="icon-btn" style={{width:22,height:22,fontSize:11}}>+</button>
- <input type="number" value={item.price} onChange={e=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,price:Number(e.target.value)}:i))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={item.price} onChange={e=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,price:Number(e.target.value)}:i))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <button onClick={()=>setCashierItems(prev=>prev.filter(i=>i.id!==item.id))} style={{background:"none",border:"none",color:"var(--danger)",fontSize:13,cursor:"pointer"}}>✕</button>
  </div>
                 ))}
@@ -7927,17 +7927,17 @@ export default function BeautyOS() {
  <p style={{fontSize:11,color:"var(--ink-2)",flex:1}}>הנחה (₪)</p>
  <input type="number" value={cashierDiscount||""} onChange={e=>setCashierDiscount(e.target.value)} placeholder="0" style={{width:80,border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
- <p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600,marginBottom:5}}>אמצעי תשלום</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:5}}>אמצעי תשלום</p>
  <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
               {PAYMENT_METHODS.map(pm=>(
- <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"var(--line)",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"var(--surface)":"var(--ink-2)",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
+ <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"var(--line)",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
               ))}
  </div>
             {["ביט","פייבוקס","העברה"].includes(paymentMethod)&&cashierClient?.phone&&(
  <div style={{background:"var(--pc-tint)",borderRadius:12,padding:"10px 12px",marginBottom:10}}>
- <p style={{fontSize:10,color:"var(--pc-deep)",fontWeight:600,marginBottom:6}}>שלחי בקשת תשלום ב-{paymentMethod}</p>
+ <p style={{fontSize:12,color:"var(--pc-deep)",fontWeight:600,marginBottom:6}}>שלחי בקשת תשלום ב-{paymentMethod}</p>
  <a href={waPayment(cashierClient.phone,cashierClient.name,cashierTotal,cashierItems.map(i=>i.name).join(", "),paymentMethod,settings.business_phone)} target="_blank" rel="noreferrer"
-                  className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:10}}>שלחי בקשת תשלום</a>
+                  className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:12}}>שלחי בקשת תשלום</a>
  </div>
             )}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לקבלה" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
@@ -7963,8 +7963,8 @@ export default function BeautyOS() {
  <div className="receipt-print" style={{padding:24}}>
  <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
  <p className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
- <p style={{fontSize:10,color:"var(--ink-3)",marginTop:2}}>קבלה</p>
-                {settings.business_phone&&<p style={{fontSize:9,color:"var(--ink-3)"}}>{settings.business_phone}</p>}
+ <p style={{fontSize:12,color:"var(--ink-3)",marginTop:2}}>קבלה</p>
+                {settings.business_phone&&<p style={{fontSize:11.5,color:"var(--ink-3)"}}>{settings.business_phone}</p>}
  </div>
  <div style={{fontSize:11,color:"var(--ink)",lineHeight:1.9}}>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
@@ -7978,7 +7978,7 @@ export default function BeautyOS() {
  <span style={{fontSize:13,fontWeight:600,color:"var(--ink-2)"}}>סה״כ:</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{showReceipt.amount}</span>
  </div>
- <p style={{textAlign:"center",fontSize:9,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
+ <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
  <button onClick={()=>printReceipt(showReceipt)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:11,color:"var(--ink-2)"}}>הדפסה</button>
@@ -8005,8 +8005,8 @@ export default function BeautyOS() {
  <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
  <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
- <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>מחיר חבילה ₪</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מחיר חבילה ₪</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  </div>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
@@ -8060,11 +8060,11 @@ export default function BeautyOS() {
               {navIcon(item.id)}
               {item.id==="leads"&&newLeadsCount>0&&(
  <span style={{position:"absolute",top:4,insetInlineEnd:"50%",transform:"translateX(50%) translateX(14px)",
-               background:pcGrad,color:"#fff",fontSize:9,fontWeight:700,lineHeight:1,
+               background:pcGrad,color:"#fff",fontSize:11.5,fontWeight:700,lineHeight:1,
                padding:"2px 6px",borderRadius:20,boxShadow:`0 2px 6px ${pcShadow}`}}>{newLeadsCount}</span>
               )}
  </span>
- <span style={{fontSize:10,fontWeight:on?700:500,letterSpacing:"-0.01em"}}>{item.label}</span>
+ <span style={{fontSize:12,fontWeight:on?700:500,letterSpacing:"-0.01em"}}>{item.label}</span>
  </button>
           );
         })}
@@ -8080,7 +8080,7 @@ export default function BeautyOS() {
  <circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>
  </svg>
  </span>
- <span style={{fontSize:10,fontWeight:showMoreSheet?700:500,letterSpacing:"-0.01em"}}>עוד</span>
+ <span style={{fontSize:12,fontWeight:showMoreSheet?700:500,letterSpacing:"-0.01em"}}>עוד</span>
  </button>
  </nav>
 
@@ -8164,9 +8164,9 @@ export default function BeautyOS() {
               <input value={newProtocol.concern} onChange={e=>setNewProtocol({...newProtocol,concern:e.target.value})} placeholder="בעיה שהפרוטוקול פותר (אקנה, אנטי-אייג׳ינג...)" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
               <input value={newProtocol.frequency} onChange={e=>setNewProtocol({...newProtocol,frequency:e.target.value})} placeholder="תדירות (למשל: אחת לשבועיים)" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
               <div style={{display:"flex",gap:8}}>
-                <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>מספר מפגשים</p><input type="number" value={newProtocol.sessions_count} onChange={e=>setNewProtocol({...newProtocol,sessions_count:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
-                <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>זמן (דקות)</p><input type="number" value={newProtocol.duration_minutes} onChange={e=>setNewProtocol({...newProtocol,duration_minutes:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
-                <div style={{flex:1}}><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>מחיר ₪</p><input type="number" value={newProtocol.price} onChange={e=>setNewProtocol({...newProtocol,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+                <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מספר מפגשים</p><input type="number" value={newProtocol.sessions_count} onChange={e=>setNewProtocol({...newProtocol,sessions_count:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+                <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>זמן (דקות)</p><input type="number" value={newProtocol.duration_minutes} onChange={e=>setNewProtocol({...newProtocol,duration_minutes:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+                <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מחיר ₪</p><input type="number" value={newProtocol.price} onChange={e=>setNewProtocol({...newProtocol,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
               </div>
               <textarea value={newProtocol.notes} onChange={e=>setNewProtocol({...newProtocol,notes:e.target.value})} placeholder="הערות / התוויות נגד" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
               <div style={{display:"flex",gap:8,marginTop:4}}>
@@ -8203,23 +8203,23 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} style={{background:"var(--surface)",borderRadius:20,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto",padding:"22px"}}>
  <p className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",marginBottom:14}}>פוסט חדש למרחב הלקוחות</p>
 
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:5}}>סוג הפוסט</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:5}}>סוג הפוסט</p>
  <div style={{display:"flex",gap:6,marginBottom:13}}>
  {[{k:"update",l:"עדכון"},{k:"offer",l:"מבצע"},{k:"tip",l:"טיפ"}].map(t=>(
  <button key={t.k} onClick={()=>setNewPost({...newPost,post_type:t.k})} style={{flex:1,padding:"8px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:newPost.post_type===t.k?`2px solid ${pc}`:"1px solid var(--line)",background:newPost.post_type===t.k?pcTint:"var(--surface)",color:pc}}>{t.l}</button>
  ))}
  </div>
 
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:5}}>כותרת (לא חובה)</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:5}}>כותרת (לא חובה)</p>
  <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב על טיפולי פנים" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid var(--pc-tint)",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
 
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:5}}>תוכן</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:5}}>תוכן</p>
  <textarea value={newPost.body} onChange={e=>setNewPost({...newPost,body:e.target.value})} rows={4} placeholder="כתבי כאן את העדכון, המבצע או הטיפ..." style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid var(--pc-tint)",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box",resize:"vertical"}}/>
 
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:5}}>טקסט לכפתור (לא חובה)</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:5}}>טקסט לכפתור (לא חובה)</p>
  <input value={newPost.cta_label} onChange={e=>setNewPost({...newPost,cta_label:e.target.value})} placeholder="לדוגמה: לפרטים בוואטסאפ" style={{width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid var(--pc-tint)",fontSize:12.5,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
 
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:5}}>תמונה (לא חובה)</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:5}}>תמונה (לא חובה)</p>
  {newPost.image_url&&<img alt="" src={newPost.image_url} style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginBottom:8}}/>}
  <label style={{display:"block",padding:"9px 0",textAlign:"center",borderRadius:10,border:"1px dashed var(--line)",fontSize:11.5,color:pc,cursor:"pointer",marginBottom:16,fontWeight:600}}>
  {postImageUploading?"מעלה...":newPost.image_url?"החלפת תמונה":"+ הוספת תמונה"}
@@ -8257,7 +8257,7 @@ export default function BeautyOS() {
  <span style={{fontSize:15,color:setupDone===setupTotal?"var(--success)":pc,flexShrink:0}}>{setupDone===setupTotal?"✓":"☑"}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)"}}>{setupDone===setupTotal?"הכל מוכן. אפשר לעדכן בכל עת":"רשימת ההגדרות להשלמה"}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{setupDone===setupTotal?"הכל מוכן. אפשר לעדכן בכל עת":"רשימת ההגדרות להשלמה"}</p>
  </div>
  <span style={{fontSize:11,color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
@@ -8270,20 +8270,20 @@ export default function BeautyOS() {
  <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
               {settingsTab==="general"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
- <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
- <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
  <div style={{display:"flex",gap:6}}>
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
                     const sel=(editSettings.business_tax_status||"exempt")===o.k;
                     return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:11,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
                   })}
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{width:"100%",padding:"11px 0",background:pcGrad,color:"var(--surface)",borderRadius:12,fontSize:12,marginBottom:7,boxShadow:`0 6px 14px ${pcShadow}`}}>✦ העתקת קישור לסורק העור</button>
  {/* The ceiling, shown BEFORE it is reached. When it is hit, the client sees
      the refusal and she is not in that request at all - so this is the only
@@ -8294,14 +8294,14 @@ export default function BeautyOS() {
    return (
      <div style={{marginBottom:7}}>
        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-         <span style={{fontSize:10,color:"var(--ink-3)"}}>סריקות החודש</span>
+         <span style={{fontSize:12,color:"var(--ink-3)"}}>סריקות החודש</span>
          <span style={{fontSize:11,fontWeight:700,color:tone}}>{scanQuota.used} / {scanQuota.limit}</span>
        </div>
        <div style={{height:4,borderRadius:3,background:"var(--line-2)",overflow:"hidden"}}>
          <div style={{height:"100%",width:`${Math.min(100,Math.round(pct*100))}%`,background:tone==="var(--ink-3)"?pc:tone}}/>
        </div>
        {pct>=0.8 && (
-         <p style={{fontSize:10,color:tone,marginTop:5,lineHeight:1.5}}>
+         <p style={{fontSize:12,color:tone,marginTop:5,lineHeight:1.5}}>
            {pct>=1
              ? "הגעת למכסת הסריקות החודשית. לקוחות שינסו לסרוק יקבלו הודעה שאפשר לפנות אלייך ישירות."
              : `נשארו ${scanQuota.remaining} סריקות החודש.`}
@@ -8313,7 +8313,7 @@ export default function BeautyOS() {
  <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📅 העתקת קישור לקביעת תור</button>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
  <div style={{display:"flex",flexDirection:"column",gap:7}}>
  <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
@@ -8330,7 +8330,7 @@ export default function BeautyOS() {
                     Falls back to "פיתוח" locally, where the Vercel env var is
                     absent. Tap to copy, so reporting it is one gesture. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-3)",marginBottom:6,fontWeight:700}}>גרסה</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:6,fontWeight:700}}>גרסה</p>
  <button type="button"
                     onClick={()=>{
                       const v=process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA||"";
@@ -8341,7 +8341,7 @@ export default function BeautyOS() {
  <span style={{fontSize:11,color:"var(--ink-2)",direction:"ltr",display:"block",fontFamily:"ui-monospace,SFMono-Regular,Menlo,monospace"}}>
                       {(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA||"").slice(0,7)||"פיתוח"}
  </span>
- <span style={{fontSize:9,color:"var(--ink-3)"}}>לחצי להעתקה</span>
+ <span style={{fontSize:11.5,color:"var(--ink-3)"}}>לחצי להעתקה</span>
  </button>
  </div>
  </div>
@@ -8349,7 +8349,7 @@ export default function BeautyOS() {
               {settingsTab==="branding"&&(()=>{
                 const brand=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
                 const setBrand=(k,v)=>setEditSettings(prev=>({...prev,branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}),[k]:v}}));
-                const lbl={fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:5};
+                const lbl={fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:5};
                 const inp={width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"};
                 const upBtn={background:"var(--pc-tint)",color:pcDeep,border:"none",borderRadius:12,padding:"8px 14px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"};
                 const swatches=["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"];
@@ -8367,15 +8367,15 @@ export default function BeautyOS() {
                 );
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:14}}>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
- <div><p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
+ <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
  <div><p style={lbl}>כותרת פתיחה ללקוחה</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/></div>
  <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
- <div><p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
  {/* Feeds the marketing AI only — these three are the fields loadBusinessProfile
      renders into every prompt as קהל יעד / סגנון מותג / יתרונות תחרותיים.
@@ -8383,7 +8383,7 @@ export default function BeautyOS() {
      generators wrote about her audience without being told who it is. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>✦ מידע לתוכן השיווקי</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:10}}>לא מוצג ללקוחות. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:10}}>לא מוצג ללקוחות. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
  <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
@@ -8392,7 +8392,7 @@ export default function BeautyOS() {
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>📷 גלריית תמונות</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:10,overflow:"hidden",border:"1px solid var(--line)"}}>
@@ -8404,7 +8404,7 @@ export default function BeautyOS() {
  <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:12,padding:"12px",textAlign:"center",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading==="gallery"?"מעלה…":"+ הוספת תמונה לגלריה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadGalleryImage(f);e.target.value="";}}/></label>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
- <p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
  <div><p style={lbl}>מספר וואטסאפ</p><input value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
@@ -8413,7 +8413,7 @@ export default function BeautyOS() {
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>⭐ ביקורות לקוחות</p>
- <p style={{fontSize:9.5,color:"var(--ink-3)",marginBottom:8}}>יוצגו בעמוד העסק שלך כמו ביקורות Google (רק אם הוספת לפחות אחת)</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:8}}>יוצגו בעמוד העסק שלך כמו ביקורות Google (רק אם הוספת לפחות אחת)</p>
                     {(Array.isArray(brand.reviews)?brand.reviews:[]).map((rv,i)=>{
                       const revs=Array.isArray(brand.reviews)?brand.reviews:[];
                       const updRev=(patch)=>setBrand("reviews",revs.map((x,j)=>j===i?{...x,...patch}:x));
@@ -8480,15 +8480,15 @@ export default function BeautyOS() {
                 const isCleared=(k)=>Object.prototype.hasOwnProperty.call(leadTemplates,k)&&!String(leadTemplates[k]).trim();
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
 
  <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"var(--line)"}`,borderRadius:12,padding:"2px 12px"}}>
  <AutoToggleRow pc={pc} label="⏸ השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
  </div>
- {masterPaused&&<p style={{fontSize:9.5,color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}>⏸ כל האוטומציות מושהות כרגע.</p>}
+ {masterPaused&&<p style={{fontSize:11.5,color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}>⏸ כל האוטומציות מושהות כרגע.</p>}
 
  <div>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="שליחת תזכורת אוטומטית בוואטסאפ ללקוחות שיש להן תור מחר." />
  <AutoToggleRow pc={pc} label="בקשת ביקורת (יומיים אחרי טיפול)" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="בקשה אוטומטית להשאיר ביקורת, נשלחת כיומיים לאחר הביקור." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות (90+ יום)" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום." />
@@ -8496,42 +8496,42 @@ export default function BeautyOS() {
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
  <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
  {botOn&&(
  <div>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:6}}>מתי הבוט יענה?</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:6}}>מתי הבוט יענה?</p>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setEditSettings({...editSettings,bot_mode:"always"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:(editSettings.bot_mode||"always")==="always"?`2px solid ${pc}`:"1px solid var(--line)",background:(editSettings.bot_mode||"always")==="always"?pcTint:"var(--surface)",color:pc}}>תמיד</button>
  <button onClick={()=>setEditSettings({...editSettings,bot_mode:"after_hours"})} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:editSettings.bot_mode==="after_hours"?`2px solid ${pc}`:"1px solid var(--line)",background:editSettings.bot_mode==="after_hours"?pcTint:"var(--surface)",color:pc}}>רק מחוץ לשעות העבודה</button>
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
  </div>
  )}
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink-2)",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
  <div style={{display:"flex",gap:6,opacity:masterPaused?0.5:1}}>
                     {[["off","כבוי"],["approval","באישור"],["automatic","אוטומטי"]].map(([m,l])=>(
  <button key={m} onClick={()=>!masterPaused&&setSkinMode(m)} disabled={masterPaused} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:masterPaused?"default":"pointer",fontFamily:"inherit",border:skinMode===m?`2px solid ${pc}`:"1px solid var(--line)",background:skinMode===m?pcTint:"var(--surface)",color:pc}}>{l}</button>
                     ))}
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":skinMode==="approval"?"באישור — נכין עבורך הצעות, וכל הודעה תישלח רק לאחר אישורך.":"אוטומטי — יופעל בקרוב; בינתיים ההצעות ממתינות לאישורך (לא נשלח דבר אוטומטית)."}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":skinMode==="approval"?"באישור — נכין עבורך הצעות, וכל הודעה תישלח רק לאחר אישורך.":"אוטומטי — יופעל בקרוב; בינתיים ההצעות ממתינות לאישורך (לא נשלח דבר אוטומטית)."}</p>
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
- <p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600}}>חיבור וואטסאפ (GreenAPI)</p>
- <span style={{fontSize:9.5,fontWeight:700,borderRadius:20,padding:"5px 11px",...(waConnected?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--warning)",background:"rgba(242,184,75,0.16)"})}}>{waConnected?"מחובר ✓":"לא מחובר"}</span>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>חיבור וואטסאפ (GreenAPI)</p>
+ <span style={{fontSize:11.5,fontWeight:700,borderRadius:20,padding:"5px 11px",...(waConnected?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--warning)",background:"rgba(242,184,75,0.16)"})}}>{waConnected?"מחובר ✓":"לא מחובר"}</span>
  </div>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>חברי את מספר הוואטסאפ שלך דרך GreenAPI כדי שההודעות (תזכורות, קבלות ועוד) יישלחו מהמספר שלך. את הפרטים תמצאי בקונסולת GreenAPI. אם לא תחברי — נשלח מהמספר הכללי של המערכת.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>חברי את מספר הוואטסאפ שלך דרך GreenAPI כדי שההודעות (תזכורות, קבלות ועוד) יישלחו מהמספר שלך. את הפרטים תמצאי בקונסולת GreenAPI. אם לא תחברי — נשלח מהמספר הכללי של המערכת.</p>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מזהה מכשיר (idInstance)</p><input value={editSettings.green_api_instance||""} onChange={e=>setEditSettings({...editSettings,green_api_instance:e.target.value})} placeholder="7103000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מזהה מכשיר (idInstance)</p><input value={editSettings.green_api_instance||""} onChange={e=>setEditSettings({...editSettings,green_api_instance:e.target.value})} placeholder="7103000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
  <div>
- <p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p>
  {/* WRITE-ONLY. The server never sends the token back, so there is nothing
      to prefill and nothing sitting in a form field. It goes out through
      /api/settings/whatsapp, which encrypts it before it reaches the table. */}
@@ -8567,28 +8567,28 @@ export default function BeautyOS() {
  {waReplacing&&<button type="button" onClick={()=>{setWaReplacing(false);setWaTokenInput("");}} style={{fontSize:11,color:"var(--ink-3)",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:"0 4px"}}>ביטול</button>}
  </div>
  )}
- <p style={{fontSize:9,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטוקן נשמר מוצפן ולא מוצג שוב. שמירת ההגדרות למטה לא משנה אותו.</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטוקן נשמר מוצפן ולא מוצג שוב. שמירת ההגדרות למטה לא משנה אותו.</p>
  </div>
- <div><p style={{fontSize:9,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
  </div>
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:4,fontWeight:600}}>הודעות מוכנות לפי סטטוס פנייה</p>
- <p style={{fontSize:9,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>ההודעה תיפתח מוכנה לשליחה כשתשלחי הודעה לפי סטטוס במסך הפניות. אפשר לכתוב {"{name}"} לשם הפונה ו-{"{clinic}"} לשם העסק. הנוסח האפור הוא ברירת המחדל שתישלח אם לא תשני דבר; אם תמחקי הכל, אותו סטטוס ייפתח ריק.</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:4,fontWeight:600}}>הודעות מוכנות לפי סטטוס פנייה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>ההודעה תיפתח מוכנה לשליחה כשתשלחי הודעה לפי סטטוס במסך הפניות. אפשר לכתוב {"{name}"} לשם הפונה ו-{"{clinic}"} לשם העסק. הנוסח האפור הוא ברירת המחדל שתישלח אם לא תשני דבר; אם תמחקי הכל, אותו סטטוס ייפתח ריק.</p>
  {LEAD_STATUS_KEYS.map(k=>(
  <div key={k} style={{marginBottom:8}}>
- <p style={{fontSize:9.5,color:LEAD_STATUS_COLORS[k].color,fontWeight:700,marginBottom:3}}>{LEAD_STATUS_LABELS[k]}</p>
+ <p style={{fontSize:11.5,color:LEAD_STATUS_COLORS[k].color,fontWeight:700,marginBottom:3}}>{LEAD_STATUS_LABELS[k]}</p>
  <textarea value={leadTemplates[k]||""} onChange={e=>setLeadTemplate(k,e.target.value)} rows={2}
    placeholder={DEFAULT_LEAD_TEMPLATES[k]||""}
    style={{width:"100%",border:"1px solid var(--line)",borderRadius:10,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box"}}/>
- {isCleared(k)&&<p style={{fontSize:8.5,color:"var(--warning)",fontWeight:700,marginTop:3}}>(נוקה — ייפתח ריק)</p>}
+ {isCleared(k)&&<p style={{fontSize:11,color:"var(--warning)",fontWeight:700,marginTop:3}}>(נוקה — ייפתח ריק)</p>}
  </div>
  ))}
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת וואטסאפ אמיתית ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל." />
  <AutoToggleRow pc={pc} label="שליחת קבלה אוטומטית ללקוחה בוואטסאפ" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית." />
  </div>
@@ -8616,8 +8616,8 @@ export default function BeautyOS() {
  <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svcActive?"none":"1px dashed var(--line-2)"}}>
  <span style={{width:10,height:10,borderRadius:"50%",background:svcActive?(svc.color||"var(--warning)"):"var(--line-2)",flexShrink:0}}/>
  <input value={svc.name} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,name:e.target.value}:s))} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:11,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)"}}/>
- <input type="number" value={svc.price} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <input type="number" value={svc.duration} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.price} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.duration} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11}} title="שמירה">✓</button>
  {/* Archive / restore. The treatment stays in every past appointment and
      receipt either way — those store its name, not a reference to this row. */}
@@ -8651,7 +8651,7 @@ export default function BeautyOS() {
                   {showNewService?(
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:12,marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 8px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>
- <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:10,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
  </div>
                   ):!showTemplatePicker&&(
@@ -8672,20 +8672,20 @@ export default function BeautyOS() {
               )}
               {settingsTab==="faq"&&(
  <div>
- <p style={{fontSize:10,color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:14,marginBottom:8}}>
  <div style={{fontSize:26,marginBottom:8}}>✦</div>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שאלות ותשובות</p>
- <p style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
  </div>
                   )}
                   {(editSettings.faq||[]).map((f,idx)=>(
  <div key={idx} style={{background:pcTint,borderRadius:12,padding:"10px 10px 8px",marginBottom:6,position:"relative"}}>
  <button onClick={()=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).filter((_,i)=>i!==idx)})} className="icon-btn" style={{position:"absolute",top:8,left:8,width:24,height:24,fontSize:11}} title="מחיקה" aria-label="מחיקת שאלה">✕</button>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>שאלה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שאלה</p>
  <input value={f.q||""} onChange={e=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).map((x,i)=>i===idx?{...x,q:e.target.value}:x)})} placeholder="למשל: יש חניה?" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:9,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",fontWeight:600,color:"var(--ink)",marginBottom:6}}/>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>תשובה</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תשובה</p>
  <textarea value={f.a||""} onChange={e=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).map((x,i)=>i===idx?{...x,a:e.target.value}:x)})} placeholder="התשובה שהבוט ייתן ללקוחה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:9,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"vertical",lineHeight:1.5}}/>
  </div>
                   ))}
@@ -8734,8 +8734,8 @@ export default function BeautyOS() {
               })()}
               {settingsTab==="payment"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
- <div><p style={{fontSize:9,color:"var(--ink-2)",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
- <p style={{fontSize:10,color:"var(--ink-3)",lineHeight:1.5}}>המספר הזה ישמש לבקשות תשלום ב-ביט שנשלחות ללקוחות </p>
+ <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <p style={{fontSize:12,color:"var(--ink-3)",lineHeight:1.5}}>המספר הזה ישמש לבקשות תשלום ב-ביט שנשלחות ללקוחות </p>
  </div>
               )}
  </div>
@@ -8769,9 +8769,9 @@ export default function BeautyOS() {
  <h3 className="serif" style={{fontSize:23,fontWeight:600}}>{c.name}</h3>
  <p style={{fontSize:11,opacity:0.9}}>{c.phone||"אין טלפון"}</p>
  <div style={{display:"flex",gap:5,marginTop:5,flexWrap:"wrap"}}>
- <span style={{fontSize:8,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,fontWeight:600}}>{STATUS_LABELS[c.status]||"פעילה"}</span>
-                        {c.skinType&&<span style={{fontSize:8,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20}}>{c.skinType}</span>}
-                        {total>0&&<span style={{fontSize:8,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,fontWeight:700}}>₪{total.toLocaleString()}</span>}
+ <span style={{fontSize:11,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,fontWeight:600}}>{STATUS_LABELS[c.status]||"פעילה"}</span>
+                        {c.skinType&&<span style={{fontSize:11,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20}}>{c.skinType}</span>}
+                        {total>0&&<span style={{fontSize:11,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,fontWeight:700}}>₪{total.toLocaleString()}</span>}
  </div>
  </div>
  </div>
@@ -8802,7 +8802,7 @@ export default function BeautyOS() {
                       {insights.map((ins,i)=>(
  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 12px",background:pcTint,borderRadius:12,marginBottom:6,borderRight:`3px solid ${ins.color}`}}>
  <span style={{fontSize:14}}>{ins.icon}</span>
- <p style={{fontSize:10.5,color:"var(--ink)",fontWeight:500}}>{ins.text}</p>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:500}}>{ins.text}</p>
  </div>
                       ))}
  </div>
@@ -8811,7 +8811,7 @@ export default function BeautyOS() {
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                   {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:10.5,fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:12,fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -8833,9 +8833,9 @@ export default function BeautyOS() {
                       ); })()}
                       {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
                       {c.skinType&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>סוג עור</span><span style={{fontWeight:600}}>{c.skinType}</span></div>}
-                      {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:9,marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
-                      {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:9,marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
-                      {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:10}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
+                      {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:11.5,marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
+                      {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:11.5,marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
+                      {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:10}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:11.5,marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
  </div>
                   )}
                   {clientTab==="history"&&(
@@ -8843,9 +8843,9 @@ export default function BeautyOS() {
                     :appts.map(a=>(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
  <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:9,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
-                        {a.confirmation_status==="confirmed"&&<span style={{fontSize:8,color:"var(--success)"}}>✓</span>}
-                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:9.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✉ שלחי תזכורת</button>}
+ <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                        {a.confirmation_status==="confirmed"&&<span style={{fontSize:11,color:"var(--success)"}}>✓</span>}
+                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✉ שלחי תזכורת</button>}
  </div>
                     ))
                   )}
@@ -8857,7 +8857,7 @@ export default function BeautyOS() {
  {s.image_url?<SignedImage value={s.image_url} alt="" style={{width:46,height:46,borderRadius:10,objectFit:"cover",flexShrink:0}} fallback={<div style={{width:46,height:46,borderRadius:10,background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}/>:<div style={{width:46,height:46,borderRadius:10,background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:18}}>✦</div>}
  <div style={{flex:1}}>
  <p style={{fontSize:11.5,fontWeight:600,color:"var(--ink)"}}>{s.skin_type||"סריקת עור"}</p>
- <p style={{fontSize:9,color:"var(--ink-2)"}}>{new Date(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)"}}>{new Date(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
  </div>
  <div style={{width:34,height:34,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",border:`3px solid ${s.score>=75?"var(--success)":s.score>=50?"var(--warning)":pc}`,flexShrink:0}}><span style={{fontSize:12,fontWeight:800,color:s.score>=75?"var(--success)":s.score>=50?"var(--warning)":pc}}>{s.score}</span></div>
  </div>
@@ -8868,7 +8868,7 @@ export default function BeautyOS() {
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:10,marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:13}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
- <div style={{flex:1}}><p style={{fontSize:10.5,fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:8.5,color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
+ <div style={{flex:1}}><p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:11,color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
  <span className="serif" style={{fontSize:13,fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
                     ))
@@ -8877,27 +8877,27 @@ export default function BeautyOS() {
                     cPackages.length===0?<p style={{fontSize:11,color:"var(--ink-3)"}}>אין חבילות פעילות</p>
                     :cPackages.map(pkg=>(
  <div key={pkg.id} style={{background:pcTint,borderRadius:12,padding:"11px 12px",marginBottom:7}}>
- <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:11,fontWeight:700,color:"var(--ink)"}}>{pkg.service}</p><button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✓ השתמשי</button></div>
+ <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:11,fontWeight:700,color:"var(--ink)"}}>{pkg.service}</p><button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit"}}>✓ השתמשי</button></div>
  <div style={{display:"flex",gap:2}}>{Array.from({length:Number(pkg.total_sessions)},(_,i)=><div key={i} style={{flex:1,height:6,borderRadius:3,background:i<Number(pkg.used_sessions)?pc:"var(--pc-tint)"}}/>)}</div>
- <p style={{fontSize:8.5,color:"var(--ink-2)",marginTop:3}}>{pkg.used_sessions}/{pkg.total_sessions}</p>
+ <p style={{fontSize:11,color:"var(--ink-2)",marginTop:3}}>{pkg.used_sessions}/{pkg.total_sessions}</p>
  </div>
                     ))
                   )}
                   {clientTab==="forms"&&(
  <div>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:6}}>שלחי טופס לחתימה דיגיטלית</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:6}}>שלחי טופס לחתימה דיגיטלית</p>
  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
                         {FORM_TYPES.map(ft=>(
- <button key={ft.key} onClick={()=>handleSendForm(c,ft.key)} style={{background:pcTint,border:"1px solid var(--line)",borderRadius:10,padding:"8px 11px",fontSize:10.5,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>{ft.label}</button>
+ <button key={ft.key} onClick={()=>handleSendForm(c,ft.key)} style={{background:pcTint,border:"1px solid var(--line)",borderRadius:10,padding:"8px 11px",fontSize:12,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>{ft.label}</button>
                         ))}
  </div>
                       {cForms.length>0&&<>
- <p style={{fontSize:9,color:"var(--ink-2)",marginBottom:5}}>טפסים קיימים</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:5}}>טפסים קיימים</p>
                         {cForms.map(f=>(
  <div key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:f.status==="signed"?"var(--surface-2)":"var(--surface-2)",borderRadius:10,marginBottom:4}}>
  <span style={{fontSize:12}}>{f.status==="signed"?"✓":"⏳"}</span>
- <p style={{flex:1,fontSize:10,color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
- <span style={{fontSize:8,color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?"נחתם":"ממתין"}</span>
+ <p style={{flex:1,fontSize:12,color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
+ <span style={{fontSize:11,color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?"נחתם":"ממתין"}</span>
  </div>
                         ))}
  </>}
@@ -8909,13 +8909,13 @@ export default function BeautyOS() {
  let beforeFile=null, afterFile=null, taVal="", noteVal="";
  return(
  <div style={{background:pcTint,borderRadius:12,padding:"12px",marginBottom:14}}>
- <p style={{fontSize:10,color:"var(--ink-2)",fontWeight:600,marginBottom:8}}>הוספת תמונות לפני/אחרי</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:8}}>הוספת תמונות לפני/אחרי</p>
  <div style={{display:"flex",gap:8,marginBottom:8}}>
- <label style={{flex:1,padding:"22px 0",background:"var(--surface)",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:10.5,color:pc,cursor:"pointer"}} id="ba-before-lbl">
+ <label style={{flex:1,padding:"22px 0",background:"var(--surface)",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:12,color:pc,cursor:"pointer"}} id="ba-before-lbl">
  לפני
  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{beforeFile=e.target.files?.[0]||null;const l=document.getElementById("ba-before-lbl");if(l&&beforeFile)l.style.borderStyle="solid";}}/>
  </label>
- <label style={{flex:1,padding:"22px 0",background:"var(--surface)",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:10.5,color:pc,cursor:"pointer"}} id="ba-after-lbl">
+ <label style={{flex:1,padding:"22px 0",background:"var(--surface)",border:`1px dashed ${pc}`,borderRadius:10,textAlign:"center",fontSize:12,color:pc,cursor:"pointer"}} id="ba-after-lbl">
  אחרי
  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{afterFile=e.target.files?.[0]||null;const l=document.getElementById("ba-after-lbl");if(l&&afterFile)l.style.borderStyle="solid";}}/>
  </label>
@@ -8926,21 +8926,21 @@ export default function BeautyOS() {
  </div>
  );
  })()}
- {clientPhotos.length===0?<p style={{fontSize:10,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>אין תמונות לפני/אחרי עדיין</p>
+ {clientPhotos.length===0?<p style={{fontSize:12,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>אין תמונות לפני/אחרי עדיין</p>
  :clientPhotos.map(ph=>(
  <div key={ph.id} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,padding:"10px",marginBottom:8}}>
- {(ph.treatment||ph.note)&&<p style={{fontSize:10.5,fontWeight:600,color:"var(--ink)",marginBottom:6}}>{ph.treatment}{ph.treatment&&ph.note?" · ":""}<span style={{fontWeight:400,color:"var(--ink-2)"}}>{ph.note}</span></p>}
+ {(ph.treatment||ph.note)&&<p style={{fontSize:12,fontWeight:600,color:"var(--ink)",marginBottom:6}}>{ph.treatment}{ph.treatment&&ph.note?" · ":""}<span style={{fontWeight:400,color:"var(--ink-2)"}}>{ph.note}</span></p>}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1,textAlign:"center"}}>
- <p style={{fontSize:8.5,color:"var(--ink-2)",marginBottom:3}}>לפני</p>
- {ph.before_url?<SignedImage value={ph.before_url} alt="תמונת לפני הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"var(--ink-3)"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"var(--ink-3)"}}>—</div>}
+ <p style={{fontSize:11,color:"var(--ink-2)",marginBottom:3}}>לפני</p>
+ {ph.before_url?<SignedImage value={ph.before_url} alt="תמונת לפני הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:11.5,color:"var(--ink-3)"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:11.5,color:"var(--ink-3)"}}>—</div>}
  </div>
  <div style={{flex:1,textAlign:"center"}}>
- <p style={{fontSize:8.5,color:"var(--ink-2)",marginBottom:3}}>אחרי</p>
- {ph.after_url?<SignedImage value={ph.after_url} alt="תמונת אחרי הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"var(--ink-3)"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:9,color:"var(--ink-3)"}}>—</div>}
+ <p style={{fontSize:11,color:"var(--ink-2)",marginBottom:3}}>אחרי</p>
+ {ph.after_url?<SignedImage value={ph.after_url} alt="תמונת אחרי הטיפול" style={{width:"100%",borderRadius:8,display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:11.5,color:"var(--ink-3)"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:8,fontSize:11.5,color:"var(--ink-3)"}}>—</div>}
  </div>
  </div>
- <p style={{fontSize:8,color:"var(--ink-3)",marginTop:5,textAlign:"left"}}>{new Date(ph.created_at).toLocaleDateString("he-IL")}</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",marginTop:5,textAlign:"left"}}>{new Date(ph.created_at).toLocaleDateString("he-IL")}</p>
  </div>
  ))}
  </div>
@@ -8954,11 +8954,11 @@ export default function BeautyOS() {
                         {(c.images||[]).map((img,i)=>(
  <div key={i} style={{position:"relative",paddingBottom:"100%",borderRadius:10,overflow:"hidden",background:pcTint}}>
  <SignedImage value={img} alt="" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>
- <button onClick={()=>handleDeleteImage(c,img)} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.45)",border:"none",borderRadius:"50%",width:20,height:20,color:"var(--surface)",fontSize:9,cursor:"pointer"}}>✕</button>
+ <button onClick={()=>handleDeleteImage(c,img)} style={{position:"absolute",top:3,left:3,background:"rgba(0,0,0,0.45)",border:"none",borderRadius:"50%",width:20,height:20,color:"var(--surface)",fontSize:11.5,cursor:"pointer"}}>✕</button>
  </div>
                         ))}
  </div>
-                      {(!c.images||c.images.length===0)&&<p style={{fontSize:10,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>אין תמונות עדיין</p>}
+                      {(!c.images||c.images.length===0)&&<p style={{fontSize:12,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>אין תמונות עדיין</p>}
  </div>
                   )}
  </div>
@@ -9002,7 +9002,7 @@ export default function BeautyOS() {
  )}
  {SR.clinical_treatment&&(
  <div style={{background:pcTint,borderRadius:14,padding:"12px 16px",marginBottom:12}}>
- <p style={{fontSize:10,color:"var(--ink-2)",marginBottom:2}}>טיפול מומלץ</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:2}}>טיפול מומלץ</p>
  <p style={{fontSize:14,fontWeight:700,color:pc}}>{SR.clinical_treatment}</p>
  {SR.matched_service&&<p style={{fontSize:11,color:"var(--ink-2)",marginTop:2}}>אצלך: {SR.matched_service}</p>}
  </div>
@@ -9013,7 +9013,7 @@ export default function BeautyOS() {
  {SR.clinic_plan.treatment_type&&<p style={{fontSize:11.5,color:"var(--ink)",fontWeight:600,marginBottom:3}}>{SR.clinic_plan.treatment_type}</p>}
  {SR.clinic_plan.sessions&&<p style={{fontSize:11,color:"var(--ink-2)",marginBottom:6}}>{SR.clinic_plan.sessions}</p>}
  {SR.clinic_plan.steps?.length>0&&SR.clinic_plan.steps.map((s,i)=>(<p key={i} style={{fontSize:11,color:"var(--ink)",lineHeight:1.5,marginBottom:2}}>• {s}</p>))}
- {SR.clinic_plan.expected_results&&<p style={{fontSize:10.5,color:"var(--success)",marginTop:6}}>תוצאה צפויה: {SR.clinic_plan.expected_results}</p>}
+ {SR.clinic_plan.expected_results&&<p style={{fontSize:12,color:"var(--success)",marginTop:6}}>תוצאה צפויה: {SR.clinic_plan.expected_results}</p>}
  </div>
  )}
  {SR.home_plan&&(
@@ -9021,7 +9021,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12,fontWeight:700,color:pc,marginBottom:6}}>✦ תכנית טיפוח לבית</p>
  {SR.home_plan.summary&&<p style={{fontSize:11,color:"var(--ink)",lineHeight:1.5,marginBottom:6}}>{SR.home_plan.summary}</p>}
  {SR.home_plan.products?.length>0&&SR.home_plan.products.map((p,i)=>(<p key={i} style={{fontSize:11,color:"var(--ink)",lineHeight:1.5,marginBottom:2}}>• {p}</p>))}
- {SR.home_plan.tips?.length>0&&SR.home_plan.tips.map((t,i)=>(<p key={i} style={{fontSize:10.5,color:"var(--ink-2)",lineHeight:1.5,marginTop:i===0?6:2}}>טיפ: {t}</p>))}
+ {SR.home_plan.tips?.length>0&&SR.home_plan.tips.map((t,i)=>(<p key={i} style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.5,marginTop:i===0?6:2}}>טיפ: {t}</p>))}
  </div>
  )}
  {SR.therapist_notes&&(
@@ -9029,12 +9029,12 @@ export default function BeautyOS() {
  <p style={{fontSize:11,fontWeight:700,color:"var(--pc-deep)",marginBottom:6}}>הערות למטפלת</p>
  {SR.therapist_notes.skin_assessment&&<p style={{fontSize:11,color:"var(--ink)",lineHeight:1.5,marginBottom:6}}>{SR.therapist_notes.skin_assessment}</p>}
  {SR.therapist_notes.protocol&&<p style={{fontSize:11,color:"var(--ink)",lineHeight:1.5}}><b>פרוטוקול:</b> {SR.therapist_notes.protocol}</p>}
- {SR.therapist_notes.cautions&&<p style={{fontSize:10.5,color:"var(--danger)",lineHeight:1.5,marginTop:6}}>⚠️ {SR.therapist_notes.cautions}</p>}
+ {SR.therapist_notes.cautions&&<p style={{fontSize:12,color:"var(--danger)",lineHeight:1.5,marginTop:6}}>⚠️ {SR.therapist_notes.cautions}</p>}
  </div>
  )}
  <div style={{background:pcTint,borderRadius:12,padding:"10px 13px",margin:"2px 0 12px",display:"flex",gap:8,alignItems:"flex-start"}}>
  <span style={{fontSize:13,flexShrink:0,lineHeight:1.5}}>ℹ️</span>
- <p style={{fontSize:10,color:"var(--ink-2)",lineHeight:1.6,textAlign:"right"}}>זוהי הערכת AI ראשונית בלבד ואינה מהווה אבחון רפואי. לתכנית טיפול מלאה ומדויקת מומלץ להתייעץ עם הקוסמטיקאית.</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6,textAlign:"right"}}>זוהי הערכת AI ראשונית בלבד ואינה מהווה אבחון רפואי. לתכנית טיפול מלאה ומדויקת מומלץ להתייעץ עם הקוסמטיקאית.</p>
  </div>
  {/* Next step: book the matched treatment (reuses the drawer's booking opener,
      pre-filled with her + the AI-matched service). Turns the scan's best moment
@@ -9043,7 +9043,7 @@ export default function BeautyOS() {
  <button onClick={()=>{const c=selectedClient;setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||SR.matched_service,duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");closeModal();setSelectedClient(null);setShowModal(true);}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13,marginBottom:8}}>✦ קבעי טיפול {SR.matched_service}</button>
  );})()}
  <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:(selectedClient&&SR.matched_service)?"var(--surface)":pcGrad,color:(selectedClient&&SR.matched_service)?"var(--ink-2)":"var(--surface)",border:(selectedClient&&SR.matched_service)?"1px solid var(--line-2)":"none",fontSize:13}}>סגירה</button>
- {!viewScan&&<p style={{fontSize:9.5,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
+ {!viewScan&&<p style={{fontSize:11.5,color:"var(--ink-3)",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
  </div>
  </div>
       ); })()}
@@ -9063,7 +9063,7 @@ export default function BeautyOS() {
  <div style={{flex:1}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600}}>{l.name}</h3>
  <p style={{fontSize:11,opacity:0.9}}>{l.phone||"אין טלפון"}</p>
- <span style={{fontSize:8,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,marginTop:4,display:"inline-block"}}>{SOURCE_ICONS[l.source]} {l.source}</span>
+ <span style={{fontSize:11,background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:20,marginTop:4,display:"inline-block"}}>{SOURCE_ICONS[l.source]} {l.source}</span>
  </div>
  </div>
  <div style={{display:"flex",gap:6,marginTop:14}}>
@@ -9077,7 +9077,7 @@ export default function BeautyOS() {
  )}
  </div>
  <div style={{padding:"16px 22px"}}>
- <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>סטטוס</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>סטטוס</p>
  <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:16}}>
                     {/* aria-pressed, not just colour: the active chip was signalled
                         only by a border and a background at 9.5px, which is the
@@ -9094,10 +9094,10 @@ export default function BeautyOS() {
                       successful WhatsApp send from the app. */}
  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:11.5}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>
  <div style={{marginTop:12}}>
- <p style={{fontSize:9,color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>תזכורת מעקב</p>
  <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} disabled={isBusy("leadReminder")} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",opacity:isBusy("leadReminder")?0.6:1}}/>
  </div>
-                  {l.notes&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--pc-tint)",borderRadius:12}}><p style={{color:"var(--ink-3)",fontWeight:700,fontSize:9,marginBottom:2}}>הערות</p><p style={{fontSize:11,color:"var(--ink)"}}>{l.notes}</p></div>}
+                  {l.notes&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--pc-tint)",borderRadius:12}}><p style={{color:"var(--ink-3)",fontWeight:700,fontSize:11.5,marginBottom:2}}>הערות</p><p style={{fontSize:11,color:"var(--ink)"}}>{l.notes}</p></div>}
                   {l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant"&&(
  <button onClick={()=>handleConvertLead(l)} className="primary-btn" style={{width:"100%",marginTop:16,background:"var(--success)",color:"var(--surface)",borderRadius:24,padding:"12px 0",fontSize:12,fontWeight:700,boxShadow:"0 8px 18px rgba(70,179,123,0.3)"}}>✓ המירי ללקוחה רשומה</button>
                   )}

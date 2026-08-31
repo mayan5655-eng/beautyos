@@ -62,12 +62,12 @@ export default function ImportChooser({
           }}>{k.icon}</span>
           <span style={{ flex:1, minWidth:0 }}>
             <span style={{ display:'block', fontSize:13.5, fontWeight:700, color:'var(--ink)' }}>{k.title}</span>
-            <span style={{ display:'block', fontSize:10.5, color:'var(--ink-3)', marginTop:2 }}>{k.blurb}</span>
+            <span style={{ display:'block', fontSize:12, color:'var(--ink-3)', marginTop:2 }}>{k.blurb}</span>
           </span>
           {k.ready && <span aria-hidden style={{ fontSize:16, color:accent, flexShrink:0 }}>←</span>}
         </button>
       ))}
-      <p style={{ fontSize:10.5, color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
+      <p style={{ fontSize:12, color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
         איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת — ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
       </p>
     </div>

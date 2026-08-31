@@ -236,7 +236,7 @@ export default function AdminClient({
                       <div style={{ fontWeight: 500 }}>{tenant.name || 'ללא שם'}</div>
                       {isOwn && (
                         <span style={{
-                          fontSize: 10, color: ink2, background: cream,
+                          fontSize: 12, color: ink2, background: cream,
                           border: `1px solid ${line}`, borderRadius: 999,
                           padding: '2px 8px', display: 'inline-block', marginTop: 4,
                         }}>העסק שלך</span>

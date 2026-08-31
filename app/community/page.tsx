@@ -79,10 +79,10 @@ export default function CommunityPage() {
               )}
               <div style={{ padding: "15px 17px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-                  <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius: 20 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius: 20 }}>
                     {typeLabel(p.post_type)}
                   </span>
-                  <span style={{ fontSize: 9, color: "rgba(74,46,90,0.14)" }}>
+                  <span style={{ fontSize: 11.5, color: "rgba(74,46,90,0.14)" }}>
                     {new Date(p.created_at).toLocaleDateString("he-IL")}
                   </span>
                 </div>
@@ -104,7 +104,7 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize: 9.5, color: "rgba(74,46,90,0.14)", marginTop: 30 }}>BloomOS 💜</p>
+        <p style={{ textAlign: "center", fontSize: 11.5, color: "rgba(74,46,90,0.14)", marginTop: 30 }}>BloomOS 💜</p>
       </div>
     </div>
   );

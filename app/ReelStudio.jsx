@@ -437,7 +437,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
       {/* TITLE + TIMING */}
       <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
-        <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
+        <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -448,13 +448,13 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
             would be lying about what is going to happen. Show the total the
             script actually adds up to instead. */}
         {hasScript ? (
-          <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600 }}>
+          <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600 }}>
             אורך הסרטון: <strong style={{ color: pc }}>{totalSeconds.toFixed(1)} שניות</strong>
             {" "}— לפי הזמנים שבתסריט
           </p>
         ) : (
           <>
-            <p style={{ fontSize: 10, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
+            <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
               זמן לכל תמונה: {secondsPer} שניות
             </p>
             <input
@@ -501,7 +501,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
                 <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
                 <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
                 {hasScript && (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-3)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-3)", whiteSpace: "nowrap" }}>
                     {slideDurations[i]?.toFixed(1)}ש׳
                   </span>
                 )}
@@ -518,14 +518,14 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
             difference between "I skipped that" and "I forgot that". */}
         {missingScenes.length > 0 && (
           <div style={{ marginTop: 10, background: "var(--surface-2)", border: "1px dashed var(--line-2)", borderRadius: 12, padding: "10px 12px" }}>
-            <p style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>
               עוד אין תמונה ל־{missingScenes.length} סצנות
             </p>
-            <p style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5, marginBottom: 6 }}>
+            <p style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.5, marginBottom: 6 }}>
               אפשר לייצר את הסרטון גם ככה — הסצנות האלה פשוט לא ייכנסו.
             </p>
             {missingScenes.map((sc, i) => (
-              <p key={i} style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <p key={i} style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
                 <strong style={{ color: pc }}>{sc.scene_number || slides.length + i + 1}.</strong>{" "}
                 {sc.on_screen_text || sc.spoken || "—"}
               </p>
@@ -552,7 +552,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
           <input type="file" accept="audio/*" style={{ display: "none" }}
             onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) setMusic({ file: f, url: URL.createObjectURL(f) }); }} />
         </label>
-        <p style={{ fontSize: 9, color: "var(--line-2)", marginTop: 6, textAlign: "center" }}>
+        <p style={{ fontSize: 11.5, color: "var(--line-2)", marginTop: 6, textAlign: "center" }}>
           השתמשי במוזיקה חופשית לשימוש (כדי שאינסטגרם לא יחסום)
         </p>
       </div>
@@ -586,7 +586,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
             style={{ width: "100%", padding: "13px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
             ⬇ הורדת הסרטון
           </button>
-          <p style={{ fontSize: 9.5, color: "var(--line-2)", marginTop: 8 }}>
+          <p style={{ fontSize: 11.5, color: "var(--line-2)", marginTop: 8 }}>
             הורידי את הקובץ והעלי אותו ישירות לאינסטגרם / וואטסאפ סטטוס
           </p>
         </div>

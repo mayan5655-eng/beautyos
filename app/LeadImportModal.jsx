@@ -170,7 +170,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
 
   if (!open) return null;
 
-  const th = { textAlign: 'right', fontSize: 10.5, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
+  const th = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
   const td = { fontSize: 11.5, color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
 
   return (
@@ -313,7 +313,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                         {FIELD_LABELS[field]}{field === 'phone' && <span style={{ color: 'var(--danger)' }}> *</span>}
                       </span>
                       {mapping[field] && conf > 0 && (
-                        <span style={{ fontSize: 10, color: 'var(--ink-3)' }}>ביטחון {Math.round(conf * 100)}%</span>
+                        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>ביטחון {Math.round(conf * 100)}%</span>
                       )}
                     </div>
                     <select
@@ -502,7 +502,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
           )}
         </div>
         {stage === 'preview' && (
-          <p style={{ fontSize: 10.5, color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
             עדיין לא נשמר כלום. הכפתור פותח מסך אישור לפני הייבוא.
           </p>
         )}
@@ -516,7 +516,7 @@ function Stat({ label, value, tone }) {
   return (
     <div style={{ padding: '9px 15px', borderRadius: 13, background: 'var(--surface-2)', border: '1px solid var(--line-2)', minWidth: 92 }}>
       <div style={{ fontSize: 19, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</div>
     </div>
   );
 }

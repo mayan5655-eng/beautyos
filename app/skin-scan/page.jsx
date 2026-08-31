@@ -278,13 +278,13 @@ export default function SkinScanPage() {
                   {a.thumb ? (
                     <>
                       <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(58,46,56,0.55)", color: "var(--brand-surface, #FAF6FC)", fontSize: 10.5, fontWeight: 600, padding: "3px 0" }}>{a.label} · החלפה</span>
+                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(58,46,56,0.55)", color: "var(--brand-surface, #FAF6FC)", fontSize: 12, fontWeight: 600, padding: "3px 0" }}>{a.label} · החלפה</span>
                     </>
                   ) : (
                     <>
                       <div style={{ fontSize: 22, marginBottom: 6 }}>📷</div>
                       <p style={{ fontSize: 11.5, fontWeight: 700, color: DEEP, lineHeight: 1.3 }}>{a.label}</p>
-                      <p style={{ fontSize: 9.5, color: a.req ? ACCENT : INK2, marginTop: 2, fontWeight: a.req ? 700 : 500 }}>{a.req ? "חובה" : "רשות"}</p>
+                      <p style={{ fontSize: 11.5, color: a.req ? ACCENT : INK2, marginTop: 2, fontWeight: a.req ? 700 : 500 }}>{a.req ? "חובה" : "רשות"}</p>
                     </>
                   )}
                 </div>
