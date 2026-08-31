@@ -4545,14 +4545,39 @@ export default function BeautyOS() {
   };
 
   // Delete a community post
-  const deleteCommunityPost = async (id) => {
+  // Permanent, and it was one tap.
+  //
+  // Every other destructive path in this app asks first or is reversible: a
+  // service checks four tables for references before it will delete, an expense
+  // goes through askConfirm, an appointment soft-cancels with a 6.5s undo. This
+  // one deleted a post outright on a single tap of a 10.5px "מחיקה" link sitting
+  // next to the post's own text, with no undo and no way to get the wording back.
+  //
+  // Takes the post rather than an id so the dialog can quote what is about to
+  // go, the same way the expense dialog names the expense. "Are you sure?" with
+  // nothing in it is a question she cannot actually answer.
+  const deleteCommunityPost = async (post) => {
     if (guardWrite()) return;
-    // Supabase returns { error } rather than throwing, so a try/catch never fired
-    // on a real DB/RLS failure — the post vanished from the UI but not the DB.
-    const { error } = await supabase.from("community_posts").delete().eq("id", id);
-    if (error) { handleDbError(error, "delete community post"); return; }
-    setCommunityPosts(prev => prev.filter(p => p.id !== id));
-    toast("הפוסט נמחק");
+    const id = post?.id ?? post;   // tolerate a bare id from any older caller
+    const body = String(post?.body || "").trim();
+    const excerpt = body.length > 60 ? `${body.slice(0, 60)}…` : body;
+    askConfirm({
+      title: "מחיקת פוסט",
+      message: excerpt
+        ? `למחוק את הפוסט "${excerpt}"? לא ניתן לשחזר אותו.`
+        : "למחוק את הפוסט? לא ניתן לשחזר אותו.",
+      confirmText: "מחיקה",
+      danger: true,
+      onConfirm: async () => {
+        // Supabase returns { error } rather than throwing, so a try/catch never
+        // fired on a real DB/RLS failure — the post vanished from the UI but not
+        // the database.
+        const { error } = await supabase.from("community_posts").delete().eq("id", id);
+        if (error) { handleDbError(error, "delete community post"); return; }
+        setCommunityPosts(prev => prev.filter(p => p.id !== id));
+        toast("הפוסט נמחק");
+      },
+    });
   };
 
   const copyPost = async (v) => {
@@ -7457,7 +7482,7 @@ export default function BeautyOS() {
  {p.body&&<p style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
  {p.cta_label&&<div style={{marginTop:10}}><span style={{display:"inline-block",padding:"7px 16px",background:pcGrad,color:"var(--surface)",fontSize:11,fontWeight:600,borderRadius:20}}>{p.cta_label}</span></div>}
  <div style={{display:"flex",justifyContent:"flex-start",marginTop:10}}>
- <button onClick={()=>deleteCommunityPost(p.id)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
+ <button onClick={()=>deleteCommunityPost(p)} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit"}}>מחיקה</button>
  </div>
  </div>
  </div>
