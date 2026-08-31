@@ -1,3 +1,6 @@
+-- STATUS: UNKNOWN - verification query in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- support-messages.sql
 --
 -- The table behind the persistent "תקועה?" button.

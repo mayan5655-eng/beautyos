@@ -1,3 +1,6 @@
+-- STATUS: APPLIED (verified 2026-09-01).
+-- The folder name is not a status. See README.md in this directory.
+
 -- ai-usage.sql
 --
 -- Per-tenant metering for every Anthropic call the product makes.

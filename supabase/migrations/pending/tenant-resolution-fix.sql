@@ -1,3 +1,6 @@
+-- STATUS: PARKED - do not run yet. Trigger and reasoning in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- tenant-resolution-fix.sql
 -- PARKED. Do not run yet. See "WHEN TO RUN" below.
 --

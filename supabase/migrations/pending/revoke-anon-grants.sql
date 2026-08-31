@@ -1,3 +1,6 @@
+-- STATUS: UNKNOWN - verification query in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- revoke-anon-grants.sql
 --
 -- Take every privilege away from `anon` on every table in `public`, except the

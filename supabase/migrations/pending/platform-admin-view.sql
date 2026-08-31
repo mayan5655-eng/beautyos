@@ -1,3 +1,6 @@
+-- STATUS: UNKNOWN - verification query in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- platform-admin-view.sql
 --
 -- The query surface for the metadata-only admin panel, plus the audit log for

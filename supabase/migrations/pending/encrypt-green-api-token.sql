@@ -1,3 +1,6 @@
+-- STATUS: APPLIED.
+-- The folder name is not a status. See README.md in this directory.
+
 -- encrypt-green-api-token.sql
 --
 -- STEP 1. Adds the encrypted column. Changes nothing else.

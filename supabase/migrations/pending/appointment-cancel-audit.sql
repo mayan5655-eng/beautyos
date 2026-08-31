@@ -1,3 +1,6 @@
+-- STATUS: UNKNOWN - verification query in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- appointment-cancel-audit.sql
 --
 -- Records WHO cancelled an appointment and WHEN.

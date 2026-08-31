@@ -1,3 +1,6 @@
+-- STATUS: APPLIED (verified 2026-09-01).
+-- The folder name is not a status. See README.md in this directory.
+
 -- get-public-tenant-by-slug.sql
 --
 -- STEP 1 of closing the anon read on public.tenants. RUN THIS FIRST.

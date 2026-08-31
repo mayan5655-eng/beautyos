@@ -1,3 +1,6 @@
+-- STATUS: ROLLBACK ARTEFACT - never run in a normal pass.
+-- The folder name is not a status. See README.md in this directory.
+
 -- encrypt-green-api-token-rollback.sql
 --
 -- Undoes encrypt-green-api-token.sql by removing the encrypted column.

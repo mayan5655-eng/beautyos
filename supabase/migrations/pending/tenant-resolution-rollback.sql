@@ -1,3 +1,7 @@
+-- STATUS: ROLLBACK ARTEFACT - never run in a normal pass. DO NOT DELETE.
+-- (The "READY TO RUN" line below means ready IF a rollback is needed.
+--  It is not an instruction to run this file.) See README.md.
+
 -- tenant-resolution-rollback.sql
 -- The way back out of tenant-resolution-fix.sql.
 --

@@ -1,3 +1,6 @@
+-- STATUS: APPLIED - settings.green_api_token no longer exists.
+-- The folder name is not a status. See README.md in this directory.
+
 -- drop-green-api-token-plaintext.sql
 --
 -- STEP 5. THE LAST ONE, and the irreversible one. Run only after the backfill

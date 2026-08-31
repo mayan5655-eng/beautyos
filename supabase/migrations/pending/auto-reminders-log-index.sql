@@ -1,3 +1,6 @@
+-- STATUS: UNKNOWN - verification query in README.md.
+-- The folder name is not a status. See README.md in this directory.
+
 -- auto-reminders-log-index.sql
 --
 -- The anti-spam lookup in the smart-reminder cron had NO index behind it.
