@@ -258,6 +258,29 @@ recovering revenue that is currently lost on every cancellation.
 
 ---
 
+## Known gaps, logged not fixed
+
+**Group WhatsApp sends are not personalised. [verified]** `{name}` is substituted **once, at
+compose time**, not per recipient. `openBulk` calls
+`renderLeadTemplate(tpl, singleLead, settings)`, and for a group `singleLead` is null, so
+`lib/leads/templates.ts` falls back to `NAME_FALLBACK` — **`לקוחה יקרה`** — and every recipient
+gets that same frozen string. A send from the lead drawer passes the lead and does substitute her
+real name, so the two paths behave differently from the same template.
+
+She cannot see this before sending: the composer shows the rendered text, so what she reads in the
+textarea *is* what goes out. It looks correct, because for a one-off send it is.
+
+The fix is not in the UI. `app/api/leads/send-bulk/route.js` already loads each lead's `name`
+before sending (`route.js:77`), so it should take the template with `{name}` **unsubstituted** and
+render per recipient inside the send loop. That means the composer has to show a preview rather
+than the final text, and the route has to distinguish a template from a literal message — which is
+why this is a deliberate deferral and not a one-line change.
+
+Logged 2026-08-31, alongside merging the leads status filter and the bulk-send strip into one
+control.
+
+---
+
 ## Corrections log
 
 This document was revised after review. Four findings were wrong:

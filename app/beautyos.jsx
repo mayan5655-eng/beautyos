@@ -2066,6 +2066,34 @@ export default function BeautyOS() {
   const showMoreLeads   = () => setLeadWindow({ sig: leadFilterSig, n: leadsShown + LIST_PAGE });
   const showMoreClients = () => setClientWindow({ sig: clientFilterSig, n: clientsShown + LIST_PAGE });
 
+  // The group the leads screen is currently looking at, and therefore the group
+  // it can message. Null while the filter is "הכל": the send API is scoped to a
+  // single status, so with no status there is no group - and no action bar.
+  //
+  // Every number the action bar shows comes from HERE, and the same array is
+  // what gets handed to openBulk. One derivation, so the count on the button
+  // and the set that receives the message cannot drift apart. `narrowed` is the
+  // gap between "leads in this status" and "leads matching the search too" -
+  // the number that has to shout when 47 becomes 1.
+  const leadGroup = useMemo(() => {
+    if (leadFilter === "all") return null;
+    const statusTotal = leads.filter(l => l.status === leadFilter).length;
+    const withPhone = filteredLeads.filter(l => l.phone);
+    return {
+      status: leadFilter,
+      label: (LEAD_STATUSES[leadFilter] || {}).label || leadFilter,
+      matched: filteredLeads,
+      withPhone,
+      statusTotal,
+      narrowed: filteredLeads.length < statusTotal,
+      // The list draws a page at a time. The send does not: it goes to every
+      // lead matching the filter, including the ones below the fold that
+      // "הצג עוד" has not drawn yet. Stated outright in the bar rather than
+      // left for her to work out from two numbers on different rows.
+      windowed: leadsShown < filteredLeads.length,
+    };
+  }, [leadFilter, leads, filteredLeads, leadsShown]);
+
   // Global top-bar search. Normalizes the query once (trim + lowercase) and
   // matches against lowercased fields across five sources. Each source is
   // capped at 5 rows (so one busy source can't crowd out the rest), and the
@@ -2919,11 +2947,30 @@ export default function BeautyOS() {
   // (settings.automations.lead_templates). Always editable before sending, and
   // blank when no template is saved for that status.
   // Passing `lead` targets that single lead instead of the whole status group.
-  const openBulk = (status, lead) => {
+  // `target` is one of three things, and the difference decides who receives it:
+  //   a lead object  - just her (from the lead drawer)
+  //   an array       - exactly these leads (the filtered group on the leads
+  //                    screen, which is narrowed by the search box)
+  //   null/undefined - everyone in the status
+  //
+  // The array form is what stops the group send from ignoring the search. It
+  // used to take only a status, so searching "רונית" and sending to "חדש"
+  // messaged all nine leads in that status rather than the one on screen. The
+  // API applies leadIds AFTER its own tenant and status filters, so this can
+  // only ever narrow the recipients, never widen them.
+  const openBulk = (status, target) => {
     const tpl = resolveLeadTemplate(settings, status);
+    const isList = Array.isArray(target);
+    const singleLead = !isList && target ? target : null;
     setBulkStatus(status);
-    setBulkLeadIds(lead ? [lead.id] : null);
-    setBulkMessage(tpl ? renderLeadTemplate(tpl, lead, settings) : "");
+    setBulkLeadIds(
+      isList ? target.map(l => (typeof l === "string" ? l : l.id)).filter(Boolean)
+             : singleLead ? [singleLead.id]
+             : null
+    );
+    // A group send has no one name to address, so {name} resolves to the
+    // neutral fallback for everyone. See the note in REVIEW.md.
+    setBulkMessage(tpl ? renderLeadTemplate(tpl, singleLead, settings) : "");
     setBulkResult(null); setBulkError(""); setBulkStep("compose");
   };
   const closeBulk = () => {
@@ -6307,34 +6354,67 @@ export default function BeautyOS() {
  </div>
  </div>
  <div style={{display:"flex",gap:7,marginBottom:12,overflowX:"auto",WebkitOverflowScrolling:"touch",paddingBottom:2}}>
- <button onClick={()=>setLeadFilter("all")} style={{background:leadFilter==="all"?pcGrad:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter==="all"?"transparent":"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:600,color:leadFilter==="all"?"var(--surface)":"var(--ink-2)",boxShadow:leadFilter==="all"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)",transition:"transform 0.12s"}}>הכל ({leads.length})</button>
+ <button onClick={()=>setLeadFilter("all")} aria-pressed={leadFilter==="all"} style={{background:leadFilter==="all"?pcGrad:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter==="all"?"transparent":"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:12.5,fontWeight:600,color:leadFilter==="all"?"var(--surface)":"var(--ink-2)",boxShadow:leadFilter==="all"?`0 6px 14px ${pcShadow}`:"var(--shadow-xs)",transition:"transform 0.12s"}}>הכל ({leads.length})</button>
+              {/* 12.5px, matching the send pills this strip absorbed: it is now
+                  the single status control on the screen rather than one of two,
+                  so it carries the weight both used to share. aria-pressed
+                  because "which status am I looking at" was signalled by colour
+                  alone. */}
               {Object.entries(LEAD_STATUSES).map(([key,s])=>(
- <button key={key} onClick={()=>setLeadFilter(leadFilter===key?"all":key)} style={{background:leadFilter===key?s.bg:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter===key?s.color:"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:11,fontWeight:leadFilter===key?700:500,color:leadFilter===key?s.color:"var(--ink-2)",boxShadow:"var(--shadow-xs)",transition:"transform 0.12s"}}>{s.label} ({leads.filter(l=>l.status===key).length})</button>
+ <button key={key} onClick={()=>setLeadFilter(leadFilter===key?"all":key)} aria-pressed={leadFilter===key} style={{background:leadFilter===key?s.bg:"var(--surface)",borderRadius:24,padding:"8px 15px",border:`1px solid ${leadFilter===key?s.color:"var(--line-2)"}`,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit",fontSize:12.5,fontWeight:leadFilter===key?700:500,color:leadFilter===key?s.color:"var(--ink-2)",boxShadow:"var(--shadow-xs)",transition:"transform 0.12s"}}>{s.label} ({leads.filter(l=>l.status===key).length})</button>
               ))}
  </div>
  <div style={{position:"relative",marginBottom:12}}>
  <span style={{position:"absolute",top:"50%",right:14,transform:"translateY(-50%)",fontSize:12,color:"var(--ink-3)",pointerEvents:"none"}}>⌕</span>
  <input value={leadSearch} onChange={e=>setLeadSearch(e.target.value)} placeholder="חיפוש פנייה..." style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:24,padding:"10px 36px 10px 14px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",boxShadow:"var(--shadow-xs)"}}/>
  </div>
-            {/* Bulk WhatsApp by status — one send action per status group. Sends
-                REAL messages, but only after the explicit confirm step in the
-                modal below. Count on each pill = leads with a phone that will
-                receive the message. */}
-            {leads.length>0&&(
- <div className="glass-card" style={{padding:"14px 16px",marginBottom:14}}>
- <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11,flexWrap:"wrap"}}>
- <span style={{width:30,height:30,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(37,211,102,0.12)",color:"var(--success)"}}>✆</span>
- <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>שליחת וואטסאפ לפי סטטוס</p>
- <span style={{fontSize:12,color:"var(--ink-3)"}}>המספר = פניות עם טלפון שיקבלו את ההודעה</span>
+            {/* ── The group action bar ──────────────────────────────────────
+                This replaces a second strip of status pills that used to sit
+                here, listing every status again directly below the filter
+                strip above. Two rows of the same Hebrew status names, one
+                filtering and one sending real WhatsApp messages, and the same
+                label carried a DIFFERENT number in each (the filter counted
+                every lead in a status, the sender counted only those with a
+                phone) - so the two readings of "חדש (12)" / "חדש (9)" were
+                impossible to tell apart, and the destructive one was a single
+                tap away from the harmless one.
+
+                Now there is one strip. It filters. Once a status is chosen,
+                the group she is LOOKING AT becomes the group she can message,
+                and she cannot reach the send without the list being on screen
+                first. Nothing appears while the filter is "הכל": with no
+                status there is no group, and the send API is scoped to one
+                status anyway. */}
+            {leadGroup&&(
+ <div className="glass-card" style={{padding:"13px 15px",marginBottom:14,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+ <span aria-hidden style={{width:30,height:30,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,background:"rgba(37,211,102,0.12)",color:"var(--success)",flexShrink:0}}>✆</span>
+ <div style={{flex:"1 1 220px",minWidth:0}}>
+ <p style={{fontSize:13,fontWeight:700,color:"var(--ink)",lineHeight:1.5}}>
+   {leadGroup.matched.length} פניות בסטטוס &quot;{leadGroup.label}&quot;
+   {/* The shout. When the search cuts 47 down to 1, the number she is
+       about to message is not the number on the filter chip, and that
+       has to be impossible to miss rather than merely present. */}
+   {leadGroup.narrowed&&(
+ <span style={{marginInlineStart:8,fontSize:12,fontWeight:700,color:"var(--warning)",background:"rgba(242,184,75,0.18)",borderRadius:20,padding:"3px 10px",whiteSpace:"nowrap"}}>
+     מסונן מתוך {leadGroup.statusTotal} · לפי החיפוש
+ </span>
+   )}
+ </p>
+ <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6,marginTop:2}}>
+   {leadGroup.withPhone.length>0
+     ? `ל-${leadGroup.withPhone.length} מהן יש טלפון ויקבלו את ההודעה`
+     : "לאף אחת מהן אין טלפון, אז אי אפשר לשלוח הודעה"}
+   {leadGroup.windowed&&leadGroup.withPhone.length>0&&
+     ` · הרשימה מציגה ${leadsShown} בכל פעם, אבל ההודעה תגיע לכל ${leadGroup.withPhone.length}`}
+ </p>
  </div>
- <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {Object.entries(LEAD_STATUSES).map(([key,s])=>{
-                  const withPhone=leads.filter(l=>l.status===key&&l.phone).length;
-                  return(
- <button key={key} onClick={()=>openBulk(key)} disabled={withPhone===0} title={withPhone===0?"אין פניות עם טלפון בסטטוס זה":undefined} style={{padding:"7px 13px",border:"1px solid",borderColor:withPhone===0?"var(--line)":s.color,borderRadius:20,background:withPhone===0?"var(--surface-2)":s.bg,color:withPhone===0?"var(--ink-3)":s.color,fontSize:12.5,fontWeight:600,cursor:withPhone===0?"not-allowed":"pointer",fontFamily:"inherit",opacity:withPhone===0?0.65:1}}>{s.label} ({withPhone})</button>
-                  );
-                })}
- </div>
+ <button
+   onClick={()=>openBulk(leadGroup.status,leadGroup.matched)}
+   disabled={leadGroup.withPhone.length===0}
+   className="primary-btn"
+   style={{flexShrink:0,padding:"11px 18px",fontSize:12.5,fontWeight:700,background:leadGroup.withPhone.length===0?"var(--surface-2)":pcGrad,color:leadGroup.withPhone.length===0?"var(--ink-3)":"var(--surface)",border:leadGroup.withPhone.length===0?"1px solid var(--line)":"none",cursor:leadGroup.withPhone.length===0?"not-allowed":"pointer",boxShadow:leadGroup.withPhone.length===0?"none":`0 8px 18px ${pcShadow}`}}>
+   ✆ שליחת וואטסאפ ל-{leadGroup.withPhone.length} פניות
+ </button>
  </div>
             )}
             {filteredLeads.length===0?(
@@ -7749,7 +7829,7 @@ export default function BeautyOS() {
  <p style={{fontSize:10.5,color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
 
             {bulkStep==="compose"&&(<>
- <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder="כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
+ <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?"כתבי כאן את ההודעה שתישלח לפניות שנבחרו...":"כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..."} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
  <div style={{display:"flex",gap:6}}>
  <button onClick={closeBulk} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={()=>setBulkStep("confirm")} disabled={!bulkMessage.trim()||withPhone===0} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>המשך</button>
