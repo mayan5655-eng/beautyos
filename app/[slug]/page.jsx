@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "../supabase";
 import { fetchPublicSettings } from "@/lib/branding";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
+import { toWhatsAppNumber } from "@/lib/phone";
 
 // ============================================================
 // DYNAMIC LANDING PAGE  —  /[slug]
@@ -119,6 +120,10 @@ export default function LandingPage() {
   // showed its "link is not valid" screen. The primary call to action on every
   // landing page - the button that turns a visitor into a booking - went
   // nowhere. The id comes from the RPC above.
+  // Her contact number for the no-services fallback. This page reads only the
+  // public settings allowlist, which carries business_phone but not the
+  // branding jsonb, so there is no whatsapp_number to prefer here.
+  const slugWa = toWhatsAppNumber(settings?.business_phone);
   const bookUrl = tenant?.id ? `/book?t=${encodeURIComponent(tenant.id)}` : "/book";
 
   // === LOADING ===
@@ -201,6 +206,30 @@ export default function LandingPage() {
             <p style={{ fontSize: 13, color: "var(--brand-muted, #98879B)", lineHeight: 1.7 }}>
               לא הצלחנו לטעון את רשימת הטיפולים כרגע. אפשר לקבוע תור והעסק יחזור אלייך עם הפרטים.
             </p>
+          </div>
+        )}
+        {/* Loaded fine, but she has not added a treatment yet.
+            Distinct from the load-failure message above, and distinct from
+            saying nothing: the "לקביעת תור" button at the top sends her to
+            /book, which with an empty menu has nothing to offer her either. So
+            this says what is true and gives her a way through. A new
+            cosmetician's link is live from the day she signs up. */}
+        {!servicesFailed && services.length === 0 && (
+          <div className="ld-in" style={{ textAlign: "center", padding: "18px 16px", marginBottom: 14, borderRadius: 14, background: "rgba(255,255,255,0.6)" }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: "var(--ink, #2A2233)", marginBottom: 6 }}>
+              רשימת הטיפולים בהכנה
+            </p>
+            <p style={{ fontSize: 13.5, color: "var(--brand-muted, #98879B)", lineHeight: 1.8 }}>
+              {slugWa
+                ? "אפשר לפנות אלינו בוואטסאפ ונשמח לתאם לך תור."
+                : "אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק."}
+            </p>
+            {slugWa && (
+              <a href={`https://wa.me/${slugWa}`} target="_blank" rel="noreferrer"
+                 style={{ display: "inline-block", marginTop: 14, textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", padding: "13px 26px", borderRadius: 999, fontSize: 14.5, fontWeight: 700 }}>
+                💬 לתיאום תור בוואטסאפ
+              </a>
+            )}
           </div>
         )}
         {services.length > 0 && (

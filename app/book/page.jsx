@@ -7,6 +7,7 @@ import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import FloralCorners from "../FloralCorners";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
+import { phoneErrorHe } from "@/lib/phone";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -211,7 +212,11 @@ export default function BookPage() {
   const handleConfirm = async () => {
     setErrorMsg("");
     if (!name.trim()) { setErrorMsg("נא להזין שם"); return; }
-    if (!phone.trim()) { setErrorMsg("נא להזין טלפון"); return; }
+    // A number we cannot reach is not a booking. This used to be a non-empty
+    // check on both sides, so "abc" saved an appointment, sent no confirmation,
+    // and told neither of them anything was wrong. Same rule server-side.
+    const phoneErr = phoneErrorHe(phone);
+    if (phoneErr) { setErrorMsg(phoneErr); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -273,6 +278,11 @@ export default function BookPage() {
   const bizName = brand?.welcomeHeadline || brand?.businessName || settings?.business_name || "העסק שלי";
   const phoneRaw = String(brand?.whatsappNumber || settings?.business_phone || "").trim();
   const wa = normalizeWa(phoneRaw);
+  // Whether this clinic can actually take a booking right now. Everything that
+  // offers one keys off this: with no services there is no bookable thing, and
+  // a page that shows a booking button anyway wastes her client's time and
+  // loses the enquiry silently.
+  const canBook = services.length > 0;
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
@@ -382,7 +392,10 @@ export default function BookPage() {
           {/* QUICK ACTIONS */}
           <div style={{ ...section }}>
             <div style={{ display: "flex", gap: 9, justifyContent: "center", flexWrap: "wrap" }}>
-              <button onClick={goToServices} className="qa" style={{ ...qaBtn, background: pc, color: "var(--brand-surface, #FAF6FC)", boxShadow: `0 12px 26px -14px ${pc}` }}>{brand?.ctaLabel || "קביעת תור"}</button>
+              {/* Hidden when nothing is bookable. It scrolls to #bk-services,
+                  which does not exist with an empty menu - so it rendered as the
+                  page's most prominent button and did nothing at all on tap. */}
+              {canBook && <button onClick={goToServices} className="qa" style={{ ...qaBtn, background: pc, color: "var(--brand-surface, #FAF6FC)", boxShadow: `0 12px 26px -14px ${pc}` }}>{brand?.ctaLabel || "קביעת תור"}</button>}
               {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="qa" style={{ ...qaBtn, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", boxShadow: "0 12px 26px -14px rgba(37,211,102,0.85)" }}>וואטסאפ</a>}
               {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" className="qa" style={qaOutline}>ניווט</a>}
               {phoneRaw && <a href={`tel:${phoneRaw}`} className="qa" style={qaOutline}>התקשרי</a>}
@@ -415,6 +428,34 @@ export default function BookPage() {
               })}
             </div>
           </div>
+
+          {/* Nothing bookable yet.
+              This is what a visitor used to get instead: the services section
+              and the booking button were BOTH hidden behind services.length > 0,
+              so she saw a business card, opening hours and a gallery, and no way
+              to book and no explanation. A new cosmetician gets her link on the
+              day she signs up, so this is the state her very first visitors see.
+              Silence here loses an enquiry that neither of them ever hears about. */}
+          {!canBook && (
+            <div style={{ ...section }}>
+              <div style={{ ...cardBox, textAlign: "center" }}>
+                <p style={{ fontSize: 15, fontWeight: 600, color: deep, marginBottom: 8 }}>
+                  ההזמנות המקוונות ייפתחו כאן בקרוב
+                </p>
+                <p style={{ fontSize: 13.5, color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
+                  {wa
+                    ? "רשימת הטיפולים עדיין בהכנה. אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור."
+                    : "רשימת הטיפולים עדיין בהכנה. אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק."}
+                </p>
+                {wa && (
+                  <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
+                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius: 16, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, letterSpacing: "0.5px", boxShadow: "0 14px 30px -16px rgba(37,211,102,0.9)" }}>
+                    💬 לתיאום תור בוואטסאפ
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* SERVICES (the booking entry point) */}
           {services.length > 0 && (

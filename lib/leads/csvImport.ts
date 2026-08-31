@@ -229,50 +229,27 @@ export function maskRow(row: string[]): string[] {
 
 // ── Phone normalisation ─────────────────────────────────────────────────────
 //
-// STRICTER than lib/whatsapp.js formatPhone, deliberately, because this value
-// becomes the external_id that the upsert dedupes on.
+// Moved to lib/phone.ts and re-exported here, unchanged, so every existing
+// importer keeps its import path. The public booking flow needs exactly this
+// rule — a number a human is typing right now, refused with a reason she can
+// act on — and two copies of a validator is how they drift apart.
 //
-// formatPhone only strips spaces/dashes/plus and swaps a leading 0 for 972. It
-// accepts anything else unchanged, so "לא ידוע" and "" both survive it. An
-// empty external_id is the dangerous one: the unique index is NULLS DISTINCT,
-// so NULLs never collide - but empty string is NOT null, and two rows with
-// external_id = '' in the same (tenant_id, source) DO collide and would upsert
-// into each other, silently merging unrelated leads. The migration file warns
-// about exactly this.
-//
-// So: only a well-formed Israeli mobile produces a key. Everything else is
-// refused with a reason the preview can show, and those rows are skipped - they
-// could not have been messaged anyway, which is the whole point of the import.
+// The reasoning that produced it still applies and is worth keeping in view:
+// this value becomes the external_id the upsert dedupes on, and the unique
+// index is NULLS DISTINCT — so NULL never collides, but empty string is NOT
+// null, and two rows with external_id = '' in the same (tenant_id, source) DO
+// collide and would silently merge unrelated leads. Only a well-formed Israeli
+// mobile may produce a key; everything else is refused with a reason the
+// preview can show, and those rows are skipped — they could not have been
+// messaged anyway, which is the whole point of the import.
 
-export type PhoneReason =
-  | 'empty'
-  | 'no_digits'
-  | 'not_israeli_mobile';
+import type { PhoneReason } from '../phone';
 
-export type PhoneResult =
-  | { ok: true; e164: string }
-  | { ok: false; reason: PhoneReason };
-
-/** 972 + 5 + 8 more digits. Israeli mobiles only; landlines are refused. */
-const ISRAELI_MOBILE = /^9725\d{8}$/;
-
-export function normalizeIsraeliMobile(raw: string | null | undefined): PhoneResult {
-  const input = String(raw ?? '').trim();
-  if (!input) return { ok: false, reason: 'empty' };
-
-  // Strip everything that is not a digit. This also removes a leading +, any
-  // Hebrew text, and the (0) some exports write inside international numbers.
-  const digits = input.replace(/\D/g, '');
-  if (!digits) return { ok: false, reason: 'no_digits' };
-
-  let candidate = digits;
-  if (candidate.startsWith('00972')) candidate = candidate.slice(2);
-  if (candidate.startsWith('0')) candidate = '972' + candidate.slice(1);
-  else if (candidate.startsWith('5') && candidate.length === 9) candidate = '972' + candidate;
-
-  if (!ISRAELI_MOBILE.test(candidate)) return { ok: false, reason: 'not_israeli_mobile' };
-  return { ok: true, e164: candidate };
-}
+export {
+  normalizeIsraeliMobile,
+  type PhoneResult,
+  type PhoneReason,
+} from '../phone';
 
 /** Human-readable Hebrew for each refusal, for the preview screen. */
 export const PHONE_REASON_HE: Record<PhoneReason, string> = {

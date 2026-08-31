@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
+import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
 const supabase = createClient(
@@ -32,6 +33,22 @@ export async function POST(request) {
     if (!name || !phone || !service || !date || (hour === undefined && startMinute === undefined)) {
       return Response.json(
         { success: false, error: "חסרים פרטים" },
+        { status: 400 }
+      );
+    }
+
+    // The phone is the whole point of the booking: it is how she confirms it,
+    // how the reminder reaches her, and how the cosmetician contacts her if
+    // anything changes. Validated HERE and not only in the page, because the
+    // page is a browser form and this route is reachable directly.
+    //
+    // Strict Israeli-mobile — the same rule the leads importer uses, and the
+    // same sentence the page shows. A caller who gets past the client should
+    // not receive a different explanation from the server.
+    const phoneCheck = normalizeIsraeliMobile(phone);
+    if (!phoneCheck.ok) {
+      return Response.json(
+        { success: false, error: PHONE_ERROR_HE[phoneCheck.reason] },
         { status: 400 }
       );
     }
