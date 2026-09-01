@@ -1139,6 +1139,20 @@ export default function BeautyOS() {
   // every close so the modal never opens stale in edit mode.
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
+  // The service list is edited as a DRAFT, exactly like editSettings, and is
+  // written only by the one save button at the bottom of the panel.
+  //
+  // Two things were wrong before. Each row had its own ✓ that wrote to
+  // service_prices on the spot, so the panel had two save buttons with
+  // different scopes and no way to tell them apart — the bottom one never
+  // touched services at all. And the row inputs edited the app-wide `services`
+  // array directly, so a half-typed treatment name was immediately live in the
+  // appointment dropdown, the cashier and the public booking page.
+  //
+  // Rows carry two markers while they are in the draft: _new for a row that
+  // does not exist in the database yet, and _deleted for one that should be
+  // removed on save. Neither is ever sent to the server.
+  const [editServices,   setEditServices]   = useState(null);
   const [brandUploading, setBrandUploading] = useState(""); // which branding asset is uploading
   const [newService,     setNewService]     = useState({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});
   const [showNewService, setShowNewService] = useState(false);
@@ -1336,13 +1350,77 @@ export default function BeautyOS() {
   // ── SETUP CHECKLIST — persistent, always-accessible. Each item auto-detects
   //    "done" from her real data and jumps straight to the right Settings tab
   //    (reuses the existing setEditSettings/setSettingsTab/setShowSettings jump). ──
-  const openSetupTab = (tab, extra) => {
-    setEditSettings({ ...settings });
-    setSettingsTab(tab);
+  // ── Settings: open, dirty, close ───────────────────────────────────────────
+  //
+  // One entry point for every route into the panel — the header gear, the
+  // sidebar item, the setup checklist and the dashboard recommendations. It
+  // exists because those routes used to each build their own draft, and
+  // openSetupTab in particular did `setEditSettings({ ...settings })`
+  // unconditionally from a button rendered INSIDE the open panel. Tapping the
+  // checklist mid-edit therefore replaced everything she had typed with the
+  // last saved values, silently, and dropped her on a different tab.
+  //
+  // So: build a draft only when the panel is closed. If it is already open,
+  // carry the draft she is in and just move to the tab she asked for.
+  // Keyed on whether a DRAFT exists, not on whether the panel is visible. The
+  // import wizard hides Settings without closing it (openImportFor) precisely
+  // so that nothing she typed is thrown away, and coming back afterwards must
+  // land her in the same draft rather than a fresh one built from saved state.
+  // A real close, and a successful save, both null the drafts.
+  const openSettings = (tab, extra) => {
+    if (!editSettings) setEditSettings({ ...settings });
+    if (!editServices) {
+      setEditServices(services.map(sv => ({ ...sv })));
+    } else {
+      // The services import writes straight to service_prices while the panel
+      // is hidden. Fold anything new into the draft so it is visible and not
+      // silently absent from the list she is editing — without touching rows
+      // she has already changed.
+      setEditServices(prev => {
+        const held = new Set((prev || []).map(sv => sv.id).filter(Boolean));
+        const missing = services.filter(sv => sv.id && !held.has(sv.id)).map(sv => ({ ...sv }));
+        return missing.length ? [...(prev || []), ...missing] : prev;
+      });
+    }
+    if (tab) setSettingsTab(tab);
     if (extra === "newService") setShowNewService(true);
     setShowSettings(true);
     setShowSetup(false);
   };
+  const openSetupTab = (tab, extra) => openSettings(tab, extra);
+
+  // Has anything in the panel changed? Compared by value against the saved
+  // state, not tracked by a flag, so typing a character and typing it back out
+  // again correctly counts as clean. Both drafts start as copies, so key order
+  // matches and a string compare is enough.
+  const settingsDirty = useMemo(() => {
+    if (!editSettings) return false;
+    if (JSON.stringify(editSettings) !== JSON.stringify(settings)) return true;
+    if (editServices && JSON.stringify(editServices) !== JSON.stringify(services)) return true;
+    return false;
+  }, [editSettings, settings, editServices, services]);
+
+  // Closing throws the draft away, so it asks first when there is one. `force`
+  // is for the save path, which has already written everything.
+  const closeSettings = useCallback((force) => {
+    const done = () => {
+      setShowSettings(false);
+      setEditSettings(null);
+      setEditServices(null);
+      setShowNewService(false);
+      setShowTemplatePicker(false);
+      setTemplatePicks([]);
+    };
+    if (force || !settingsDirty) { done(); return; }
+    askConfirm({
+      title: "לצאת בלי לשמור?",
+      message: "יש שינויים שעדיין לא נשמרו. אם תצאי עכשיו הם יאבדו.",
+      confirmText: "צאי בלי לשמור",
+      cancelText: "חזרה לעריכה",
+      danger: true,
+      onConfirm: done,
+    });
+  }, [settingsDirty, askConfirm]);
   const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
   const setupSteps = [
     { key:"details",  done: !!(settings.business_name && settings.business_name.trim() && settings.business_name.trim()!=="העסק שלי") && !!(settings.business_phone && String(settings.business_phone).trim()), label:"פרטי העסק", hint:"שם וטלפון ליצירת קשר", onClick:()=>openSetupTab("general") },
@@ -1588,7 +1666,7 @@ export default function BeautyOS() {
     if(has("יומן","תור פנוי","תורים פנויים","למלא את היומן","זמינות"))
       return { label:"פתחי יומן", run:()=>setActiveTab("calendar") };
     if(has("תמחור","העלאת מחיר","המחיר","חבילת","חבילות"))
-      return { label:"פתחי שירותים ומחירים", run:()=>{setEditSettings({...settings});setSettingsTab("services");setShowSettings(true);} };
+      return { label:"פתחי שירותים ומחירים", run:()=>openSettings("services") };
     return null;
   };
 
@@ -1616,9 +1694,25 @@ export default function BeautyOS() {
   }, []);
 
   // Esc closes any open modal / drawer (does not touch session/tenant logic).
+  //
+  // The listener is registered once, so it cannot read current state directly.
+  // This ref carries the two things it needs — whether Settings is open, and
+  // the current close function, which knows whether the draft is dirty.
+  const escRef = useRef({});
+  useEffect(() => {
+    escRef.current = { showSettings, closeSettings, confirmOpen: !!confirmDialog };
+  });
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
+      // A confirm sits on top of whatever opened it — including the unsaved
+      // changes prompt itself. Dismiss that first, or Escape would answer one
+      // prompt by raising another.
+      if (escRef.current.confirmOpen) { setConfirmDialog(null); return; }
+      // Settings owns its own close: it may have unsaved work and must ask.
+      // Returning here also stops the blanket reset below from nulling
+      // editSettings behind the prompt's back.
+      if (escRef.current.showSettings) { escRef.current.closeSettings(); return; }
       setShowModal(false); setShowClientModal(false); setShowImportModal(false);
       setShowLeadModal(false); setShowCashier(false); setShowReceipt(null);
       setShowPackageModal(false); setShowWaitlistModal(false); setShowProtocolModal(false);
@@ -2125,7 +2219,7 @@ export default function BeautyOS() {
     else if (r.type === "lead") { setSelectedLead(r.obj); setActiveTab("leads"); }
     else if (r.type === "appt") { setActiveTab("calendar"); if (r.obj?.date) setWeekStart(new Date(r.obj.date)); }
     else if (r.type === "receipt") { setShowReceipt(r.obj); }
-    else if (r.type === "service") { setEditSettings({ ...settings }); setSettingsTab("services"); setShowSettings(true); }
+    else if (r.type === "service") { openSettings("services"); }
   };
 
   // Bucketed by hour on purpose: the grid still has one row per hour, so a
@@ -3201,6 +3295,65 @@ export default function BeautyOS() {
   // there is no gated table behind it. Do not "fix" the missing guard here.
   // The accepted trade-off (settings also holds green_api_* and `automations`)
   // is documented at the top of gate.sql.
+  // Write every service change the draft is holding: deletes, then inserts,
+  // then updates. Returns a plain report rather than throwing, because the
+  // settings row has already been written by the time this runs and "the save
+  // half worked" is a thing she needs told, not hidden.
+  //
+  // Updates send an explicit patch of the five editable columns, never the
+  // whole row: the old per-row save passed `svc` straight to .update(), which
+  // meant it also sent id, tenant_id and created_at back to the server on
+  // every keystroke-driven save.
+  const SERVICE_FIELDS = ["name", "price", "duration", "color", "active"];
+  const commitServiceDraft = async (tid) => {
+    const draft = editServices;
+    if (!draft) return { changed: 0, errors: [] };
+    const baseline = new Map(services.map(s => [s.id, s]));
+    const errors = [];
+    let changed = 0;
+
+    for (const s of draft) {
+      // 1. Deleted — only rows that exist server-side; a _new row that was
+      //    deleted again was dropped from the draft outright.
+      if (s._deleted) {
+        if (!s.id) continue;
+        const { error } = await supabase
+          .from("service_prices").delete().eq("id", s.id).eq("tenant_id", tid);
+        if (error) { errors.push(`מחיקת ${s.name}`); continue; }
+        changed++;
+        continue;
+      }
+
+      // 2. New — insert. tenant_id is stamped explicitly so the RLS WITH CHECK
+      //    passes without relying on a column default.
+      if (!s.id) {
+        const row = { tenant_id: tid, active: s.active !== false };
+        for (const k of SERVICE_FIELDS) if (k !== "active") row[k] = s[k];
+        const { data, error } = await supabase.from("service_prices").insert([row]).select();
+        if (error || !data || !data[0]) { errors.push(`הוספת ${s.name}`); continue; }
+        changed++;
+        continue;
+      }
+
+      // 3. Existing — update only what actually differs.
+      const base = baseline.get(s.id);
+      if (!base) continue;
+      const patch = {};
+      for (const k of SERVICE_FIELDS) {
+        const a = k === "active" ? s[k] !== false : s[k];
+        const b = k === "active" ? base[k] !== false : base[k];
+        if (a !== b) patch[k] = a;
+      }
+      if (Object.keys(patch).length === 0) continue;
+      const { data, error } = await supabase
+        .from("service_prices").update(patch).eq("id", s.id).select();
+      if (error || !data || !data[0]) { errors.push(`עדכון ${s.name}`); continue; }
+      changed++;
+    }
+
+    return { changed, errors };
+  };
+
   const handleSaveSettings = async () => {
     if(isBusy("saveSettings")) return;
     setBusyKey("saveSettings", true);
@@ -3272,60 +3425,73 @@ export default function BeautyOS() {
         return;
       }
       setSettings(savedRow);
+
+      // The services live in a different table, but she pressed one button and
+      // means one thing by it. Commit the service draft in the same action.
+      const { changed, errors } = await commitServiceDraft(tenantId);
+
+      // Re-read rather than patching state from the responses: the draft may
+      // have inserted, updated and deleted in one pass, and one query is the
+      // only version of "what is actually there now" that cannot drift.
+      if (changed > 0) {
+        const { data: fresh, error: refetchErr } = await supabase.from("service_prices").select("*");
+        if (!refetchErr && fresh) setServices(fresh);
+      }
+
+      if (errors.length > 0) {
+        // Half a save is not a save. Say which part failed, leave the panel
+        // open with the draft intact so nothing she typed is lost, and do not
+        // toast success over the top of it.
+        const { data: fresh } = await supabase.from("service_prices").select("*");
+        if (fresh) {
+          setServices(fresh);
+          setEditServices(fresh.map(sv => ({ ...sv })));
+        }
+        toast(`ההגדרות נשמרו, אבל חלק מהשירותים לא: ${errors.join(", ")}`, "error");
+        return;
+      }
+
       setEditSettings(null);
-      toast("ההגדרות נשמרו");
+      setEditServices(null);
+      setShowNewService(false);
+      setShowTemplatePicker(false);
+      setTemplatePicks([]);
+      toast(changed > 0 ? `ההגדרות נשמרו · ${changed} שינויים בשירותים` : "ההגדרות נשמרו");
     } finally {
       setBusyKey("saveSettings", false);
     }
   };
 
-  const handleSaveService = async (svc,idx) => {
-    if (guardWrite()) return;
-    if(svc.id){
-      const {data,error}=await supabase.from("service_prices").update(svc).eq("id",svc.id).select();
-      if(error){handleDbError(error, "update service"); return;}
-      if(data&&data[0]){setServices(prev=>prev.map((s,i)=>i===idx?data[0]:s)); toast("המחיר עודכן");}
-    }
-  };
+  // ── The service list is a DRAFT ────────────────────────────────────────────
+  //
+  // Everything below edits editServices and nothing else. The single save
+  // button at the bottom of Settings is the only thing that writes to
+  // service_prices — see commitServiceDraft, called from handleSaveSettings.
+  //
+  // The per-row ✓ that used to live here is gone. It wrote immediately while
+  // the button underneath it did not, which meant the panel had two saves with
+  // different scopes and no way to tell which had committed what. It also had
+  // a bug worth recording: it was wrapped in `if (svc.id)`, so on a row with no
+  // id yet it did nothing at all — no write, no toast, no error. The batch
+  // commit handles both cases explicitly instead: a row with an id is updated,
+  // a row without one is inserted.
 
-  // Archive / restore a service.
-  //
-  // service_prices.active has existed all along and already drives every
-  // dropdown in the app through `activeServices` — there was simply never a
-  // button to flip it, so the only way to get a treatment off the list was to
-  // rename it, which rewrites what her past appointments say she did.
-  //
-  // Archiving is the safe half of "delete": history is untouched because
-  // appointments and receipts store the service NAME as text, never a foreign
-  // key, so an archived service keeps rendering everywhere it already appears.
-  const handleToggleServiceActive = async (svc, idx) => {
-    if (guardWrite()) return;
-    if (!svc.id || isBusy("toggleService")) return;
-    const nextActive = svc.active === false; // null/undefined counts as active
-    setBusyKey("toggleService", true);
-    try {
-      const { data, error } = await supabase
-        .from("service_prices")
-        .update({ active: nextActive })
-        .eq("id", svc.id)
-        .select();
-      if (error) { handleDbError(error, "toggle service"); return; }
-      if (data && data[0]) {
-        setServices(prev => prev.map((s,i)=>i===idx?data[0]:s));
-        toast(nextActive ? "השירות הוחזר לרשימה" : "השירות הועבר לארכיון");
-      }
-    } finally {
-      setBusyKey("toggleService", false);
-    }
-  };
+  const patchDraftService = (idx, patch) =>
+    setEditServices(prev => (prev || []).map((s, i) => i === idx ? { ...s, ...patch } : s));
+
+  // Archive / restore. The treatment stays in every past appointment and
+  // receipt either way — those store its name as text, never a reference to
+  // this row — so this only decides whether it is offered from now on.
+  const toggleDraftServiceActive = (idx) =>
+    setEditServices(prev => (prev || []).map((s, i) =>
+      i === idx ? { ...s, active: s.active === false } : s));
 
   // Permanent delete — allowed ONLY when nothing references the service.
   //
-  // Archiving is right for a treatment she stopped offering, but a typo she
-  // made thirty seconds ago has nothing worth preserving, and forcing it into
-  // an archive list forever is the kind of tidiness tax that makes people stop
-  // trusting the button. So: if no appointment, receipt, package or lead names
-  // this service, the row can go.
+  // The reference check still runs the moment she taps, because it is a READ
+  // and instant feedback is the whole value of it: "this is in 3 appointments,
+  // archive it instead" is useless an hour later at save time. Only the delete
+  // itself is deferred, by marking the row and letting the save carry it out.
   //
   // The check runs against the DATABASE, not the arrays in local state — those
   // hold whatever this session happened to load, and "looks unreferenced from
@@ -3333,7 +3499,15 @@ export default function BeautyOS() {
   // because that is how history stores it; there is no service_id anywhere.
   const handleDeleteService = async (svc, idx) => {
     if (guardWrite()) return;
-    if (!svc.id || isBusy("deleteService")) return;
+    if (isBusy("deleteService")) return;
+
+    // A row she added in this session and has not saved yet exists nowhere but
+    // the draft. Nothing can reference it, so there is nothing to check.
+    if (!svc.id) {
+      setEditServices(prev => (prev || []).filter((_, i) => i !== idx));
+      return;
+    }
+
     const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
     const tid = rpcTenant || settings?.tenant_id || null;
     if (!tid) { toast("לא זוהה עסק — נסי לרענן", "error"); return; }
@@ -3369,61 +3543,68 @@ export default function BeautyOS() {
         return;
       }
 
-      const { error } = await supabase
-        .from("service_prices").delete().eq("id", svc.id).eq("tenant_id", tid);
-      if (error) { handleDbError(error, "delete service"); return; }
-      setServices(prev => prev.filter((_,i)=>i!==idx));
-      toast("השירות נמחק");
+      setEditServices(prev => (prev || []).map((s, i) =>
+        i === idx ? { ...s, _deleted: true } : s));
     } finally {
       setBusyKey("deleteService", false);
     }
   };
 
-  const handleAddService = async () => {
+  const undeleteDraftService = (idx) =>
+    setEditServices(prev => (prev || []).map((s, i) => {
+      if (i !== idx) return s;
+      const next = { ...s }; delete next._deleted; return next;
+    }));
+
+  // Add a typed row to the draft. Nothing is written here.
+  const handleAddService = () => {
     if (guardWrite()) return;
-    if(!newService.name.trim()){toast("נא להזין שם שירות","error");return;}
-    if(isBusy("addService")) return;
-    setBusyKey("addService", true);
-    try {
-      const {data,error}=await supabase.from("service_prices").insert([newService]).select();
-      if(error){handleDbError(error, "add service"); return;}
-      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
-      setServices(prev=>[...prev,data[0]]);setNewService({name:"",price:0,duration:60,color:DEFAULT_SERVICE_COLOR,active:true});setShowNewService(false); toast("השירות נוסף");
-    } finally {
-      setBusyKey("addService", false);
-    }
+    if (!newService.name.trim()) { toast("נא להזין שם שירות", "error"); return; }
+    const name = newService.name.trim();
+    const clash = (editServices || []).some(s => !s._deleted && (s.name || "").trim() === name);
+    if (clash) { toast("כבר יש שירות בשם הזה", "error"); return; }
+    setEditServices(prev => [...(prev || []), { ...newService, name, _new: true }]);
+    setNewService({ name: "", price: 0, duration: 60, color: DEFAULT_SERVICE_COLOR, active: true });
+    setShowNewService(false);
   };
 
   // Add the treatments she ticked in the suggested-menu picker.
   //
   // The same picker onboarding uses, mounted here so that skipping it at signup
   // is not a one-time door: a cosmetician who built her list by hand in March
-  // can still open it in June to top up. Everything it writes is an ordinary
-  // service_prices row of hers — there is no link back to the template, so a
-  // seeded treatment renames, reprices and archives exactly like a typed one.
-  const handleAddTemplateServices = async () => {
+  // can still open it in June to top up. Everything it adds is an ordinary row
+  // of hers — there is no link back to the template, so a seeded treatment
+  // renames, reprices and archives exactly like a typed one.
+  //
+  // Onboarding still inserts directly through insertPickedServices, because
+  // there is no draft there: that screen has its own explicit finish step.
+  const handleAddTemplateServices = () => {
     if (guardWrite()) return;
-    if (templatePicks.length === 0) { toast("לא סימנת אף טיפול","error"); return; }
-    if (isBusy("templateServices")) return;
-    setBusyKey("templateServices", true);
-    try {
-      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
-      const tid = rpcTenant || settings?.tenant_id || null;
-      const { inserted, skipped, error } = await insertPickedServices(
-        supabase, tid, templatePicks, services.map(s=>s.name)
-      );
-      if (error) { handleDbError(error, "add template services"); return; }
-      if (inserted.length) setServices(prev=>[...prev,...inserted]);
-      setTemplatePicks([]);
-      setShowTemplatePicker(false);
-      toast(
-        skipped > 0
-          ? `${inserted.length} טיפולים נוספו · ${skipped} כבר היו ברשימה`
-          : `${inserted.length} טיפולים נוספו למחירון`
-      );
-    } finally {
-      setBusyKey("templateServices", false);
+    if (templatePicks.length === 0) { toast("לא סימנת אף טיפול", "error"); return; }
+    const existing = new Set((editServices || []).filter(s => !s._deleted).map(s => (s.name || "").trim()));
+    const fresh = [];
+    let skipped = 0;
+    for (const pick of templatePicks) {
+      const name = (pick.name || "").trim();
+      if (!name || existing.has(name)) { skipped++; continue; }
+      existing.add(name);
+      fresh.push({
+        name,
+        price: pick.price,
+        duration: pick.duration,
+        color: pick.color || DEFAULT_SERVICE_COLOR,
+        active: true,
+        _new: true,
+      });
     }
+    if (fresh.length) setEditServices(prev => [...(prev || []), ...fresh]);
+    setTemplatePicks([]);
+    setShowTemplatePicker(false);
+    toast(
+      skipped > 0
+        ? `${fresh.length} טיפולים נוספו · ${skipped} כבר היו ברשימה — לחצי שמירה`
+        : `${fresh.length} טיפולים נוספו — לחצי שמירה`
+    );
   };
 
   const handleOpenCashier = (appt) => {
@@ -5646,7 +5827,7 @@ export default function BeautyOS() {
                     selector (⚙︎) would only ask the font nicely; an SVG settles
                     it. Same stroke idiom as the Beauty Voice mic below -
                     currentColor, 1.7 stroke - so it inherits .icon-btn's tint. */}
- <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);}} className="icon-btn" title="הגדרות" aria-label="הגדרות">
+ <button onClick={()=>openSettings()} className="icon-btn" title="הגדרות" aria-label="הגדרות">
  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
  <circle cx="12" cy="12" r="3.1"/>
  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -5692,7 +5873,7 @@ export default function BeautyOS() {
               {item.id==="leads"&&newLeadsCount>0&&<span style={{background:pcGrad,color:"var(--surface)",fontSize:11.5,fontWeight:700,padding:"2px 7px",borderRadius:20}}>{newLeadsCount}</span>}
  </button>
           ))}
- <button onClick={()=>{setEditSettings({...settings});setShowSettings(true);setShowMobileSidebar(false);}} className="nav-item" style={{marginTop:8}}>
+ <button onClick={()=>{openSettings();setShowMobileSidebar(false);}} className="nav-item" style={{marginTop:8}}>
  <span className="nav-ico"><svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4L5.3 5.3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg></span>
  <span style={{flex:1}}>הגדרות</span>
  </button>
@@ -8248,7 +8429,7 @@ export default function BeautyOS() {
       )}
 
       {showSettings&&editSettings&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowSettings(false);setEditSettings(null);}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>closeSettings()}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <div style={{padding:"20px 24px 0"}}>
  <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
@@ -8597,12 +8778,22 @@ export default function BeautyOS() {
               })()}
               {settingsTab==="services"&&(
  <div>
+                  {(()=>{
+                  // The whole tab reads from the draft, never from `services`.
+                  // The row inputs used to write straight into the app-wide
+                  // services array, so a half-typed treatment name was live in
+                  // the appointment dropdown, the cashier and the public
+                  // booking page before she had finished the word.
+                  const draft = editServices || [];
+                  const live = draft.map((s,i)=>({s,i})).filter(x=>!x.s._deleted);
+                  const gone = draft.map((s,i)=>({s,i})).filter(x=>x.s._deleted);
+                  return (<>
                   {/* Shown whenever the list is empty and the picker is closed.
                       It used to be hidden by `!showNewService`, which meant the
                       one guided route in — the setup checklist, which opens
                       this tab with the blank add-row already expanded — was the
                       single path that never showed the explanation. */}
-                  {services.length===0&&!showTemplatePicker&&(
+                  {live.length===0&&gone.length===0&&!showTemplatePicker&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:14,marginBottom:8}}>
  <div style={{fontSize:26,marginBottom:8}}>✦</div>
  <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שירותים</p>
@@ -8610,43 +8801,59 @@ export default function BeautyOS() {
  <button onClick={()=>setShowTemplatePicker(true)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:12,padding:"11px 20px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>בחרי מרשימת טיפולים מוכנה</button>
  </div>
                   )}
-                  {services.map((svc,idx)=>{
+                  {/* Rows marked for deletion. They leave the list immediately
+                      so it reads as it will after saving, but the deletion has
+                      not happened yet and she can still take it back. */}
+                  {gone.length>0&&(
+ <div style={{border:"1px dashed var(--danger)",borderRadius:12,padding:"9px 11px",marginBottom:8,background:"var(--surface-2)"}}>
+ <p style={{fontSize:11.5,fontWeight:700,color:"var(--danger)",marginBottom:6}}>{gone.length===1?"שירות אחד יימחק בשמירה":`${gone.length} שירותים יימחקו בשמירה`}</p>
+ {gone.map(({s,i})=>(
+ <div key={s.id||`del-${i}`} style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+ <span style={{flex:1,minWidth:0,fontSize:12,color:"var(--ink-2)",textDecoration:"line-through",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+ <button onClick={()=>undeleteDraftService(i)} style={{background:"none",border:"none",color:pcDeep,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"4px 6px",flexShrink:0}}>ביטול</button>
+ </div>
+                  ))}
+ </div>
+                  )}
+                  {live.map(({s:svc,i:idx})=>{
                   const svcActive = svc.active !== false;
                   // Two lines, not one. Every control here is fixed-width except the
                   // name, so on a phone the name absorbed the entire shortfall and
                   // rendered as two letters — you could not tell which treatment you
-                  // were editing. The three icon buttons are the bulk of it: the
+                  // were editing. The two icon buttons are the bulk of it: the
                   // inline width:26 below is overridden by the mobile tap-target rule
-                  // (.icon-btn{width:40px!important}), so they cost 120px, not 78.
+                  // (.icon-btn{width:40px!important}), so they cost 80px, not 52.
                   // Both rules are right on their own; they cannot both fit on one
                   // line. The name is the only part that identifies the row, so it
                   // gets a line to itself and the numbers and actions sit under it.
                   return (
- <div key={idx} style={{padding:"9px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svcActive?"none":"1px dashed var(--line-2)"}}>
+ <div key={svc.id||`new-${idx}`} style={{padding:"9px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svc._new?`1px solid ${pc}`:(svcActive?"none":"1px dashed var(--line-2)")}}>
  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
  <span style={{width:10,height:10,borderRadius:"50%",background:svcActive?(svc.color||"var(--warning)"):"var(--line-2)",flexShrink:0}}/>
- <input value={svc.name} aria-label="שם השירות" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,name:e.target.value}:s))} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:13,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)",textOverflow:"ellipsis"}}/>
+ <input value={svc.name} aria-label="שם השירות" onChange={e=>patchDraftService(idx,{name:e.target.value})} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:13,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)",textOverflow:"ellipsis"}}/>
+ {svc._new&&<span style={{fontSize:11,fontWeight:700,color:pcDeep,flexShrink:0}}>חדש</span>}
+ {!svcActive&&<span style={{fontSize:11,color:"var(--ink-3)",flexShrink:0}}>בארכיון</span>}
  </div>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
- <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>patchDraftService(idx,{price:Number(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>patchDraftService(idx,{duration:Number(e.target.value)})} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <div style={{flex:1,minWidth:0}}/>
- <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11,flexShrink:0}} title="שמירה">✓</button>
  {/* Archive / restore. The treatment stays in every past appointment and
      receipt either way — those store its name, not a reference to this row.
-     Inline SVG, not 🗄 / ↩: both of those codepoints carry an emoji
-     presentation that iOS picks, so they rendered as full-colour emoji beside
-     monochrome stroked icons. Same fix as the settings gear. */}
- <button onClick={()=>handleToggleServiceActive(svc,idx)} disabled={isBusy("toggleService")} className="icon-btn" style={{width:26,height:26,flexShrink:0}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
+     Inline SVG, not the archive-box / hooked-arrow codepoints: both carry an
+     emoji presentation that iOS picks, so they rendered as full-colour emoji
+     beside monochrome stroked icons. Same fix as the settings gear. */}
+ <button onClick={()=>toggleDraftServiceActive(idx)} className="icon-btn" style={{width:26,height:26,flexShrink:0}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
  {svcActive
    ? <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="3.8" width="18.4" height="4.6" rx="1.3"/><path d="M4.6 8.4V19a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6V8.4M9.7 12.4h4.6"/></svg>
    : <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M3.5 9.5h11.2a5 5 0 0 1 0 10H8.2M3.5 9.5l4.3-4.3M3.5 9.5l4.3 4.3"/></svg>}
  </button>
  {/* Permanent delete. Refuses, with a count, when anything references it. */}
- <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)",flexShrink:0}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד">✕</button>
+ <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)",flexShrink:0}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד" aria-label="מחיקה">✕</button>
  </div>
  </div>
                   );})}
+                  </>);})()}
                   {/* The suggested menu. Same component onboarding uses, so
                       skipping it at signup is not a door that closes: nothing
                       here is a one-time step. */}
@@ -8657,14 +8864,14 @@ export default function BeautyOS() {
  <ServiceTemplatePicker
    value={templatePicks}
    onChange={setTemplatePicks}
-   existingNames={services.map(s=>s.name)}
+   existingNames={(editServices||[]).filter(s=>!s._deleted).map(s=>s.name)}
    accent={pc}
    accentTint={pcTint}
  />
  <div style={{display:"flex",gap:7,marginTop:12}}>
  <button onClick={()=>{setShowTemplatePicker(false);setTemplatePicks([]);}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:12,padding:"11px 0",fontSize:12,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
- <button onClick={handleAddTemplateServices} disabled={templatePicks.length===0||isBusy("templateServices")} style={{flex:2,background:templatePicks.length===0?"var(--line-2)":pcGrad,color:templatePicks.length===0?"var(--ink-3)":"var(--surface)",border:"none",borderRadius:12,padding:"11px 0",fontSize:12,fontWeight:700,cursor:templatePicks.length===0?"default":"pointer",fontFamily:"inherit"}}>
-   {isBusy("templateServices")?"מוסיף…":templatePicks.length===0?"סימני טיפולים להוספה":`הוספת ${templatePicks.length} טיפולים`}
+ <button onClick={handleAddTemplateServices} disabled={templatePicks.length===0} style={{flex:2,background:templatePicks.length===0?"var(--line-2)":pcGrad,color:templatePicks.length===0?"var(--ink-3)":"var(--surface)",border:"none",borderRadius:12,padding:"11px 0",fontSize:12,fontWeight:700,cursor:templatePicks.length===0?"default":"pointer",fontFamily:"inherit"}}>
+   {templatePicks.length===0?"סימני טיפולים להוספה":`הוספת ${templatePicks.length} טיפולים`}
  </button>
  </div>
  </div>
@@ -8673,7 +8880,7 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:12,marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 8px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>
  <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}}>✓</button>
+ <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}} title="הוספה לרשימה — נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
  </div>
                   ):!showTemplatePicker&&(
  <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
@@ -8761,8 +8968,8 @@ export default function BeautyOS() {
               )}
  </div>
  <div style={{display:"flex",gap:6,padding:"14px 24px",borderTop:"1px solid var(--line)"}}>
- <button onClick={()=>{setShowSettings(false);setEditSettings(null);}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>סגירה</button>
- <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>{isBusy("saveSettings")?"שומר...":"שמירה ✓"}</button>
+ <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>סגירה</button>
+ <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")||!settingsDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:settingsDirty?pcGrad:"var(--line-2)",color:settingsDirty?"var(--surface)":"var(--ink-3)",fontSize:12,cursor:settingsDirty?"pointer":"default"}}>{isBusy("saveSettings")?"שומר...":settingsDirty?"שמירה ✓":"אין שינויים"}</button>
  </div>
  </div>
  </div>
