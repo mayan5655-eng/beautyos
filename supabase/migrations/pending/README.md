@@ -14,7 +14,7 @@ about all of them. The table below can.
 
 | File | Status | Depended on by |
 |---|---|---|
-| `ai-usage.sql` | ✅ **APPLIED** (verified 2026-09-01) | `lib/ai/usage.ts`, `lib/ai/callCaps.ts`, `lib/skinScanQuota.ts` |
+| `ai-usage.sql` | ✅ **APPLIED** (verified 2026-09-01) — and its own `revoke all … from anon` landed: `ai_usage` is absent from the anon grant list as of 2026-09-02 | `lib/ai/usage.ts`, `lib/ai/callCaps.ts`, `lib/skinScanQuota.ts` |
 | `get-public-tenant-by-slug.sql` | ✅ **APPLIED** (verified 2026-09-01) | `app/[slug]/page.jsx` — every cosmetician's public landing page |
 | `encrypt-green-api-token.sql` | ✅ **APPLIED** | `lib/greenApi/credentials.ts` |
 | `drop-green-api-token-plaintext.sql` | ✅ **APPLIED** — `settings.green_api_token` no longer exists; only `green_api_token_encrypted` | as above |
@@ -25,7 +25,7 @@ about all of them. The table below can.
 | `support-messages.sql` | ❓ **UNKNOWN** | `app/api/support/route.ts` — already detects the missing table and says so |
 | `auto-reminders-log-index.sql` | ❓ **UNKNOWN** | performance only; nothing breaks without it |
 | `platform-admin-view.sql` | ❓ **UNKNOWN** | creates `platform_tenant_metrics`; **no code currently calls it** |
-| `revoke-anon-grants.sql` | ❓ **UNKNOWN** | hardening; step 3 of the sequence in `get-public-tenant-by-slug.sql` |
+| `revoke-anon-grants.sql` | ✅ **APPLIED** (verified 2026-09-02) — `anon` now holds exactly two privileges in all of `public`, both SELECT: `service_prices` and `tenants`. That is the file’s own VERIFY (b) result. | hardening; step 3 of the sequence in `get-public-tenant-by-slug.sql` |
 
 Related, and **not** in this folder: `add_appointment_no_overlap.sql` (in
 `migrations/`) is ✅ **APPLIED** (verified 2026-09-01). It is the exclusion
@@ -45,9 +45,6 @@ select column_name from information_schema.columns
  where table_schema = 'public' and table_name = 'appointments'
    and column_name in ('cancelled_at', 'cancelled_by');
 
--- support-messages.sql  → expect one non-null
-select to_regclass('public.support_messages');
-
 -- platform-admin-view.sql  → expect one row
 select p.proname from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
@@ -57,10 +54,25 @@ select p.proname from pg_proc p
 select indexname from pg_indexes
  where schemaname = 'public' and tablename = 'auto_reminders_log';
 
--- revoke-anon-grants.sql  → expect ZERO rows once applied
-select table_name, privilege_type from information_schema.role_table_grants
- where grantee = 'anon' and table_schema = 'public';
+-- support-messages.sql  → expect one non-null
+select to_regclass('public.support_messages');
 ```
+
+**Do not read `support_messages` off the anon grant list.** It is tempting,
+because that query returns only `service_prices` and `tenants` and the table is
+not among them. But `support-messages.sql` contains **no REVOKE of its own** —
+only a comment warning that Supabase's default grants would apply to it. So its
+absence from the anon list has two explanations that look identical: the table
+does not exist, or it exists and predates `revoke-anon-grants.sql` (whose loop
+is driven off `pg_class` and therefore strips every relation in `public`,
+including ones no migration names). `ai-usage.sql` is different — it revokes
+explicitly, so its absence does confirm its revoke. Only `to_regclass` settles
+support_messages.
+
+Either way the security posture is fine: had the table been created *after* the
+revoke, the default grants would have re-granted anon and it would appear in
+that list. It doesn't. What is unresolved is whether the table is there at all,
+which is what `app/api/support/route.ts` cares about.
 
 ---
 
@@ -86,6 +98,21 @@ the version that changes behaviour for somebody. Earliest is safest.
 `tenant-resolution-rollback.sql` embeds the real production definition of
 `get_user_tenant_id()` captured on 2026-07-30. That snapshot exists nowhere else
 — do not delete that file.
+
+---
+
+## The anon revoke decays — re-run it after adding a table
+
+`revoke-anon-grants.sql` is applied, but its **section 3 is still commented
+out**, by the original decision recorded in the file. That section is the
+`alter default privileges` block, and without it Supabase keeps granting anon
+every privilege on each *newly created* table in `public`. So the 29 tables that
+existed are fixed; the 30th will arrive with the hole open.
+
+The migration is idempotent and driven off `pg_class`, so the fix is simply to
+run the whole file again after any `create table` in `public`, then re-run
+VERIFY (b) and expect the same two rows. Anything else in that output is a table
+that came back granted.
 
 ---
 

@@ -1,4 +1,7 @@
--- STATUS: UNKNOWN - verification query in README.md.
+-- STATUS: APPLIED - verified 2026-09-02. VERIFY (b) below returns exactly the
+-- two expected rows: service_prices | SELECT and tenants | SELECT. Safe to
+-- re-run (every REVOKE is idempotent and the two SELECTs are re-granted), and
+-- worth re-running after any new table is added - see section 3, still off.
 -- The folder name is not a status. See README.md in this directory.
 
 -- revoke-anon-grants.sql
