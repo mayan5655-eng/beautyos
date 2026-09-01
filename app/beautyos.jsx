@@ -8612,18 +8612,39 @@ export default function BeautyOS() {
                   )}
                   {services.map((svc,idx)=>{
                   const svcActive = svc.active !== false;
+                  // Two lines, not one. Every control here is fixed-width except the
+                  // name, so on a phone the name absorbed the entire shortfall and
+                  // rendered as two letters — you could not tell which treatment you
+                  // were editing. The three icon buttons are the bulk of it: the
+                  // inline width:26 below is overridden by the mobile tap-target rule
+                  // (.icon-btn{width:40px!important}), so they cost 120px, not 78.
+                  // Both rules are right on their own; they cannot both fit on one
+                  // line. The name is the only part that identifies the row, so it
+                  // gets a line to itself and the numbers and actions sit under it.
                   return (
- <div key={idx} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svcActive?"none":"1px dashed var(--line-2)"}}>
+ <div key={idx} style={{padding:"9px 10px",background:svcActive?pcTint:"var(--surface-2)",borderRadius:12,marginBottom:5,opacity:svcActive?1:0.62,border:svcActive?"none":"1px dashed var(--line-2)"}}>
+ <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
  <span style={{width:10,height:10,borderRadius:"50%",background:svcActive?(svc.color||"var(--warning)"):"var(--line-2)",flexShrink:0}}/>
- <input value={svc.name} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,name:e.target.value}:s))} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:11,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)"}}/>
- <input type="number" value={svc.price} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <input type="number" value={svc.duration} onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11}} title="שמירה">✓</button>
+ <input value={svc.name} aria-label="שם השירות" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,name:e.target.value}:s))} style={{flex:1,minWidth:0,border:"none",background:"transparent",fontSize:13,fontFamily:"inherit",outline:"none",fontWeight:600,color:"var(--ink)",textOverflow:"ellipsis"}}/>
+ </div>
+ <div style={{display:"flex",alignItems:"center",gap:6}}>
+ <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,price:Number(e.target.value)}:s))} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>setServices(prev=>prev.map((s,i)=>i===idx?{...s,duration:Number(e.target.value)}:s))} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <div style={{flex:1,minWidth:0}}/>
+ <button onClick={()=>handleSaveService(svc,idx)} className="icon-btn" style={{width:26,height:26,fontSize:11,flexShrink:0}} title="שמירה">✓</button>
  {/* Archive / restore. The treatment stays in every past appointment and
-     receipt either way — those store its name, not a reference to this row. */}
- <button onClick={()=>handleToggleServiceActive(svc,idx)} disabled={isBusy("toggleService")} className="icon-btn" style={{width:26,height:26,fontSize:11}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"}>{svcActive?"🗄":"↩"}</button>
+     receipt either way — those store its name, not a reference to this row.
+     Inline SVG, not 🗄 / ↩: both of those codepoints carry an emoji
+     presentation that iOS picks, so they rendered as full-colour emoji beside
+     monochrome stroked icons. Same fix as the settings gear. */}
+ <button onClick={()=>handleToggleServiceActive(svc,idx)} disabled={isBusy("toggleService")} className="icon-btn" style={{width:26,height:26,flexShrink:0}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
+ {svcActive
+   ? <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="3.8" width="18.4" height="4.6" rx="1.3"/><path d="M4.6 8.4V19a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6V8.4M9.7 12.4h4.6"/></svg>
+   : <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M3.5 9.5h11.2a5 5 0 0 1 0 10H8.2M3.5 9.5l4.3-4.3M3.5 9.5l4.3 4.3"/></svg>}
+ </button>
  {/* Permanent delete. Refuses, with a count, when anything references it. */}
- <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)"}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד">✕</button>
+ <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)",flexShrink:0}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד">✕</button>
+ </div>
  </div>
                   );})}
                   {/* The suggested menu. Same component onboarding uses, so
