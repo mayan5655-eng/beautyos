@@ -276,8 +276,61 @@ render per recipient inside the send loop. That means the composer has to show a
 than the final text, and the route has to distinguish a template from a literal message — which is
 why this is a deliberate deferral and not a one-line change.
 
-Logged 2026-08-31, alongside merging the leads status filter and the bulk-send strip into one
-control.
+Logged 2026-08-31, alongside merging the leads status filter and the bulk-send strip into one control.
+
+**The app loads every appointment ever, on every boot. [verified]** `app/beautyos.jsx:1733-1743`
+issues ten `.select("*")` with no `.limit()`, no `.range()` and no date window — appointments,
+clients, forms, leads, service_prices, settings, receipts, packages, waitlist, expenses. The
+appointments read is the one that grows without bound, and it degrades with her success: the
+cosmetician who uses the product most has the slowest app.
+
+**TRIGGER: revisit when any single tenant passes ~2,000 appointment rows.** That is the number to
+check, because it is checkable:
+
+```sql
+select tenant_id, count(*) from public.appointments group by tenant_id order by count(*) desc limit 5;
+```
+
+At 300-400 appointments a year that threshold is roughly year five; at a full book (8 a day, ~2,000
+a year) it arrives inside the first year. Which is why the row count is the trigger and the
+calendar year is not.
+
+**Do NOT fix this by adding a date filter to the boot read.** Three consumers assume they have all
+of history, and a window breaks each one differently. This was audited on 2026-09-01; the other
+thirteen consumers are bounded near today and are safe under any reasonable window.
+
+| Consumer | Where | What breaks |
+| --- | --- | --- |
+| Client history tab | `getClientAppts`, `beautyos.jsx:1906` | A client with two years of visits shows only the windowed slice. She reads it as her data being gone — the most trust-destroying failure of the three. |
+| 6-month revenue chart | `monthlyData`, `beautyos.jsx:1951` | Counts come from `appointments`; revenue comes from `receipts`, which stay whole. Months past the window show **0 appointments against real revenue** — a chart contradicting itself. |
+| "Days since last visit" | `getDaysSince`, `beautyos.jsx:1904` | Returns the sentinel **999** when no appointment is found. Windowed, a client last seen 200 days ago displays **999** in the client row (`:6341`) and the drawer (`:8761`). |
+
+Checked and NOT broken, so nobody re-derives it: the active/cold split survives any window of 90
+days or more, because the boundary is 60 days and a client beyond the window still lands on the
+correct side. The win-back message carries `days` as metadata but never interpolates it into the
+text (`:6599`), so a `999` cannot reach a client over WhatsApp. `serviceStats` (`:1930`) degrades
+only for a treatment booked but never paid outside the window, because receipts stay whole and also
+carry `service`.
+
+**The two-tier design that does work:**
+
+1. **Boot** loads a window sized by the furthest-back *aggregate* consumer — −13 months to +12
+   months covers the 6-month chart with room for year-over-year, and keeps every calendar view
+   exact.
+2. **The client drawer fetches that client's own appointments on open** — one indexed query on
+   `client_id`, a few dozen rows. That makes `getClientAppts` correct rather than approximately
+   correct, which is the only acceptable state for a client's treatment history.
+3. **`getDaysSince` stops lying.** Once a window exists, "no appointment found" no longer means
+   "never visited" — it means "not in the window". The `999` sentinel has to become an honest "over
+   a year ago". Skipping this step trades a slow app for an app that displays a wrong number, which
+   is the worse bug.
+
+Step 3 is not optional. Steps 1 and 2 without it is exactly the silent-wrongness category this
+review was written to catch.
+
+Logged 2026-09-01. Not attempted: the size of the win is unmeasured — without database access there
+was no way to tell whether the current payload is 1MB or 8MB, so the shape of the problem is certain
+and its severity today is not.
 
 ---
 
