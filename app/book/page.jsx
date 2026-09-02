@@ -170,36 +170,71 @@ export default function BookPage() {
   const pc = brand?.primary || settings?.primary_color || "#4A2E5A";
   const deep = brand?.deep || pc;
 
-  // === Build next 14 available days (respecting per-day business_hours) ===
-  const availableDays = [];
-  for (let i = 0; i < 21 && availableDays.length < 14; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    if (isOpenOn(settings, d)) availableDays.push(d);
-  }
-
-  // === Build hours for the SELECTED day (its own open→close window) ===
-  const selDayHours = selectedDate ? dayHoursFrom(settings, selectedDate.getDay()) : null;
   // Half-hour granularity, and slotsBetween refuses any start whose treatment
   // would run past closing - the old loop offered the last hour of the day even
   // when a 90-minute service could not possibly fit inside it.
   const SLOT_STEP = 30;
-  const svcDuration = Number(selectedService?.duration) || 60;
-  const allSlots = selDayHours
-    ? slotsBetween(selDayHours.open, selDayHours.close, SLOT_STEP, svcDuration)
-    : [];
+  // Before she has picked a treatment - which is when the booking button and
+  // the day count are decided - the shortest one on the menu is the honest
+  // question to ask: "could this business fit anybody in at all". A flat 60
+  // would hide a clinic that only does 30-minute visits in the gaps it has.
+  const shortestService = services.reduce((m, sv) => Math.min(m, Number(sv.duration) || 60), Infinity);
+  const svcDuration = Number(selectedService?.duration)
+    || (Number.isFinite(shortestService) ? shortestService : 60);
 
   // Busy INTERVALS, not busy hours. The old version marked only the hour an
   // appointment started in, so a 90-minute booking at 14:00 left 15:00 on offer
   // and the server refused it with a 409 after the client had already picked it.
   // It also read `hour` alone, so a 14:30 booking made in the app was invisible
   // here and a client could book straight over it.
-  const busyToday = selectedDate
-    ? appointments
-        .filter((a) => a.date === formatDate(selectedDate) && a.confirmation_status !== "cancelled")
-        .map((a) => [startMinute(a), endMinute(a)])
-        .filter(([bs, be]) => bs !== null && be !== null)
+  //
+  // Her own personal events are in here too. /api/availability returns them as
+  // times with no title - it selects date, start_minute, hour and duration and
+  // nothing else - so a day she has blocked out is busy to this page without it
+  // needing to know what she blocked it for.
+  const busyOn = (dateStr) => appointments
+    .filter((a) => a.date === dateStr && a.confirmation_status !== "cancelled")
+    .map((a) => [startMinute(a), endMinute(a)])
+    .filter(([bs, be]) => bs !== null && be !== null);
+
+  // Could this treatment actually be booked on this day?
+  //
+  // A day whose every slot is taken used to sit in the strip looking bookable,
+  // and only turned out not to be after she tapped it and read a grid of
+  // disabled buttons. That reads as a busy clinic; the truth is that there is
+  // nothing there for her, and saying so is shorter and kinder. It matters more
+  // now that a day off is a thing she can block out in one action - a week of
+  // holiday would otherwise be seven days of dead chips.
+  const dayHasFreeSlot = (d) => {
+    const dh = dayHoursFrom(settings, d.getDay());
+    if (!dh) return false;
+    const ds = formatDate(d);
+    const busy = busyOn(ds);
+    return slotsBetween(dh.open, dh.close, SLOT_STEP, svcDuration).some((m) =>
+      !isTooSoonForSelfBooking(ds, m) &&
+      !busy.some(([bs, be]) => overlaps(m, m + svcDuration, bs, be))
+    );
+  };
+
+  // === Build the next 14 BOOKABLE days (respecting per-day business_hours) ===
+  // If availability could not be loaded, appointments is empty and every open
+  // day looks free - which is the right way to degrade: the page keeps offering
+  // days and warns at the slot level, rather than hiding her whole diary
+  // because one fetch failed.
+  const availableDays = [];
+  for (let i = 0; i < 21 && availableDays.length < 14; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    if (isOpenOn(settings, d) && dayHasFreeSlot(d)) availableDays.push(d);
+  }
+
+  // === Build hours for the SELECTED day (its own open→close window) ===
+  const selDayHours = selectedDate ? dayHoursFrom(settings, selectedDate.getDay()) : null;
+  const allSlots = selDayHours
+    ? slotsBetween(selDayHours.open, selDayHours.close, SLOT_STEP, svcDuration)
     : [];
+
+  const busyToday = selectedDate ? busyOn(formatDate(selectedDate)) : [];
   const slotTaken = (start) =>
     busyToday.some(([bs, be]) => overlaps(start, start + svcDuration, bs, be));
 
@@ -477,7 +512,7 @@ export default function BookPage() {
                 {eyebrow("השירותים שלנו")}
                 <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
                   {services.map((s, i) => (
-                    <div key={i} className="bk-chip" onClick={() => { setSelectedService(s); setStep(2); }}
+                    <div key={i} className="bk-chip" onClick={() => { setSelectedService(s); setSelectedDate(null); setSelectedStart(null); setStep(2); }}
                       style={{ background: cream, borderRadius: 16, padding: "16px 18px", border: `1px solid ${hair}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
                         <div style={{ width: 9, height: 9, borderRadius: "50%", background: s.color || pc, flexShrink: 0, boxShadow: `0 0 0 3px ${(s.color || pc)}1F` }} />
