@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react'
 import { planState, type PlanStatus } from '@/lib/planState'
 import { daysHe } from '@/lib/planCopy'
+import { ConfirmDialog } from '../../MiniToast'
 
 export interface AdminTenantRow {
   id: string
@@ -71,6 +72,13 @@ export default function AdminClient({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // These actions change what another business can do with its own account, so
+  // they ask first. window.confirm did that, but as an unstyled LTR system
+  // dialog that renders the Hebrew question and the "this is your own business"
+  // warning as one run-on line with no emphasis on the part that matters.
+  const [pending, setPending] = useState<
+    { tenantId: string; action: Action; days?: number; question: string; own: boolean } | null
+  >(null)
   const [extendDays, setExtendDays] = useState<Record<string, number>>({})
 
   // Derive plan state once per render, then sort so the rows that need a
@@ -108,12 +116,18 @@ export default function AdminClient({
 
     // Pausing her own business would put her own dashboard into read-only.
     // Worth one extra beat, but not worth forbidding: she may want to test it.
-    const ownWarning =
-      tenantId === ownTenantId && action !== 'activate'
-        ? '\n\nשימי לב: זה העסק שלך. הפעולה תשפיע על החשבון שאת עובדת בו עכשיו.'
-        : ''
+    const own = tenantId === ownTenantId && action !== 'activate'
 
-    if (!window.confirm(question + ownWarning)) return
+    setPending({ tenantId, action, days, question, own })
+  }
+
+  async function doRun() {
+    if (!pending) return
+    const { tenantId, action, days } = pending
+    // Resolved here rather than carried on `pending`: the row is the source of
+    // truth for the name, and it may have been renamed since the dialog opened.
+    const label = tenants.find((t) => t.id === tenantId)?.name || 'העסק'
+    setPending(null)
 
     setBusyId(tenantId)
     setError('')
@@ -320,6 +334,17 @@ export default function AdminClient({
         השהיה מעבירה למצב צפייה בלבד: העסק ממשיך לראות הכל, ודף ההזמנות הציבורי
         של הלקוחות שלו ממשיך לעבוד כרגיל.
       </p>
+
+      <ConfirmDialog
+        open={!!pending}
+        title={pending?.question || ''}
+        message={pending?.own ? 'שימי לב: זה העסק שלך. הפעולה תשפיע על החשבון שאת עובדת בו עכשיו.' : undefined}
+        confirmText="אישור"
+        danger={pending?.action !== 'activate'}
+        busy={!!busyId}
+        onConfirm={doRun}
+        onCancel={() => setPending(null)}
+      />
     </div>
   )
 }

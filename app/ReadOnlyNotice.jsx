@@ -36,6 +36,9 @@ export default function ReadOnlyNotice({ plan }) {
       <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{title}</p>
       <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.65 }}>{body}</p>
       <p style={{ margin: "3px 0 12px", fontSize: 12, color: "var(--ink-3)" }}>{CTA_RENEW_HINT_HE}</p>
+      {/* Same guard as TrialBanner: an <a href="undefined"> looks like a
+          working button and is not one. */}
+      {supportWhatsAppUrl() && (
       <a
         href={supportWhatsAppUrl()}
         target="_blank"
@@ -53,6 +56,7 @@ export default function ReadOnlyNotice({ plan }) {
       >
         {CTA_WHATSAPP_HE}
       </a>
+      )}
     </div>
   );
 }

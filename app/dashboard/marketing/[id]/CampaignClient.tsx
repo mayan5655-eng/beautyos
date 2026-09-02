@@ -6,6 +6,10 @@ import PostDesigner from './PostDesigner'
 import usePlanState from '../../../usePlanState'
 import ReadOnlyNotice from '../../../ReadOnlyNotice'
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE } from '@/lib/planCopy'
+import { useMiniToast, ConfirmDialog } from '../../../MiniToast'
+
+const COPIED_HE = 'הפוסט הועתק — פתחי פייסבוק והדביקי'
+const COPY_FAILED_HE = 'לא הצלחנו להעתיק. אפשר לסמן את הטקסט ולהעתיק ידנית'
 
 type Campaign = {
   id: string
@@ -41,6 +45,8 @@ type Post = {
 export default function CampaignClient({ campaign, posts, settings }: { campaign: Campaign; posts: Post[]; settings: any }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const { notify, toastNode } = useMiniToast()
   // Deleting a campaign is a write, so read-only mode blocks it.
   const { plan, readOnly } = usePlanState()
   // Currently selected post to open in the designer modal (null = closed)
@@ -54,12 +60,17 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
   const copyPost = (post: Post) => {
     const text = `${post.title}\n\n${post.body}\n\n${post.call_to_action}\n\n${post.hashtags?.join(' ') || ''}`
     navigator.clipboard.writeText(text)
-    alert('✅ הפוסט הועתק! פתחי פייסבוק והדביקי')
+      .then(() => notify(COPIED_HE))
+      .catch(() => notify(COPY_FAILED_HE, 'error'))
   }
 
   const handleDelete = async () => {
-    if (readOnly) { alert(WRITE_BLOCKED_TOAST_HE); return }
-    if (!confirm('האם את בטוחה שברצונך למחוק את הקמפיין?')) return
+    if (readOnly) { notify(WRITE_BLOCKED_TOAST_HE, 'error'); return }
+    setConfirmDelete(true)
+  }
+
+  const doDelete = async () => {
+    setConfirmDelete(false)
     setDeleting(true)
     try {
       // POST /api/marketing/delete-campaign with { campaignId } is the route's
@@ -74,11 +85,11 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
       if (res.ok) {
         router.push('/dashboard/marketing')
       } else {
-        alert('שגיאה במחיקת הקמפיין')
+        notify('לא הצלחנו למחוק את הקמפיין. נסי שוב', 'error')
         setDeleting(false)
       }
     } catch {
-      alert('שגיאה בחיבור')
+      notify('אין חיבור לשרת. הקמפיין לא נמחק', 'error')
       setDeleting(false)
     }
   }
@@ -275,6 +286,20 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
           onClose={() => setDesignPost(null)}
         />
       )}
+
+      {/* Deleting a campaign takes its posts with it and cannot be undone, so
+          it asks — in the app's own dialog, not the browser's. */}
+      <ConfirmDialog
+        open={confirmDelete}
+        title="למחוק את הקמפיין?"
+        message="הקמפיין וכל הפוסטים שנוצרו בו יימחקו לצמיתות. אי אפשר לשחזר אותם."
+        confirmText="מחקי"
+        danger
+        busy={deleting}
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
+      {toastNode}
     </div>
   )
 }

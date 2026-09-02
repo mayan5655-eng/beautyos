@@ -117,6 +117,9 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         <p style={{ fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
       </div>
 
+      {/* No number configured means no WhatsApp route. The banner still says
+          what is wrong; it just stops offering a link that goes nowhere. */}
+      {supportWhatsAppUrl() && (
       <a
         href={supportWhatsAppUrl()}
         target="_blank"
@@ -137,6 +140,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
       >
         {CTA_WHATSAPP_HE}
       </a>
+      )}
     </div>
   );
 }

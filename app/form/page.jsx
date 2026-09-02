@@ -89,6 +89,11 @@ export default function FormPage() {
   // used to collapse every failure into "the form does not exist".
   const [loadError, setLoadError] = useState(null);
   const [drawing, setDrawing] = useState(false);
+  // The only native alert() left in the product lived here. On a phone it is a
+  // system dialog over a page she is halfway through, it cannot be styled, it
+  // is not RTL, and dismissing it leaves her with no record of what was wrong.
+  // This banner sits above the submit button where the problem is.
+  const [submitError, setSubmitError] = useState("");
   const canvasRef = useRef(null);
   const lastPos = useRef(null);
 
@@ -171,9 +176,15 @@ export default function FormPage() {
   };
 
   const handleSubmit = async () => {
-    if (!signed) { alert("נא לחתום לפני השליחה"); return; }
+    setSubmitError("");
+    if (!signed) { setSubmitError("נא לחתום לפני השליחה"); return; }
     const unanswered = formTemplate.questions.filter((_,i) => !answers[i]);
-    if (unanswered.length > 0) { alert("נא לענות על כל השאלות"); return; }
+    if (unanswered.length > 0) {
+      setSubmitError(unanswered.length === 1
+        ? "נשארה שאלה אחת בלי תשובה"
+        : `נשארו ${unanswered.length} שאלות בלי תשובה`);
+      return;
+    }
     if (submitting) return;
     const canvas = canvasRef.current;
     const signature = canvas.toDataURL();
@@ -200,9 +211,9 @@ export default function FormPage() {
         }
         return;
       }
-      alert((data && data.error) || "לא הצלחנו לשמור את הטופס. נסי שוב.");
+      setSubmitError((data && data.error) || "לא הצלחנו לשמור את הטופס. נסי שוב.");
     } catch {
-      alert("לא הצלחנו לשמור את הטופס. בדקי את החיבור ונסי שוב.");
+      setSubmitError("לא הצלחנו לשמור את הטופס. בדקי את החיבור ונסי שוב.");
     } finally {
       setSubmitting(false);
     }
@@ -335,9 +346,15 @@ export default function FormPage() {
           והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.
         </div>
 
-        <button onClick={handleSubmit}
-          style={{width:"100%",background:"var(--pc, #4A2E5A)",color:"var(--brand-surface, #FAF6FC)",border:"none",borderRadius:12,padding:"16px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"0 4px 12px rgba(212,148,90,0.3)"}}>
-          שליחה וחתימה ✓
+        {submitError && (
+          <div role="alert" style={{background:"#FDEEF2",border:"1px solid var(--danger, #C2557A)",borderRadius:12,padding:"12px 14px",marginBottom:12,fontSize:14,color:"var(--danger, #C2557A)",fontWeight:600,lineHeight:1.6,textAlign:"center"}}>
+            {submitError}
+          </div>
+        )}
+
+        <button onClick={handleSubmit} disabled={submitting}
+          style={{width:"100%",background:submitting?"var(--brand-muted, #98879B)":"var(--pc, #4A2E5A)",color:"var(--brand-surface, #FAF6FC)",border:"none",borderRadius:12,padding:"16px",fontSize:16,fontWeight:700,cursor:submitting?"default":"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"0 4px 12px rgba(212,148,90,0.3)"}}>
+          {submitting ? "שולחת…" : "שליחה וחתימה ✓"}
         </button>
       </div>
     </div>

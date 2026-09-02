@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import usePlanState from '../../../usePlanState'
 import ReadOnlyNotice from '../../../ReadOnlyNotice'
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE } from '@/lib/planCopy'
+import { useMiniToast } from '../../../MiniToast'
 
 type Strategy = {
   strategy: string
@@ -40,6 +41,7 @@ type Group = {
 
 export default function NewCampaignClient() {
   const router = useRouter()
+  const { notify, toastNode } = useMiniToast()
   // Every step of this wizard is a paid AI write action, so read-only mode
   // blocks all four and says why. The server routes also return 402.
   const { plan, readOnly } = usePlanState()
@@ -137,13 +139,19 @@ export default function NewCampaignClient() {
 
   const copyPost = (v: Variation) => {
     const text = `${v.title}\n\n${v.body}\n\n${v.callToAction}\n\n${v.hashtags.join(' ')}`
+    // clipboard.writeText can reject — permission denied, or a non-secure
+    // origin — and this claimed success before knowing either way.
     navigator.clipboard.writeText(text)
-    alert('הפוסט הועתק! פתחי פייסבוק והדביקי')
+      .then(() => notify('הפוסט הועתק — פתחי פייסבוק והדביקי'))
+      .catch(() => notify('לא הצלחנו להעתיק. אפשר לסמן את הטקסט ולהעתיק ידנית', 'error'))
   }
 
   const downloadImage = async (image: UnsplashImage, postNumber: number) => {
     try {
       const response = await fetch(image.url)
+      // A failed fetch still resolves. Without this the catch never fires and
+      // she is told the image downloaded when an error page was saved instead.
+      if (!response.ok) throw new Error(String(response.status))
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -151,8 +159,8 @@ export default function NewCampaignClient() {
       a.download = `beautyos-post-${postNumber}.jpg`
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      alert('התמונה ירדה למחשב')
-    } catch { alert('שגיאה בהורדת התמונה') }
+      notify('התמונה ירדה למחשב')
+    } catch { notify('לא הצלחנו להוריד את התמונה. נסי שוב', 'error') }
   }
 
   const openFacebookSearch = (name: string) => {
@@ -309,6 +317,7 @@ export default function NewCampaignClient() {
         <div className="text-center"><p className="text-sm text-gray-500 font-semibold">שלב {currentStep} מתוך 4</p></div>
         <button onClick={goNext} disabled={currentStep === 4} className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-2xl shadow-lg hover:scale-105 transition disabled:opacity-30 disabled:cursor-not-allowed">הבא →</button>
       </div>
+      {toastNode}
     </div>
   )
 }

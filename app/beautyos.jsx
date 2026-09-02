@@ -19,7 +19,7 @@ import ReelStudio from "./ReelStudio";
 import ImportChooser from "./ImportChooser";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
-import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE } from "@/lib/support";
+import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
@@ -985,7 +985,6 @@ export default function BeautyOS() {
   const [settingsTab,       setSettingsTab]        = useState("general");
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
-  const [leadSourceFilter,  setLeadSourceFilter]   = useState("all");
   // --- Bulk WhatsApp send (per status group) ---
   // bulkStatus = status key being composed for (null = closed modal).
   // bulkStep walks: compose -> confirm -> sending -> result. Nothing is sent
@@ -2139,9 +2138,8 @@ export default function BeautyOS() {
   const filteredLeads = useMemo(() => leads.filter(l=>{
     const matchSearch=matchesQuery(leadSearch,{text:[l.name,l.service_interest,l.source],phones:[l.phone]});
     const matchFilter=leadFilter==="all"||l.status===leadFilter;
-    const matchSource=leadSourceFilter==="all"||l.source===leadSourceFilter;
-    return matchSearch&&matchFilter&&matchSource;
-  }).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")), [leads, leadSearch, leadFilter, leadSourceFilter]);
+    return matchSearch&&matchFilter;
+  }).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")), [leads, leadSearch, leadFilter]);
 
   const filteredClients = useMemo(() => clients.filter(c=>{
     const matchSearch=matchesQuery(searchQuery,{text:[c.name],phones:[c.phone]});
@@ -2153,7 +2151,7 @@ export default function BeautyOS() {
   // How many rows each list is currently drawing. Derived, not stored: when the
   // filter signature changes the previous window is simply not hers any more
   // and the count falls back to the first page, without a state write.
-  const leadFilterSig   = `${leadSearch}|${leadFilter}|${leadSourceFilter}`;
+  const leadFilterSig   = `${leadSearch}|${leadFilter}`;
   const clientFilterSig = `${searchQuery}|${filterStatus}|${filterSkin}`;
   const leadsShown   = leadWindow.sig   === leadFilterSig   ? leadWindow.n   : LIST_PAGE;
   const clientsShown = clientWindow.sig === clientFilterSig ? clientWindow.n : LIST_PAGE;
@@ -5421,7 +5419,7 @@ export default function BeautyOS() {
                 <div style={{fontSize:44,marginBottom:10}}>✅</div>
                 <h3 className="serif" style={{fontSize:19,fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
                 <p style={{fontSize:13,color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
-                  מעיין תחזור אלייך. אפשר להמשיך לעבוד בינתיים.
+                  {SUPPORT_TEAM_HE} יחזרו אלייך. אפשר להמשיך לעבוד בינתיים.
                 </p>
                 <button type="button" onClick={()=>{setShowHelp(false);setHelpText("");setHelpState("idle");}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--surface)",borderRadius:24,fontSize:13}}>סגירה</button>
               </div>
@@ -5429,7 +5427,7 @@ export default function BeautyOS() {
               <>
                 <h3 className="serif" style={{fontSize:19,fontWeight:600,marginBottom:4,color:"var(--ink)"}}>תקועה?</h3>
                 <p style={{fontSize:12.5,color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
-                  כתבי מה קרה, ומעיין תחזור אלייך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
+                  כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אלייך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
                 <textarea
                   value={helpText}
@@ -5443,8 +5441,9 @@ export default function BeautyOS() {
                   <div style={{marginTop:10,padding:"11px 12px",borderRadius:12,background:"var(--brand-cream, #FEFAF7)",border:"1px solid var(--line-2)"}}>
                     <p style={{fontSize:12.5,fontWeight:700,color:"var(--danger)",marginBottom:4}}>ההודעה לא נשלחה</p>
                     <p style={{fontSize:12,color:"var(--ink-2)",lineHeight:1.6,marginBottom:9}}>
-                      לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן, ואפשר לשלוח אותו ישירות בוואטסאפ.
+                      לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן{supportWhatsAppUrl()?", ואפשר לשלוח אותו ישירות בוואטסאפ":" — אפשר לנסות שוב עוד רגע"}.
                     </p>
+                    {supportWhatsAppUrl(helpText.trim() || SUPPORT_WHATSAPP_MESSAGE) && (
                     <a
                       href={supportWhatsAppUrl(helpText.trim() || SUPPORT_WHATSAPP_MESSAGE)}
                       target="_blank"
@@ -5453,6 +5452,7 @@ export default function BeautyOS() {
                     >
                       ✆ שליחה בוואטסאפ
                     </a>
+                    )}
                   </div>
                 )}
                 <div style={{display:"flex",gap:8,marginTop:12}}>
@@ -5820,7 +5820,7 @@ export default function BeautyOS() {
               logo, hamburger and search cannot fit on any phone (see the
               breakpoint block). Both keep a mobile home in the nav drawer, so
               nothing becomes unreachable - only ⚙ and ⏻ stay in the bar. */}
- <button onClick={()=>setShowSetup(true)} className="icon-btn desktop-only" title="הגדרת המערכת" aria-label="הגדרת המערכת">☑</button>
+ <button onClick={()=>setShowSetup(true)} className="icon-btn desktop-only" title="הגדרת המערכת" aria-label="הגדרת המערכת"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4"/><path d="M8 12.3l2.8 2.8L16.4 9"/></svg></button>
                 {/* An inline SVG, not the ⚙ character. U+2699 has an EMOJI
                     presentation by default on iOS, so it rendered as a full
                     colour glyph sitting among flat, tinted chrome. The variation
@@ -5882,7 +5882,7 @@ export default function BeautyOS() {
               established pattern - the inline value has to be the DESKTOP one,
               because only the breakpoint rule carries !important. */}
  <button className="nav-item mobile-only" style={{display:"none"}} onClick={()=>{setShowSetup(true);setShowMobileSidebar(false);}}>
- <span className="nav-ico">☑</span>
+ <span className="nav-ico"><svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4"/><path d="M8 12.3l2.8 2.8L16.4 9"/></svg></span>
  <span style={{flex:1}}>הגדרת המערכת</span>
  </button>
  <button className="nav-item mobile-only" style={{display:"none"}} onClick={()=>{handleExportCSV();setShowMobileSidebar(false);}}>
@@ -6455,8 +6455,8 @@ export default function BeautyOS() {
  <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{appt.name}{appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
  <p style={{fontSize:12.5,color:"rgba(255,255,255,0.92)",marginTop:2}}>{appt.service} · {appt.duration}ד׳</p>
  <div style={{display:"flex",gap:8,marginTop:10}}>
-                                  {appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}>♥</button>}
-                                  {hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}>✉</button>}
+                                  {appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
+                                  {hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
  <button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>
  <button aria-label="מחיקה" onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
  </div>
@@ -8432,7 +8432,7 @@ export default function BeautyOS() {
  <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>closeSettings()}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:0,width:440,maxWidth:"100%",maxHeight:"92vh",overflow:"hidden",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <div style={{padding:"20px 24px 0"}}>
- <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>⚙ הגדרות</h3>
+ <h3 className="serif" style={{fontSize:21,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.6M12 18.8v2.6M21.4 12h-2.6M5.2 12H2.6M18.6 5.4l-1.9 1.9M7.3 16.7l-1.9 1.9M18.6 18.6l-1.9-1.9M7.3 7.3L5.4 5.4"/></svg> הגדרות</h3>
  {/* Compact setup-checklist entry — the checklist's home once it leaves the dashboard */}
  <button onClick={()=>setShowSetup(true)} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:pcTint,border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:14,cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>
  <span style={{fontSize:15,color:setupDone===setupTotal?"var(--success)":pc,flexShrink:0}}>{setupDone===setupTotal?"✓":"☑"}</span>
@@ -8720,17 +8720,23 @@ export default function BeautyOS() {
  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
  <span style={{fontSize:11.5,fontWeight:700,color:"var(--success)"}}>✓ טוקן שמור</span>
  <button type="button" onClick={()=>{setWaReplacing(true);setWaTokenInput("");}} style={{fontSize:11,fontWeight:600,color:"var(--ink-2)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>החלפה</button>
- <button type="button" onClick={async()=>{
-   if(!window.confirm("לנתק את וואטסאפ? תזכורות והודעות אוטומטיות יפסיקו להישלח."))return;
-   setWaSavingToken(true);
-   try{
-     const r=await fetch("/api/settings/whatsapp",{method:"DELETE"});
-     const d=await r.json().catch(()=>null);
-     if(d&&d.success){toast("וואטסאפ נותק");await refreshWaStatus();}
-     else toast("הניתוק נכשל","error");
-   }catch{toast("הניתוק נכשל — בדקי את החיבור","error");}
-   finally{setWaSavingToken(false);}
- }} disabled={waSavingToken} style={{fontSize:11,fontWeight:600,color:"var(--danger)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>ניתוק</button>
+ <button type="button" onClick={()=>askConfirm({
+   title:"לנתק את וואטסאפ?",
+   message:"תזכורות, אישורי תורים וכל ההודעות האוטומטיות יפסיקו להישלח מיד. אפשר לחבר מחדש בכל שלב עם טוקן חדש.",
+   confirmText:"נתקי",
+   cancelText:"ביטול",
+   danger:true,
+   onConfirm:async()=>{
+     setWaSavingToken(true);
+     try{
+       const r=await fetch("/api/settings/whatsapp",{method:"DELETE"});
+       const d=await r.json().catch(()=>null);
+       if(d&&d.success){toast("וואטסאפ נותק");await refreshWaStatus();}
+       else toast("הניתוק נכשל","error");
+     }catch{toast("הניתוק נכשל — בדקי את החיבור","error");}
+     finally{setWaSavingToken(false);}
+   },
+ })} disabled={waSavingToken} style={{fontSize:11,fontWeight:600,color:"var(--danger)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>ניתוק</button>
  </div>
  ) : (
  <div style={{display:"flex",gap:7,alignItems:"stretch"}}>
@@ -9073,7 +9079,7 @@ export default function BeautyOS() {
  <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
  <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:11,color:"var(--success)"}}>✓</span>}
-                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✉ שלחי תזכורת</button>}
+                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
  </div>
                     ))
                   )}

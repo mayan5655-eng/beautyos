@@ -476,7 +476,9 @@ export default function OnboardingPage() {
 
       {/* Tiny footer hint */}
       <p style={{ marginTop: 14, fontSize: 12, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
-        תמיד אפשר לעדכן את כל ההגדרות מאוחר יותר ב-⚙️ הגדרות
+        {/* The gear is an inline SVG in the app now, so naming an emoji here
+            points her at a glyph that no longer appears anywhere. */}
+        תמיד אפשר לעדכן את כל ההגדרות מאוחר יותר במסך ההגדרות
       </p>
     </div>
   );
