@@ -18,7 +18,7 @@ about all of them. The table below can.
 | `get-public-tenant-by-slug.sql` | ✅ **APPLIED** (verified 2026-09-01) | `app/[slug]/page.jsx` — every cosmetician's public landing page |
 | `encrypt-green-api-token.sql` | ✅ **APPLIED** | `lib/greenApi/credentials.ts` |
 | `drop-green-api-token-plaintext.sql` | ✅ **APPLIED** — `settings.green_api_token` no longer exists; only `green_api_token_encrypted` | as above |
-| `tenant-resolution-fix.sql` | ⏸️ **PARKED — see below** | every RLS policy, indirectly |
+| `tenant-resolution-fix.sql` | 🟢 **READY TO RUN — un-parked 2026-09-02, not yet applied** | every RLS policy, indirectly |
 | `tenant-resolution-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass. DO NOT DELETE.** | holds the only capture of the live `get_user_tenant_id()` as of 2026-07-30 |
 | `encrypt-green-api-token-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass** | — |
 | `appointment-cancel-audit.sql` | ❓ **UNKNOWN** | `app/beautyos.jsx` `softCancelAppointment` — already retries without the columns, so a cancel works either way |
@@ -76,7 +76,7 @@ which is what `app/api/support/route.ts` cares about.
 
 ---
 
-## Why `tenant-resolution-fix.sql` is parked
+## Why `tenant-resolution-fix.sql` was parked, and why it no longer is
 
 It adds `order by created_at asc, id asc` to `public.get_user_tenant_id()`, whose
 `LIMIT 1` currently has no ordering.
@@ -94,6 +94,20 @@ Worth weighing: because there are zero duplicates today, running it **now** is
 provably a no-op for every existing user and cannot change what any current
 session resolves to. Running it **later**, once a second membership exists, is
 the version that changes behaviour for somebody. Earliest is safest.
+
+**Un-parked 2026-09-02.** Membership re-checked: the owner holds exactly one
+`tenant_members` row (`448e9e45`, joined 2026-05-06), so the "latent, not live"
+premise still holds and running it now is still a no-op.
+
+The trigger was not a second membership. It was a day spent investigating why
+the dashboard appeared to disagree with the database, which ended in a
+mislabelled tenant id — `b09637c8` annotated "(yours)" in `STAGE_SUMMARY.md` and
+copied into two scripts, two migrations and a doc comment. Different mechanism,
+same consequence: something answered "which business is this?" with the wrong
+tenant, and every tool in the loop held the service-role key and could not tell
+tenants apart, so nothing contradicted it. One line of `order by` removes the
+version of that question this function can still answer unstably. Waiting for
+the trigger to arrive is a worse plan than removing the trap.
 
 `tenant-resolution-rollback.sql` embeds the real production definition of
 `get_user_tenant_id()` captured on 2026-07-30. That snapshot exists nowhere else

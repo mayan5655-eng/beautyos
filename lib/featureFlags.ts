@@ -101,7 +101,7 @@ export function visibleTabIds(settings: SettingsLike, ids: readonly string[]): s
  *               coalesce(automations->'feature_flags', '{}'::jsonb)
  *                 || '{"packages": true}'::jsonb
  *             )
- *    where tenant_id = 'b09637c8-a5c8-4b80-bda8-ff603f7ada60';   -- always filter
+ *    where tenant_id = '<tenant-id>';   -- always filter, and check it is the right one
  *
  * Set the value back to false, or drop the key, to hide it again.
  */

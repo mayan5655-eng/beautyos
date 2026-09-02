@@ -44,8 +44,11 @@ const quiet = (fn) => async () => {
   try { return await fn(); } finally { console.error = e; }
 };
 
-const TENANT = '448e9e45-2251-4572-b665-886c5bc7a4c8';
-const OTHER  = 'b09637c8-a5c8-4b80-bda8-ff603f7ada60';
+// These two are the right way round, and were the only place in the repo that
+// had it right. 448e9e45 is the owner's tenant; b09637c8 is a different, nearly
+// empty one that five other files spent weeks calling "the owner's".
+const TENANT = '448e9e45-2251-4572-b665-886c5bc7a4c8';   // the owner's
+const OTHER  = 'b09637c8-a5c8-4b80-bda8-ff603f7ada60';   // someone else's
 
 /** Fake supabase whose ai_usage count is whatever the test says. */
 function makeDb({ count = 0, error = null, nullCount = false, throwOn = false } = {}) {

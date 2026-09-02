@@ -175,6 +175,20 @@ create index if not exists appointments_tenant_series_idx
 
 -- ── Verify ─────────────────────────────────────────────────────────────────
 --
+-- ── Whose tenant ────────────────────────────────────────────────────────────
+--
+-- Every <your-tenant-id> below is a real decision, not a formality. These
+-- blocks run in the Supabase SQL editor, where RLS does not apply: the literal
+-- in the INSERT is the ONLY thing deciding whose table is written to.
+--
+-- The owner's tenant is 448e9e45-2251-4572-b665-886c5bc7a4c8. This file used to
+-- spell b09637c8-a5c8-4b80-bda8-ff603f7ada60 into every example, because
+-- STAGE_SUMMARY.md had annotated that id "(yours)" and six files copied the
+-- annotation. It is a different, nearly empty tenant - 2 appointments against
+-- 448e9e45's 29 - and for weeks every check described as running against the
+-- owner's data ran against it instead. Placeholders now, so the id has to be
+-- typed deliberately rather than inherited.
+--
 --   a) The columns and the check exist.
 --        select column_name, data_type, column_default, is_nullable
 --          from information_schema.columns

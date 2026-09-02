@@ -12,7 +12,11 @@
 -- verify-appointment-no-overlap.js (repo root) inserts through PostgREST, so
 -- lib/apptTime and every application guard are bypassed and cannot be what
 -- refuses a row. Against tenant b09637c8 on sentinel date 2020-01-09, all rows
--- cleaned up afterwards and the day re-confirmed empty:
+-- cleaned up afterwards and the day re-confirmed empty. (b09637c8 was described
+-- here as the owner's tenant; it is not - see "Whose tenant" below. It was a
+-- fine target for a rolled-back test either way, and the result stands: the
+-- constraint is table-wide and partitions on tenant_id WITHIN itself, so
+-- proving it fires in one tenant proves the mechanism.):
 --
 --     14:00+60 accepted
 --     14:30+30 REJECTED - SQLSTATE 23P01,
@@ -177,6 +181,20 @@ end $$;
 -- script cannot do over PostgREST. Each block is wrapped begin/rollback: run
 -- each one whole, including the rollback, or it leaves test rows behind.
 --
+-- ── Whose tenant ────────────────────────────────────────────────────────────
+--
+-- Every <your-tenant-id> below is a real decision, not a formality. These
+-- blocks run in the Supabase SQL editor, where RLS does not apply: the literal
+-- in the INSERT is the ONLY thing deciding whose table is written to.
+--
+-- The owner's tenant is 448e9e45-2251-4572-b665-886c5bc7a4c8. This file used to
+-- spell b09637c8-a5c8-4b80-bda8-ff603f7ada60 into every example, because
+-- STAGE_SUMMARY.md had annotated that id "(yours)" and six files copied the
+-- annotation. It is a different, nearly empty tenant - 2 appointments against
+-- 448e9e45's 29 - and for weeks every check described as running against the
+-- owner's data ran against it instead. Placeholders now, so the id has to be
+-- typed deliberately rather than inherited.
+--
 --   a) The constraint exists.
 --        select conname, pg_get_constraintdef(oid)
 --          from pg_constraint where conname = 'appointments_no_overlap';
@@ -185,24 +203,24 @@ end $$;
 --      tenant id with your own; the second insert must fail with 23P01.
 --        begin;
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 840, 'overlap test a', 'test', 60);
+--          values ('<your-tenant-id>', '2020-01-09', 840, 'overlap test a', 'test', 60);
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 870, 'overlap test b', 'test', 30);
+--          values ('<your-tenant-id>', '2020-01-09', 870, 'overlap test b', 'test', 30);
 --        rollback;
 --
 --   c) Back-to-back must still be allowed - 14:00+60 then 15:00+30 is not an
 --      overlap. Both inserts must succeed.
 --        begin;
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 840, 'adjacent a', 'test', 60);
+--          values ('<your-tenant-id>', '2020-01-09', 840, 'adjacent a', 'test', 60);
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 900, 'adjacent b', 'test', 30);
+--          values ('<your-tenant-id>', '2020-01-09', 900, 'adjacent b', 'test', 30);
 --        rollback;
 --
 --   d) A cancelled appointment must still free its slot.
 --        begin;
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration, confirmation_status)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 840, 'cancelled', 'test', 60, 'cancelled');
+--          values ('<your-tenant-id>', '2020-01-09', 840, 'cancelled', 'test', 60, 'cancelled');
 --          insert into public.appointments (tenant_id, date, start_minute, name, service, duration)
---          values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 840, 'replacement', 'test', 60);
+--          values ('<your-tenant-id>', '2020-01-09', 840, 'replacement', 'test', 60);
 --        rollback;

@@ -11,7 +11,7 @@
  * │  is SELECT-only and safe to run any time.                                │
  * │                                                                          │
  * │  Every write is confined to, and NOTHING ELSE in the table is touched:   │
- * │    tenant_id = b09637c8-a5c8-4b80-bda8-ff603f7ada60  (the owner's tenant)│
+ * │    tenant_id = whatever --tenant=<uuid> says          (no default)       │
  * │    date      = 2020-01-09                            (sentinel, 2020)    │
  * │    name      LIKE 'STAGE-C-VERIFY%'                  (marker)            │
  * │                                                                          │
@@ -57,7 +57,25 @@
 
 const { createClient } = require("@supabase/supabase-js");
 
-const TENANT_ID = "b09637c8-a5c8-4b80-bda8-ff603f7ada60";
+// NO DEFAULT, and for this script that matters more than for its read-only
+// sibling: every run of this file INSERTS rows. It used to default to
+// b09637c8-…, labelled "the owner's tenant" in the header above. It is not:
+// the owner's tenant is 448e9e45-2251-4572-b665-886c5bc7a4c8. b09637c8 is a
+// near-empty tenant that was almost certainly picked BECAUSE it was empty and
+// therefore safe to write into - and then described as the owner's, which is
+// how a sensible choice became a wrong fact that five other files copied.
+//
+// Being wrong in the safe direction is luck, not design. A script that inserts
+// rows on the service-role key must be told whose table it is writing to.
+const TENANT_ID = (process.argv.slice(2).find((a) => a.startsWith("--tenant=")) || "").split("=")[1]
+  || process.env.TENANT_ID
+  || "";
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(TENANT_ID)) {
+  console.error("Refusing to run: this script INSERTS rows and has no default tenant.");
+  console.error("  node --env-file=.env.local verify-appointment-no-overlap.js --tenant=<uuid>");
+  process.exit(2);
+}
+
 const SENTINEL_DATE = "2020-01-09";
 const MARKER = "STAGE-C-VERIFY";
 

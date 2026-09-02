@@ -1,8 +1,32 @@
--- STATUS: PARKED - do not run yet. Trigger and reasoning in README.md.
+-- STATUS: READY TO RUN - decided 2026-09-02. Not yet applied.
 -- The folder name is not a status. See README.md in this directory.
 
 -- tenant-resolution-fix.sql
--- PARKED. Do not run yet. See "WHEN TO RUN" below.
+-- UN-PARKED on 2026-09-02. Run it. The reasoning below is unchanged and still
+-- correct; what changed is the judgement about waiting.
+--
+-- Membership re-checked on 2026-09-02: the owner holds exactly ONE
+-- tenant_members row, 448e9e45-2251-4572-b665-886c5bc7a4c8, joined 2026-05-06.
+-- So the premise under "WHY IT IS NOT URGENT" still holds, and running this
+-- today is still provably a no-op for her session - it cannot change what
+-- anything currently resolves to.
+--
+-- What prompted the decision was a different failure that rhymes with this one.
+-- For several weeks a second tenant, b09637c8-…, was labelled "(yours)" in
+-- STAGE_SUMMARY.md and copied from there into two scripts, two migrations and a
+-- doc comment. Every check run "against the owner's data" ran against a
+-- near-empty tenant instead. Nothing leaked and nothing was lost, because the
+-- tools involved hold the service-role key and see all tenants equally - which
+-- is exactly why nothing contradicted the label for weeks.
+--
+-- That is the same shape as this bug. Not the same mechanism, but the same
+-- consequence: something quietly answers "which business is this?" with the
+-- wrong tenant, and every tool that could have caught it is one that cannot
+-- tell tenants apart. It cost a day of investigation with the answer already
+-- written down in the repo. The ordered version of this function is one line
+-- and removes an entire category of that question having an unstable answer.
+--
+-- "Earliest is safest" was already this file's own conclusion. Taking it.
 --
 -- Makes public.get_user_tenant_id() deterministic by giving its LIMIT 1 an
 -- explicit ORDER BY: the OLDEST membership wins.

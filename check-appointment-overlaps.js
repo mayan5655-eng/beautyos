@@ -39,12 +39,29 @@
 
 const { createClient } = require("@supabase/supabase-js");
 
-const OWNER_TENANT_ID = "b09637c8-a5c8-4b80-bda8-ff603f7ada60";
-
+// NO DEFAULT TENANT, deliberately. This script used to carry
+// OWNER_TENANT_ID = b09637c8-…, which is not the owner's tenant and never was:
+// the owner's is 448e9e45-2251-4572-b665-886c5bc7a4c8. The constant was copied
+// into five other files and two migrations, and for weeks every verification
+// "against the owner's data" was actually run against a near-empty tenant
+// nobody uses. Nothing leaked and nothing was lost - this script only reads,
+// and RLS was never involved because it runs on the service-role key, which
+// sees all tenants equally. That is exactly why the label had nothing to
+// contradict it.
+//
+// A script holding the service-role key does not get to guess whose data it is
+// looking at. Say which tenant, or say --all-tenants and mean it.
 const argv = process.argv.slice(2);
 const allTenants = argv.includes("--all-tenants");
 const tenantArg = (argv.find((a) => a.startsWith("--tenant=")) || "").split("=")[1];
-const tenantId = tenantArg || OWNER_TENANT_ID;
+const tenantId = tenantArg || process.env.TENANT_ID || "";
+
+if (!allTenants && !tenantId) {
+  console.error("Refusing to run without a target.");
+  console.error("  node --env-file=.env.local check-appointment-overlaps.js --tenant=<uuid>");
+  console.error("  node --env-file=.env.local check-appointment-overlaps.js --all-tenants");
+  process.exit(2);
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

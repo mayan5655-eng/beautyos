@@ -188,12 +188,26 @@ end $$;
 --         select indexdef from pg_indexes
 --          where tablename = 'appointments' and indexname = 'uniq_appt_slot_active';
 --
+-- ── Whose tenant ────────────────────────────────────────────────────────────
+--
+-- Every <your-tenant-id> below is a real decision, not a formality. These
+-- blocks run in the Supabase SQL editor, where RLS does not apply: the literal
+-- in the INSERT is the ONLY thing deciding whose table is written to.
+--
+-- The owner's tenant is 448e9e45-2251-4572-b665-886c5bc7a4c8. This file used to
+-- spell b09637c8-a5c8-4b80-bda8-ff603f7ada60 into every example, because
+-- STAGE_SUMMARY.md had annotated that id "(yours)" and six files copied the
+-- annotation. It is a different, nearly empty tenant - 2 appointments against
+-- 448e9e45's 29 - and for weeks every check described as running against the
+-- owner's data ran against it instead. Placeholders now, so the id has to be
+-- typed deliberately rather than inherited.
+--
 --    d) OPTIONAL end-to-end check of the rollout window, in a transaction that
 --       is rolled back so nothing is left behind. Simulates the OLD build: it
 --       writes `hour` only, and start_minute must come out populated. Replace
 --       the tenant id with your own.
 --         begin;
 --           insert into public.appointments (tenant_id, date, hour, name, service, duration)
---           values ('b09637c8-a5c8-4b80-bda8-ff603f7ada60', '2020-01-09', 14, 'trigger test', 'test', 30)
+--           values ('<your-tenant-id>', '2020-01-09', 14, 'trigger test', 'test', 30)
 --           returning hour, start_minute;      -- expect 14, 840
 --         rollback;

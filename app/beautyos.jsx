@@ -2002,11 +2002,31 @@ export default function BeautyOS() {
       // into onboarding, and finishing it inserts a SECOND settings row.
       if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
       if(st.data && st.data.length > 0) {
-        // Pick the settings row for this user's tenant. Fall back to the most
-        // recently created row (not an arbitrary array index) so the choice is
-        // stable across refreshes and a just-saved row isn't masked by a stale one.
-        const myRow = st.data.find(s => s.tenant_id === myTenantId)
-          || [...st.data].sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||"")))[0];
+        // The settings row for THIS user's tenant, or nothing.
+        //
+        // There used to be a fallback here: no match, take the most recently
+        // created row. It was defended as being "stable across refreshes", and
+        // it is - stability was never the problem. The row it falls back to is
+        // not checked against myTenantId at all, so the one case it exists to
+        // handle is precisely the case where it displays another business's
+        // name, hours, address and branding as hers, with no error anywhere.
+        //
+        // Nothing legitimate reaches it. The read above carries no tenant
+        // filter of its own and is scoped entirely by RLS, which scopes by
+        // get_user_tenant_id() - the same function myTenantId came from. Rows
+        // present but none matching therefore means the two disagreed, and a
+        // disagreement about which business this is cannot be resolved by
+        // picking one. Her own tenant having no settings row at all is a
+        // different case and lands in the length === 0 branch above, which
+        // sends her to onboarding.
+        const myRow = st.data.find(s => s.tenant_id === myTenantId);
+        if (!myRow) {
+          console.error("[BeautyOS] loadAll: no settings row for tenant", myTenantId,
+            "| rows visible:", st.data.length, "| tenants:", st.data.map(r => r.tenant_id));
+          try { Sentry.captureException(new Error("loadAll: settings/tenant mismatch")); } catch {}
+          setLoadError({ tables: ["settings"], message: "הגדרות העסק לא נטענו", code: "tenant-mismatch" });
+          return;
+        }
         setSettings(myRow);
         // Tag every later error report with the business it happened in. This
         // is what turns the six-character code a beta user reads out into

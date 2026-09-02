@@ -21,7 +21,16 @@ import { readUpload } from './lib/leads/readUpload.ts';
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from './lib/leads/buildRows.ts';
 import { fallbackMapping, TARGET_FIELDS } from './lib/leads/mapHeaders.ts';
 
-const TENANT = 'b09637c8-a5c8-4b80-bda8-ff603f7ada60';
+// A LABEL ON A PRINTOUT, not a destination. This script makes no database call
+// of any kind (see the header), so nothing has ever been written to this or any
+// other tenant by running it. It said b09637c8 because five other files did;
+// the owner's tenant is 448e9e45-2251-4572-b665-886c5bc7a4c8.
+//
+// The number matters too: the 247 below is this fixture's size, hardcoded. A
+// printout reading "247 rows -> tenant b09637c8" was later read as a record of
+// a real import into a tenant that was not even the right one. It was neither.
+// Overridable so the printout can say something true for whoever is reading it.
+const TENANT = process.env.TENANT_ID || '<tenant-id: pass TENANT_ID to label this run>';
 const CHUNK = 50;
 
 // ── fixture ────────────────────────────────────────────────────────────────

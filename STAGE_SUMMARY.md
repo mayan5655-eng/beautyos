@@ -75,9 +75,27 @@
 
 | tenant_id | rows | overlapping pairs |
 | --- | --- | --- |
-| `448e9e45-2251-4572-b665-886c5bc7a4c8` | 19 | **0** |
-| `b09637c8-a5c8-4b80-bda8-ff603f7ada60` (yours) | 2 | **0** |
+| `448e9e45-2251-4572-b665-886c5bc7a4c8` **(yours)** | 19 | **0** |
+| `b09637c8-a5c8-4b80-bda8-ff603f7ada60` | 2 | **0** |
 | `439120af-987b-4471-8b9d-afc89bc6c480` | 1 | **0** |
+
+> **Correction, 2026-09-02.** This table originally marked `b09637c8` as
+> "(yours)". It is not, and never was: the owner's single `tenant_members` row
+> resolves to `448e9e45` — which is also, consistently, the tenant holding 19
+> of these 22 appointments, and today 250 leads, 26 clients and 7 receipts.
+> `b09637c8` holds 2 appointments, 2 leads and 1 client.
+>
+> That one annotation was copied into `check-appointment-overlaps.js` as
+> `OWNER_TENANT_ID`, into `verify-appointment-no-overlap.js` as "the owner's
+> tenant", into `dry-run-lead-import.ts`, into `lib/featureFlags.ts`, and into
+> the verify blocks of two migrations — so for weeks every check run "against
+> the owner's data" ran against a near-empty tenant nobody uses.
+>
+> Nothing leaked and nothing was lost. RLS never had a say: those scripts hold
+> the service-role key and the SQL editor bypasses RLS too, so every tool used
+> to check the claim was one that cannot tell tenants apart. That is precisely
+> why a wrong label survived this long — there was nothing in the loop able to
+> contradict it.
 | **total** | **22** | **0** |
 
 Also clean: 0 rows with a NULL `confirmation_status`, 0 with an unusable start, 0 with a NULL or zero duration, 1 cancelled row (correctly exempt). Nothing had to be cleaned up, and **no appointment data was read out, moved or deleted** — SELECTs only.
