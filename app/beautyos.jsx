@@ -1593,12 +1593,6 @@ export default function BeautyOS() {
       .filter(c => matchesQuery(q, { text: [c.name], phones: [c.phone] }))
       .slice(0, 6);
   }, [apptClientQuery, clients]);
-  // Labels for the day-view rows. HOURS_ALL is now indexed by the hour itself,
-  // so the slice is the hour range directly - the old `-7` came from the list
-  // starting at 07:00 and silently clipped anyone opening earlier than that.
-  // The consumer pairs workingHours[hi] with working_hours_start + hi, so the
-  // start of the slice and that addend must stay the same number.
-  const workingHours = HOURS_ALL.slice(Math.max(settings?.working_hours_start||8,0),Math.min(settings?.working_hours_end||19,HOURS_ALL.length));
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
@@ -2281,15 +2275,6 @@ export default function BeautyOS() {
     else if (r.type === "service") { openSettings("services"); }
   };
 
-  // Bucketed by hour on purpose: the grid still has one row per hour, so a
-  // 14:30 appointment must render in the 14:00 row rather than vanish. The row
-  // shows its real start time. A true minute-resolution grid is a separate job.
-  const getAppt = (date,hour) => appointments.find(a=>{
-    if(a.date!==formatDate(date)) return false;
-    const sm = startMinute(a);
-    return sm!==null && Math.floor(sm/60)===Number(hour);
-  });
-
   // ── Week view geometry ────────────────────────────────────────────────────
   //
   // The week grid is positioned blocks, not table cells: an appointment's TOP
@@ -2379,8 +2364,10 @@ export default function BeautyOS() {
   // cell) is gone with the hour-cell grid it existed for. Positioned blocks
   // make overlap a matter of geometry rather than something a cell has to
   // special-case, so dayLanes above replaces it outright.
-  // getAppt survives: handleSlotClick still asks "is this hour occupied at
-  // all", where one match is the right answer.
+  // getAppt (ONE appointment per hour, by .find) is gone with them. It outlived
+  // its grid by one screen: the mobile agenda went on calling it, and went on
+  // hiding the second appointment of every hour and everything booked outside
+  // the legacy hour range. Both calendars read dayLanes now.
 
   const getApptColor = (appt) => {
     if(appt.confirmation_status==="confirmed") return "var(--success)";
@@ -2392,19 +2379,10 @@ export default function BeautyOS() {
   // HANDLERS
   // ============================================================
 
-  const handleSlotClick = (date,hour) => {
-    if(getAppt(date,hour))return;
-    const svc=activeServices[0];
-    setEditingAppointmentId(null); // fresh create, not edit
-    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(date),hour,startMinute:Number(hour)*60,price:svc?.price||0});
-    setApptNote("");setShowModal(true);
-  };
-
   // The "+" on a mobile week day header: a fresh appointment on that DATE.
   //
-  // Deliberately without handleSlotClick's "is this slot already taken" guard.
-  // That guard exists because an hour CELL can only hold one appointment, and
-  // the mobile week strip has no hour cells - she picks the time in the modal.
+  // Deliberately without any "is this slot already taken" guard: she picks the
+  // time in the modal, which runs its own clash check before it saves.
   // Seeding it with the day's opening hour rather than a fixed 9:00 means a
   // clinic that opens at 10 does not get a booking an hour before it unlocks.
   const handleNewApptOnDate = (date) => {
@@ -6802,20 +6780,44 @@ export default function BeautyOS() {
  <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:14,padding:"11px 0",fontSize:13,fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"var(--surface)",padding:"11px 0",fontSize:13,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
-                  {!dh?(
- <div style={{textAlign:"center",padding:"48px 0",color:"var(--danger)",fontWeight:700,fontSize:15,background:"var(--surface)",borderRadius:16,border:"1px solid var(--line)"}}>סגור ביום זה</div>
-                  ):(
+                  {(() => {
+                    // Rows are driven by the day's REAL appointments, not by a fixed
+                    // grid of hour cells. The old loop walked workingHours - the LEGACY
+                    // global range - and asked getAppt for ONE appointment per clock
+                    // hour, so it silently dropped the second of any pair (10:00 and
+                    // 10:30 are routine at 30-minute granularity) and everything outside
+                    // that range, which per-day business_hours can exceed in either
+                    // direction. The week grid was rebuilt off dayLanes for exactly this
+                    // reason; this was the last consumer of the hour-cell assumption.
+                    //
+                    // Same contract as the week axis: if it exists, it is on screen.
+                    const laid = dayLanes(calDay).laid;
+                    // Free hours to offer: the day's own open range, minus any hour an
+                    // appointment COVERS - not merely starts in. A 90-minute treatment at
+                    // 10:00 used to leave a bookable "+ פנוי" at 11:00 that only failed at
+                    // save. Cancelled appointments free their hour here, because that is
+                    // what the modal's own clash check does; the cancelled card still
+                    // renders alongside, so the record never disappears.
+                    const covers = (s,e) => laid.some(x => x.appt.confirmation_status!=="cancelled" && s < x.e && x.s < e);
+                    const rows = laid.map(x => ({ key:"a"+x.appt.id, min:x.s, appt:x.appt }));
+                    if (dh) for (let h = Math.ceil(dh.open); h < dh.close; h++) {
+                      const m = h * 60;
+                      if (!covers(m, m + 60)) rows.push({ key:"f"+m, min:m, appt:null });
+                    }
+                    rows.sort((a,b) => a.min - b.min || (a.appt?0:1) - (b.appt?0:1));
+                    return (
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {workingHours.map((hourLabel,hi)=>{
-                        const actualHour=settings.working_hours_start+hi;
-                        const openCell=actualHour>=dh.open&&actualHour<dh.close;
-                        const appt=getAppt(calDay,actualHour);
-                        if(!openCell&&!appt) return null;
+                      {/* A closed day still has to show whatever is already booked on it,
+                          or an appointment vanishes from her phone the moment she edits
+                          her hours. The notice shrinks when it has rows underneath. */}
+                      {!dh&&<div style={{textAlign:"center",padding:rows.length?"16px 0":"48px 0",color:"var(--danger)",fontWeight:700,fontSize:15,background:"var(--surface)",borderRadius:16,border:"1px solid var(--line)"}}>סגור ביום זה</div>}
+                      {rows.map(row=>{
+                        const appt=row.appt;
                         const apptColor=appt?getApptColor(appt):null;
                         const hasPhone=appt&&(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone);
                         return(
- <div key={hi} style={{display:"flex",alignItems:"stretch",gap:10}}>
- <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{hourLabel}</div>
+ <div key={row.key} style={{display:"flex",alignItems:"stretch",gap:10}}>
+ <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{fmtTime(row.min)}</div>
                             {appt?(
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:14,padding:"12px 14px",cursor:"pointer",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{appt.name}{appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
@@ -6828,13 +6830,14 @@ export default function BeautyOS() {
  </div>
  </div>
                             ):(
- <button onClick={()=>handleSlotClick(calDay,actualHour)} style={{flex:1,background:"var(--surface)",border:"1px dashed var(--line-2)",borderRadius:14,padding:14,fontSize:13,color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>+ פנוי</button>
+ <button onClick={()=>handleSlotAtMinute(calDay,row.min)} style={{flex:1,background:"var(--surface)",border:"1px dashed var(--line-2)",borderRadius:14,padding:14,fontSize:13,color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>+ פנוי</button>
                             )}
  </div>
                         );
                       })}
  </div>
-                  )}
+                    );
+                  })()}
  </div>
                 );
               })()}
