@@ -60,6 +60,7 @@ export default function BookPage() {
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   const [showAllHours, setShowAllHours] = useState(false);
+  const [tab, setTab] = useState("book");
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=business card + service, 2=date+time, 3=details, 4=done
@@ -369,7 +370,32 @@ export default function BookPage() {
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
   const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
 
+  // THREE PANES, not one long scroll: what the business is, booking a time,
+  // and what is on offer. Three purposes rather than three slices of one list -
+  // which is why this is worth a tab bar when service CATEGORIES were not. A
+  // client who came to book taps once instead of scrolling past a gallery.
+  //
+  // Booking is first and default because it is the action. The hero above the
+  // bar already does the introducing.
+  //
+  // THE TABS ONLY EXIST IF THERE IS SOMETHING BEHIND THEM. Three tabs, two of
+  // them empty, is worse than the single page this replaces - so with nothing
+  // to say beyond the treatments, the bar does not render and every section
+  // falls back into one sequence exactly as before. WhatsApp alone does not
+  // count as an "about": a tab holding one green pill is not a tab.
+  const hasAbout = !!(brand?.businessDescription || gallery.length || reviews.length || addr || socials.length);
+  const hasOffers = recentPosts.length > 0;
+  const showTabs = hasAbout || hasOffers;
+  const inTab = (t) => !showTabs || tab === t;
+  const TABS = [
+    { key: "book", label: "הזמנת תור" },
+    hasAbout && { key: "about", label: "אודות" },
+    hasOffers && { key: "offers", label: "מבצעים" },
+  ].filter(Boolean);
+
   const goToServices = () => {
+    // From another pane the services are not on screen to scroll to.
+    if (tab !== "book") { setTab("book"); return; }
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -466,6 +492,23 @@ export default function BookPage() {
             </p>
           </div>
 
+          {showTabs && (
+            <div style={{ ...section, marginBottom: 24 }}>
+              <div style={{ display: "flex", gap: 24, borderBottom: `1px solid ${hair}` }}>
+                {TABS.map((t) => (
+                  <button key={t.key} onClick={() => setTab(t.key)} className="bk-btn"
+                    style={{ background: "none", padding: "0 0 12px", ...T_BODY,
+                      fontWeight: tab === t.key ? 600 : 400,
+                      color: tab === t.key ? ink : muted,
+                      borderBottom: `2px solid ${tab === t.key ? pc : "transparent"}`, marginBottom: -1 }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {inTab("book") && (<>
           {/* Nothing bookable yet.
               This is what a visitor used to get instead: the services section
               and the booking button were BOTH hidden behind services.length > 0,
@@ -515,35 +558,9 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* REVIEWS */}
-          {reviews.length > 0 && (
-            <div style={{ ...section }}>
-              <div style={cardBox}>
-                {eyebrow("ביקורות")}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                  <span className="serif" style={{ fontSize: 36, fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
-                  <div>
-                    <div style={{ fontSize: 15, color: pc, letterSpacing: 2 }}>
-                      {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
-                    </div>
-                    <span style={{ fontSize: 11, color: faint, letterSpacing: "0.5px" }}>{reviews.length} ביקורות</span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
-                  {reviews.map((rv, i) => (
-                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius: 18, padding: "18px 20px" }}>
-                      <div style={{ fontSize: 13.5, color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
-                        {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
-                      </div>
-                      {rv.text && <p className="serif" style={{ fontSize: 14.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
-                      {rv.name && <p style={{ fontSize: 11.5, fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          </>)}
 
+          {inTab("about") && (<>
           {/* ABOUT */}
           {brand?.businessDescription && (
             <div style={{ ...section }}>
@@ -570,43 +587,28 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty).
-              Placed right before the booking CTA so her latest offer/update is
-              the last thing a client sees before booking. */}
-          {recentPosts.length > 0 && (
+          {/* REVIEWS */}
+          {reviews.length > 0 && (
             <div style={{ ...section }}>
               <div style={cardBox}>
-                {eyebrow("עדכונים")}
-                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-                  {recentPosts.map((p) => (
-                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
-                      {p.image_url && (
-                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
-                      )}
-                      <div style={{ padding: "15px 17px" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
-                            {postTypeLabel(p.post_type)}
-                          </span>
-                          <span style={{ fontSize: 12, color: faint, letterSpacing: "0.3px" }}>
-                            {new Date(p.created_at).toLocaleDateString("he-IL")}
-                          </span>
-                        </div>
-                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
-                        {p.body && <p style={{ fontSize: 13.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
-                        {p.cta_label && (
-                          wa ? (
-                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
-                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
-                              {p.cta_label}
-                            </a>
-                          ) : (
-                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
-                              {p.cta_label}
-                            </span>
-                          )
-                        )}
+                {eyebrow("ביקורות")}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                  <span className="serif" style={{ fontSize: 36, fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
+                  <div>
+                    <div style={{ fontSize: 15, color: pc, letterSpacing: 2 }}>
+                      {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
+                    </div>
+                    <span style={{ fontSize: 11, color: faint, letterSpacing: "0.5px" }}>{reviews.length} ביקורות</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
+                  {reviews.map((rv, i) => (
+                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius: 18, padding: "18px 20px" }}>
+                      <div style={{ fontSize: 13.5, color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
+                        {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
+                      {rv.text && <p className="serif" style={{ fontSize: 14.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
+                      {rv.name && <p style={{ fontSize: 11.5, fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
                     </div>
                   ))}
                 </div>
@@ -665,6 +667,55 @@ export default function BookPage() {
               </div>
             </div>
           )}
+
+          </>)}
+
+          {inTab("offers") && (<>
+          {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty).
+              Placed right before the booking CTA so her latest offer/update is
+              the last thing a client sees before booking. */}
+          {recentPosts.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={cardBox}>
+                {eyebrow("עדכונים")}
+                <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+                  {recentPosts.map((p) => (
+                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
+                      {p.image_url && (
+                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
+                      )}
+                      <div style={{ padding: "15px 17px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                            {postTypeLabel(p.post_type)}
+                          </span>
+                          <span style={{ fontSize: 12, color: faint, letterSpacing: "0.3px" }}>
+                            {new Date(p.created_at).toLocaleDateString("he-IL")}
+                          </span>
+                        </div>
+                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
+                        {p.body && <p style={{ fontSize: 13.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.cta_label && (
+                          wa ? (
+                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
+                              {p.cta_label}
+                            </a>
+                          ) : (
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
+                              {p.cta_label}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          </>)}
 
           {/* The sticky CTA is rendered outside this stack, below. */}
         </div>
