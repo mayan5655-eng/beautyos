@@ -4,7 +4,6 @@ import { supabase } from "../supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
-import FloralCorners from "../FloralCorners";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
@@ -60,6 +59,7 @@ export default function BookPage() {
   const [availabilityError, setAvailabilityError] = useState(false);
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
+  const [showAllHours, setShowAllHours] = useState(false);
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=business card + service, 2=date+time, 3=details, 4=done
@@ -353,7 +353,6 @@ export default function BookPage() {
   const now = new Date();
   const weekHours = normalizeBusinessHours(settings);
   const todayHours = weekHours[now.getDay()];
-  const openNow = !!todayHours && now.getHours() >= todayHours.open && now.getHours() < todayHours.close;
   const socials = [
     brand?.website && { key: "web", label: "אתר", href: socialHref("https://", brand.website) },
     brand?.instagram && { key: "ig", label: "אינסטגרם", href: socialHref("https://instagram.com/", brand.instagram) },
@@ -380,35 +379,30 @@ export default function BookPage() {
   // One shape for every "here is why this is empty" line on the page.
   const noticeBox = { background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${hair}`, borderRadius: 12, padding: "10px 13px", marginBottom: 12, fontSize: 12.5, lineHeight: 1.6, color: ink };
   const cream = "var(--brand-cream, #FEFAF7)";
-  const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 26 };
+  // ── type scale ───────────────────────────────────────────────────────────
+  // display / body / meta. Nothing between them, because a size that is nearly
+  // another size is just noise. Hebrew carries more leading than Latin at the
+  // same size, so body runs at 1.7.
+  const T_DISPLAY = { fontSize: 34, fontWeight: 600, lineHeight: 1.15, letterSpacing: 0 };
+  const T_BODY    = { fontSize: 16, fontWeight: 400, lineHeight: 1.7 };
+  const T_META    = { fontSize: 13, fontWeight: 400, lineHeight: 1.5 };
+
+  const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 34 };
   const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
   const eyebrow = (text) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 18 }}>
-      <span style={{ width: 22, height: 1.5, background: pc, opacity: 0.55, borderRadius: 2 }} />
-      <span style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700 }}>{text}</span>
-    </div>
+    <p className="serif" style={{ fontSize: 19, fontWeight: 600, color: ink, marginBottom: 14, lineHeight: 1.3 }}>{text}</p>
   );
-  const qaBtn = { border: "none", borderRadius: 999, padding: "12px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, letterSpacing: "0.4px", textDecoration: "none" };
-  const qaOutline = { ...qaBtn, background: "var(--brand-surface, #FAF6FC)", color: ink, border: `1px solid ${pc}3D`, boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" };
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
-      {/* Subtle brand-tinted floral watermark, behind all content */}
-      <FloralCorners idPrefix="book" blush={pc} gold={deep} opacity={0.9} />
+    <div dir="rtl" style={{ fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;600;700&family=Assistant:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; }
-        .serif { font-family: 'Frank Ruhl Libre','Assistant',serif; }
+        .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
         .bk-stack { width: 100%; display: flex; flex-direction: column; align-items: center; }
-        .bk-stack > * { animation: rise 0.7s cubic-bezier(.2,.7,.3,1) both; }
-        .bk-stack > *:nth-child(1){ animation-delay: .02s } .bk-stack > *:nth-child(2){ animation-delay: .08s }
-        .bk-stack > *:nth-child(3){ animation-delay: .14s } .bk-stack > *:nth-child(4){ animation-delay: .20s }
-        .bk-stack > *:nth-child(5){ animation-delay: .26s } .bk-stack > *:nth-child(6){ animation-delay: .32s }
-        .bk-stack > *:nth-child(7){ animation-delay: .38s } .bk-stack > *:nth-child(8){ animation-delay: .44s }
-        .bk-stack > *:nth-child(9){ animation-delay: .50s } .bk-stack > *:nth-child(n+10){ animation-delay: .56s }
-        @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-        .bk-card { animation: rise 0.55s cubic-bezier(.2,.7,.3,1) both; }
+        .bk-stack { animation: fadein .2s ease-out both; }
+        @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+        @media (prefers-reduced-motion: reduce) { .bk-stack { animation: none } }
         .bk-chip { transition: transform .2s, box-shadow .2s; cursor: pointer; }
         .bk-chip:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -22px rgba(70,50,60,0.4); }
         .bk-chip:active { transform: scale(.99); }
@@ -416,86 +410,38 @@ export default function BookPage() {
         .bk-btn:hover:not(:disabled) { filter: brightness(1.04); transform: translateY(-1px); }
         .bk-btn:active:not(:disabled) { transform: scale(.98); }
         .bk-btn:disabled { opacity: .5; cursor: default; }
-        .qa { transition: transform .2s, filter .2s; }
-        .qa:hover { transform: translateY(-2px); filter: brightness(1.02); }
         .gal-item { transition: transform .28s, box-shadow .28s; }
         .gal-item:hover { transform: scale(1.04); box-shadow: 0 12px 26px -14px rgba(70,50,60,0.45); }
       `}</style>
 
       {/* ============ STEP 1 — BUSINESS CARD ============ */}
       {step === 1 && (
-        <div className="bk-stack">
+        <div className="bk-stack" style={{ paddingBottom: canBook ? "calc(78px + env(safe-area-inset-bottom, 0px))" : 0 }}>
 
           {/* COVER */}
           {brand?.heroImageUrl ? (
             <div style={{ position: "relative", width: "100%", maxWidth: 540, height: 220, overflow: "hidden", borderRadius: "0 0 28px 28px" }}>
               <img src={brand.heroImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(251,247,244,0.72) 0%, rgba(251,247,244,0.06) 42%, transparent 68%)" }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(251,247,244,0.28) 0%, rgba(251,247,244,0.00) 38%, transparent 68%)" }} />
             </div>
-          ) : (
-            <div style={{ width: "100%", maxWidth: 540, height: 150, background: `linear-gradient(135deg, ${pc}22, ${pc}0A)`, borderRadius: "0 0 28px 28px" }} />
-          )}
+          ) : null}
 
           {/* HEADER (logo overlaps cover) */}
-          <div style={{ ...section, marginTop: -54, textAlign: "center" }}>
-            <div style={{ width: 96, height: 96, borderRadius: "50%", background: "var(--brand-surface, #FAF6FC)", boxShadow: "0 14px 32px -14px rgba(70,50,60,0.4)", margin: "0 auto 14px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${pc}33`, outline: "4px solid var(--brand-surface, #FAF6FC)" }}>
-              {brand?.logoUrl ? (
-                <img src={brand.logoUrl} alt={bizName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <span style={{ fontSize: 34, color: pc }}>✦</span>
-              )}
-            </div>
-            <h1 className="serif" style={{ fontSize: 27, fontWeight: 600, color: deep, marginBottom: tagline ? 4 : 8, letterSpacing: "0.3px", lineHeight: 1.25 }}>{bizName}</h1>
+          <div style={{ ...section, marginTop: brand?.heroImageUrl ? 30 : 44, textAlign: "center" }}>
+            {brand?.logoUrl && (
+              <img src={brand.logoUrl} alt={bizName} style={{ height: 46, maxWidth: 150, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
+            )}
+            <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: tagline ? 8 : 12 }}>{bizName}</h1>
             {/* Three levels, in the order a stranger needs them: who this is,
                 what they say about themselves, then the longer sentence. The
                 tagline takes the accent colour so it reads as hers and not as a
                 subtitle the page generated. */}
-            {tagline && <p style={{ fontSize: 14, color: pc, fontWeight: 600, marginBottom: 8, lineHeight: 1.5, maxWidth: 380, marginInline: "auto" }}>{tagline}</p>}
-            {brand?.welcomeMessage && <p style={{ fontSize: 13.5, color: muted, fontWeight: 400, marginBottom: 14, lineHeight: 1.7, maxWidth: 380, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: openNow ? "rgba(70,179,123,0.10)" : "var(--pc-tint, #EDE7F0)", color: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)", padding: "5px 14px", borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: "0.6px" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)" }} />
-              {openNow ? "פתוח עכשיו" : "סגור עכשיו"}
-            </div>
-          </div>
-
-          {/* QUICK ACTIONS */}
-          <div style={{ ...section }}>
-            <div style={{ display: "flex", gap: 9, justifyContent: "center", flexWrap: "wrap" }}>
-              {/* Hidden when nothing is bookable. It scrolls to #bk-services,
-                  which does not exist with an empty menu - so it rendered as the
-                  page's most prominent button and did nothing at all on tap. */}
-              {canBook && <button onClick={goToServices} className="qa" style={{ ...qaBtn, background: pc, color: "var(--brand-surface, #FAF6FC)", boxShadow: `0 12px 26px -14px ${pc}` }}>{brand?.ctaLabel || "קביעת תור"}</button>}
-              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="qa" style={{ ...qaBtn, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", boxShadow: "0 12px 26px -14px rgba(37,211,102,0.85)" }}>וואטסאפ</a>}
-              {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" className="qa" style={qaOutline}>ניווט</a>}
-              {phoneRaw && <a href={`tel:${phoneRaw}`} className="qa" style={qaOutline}>התקשרי</a>}
-            </div>
-          </div>
-
-          {/* ABOUT */}
-          {brand?.businessDescription && (
-            <div style={{ ...section }}>
-              <div style={cardBox}>
-                {eyebrow("אודות")}
-                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
-              </div>
-            </div>
-          )}
-
-          {/* HOURS */}
-          <div style={{ ...section }}>
-            <div style={cardBox}>
-              {eyebrow("שעות פעילות")}
-              {[0, 1, 2, 3, 4, 5, 6].map((d) => {
-                const v = weekHours[d];
-                const today = d === now.getDay();
-                return (
-                  <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius: 10, background: today ? `${pc}0D` : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
-                    <span style={{ fontSize: 13.5, color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
-                    <span style={{ fontSize: 13.5, color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
-                  </div>
-                );
-              })}
-            </div>
+            {tagline && <p style={{ ...T_BODY, color: muted, marginBottom: 10, maxWidth: 400, marginInline: "auto" }}>{tagline}</p>}
+            {brand?.welcomeMessage && <p style={{ ...T_BODY, color: muted, marginBottom: 14, maxWidth: 400, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
+            <p style={{ ...T_META, color: faint }}>
+              {todayHours ? `היום ${String(todayHours.open).padStart(2, "0")}:00–${String(todayHours.close).padStart(2, "0")}:00` : "סגור היום"}
+              {addr ? ` · ${addr}` : ""}
+            </p>
           </div>
 
           {/* Nothing bookable yet.
@@ -531,21 +477,15 @@ export default function BookPage() {
             <div id="bk-services" style={{ ...section, scrollMarginTop: 14 }}>
               <div style={cardBox}>
                 {eyebrow("השירותים שלנו")}
-                <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+                <div>
                   {services.map((s, i) => (
                     <div key={i} className="bk-chip" onClick={() => { setSelectedService(s); setSelectedDate(null); setSelectedStart(null); setStep(2); }}
-                      style={{ background: cream, borderRadius: 16, padding: "16px 18px", border: `1px solid ${hair}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-                        <div style={{ width: 9, height: 9, borderRadius: "50%", background: s.color || pc, flexShrink: 0, boxShadow: `0 0 0 3px ${(s.color || pc)}1F` }} />
-                        <div>
-                          <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.name}</p>
-                          <p style={{ fontSize: 12, color: faint, marginTop: 2, letterSpacing: "0.3px" }}>{s.duration || 60} דקות</p>
-                        </div>
+                      style={{ padding: "16px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}`, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ ...T_BODY, fontWeight: 600, color: ink }}>{s.name}</p>
+                        <p style={{ ...T_META, color: faint, marginTop: 2 }}>{s.duration || 60} דקות</p>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <p className="serif" style={{ fontSize: 18, fontWeight: 600, color: deep }}>₪{s.price}</p>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: pc, background: `${pc}12`, borderRadius: 999, padding: "6px 13px", letterSpacing: "0.4px" }}>{brand?.ctaLabel || "הזמיני"}</span>
-                      </div>
+                      <p style={{ ...T_BODY, color: ink, whiteSpace: "nowrap" }}>₪{s.price}</p>
                     </div>
                   ))}
                 </div>
@@ -582,6 +522,16 @@ export default function BookPage() {
             </div>
           )}
 
+          {/* ABOUT */}
+          {brand?.businessDescription && (
+            <div style={{ ...section }}>
+              <div>
+                {eyebrow("אודות")}
+                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+              </div>
+            </div>
+          )}
+
           {/* GALLERY */}
           {gallery.length > 0 && (
             <div style={{ ...section }}>
@@ -592,32 +542,6 @@ export default function BookPage() {
                     <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" style={{ display: "block", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", border: `1px solid ${hair}` }}>
                       <img src={g} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* LOCATION */}
-          {addr && (
-            <div style={{ ...section }}>
-              <div style={cardBox}>
-                {eyebrow("מיקום")}
-                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
-                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: `${pc}10`, color: deep, textDecoration: "none", padding: "11px 20px", borderRadius: 999, fontSize: 13, fontWeight: 600, letterSpacing: "0.4px", border: `1px solid ${pc}30` }}>ניווט במפות Google</a>}
-              </div>
-            </div>
-          )}
-
-          {/* SOCIAL LINKS */}
-          {(socials.length > 0 || wa) && (
-            <div style={{ ...section }}>
-              <div style={cardBox}>
-                {eyebrow("עקבו אחרינו")}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
-                  {socials.map((s) => (
-                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FAF6FC)", deep, pc)}>{s.label}</a>
                   ))}
                 </div>
               </div>
@@ -668,14 +592,71 @@ export default function BookPage() {
             </div>
           )}
 
-          {/* Primary book CTA at the bottom too */}
-          {services.length > 0 && (
-            <div style={{ ...section, marginTop: 2 }}>
-              <button onClick={goToServices} className="bk-btn" style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, letterSpacing: "1px", boxShadow: `0 16px 34px -18px ${pc}` }}>
-                {brand?.ctaLabel || "קביעת תור"}
-              </button>
+          {/* HOURS */}
+          <div style={{ ...section }}>
+            <div>
+              {eyebrow("שעות פעילות")}
+              {/* Today's line lives in the header, where she actually looks for
+                  it. The full week is reference material and was costing seven
+                  rows of chrome on every visit, above the prices. */}
+              {!showAllHours && (
+                <button onClick={() => setShowAllHours(true)} className="bk-btn"
+                  style={{ ...T_BODY, background: "none", padding: 0, color: ink, textDecoration: "underline", textDecorationColor: hair, textUnderlineOffset: 5 }}>
+                  כל השעות
+                </button>
+              )}
+              {(showAllHours ? [0, 1, 2, 3, 4, 5, 6] : []).map((d) => {
+                const v = weekHours[d];
+                const today = d === now.getDay();
+                return (
+                  <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius: 10, background: today ? `${pc}0D` : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
+                    <span style={{ fontSize: 13.5, color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
+                    <span style={{ fontSize: 13.5, color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* LOCATION */}
+          {addr && (
+            <div style={{ ...section }}>
+              <div>
+                {eyebrow("מיקום")}
+                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
+                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: `${pc}10`, color: deep, textDecoration: "none", padding: "11px 20px", borderRadius: 999, fontSize: 13, fontWeight: 600, letterSpacing: "0.4px", border: `1px solid ${pc}30` }}>ניווט במפות Google</a>}
+              </div>
             </div>
           )}
+
+          {/* SOCIAL LINKS */}
+          {(socials.length > 0 || wa) && (
+            <div style={{ ...section }}>
+              <div>
+                {eyebrow("עקבו אחרינו")}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
+                  {socials.map((s) => (
+                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FAF6FC)", deep, pc)}>{s.label}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* The sticky CTA is rendered outside this stack, below. */}
+        </div>
+      )}
+
+      {step === 1 && canBook && (
+        <div style={{ position: "fixed", insetInline: 0, bottom: 0, zIndex: 60,
+          padding: "14px 20px calc(14px + env(safe-area-inset-bottom, 0px))",
+          background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FEFAF7) 38%)" }}>
+          <button onClick={goToServices} className="bk-btn"
+            style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 52, borderRadius: 14,
+              background: pc, color: brand?.onPrimary || "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600 }}>
+            {brand?.ctaLabel || "קביעת תור"}
+          </button>
         </div>
       )}
 
