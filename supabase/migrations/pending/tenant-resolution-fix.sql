@@ -1,9 +1,28 @@
--- STATUS: READY TO RUN - decided 2026-09-02. Not yet applied.
+-- STATUS: APPLIED. Found already live on 2026-09-02.
 -- The folder name is not a status. See README.md in this directory.
 
 -- tenant-resolution-fix.sql
--- UN-PARKED on 2026-09-02. Run it. The reasoning below is unchanged and still
--- correct; what changed is the judgement about waiting.
+-- ALREADY APPLIED. Confirmed by reading the live definition, which is the only
+-- way this could have been established:
+--
+--     select pg_get_functiondef('public.get_user_tenant_id()'::regprocedure);
+--
+-- returns a body containing "order by tm.created_at asc, tm.id asc". That is
+-- this file's Step 1, verbatim. Nobody recorded running it, so when or by whom
+-- is unknown; what is known is that the function is deterministic now.
+--
+-- THIS FILE SAID "PARKED - do not run yet" WHILE THE FIX WAS ALREADY LIVE. That
+-- is the second status header in this repo to have been stale in that
+-- direction: add_appointment_no_overlap.sql spent time claiming NOT APPLIED
+-- while its constraint was enforcing in production. Both were discovered by
+-- asking the database instead of the file. The pattern is worth naming - a
+-- status line is a claim about a system it cannot observe, and it only stays
+-- true if someone updates it in the same hour they run the SQL.
+--
+-- Re-running Step 1 is harmless: it is CREATE OR REPLACE with an identical
+-- body. Steps 0 and 2 are read-only.
+--
+-- The reasoning below is unchanged and was the argument for running it.
 --
 -- Membership re-checked on 2026-09-02: the owner holds exactly ONE
 -- tenant_members row, 448e9e45-2251-4572-b665-886c5bc7a4c8, joined 2026-05-06.

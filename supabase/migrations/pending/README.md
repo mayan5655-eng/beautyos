@@ -18,7 +18,7 @@ about all of them. The table below can.
 | `get-public-tenant-by-slug.sql` | ✅ **APPLIED** (verified 2026-09-01) | `app/[slug]/page.jsx` — every cosmetician's public landing page |
 | `encrypt-green-api-token.sql` | ✅ **APPLIED** | `lib/greenApi/credentials.ts` |
 | `drop-green-api-token-plaintext.sql` | ✅ **APPLIED** — `settings.green_api_token` no longer exists; only `green_api_token_encrypted` | as above |
-| `tenant-resolution-fix.sql` | 🟢 **READY TO RUN — un-parked 2026-09-02, not yet applied** | every RLS policy, indirectly |
+| `tenant-resolution-fix.sql` | ✅ **APPLIED** — found already live 2026-09-02: `pg_get_functiondef` shows `order by tm.created_at asc, tm.id asc`. Nobody recorded running it. | every RLS policy, indirectly |
 | `tenant-resolution-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass. DO NOT DELETE.** | holds the only capture of the live `get_user_tenant_id()` as of 2026-07-30 |
 | `encrypt-green-api-token-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass** | — |
 | `appointment-cancel-audit.sql` | ❓ **UNKNOWN** | `app/beautyos.jsx` `softCancelAppointment` — already retries without the columns, so a cancel works either way |
@@ -95,9 +95,16 @@ provably a no-op for every existing user and cannot change what any current
 session resolves to. Running it **later**, once a second membership exists, is
 the version that changes behaviour for somebody. Earliest is safest.
 
-**Un-parked 2026-09-02.** Membership re-checked: the owner holds exactly one
-`tenant_members` row (`448e9e45`, joined 2026-05-06), so the "latent, not live"
-premise still holds and running it now is still a no-op.
+**Un-parked, then found already applied, both on 2026-09-02.** Membership was
+re-checked first: the owner holds exactly one `tenant_members` row (`448e9e45`,
+joined 2026-05-06), so the "latent, not live" premise still held. Reading the
+live definition before running it showed the `order by` already there.
+
+So this file described itself as parked while the change it describes was live
+in production — the second stale status header found this week, after
+`add_appointment_no_overlap.sql`. Both were caught by asking the database rather
+than reading the file. **Read the live object before trusting a STATUS line**;
+one query settles what a header can only claim.
 
 The trigger was not a second membership. It was a day spent investigating why
 the dashboard appeared to disagree with the database, which ended in a
