@@ -318,7 +318,23 @@ export default function BookPage() {
   }
 
   // === Derived branding/business-card values ===
-  const bizName = brand?.welcomeHeadline || brand?.businessName || settings?.business_name || "העסק שלי";
+  // WHOSE PAGE THIS IS. Only the business name answers that, so only the
+  // business name is allowed to.
+  //
+  // welcomeHeadline used to sit at the front of this chain, which made a
+  // tagline REPLACE the name rather than accompany it. A clinic with
+  // "הטיפוח שלך מתחיל כאן" in that field had a shop window that never said
+  // whose shop it was - and the field is called "opening headline" in settings,
+  // so nobody filling it in could have known that was the trade. It rendered as
+  // designed for weeks and the design was wrong.
+  //
+  // The fallback chain that remains is about WHERE the name is read from, not
+  // WHAT stands in for it. If business_name really is empty the page now says
+  // so plainly instead of borrowing the tagline to cover it, which is the
+  // prompt to go and fill it in.
+  const bizName = brand?.businessName || settings?.business_name || "העסק שלי";
+  // Her line, under her name. Optional - most clinics never set one.
+  const tagline = brand?.welcomeHeadline || "";
   const phoneRaw = String(brand?.whatsappNumber || settings?.business_phone || "").trim();
   const wa = normalizeWa(phoneRaw);
   // Whether this clinic can actually take a booking right now. Everything that
@@ -429,7 +445,12 @@ export default function BookPage() {
                 <span style={{ fontSize: 34, color: pc }}>✦</span>
               )}
             </div>
-            <h1 className="serif" style={{ fontSize: 27, fontWeight: 600, color: deep, marginBottom: 8, letterSpacing: "0.3px", lineHeight: 1.25 }}>{bizName}</h1>
+            <h1 className="serif" style={{ fontSize: 27, fontWeight: 600, color: deep, marginBottom: tagline ? 4 : 8, letterSpacing: "0.3px", lineHeight: 1.25 }}>{bizName}</h1>
+            {/* Three levels, in the order a stranger needs them: who this is,
+                what they say about themselves, then the longer sentence. The
+                tagline takes the accent colour so it reads as hers and not as a
+                subtitle the page generated. */}
+            {tagline && <p style={{ fontSize: 14, color: pc, fontWeight: 600, marginBottom: 8, lineHeight: 1.5, maxWidth: 380, marginInline: "auto" }}>{tagline}</p>}
             {brand?.welcomeMessage && <p style={{ fontSize: 13.5, color: muted, fontWeight: 400, marginBottom: 14, lineHeight: 1.7, maxWidth: 380, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
             <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: openNow ? "rgba(70,179,123,0.10)" : "var(--pc-tint, #EDE7F0)", color: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)", padding: "5px 14px", borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: "0.6px" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: openNow ? "var(--success, #46B37B)" : "var(--danger, #E05B6F)" }} />

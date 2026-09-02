@@ -9477,7 +9477,12 @@ export default function BeautyOS() {
  <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
- <div><p style={lbl}>כותרת פתיחה ללקוחה</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/></div>
+ {/* Named for where it appears, because the old name - "opening headline" -
+     described a slot rather than a consequence. What it actually did was
+     replace the business name in the page's <h1>, so a clinic that filled it
+     in got a shop window that never said whose shop it was. The page shows
+     both now, and the label says which is which before she types. */}
+ <div><p style={lbl}>כותרת מתחת לשם העסק</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/><p style={{fontSize:11,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצגת בדף ההזמנות מתחת לשם העסק, לא במקומו.</p></div>
  <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
