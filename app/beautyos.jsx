@@ -883,6 +883,11 @@ export default function BeautyOS() {
   const [showSettings,      setShowSettings]       = useState(false);
   const [showCashier,       setShowCashier]        = useState(false);
   const [showReceipt,       setShowReceipt]        = useState(null);
+  // Rebooking offered on the receipt. rebookWeeks is the interval she is
+  // looking at; rebookDone holds the appointment once created, so the strip can
+  // become a confirmation instead of vanishing.
+  const [rebookWeeks,       setRebookWeeks]        = useState(4);
+  const [rebookDone,        setRebookDone]         = useState(null);
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
   const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
@@ -3647,12 +3652,184 @@ export default function BeautyOS() {
           .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
           .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
       }
-      setShowCashier(false);setShowReceipt(data[0]);
+      setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setShowReceipt(data[0]);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierNote("");setCashierAppt(null);
       toast(`קבלה נוצרה — ₪${cashierTotal}`);
     } finally {
       setBusyKey("saveReceipt", false);
     }
+  };
+
+  // ── Rebooking at checkout ──────────────────────────────────────────────────
+  //
+  // The moment she takes payment is the only moment the client is standing in
+  // front of her with nothing else to do. Every other rebooking attempt after
+  // that is a WhatsApp message and a wait. So the next appointment gets offered
+  // here, on the receipt, and it has to cost one tap — she is on her feet, her
+  // hands have just come off someone's face, and anything that opens a form
+  // with a date picker in it will not be used.
+  //
+  // So nothing is asked. The slot is proposed: same weekday, same time, four
+  // weeks out, which is what a cosmetician's standing interval usually is. The
+  // interval chips move it without opening anything, and "שינוי" is there for
+  // the genuinely irregular case.
+
+  const REBOOK_INTERVALS = [2, 3, 4, 6];
+
+  // Find a real, free slot at or after the ideal one.
+  //
+  // Ideal = same weekday and same time, `weeks` out. Reality gets in the way in
+  // three ways and all three are handled by walking forward rather than by
+  // refusing: the day may be closed, the exact hour may be taken, and the whole
+  // day may be full. Proposing a slot that cannot be booked would be worse than
+  // proposing nothing, because she would tap it in front of the client.
+  const proposeRebookSlot = useCallback((fromDateStr, fromMinute, durationMin, weeks) => {
+    const base = new Date(fromDateStr || today);
+    if (Number.isNaN(base.getTime())) return null;
+    base.setDate(base.getDate() + weeks * 7);
+
+    const wanted = Number.isFinite(fromMinute) ? fromMinute : 10 * 60;
+    const dur = Number(durationMin) || 60;
+
+    // Up to 14 days past the ideal date. Beyond that the proposal has drifted
+    // far enough from what she asked for that silently offering it is a lie.
+    for (let dayOffset = 0; dayOffset <= 14; dayOffset++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + dayOffset);
+      const dateStr = formatDate(d);
+      if (dateStr <= today) continue;
+
+      const dh = dayHoursFrom(settings, d.getDay());
+      if (!dh) continue;
+
+      const dayStart = dh.open * 60;
+      const dayEnd = dh.close * 60;
+
+      // On the ideal day try the exact time first, then later slots. On a
+      // fallback day start from opening: the point of the later day is that the
+      // original time did not work.
+      const first = dayOffset === 0 ? Math.max(wanted, dayStart) : dayStart;
+
+      for (let m = first; m + dur <= dayEnd; m += 30) {
+        const clash = appointments.some((a) => {
+          if (a.date !== dateStr || a.confirmation_status === "cancelled") return false;
+          const bs = startMinute(a), be = endMinute(a);
+          if (bs === null || be === null) return false;
+          return m < be && bs < m + dur;
+        });
+        if (!clash) return { date: dateStr, minute: m, sameTime: dayOffset === 0 && m === wanted };
+      }
+    }
+    return null;
+  }, [settings, appointments, today]);
+
+  // Everything the strip needs, derived from the receipt on screen.
+  const rebookPlan = useMemo(() => {
+    if (!showReceipt || !showReceipt.client_id) return null;
+    const client = clients.find((c) => String(c.id) === String(showReceipt.client_id));
+    if (!client) return null;
+
+    // The service to repeat. A receipt's `service` is a comma-joined list of
+    // everything on it, so match the first line that is still on her menu; fall
+    // back to the client's last appointment, then to nothing rather than
+    // guessing at the top of the list.
+    const names = String(showReceipt.service || "").split(",").map((s) => s.trim()).filter(Boolean);
+    let svc = null;
+    for (const n of names) {
+      const found = activeServices.find((s) => s.name === n);
+      if (found) { svc = found; break; }
+    }
+
+    // Anchor on the appointment this receipt was taken for, so "same time" means
+    // the time she actually just worked, not the time of some older visit.
+    const src = showReceipt.appointment_id
+      ? appointments.find((a) => String(a.id) === String(showReceipt.appointment_id))
+      : null;
+    const past = appointments
+      .filter((a) => String(a.client_id) === String(client.id) && a.confirmation_status !== "cancelled")
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const anchor = src || past[0] || null;
+
+    if (!svc && anchor) svc = activeServices.find((s) => s.name === anchor.service) || null;
+    if (!svc) return null;
+
+    const slot = proposeRebookSlot(
+      anchor?.date || today,
+      anchor ? startMinute(anchor) : null,
+      svc.duration,
+      rebookWeeks
+    );
+    if (!slot) return null;
+    return { client, svc, slot };
+  }, [showReceipt, clients, appointments, activeServices, rebookWeeks, today, proposeRebookSlot]);
+
+  // Book it. Same insert as handleSave, minus everything the form asks for.
+  const confirmRebook = async () => {
+    if (guardWrite()) return;
+    if (!rebookPlan || isBusy("rebook")) return;
+    setBusyKey("rebook", true);
+    try {
+      const { client, svc, slot } = rebookPlan;
+
+      // Re-check on the way in. The proposal was computed from state that may
+      // be a few minutes old, and the exclusion constraint would reject it
+      // anyway — this just turns that into a sentence she can act on.
+      const clash = appointments.some((a) => {
+        if (a.date !== slot.date || a.confirmation_status === "cancelled") return false;
+        const bs = startMinute(a), be = endMinute(a);
+        if (bs === null || be === null) return false;
+        return slot.minute < be && bs < slot.minute + Number(svc.duration || 60);
+      });
+      if (clash) { toast("השעה נתפסה בינתיים — נסי מרווח אחר", "error"); return; }
+
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+
+      const appt = {
+        date: slot.date,
+        ...startFields(slot.minute),
+        name: client.name,
+        service: svc.name,
+        duration: Number(svc.duration) || 60,
+        color: svc.color || DEFAULT_SERVICE_COLOR,
+        client_id: client.id,
+        note: "",
+        price: Number(svc.price) || 0,
+        confirmation_status: "pending",
+        confirmation_sent: false,
+        ...tenantField,
+      };
+      const { data, error } = await supabase.from("appointments").insert([appt]).select();
+      if (error) { handleDbError(error, "rebook appointment"); return; }
+      if (!data || !data[0]) { toast("קביעת התור נכשלה", "error"); return; }
+      setAppointments((prev) => [...prev, data[0]]);
+      setRebookDone({ receiptId: showReceipt.id, appt: data[0] });
+      toast(`נקבע תור ל-${formatDateHe(new Date(slot.date))} בשעה ${fmtTime(slot.minute)}`);
+    } finally {
+      setBusyKey("rebook", false);
+    }
+  };
+
+  // Hand off to the full form, prefilled with the proposal, for the cases the
+  // chips cannot express — a different treatment, a specific date she has been
+  // told about, a time outside the pattern.
+  const editRebook = () => {
+    if (!rebookPlan) return;
+    const { client, svc, slot } = rebookPlan;
+    setEditingAppointmentId(null);
+    setNewAppt({
+      clientId: client.id,
+      name: client.name,
+      service: svc.name,
+      duration: svc.duration || 60,
+      date: slot.date,
+      hour: Math.floor(slot.minute / 60),
+      price: svc.price || 0,
+    });
+    setApptNote("");
+    setShowReceipt(null);
+    setShowModal(true);
   };
 
   // Add a business expense (tenant_id is filled by the DB column default).
@@ -5960,8 +6137,11 @@ export default function BeautyOS() {
 
           {coldClients.slice(0,3).length>0&&(
  <div>
- <p className="serif" style={{fontSize:13,fontWeight:600,color:"var(--ink-2)",marginBottom:4}}>להתחדשות</p>
-              {coldClients.slice(0,3).map(c=>(
+ <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:6,marginBottom:4}}>
+ <p className="serif" style={{fontSize:13,fontWeight:600,color:"var(--ink-2)"}}>להתחדשות</p>
+                {coldClients.length>3&&<button onClick={()=>{setShowLapsed(true);setShowMobileSidebar(false);}} style={{background:"none",border:"none",padding:0,fontSize:11.5,fontWeight:700,color:pc,cursor:"pointer",fontFamily:"inherit"}}>כל ה-{coldClients.length}</button>}
+ </div>
+              {[...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id)).slice(0,3).map(c=>(
  <div key={c.id} onClick={()=>{setSelectedClient(c);setClientTab("info");setShowMobileSidebar(false);}} style={{fontSize:12,color:pc,marginBottom:3,cursor:"pointer"}}>{c.name} ({getDaysSince(c.id)}י)</div>
               ))}
  </div>
@@ -6126,7 +6306,22 @@ export default function BeautyOS() {
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
                       leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
-                      coldClients.forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:"לא ביקרה מעל 60 יום",primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
+                      // Lapsed clients, capped at three.
+                      //
+                      // This used to be `coldClients.forEach`, one card each,
+                      // with no limit. On a real book that is 40 or 80 cards,
+                      // and every one of them pushes the things that are
+                      // actually time-critical - a lead reminder due today,
+                      // tomorrow's confirmations, a birthday - off the bottom
+                      // of the screen. A queue that always has eighty items in
+                      // it is not a queue, and she stops reading it.
+                      //
+                      // Longest-absent first, because that is the order in
+                      // which they stop coming back at all, and the rest
+                      // collapse into one line that opens the triage list.
+                      const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
+                      coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
+                      if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
                       if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
@@ -6198,7 +6393,7 @@ export default function BeautyOS() {
                   sub:revTrend!==null?(revTrend>=0?`עלייה של ${revTrend}% מהחודש שעבר`:`ירידה של ${Math.abs(revTrend)}% מהחודש שעבר`):"החודש הראשון שלך"},
                 {label:"תורים השבוע",value:weekAppts.length,icon:"◴",accent:pc,trend:null,sub:`${todayAppts.length} מהם היום`},
                 {label:"לקוחות פעילות",value:activeClients.length,icon:"♥",accent:"var(--success)",trend:null,sub:thisMonthLeads.length>0?`${thisMonthLeads.length} פניות חדשות החודש`:"אין פניות חדשות"},
-                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"var(--warning)",trend:null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
+                {label:"להתחדשות",value:coldClients.length,icon:"✦",accent:"var(--warning)",trend:null,onClick:coldClients.length>0?()=>setShowLapsed(true):null,sub:coldClients.length>0?"שווה לשלוח הודעה":"כל הלקוחות פעילות "},
               ];
               const maxRev=Math.max(...monthlyData.map(m=>m.revenue),1);
               return(
@@ -6212,7 +6407,12 @@ export default function BeautyOS() {
                     const up=s.trend!=null&&s.trend>=0;
                     return(
  <motion.div key={i} className="stat-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.05*i,ease:[0.2,0.7,0.3,1]}}
-   style={{background:"var(--surface)",borderRadius:20,padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden"}}>
+   onClick={s.onClick||undefined}
+   role={s.onClick?"button":undefined}
+   tabIndex={s.onClick?0:undefined}
+   onKeyDown={s.onClick?onKbdActivate:undefined}
+   aria-label={s.onClick?`${s.label} — ${s.value}, פתיחת הרשימה`:undefined}
+   style={{background:"var(--surface)",borderRadius:20,padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
  <span style={{width:42,height:42,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
@@ -8197,6 +8397,41 @@ export default function BeautyOS() {
  </div>
  <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
+              {/* NEXT APPOINTMENT — the whole point of putting this here.
+                  Above the receipt buttons, because she reaches this screen
+                  with the client still in front of her, and this is the last
+                  second before that stops being true. */}
+              {(()=>{
+                const booked = rebookDone && String(rebookDone.receiptId)===String(showReceipt.id) ? rebookDone.appt : null;
+                if (booked) return (
+ <div style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:14,background:"rgba(70,179,123,0.10)",border:"1px solid var(--success)"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--success)",marginBottom:2}}>התור הבא נקבע</p>
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>יום {DAYS_HE[new Date(booked.date).getDay()]}, {formatDateHe(new Date(booked.date))} בשעה {fmtApptTime(booked)}</p>
+ </div>
+                );
+                if (!rebookPlan) return null;
+                const {slot,svc} = rebookPlan;
+                const d = new Date(slot.date);
+                return (
+ <div style={{margin:"0 24px 14px",padding:"13px 14px",borderRadius:14,background:pcTint,border:`1px solid ${pc}`}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:9}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)"}}>התור הבא</p>
+ <div style={{display:"flex",gap:4}}>
+                  {REBOOK_INTERVALS.map(w=>(
+ <button key={w} onClick={()=>{setRebookWeeks(w);}} style={{minWidth:32,padding:"4px 7px",borderRadius:9,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:rebookWeeks===w?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:rebookWeeks===w?"var(--surface)":"transparent",color:rebookWeeks===w?pcDeep:"var(--ink-3)"}} aria-label={`מרווח של ${w} שבועות`}>{w}</button>
+                  ))}
+ <span style={{fontSize:11.5,color:"var(--ink-3)",alignSelf:"center",marginRight:2}}>שב׳</span>
+ </div>
+ </div>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>יום {DAYS_HE[d.getDay()]}, {formatDateHe(d)} בשעה {fmtTime(slot.minute)}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:2}}>{svc.name}{!slot.sameTime&&" · השעה המקורית תפוסה, זה המועד הפנוי הקרוב"}</p>
+ <div style={{display:"flex",gap:6,marginTop:10}}>
+ <button onClick={confirmRebook} disabled={isBusy("rebook")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12.5,fontWeight:700}}>{isBusy("rebook")?"קובעת…":"קביעת התור"}</button>
+ <button onClick={editRebook} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>שינוי</button>
+ </div>
+ </div>
+                );
+              })()}
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
  <button onClick={()=>printReceipt(showReceipt)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:11,color:"var(--ink-2)"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
