@@ -17,6 +17,7 @@ import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/bran
 import TrialBanner from "./TrialBanner";
 import ReelStudio from "./ReelStudio";
 import ImportChooser from "./ImportChooser";
+import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
@@ -5981,6 +5982,16 @@ export default function BeautyOS() {
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
+            {clients.length===0&&appointments.length===0&&leads.length===0&&(
+              <EmptyState icon="home" accent={pc} accentTint={pcTint}
+                title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
+                body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
+                actions={[
+                  {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
+                  {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
+                  {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
+                ]}/>
+            )}
             {(()=>{
               const hour=now.getHours();
               const greeting=hour<12?"בוקר טוב":hour<17?"צהריים טובים":hour<21?"ערב טוב":"לילה טוב";
@@ -6286,6 +6297,15 @@ export default function BeautyOS() {
 
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
+            {appointments.length===0&&(
+              <EmptyState compact icon="calendar" accent={pc} accentTint={pcTint}
+                title="הלוח עדיין ריק"
+                body="אפשר לקבוע תור בלחיצה על שעה פנויה בלוח, או מהכפתור כאן. תורים שנקבעים מעמוד ההזמנות הציבורי שלך מופיעים כאן לבד."
+                actions={[
+                  {label:"קביעת תור",onClick:openNewAppt},
+                  {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
+                ]}/>
+            )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div className={calView==="week"?undefined:"desktop-only"}>
  <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
@@ -7084,7 +7104,10 @@ export default function BeautyOS() {
  <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:14,lineHeight:1.6}}>
                 לקוחות רשומות, לפי מאיפה הגיעו. &quot;לא ידוע&quot; הן לקוחות שנוספו לפני שהמעקב היה קיים או שנוספו ידנית — לא ניחוש.
  </p>
-              {clients.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין לקוחות עדיין</p>
+              {clients.length===0?<EmptyState compact icon="people" accent={pc} accentTint={pcTint}
+                 title="אין עדיין ממי ללמוד"
+                 body="הפילוח הזה מתמלא מעצמו ככל שנרשמות לקוחות. אחרי חמש-שש כבר רואים מאיפה מגיעות הכי הרבה."
+                 actions={[{label:"הוספת לקוחה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},{label:"ייבוא מאנשי קשר",onClick:openImportHub}]}/>
                 :clientSourceStats.map((s)=>{
                   const pct=clients.length>0?Math.round((s.clients/clients.length)*100):0;
                   const unknown=s.key==="__unknown__";
@@ -7108,7 +7131,10 @@ export default function BeautyOS() {
 
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>ביצועים לפי מקור</h3>
-              {campaignStats.length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין נתונים עדיין</p>
+              {campaignStats.length===0?<EmptyState compact icon="chart" accent={pc} accentTint={pcTint}
+                 title="עוד לא נמדד אף מקור"
+                 body="כשתירשם פנייה דרך עמוד ההזמנות, סורק העור או וואטסאפ — היא תופיע כאן עם כמה הכניסה בפועל."
+                 actions={[{label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")}]}/>
                 :campaignStats.map((s,i)=>(
  <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:6}}>
  <span style={{fontSize:16,flexShrink:0}}>{s.icon}</span>
@@ -7552,7 +7578,10 @@ export default function BeautyOS() {
 
                     {/* LIST */}
                     {periodExpenses.length===0?(
- <p style={{fontSize:11,color:"var(--ink-3)",textAlign:"center",padding:"14px 0"}}>אין הוצאות בתקופה זו</p>
+  <EmptyState compact icon="receipt" accent={pc} accentTint={pcTint}
+     title="לא רשמת הוצאות בתקופה הזו"
+     body="חומרים, מכשירים, שכירות ופרסום מקטינים את המס. רישום שוטף שווה יותר מלשחזר הכל בסוף השנה."
+     />
                     ):(<>
                       {[...periodExpenses].sort((a,b)=>String(b.expense_date||"").localeCompare(String(a.expense_date||""))).map(exp=>{
                         const catL=EXPENSE_CATEGORIES.find(c=>c.k===exp.category)?.l||"אחר";
@@ -7645,9 +7674,10 @@ export default function BeautyOS() {
  )
  :communityPosts.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:24,marginTop:14}}>
- <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>💜</div>
+ <div style={{width:60,height:60,borderRadius:19,margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--surface)",color:pc,boxShadow:"var(--shadow-md)"}}><svg viewBox="0 0 24 24" width="27" height="27" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M20.5 15.2a2.3 2.3 0 0 1-2.3 2.3H7.9L3.5 21V5.6a2.3 2.3 0 0 1 2.3-2.3h12.4a2.3 2.3 0 0 1 2.3 2.3z"/><path d="M8.2 8.6h7.6M8.2 12.2h5"/></svg></div>
  <p style={{fontSize:15,fontWeight:700,color:"var(--ink)",marginBottom:5}}>עוד אין פוסטים</p>
  <p style={{fontSize:12,color:"var(--ink-2)",maxWidth:360,margin:"0 auto",lineHeight:1.6}}>פרסמי את הפוסט הראשון — מבצע, טיפ, או עדכון — והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
+ <button className="empty-cta" onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} style={{marginTop:16,background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"11px 22px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>כתיבת הפוסט הראשון</button>
  </div>
  ):(
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
@@ -7730,7 +7760,10 @@ export default function BeautyOS() {
 
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>חבילות פעילות ({packages.filter(p=>p.active).length})</h3>
-              {packages.filter(p=>p.active).length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין חבילות פעילות</p>
+              {packages.filter(p=>p.active).length===0?<EmptyState compact icon="package" accent={pc} accentTint={pcTint}
+                 title="אין חבילות פעילות"
+                 body="חבילה היא כמה טיפולים שנמכרים מראש. היא מקבעת לקוחה לסדרה שלמה במקום תור אחד, והתשלום נכנס בהתחלה."
+                 actions={[{label:"מכירת חבילה",onClick:()=>setShowPackageModal(true)}]}/>
                 :packages.filter(p=>p.active).map(pkg=>(
  <div key={pkg.id} style={{background:"var(--surface-2)",borderRadius:14,padding:"13px 15px",marginBottom:8,border:"1px solid var(--line)"}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9,flexWrap:"wrap",gap:5}}>
@@ -7754,7 +7787,10 @@ export default function BeautyOS() {
 
  <div className="glass-card" style={{padding:18}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
-              {waitlist.filter(w=>w.status==="waiting").length===0?<p style={{color:"var(--ink-3)",fontSize:11}}>אין ממתינות</p>
+              {waitlist.filter(w=>w.status==="waiting").length===0?<EmptyState compact icon="people" accent={pc} accentTint={pcTint}
+                 title="רשימת ההמתנה ריקה"
+                 body="כשלקוחה רוצה תור ואין לך מקום — הוסיפי אותה לכאן. כשמתפנה תור, היא הראשונה שתדע."
+                 actions={[{label:"הוספה לרשימה",onClick:()=>setShowWaitlistModal(true)}]}/>
                 :waitlist.filter(w=>w.status==="waiting").map(w=>(
  <div key={w.id} style={{background:"var(--surface-2)",borderRadius:14,padding:"11px 14px",marginBottom:6,border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
  <div style={{flex:1,minWidth:0}}>
