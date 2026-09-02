@@ -899,6 +899,13 @@ export default function BeautyOS() {
   // Services show as chips, most-used first. This opens the long tail.
   const [apptAllServices,   setApptAllServices]    = useState(false);
   const [rebookDone,        setRebookDone]         = useState(null);
+  // A time she picked instead of the proposed one, scoped to the receipt it was
+  // picked on so it can never leak onto a different client's booking. It
+  // deliberately survives a change of interval: "same time, a week later" is
+  // the thing she means, and it is dropped automatically if that time is not
+  // free on the new date.
+  const [rebookPick,        setRebookPick]         = useState(null);
+  const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
   const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
@@ -3722,7 +3729,7 @@ export default function BeautyOS() {
           .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
           .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
       }
-      setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setShowReceipt(data[0]);
+      setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierNote("");setCashierAppt(null);
       toast(`קבלה נוצרה — ₪${cashierTotal}`);
     } finally {
@@ -3745,6 +3752,34 @@ export default function BeautyOS() {
   // the genuinely irregular case.
 
   const REBOOK_INTERVALS = [2, 3, 4, 6];
+
+  // Is this exact window free? The one clash test everything else is built on:
+  // the proposal, the free-slot list she picks from, and the re-check on the
+  // way in all call this, so they cannot disagree about what "free" means.
+  const isFreeAt = useCallback((dateStr, minute, durationMin) => {
+    const dur = Number(durationMin) || 60;
+    return !appointments.some((a) => {
+      if (a.date !== dateStr || a.confirmation_status === "cancelled") return false;
+      const bs = startMinute(a), be = endMinute(a);
+      if (bs === null || be === null) return false;
+      return minute < be && bs < minute + dur;
+    });
+  }, [appointments]);
+
+  // Every bookable start on one day, on a half-hour grid inside her hours for
+  // that weekday. Empty when the day is closed.
+  const freeSlotsOn = useCallback((dateStr, durationMin) => {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return [];
+    const dh = dayHoursFrom(settings, d.getDay());
+    if (!dh) return [];
+    const dur = Number(durationMin) || 60;
+    const out = [];
+    for (let m = dh.open * 60; m + dur <= dh.close * 60; m += 30) {
+      if (isFreeAt(dateStr, m, dur)) out.push(m);
+    }
+    return out;
+  }, [settings, isFreeAt]);
 
   // Find a real, free slot at or after the ideal one.
   //
@@ -3769,29 +3804,27 @@ export default function BeautyOS() {
       const dateStr = formatDate(d);
       if (dateStr <= today) continue;
 
-      const dh = dayHoursFrom(settings, d.getDay());
-      if (!dh) continue;
+      const slots = freeSlotsOn(dateStr, dur);
+      if (slots.length === 0) continue;
 
-      const dayStart = dh.open * 60;
-      const dayEnd = dh.close * 60;
-
-      // On the ideal day try the exact time first, then later slots. On a
-      // fallback day start from opening: the point of the later day is that the
-      // original time did not work.
-      const first = dayOffset === 0 ? Math.max(wanted, dayStart) : dayStart;
-
-      for (let m = first; m + dur <= dayEnd; m += 30) {
-        const clash = appointments.some((a) => {
-          if (a.date !== dateStr || a.confirmation_status === "cancelled") return false;
-          const bs = startMinute(a), be = endMinute(a);
-          if (bs === null || be === null) return false;
-          return m < be && bs < m + dur;
-        });
-        if (!clash) return { date: dateStr, minute: m, sameTime: dayOffset === 0 && m === wanted };
+      if (dayOffset === 0) {
+        // Her actual time first, even when it is off the half-hour grid - an
+        // anchor at 14:15 should propose 14:15, not round her to 14:30. The
+        // grid is only the fallback, and the only thing the picker offers.
+        const dh = dayHoursFrom(settings, d.getDay());
+        const insideHours = wanted >= dh.open * 60 && wanted + dur <= dh.close * 60;
+        if (insideHours && isFreeAt(dateStr, wanted, dur)) {
+          return { date: dateStr, minute: wanted, sameTime: true };
+        }
+        const after = slots.find((m) => m >= wanted);
+        if (after != null) return { date: dateStr, minute: after, sameTime: false };
+        continue;
       }
+
+      return { date: dateStr, minute: slots[0], sameTime: false };
     }
     return null;
-  }, [settings, appointments, today]);
+  }, [settings, today, freeSlotsOn, isFreeAt]);
 
   // Everything the strip needs, derived from the receipt on screen.
   const rebookPlan = useMemo(() => {
@@ -3833,6 +3866,24 @@ export default function BeautyOS() {
     return { client, svc, slot };
   }, [showReceipt, clients, appointments, activeServices, rebookWeeks, today, proposeRebookSlot]);
 
+  // The day's free starts, for the picker. Same freeSlotsOn the proposal used,
+  // so she can only ever choose something that was already bookable.
+  const rebookSlots = useMemo(
+    () => (rebookPlan ? freeSlotsOn(rebookPlan.slot.date, rebookPlan.svc.duration) : []),
+    [rebookPlan, freeSlotsOn]
+  );
+
+  // What will actually be booked: her pick when it is still free on this date,
+  // otherwise the proposal. Checking validity here rather than clearing the
+  // pick on every change means a taken slot degrades to the proposal instead of
+  // failing at insert time.
+  const rebookMinute = (() => {
+    if (!rebookPlan) return null;
+    if (rebookPick && String(rebookPick.receiptId) === String(showReceipt?.id)
+        && rebookSlots.includes(rebookPick.minute)) return rebookPick.minute;
+    return rebookPlan.slot.minute;
+  })();
+
   // Book it. Same insert as handleSave, minus everything the form asks for.
   const confirmRebook = async () => {
     if (guardWrite()) return;
@@ -3840,17 +3891,16 @@ export default function BeautyOS() {
     setBusyKey("rebook", true);
     try {
       const { client, svc, slot } = rebookPlan;
+      const minute = rebookMinute;
 
-      // Re-check on the way in. The proposal was computed from state that may
-      // be a few minutes old, and the exclusion constraint would reject it
-      // anyway — this just turns that into a sentence she can act on.
-      const clash = appointments.some((a) => {
-        if (a.date !== slot.date || a.confirmation_status === "cancelled") return false;
-        const bs = startMinute(a), be = endMinute(a);
-        if (bs === null || be === null) return false;
-        return slot.minute < be && bs < slot.minute + Number(svc.duration || 60);
-      });
-      if (clash) { toast("השעה נתפסה בינתיים — נסי מרווח אחר", "error"); return; }
+      // Re-check on the way in, through the same isFreeAt the proposal and the
+      // picker use. The plan was computed from state that may be a few minutes
+      // old, and the exclusion constraint would reject it anyway — this just
+      // turns that into a sentence she can act on.
+      if (!isFreeAt(slot.date, minute, svc.duration)) {
+        toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
+        return;
+      }
 
       const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
       const tid = rpcTenant || settings?.tenant_id || null;
@@ -3858,7 +3908,7 @@ export default function BeautyOS() {
 
       const appt = {
         date: slot.date,
-        ...startFields(slot.minute),
+        ...startFields(minute),
         name: client.name,
         service: svc.name,
         duration: Number(svc.duration) || 60,
@@ -3875,7 +3925,9 @@ export default function BeautyOS() {
       if (!data || !data[0]) { toast("קביעת התור נכשלה", "error"); return; }
       setAppointments((prev) => [...prev, data[0]]);
       setRebookDone({ receiptId: showReceipt.id, appt: data[0] });
-      toast(`נקבע תור ל-${formatDateHe(new Date(slot.date))} בשעה ${fmtTime(slot.minute)}`);
+      setRebookPick(null);
+      setRebookPickOpen(false);
+      toast(`נקבע תור ל-${formatDateHe(new Date(slot.date))} בשעה ${fmtTime(minute)}`);
     } finally {
       setBusyKey("rebook", false);
     }
@@ -3887,6 +3939,7 @@ export default function BeautyOS() {
   const editRebook = () => {
     if (!rebookPlan) return;
     const { client, svc, slot } = rebookPlan;
+    const minute = rebookMinute;
     setEditingAppointmentId(null);
     setNewAppt({
       clientId: client.id,
@@ -3894,7 +3947,8 @@ export default function BeautyOS() {
       service: svc.name,
       duration: svc.duration || 60,
       date: slot.date,
-      hour: Math.floor(slot.minute / 60),
+      hour: Math.floor(minute / 60),
+      startMinute: minute,
       price: svc.price || 0,
     });
     setApptNote("");
@@ -8596,8 +8650,29 @@ export default function BeautyOS() {
  <span style={{fontSize:11.5,color:"var(--ink-3)",alignSelf:"center",marginRight:2}}>שב׳</span>
  </div>
  </div>
- <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>יום {DAYS_HE[d.getDay()]}, {formatDateHe(d)} בשעה {fmtTime(slot.minute)}</p>
- <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:2}}>{svc.name}{!slot.sameTime&&" · השעה המקורית תפוסה, זה המועד הפנוי הקרוב"}</p>
+ <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>יום {DAYS_HE[d.getDay()]}, {formatDateHe(d)} בשעה</p>
+                {/* The time is the one thing the chips above cannot express, and
+                    the client is the one asking to move it. Tapping opens the
+                    day's free starts rather than a raw hour picker, so she
+                    cannot choose a slot that is already taken - the list comes
+                    from the same freeSlotsOn the proposal itself walked. */}
+ <button onClick={()=>setRebookPickOpen(v=>!v)} disabled={rebookSlots.length===0} style={{background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:9,padding:"3px 9px",fontSize:13,fontWeight:700,color:pcDeep,cursor:rebookSlots.length?"pointer":"default",fontFamily:"inherit",direction:"ltr"}} aria-expanded={rebookPickOpen} aria-label="שינוי שעה">{fmtTime(rebookMinute)}</button>
+ </div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:2}}>{svc.name}{(!slot.sameTime&&rebookMinute===slot.minute)&&" · השעה המקורית תפוסה, זה המועד הפנוי הקרוב"}</p>
+                {rebookPickOpen&&(
+ <div style={{marginTop:8,padding:"8px 8px 4px",borderRadius:10,background:"var(--surface)",border:"1px solid var(--line)"}}>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>שעות פנויות ביום הזה</p>
+ <div style={{display:"flex",flexWrap:"wrap",gap:4,maxHeight:132,overflowY:"auto"}}>
+                  {rebookSlots.map(m=>{
+                    const sel=m===rebookMinute;
+                    return (
+ <button key={m} onClick={()=>{setRebookPick({receiptId:showReceipt.id,minute:m});setRebookPickOpen(false);}} style={{padding:"7px 10px",borderRadius:9,fontSize:12,fontWeight:sel?700:600,cursor:"pointer",fontFamily:"inherit",direction:"ltr",border:sel?"1px solid transparent":"1px solid var(--line-2)",background:sel?pcGrad:"var(--surface-2)",color:sel?"var(--surface)":"var(--ink-2)"}}>{fmtTime(m)}</button>
+                    );
+                  })}
+ </div>
+ </div>
+                )}
  <div style={{display:"flex",gap:6,marginTop:10}}>
  <button onClick={confirmRebook} disabled={isBusy("rebook")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12.5,fontWeight:700}}>{isBusy("rebook")?"קובעת…":"קביעת התור"}</button>
  <button onClick={editRebook} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink-2)",fontSize:12}}>שינוי</button>
