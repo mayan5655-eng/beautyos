@@ -5,23 +5,35 @@ import { useSearchParams } from 'next/navigation';
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
+
+  // All three come from the URL, which does not change while this page is open.
+  const id = searchParams.get('id');
+  const token = searchParams.get('t') || '';
+  const action = searchParams.get('action') || 'confirm';
+
   // ready    - cancel links only: waiting for her to actually say yes
   // working  - request in flight
   // success / already / declined / error - terminal
-  const [status, setStatus] = useState('working');
-  const [message, setMessage] = useState('');
-  const [action, setAction] = useState('confirm');
+  //
+  // The opening status is a pure function of the URL, so it is computed here
+  // rather than in an effect that immediately overwrites a placeholder. That
+  // also removes a frame where a cancel link rendered "מעדכן את התור שלך…"
+  // before the effect got a chance to say otherwise.
+  const [status, setStatus] = useState(() =>
+    !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
+  );
+  const [message, setMessage] = useState(() =>
+    !id ? 'הלינק לא תקין - חסר מזהה תור' : ''
+  );
 
-  const id = searchParams.get('id');
-  const token = searchParams.get('t') || '';
-  const actionParam = searchParams.get('action') || 'confirm';
-
+  // Does not set 'working' itself. On mount that is already the status for a
+  // confirm link, and setting state synchronously from an effect is a
+  // cascading render. The two buttons that call this set it themselves.
   const send = useCallback(() => {
-    setStatus('working');
     fetch('/api/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: actionParam, token }),
+      body: JSON.stringify({ id, action, token }),
     })
       .then(res => res.json())
       .then(data => {
@@ -38,37 +50,31 @@ function ConfirmContent() {
         setStatus('error');
         setMessage('לא הצלחנו להתחבר לשרת');
       });
-  }, [id, actionParam, token]);
+  }, [id, action, token]);
 
+  // What the buttons call: show the spinner, then go.
+  const sendNow = () => { setStatus('working'); send(); };
+
+  // A cancel link must NOT fire on load, so only the confirm path runs here.
+  //
+  // Making this a POST already stopped link-preview crawlers from cancelling a
+  // real appointment, but it left the other half: the client herself. Opening
+  // the link is one tap in a WhatsApp thread, and a mis-tap - or a tap meant
+  // for the confirm link a line above - cancelled the booking before the page
+  // had finished rendering, with nothing on screen to stop it and no way back.
+  //
+  // Confirming is the opposite case: it is not destructive, it is exactly what
+  // the link says it does, and a second tap there is friction with no safety
+  // behind it. So confirm still runs on load; cancel asks first.
   useEffect(() => {
-    setAction(actionParam);
-
-    if (!id) {
-      setStatus('error');
-      setMessage('הלינק לא תקין - חסר מזהה תור');
-      return;
-    }
-
-    // A cancel link must NOT fire on load.
-    //
-    // The POST already stopped link-preview crawlers from cancelling a real
-    // appointment, but it left the other half: the client herself. Opening the
-    // link is one tap in a WhatsApp thread, and a mis-tap - or a tap meant for
-    // the confirm link a line above - cancelled the booking before the page had
-    // finished rendering, with nothing on screen to stop it and no way back.
-    // Confirming is the opposite case: it is not destructive, it is what the
-    // link says it does, and making her tap twice for it is friction with no
-    // safety behind it. So confirm still runs on load; cancel asks first.
-    if (actionParam === 'cancel') {
-      setStatus('ready');
-      return;
-    }
-
-    send();
-  }, [id, actionParam, send]);
+    if (id && action === 'confirm') send();
+  }, [id, action, send]);
 
   const getStyles = () => {
-    if (status === 'working') return { emoji: '⏳', title: 'רגע...', color: 'var(--ink-2)' };
+    // No hourglass emoji: it was the last colour glyph on a page that is
+    // otherwise monochrome, and minHeight on the mark slot keeps the layout
+    // from jumping while this state has none.
+    if (status === 'working') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
     if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
     if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--success)' };
     if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
@@ -146,7 +152,7 @@ function ConfirmContent() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
             <button
               type="button"
-              onClick={send}
+              onClick={sendNow}
               style={{
                 width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
                 background: 'var(--danger, #C2557A)', color: '#fff',
@@ -173,7 +179,7 @@ function ConfirmContent() {
         {status === 'error' && id && (
           <button
             type="button"
-            onClick={actionParam === 'cancel' ? () => setStatus('ready') : send}
+            onClick={action === 'cancel' ? () => setStatus('ready') : sendNow}
             style={{
               marginTop: 20, padding: '12px 24px', borderRadius: 12,
               border: '1px solid var(--line-2, #E6DDE4)', background: '#fff',
