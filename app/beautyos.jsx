@@ -19,6 +19,8 @@ import ReelStudio from "./ReelStudio";
 import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
+import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
+import { isMissingColumnError } from "@/lib/pgError";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
@@ -1164,6 +1166,12 @@ export default function BeautyOS() {
   // (reschedule/edit an existing row) rather than CREATE mode. Reset to null on
   // every close so the modal never opens stale in edit mode.
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
+  // Personal events. The draft carries a date RANGE; the save expands it into
+  // one row per day, because that is the only shape the calendar, the
+  // availability endpoint and the overlap constraint all understand. null when
+  // the modal is closed, so a half-typed event cannot survive into the next one.
+  const [showPersonalModal, setShowPersonalModal] = useState(false);
+  const [personalDraft,     setPersonalDraft]     = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
   // The service list is edited as a DRAFT, exactly like editSettings, and is
   // written only by the one save button at the bottom of the panel.
@@ -2001,10 +2009,25 @@ export default function BeautyOS() {
   };
 
   // === CALCULATIONS ===
+  // The calendar holds two kinds of row now, and almost every number on the
+  // dashboard is about the first kind only. "3 תורים" has to mean three
+  // clients, not two clients and a dentist.
+  //
+  // `appointments` deliberately stays the WHOLE calendar: every busy test,
+  // clash check and free-slot list reads it, and a personal event that those
+  // could not see would block nothing, which is the entire point of the
+  // feature. `clientAppts` is the one to count, remind, confirm and bill
+  // against; the entries lists below are what she LOOKS at.
+  const clientAppts = useMemo(() => appointments.filter(isClientAppointment), [appointments]);
   const thisMonthRevenue = useMemo(() => receipts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [receipts, thisMonth, thisYear]);
   const lastMonthRevenue = useMemo(() => receipts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [receipts, lastMonth, lastMonthYear]);
-  const todayAppts    = useMemo(() => appointments.filter(a=>a.date===today), [appointments, today]);
-  const tomorrowAppts = useMemo(() => appointments.filter(a=>a.date===tomorrow), [appointments, tomorrow]);
+  // Two lists per day, on purpose. *Entries are what she sees - her whole day,
+  // her own commitments included. *Appts are what gets counted, because a count
+  // labelled תורים that includes her accountant is a lie about her workload.
+  const todayEntries    = useMemo(() => appointments.filter(a=>a.date===today), [appointments, today]);
+  const tomorrowEntries = useMemo(() => appointments.filter(a=>a.date===tomorrow), [appointments, tomorrow]);
+  const todayAppts    = useMemo(() => todayEntries.filter(isClientAppointment), [todayEntries]);
+  const tomorrowAppts = useMemo(() => tomorrowEntries.filter(isClientAppointment), [tomorrowEntries]);
   // Compare on local YYYY-MM-DD strings (via formatDate), not Date objects:
   // weekStart carries a time-of-day while new Date("YYYY-MM-DD") is UTC midnight,
   // which previously dropped today's appointments from the weekly count.
@@ -2012,8 +2035,8 @@ export default function BeautyOS() {
   // itself, so with an arbitrary weekStart the count covered Wednesday to
   // Tuesday while the columns showed Sunday to Saturday - two different weeks,
   // one screen. Deriving both from getWeekDates removes the possibility.
-  const weekAppts     = useMemo(() => { const ws=formatDate(weekSundayOf(weekStart)); const weEnd=new Date(weekSundayOf(weekStart)); weEnd.setDate(weEnd.getDate()+6); const we=formatDate(weEnd); return appointments.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [appointments, weekStart]);
-  const thisMonthAppts = useMemo(() => appointments.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [appointments, thisMonth, thisYear]);
+  const weekAppts     = useMemo(() => { const ws=formatDate(weekSundayOf(weekStart)); const weEnd=new Date(weekSundayOf(weekStart)); weEnd.setDate(weEnd.getDate()+6); const we=formatDate(weEnd); return clientAppts.filter(a=>a.date&&a.date>=ws&&a.date<=we); }, [clientAppts, weekStart]);
+  const thisMonthAppts = useMemo(() => clientAppts.filter(a=>{if(!a.date)return false;const d=new Date(a.date);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}), [clientAppts, thisMonth, thisYear]);
 
   // ── Last-visit index ──────────────────────────────────────────────────────
   // getDaysSince used to call getLastAppt, which filtered AND sorted the whole
@@ -2261,8 +2284,8 @@ export default function BeautyOS() {
     const groups = [
       clients.filter(c=>has(c.name)||has(c.phone))
         .slice(0,5).map(c=>({type:"client",label:c.name,sub:c.phone||"",obj:c})),
-      appointments.filter(a=>has(a.name)||has(a.service)||has(a.client_phone))
-        .slice(0,5).map(a=>({type:"appt",label:a.name,sub:(a.service||"")+" · "+a.date,obj:a})),
+      appointments.filter(a=>has(a.name)||has(a.service)||has(a.client_phone)||(isPersonal(a)&&has(a.note)))
+        .slice(0,5).map(a=>({type:"appt",label:(isPersonal(a)?"🔒 ":"")+a.name,sub:(entrySubtitle(a)||"")+" · "+a.date,obj:a})),
       leads.filter(l=>has(l.name)||has(l.phone)||has(l.service_interest))
         .slice(0,5).map(l=>({type:"lead",label:l.name,sub:l.source||"",obj:l})),
       activeServices.filter(s=>has(s.name))
@@ -2379,10 +2402,28 @@ export default function BeautyOS() {
   // the legacy hour range. Both calendars read dayLanes now.
 
   const getApptColor = (appt) => {
+    // Her own time is neutral, and never a client-status colour. A personal
+    // event has no confirmation to be pending or confirmed about, so painting
+    // it amber would put it in the queue's visual language and make a dentist
+    // look like an unconfirmed client. One return covers both calendars: the
+    // week grid and the mobile agenda fill their cards from here.
+    if(isPersonal(appt)) return "var(--ink-2)";
     if(appt.confirmation_status==="confirmed") return "var(--success)";
     if(appt.confirmation_status==="cancelled") return "var(--danger)";
     return appt.color||"var(--warning)";
   };
+
+  // How a calendar row reads, in the four places that draw one: the sidebar
+  // list, the dashboard card, the week grid and the mobile agenda. Central so
+  // they cannot drift apart on what her own time looks like - which is exactly
+  // how the two calendars came to disagree about which appointments exist.
+  //
+  // An all-day event has no start time worth showing: 00:00 is arithmetic, not
+  // information.
+  const entryTime = (a) => isAllDay(a) ? "כל היום" : fmtApptTime(a);
+  // The second line. An appointment says what treatment; a personal event has
+  // no service, so it says whatever she wrote, or names itself.
+  const entrySubtitle = (a) => isPersonal(a) ? (String(a.note||"").trim() || "אירוע אישי") : a.service;
 
   // ============================================================
   // HANDLERS
@@ -2409,10 +2450,195 @@ export default function BeautyOS() {
   // editingAppointmentId flips handleSave to UPDATE and excludes this row from
   // the conflict checks.
   const handleApptClick = (appt) => {
+    if (isPersonal(appt)) { openPersonalEditor(appt); return; }
     setEditingAppointmentId(appt.id);
     setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),startMinute:startMinute(appt),price:appt.price||0});
     setApptNote(appt.note||"");
     setShowModal(true);
+  };
+
+  // ── Personal events ───────────────────────────────────────────────────────
+  //
+  // Her own time, on the same calendar and in the same table, so that it blocks
+  // a client booking through machinery that already exists rather than through
+  // new code that has to remember to run.
+
+  // A range longer than this is a mistake, not a holiday, and each day is a row.
+  const PERSONAL_MAX_DAYS = 62;
+
+  // series_id is a uuid column, so a fallback that is not uuid-shaped would be
+  // rejected by the database rather than degrading.
+  const newSeriesId = () => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    const h = "0123456789abcdef";
+    let out = "";
+    for (let i = 0; i < 36; i++) {
+      if (i===8||i===13||i===18||i===23) out += "-";
+      else if (i===14) out += "4";
+      else if (i===19) out += h[(Math.random()*4|0)+8];
+      else out += h[Math.random()*16|0];
+    }
+    return out;
+  };
+
+  // Local dates, inclusive. Parsed with an explicit T00:00:00 so they are LOCAL
+  // midnights: new Date("2026-09-02") is UTC and lands on the previous day for
+  // anyone behind it, which would silently shift a whole holiday by a day.
+  const datesInRange = (fromStr, toStr) => {
+    const from = new Date(String(fromStr) + "T00:00:00");
+    const to   = new Date(String(toStr || fromStr) + "T00:00:00");
+    if (Number.isNaN(+from)) return [];
+    if (Number.isNaN(+to) || to < from) return [formatDate(from)];
+    const out = [];
+    for (const d = new Date(from); d <= to && out.length < PERSONAL_MAX_DAYS; d.setDate(d.getDate()+1)) out.push(formatDate(d));
+    return out;
+  };
+
+  // Would this event sit on top of something already in the calendar? Same rule
+  // as everywhere else - cancelled rows free their slot - and it excludes the
+  // series OWN rows, so editing an event cannot collide with itself.
+  // Returns the first offending date, or undefined.
+  const personalClashDate = (dates, startMin, dur, ownIds) => dates.find(dd =>
+    appointments.some(a => {
+      if (ownIds.has(String(a.id))) return false;
+      if (a.date !== dd || a.confirmation_status === "cancelled") return false;
+      const bs = startMinute(a), be = endMinute(a);
+      if (bs === null || be === null) return false;
+      return startMin < be && bs < startMin + dur;
+    })
+  );
+
+  const closePersonalEditor = () => { setShowPersonalModal(false); setPersonalDraft(null); };
+
+  // Editing loads the whole SERIES, not the row she tapped: a week of holiday
+  // is seven rows in the table and one thing in her head.
+  const openPersonalEditor = (appt, seedDate) => {
+    if (appt) {
+      const rows = appt.series_id
+        ? appointments.filter(a => a.series_id && a.series_id === appt.series_id)
+        : [appt];
+      const dates = rows.map(a => a.date).sort();
+      setPersonalDraft({
+        title: appt.name || "",
+        from: dates[0] || appt.date,
+        to: dates[dates.length-1] || appt.date,
+        allDay: isAllDay(appt),
+        startMinute: startMinute(appt) ?? 9*60,
+        duration: Number(appt.duration) || 60,
+        note: appt.note || "",
+        seriesId: appt.series_id || null,
+        ids: rows.map(a => a.id),
+      });
+    } else {
+      const d = seedDate || formatDate(calDay);
+      const dh = dayHoursFrom(settings, new Date(d + "T00:00:00").getDay());
+      setPersonalDraft({
+        title: "", from: d, to: d, allDay: false,
+        startMinute: (dh ? dh.open : (settings?.working_hours_start || 9)) * 60,
+        duration: 60, note: "", seriesId: null, ids: [],
+      });
+    }
+    setShowPersonalModal(true);
+  };
+
+  const handleSavePersonal = async () => {
+    if (guardWrite()) return;
+    const d = personalDraft;
+    if (!d) return;
+    if (!String(d.title||"").trim()) { toast("נא להזין כותרת לאירוע","error"); return; }
+    const dates = datesInRange(d.from, d.to);
+    if (dates.length === 0) { toast("נא לבחור תאריך","error"); return; }
+    // A range is always all-day. A two-day course is not 09:00-10:00 on each of
+    // two days; it is two days. Offering a time range across days would invite
+    // a shape the one-row-per-day model cannot represent.
+    const allDay = !!d.allDay || dates.length > 1;
+    const start  = allDay ? 0 : Number(d.startMinute) || 0;
+    const dur    = allDay ? ALL_DAY_DURATION : Math.max(15, Number(d.duration) || 60);
+    const ownIds = new Set((d.ids||[]).map(String));
+
+    // Checked before anything is written, because the replace path below has to
+    // delete the old rows before inserting the new ones - the constraint would
+    // otherwise see the event overlapping itself - and a delete followed by a
+    // rejected insert would lose the event outright.
+    const clash = personalClashDate(dates, start, dur, ownIds);
+    if (clash) { toast(clash + ": כבר יש משהו ביומן בשעה הזו", "error"); return; }
+
+    if (isBusy("savePersonal")) return;
+    setBusyKey("savePersonal", true);
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+      const seriesId = d.seriesId || (dates.length > 1 ? newSeriesId() : null);
+      // No client, no service, no price and no colour: getApptColor paints a
+      // personal event from its kind. confirmation_status keeps its default on
+      // purpose - that is what puts the row INSIDE appointments_no_overlap,
+      // which is what makes it block a booking at all.
+      const row = (date) => ({
+        date, ...startFields(start), duration: dur,
+        name: String(d.title).trim(), service: "", price: 0, client_id: null,
+        note: String(d.note||""), kind: PERSONAL, series_id: seriesId, ...tenantField,
+      });
+
+      const existing = (d.ids||[]).length ? appointments.filter(a => ownIds.has(String(a.id))) : [];
+      const oldDates = existing.map(a => a.date).sort();
+      const sameSpan = existing.length > 0
+        && oldDates.length === dates.length
+        && oldDates.every((x,i) => x === dates[i]);
+
+      if (sameSpan) {
+        // The common edit - a rename, a new time, a note - moves no dates, so it
+        // updates in place and never deletes anything.
+        const byDate = new Map(existing.map(a => [a.date, a]));
+        for (const dd of dates) {
+          const prevRow = byDate.get(dd);
+          if (!prevRow) continue;
+          const { data, error } = await supabase.from("appointments").update(row(dd)).eq("id", prevRow.id).select();
+          if (error) { handleDbError(error, "update personal event"); return; }
+          if (data && data[0]) setAppointments(prev => prev.map(a => a.id===prevRow.id ? data[0] : a));
+        }
+      } else {
+        if (existing.length) {
+          const { error: delErr } = await supabase.from("appointments").delete().in("id", existing.map(a=>a.id));
+          if (delErr) { handleDbError(delErr, "replace personal event"); return; }
+          setAppointments(prev => prev.filter(a => !ownIds.has(String(a.id))));
+        }
+        const { data, error } = await supabase.from("appointments").insert(dates.map(row)).select();
+        if (error) { handleDbError(error, "create personal event"); return; }
+        if (data) setAppointments(prev => [...prev, ...data]);
+      }
+      closePersonalEditor();
+      toast(dates.length > 1 ? "האירוע נשמר (" + dates.length + " ימים)" : "האירוע נשמר");
+    } finally {
+      setBusyKey("savePersonal", false);
+    }
+  };
+
+  // Deleted outright, not soft-cancelled. "Cancelled" is a client-facing state
+  // that exists so a receipt or a form pointing at the row stays valid, and so
+  // undo can restore it. Nothing points at a personal event, and a cancelled one
+  // would sit in the calendar meaning nothing.
+  const handleDeletePersonal = (appt) => {
+    if (guardWrite()) return;
+    const rows = appt.series_id
+      ? appointments.filter(a => a.series_id && a.series_id === appt.series_id)
+      : [appt];
+    const ids = rows.map(a => a.id);
+    askConfirm({
+      title: "מחיקת אירוע",
+      message: ids.length > 1
+        ? 'למחוק את "' + appt.name + '"? האירוע נמשך ' + ids.length + ' ימים וכולם יימחקו.'
+        : 'למחוק את "' + appt.name + '"?',
+      confirmText: "מחיקה",
+      danger: true,
+      onConfirm: async () => {
+        const { error } = await supabase.from("appointments").delete().in("id", ids);
+        if (error) { handleDbError(error, "delete personal event"); return; }
+        setAppointments(prev => prev.filter(a => !ids.includes(a.id)));
+        closePersonalEditor();
+        toast("האירוע נמחק");
+      },
+    });
   };
 
   const handleClientSelect = (clientId) => {
@@ -2535,12 +2761,7 @@ export default function BeautyOS() {
       cancelled_by: by,
     };
     let res = await supabase.from("appointments").update(withAudit).eq("id", appt.id).select();
-    const missingColumn =
-      res.error &&
-      (res.error.code === "42703" ||
-        res.error.code === "PGRST204" ||
-        /column .* does not exist|could not find the '.*' column/i.test(String(res.error.message || "")));
-    if (missingColumn) {
+    if (isMissingColumnError(res.error)) {
       res = await supabase
         .from("appointments")
         .update({ confirmation_status: "cancelled" })
@@ -6209,8 +6430,8 @@ export default function BeautyOS() {
  <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>היום ({todayAppts.length})</p>
  <button className="mobile-only" onClick={()=>setShowMobileSidebar(false)} style={{display:"none",background:"none",border:"none",fontSize:14,cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
-            {todayAppts.length===0?<p style={{fontSize:12.5,color:"var(--ink-3)"}}>אין תורים</p>
-              :todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map(a=>(
+            {todayEntries.length===0?<p style={{fontSize:12.5,color:"var(--ink-3)"}}>אין תורים</p>
+              :todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map(a=>(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--lavender-50),var(--surface))",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"7px 9px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
                   {/* fmtApptTime, not hand-built from `hour`. This indexed
@@ -6228,7 +6449,7 @@ export default function BeautyOS() {
               ))}
  </div>
 
-          {tomorrowAppts.length>0&&(
+          {tomorrowEntries.length>0&&(
  <div>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
  <p className="serif" style={{fontSize:14,fontWeight:600,color:"var(--ink)"}}>מחר ({tomorrowAppts.length})</p>
@@ -6239,14 +6460,14 @@ export default function BeautyOS() {
  <span style={{color:"var(--danger)"}}>{tomorrowCancelled} </span>
  <span style={{color:"var(--ink-2)"}}>⏳ {tomorrowPending}</span>
  </div>
-              {tomorrowAppts.map(a=>{
+              {tomorrowEntries.map(a=>{
                 const client=clients.find(c=>String(c.id)===String(a.client_id));
                 const confColor=a.confirmation_status==="confirmed"?"var(--success)":a.confirmation_status==="cancelled"?"var(--danger)":"var(--ink-2)";
                 return(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--surface-2),#FFFFFF)",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"6px 8px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:12,color:"var(--ink-2)"}}>{a.service}</p>
-                    {client?.phone&&!a.confirmation_sent&&(
+ <p style={{fontSize:12,color:"var(--ink-2)"}}>{entrySubtitle(a)}</p>
+                    {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:"3px 8px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
                     {a.confirmation_sent&&<span style={{fontSize:12,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
@@ -6394,15 +6615,17 @@ export default function BeautyOS() {
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
                       {todayAppts.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:11}}>{todayAppts.length}</span>}
  </div>
-                    {todayAppts.length===0?(
+                    {todayEntries.length===0?(
  <div style={{textAlign:"center",padding:"20px 14px"}}>
  <div style={{width:52,height:52,borderRadius:17,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:23,background:"var(--pc-tint)"}}>☕</div>
  <p style={{fontSize:13,fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
  <p style={{fontSize:13,color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
  <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"10px 20px",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 8px 18px ${pcShadow}`}}>✦ קביעת תור</button>
  </div>
-                      ):todayAppts.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
-                        const st=a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                      ):todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
+                        // "ממתין" on her own time would be a lie about a
+                        // confirmation nobody is waiting for.
+                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)",bg:"var(--surface-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
                         return(
  <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
  <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
@@ -6414,11 +6637,11 @@ export default function BeautyOS() {
                               the dashboard - reading "14:30" above ":00".
                               A leftover of the minutes migration, found while
                               auditing type sizes on this screen. */}
- <span className="serif" style={{fontSize:17,fontWeight:700,color:pc,lineHeight:1.1}}>{fmtApptTime(a)}</span>
+ <span className="serif" style={{fontSize:isAllDay(a)?12:17,fontWeight:700,color:pc,lineHeight:1.1}}>{entryTime(a)}</span>
  </span>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
- <p style={{fontSize:12.5,color:"var(--ink-2)",marginTop:1}}>{a.service}</p>
+ <p style={{fontSize:13,fontWeight:600,color:"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",marginTop:1}}>{entrySubtitle(a)}</p>
  </div>
  <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
  </div>
@@ -6654,12 +6877,14 @@ export default function BeautyOS() {
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--success)"}}/>אישרה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)"}}/>ביטלה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
+ <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-2)"}}/>אישי</span>
  </div>
  <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:14,padding:3,boxShadow:"var(--shadow-xs)"}}>
  <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>←</button>
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:11,padding:"7px 14px",cursor:"pointer",fontSize:11.5,fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
  <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:11,padding:"7px 12px",cursor:"pointer",fontSize:13,color:pc,fontFamily:"inherit"}}>→</button>
  </div>
+ <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className="primary-btn" style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:12}}>🔒 אירוע אישי</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
  </div>
@@ -6751,13 +6976,13 @@ export default function BeautyOS() {
                             const compact=h<46;
                             const cancelled=appt.confirmation_status==="cancelled";
                             return(
- <div key={appt.id} className="appt-card" title={`${appt.name} · ${appt.service} · ${fmtTime(s)}–${fmtTime(e)}`}
+ <div key={appt.id} className="appt-card" title={`${appt.name}${entrySubtitle(appt)?" · "+entrySubtitle(appt):""} · ${isAllDay(appt)?"כל היום":`${fmtTime(s)}–${fmtTime(e)}`}`}
                                 onClick={ev=>{ev.stopPropagation();handleApptClick(appt);}}
                                 style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:8,padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"0 2px 6px rgba(43,34,51,0.16)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:11.5,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
                                 {!compact&&(<>
- <p style={{fontSize:11,color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.service}</p>
- <p style={{fontSize:11,color:"rgba(255,255,255,0.85)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>עד {fmtTime(e)}</p>
+ <p style={{fontSize:11,color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entrySubtitle(appt)}</p>
+ <p style={{fontSize:11,color:"rgba(255,255,255,0.85)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isAllDay(appt)?"כל היום":`עד ${fmtTime(e)}`}</p>
                                 </>)}
  </div>
                             );
@@ -6787,6 +7012,7 @@ export default function BeautyOS() {
  </div>
  <div style={{display:"flex",gap:8,marginBottom:14}}>
  <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:14,padding:"11px 0",fontSize:13,fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
+ <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:14,padding:"11px 0",fontSize:13,fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>🔒 אישי</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"var(--surface)",padding:"11px 0",fontSize:13,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ תור חדש</button>
  </div>
                   {(() => {
@@ -6826,16 +7052,16 @@ export default function BeautyOS() {
                         const hasPhone=appt&&(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone);
                         return(
  <div key={row.key} style={{display:"flex",alignItems:"stretch",gap:10}}>
- <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{fmtTime(row.min)}</div>
+ <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{appt&&isAllDay(appt)?"—":fmtTime(row.min)}</div>
                             {appt?(
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:14,padding:"12px 14px",cursor:"pointer",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{appt.name}{appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
- <p style={{fontSize:12.5,color:"rgba(255,255,255,0.92)",marginTop:2}}>{appt.service} · {appt.duration}ד׳</p>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
+ <p style={{fontSize:12.5,color:"rgba(255,255,255,0.92)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
  <div style={{display:"flex",gap:8,marginTop:10}}>
-                                  {appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
-                                  {hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
- <button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>
- <button aria-label="מחיקה" onClick={e=>{e.stopPropagation();handleDelete(appt);}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
+                                  {!isPersonal(appt)&&appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
+                                  {!isPersonal(appt)&&hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
+                                  {!isPersonal(appt)&&<button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>}
+ <button aria-label={isPersonal(appt)?"מחיקת האירוע":"מחיקה"} onClick={e=>{e.stopPropagation();if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
  </div>
  </div>
                             ):(
@@ -8713,6 +8939,82 @@ export default function BeautyOS() {
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));const phone=(cl?.phone||showReceipt.client_phone||"").trim();return phone?(
  <a href={waMsg(phone,receiptShareText(showReceipt))} target="_blank" rel="noreferrer" className="primary-btn" style={{display:"block",margin:"0 24px 22px",padding:"11px 0",background:"var(--surface)",color:"#128C7E",border:"1.5px solid #25D366",borderRadius:12,fontSize:11.5,fontWeight:700,textAlign:"center",textDecoration:"none"}}>✆ שלחי בוואטסאפ (קישור ישיר)</a>
               ):null;})()}
+ </div>
+ </div>
+      )}
+
+      {/* PERSONAL EVENT MODAL — her own time, not a client's.
+          Deliberately NOT the appointment modal with fields hidden: that modal
+          is a client search and a list of treatments, and every one of its
+          controls is about someone else. This one asks for a title, a when, and
+          nothing else. */}
+      {showPersonalModal&&personalDraft&&(
+ <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={closePersonalEditor}>
+ <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"var(--surface)",borderRadius:22,padding:24,width:340,maxWidth:"100%",maxHeight:"88vh",overflowY:"auto"}}>
+ <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",marginBottom:4}}>{personalDraft.ids.length?"עריכת אירוע אישי":"אירוע אישי חדש"}</h3>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:14}}>הזמן הזה ייחסם ליומן — לקוחה לא תוכל להזמין אותו</p>
+ <div style={{display:"flex",flexDirection:"column",gap:10}}>
+
+ <div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מה?</p>
+ <input value={personalDraft.title} onChange={e=>setPersonalDraft({...personalDraft,title:e.target.value})} placeholder="פגישה עם רואה חשבון" aria-label="כותרת האירוע" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ </div>
+
+ <div style={{display:"flex",gap:6}}>
+ <div style={{flex:1}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מתאריך</p>
+ <input type="date" value={personalDraft.from} onChange={e=>{const v=e.target.value;setPersonalDraft(d=>({...d,from:v,to:(d.to&&d.to>=v)?d.to:v}));}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ </div>
+ <div style={{flex:1}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>עד תאריך</p>
+ <input type="date" value={personalDraft.to} min={personalDraft.from} onChange={e=>setPersonalDraft({...personalDraft,to:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ </div>
+ </div>
+
+                  {/* A range is days, not hours, so the toggle disappears once
+                      there is more than one - there is no honest way to store
+                      "09:00-10:00 on each of three days" as one event. */}
+                  {datesInRange(personalDraft.from,personalDraft.to).length>1?(
+ <p style={{fontSize:11.5,color:pcDeep,fontWeight:600,background:"var(--pc-tint)",borderRadius:10,padding:"8px 10px"}}>{datesInRange(personalDraft.from,personalDraft.to).length} ימים — כל הימים ייחסמו במלואם</p>
+                  ):(<>
+ <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--ink-2)",fontWeight:600,cursor:"pointer"}}>
+ <input type="checkbox" checked={!!personalDraft.allDay} onChange={e=>setPersonalDraft({...personalDraft,allDay:e.target.checked})} style={{width:16,height:16,accentColor:pc}}/>
+                      כל היום
+ </label>
+                    {!personalDraft.allDay&&(
+ <div style={{display:"flex",gap:6}}>
+ <div style={{flex:1}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>משעה</p>
+ <select value={personalDraft.startMinute} onChange={e=>setPersonalDraft({...personalDraft,startMinute:Number(e.target.value)})} style={{...{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"},direction:"ltr",textAlign:"center"}}>
+                            {/* The whole day, not her business hours: blocking
+                                out 07:00 before she opens is exactly the sort
+                                of thing this is for. */}
+                            {Array.from({length:48},(_,i)=>i*30).map(m=><option key={m} value={m}>{fmtTime(m)}</option>)}
+ </select>
+ </div>
+ <div style={{flex:1}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>למשך</p>
+ <select value={personalDraft.duration} onChange={e=>setPersonalDraft({...personalDraft,duration:Number(e.target.value)})} style={{...{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"},direction:"ltr",textAlign:"center"}}>
+                            {[30,60,90,120,180,240].map(m=><option key={m} value={m}>{m<60?`${m} דק׳`:`${m/60} שע׳`}</option>)}
+ </select>
+ </div>
+ </div>
+                    )}
+                  </>)}
+
+ <div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>הערה (לא חובה)</p>
+ <textarea value={personalDraft.note} onChange={e=>setPersonalDraft({...personalDraft,note:e.target.value})} rows={2} placeholder="כתובת, טלפון, מה להביא…" style={{...{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"},resize:"vertical"}}/>
+ </div>
+
+ </div>
+ <div style={{display:"flex",gap:6,marginTop:16}}>
+ <button onClick={closePersonalEditor} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
+ <button onClick={handleSavePersonal} disabled={isBusy("savePersonal")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>{isBusy("savePersonal")?"שומרת…":"שמירה ✓"}</button>
+ </div>
+                {personalDraft.ids.length>0&&(
+ <button onClick={()=>handleDeletePersonal(appointments.find(a=>a.id===personalDraft.ids[0])||{id:personalDraft.ids[0],name:personalDraft.title,series_id:personalDraft.seriesId})} style={{width:"100%",marginTop:8,background:"none",border:"none",color:"var(--danger)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",padding:"8px 0"}}>מחיקת האירוע</button>
+                )}
  </div>
  </div>
       )}

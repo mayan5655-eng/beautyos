@@ -8,6 +8,8 @@ import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { fmtApptTime } from "../../../lib/apptTime";
+import { isPersonal } from "../../../lib/calendarKind";
+import { isMissingColumnError } from "../../../lib/pgError";
 
 // Vercel's default function timeout is short (10-15s depending on plan) and was
 // never declared here. This job sends serially to every tenant's appointments
@@ -60,11 +62,29 @@ export async function POST(request) {
     // Filtered in the query rather than in the loop below so a cancelled row
     // never reaches the send path at all, and so "how many are there" in the
     // early return below counts real appointments.
-    const { data: appointments, error } = await supabase
+    // `kind` separates a client appointment from one of her own personal
+    // events - an accountant meeting, a course, a day off - which live in this
+    // same table so that they block a booking through the overlap constraint.
+    // Nobody is expecting a WhatsApp about those.
+    //
+    // Asked for optionally, and dropped if the database has not got the column
+    // yet: this file deploys before add_appointment_kind.sql is applied by
+    // hand, and a reminder run that fails outright because it named a column
+    // too early would be a worse bug than the one it prevents. Without the
+    // column every row reads as an appointment, which is exactly today's
+    // behaviour. Same bet, and the same test for it, as softCancelAppointment
+    // makes for the cancel-audit columns.
+    const COLS = "id, name, service, date, hour, start_minute, client_phone, tenant_id, confirmation_status";
+    const loadTomorrow = (cols) => supabase
       .from("appointments")
-      .select("id, name, service, date, hour, start_minute, client_phone, tenant_id, confirmation_status")
+      .select(cols)
       .eq("date", tomorrow)
       .neq("confirmation_status", "cancelled");
+
+    let { data: appointments, error } = await loadTomorrow(COLS + ", kind");
+    if (isMissingColumnError(error)) {
+      ({ data: appointments, error } = await loadTomorrow(COLS));
+    }
 
     if (error) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
@@ -113,6 +133,10 @@ export async function POST(request) {
     // Send a reminder to each appointment, using its tenant's business name.
     const results = [];
     for (const appt of appointments) {
+      // Her own blocked-out time is not a client and has nobody to remind.
+      // Checked explicitly rather than left to the missing client_phone below,
+      // so this never depends on a personal event not acquiring one.
+      if (isPersonal(appt)) continue;
       // Master pause first: it overrides the per-type toggle below.
       if (tenantPaused(appt.tenant_id)) {
         if (!pausedLogged.has(appt.tenant_id)) {

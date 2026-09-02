@@ -21,6 +21,8 @@ import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { fmtApptTime } from "../../../lib/apptTime";
+import { isPersonal } from "../../../lib/calendarKind";
+import { isMissingColumnError } from "../../../lib/pgError";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -56,12 +58,20 @@ export async function POST(request) {
     }
 
     // Load the appointment scoped to THIS tenant (never cross-tenant).
-    const { data: apptRows, error: apptErr } = await supabase
+    // kind is optional for the same reason as in the cron: the column may not
+    // exist yet, and a manual reminder must not start failing because of it.
+    const COLS = "id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id, confirmation_status";
+    const loadAppt = (cols) => supabase
       .from("appointments")
-      .select("id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id, confirmation_status")
+      .select(cols)
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId)
       .limit(1);
+
+    let { data: apptRows, error: apptErr } = await loadAppt(COLS + ", kind");
+    if (isMissingColumnError(apptErr)) {
+      ({ data: apptRows, error: apptErr } = await loadAppt(COLS));
+    }
     if (apptErr) {
       return Response.json({ success: false, error: apptErr.message }, { status: 500 });
     }
@@ -75,6 +85,14 @@ export async function POST(request) {
     // is a message no client should receive. The calendar still renders
     // cancelled rows (with their own colour and a ✕), so the button that
     // reaches this route is reachable on one.
+    // Her own time has no client on the other end of it.
+    if (isPersonal(appt)) {
+      return Response.json(
+        { success: false, error: "אירוע אישי — אין למי לשלוח תזכורת" },
+        { status: 400 }
+      );
+    }
+
     if (appt.confirmation_status === "cancelled") {
       return Response.json(
         { success: false, error: "התור בוטל — לא נשלחת תזכורת" },
