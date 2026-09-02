@@ -1618,11 +1618,30 @@ export default function BeautyOS() {
   const apptDay = (()=>{ const p=String(newAppt.date||"").split("-"); return p.length===3?new Date(Number(p[0]),Number(p[1])-1,Number(p[2])).getDay():new Date().getDay(); })();
   // That day's open/close from the per-day business_hours (null = closed that day).
   const apptDayHours = dayHoursFrom(settings, apptDay);
-  // Bookable START hours for the day: open .. close-1 (can't start at closing time).
-  // Half-hour granularity. slotsBetween also refuses any start whose treatment
-  // would run past closing, which the old whole-hour list never checked.
+  // Bookable START hours for the day. Half-hour granularity, and slotsBetween
+  // refuses any start whose treatment would run past the end of the range.
   const APPT_SLOT_STEP = 30;
-  const apptSlotOptions = apptDayHours ? slotsBetween(apptDayHours.open, apptDayHours.close, APPT_SLOT_STEP, Number(newAppt.duration)||0) : [];
+  // Her hours are the DEFAULT, not the limit. A client who asks for one late
+  // appointment should not cost her an edit to the whole week's schedule, so
+  // the picker reaches a margin either side and marks anything out there.
+  // Same principle as the week axis, which stretches to show an out-of-hours
+  // appointment rather than hiding it.
+  //
+  // A margin, not the whole day: 03:00 is not an override she ever means, and
+  // a list that long stops being a list of her day. Two hours covers the early
+  // client and the late one and nothing else.
+  const APPT_MARGIN_HOURS = 2;
+  const apptOfferedHours = apptDayHours ? {
+    open:  Math.max(0,  apptDayHours.open  - APPT_MARGIN_HOURS),
+    close: Math.min(24, apptDayHours.close + APPT_MARGIN_HOURS),
+  } : null;
+  const apptSlotOptions = apptOfferedHours ? slotsBetween(apptOfferedHours.open, apptOfferedHours.close, APPT_SLOT_STEP, Number(newAppt.duration)||0) : [];
+  // Outside her actual hours - by starting before she opens, or by RUNNING PAST
+  // when she closes. The second half matters: a 60-minute treatment at 18:30
+  // against a 19:00 close is out of hours even though 18:30 is not.
+  const apptOutsideHours = (m) => !apptDayHours
+    || m < apptDayHours.open*60
+    || (m + (Number(newAppt.duration)||0)) > apptDayHours.close*60;
   // Keep the shown hour inside the day's range even before the clamp effect runs,
   // so the label + select stay consistent when the date changes.
   // startMinute once the picker has set one; hour*60 for the eight call sites
@@ -1648,6 +1667,11 @@ export default function BeautyOS() {
   // persistent inline warning + the disabled Save button (derived, so it stays
   // visible until the therapist picks a free time — no toast to disappear).
   const apptSelectedTaken = !!apptDayHours && apptSlotOptions.length>0 && slotIsTaken(apptEffectiveStart);
+  // Is the hour SHOWN in the picker outside her hours? Derived the same way and
+  // for the same reason: it has to stay on screen for as long as the choice
+  // does. An option label she read once while scrolling is not enough to stop
+  // her booking 20:00 believing she is open then.
+  const apptSelectedOutside = !!apptDayHours && apptSlotOptions.length>0 && apptOutsideHours(apptEffectiveStart);
   // When the picked day changes and the current hour falls outside that day's
   // range, snap to the first open hour so a stale start can't be saved.
   // Duration is a dependency for the same reason: lengthening the treatment
@@ -1657,7 +1681,13 @@ export default function BeautyOS() {
   // offers no slots, and snapping to apptSlotOptions[0] there wrote NaN.
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
-    if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) setNewAppt(prev=>({...prev,startMinute:apptSlotOptions[0],hour:Math.floor(apptSlotOptions[0]/60)}));
+    if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) {
+      // The first slot is now an hour or two BEFORE she opens, and snapping
+      // onto it would hand her an out-of-hours default she never asked for.
+      // The margin is somewhere she can go, not somewhere she gets put.
+      const target = apptSlotOptions.find(m=>!apptOutsideHours(m)) ?? apptSlotOptions[0];
+      setNewAppt(prev=>({...prev,startMinute:target,hour:Math.floor(target/60)}));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[showModal,newAppt.date,newAppt.duration,apptDayHours?.open,apptDayHours?.close]);
 
@@ -8452,7 +8482,7 @@ export default function BeautyOS() {
                   it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
 
               {/* WHAT. Chips, most-used first, instead of a <select> that made
@@ -8480,7 +8510,17 @@ export default function BeautyOS() {
  </div>
 
  <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"var(--surface)":"var(--ink-2)",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
-              {apptDayHours&&<p style={{fontSize:11,color:apptSelectedTaken?"var(--danger)":pcDeep,fontWeight:600,textAlign:"center",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>{fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration)||0} דק׳</p>}
+              {apptDayHours&&<p style={{fontSize:11,color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"#8A5D06":pcDeep,fontWeight:600,textAlign:"center",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>{fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration)||0} דק׳</p>}
+              {/* Spelled out, not just coloured. The band above changes shade
+                  when the hour is outside, but a shade is not a sentence, and
+                  she is about to commit to being at work when she thought she
+                  was closed. It names her actual hours so the comparison does
+                  not have to be made from memory. */}
+              {apptSelectedOutside&&!apptSelectedTaken&&apptDayHours&&(
+ <p style={{fontSize:11.5,color:"#8A5D06",fontWeight:700,background:"rgba(242,184,75,0.14)",border:"1px solid var(--warning)",borderRadius:10,padding:"7px 10px",textAlign:"center",margin:"1px 0"}}>
+                  ✦ מחוץ לשעות הפעילות שלך ({fmtHM(apptDayHours.open*60)}–{fmtHM(apptDayHours.close*60)})
+ </p>
+              )}
               {apptSelectedTaken&&<p style={{fontSize:11.5,color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:10,padding:"7px 0",margin:"1px 0",boxShadow:"0 4px 10px rgba(224,91,111,0.35)"}}>השעה תפוסה — בחרי שעה אחרת</p>}
 
               {/* Price and note. Behind a disclosure because the price comes

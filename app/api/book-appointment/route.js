@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
+import { dayHoursFrom } from "../../../lib/businessHours";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
@@ -112,6 +113,57 @@ export async function POST(request) {
       );
     }
 
+    // 0b. HER HOURS ARE HERS. The in-app picker now offers a margin either side
+    //     of the working day so she can take one late client without editing
+    //     her whole schedule. That is HER override, and it stops at this route:
+    //     a stranger with the booking link gets the hours she published and
+    //     nothing around them.
+    //
+    //     Enforced here and not only by which chips the page renders, for the
+    //     same reason the minimum-notice rule above is: the page is a browser
+    //     form and this endpoint is reachable directly. Until now nothing on
+    //     the server looked at business hours at all, so a crafted POST could
+    //     book 03:00, or a day she is closed - the page simply never offered
+    //     it. That mattered less when an out-of-hours row could only have come
+    //     from a hand-written request; now that she can legitimately create one
+    //     herself, a client-created 03:00 would be indistinguishable from her
+    //     own deliberate override.
+    //
+    //     Read once, here, and reused for the notification messages below.
+    const { data: settingsRows } = await supabase
+      .from("settings")
+      .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days")
+      .eq("tenant_id", activeTenantId)
+      .limit(1);
+    const settingsRow =
+      settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+
+    {
+      // Midday, not midnight: the weekday of a plain date is what is wanted,
+      // and noon cannot be pushed across a day boundary by an offset.
+      const weekday = new Date(String(date) + "T12:00:00").getDay();
+      // With no settings row at all, dayHoursFrom falls back to its own legacy
+      // defaults rather than returning null - so a missing row degrades to a
+      // rule, never to no rule.
+      const dh = dayHoursFrom(settingsRow, weekday);
+      const bookedEnd = newStart + Number(duration || 60);
+      if (!dh) {
+        return Response.json(
+          { success: false, error: "העסק סגור בתאריך הזה. נא לבחור מועד אחר." },
+          { status: 409 }
+        );
+      }
+      if (newStart < dh.open * 60 || bookedEnd > dh.close * 60) {
+        return Response.json(
+          {
+            success: false,
+            error: `השעה הזו מחוץ לשעות הפעילות (${fmtTime(dh.open*60)}–${fmtTime(dh.close*60)}). נא לבחור מועד אחר.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // 0. Reject double-booking: if a non-cancelled appointment already overlaps
     //    this slot on the same date for this tenant, fail with a friendly message
     //    instead of silently stacking a second appointment on top of it. Mirrors
@@ -178,14 +230,8 @@ export async function POST(request) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    // 2. Get THIS tenant's business name + owner phone from settings
-    const { data: settingsRows } = await supabase
-      .from("settings")
-      .select("business_name, business_phone")
-      .eq("tenant_id", activeTenantId)
-      .limit(1);
-    const settingsRow =
-      settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    // 2. THIS tenant's business name + owner phone, from the row already read
+    //    above for the hours check.
     const businessName = settingsRow?.business_name || "העסק";
     const ownerPhone = settingsRow?.business_phone || "";
 
