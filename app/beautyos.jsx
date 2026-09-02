@@ -22,6 +22,7 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
+import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
@@ -1171,6 +1172,11 @@ export default function BeautyOS() {
   // one row per day, because that is the only shape the calendar, the
   // availability endpoint and the overlap constraint all understand. null when
   // the modal is closed, so a half-typed event cannot survive into the next one.
+  // Her own URL. Lives on tenants.slug, not settings, so it saves on its own
+  // rather than through handleSaveSettings.
+  const [slugDraft, setSlugDraft] = useState(null);   // null = not editing
+  const [slugBusy,  setSlugBusy]  = useState(false);
+  const [slugNote,  setSlugNote]  = useState("");
   const [showPersonalModal, setShowPersonalModal] = useState(false);
   const [personalDraft,     setPersonalDraft]     = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
@@ -2690,6 +2696,50 @@ export default function BeautyOS() {
         toast("האירוע נמחק");
       },
     });
+  };
+
+  // ── Her public URL ────────────────────────────────────────────────────────
+  //
+  // Claimed here and nowhere else: tenants.slug has existed all along, with an
+  // index and an RPC to resolve it, and NOTHING has ever written one. Until
+  // this, every cosmetician's page lived behind /book?t=<uuid>.
+  const mySlug = planRow?.slug || "";
+
+  const saveSlug = async () => {
+    if (guardWrite()) return;
+    const want = String(slugDraft || "").trim();
+    const tid = settings?.tenant_id;
+    if (!tid) { toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    const bad = slugError(want);
+    if (!want) { toast("נא להזין כתובת","error"); return; }
+    if (bad) { setSlugNote(bad); return; }
+    if (want === mySlug) { setSlugDraft(null); setSlugNote(""); return; }
+
+    setSlugBusy(true);
+    setSlugNote("");
+    try {
+      // Is it taken? Asked through the same SECURITY DEFINER function the public
+      // page resolves with, because an authenticated user cannot read another
+      // tenant's row directly - and should not be able to. It returns id and
+      // name only, which is all "taken by someone else" needs.
+      const { data: hit } = await supabase.rpc("get_public_tenant_by_slug", { p_slug: want });
+      const row = Array.isArray(hit) ? hit[0] : hit;
+      if (row && String(row.id) !== String(tid)) { setSlugNote("הכתובת הזו כבר תפוסה"); return; }
+
+      const { data, error } = await supabase.from("tenants").update({ slug: want }).eq("id", tid).select();
+      if (error) {
+        // 23505: someone claimed it between the check above and this write.
+        // 23514: the shape or reserved-word constraint refused it - the
+        // database is the authority and lib/slug only fails fast.
+        if (error.code === "23505") { setSlugNote("הכתובת נתפסה ברגע האחרון. נא לבחור אחרת."); return; }
+        if (error.code === "23514") { setSlugNote("הכתובת הזו לא זמינה"); return; }
+        handleDbError(error, "save slug"); return;
+      }
+      if (!data || !data[0]) { toast("אין הרשאה לעדכן את כתובת העמוד","error"); return; }
+      setPlanRow(data[0]);
+      setSlugDraft(null);
+      toast("הכתובת נשמרה ✦");
+    } finally { setSlugBusy(false); }
   };
 
   const handleClientSelect = (clientId) => {
@@ -5207,7 +5257,12 @@ export default function BeautyOS() {
       return;
     }
 
-    const url = kind === "community" ? `${base}/community?t=${t}` : `${base}/book?t=${t}`;
+    // Her readable URL when she has claimed one; the original otherwise. Both
+    // resolve to the same page - /book?t= has to keep working forever, because
+    // it is in every link she has already sent.
+    const url = kind === "community" ? `${base}/community?t=${t}`
+      : mySlug ? `${base}/${encodeURIComponent(mySlug)}`
+      : `${base}/book?t=${t}`;
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
@@ -9499,8 +9554,30 @@ export default function BeautyOS() {
                         because a preview that quietly showed unsaved edits
                         would be a different promise than the one this makes. */}
                     {settings?.tenant_id&&(
+ <div style={{border:"1px solid var(--line-2)",borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:6}}>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>הכתובת של העמוד שלך</p>
+                        {slugDraft===null?(
+ <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+ <span style={{fontSize:12.5,color:"var(--ink)",fontWeight:600,direction:"ltr",wordBreak:"break-all"}}>{origin.replace(/^https?:\/\//,"")}/{mySlug||"…"}</span>
+ <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug||slugify(settings.business_name||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
+ </div>
+                        ):(<>
+ <div style={{display:"flex",alignItems:"center",gap:6}}>
+ <span style={{fontSize:12,color:"var(--ink-3)",direction:"ltr"}}>/</span>
+ <input value={slugDraft} onChange={e=>{setSlugDraft(e.target.value.trim());setSlugNote("");}} placeholder="dana-beauty" aria-label="כתובת העמוד" style={{flex:1,border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:12.5,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",direction:"ltr",textAlign:"left"}}/>
+ </div>
+                          {(slugNote||slugError(slugDraft))&&<p style={{fontSize:11,color:"var(--danger)",fontWeight:600}}>{slugNote||slugError(slugDraft)}</p>}
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={()=>{setSlugDraft(null);setSlugNote("");}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
+ <button onClick={saveSlug} disabled={slugBusy||!!slugError(slugDraft)} style={{flex:2,background:pcGrad,border:"none",borderRadius:10,padding:"8px 0",fontSize:12,fontWeight:700,color:"var(--surface)",cursor:"pointer",fontFamily:"inherit",opacity:(slugBusy||!!slugError(slugDraft))?0.5:1}}>{slugBusy?"שומרת…":"שמירת הכתובת"}</button>
+ </div>
+ <p style={{fontSize:11,color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. הקישור הישן ימשיך לעבוד תמיד.</p>
+                        </>)}
+ </div>
+                    )}
+                    {settings?.tenant_id&&(
  <div style={{background:"var(--pc-tint)",borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:6}}>
- <a href={`${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} target="_blank" rel="noreferrer"
+ <a href={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} target="_blank" rel="noreferrer"
    style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,textDecoration:"none",background:pcGrad,color:"var(--surface)",borderRadius:12,padding:"10px 16px",fontSize:12.5,fontWeight:700,boxShadow:`0 8px 18px ${pcShadow}`}}>
                         ✦ צפייה בעמוד שלי
  </a>
