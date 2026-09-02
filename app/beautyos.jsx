@@ -887,6 +887,17 @@ export default function BeautyOS() {
   // looking at; rebookDone holds the appointment once created, so the strip can
   // become a confirmation instead of vanishing.
   const [rebookWeeks,       setRebookWeeks]        = useState(4);
+  // Appointment modal. The client field is a search rather than a native
+  // <select>: the select listed every client with no filter, which is a
+  // scroll-wheel of 300 names on a phone and gave her two controls - the
+  // select and a separate "or type a new name" box - for one decision.
+  const [apptClientQuery,   setApptClientQuery]    = useState("");
+  // Price and note live behind a disclosure. Price is derived from the service
+  // and almost never overridden; showing it always priced the exception as if
+  // it were the rule.
+  const [apptMoreOpen,      setApptMoreOpen]       = useState(false);
+  // Services show as chips, most-used first. This opens the long tail.
+  const [apptAllServices,   setApptAllServices]    = useState(false);
   const [rebookDone,        setRebookDone]         = useState(null);
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
@@ -1543,6 +1554,34 @@ export default function BeautyOS() {
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = useMemo(() => services.filter(s=>s.active!==false), [services]);
+
+  // Her menu, ordered by how often she actually books each treatment.
+  //
+  // The order moves as her practice moves, which is the point: the six chips at
+  // the top should be the six she reaches for this season, not the six that
+  // happened to be typed in first. Ties fall back to name so the order is
+  // stable rather than arbitrary.
+  const servicesByUse = useMemo(() => {
+    const count = new Map();
+    for (const a of appointments) {
+      if (!a.service || a.confirmation_status === "cancelled") continue;
+      count.set(a.service, (count.get(a.service) || 0) + 1);
+    }
+    return [...activeServices].sort((x, y) => {
+      const d = (count.get(y.name) || 0) - (count.get(x.name) || 0);
+      return d !== 0 ? d : String(x.name).localeCompare(String(y.name), "he");
+    });
+  }, [activeServices, appointments]);
+
+  // Who the search offers. Capped at six: past that it is a list to read rather
+  // than a shortlist to pick from, and she should type another letter instead.
+  const apptClientMatches = useMemo(() => {
+    const q = apptClientQuery.trim();
+    if (!q) return [];
+    return clients
+      .filter(c => matchesQuery(q, { text: [c.name], phones: [c.phone] }))
+      .slice(0, 6);
+  }, [apptClientQuery, clients]);
   // Labels for the day-view rows. HOURS_ALL is now indexed by the hour itself,
   // so the slice is the hour range directly - the old `-7` came from the list
   // starting at 07:00 and silently clipped anyone opening earlier than that.
@@ -2383,6 +2422,14 @@ export default function BeautyOS() {
     setNewAppt(prev=>({...prev,service:svcName,duration:svc?.duration||60,price:svc?.price||0}));
   };
 
+  const closeApptModal = () => {
+    setShowModal(false);
+    setEditingAppointmentId(null);
+    setApptClientQuery("");
+    setApptMoreOpen(false);
+    setApptAllServices(false);
+  };
+
   const handleSave = async () => {
     if (guardWrite()) return;
     if(!newAppt.name.trim()){toast("נא להזין שם לקוחה","error");return;}
@@ -2427,14 +2474,14 @@ export default function BeautyOS() {
         const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
         if(error){handleDbError(error, "update appointment"); return;}
         if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
-        setShowModal(false);setApptNote("");setEditingAppointmentId(null);
+        setApptNote("");closeApptModal();
         toast("התור עודכן בהצלחה");
       } else {
         const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
         const {data,error}=await supabase.from("appointments").insert([appt]).select();
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
-        setShowModal(false);setApptNote("");
+        setApptNote("");closeApptModal();
         toast("התור נשמר בהצלחה");
       }
     } finally {
@@ -8009,27 +8056,101 @@ export default function BeautyOS() {
 
       {/* APPT MODAL */}
       {showModal&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={()=>{setShowModal(false);setEditingAppointmentId(null);}}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:14}} onClick={closeApptModal}>
  <div onClick={e=>e.stopPropagation()} className="modal-card pop-in" style={{background:"var(--surface)",borderRadius:24,padding:24,width:360,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"var(--shadow-xl)",border:"1px solid var(--line)"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>{editingAppointmentId?"עריכת תור":"קביעת תור חדש"}</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {clients.length>0&&<select value={newAppt.clientId} onChange={e=>handleClientSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה קיימת —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}{c.phone?` · ${c.phone}`:""}</option>)}</select>}
- <input value={newAppt.name} onChange={e=>setNewAppt({...newAppt,name:e.target.value,clientId:""})} placeholder="או הזיני שם מטופלת חדשה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+
+              {/* WHO. One control for one decision.
+                  This was a native <select> of every client PLUS a separate
+                  "or type a new name" input. Two controls, no indication of
+                  which one she was meant to use, and the select was an
+                  unsearchable scroll wheel once she had more than a screenful
+                  of clients. The search covers both cases: existing names
+                  filter as she types, and whatever she typed is offered as a
+                  new client on the last row.
+
+                  A new client is still created at save, not here - an
+                  abandoned booking must not leave an orphan client row
+                  behind. */}
+              {newAppt.name ? (
+ <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:12,background:pcTint,border:`1px solid ${pc}`}}>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:13,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{newAppt.name}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{newAppt.clientId?"לקוחה קיימת":editingAppointmentId?"ללא כרטיס לקוחה":"לקוחה חדשה — תיווצר בשמירה"}</p>
+ </div>
+ <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:""});setApptClientQuery("");}} className="icon-btn" style={{width:26,height:26,fontSize:11,flexShrink:0}} title="בחירת לקוחה אחרת" aria-label="בחירת לקוחה אחרת">✕</button>
+ </div>
+              ) : (
+ <div>
+ <input value={apptClientQuery} onChange={e=>setApptClientQuery(e.target.value)} placeholder="שם הלקוחה או טלפון" aria-label="חיפוש לקוחה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 12px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+                {apptClientQuery.trim()&&(
+ <div style={{marginTop:5,border:"1px solid var(--line)",borderRadius:12,overflow:"hidden"}}>
+                  {apptClientMatches.map(c=>(
+ <button key={c.id} onClick={()=>{handleClientSelect(String(c.id));setApptClientQuery("");}} style={{display:"block",width:"100%",textAlign:"right",background:"var(--surface)",border:"none",borderBottom:"1px solid var(--line)",padding:"10px 12px",fontSize:12.5,fontFamily:"inherit",cursor:"pointer",color:"var(--ink)"}}>
+ <span style={{fontWeight:600}}>{c.name}</span>
+                    {c.phone&&<span style={{fontSize:11.5,color:"var(--ink-3)",marginRight:8,direction:"ltr",display:"inline-block"}}>{c.phone}</span>}
+ </button>
+                  ))}
+ <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:apptClientQuery.trim()});setApptClientQuery("");}} style={{display:"block",width:"100%",textAlign:"right",background:pcTint,border:"none",padding:"10px 12px",fontSize:12.5,fontFamily:"inherit",cursor:"pointer",color:pcDeep,fontWeight:700}}>
+                  לקוחה חדשה: {apptClientQuery.trim()}
+ </button>
+ </div>
+                )}
+ </div>
+              )}
+
+              {/* WHEN. Already correct when she came from a calendar slot, so
+                  it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<div style={{border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:12,color:"var(--danger)",background:"var(--surface-2)",textAlign:"center",fontWeight:600}}>סגור ביום זה</div>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",direction:"ltr",textAlign:"center"}}>{apptSlotOptions}</select>):(<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
- <select value={newAppt.service} onChange={e=>handleServiceSelect(e.target.value)} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>
- <option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price} ({s.duration}′)</option>)}
- </select>
- <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
-              {apptDayHours&&<p style={{fontSize:11,color:apptSelectedTaken?"var(--danger)":pcDeep,fontWeight:600,textAlign:"center",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>⏱ {fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration||0)} דקות</p>}
-              {apptSelectedTaken&&<p style={{fontSize:11.5,color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:10,padding:"7px 0",margin:"1px 0",boxShadow:"0 4px 10px rgba(224,91,111,0.35)"}}>⛔ השעה תפוסה — בחרי שעה אחרת</p>}
- <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
- <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
+
+              {/* WHAT. Chips, most-used first, instead of a <select> that made
+                  her tap, scroll and tap again for the treatment she performs
+                  forty times a month. The order follows her real booking
+                  history, so it tracks what she is actually doing this season.
+                  The long tail is one tap away, never removed. */}
+ <div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>טיפול</p>
+                {activeServices.length===0?(
+ <p style={{fontSize:11.5,color:"var(--warning)",fontWeight:600,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"8px 10px"}}>עוד לא הוספת טיפולים. אפשר להוסיף אותם בהגדרות ← שירותים.</p>
+                ):(<>
+ <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  {(apptAllServices?servicesByUse:servicesByUse.slice(0,6)).map(sv=>{
+                    const sel=newAppt.service===sv.name;
+                    return (
+ <button key={sv.name} onClick={()=>handleServiceSelect(sv.name)} style={{padding:"8px 12px",borderRadius:12,fontSize:12,fontWeight:sel?700:600,cursor:"pointer",fontFamily:"inherit",border:sel?"1px solid transparent":"1px solid var(--line-2)",background:sel?pcGrad:"var(--surface)",color:sel?"var(--surface)":"var(--ink-2)",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sv.name}</button>
+                    );
+                  })}
+                  {servicesByUse.length>6&&(
+ <button onClick={()=>setApptAllServices(v=>!v)} style={{padding:"8px 12px",borderRadius:12,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px dashed ${pc}`,background:"transparent",color:pcDeep}}>{apptAllServices?"פחות":`עוד ${servicesByUse.length-6}`}</button>
+                  )}
+ </div>
+                </>)}
+ </div>
+
+ <div style={{display:"flex",gap:4}}>{[30,45,60,90].map(d=><button key={d} onClick={()=>setNewAppt({...newAppt,duration:d})} style={{flex:1,padding:"8px 0",border:"1px solid",borderColor:newAppt.duration===d?"transparent":"var(--line-2)",borderRadius:12,background:newAppt.duration===d?pcGrad:"var(--surface)",color:newAppt.duration===d?"var(--surface)":"var(--ink-2)",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{d}′</button>)}</div>
+              {apptDayHours&&<p style={{fontSize:11,color:apptSelectedTaken?"var(--danger)":pcDeep,fontWeight:600,textAlign:"center",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--pc-tint)",borderRadius:10,padding:"6px 0",margin:"1px 0"}}>{fmtHM(apptStartMin)}–{fmtHM(apptEndMin)} · {Number(newAppt.duration)||0} דק׳</p>}
+              {apptSelectedTaken&&<p style={{fontSize:11.5,color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:10,padding:"7px 0",margin:"1px 0",boxShadow:"0 4px 10px rgba(224,91,111,0.35)"}}>השעה תפוסה — בחרי שעה אחרת</p>}
+
+              {/* Price and note. Behind a disclosure because the price comes
+                  from the treatment and is almost never overridden, and the
+                  note is for the exception. Neither is removed - both are one
+                  tap away, and the summary line says when there is something
+                  in them, so nothing can be hidden and forgotten. */}
+ <button onClick={()=>setApptMoreOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:"4px 2px",cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:11.5,fontWeight:700,color:pcDeep}}>פרטים נוספים</span>
+ <span style={{fontSize:11.5,color:"var(--ink-3)"}}>{apptMoreOpen?"סגירה":`₪${Number(newAppt.price)||0}${apptNote.trim()?" · הערה":""}`}</span>
+ </button>
+              {apptMoreOpen&&(<>
+ <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" aria-label="מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
+ <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" aria-label="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
+              </>)}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
- <button onClick={()=>{setShowModal(false);setEditingAppointmentId(null);}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
+ <button onClick={closeApptModal} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"var(--surface)",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומר...":!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":editingAppointmentId?"עדכון ✓":"שמירה ✓"}</button>
  </div>
  </div>
