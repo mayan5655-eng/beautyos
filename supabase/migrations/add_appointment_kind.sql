@@ -4,17 +4,29 @@
 -- the school run. Her own time, blocked out on the same calendar her clients
 -- book into.
 --
--- ── STATUS: NOT APPLIED ────────────────────────────────────────────────────
--- Run by hand in the Supabase SQL Editor, like every other file here. Update
--- this header when it lands, and say how it was verified rather than assuming
--- the DDL took - see add_appointment_no_overlap.sql for the pattern.
+-- ── STATUS: APPLIED to production on 2026-09-02 ────────────────────────────
+-- Run by hand in the Supabase SQL Editor, like every other file here.
 --
--- The application code that reads these columns ships BEFORE this migration is
--- applied and is harmless without it: `kind` comes back undefined on every row,
--- `kind === 'personal'` is false, and every screen behaves exactly as it does
--- today. Only creating a personal event needs the column, and attempting that
--- before this runs fails loudly with a PostgREST error naming the column. There
--- is no window in which something silently does the wrong thing.
+-- Verified by BEHAVIOUR rather than by assuming the DDL took. Verify (d) below
+-- was run and returned exactly what it was written to return: with a 10:00
+-- personal event in place, a client appointment at 10:30 was REJECTED with
+-- SQLSTATE 23P01 from appointments_no_overlap. That single result is the whole
+-- feature - the personal event sits inside the overlap constraint, so a booking
+-- cannot land on top of it - and it is the one thing that could not have been
+-- established any other way. Both inserts were inside a transaction that was
+-- rolled back.
+--
+-- The other verify blocks were NOT run. (a) and (b) are catalogue reads, and
+-- (d) succeeding at all means the column exists and accepts 'personal'. (c) is
+-- the exception worth naming: nothing has confirmed that the check constraint
+-- REJECTS a bad kind. Its DDL is unconditional in the same script that (d)
+-- proves ran, so it is almost certainly there, but "almost certainly" is not
+-- what this header is for. Run (c) if you want it closed.
+--
+-- The application code that reads these columns shipped BEFORE this migration
+-- was applied and was harmless without it: `kind` came back undefined on every
+-- row, `kind === 'personal'` was false, and every screen behaved exactly as it
+-- had. Only creating a personal event needed the column.
 --
 -- Safe to run more than once.
 --
