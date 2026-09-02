@@ -932,6 +932,10 @@ export default function BeautyOS() {
   const [groupsLoading,  setGroupsLoading]  = useState(false);
   const [groupsError,    setGroupsError]    = useState(null);
   const [savedCampaigns, setSavedCampaigns] = useState(null);
+  // Kept apart from savedCampaigns on purpose: "we could not load them" and
+  // "you have none" are different sentences, and null alone renders as a
+  // spinner that never stops.
+  const [campaignsError, setCampaignsError] = useState("");
   const [savingCampaign, setSavingCampaign] = useState(false);
   // AI business advisor chat
   const [advisorMessages, setAdvisorMessages] = useState(null); // null = not loaded yet
@@ -3252,7 +3256,14 @@ export default function BeautyOS() {
       const newImages=[...(client.images||[]),fileName];
       const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
       if(error){handleDbError(error, "save image url"); return;}
-      if(data&&data[0]){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
+      if(!data||!data[0]){
+        // The file uploaded but the row did not take it. Clean the orphan up
+        // rather than leaving a paid-for object nothing points at.
+        await supabase.storage.from(PRIVATE_BUCKET).remove([fileName]);
+        toast("התמונה לא נשמרה בכרטיס — נסי שוב","error");
+        return;
+      }
+      setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);
       toast("התמונה הועלתה");
     } finally {
       setUploading(false);
@@ -3268,9 +3279,21 @@ export default function BeautyOS() {
       danger: true,
       onConfirm: async () => {
         const newImages=(client.images||[]).filter(img=>img!==imageUrl);
+        // Row first, then the object. The other order can leave the card
+        // pointing at a file that is already gone.
         const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
         if(error){handleDbError(error, "delete image"); return;}
-        if(data&&data[0]){setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);}
+        if(!data||!data[0]){ toast("המחיקה לא נשמרה — נסי שוב","error"); return; }
+        setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);
+        // Through toStoragePath, which normalises both shapes the column
+        // holds: bare paths written since the private-bucket move, and full
+        // URLs from before it. .remove() takes paths, so passing the raw value
+        // would delete nothing for every older row while reporting success.
+        const path = toStoragePath(imageUrl);
+        if (path) {
+          const { error: re } = await supabase.storage.from(PRIVATE_BUCKET).remove([path]);
+          if (re) { toast("התמונה הוסרה מהכרטיס, אך הקובץ נשאר בשרת","error"); return; }
+        }
         toast("התמונה נמחקה");
       },
     });
@@ -4449,6 +4472,7 @@ export default function BeautyOS() {
     const {data,error}=await supabase.from("packages").update({used_sessions:used,active}).eq("id",pkg.id).select();
     if(error){handleDbError(error, "use package session"); return;}
     if(data&&data[0]){setPackages(prev=>prev.map(p=>p.id===pkg.id?data[0]:p)); toast(active?`טיפול ${used}/${pkg.total_sessions}`:"החבילה הסתיימה");}
+    else { toast("העדכון לא נשמר — רענני ונסי שוב", "error"); }
   };
 
   const handleSaveWaitlist = async () => {
@@ -4941,7 +4965,10 @@ export default function BeautyOS() {
         cta_label: newPost.cta_label || null,
       }]).select();
       if (error) { handleDbError(error, "create community post"); return; }
-      if (data && data[0]) setCommunityPosts(prev => [data[0], ...prev]);
+      // Zero rows back is a refusal, not a success. Saying "published" here and
+      // leaving the composer empty would lose what she wrote.
+      if (!data || !data[0]) { toast("הפוסט לא פורסם — נסי שוב", "error"); return; }
+      setCommunityPosts(prev => [data[0], ...prev]);
       setNewPost({ title:"", body:"", post_type:"update", cta_label:"", image_url:"" });
       setShowPostModal(false);
       toast("הפוסט פורסם למרחב הלקוחות");
@@ -4998,12 +5025,16 @@ export default function BeautyOS() {
   // so she can paste it straight into the Facebook composer.
   const shareToFacebook = async (v) => {
     const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
-    try { await navigator.clipboard.writeText(text); } catch {}
+    let copied = true;
+    try { await navigator.clipboard.writeText(text); } catch { copied = false; }
     const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" +
       encodeURIComponent("https://beautyos-theta.vercel.app") +
       "&quote=" + encodeURIComponent(text);
     window.open(shareUrl, "_blank", "width=640,height=640");
-    toast("הטקסט הועתק - הדביקי אותו בחלון של פייסבוק");
+    toast(copied
+      ? "הטקסט הועתק - הדביקי אותו בחלון של פייסבוק"
+      : "פייסבוק נפתח, אבל ההעתקה נחסמה — סמני את הטקסט והעתיקי ידנית",
+      copied ? undefined : "error");
   };
 
   // Download the post image as a 1080x1080 square (Facebook/Instagram ready)
@@ -5115,11 +5146,15 @@ export default function BeautyOS() {
   };
 
   const loadSavedCampaigns = async () => {
+    setCampaignsError("");
     try {
       const res = await fetch("/api/marketing/list");
-      const data = await res.json();
-      if (res.ok && data.campaigns) setSavedCampaigns(data.campaigns);
-    } catch {}
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && data.campaigns) { setSavedCampaigns(data.campaigns); return; }
+      setCampaignsError("לא הצלחנו לטעון את הקמפיינים השמורים");
+    } catch {
+      setCampaignsError("אין חיבור לשרת. הקמפיינים השמורים לא נטענו");
+    }
   };
 
   const deleteCampaign = (campaignId) => {
@@ -5343,7 +5378,12 @@ export default function BeautyOS() {
         .wa-btn{background:#25D366;color:#fff;border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
         .wa-btn:hover{background:var(--success);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,211,102,0.3)}
         .call-btn{background:var(--pc);color:var(--surface);border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
-        .icon-btn{background:var(--pc-tint);border:none;border-radius:50%;width:32px;height:32px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.12s;display:inline-flex;align-items:center;justify-content:center}
+        .icon-btn{background:var(--pc-tint);border:none;border-radius:50%;width:32px;height:32px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.12s;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+        /* The compact variant, for buttons that sit inside a dense row. Below
+           the phone breakpoint it is overridden to 40px like every other
+           icon-btn, because a tap target wins over density. Anything laying out
+           a row must budget 40, not 26. */
+        .icon-btn.sm{width:26px;height:26px;font-size:11px}
         .icon-btn:hover{background:var(--pc-tint-2);transform:translateY(-1px)}
         .icon-btn:disabled{opacity:0.5;cursor:default}
         .primary-btn{border:none;border-radius:var(--r-full);font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:-0.01em;transition:transform 0.12s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s,filter 0.2s}
@@ -7543,7 +7583,14 @@ export default function BeautyOS() {
  </>)}
 
  {aiPostsView==="saved"&&(<>
- {savedCampaigns===null&&<p style={{fontSize:12,color:"var(--ink-2)",textAlign:"center",padding:"30px 0"}}>טוען...</p>}
+ {campaignsError&&(
+ <div style={{textAlign:"center",padding:"24px 16px"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--danger)",marginBottom:4}}>{campaignsError}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:12}}>הקמפיינים עדיין שם — זו בעיית טעינה בלבד.</p>
+ <button onClick={loadSavedCampaigns} className="empty-cta" style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:24,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>נסי שוב</button>
+ </div>
+ )}
+ {!campaignsError&&savedCampaigns===null&&<p style={{fontSize:12,color:"var(--ink-2)",textAlign:"center",padding:"30px 0"}}>טוען...</p>}
  {savedCampaigns&&savedCampaigns.length===0&&(
  <div className="pop-in" style={{background:"var(--grad-hero)",borderRadius:22,padding:"46px 20px",textAlign:"center",border:"1px solid var(--line)"}}>
  <div style={{width:56,height:56,borderRadius:18,margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>✦</div>
@@ -8079,7 +8126,7 @@ export default function BeautyOS() {
  <p style={{fontSize:13,fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{newAppt.name}</p>
  <p style={{fontSize:11.5,color:"var(--ink-3)"}}>{newAppt.clientId?"לקוחה קיימת":editingAppointmentId?"ללא כרטיס לקוחה":"לקוחה חדשה — תיווצר בשמירה"}</p>
  </div>
- <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:""});setApptClientQuery("");}} className="icon-btn" style={{width:26,height:26,fontSize:11,flexShrink:0}} title="בחירת לקוחה אחרת" aria-label="בחירת לקוחה אחרת">✕</button>
+ <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:""});setApptClientQuery("");}} className="icon-btn sm" style={{}} title="בחירת לקוחה אחרת" aria-label="בחירת לקוחה אחרת">✕</button>
  </div>
               ) : (
  <div>
@@ -8450,14 +8497,19 @@ export default function BeautyOS() {
  </div>
               {cashierItems.length===0?<p style={{fontSize:12,color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>
                 :cashierItems.map(item=>(
- <div key={item.id} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 9px",background:pcTint,borderRadius:10,marginBottom:4}}>
+ <div key={item.id} style={{padding:"8px 9px",background:pcTint,borderRadius:10,marginBottom:4}}>
+ <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
  <span style={{width:8,height:8,borderRadius:"50%",background:item.color||"var(--warning)",flexShrink:0}}/>
- <p style={{flex:1,fontSize:11,fontWeight:600,color:"var(--ink)"}}>{item.name}</p>
- <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:Math.max(1,i.qty-1)}:i))} className="icon-btn" style={{width:22,height:22,fontSize:11}}>−</button>
- <span style={{fontSize:11,minWidth:16,textAlign:"center"}}>{item.qty}</span>
- <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:i.qty+1}:i))} className="icon-btn" style={{width:22,height:22,fontSize:11}}>+</button>
- <input type="number" value={item.price} onChange={e=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,price:Number(e.target.value)}:i))} style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <button onClick={()=>setCashierItems(prev=>prev.filter(i=>i.id!==item.id))} style={{background:"none",border:"none",color:"var(--danger)",fontSize:13,cursor:"pointer"}}>✕</button>
+ <p style={{flex:1,minWidth:0,fontSize:12.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</p>
+ <button onClick={()=>setCashierItems(prev=>prev.filter(i=>i.id!==item.id))} style={{background:"none",border:"none",color:"var(--danger)",fontSize:13,cursor:"pointer",flexShrink:0,padding:"0 2px"}} title="הסרת הפריט" aria-label="הסרת הפריט">✕</button>
+ </div>
+ <div style={{display:"flex",alignItems:"center",gap:6}}>
+ <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:Math.max(1,i.qty-1)}:i))} className="icon-btn sm" style={{}} aria-label="פחות">−</button>
+ <span style={{fontSize:12,minWidth:18,textAlign:"center",flexShrink:0}}>{item.qty}</span>
+ <button onClick={()=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,qty:i.qty+1}:i))} className="icon-btn sm" style={{}} aria-label="עוד">+</button>
+ <div style={{flex:1,minWidth:0}}/>
+ <input type="number" value={item.price} onChange={e=>setCashierItems(prev=>prev.map(i=>i.id===item.id?{...i,price:Number(e.target.value)}:i))} aria-label="מחיר" style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ </div>
  </div>
                 ))}
  </div>
@@ -8993,7 +9045,7 @@ export default function BeautyOS() {
                       return (
  <div key={i} style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",marginBottom:8}}>
  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
- <input value={rv.name||""} onChange={e=>updRev({name:e.target.value})} placeholder="שם הלקוחה" style={{...inp,flex:1,padding:"7px 10px"}}/>
+ <input value={rv.name||""} onChange={e=>updRev({name:e.target.value})} placeholder="שם הלקוחה" style={{...inp,flex:1,minWidth:0,padding:"7px 10px"}}/>
  <button onClick={()=>setBrand("reviews",revs.filter((_,j)=>j!==i))} style={{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>✕</button>
  </div>
  <div style={{display:"flex",gap:3,marginBottom:6}}>
@@ -9241,13 +9293,13 @@ export default function BeautyOS() {
      Inline SVG, not the archive-box / hooked-arrow codepoints: both carry an
      emoji presentation that iOS picks, so they rendered as full-colour emoji
      beside monochrome stroked icons. Same fix as the settings gear. */}
- <button onClick={()=>toggleDraftServiceActive(idx)} className="icon-btn" style={{width:26,height:26,flexShrink:0}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
+ <button onClick={()=>toggleDraftServiceActive(idx)} className="icon-btn sm" style={{}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
  {svcActive
    ? <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="3.8" width="18.4" height="4.6" rx="1.3"/><path d="M4.6 8.4V19a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6V8.4M9.7 12.4h4.6"/></svg>
    : <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M3.5 9.5h11.2a5 5 0 0 1 0 10H8.2M3.5 9.5l4.3-4.3M3.5 9.5l4.3 4.3"/></svg>}
  </button>
  {/* Permanent delete. Refuses, with a count, when anything references it. */}
- <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn" style={{width:26,height:26,fontSize:11,color:"var(--danger)",flexShrink:0}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד" aria-label="מחיקה">✕</button>
+ <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn sm" style={{color:"var(--danger)"}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד" aria-label="מחיקה">✕</button>
  </div>
  </div>
                   );})}
@@ -9277,8 +9329,8 @@ export default function BeautyOS() {
                   {showNewService?(
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:12,marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 8px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>
- <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <button onClick={handleAddService} className="icon-btn" style={{width:26,height:26,fontSize:11}} title="הוספה לרשימה — נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
+ <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <button onClick={handleAddService} className="icon-btn sm" style={{}} title="הוספה לרשימה — נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
  </div>
                   ):!showTemplatePicker&&(
  <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
@@ -9308,7 +9360,7 @@ export default function BeautyOS() {
                   )}
                   {(editSettings.faq||[]).map((f,idx)=>(
  <div key={idx} style={{background:pcTint,borderRadius:12,padding:"10px 10px 8px",marginBottom:6,position:"relative"}}>
- <button onClick={()=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).filter((_,i)=>i!==idx)})} className="icon-btn" style={{position:"absolute",top:8,left:8,width:24,height:24,fontSize:11}} title="מחיקה" aria-label="מחיקת שאלה">✕</button>
+ <button onClick={()=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).filter((_,i)=>i!==idx)})} className="icon-btn sm" style={{position:"absolute",top:8,left:8}} title="מחיקה" aria-label="מחיקת שאלה">✕</button>
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שאלה</p>
  <input value={f.q||""} onChange={e=>setEditSettings({...editSettings,faq:(editSettings.faq||[]).map((x,i)=>i===idx?{...x,q:e.target.value}:x)})} placeholder="למשל: יש חניה?" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:9,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",fontWeight:600,color:"var(--ink)",marginBottom:6}}/>
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>תשובה</p>
@@ -9469,7 +9521,7 @@ export default function BeautyOS() {
                     :appts.map(a=>(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
  <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:11.5,color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:11,color:"var(--success)"}}>✓</span>}
                         {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:16,padding:"5px 10px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
  </div>
@@ -9494,7 +9546,7 @@ export default function BeautyOS() {
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:10,marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:13}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
- <div style={{flex:1}}><p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:11,color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:11,color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
  <span className="serif" style={{fontSize:13,fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
                     ))
@@ -9522,7 +9574,7 @@ export default function BeautyOS() {
                         {cForms.map(f=>(
  <div key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:f.status==="signed"?"var(--surface-2)":"var(--surface-2)",borderRadius:10,marginBottom:4}}>
  <span style={{fontSize:12}}>{f.status==="signed"?"✓":"⏳"}</span>
- <p style={{flex:1,fontSize:12,color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
+ <p style={{flex:1,minWidth:0,fontSize:12,color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
  <span style={{fontSize:11,color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?"נחתם":"ממתין"}</span>
  </div>
                         ))}
