@@ -335,6 +335,9 @@ export default function BookPage() {
   const bizName = brand?.businessName || settings?.business_name || "העסק שלי";
   // Her line, under her name. Optional - most clinics never set one.
   const tagline = brand?.welcomeHeadline || "";
+  const personName = brand?.therapistName || settings?.therapist_name || "";
+  const personTitle = brand?.therapistTitle || "";
+  const person = [personName, personTitle].filter(Boolean).join(" · ");
   const phoneRaw = String(brand?.whatsappNumber || settings?.business_phone || "").trim();
   const wa = normalizeWa(phoneRaw);
   // Whether this clinic can actually take a booking right now. Everything that
@@ -416,7 +419,7 @@ export default function BookPage() {
 
       {/* ============ STEP 1 — BUSINESS CARD ============ */}
       {step === 1 && (
-        <div className="bk-stack" style={{ paddingBottom: canBook ? "calc(78px + env(safe-area-inset-bottom, 0px))" : 0 }}>
+        <div className="bk-stack" style={{ paddingBottom: canBook ? "calc(104px + env(safe-area-inset-bottom, 0px))" : 0 }}>
 
           {/* HERO
               A beauty business is sold on a face and a room, and the page had
@@ -449,7 +452,8 @@ export default function BookPage() {
             {brand?.logoUrl && (
               <img src={brand.logoUrl} alt={bizName} style={{ height: 46, maxWidth: 150, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
             )}
-            <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: tagline ? 8 : 12 }}>{bizName}</h1>
+            <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: person || tagline ? 8 : 12 }}>{bizName}</h1>
+            {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, marginBottom: 8 }}>{person}</p>}
             {/* Three levels, in the order a stranger needs them: who this is,
                 what they say about themselves, then the longer sentence. The
                 tagline takes the accent colour so it reads as hers and not as a
@@ -675,6 +679,7 @@ export default function BookPage() {
               background: pc, color: brand?.onPrimary || "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600 }}>
             {brand?.ctaLabel || "קביעת תור"}
           </button>
+          <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 8 }}>אישור מיידי בוואטסאפ</p>
         </div>
       )}
 
@@ -814,6 +819,7 @@ export default function BookPage() {
                   style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600, letterSpacing: "0.8px", boxShadow: `0 16px 36px -18px ${pc}` }}>
                   {submitting ? "קובע תור..." : (brand?.ctaLabel || "קביעת תור")}
                 </button>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור מאושר מיד, ואישור נשלח אלייך בוואטסאפ</p>
               </div>
             )}
 

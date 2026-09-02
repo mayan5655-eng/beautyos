@@ -9512,6 +9512,7 @@ export default function BeautyOS() {
  <p style={{fontSize:11,color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>הדבר הראשון שלקוחה רואה בדף ההזמנות, וגם התמונה שמופיעה כששולחים את הקישור בוואטסאפ. תמונה אחת שלך עושה את רוב ההבדל.</p>
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
+ <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:11,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
  <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
