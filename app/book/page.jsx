@@ -209,6 +209,14 @@ export default function BookPage() {
   const tooSoon = (start) =>
     selectedDateStr !== null && isTooSoonForSelfBooking(selectedDateStr, start);
 
+  // What step 2 actually puts on screen, hoisted so the grid and its empty
+  // state read the same list. Late in the day every remaining slot is inside
+  // the notice window, and a treatment longer than the day leaves slotsBetween
+  // with nothing to return - both render an empty grid that looks identical to
+  // a grid still loading.
+  const visibleSlots = allSlots.filter((m) => !tooSoon(m));
+  const everySlotTaken = visibleSlots.length > 0 && visibleSlots.every(slotTaken);
+
   const handleConfirm = async () => {
     setErrorMsg("");
     if (!name.trim()) { setErrorMsg("נא להזין שם"); return; }
@@ -280,9 +288,12 @@ export default function BookPage() {
   const wa = normalizeWa(phoneRaw);
   // Whether this clinic can actually take a booking right now. Everything that
   // offers one keys off this: with no services there is no bookable thing, and
-  // a page that shows a booking button anyway wastes her client's time and
-  // loses the enquiry silently.
-  const canBook = services.length > 0;
+  // with no open day in the next three weeks there is nowhere to put one. A
+  // page that shows a booking button anyway wastes her client's time and loses
+  // the enquiry silently.
+  const hasServices = services.length > 0;
+  const hasOpenDays = availableDays.length > 0;
+  const canBook = hasServices && hasOpenDays;
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
@@ -315,6 +326,8 @@ export default function BookPage() {
   const muted = "var(--brand-muted, #98879B)";
   const faint = "var(--brand-muted, #98879B)";
   const hair = "rgba(74,46,90,0.14)";
+  // One shape for every "here is why this is empty" line on the page.
+  const noticeBox = { background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${hair}`, borderRadius: 12, padding: "10px 13px", marginBottom: 12, fontSize: 12.5, lineHeight: 1.6, color: ink };
   const cream = "var(--brand-cream, #FEFAF7)";
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 26 };
   const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
@@ -443,9 +456,9 @@ export default function BookPage() {
                   ההזמנות המקוונות ייפתחו כאן בקרוב
                 </p>
                 <p style={{ fontSize: 13.5, color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
-                  {wa
-                    ? "רשימת הטיפולים עדיין בהכנה. אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור."
-                    : "רשימת הטיפולים עדיין בהכנה. אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק."}
+                  {(!hasServices ? "רשימת הטיפולים עדיין בהכנה. " : "אין כרגע ימים פנויים לקביעת תור אונליין. ") +
+                    (wa ? "אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור."
+                        : "אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק.")}
                 </p>
                 {wa && (
                   <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
@@ -643,6 +656,11 @@ export default function BookPage() {
                 </div>
 
                 <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
+                {availableDays.length === 0 ? (
+                  <div style={{ ...noticeBox, marginBottom: 22 }}>
+                    אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.
+                  </div>
+                ) : (
                 <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 22 }}>
                   {availableDays.map((d, i) => {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
@@ -656,6 +674,7 @@ export default function BookPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {selectedDate && (
                   <>
@@ -667,23 +686,20 @@ export default function BookPage() {
                         which is honest. Silently showing everything as free is
                         the thing this must never do again. */}
                     {availabilityError && (
-                      <div style={{
-                        background: "var(--brand-cream, #FEFAF7)",
-                        border: `1px solid ${hair}`,
-                        borderRadius: 12,
-                        padding: "10px 13px",
-                        marginBottom: 12,
-                        fontSize: 12.5,
-                        lineHeight: 1.6,
-                        color: ink,
-                      }}>
+                      <div style={noticeBox}>
                         לא הצלחנו לבדוק כרגע אילו שעות כבר תפוסות. אפשר להמשיך, אבל ייתכן
                         שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
                       </div>
                     )}
                     <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
+                    {visibleSlots.length === 0 && (
+                      <div style={noticeBox}>אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.</div>
+                    )}
+                    {everySlotTaken && (
+                      <div style={noticeBox}>כל השעות ביום זה כבר תפוסות. אפשר לבחור יום אחר למעלה.</div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
-                      {allSlots.filter((m) => !tooSoon(m)).map((h) => {
+                      {visibleSlots.map((h) => {
                         const taken = slotTaken(h);
                         const isSel = selectedStart === h;
                         return (

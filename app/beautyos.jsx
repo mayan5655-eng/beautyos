@@ -1025,7 +1025,6 @@ export default function BeautyOS() {
   // Non-null = send to these lead ids only (the per-lead one-click send).
   // Null = the whole status group, which is the original behavior.
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
-  const [hoveredAppt,       setHoveredAppt]        = useState(null);
   const [loading,           setLoading]            = useState(true);
   // Non-null when a core read in loadAll FAILED. Distinct from "she has no
   // data": empty state is only ever allowed to mean empty. Renders a
@@ -1593,6 +1592,16 @@ export default function BeautyOS() {
       .filter(c => matchesQuery(q, { text: [c.name], phones: [c.phone] }))
       .slice(0, 6);
   }, [apptClientQuery, clients]);
+
+  // A picker with nothing in it is not an empty picker to her - it looks like a
+  // picker that has not loaded. Five modals showed a select holding only its
+  // placeholder, and two of them then demanded a choice from it at save. This
+  // is the one line they all say instead, naming the screen that fixes it.
+  const setupHint = (text) => (
+ <p style={{fontSize:11.5,color:"var(--warning)",fontWeight:600,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"8px 10px"}}>{text}</p>
+  );
+  const NO_SERVICES_HINT = "עוד לא הוספת טיפולים. אפשר להוסיף אותם בהגדרות ← שירותים.";
+  const NO_CLIENTS_HINT = "עוד אין לקוחות במערכת. אפשר להוסיף לקוחה במסך הלקוחות.";
   const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
@@ -2554,7 +2563,6 @@ export default function BeautyOS() {
         if (error) { handleDbError(error, "cancel appointment"); return; }
         const updated = (data && data[0]) || { ...appt, confirmation_status: "cancelled" };
         setAppointments(prev=>prev.map(a=>a.id===appt.id?updated:a));
-        setHoveredAppt(null);
         // Undo restores the previous status in place. No re-insert, so the row
         // keeps its id and every receipt or form pointing at it stays valid -
         // the old undo created a NEW row with a fresh id and silently orphaned
@@ -5900,6 +5908,7 @@ export default function BeautyOS() {
                 {/* service picker */}
  <div style={{marginBottom:10}}>
  <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:4}}>שירות {voiceBooking.service?"":"— בחרי:"}</p>
+                {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {activeServices.map(s=>{
                       const sel=voiceBooking.service===s.name;
@@ -7629,6 +7638,10 @@ export default function BeautyOS() {
  </div>
  <p style={{fontSize:11,color:"var(--ink-2)",marginBottom:groups?14:0}}>קבוצות שכדאי לחפש ולהצטרף אליהן כדי לפרסם בהן</p>
  {groupsError&&<p style={{fontSize:11,color:pc,fontWeight:600,marginTop:10}}>{groupsError}</p>}
+                  {/* An empty array is a successful load that found nothing, and
+                      it used to render exactly like a button that did nothing.
+                      null is "never asked", so the two are distinguishable. */}
+                  {groups&&groups.length===0&&!groupsError&&<p style={{fontSize:11,color:"var(--ink-2)",fontWeight:600,marginTop:10}}>לא נמצאו קבוצות מתאימות כרגע. אפשר לנסות שוב מאוחר יותר.</p>}
  {groups&&groups.length>0&&groups.map((g,i)=>(
  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 0",borderBottom:i<groups.length-1?"1px solid var(--surface-2)":"none"}}>
  <div style={{flex:1,minWidth:0}}>
@@ -8224,7 +8237,7 @@ export default function BeautyOS() {
  <div>
  <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>טיפול</p>
                 {activeServices.length===0?(
- <p style={{fontSize:11.5,color:"var(--warning)",fontWeight:600,background:"rgba(242,184,75,0.12)",borderRadius:10,padding:"8px 10px"}}>עוד לא הוספת טיפולים. אפשר להוסיף אותם בהגדרות ← שירותים.</p>
+                  setupHint(NO_SERVICES_HINT)
                 ):(<>
  <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                   {(apptAllServices?servicesByUse:servicesByUse.slice(0,6)).map(sv=>{
@@ -8557,7 +8570,7 @@ export default function BeautyOS() {
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>פריטים</p>
  <select onChange={e=>{const svc=activeServices.find(s=>s.name===e.target.value);if(svc){setCashierItems(prev=>[...prev,{id:Date.now(),name:svc.name,price:svc.price,qty:1,color:svc.color}]);}e.target.value="";}} style={{border:"1px solid var(--line)",borderRadius:10,padding:"5px 9px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:pc}}><option value="">+ הוסיפי שירות</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price}</option>)}</select>
  </div>
-              {cashierItems.length===0?<p style={{fontSize:12,color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>
+              {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):<p style={{fontSize:12,color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>)
                 :cashierItems.map(item=>(
  <div key={item.id} style={{padding:"8px 9px",background:pcTint,borderRadius:10,marginBottom:4}}>
  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
@@ -8710,6 +8723,8 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"var(--surface)",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",marginBottom:14}}>חבילת טיפולים חדשה</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {clients.length===0&&setupHint(NO_CLIENTS_HINT)}
+                  {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
  <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
  <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
@@ -8892,6 +8907,8 @@ export default function BeautyOS() {
  <div onClick={e=>e.stopPropagation()} className="modal-card" style={{background:"var(--surface)",borderRadius:22,padding:24,width:340,maxWidth:"100%"}}>
  <h3 className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink)",marginBottom:14}}>הוספה לרשימת המתנה</h3>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {clients.length===0&&setupHint(NO_CLIENTS_HINT)}
+                  {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
  <select value={newWaitlist.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewWaitlist({...newWaitlist,client_id:e.target.value,client_name:c?.name||"",phone:c?.phone||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
  <select value={newWaitlist.service} onChange={e=>setNewWaitlist({...newWaitlist,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <input type="date" value={newWaitlist.preferred_date} onChange={e=>setNewWaitlist({...newWaitlist,preferred_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
