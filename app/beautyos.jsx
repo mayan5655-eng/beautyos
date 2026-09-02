@@ -9435,6 +9435,25 @@ export default function BeautyOS() {
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:14}}>
  <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
+                    {/* She has never seen the page she is editing. Every field
+                        below this line is filled in blind: there is no preview
+                        anywhere in the dashboard, and the only way to look at
+                        her own shop window has been to copy the booking link
+                        out of another screen and open it herself.
+
+                        Opens the SAVED page, which is the honest thing for a
+                        link to a live URL to do - and the caption says so,
+                        because a preview that quietly showed unsaved edits
+                        would be a different promise than the one this makes. */}
+                    {settings?.tenant_id&&(
+ <div style={{background:"var(--pc-tint)",borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:6}}>
+ <a href={`${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} target="_blank" rel="noreferrer"
+   style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,textDecoration:"none",background:pcGrad,color:"var(--surface)",borderRadius:12,padding:"10px 16px",fontSize:12.5,fontWeight:700,boxShadow:`0 8px 18px ${pcShadow}`}}>
+                        ✦ צפייה בעמוד שלי
+ </a>
+ <p style={{fontSize:11,color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
+ </div>
+                    )}
  <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
