@@ -58,7 +58,7 @@ export async function POST(request) {
     // Load the appointment scoped to THIS tenant (never cross-tenant).
     const { data: apptRows, error: apptErr } = await supabase
       .from("appointments")
-      .select("id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id")
+      .select("id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id, confirmation_status")
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId)
       .limit(1);
@@ -68,6 +68,18 @@ export async function POST(request) {
     const appt = apptRows && apptRows[0];
     if (!appt) {
       return Response.json({ success: false, error: "התור לא נמצא" }, { status: 404 });
+    }
+
+    // Same rule as the nightly cron, enforced here rather than in the UI that
+    // calls it: a cancelled appointment is not happening, so a reminder for it
+    // is a message no client should receive. The calendar still renders
+    // cancelled rows (with their own colour and a ✕), so the button that
+    // reaches this route is reachable on one.
+    if (appt.confirmation_status === "cancelled") {
+      return Response.json(
+        { success: false, error: "התור בוטל — לא נשלחת תזכורת" },
+        { status: 400 }
+      );
     }
 
     // Resolve the phone: prefer the appointment's own, else the client's row.

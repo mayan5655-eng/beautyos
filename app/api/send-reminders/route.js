@@ -45,10 +45,26 @@ export async function POST(request) {
 
     // Get all of tomorrow's appointments (across all tenants).
     // We include tenant_id so we can label each message with the right business.
+    //
+    // CANCELLED ROWS ARE EXCLUDED, and that filter is the whole point of this
+    // query rather than a detail of it. Cancelling is a soft update - the row
+    // keeps its date and its phone number - so without this the job read a
+    // cancelled appointment as an upcoming one and sent its client a reminder
+    // for a visit she had already called off, with live confirm and cancel
+    // links on the end of it. Every other reader of this table already applies
+    // the same rule: lib/apptTime, /api/availability, the booking guard, the
+    // in-app calendar and the appointments_no_overlap constraint all treat a
+    // cancelled row as a slot that is free and an appointment that is not
+    // happening. This job was the one that did not.
+    //
+    // Filtered in the query rather than in the loop below so a cancelled row
+    // never reaches the send path at all, and so "how many are there" in the
+    // early return below counts real appointments.
     const { data: appointments, error } = await supabase
       .from("appointments")
-      .select("id, name, service, date, hour, start_minute, client_phone, tenant_id")
-      .eq("date", tomorrow);
+      .select("id, name, service, date, hour, start_minute, client_phone, tenant_id, confirmation_status")
+      .eq("date", tomorrow)
+      .neq("confirmation_status", "cancelled");
 
     if (error) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
