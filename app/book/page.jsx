@@ -418,8 +418,26 @@ export default function BookPage() {
       {step === 1 && (
         <div className="bk-stack" style={{ paddingBottom: canBook ? "calc(78px + env(safe-area-inset-bottom, 0px))" : 0 }}>
 
-          {/* COVER */}
-          {brand?.heroImageUrl ? (
+          {/* HERO
+              A beauty business is sold on a face and a room, and the page had
+              nowhere to put either: hero_image_url rendered 220px tall behind a
+              scrim, with a logo medallion punched through it - a photograph
+              treated as texture. A portrait gets the top of the screen and no
+              wash over it.
+
+              min(62vh, 620px): tall enough to be the page rather than a banner,
+              short enough that the name is still on the first screen. The crop
+              sits at 32% from the top because that is where a face is when
+              someone frames themselves; centre gives you a chin.
+
+              hero_image_url still works for anyone who set one, so nothing she
+              uploaded before disappears. */}
+          {brand?.portraitUrl ? (
+            <div style={{ width: "100%", maxWidth: 540, height: "min(62vh, 620px)", overflow: "hidden" }}>
+              <img src={brand.portraitUrl} alt={bizName}
+                style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 32%", display: "block" }} />
+            </div>
+          ) : brand?.heroImageUrl ? (
             <div style={{ position: "relative", width: "100%", maxWidth: 540, height: 220, overflow: "hidden", borderRadius: "0 0 28px 28px" }}>
               <img src={brand.heroImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(251,247,244,0.28) 0%, rgba(251,247,244,0.00) 38%, transparent 68%)" }} />
@@ -427,7 +445,7 @@ export default function BookPage() {
           ) : null}
 
           {/* HEADER (logo overlaps cover) */}
-          <div style={{ ...section, marginTop: brand?.heroImageUrl ? 30 : 44, textAlign: "center" }}>
+          <div style={{ ...section, marginTop: (brand?.portraitUrl || brand?.heroImageUrl) ? 28 : 44, textAlign: "center" }}>
             {brand?.logoUrl && (
               <img src={brand.logoUrl} alt={bizName} style={{ height: 46, maxWidth: 150, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
             )}

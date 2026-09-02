@@ -21,6 +21,7 @@ import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
+import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
@@ -3568,10 +3569,30 @@ export default function BeautyOS() {
     });
   };
 
-  // Upload a public branding asset (logo/hero) to the PUBLIC bucket under the
-  // clinic's OWN tenant folder ("<tenant>/branding/…"), so one clinic can never
-  // write into another's path. Validates type + size; stores the public URL in
-  // editSettings.branding (persisted on Save).
+  // Resize in the browser, then upload. Every branding image used to go into
+  // the bucket exactly as shot: a 4032x3024 phone photo, three megabytes,
+  // served at full size to every visitor of her booking page over their mobile
+  // data as the first thing that has to paint. lib/imageResize has the per-
+  // asset presets and the reasons behind each one - notably that a logo stays
+  // PNG, because flattening a transparent logo onto white JPEG gives her a
+  // white rectangle everywhere the page is not white.
+  //
+  // The 3MB check stays as an INPUT guard. It is about what her phone can
+  // decode without falling over, not about what leaves it, and the resize
+  // cannot run until the file has been read.
+  const uploadOne = async (file, preset, tid, name) => {
+    const blob = await resizeImage(file, preset);
+    const ext = preset.type === "image/png" ? "png" : (/svg/i.test(file.type) ? "svg" : "jpg");
+    const path = `${tid}/branding/${name}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || preset.type });
+    if (error) return { error };
+    return { url: supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "" };
+  };
+
+  // Upload a public branding asset to the PUBLIC bucket under the clinic's OWN
+  // tenant folder ("<tenant>/branding/…"), so one clinic can never write into
+  // another's path. Stores the public URL in editSettings.branding (persisted
+  // on Save).
   const uploadBrandAsset = async (file, key) => {
     if(!file) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
@@ -3580,12 +3601,26 @@ export default function BeautyOS() {
     if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
     setBrandUploading(key);
     try {
-      const ext = ((file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")) || "png";
-      const path = `${tid}/branding/${key}_${Date.now()}.${ext}`;
-      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
-      if(ue){ handleDbError(ue, "upload brand asset"); return; }
-      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
-      setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), [key]: url }}));
+      const preset = key === "logo_url" ? IMAGE_PRESETS.logo
+        : key === "portrait_url" ? IMAGE_PRESETS.portrait
+        : IMAGE_PRESETS.hero;
+      const main = await uploadOne(file, preset, tid, key);
+      if (main.error) { handleDbError(main.error, "upload brand asset"); return; }
+      const patch = { [key]: main.url };
+
+      // THE PORTRAIT IS ALSO THE LINK PREVIEW, so it is stored twice: once as
+      // she sees it on the page, and once cropped to the 1200x630 every
+      // unfurler is built around. Derived at upload rather than on demand
+      // because there is nowhere to derive it later - the page is static and
+      // the preview is fetched by WhatsApp, not by us.
+      if (key === "portrait_url") {
+        const og = await uploadOne(file, IMAGE_PRESETS.portraitOg, tid, "portrait_og");
+        // A failed derivative costs the link preview, not the portrait. Keep
+        // the photo she just uploaded rather than failing the whole action.
+        if (!og.error) patch.portrait_og_url = og.url;
+      }
+
+      setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), ...patch }}));
       toast("התמונה הועלתה — לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
@@ -3601,11 +3636,9 @@ export default function BeautyOS() {
     if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
     setBrandUploading("gallery");
     try {
-      const ext = ((file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")) || "jpg";
-      const path = `${tid}/branding/gallery_${Date.now()}.${ext}`;
-      const { error:ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, file, { contentType:file.type });
-      if(ue){ handleDbError(ue, "upload gallery image"); return; }
-      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
+      const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "gallery");
+      if(up.error){ handleDbError(up.error, "upload gallery image"); return; }
+      const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const gal=Array.isArray(b.gallery)?b.gallery:[]; return {...prev, branding:{...b, gallery:[...gal, url]}}; });
       toast("התמונה נוספה לגלריה — לחצי שמירה");
     } finally { setBrandUploading(""); }
@@ -9474,6 +9507,11 @@ export default function BeautyOS() {
  <p style={{fontSize:11,color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
  </div>
                     )}
+ <div>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>הדבר הראשון שלקוחה רואה בדף ההזמנות, וגם התמונה שמופיעה כששולחים את הקישור בוואטסאפ. תמונה אחת שלך עושה את רוב ההבדל.</p>
+                      {uploader("portrait_url",brand.portrait_url)}
+ </div>
  <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
