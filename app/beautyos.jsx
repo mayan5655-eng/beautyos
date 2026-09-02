@@ -1639,11 +1639,16 @@ export default function BeautyOS() {
   const apptSelectedTaken = !!apptDayHours && apptSlotOptions.length>0 && slotIsTaken(apptEffectiveStart);
   // When the picked day changes and the current hour falls outside that day's
   // range, snap to the first open hour so a stale start can't be saved.
+  // Duration is a dependency for the same reason: lengthening the treatment
+  // shortens the option list from the end, so a start that no longer fits
+  // before closing has to move rather than sit there out of range.
+  // Guarded on length, because a day too short to fit the treatment at all
+  // offers no slots, and snapping to apptSlotOptions[0] there wrote NaN.
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
-    if(!apptSlotOptions.includes(apptRequestedStart)) setNewAppt(prev=>({...prev,startMinute:apptSlotOptions[0],hour:Math.floor(apptSlotOptions[0]/60)}));
+    if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) setNewAppt(prev=>({...prev,startMinute:apptSlotOptions[0],hour:Math.floor(apptSlotOptions[0]/60)}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[showModal,newAppt.date,apptDayHours?.open,apptDayHours?.close]);
+  },[showModal,newAppt.date,newAppt.duration,apptDayHours?.open,apptDayHours?.close]);
 
   // Mount only. loadAll is a plain function, recreated on every render, so
   // listing it here would re-run the whole eleven-table load on every render.
@@ -8205,7 +8210,7 @@ export default function BeautyOS() {
                   it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",direction:"ltr",textAlign:"center"}}>{apptSlotOptions}</select>):(<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":"1px solid var(--line-2)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":"inherit",fontWeight:apptSelectedTaken?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:11,color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
 
               {/* WHAT. Chips, most-used first, instead of a <select> that made
