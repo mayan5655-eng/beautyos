@@ -3815,7 +3815,7 @@ export default function BeautyOS() {
   // whole row: the old per-row save passed `svc` straight to .update(), which
   // meant it also sent id, tenant_id and created_at back to the server on
   // every keystroke-driven save.
-  const SERVICE_FIELDS = ["name", "price", "duration", "color", "active"];
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "color", "active"];
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
     if (!draft) return { changed: 0, errors: [] };
@@ -10341,6 +10341,10 @@ export default function BeautyOS() {
  {svc._new&&<span style={{fontSize:11,fontWeight:700,color:pcDeep,flexShrink:0}}>חדש</span>}
  {!svcActive&&<span style={{fontSize:11,color:"var(--ink-3)",flexShrink:0}}>בארכיון</span>}
  </div>
+ {/* One line under the name: what the client gets. Lands on the booking page
+     under the service name — the biggest conversion gap there was a bare name
+     next to a price. Optional; empty renders nothing. */}
+ <input value={svc.description||""} aria-label="תיאור קצר ללקוחה" placeholder="תיאור קצר שיופיע בעמוד ההזמנות (לא חובה)" onChange={e=>patchDraftService(idx,{description:e.target.value})} maxLength={140} style={{width:"100%",border:"none",background:"transparent",fontSize:11.5,fontFamily:"inherit",outline:"none",color:"var(--ink-2)",marginBottom:7,paddingRight:17}}/>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
  <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>patchDraftService(idx,{price:Number(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>patchDraftService(idx,{duration:Number(e.target.value)})} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:8,padding:"4px 6px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>

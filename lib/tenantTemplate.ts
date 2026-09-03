@@ -92,6 +92,11 @@ import { legacyHoursFromMap } from './businessHours.ts';
 export type ServiceTemplateItem = {
   /** Treatment name, exactly as it will be written to service_prices.name. */
   name: string;
+  /** One line for the booking page, written to service_prices.description.
+   *  What the client gets and why she'd want it — never a price or a claim
+   *  the cosmetician might not stand behind. She can edit or clear it in
+   *  Settings → services. */
+  description: string;
   /** Minutes. Carried through the picker so the menu arrives with real
    *  durations — the hand-add form in Settings collects no duration at all and
    *  silently defaults every treatment to 60. */
@@ -113,51 +118,51 @@ export const SERVICE_TEMPLATE_GROUPS: ServiceTemplateGroup[] = [
     key: 'face',
     label: 'פנים',
     items: [
-      { name: 'ניקוי פנים עמוק', duration: 75, priceMin: 250, priceMax: 350 },
-      { name: 'טיפול פנים קלאסי', duration: 60, priceMin: 220, priceMax: 300 },
-      { name: 'פילינג כימי (AHA/BHA)', duration: 45, priceMin: 300, priceMax: 450 },
-      { name: 'הידרהפיל', duration: 60, priceMin: 400, priceMax: 600 },
-      { name: 'מיקרונידלינג (דרמה-פן)', duration: 60, priceMin: 500, priceMax: 800 },
-      { name: 'טיפול אנטי-אייג׳ינג ומיצוק', duration: 75, priceMin: 400, priceMax: 550 },
-      { name: 'טיפול לעור בעייתי ואקנה', duration: 60, priceMin: 280, priceMax: 380 },
-      { name: 'מסכת אלגינט', duration: 30, priceMin: 150, priceMax: 200 },
-      { name: 'אבחון עור וייעוץ', duration: 30, priceMin: 0, priceMax: 150 },
+      { name: 'ניקוי פנים עמוק', description: 'ניקוי יסודי של הנקבוביות, אדים והוצאת שחורים — העור נושם מחדש', duration: 75, priceMin: 250, priceMax: 350 },
+      { name: 'טיפול פנים קלאסי', description: 'ניקוי, פילינג עדין, מסכה ולחות — תחזוקה חודשית לעור זוהר', duration: 60, priceMin: 220, priceMax: 300 },
+      { name: 'פילינג כימי (AHA/BHA)', description: 'חידוש העור בחומצות מקצועיות — מחליק טקסטורה ומבהיר כתמים', duration: 45, priceMin: 300, priceMax: 450 },
+      { name: 'הידרהפיל', description: 'ניקוי עמוק והזנה במכשיר — זוהר מיידי בלי זמן החלמה', duration: 60, priceMin: 400, priceMax: 600 },
+      { name: 'מיקרונידלינג (דרמה-פן)', description: 'עידוד קולגן לצמצום צלקות, נקבוביות וקמטוטים', duration: 60, priceMin: 500, priceMax: 800 },
+      { name: 'טיפול אנטי-אייג׳ינג ומיצוק', description: 'מיצוק והצערת מראה העור — עובד על קמטים ואלסטיות', duration: 75, priceMin: 400, priceMax: 550 },
+      { name: 'טיפול לעור בעייתי ואקנה', description: 'טיפול ייעודי להרגעת דלקות ואיזון עור שמן', duration: 60, priceMin: 280, priceMax: 380 },
+      { name: 'מסכת אלגינט', description: 'מסכה מרגיעה וממלאת לחות — השלמה מושלמת לכל טיפול', duration: 30, priceMin: 150, priceMax: 200 },
+      { name: 'אבחון עור וייעוץ', description: 'פגישת היכרות: אבחון סוג העור ובניית תוכנית טיפול אישית', duration: 30, priceMin: 0, priceMax: 150 },
     ],
   },
   {
     key: 'brows_lashes',
     label: 'גבות וריסים',
     items: [
-      { name: 'עיצוב גבות', duration: 20, priceMin: 50, priceMax: 80 },
-      { name: 'צביעת גבות', duration: 15, priceMin: 40, priceMax: 60 },
-      { name: 'צביעת ריסים', duration: 20, priceMin: 50, priceMax: 70 },
-      { name: 'למינציה לגבות', duration: 45, priceMin: 180, priceMax: 280 },
-      { name: 'הרמת ריסים', duration: 60, priceMin: 200, priceMax: 300 },
-      { name: 'הארכת ריסים — בנייה מלאה', duration: 120, priceMin: 250, priceMax: 400 },
-      { name: 'מילוי ריסים', duration: 75, priceMin: 150, priceMax: 220 },
+      { name: 'עיצוב גבות', description: 'עיצוב מדויק בהתאמה למבנה הפנים — בפינצטה או שעווה', duration: 20, priceMin: 50, priceMax: 80 },
+      { name: 'צביעת גבות', description: 'צבע מקצועי שממלא ומדגיש — מחזיק כ-3-4 שבועות', duration: 15, priceMin: 40, priceMax: 60 },
+      { name: 'צביעת ריסים', description: 'הכהיית הריסים למראה מודגש בלי מסקרה', duration: 20, priceMin: 50, priceMax: 70 },
+      { name: 'למינציה לגבות', description: 'סידור והגבהה של שיערות הגבה — מראה מלא ומסודר לשבועות', duration: 45, priceMin: 180, priceMax: 280 },
+      { name: 'הרמת ריסים', description: 'סלסול והרמת הריסים הטבעיים — עיניים פתוחות בלי הארכה', duration: 60, priceMin: 200, priceMax: 300 },
+      { name: 'הארכת ריסים — בנייה מלאה', description: 'הארכה ריס-לריס בהתאמה אישית — מראה טבעי או מודגש', duration: 120, priceMin: 250, priceMax: 400 },
+      { name: 'מילוי ריסים', description: 'חידוש ההארכה והשלמת ריסים שנשרו — מומלץ כל 3 שבועות', duration: 75, priceMin: 150, priceMax: 220 },
     ],
   },
   {
     key: 'waxing',
     label: 'הסרת שיער בשעווה',
     items: [
-      { name: 'שעווה — שפם', duration: 10, priceMin: 25, priceMax: 40 },
-      { name: 'שעווה — גבות', duration: 15, priceMin: 40, priceMax: 60 },
-      { name: 'שעווה — בית שחי', duration: 15, priceMin: 40, priceMax: 60 },
-      { name: 'שעווה — חצי רגל', duration: 20, priceMin: 70, priceMax: 100 },
-      { name: 'שעווה — רגליים מלא', duration: 40, priceMin: 120, priceMax: 180 },
-      { name: 'שעווה — ביקיני', duration: 20, priceMin: 70, priceMax: 110 },
-      { name: 'שעווה — ברזילאי', duration: 30, priceMin: 120, priceMax: 180 },
+      { name: 'שעווה — שפם', description: 'הסרה מהירה ועדינה באזור השפה העליונה', duration: 10, priceMin: 25, priceMax: 40 },
+      { name: 'שעווה — גבות', description: 'ניקוי קווי הגבה בשעווה למראה מסודר', duration: 15, priceMin: 40, priceMax: 60 },
+      { name: 'שעווה — בית שחי', description: 'הסרה יסודית בשעווה — חלק לאורך זמן', duration: 15, priceMin: 40, priceMax: 60 },
+      { name: 'שעווה — חצי רגל', description: 'הסרת שיער מהברך ומטה בשעווה חמה', duration: 20, priceMin: 70, priceMax: 100 },
+      { name: 'שעווה — רגליים מלא', description: 'הסרת שיער מלאה לרגליים חלקות לשבועות', duration: 40, priceMin: 120, priceMax: 180 },
+      { name: 'שעווה — ביקיני', description: 'הסרה עדינה בקו הביקיני', duration: 20, priceMin: 70, priceMax: 110 },
+      { name: 'שעווה — ברזילאי', description: 'הסרה מלאה באזור הביקיני — עבודה עדינה ומקצועית', duration: 30, priceMin: 120, priceMax: 180 },
     ],
   },
   {
     key: 'more',
     label: 'נוסף',
     items: [
-      { name: 'הסרת שיער בלייזר — אזור קטן', duration: 20, priceMin: 120, priceMax: 250 },
-      { name: 'הסרת שיער בלייזר — אזור גדול', duration: 45, priceMin: 300, priceMax: 600 },
-      { name: 'איפור ערב', duration: 60, priceMin: 250, priceMax: 400 },
-      { name: 'איפור כלה', duration: 120, priceMin: 800, priceMax: 1500 },
+      { name: 'הסרת שיער בלייזר — אזור קטן', description: 'טיפול לייזר לאזור ממוקד — שפם, סנטר או בית שחי', duration: 20, priceMin: 120, priceMax: 250 },
+      { name: 'הסרת שיער בלייזר — אזור גדול', description: 'טיפול לייזר לרגליים, ידיים או גב — תוצאה לטווח ארוך', duration: 45, priceMin: 300, priceMax: 600 },
+      { name: 'איפור ערב', description: 'איפור מלא לאירוע — מותאם לסגנון ולתאורה', duration: 60, priceMin: 250, priceMax: 400 },
+      { name: 'איפור כלה', description: 'איפור כלה כולל ניסיון מוקדם — מחזיק מהבוקר עד הריקוד האחרון', duration: 120, priceMin: 800, priceMax: 1500 },
     ],
   },
 ];

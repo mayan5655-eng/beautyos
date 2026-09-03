@@ -588,6 +588,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                       style={{ padding: "16px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}`, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
                       <div style={{ minWidth: 0 }}>
                         <p style={{ ...T_BODY, fontWeight: 600, color: ink }}>{s.name}</p>
+                        {s.description && (
+                          <p style={{ ...T_META, color: faint, marginTop: 2, lineHeight: 1.5 }}>{s.description}</p>
+                        )}
                         <p style={{ ...T_META, color: faint, marginTop: 2 }}>{s.duration || 60} דקות</p>
                       </div>
                       <p style={{ ...T_BODY, color: ink, whiteSpace: "nowrap" }}>₪{s.price}</p>

@@ -20,6 +20,9 @@ export type PickedService = {
   name: string;
   price: number;
   duration: number;
+  /** One-liner for the booking page; carried from the template so a new menu
+   *  arrives described without typing. */
+  description?: string;
 };
 
 /** A service_prices row, loosely typed — this project has no generated DB types. */
@@ -99,6 +102,7 @@ export async function insertPickedServices(
       // only if we let it through unchecked.
       price: Number.isFinite(Number(p.price)) ? Number(p.price) : 0,
       duration: Number(p.duration) > 0 ? Number(p.duration) : 60,
+      description: String(p.description || '').trim() || null,
       color: serviceColorAt(colorAt++),
       active: true,
       ...tenantField,

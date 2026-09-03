@@ -84,7 +84,7 @@ export default function ServiceTemplatePicker({
     } else {
       onChange([
         ...value,
-        { name: item.name, price: suggestedPrice(item), duration: item.duration },
+        { name: item.name, price: suggestedPrice(item), duration: item.duration, description: item.description },
       ]);
     }
   };
