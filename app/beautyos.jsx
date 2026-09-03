@@ -1005,7 +1005,11 @@ export default function BeautyOS() {
   const [voiceCall,      setVoiceCall]     = useState(null); // { matches:[], selected: client|null }
   const [voiceReceipt,   setVoiceReceipt]  = useState(null); // { clientName, amount, payment }
   const recognitionRef = useRef(null);
-  const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels
+  const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels | shootlist
+  // The planning agent's output: {week_note, ideas:[...]} from /api/marketing/shooting-list
+  const [shootList,      setShootList]      = useState(null);
+  const [shootLoading,   setShootLoading]   = useState(false);
+  const [shootError,     setShootError]     = useState(null);
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
   // Length and vibe: /api/marketing/reel has always accepted these two and the
@@ -5539,6 +5543,24 @@ export default function BeautyOS() {
     }
   };
 
+  const generateShootingList = async () => {
+    if (shootLoading) return;
+    setShootLoading(true); setShootError(null);
+    try {
+      const res = await fetch("/api/marketing/shooting-list", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success && data.list) {
+        setShootList(data.list);
+      } else {
+        setShootError(data.error || "יצירת הרשימה נכשלה");
+      }
+    } catch (err) {
+      setShootError(err.message);
+    } finally {
+      setShootLoading(false);
+    }
+  };
+
   const generateReel = async () => {
     if (!reelTopic.trim()) { toast("כתבי נושא לרילס", "error"); return; }
     if (reelLoading) return;
@@ -8257,6 +8279,7 @@ export default function BeautyOS() {
  <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="create"?pcGrad:"transparent",color:aiPostsView==="create"?"var(--surface)":"var(--ink-2)"}}>יצירת פוסטים</button>
  <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="saved"?pcGrad:"transparent",color:aiPostsView==="saved"?"var(--surface)":"var(--ink-2)"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
  <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--surface)":"var(--ink-2)"}}>🎬 רילסים</button>
+ <button onClick={()=>setAiPostsView("shootlist")} className="primary-btn" style={{padding:"8px 20px",fontSize:12,borderRadius:11,background:aiPostsView==="shootlist"?pcGrad:"transparent",color:aiPostsView==="shootlist"?"var(--surface)":"var(--ink-2)"}}>📋 מה לצלם השבוע</button>
  </div>
  </div>
 
@@ -8444,6 +8467,35 @@ export default function BeautyOS() {
  </div>
  </div>
  ))}
+ </>)}
+
+ {aiPostsView==="shootlist"&&(<>
+ <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
+ <p style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",marginBottom:4}}>רשימת צילומים לשבוע</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>3-5 רעיונות ספציפיים לפי השירותים שלך, העונה, היומן שלך ומה שכבר פרסמת. כל רעיון — 10 דקות בקליניקה עם הטלפון.</p>
+ <button onClick={generateShootingList} disabled={shootLoading} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"11px 22px",fontSize:12.5,opacity:shootLoading?0.6:1}}>{shootLoading?"מכינה רשימה…":shootList?"רשימה חדשה":"מה לצלם השבוע?"}</button>
+ {shootError&&<p style={{fontSize:12,color:"var(--danger)",marginTop:10}}>{shootError}</p>}
+ </div>
+ {shootList&&(<>
+ {shootList.week_note&&<p style={{fontSize:12.5,color:pcDeep,fontWeight:600,marginBottom:12,padding:"0 4px"}}>✦ {shootList.week_note}</p>}
+ {(shootList.ideas||[]).map((idea,i)=>(
+ <div key={i} className="glass-card" style={{padding:"16px 18px",marginBottom:10}}>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+ <p style={{fontSize:13.5,fontWeight:700,color:"var(--ink)",flex:1,minWidth:0}}>{idea.title}</p>
+ {idea.no_face&&<span style={{fontSize:10.5,fontWeight:700,color:pcDeep,background:"var(--pc-tint)",borderRadius:999,padding:"3px 9px",whiteSpace:"nowrap"}}>בלי להצטלם</span>}
+ </div>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:8}}>{idea.brief}</p>
+ <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",flex:1,minWidth:0}}>
+   {[idea.film_day?`📅 ${idea.film_day}`:null, idea.minutes?`⏱ ${idea.minutes} דק'`:null, idea.service?`✂ ${idea.service}`:null].filter(Boolean).join("  ·  ")}
+ </p>
+ {/* The handoff: this idea IS a reel topic. One tap carries it into the
+     existing generator - the planning agent feeds the content agent. */}
+ <button onClick={()=>{setReelTopic(idea.title+(idea.brief?" — "+idea.brief:""));setAiPostsView("reels");}} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"7px 14px",fontSize:11.5,whiteSpace:"nowrap"}}>🎬 צרי רילס מזה</button>
+ </div>
+ </div>
+ ))}
+ </>)}
  </>)}
 
  {aiPostsView==="reels"&&(<>
