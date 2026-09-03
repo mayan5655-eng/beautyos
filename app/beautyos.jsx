@@ -1855,10 +1855,25 @@ export default function BeautyOS() {
         toast("הדף חובר בהצלחה ✦");
         loadFbConnection();
       } else if (params.get("fb_error")) {
-        toast("החיבור נכשל, נסי שוב", "error");
+        // Show the real reason when the callback sent one (fb_reason carries
+        // the actual error text). A generic "failed, try again" cost three
+        // debugging round-trips on an error the server knew all along.
+        const code = params.get("fb_error");
+        const reason = params.get("fb_reason");
+        const labels = {
+          invalid_state: "פג תוקף החיבור, נסי שוב",
+          not_authenticated: "יש להתחבר קודם למערכת",
+          no_tenant: "לא זוהה עסק לחשבון הזה",
+          no_pages: "לא נמצאו דפי פייסבוק בחשבון",
+          save_failed: "שמירת הדף נכשלה",
+          subscribe_failed: "הדף נשמר אך הרישום להתראות לידים נכשל — נסי להתחבר שוב ולאשר את כל ההרשאות",
+          missing_parameters: "פייסבוק החזיר תשובה חסרה, נסי שוב",
+        };
+        const base = labels[code] || "החיבור נכשל";
+        toast(reason ? `${base}: ${reason}` : `${base} (${code})`, "error");
       }
-      if (params.has("fb_success") || params.has("fb_error") || params.has("pages")) {
-        params.delete("fb_success"); params.delete("fb_error"); params.delete("pages");
+      if (params.has("fb_success") || params.has("fb_error") || params.has("pages") || params.has("fb_reason")) {
+        params.delete("fb_success"); params.delete("fb_error"); params.delete("pages"); params.delete("fb_reason");
         const qs = params.toString();
         window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
       }

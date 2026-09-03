@@ -202,8 +202,15 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error('Facebook OAuth callback error:', error);
+    // Carry the real reason to the toast instead of a generic "failed". The
+    // message is our own or Meta's error text, truncated; it contains no
+    // token or secret (those never appear in thrown messages here), and
+    // hiding it produced exactly the silent-failure loop this flow is
+    // supposed to be rid of.
+    const reason =
+      error instanceof Error ? error.message : String(error);
     return NextResponse.redirect(
-      `${appUrl}/dashboard?fb_error=callback_failed`
+      `${appUrl}/dashboard?fb_error=callback_failed&fb_reason=${encodeURIComponent(reason.slice(0, 300))}`
     );
   }
 }
