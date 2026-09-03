@@ -83,7 +83,10 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
   const [slides, setSlides] = useState([]);      // [{id, img, url, caption}]
   const [title, setTitle] = useState("");
   const [secondsPer, setSecondsPer] = useState(2.5);
-  const [music, setMusic] = useState(null);      // {file, url}
+  const [music, setMusic] = useState(null); // {file, url}
+  // Burned-in subtitles from the script's spoken lines. On by default when a
+  // script is present - subtitles are the specific thing she shouldn't touch.
+  const [subtitlesOn, setSubtitlesOn] = useState(true);
   const [building, setBuilding] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
@@ -140,10 +143,14 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
    */
   const sceneFieldsFor = useCallback(
     (i) => {
-      if (!hasScript) return { caption: "", seconds: null, sceneNumber: null };
+      if (!hasScript) return { caption: "", spoken: "", seconds: null, sceneNumber: null };
       const sc = scenes[Math.min(i, scenes.length - 1)];
       return {
         caption: sc?.on_screen_text || "",
+        // The spoken line drives the burned-in subtitles: unlike the caption
+        // it is what she actually SAYS in the scene, chunked and timed across
+        // the slide's own duration in drawFrame.
+        spoken: sc?.spoken || "",
         seconds: parseSceneSeconds(sc?.seconds),
         sceneNumber: sc?.scene_number || Math.min(i, scenes.length - 1) + 1,
       };
@@ -250,6 +257,38 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         wrapText(ctx, slide.caption, W / 2, H - 350, W - 150, 72);
       }
 
+      // Burned-in subtitle: the scene's SPOKEN line, chunked to subtitle
+      // length and paced evenly across this slide's duration by t - one chunk
+      // on screen at a time, like real captions. A dark pill behind the text
+      // keeps it readable over any photo; sized to the measured line.
+      if (subtitlesOn && slide.spoken) {
+        const chunks = chunkSpoken(slide.spoken);
+        if (chunks.length > 0) {
+          const chunk = chunks[Math.min(Math.floor(t * chunks.length), chunks.length - 1)];
+          ctx.font = "700 54px Arial";
+          ctx.textAlign = "center";
+          ctx.direction = "rtl";
+          const metrics = ctx.measureText(chunk);
+          const padX = 34, padY = 22, lineH = 64;
+          const boxW = Math.min(metrics.width + padX * 2, W - 80);
+          const yBase = H - 210;
+          const bx = (W - boxW) / 2;
+          const by = yBase - lineH + 10;
+          const r = 18;
+          ctx.fillStyle = "rgba(0,0,0,0.62)";
+          ctx.beginPath();
+          ctx.moveTo(bx + r, by);
+          ctx.arcTo(bx + boxW, by, bx + boxW, by + lineH + padY, r);
+          ctx.arcTo(bx + boxW, by + lineH + padY, bx, by + lineH + padY, r);
+          ctx.arcTo(bx, by + lineH + padY, bx, by, r);
+          ctx.arcTo(bx, by, bx + boxW, by, r);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillText(chunk, W / 2, yBase, W - 148);
+        }
+      }
+
       // Business name watermark. Skipped entirely when there is no name, so a
       // tenant who hasn't set one doesn't get a stray blank draw call.
       if (businessName) {
@@ -259,7 +298,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         ctx.fillText(businessName, W / 2, H - 110);
       }
     },
-    [title, businessName]
+    [title, businessName, subtitlesOn]
   );
 
   // ---- Pick a supported video mime type ----
@@ -546,6 +585,16 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
       {/* MUSIC (optional) */}
       <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+        {/* Subtitle toggle - only meaningful with a script, whose spoken
+            lines are what gets burned in. Default on: subtitles are the
+            specific thing she shouldn't have to touch. */}
+        {hasScript && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, cursor: "pointer" }}>
+            <input type="checkbox" checked={subtitlesOn} onChange={(e) => setSubtitlesOn(e.target.checked)} style={{ width: 17, height: 17, accentColor: pcHex }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>כתוביות צרובות מהתסריט</span>
+            <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>(מה שנאמר בכל סצנה, מתוזמן אוטומטית)</span>
+          </label>
+        )}
         <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
         <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 11.5, color: pc, cursor: "pointer", fontWeight: 600 }}>
           {music ? "✓ " + music.file.name : "+ העלאת קובץ מוזיקה (MP3)"}
@@ -686,6 +735,30 @@ function legibleOnDark(color) {
   }
   const hex = (n) => Math.round(n).toString(16).padStart(2, '0');
   return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/**
+ * Split a spoken line into subtitle-sized chunks.
+ *
+ * Break on punctuation first - a comma is where a person breathes, and a
+ * subtitle that breaks where the voice breaks reads as intended. Pieces still
+ * longer than ~5 words are split by word count. Timing is positional: chunk i
+ * of n owns the i-th slice of the slide's duration, which tracks natural
+ * speech closely enough without any transcription.
+ */
+function chunkSpoken(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return [];
+  const pieces = clean.split(/(?<=[,.!?…،])s+|s+[-–—]s+/).filter(Boolean);
+  const chunks = [];
+  for (const piece of pieces) {
+    const words = piece.trim().split(/s+/);
+    for (let i = 0; i < words.length; i += 5) {
+      const chunk = words.slice(i, i + 5).join(" ").replace(/[,.]+$/, "");
+      if (chunk) chunks.push(chunk);
+    }
+  }
+  return chunks;
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
