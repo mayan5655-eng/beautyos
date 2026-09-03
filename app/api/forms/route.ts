@@ -95,8 +95,25 @@ export async function GET(request: Request) {
     const tenantLimited = checkTenantLimit(data.tenant_id, 'form-fetch');
     if (tenantLimited) return tenantLimited;
 
+    // Public branding for the header - the same logo and name her public
+    // booking page shows to strangers, nothing more. Best-effort: a failed
+    // read leaves the form working, just unbranded.
+    let businessName = '';
+    let logoUrl = '';
+    try {
+      const { data: s } = await supabase
+        .from('settings')
+        .select('business_name, branding')
+        .eq('tenant_id', data.tenant_id)
+        .maybeSingle();
+      businessName = s?.business_name || '';
+      logoUrl = (s?.branding as { logo_url?: string } | null)?.logo_url || '';
+    } catch { /* unbranded, not broken */ }
+
     return Response.json({
       success: true,
+      businessName,
+      logoUrl,
       form: {
         id: data.id,
         client_name: data.client_name,

@@ -25,11 +25,16 @@ import { verifyConfirm } from '@/lib/confirmToken';
  *    unauthenticated caller.
  */
 
-const okResponse = (action: string, alreadyDone = false) =>
+// Branding rides only on the SUCCESS path, after the signature check: the
+// same public logo and name her booking page shows, and nothing else - the
+// no-data rule above still holds for everything about the appointment.
+const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string } = {}) =>
   NextResponse.json({
     success: true,
     action,
     alreadyDone,
+    businessName: brand.businessName || '',
+    logoUrl: brand.logoUrl || '',
     message: alreadyDone
       ? action === 'confirm' ? 'התור כבר אושר בעבר' : 'התור כבר בוטל בעבר'
       : action === 'confirm' ? 'התור אושר בהצלחה' : 'התור בוטל בהצלחה',
@@ -63,17 +68,32 @@ export async function POST(request: NextRequest) {
 
     const { data: appt, error: fetchError } = await supabase
       .from('appointments')
-      .select('confirmation_status')
+      .select('confirmation_status, tenant_id')
       .eq('id', appointmentId)
       .single();
 
     if (fetchError || !appt) return reject();
 
+    // Public branding for the page header; best-effort - a failed read
+    // leaves the confirmation working, just unbranded.
+    let brand: { businessName?: string; logoUrl?: string } = {};
+    try {
+      const { data: st } = await supabase
+        .from('settings')
+        .select('business_name, branding')
+        .eq('tenant_id', appt.tenant_id)
+        .maybeSingle();
+      brand = {
+        businessName: st?.business_name || '',
+        logoUrl: (st?.branding as { logo_url?: string } | null)?.logo_url || '',
+      };
+    } catch { /* unbranded, not broken */ }
+
     // Idempotent, and compared against the requested ACTION rather than the
     // status alone - otherwise a confirmed appointment could never be cancelled
     // through its own link.
-    if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true);
-    if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true);
+    if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand);
+    if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand);
 
     const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
     const { error } = await supabase
@@ -86,7 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'לא הצלחנו לעדכן את התור' }, { status: 500 });
     }
 
-    return okResponse(action);
+    return okResponse(action, false, brand);
   } catch (error) {
     console.error('confirm: unexpected error', error);
     return NextResponse.json({ error: 'שגיאה בשרת' }, { status: 500 });

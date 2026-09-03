@@ -25,6 +25,8 @@ function ConfirmContent() {
   const [message, setMessage] = useState(() =>
     !id ? 'הלינק לא תקין - חסר מזהה תור' : ''
   );
+  // Public branding from the API's success path; optional - no logo, no space.
+  const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '' });
 
   // Does not set 'working' itself. On mount that is already the status for a
   // confirm link, and setting state synchronously from an effect is a
@@ -40,6 +42,7 @@ function ConfirmContent() {
         if (data.success) {
           setStatus(data.alreadyDone ? 'already' : 'success');
           setMessage(data.message);
+          setBrandInfo({ businessName: data.businessName || '', logoUrl: data.logoUrl || '' });
         } else {
           setStatus('error');
           setMessage(data.error || 'משהו השתבש');
@@ -126,6 +129,12 @@ function ConfirmContent() {
         textAlign: 'center',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
+        {/* Her logo above the status mark - natural aspect, never cropped. */}
+        {brandInfo.logoUrl ? (
+          <img src={brandInfo.logoUrl} alt={brandInfo.businessName || 'לוגו'} style={{ maxHeight: 52, maxWidth: 170, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 18px' }} />
+        ) : brandInfo.businessName ? (
+          <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>{brandInfo.businessName}</p>
+        ) : null}
         <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center', minHeight: 58 }}>
           {markKind ? mark(markKind, styles.color) : <span style={{ fontSize: '58px', lineHeight: 1 }}>{styles.emoji}</span>}
         </div>

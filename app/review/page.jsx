@@ -136,7 +136,12 @@ export default function ReviewPage() {
   return (
     <div dir="rtl" style={{ ...wrap, justifyContent: "flex-start", paddingTop: "12vh" }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
-        <p style={{ fontSize: 13, color: muted, marginBottom: 6 }}>{info?.businessName}</p>
+        {/* Her logo, natural aspect, never cropped; falls back to the name line. */}
+        {info?.logoUrl ? (
+          <img src={info.logoUrl} alt={info?.businessName || "לוגו"} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", display: "block", marginBottom: 10 }} />
+        ) : (
+          <p style={{ fontSize: 13, color: muted, marginBottom: 6 }}>{info?.businessName}</p>
+        )}
         <h1 style={{ fontSize: 24, fontWeight: 600, color: ink, marginBottom: 8, lineHeight: 1.3 }}>
           {info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}
         </h1>

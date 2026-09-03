@@ -536,8 +536,16 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               own headline twice. The header keeps only what the hero did not
               say. Without a portrait it remains the full introduction. */}
           <div style={{ ...section, marginTop: brand?.portraitUrl ? 20 : brand?.heroImageUrl ? 28 : 44, textAlign: "center" }}>
+            {/* A logo is never cropped: contain inside a capped box, natural
+                aspect - a wide logo takes width, a square one takes height.
+                With a portrait the portrait is the hero and the logo stays
+                supporting (60px). WITHOUT one, the logo IS the hero: up to
+                110px tall and most of the column, centred above the name. */}
             {brand?.logoUrl && (
-              <img src={brand.logoUrl} alt={bizName} style={{ height: 46, maxWidth: 150, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
+              <img src={brand.logoUrl} alt={bizName}
+                style={brand?.portraitUrl || brand?.heroImageUrl
+                  ? { maxHeight: 60, maxWidth: 200, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 16px", display: "block" }
+                  : { maxHeight: 110, maxWidth: "min(72%, 280px)", width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 20px", display: "block" }} />
             )}
             {!brand?.portraitUrl && (
               <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: person || tagline ? 8 : 12 }}>{bizName}</h1>

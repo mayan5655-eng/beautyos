@@ -242,9 +242,12 @@ export default function SkinScanPage() {
 
       {/* HEADER */}
       <div style={{ width: "100%", maxWidth: 500, padding: "40px 22px 8px", textAlign: "center" }}>
+        {/* Was an 84px CIRCLE with objectFit cover - a wide logo got its sides
+            amputated. A soft padded surface at natural aspect instead: contain
+            never crops, wide takes width, square takes height. */}
         {brand?.logoUrl ? (
-          <div style={{ width: 84, height: 84, borderRadius: "50%", background: "var(--brand-surface, #FAF6FC)", boxShadow: "0 12px 30px -14px rgba(70,50,60,0.4)", margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: `1px solid ${ACCENT}33`, outline: "4px solid var(--brand-surface, #FAF6FC)" }}>
-            <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-surface, #FAF6FC)", borderRadius: 18, padding: "10px 16px", boxShadow: "0 12px 30px -14px rgba(70,50,60,0.4)", margin: "0 auto 12px", border: `1px solid ${ACCENT}33`, maxWidth: "80%" }}>
+            <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 64, maxWidth: 190, width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
           </div>
         ) : brand?.businessName ? (
           <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>

@@ -73,13 +73,15 @@ export async function GET(request) {
   // an unauthenticated browser, so the column list is the enforcement.
   const { data: s } = await admin
     .from("settings")
-    .select("business_name, review_url")
+    .select("business_name, review_url, branding")
     .eq("tenant_id", appt.tenant_id)
     .maybeSingle();
 
   return Response.json({
     success: true,
     businessName: s?.business_name || "",
+    // The same public logo the booking page shows; nothing else from branding.
+    logoUrl: (s?.branding && s.branding.logo_url) || "",
     // Offered AFTER she has written something here, and offered to everyone
     // regardless of what she wrote. Showing it only to people who left four or
     // five stars is review gating, which Google's policy prohibits outright.

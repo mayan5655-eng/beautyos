@@ -80,6 +80,8 @@ const FORMS = {
 export default function FormPage() {
   const [formId, setFormId] = useState(null);
   const [formData, setFormData] = useState(null);
+  // Public branding from /api/forms — logo (never cropped) or name; optional.
+  const [brandInfo, setBrandInfo] = useState({ businessName: "", logoUrl: "" });
   const [answers, setAnswers] = useState({});
   const [signed, setSigned] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -126,6 +128,7 @@ export default function FormPage() {
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.success && data.form) {
         setFormData(data.form);
+        setBrandInfo({ businessName: data.businessName || "", logoUrl: data.logoUrl || "" });
       } else if (data && data.notFound) {
         setLoadError("notfound");   // genuinely missing
       } else {
@@ -285,6 +288,16 @@ export default function FormPage() {
   return (
     <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100dvh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
+
+        {/* Brand row: her logo at natural aspect (contain, capped, never
+            cropped), else the business name. No logo and no name → nothing. */}
+        {(brandInfo.logoUrl || brandInfo.businessName) && (
+          <div style={{textAlign:"center",marginBottom:16}}>
+            {brandInfo.logoUrl
+              ? <img src={brandInfo.logoUrl} alt={brandInfo.businessName || "לוגו"} style={{maxHeight:56,maxWidth:180,width:"auto",height:"auto",objectFit:"contain",display:"block",margin:"0 auto"}}/>
+              : <p style={{fontSize:15,fontWeight:700,color:"var(--ink, #2A2233)",margin:0}}>{brandInfo.businessName}</p>}
+          </div>
+        )}
 
         <div style={{background:"var(--ink, #2A2233)",borderRadius:16,padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
           <div style={{fontSize:22,marginBottom:4}}>💎</div>
