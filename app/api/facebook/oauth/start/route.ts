@@ -84,11 +84,42 @@ export async function GET(request: NextRequest) {
     // Requires the same login as the flow itself, so it leaks nothing a
     // connect click would not.
     if (request.nextUrl.searchParams.get('dryrun') === '1') {
+      // Self-test the app credentials against Meta: a client_credentials
+      // exchange succeeds only when FACEBOOK_APP_ID and FACEBOOK_APP_SECRET
+      // belong to the same app. This answers "is the secret in this
+      // deployment right?" without exposing a byte of it.
+      let app_secret_valid: boolean | null = null;
+      let app_secret_error: string | null = null;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      if (!appSecret) {
+        app_secret_error = 'FACEBOOK_APP_SECRET is not set';
+      } else {
+        try {
+          const probe = await fetch(
+            'https://graph.facebook.com/oauth/access_token?' +
+              new URLSearchParams({
+                client_id: appId,
+                client_secret: appSecret,
+                grant_type: 'client_credentials',
+              }).toString()
+          );
+          app_secret_valid = probe.ok;
+          if (!probe.ok) {
+            const body = await probe.text();
+            // Meta's error body carries no secret material.
+            app_secret_error = body.slice(0, 300);
+          }
+        } catch (probeError) {
+          app_secret_error = probeError instanceof Error ? probeError.message : String(probeError);
+        }
+      }
       return NextResponse.json({
         client_id: appId,
         redirect_uri: redirectUri,
         scope: FACEBOOK_SCOPES,
         app_url_from_env: APP_URL_IS_CONFIGURED,
+        app_secret_valid,
+        app_secret_error,
         full_url: fbAuthUrl.toString(),
       });
     }
