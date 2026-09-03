@@ -6505,7 +6505,11 @@ export default function BeautyOS() {
             return(
  <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} onClick={()=>{if(t.type==="error")setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:c.bg,color:c.fg,padding:"10px 18px",borderRadius:24,fontSize:12,fontWeight:600,boxShadow:"var(--shadow-lg)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8,cursor:t.type==="error"?"pointer":"default",userSelect:t.type==="error"?"text":undefined}}>
                 <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(255,255,255,0.22)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0}}>{c.icon}</span>
-                {t.msg}
+                {/* unicodeBidi plaintext: error toasts mix Hebrew with English/
+                    JSON reasons, and under forced RTL the bidi algorithm
+                    scrambles the ordering ("למה העברית הפוך"). Each line
+                    resolves its own direction instead. */}
+                <span style={{unicodeBidi:"plaintext",wordBreak:"break-word"}}>{t.msg}</span>
                 {t.action&&<button onClick={()=>{t.action.onClick();setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:"rgba(255,255,255,0.2)",border:"none",color:c.fg,fontSize:11,fontWeight:700,padding:"4px 11px",borderRadius:16,cursor:"pointer",fontFamily:"inherit",marginRight:2,whiteSpace:"nowrap"}}>{t.action.label}</button>}
  </div>
             );
