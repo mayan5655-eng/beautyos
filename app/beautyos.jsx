@@ -24,6 +24,7 @@ import { isMissingColumnError } from "@/lib/pgError";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { DEFAULT_HOW_I_WORK } from "@/lib/branding";
+import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
@@ -2958,6 +2959,24 @@ export default function BeautyOS() {
     setBusyKey("ownerQuestion", true);
     try {
       let result = null;
+      if (saidYes && q.kind === "comeback") {
+        const quietStart = q.payload?.quiet_start;
+        if (!quietStart) {
+          // No appointment before the break - nobody was lost to it.
+          toast("לא נמצאו לקוחות מתאימות");
+          result = { sent: 0 };
+        } else {
+          const res = await fetch("/api/clients/comeback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ quietStart }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!data.success) { toast(data.error || "השליחה נכשלה", "error"); return; }
+          result = { sent: data.sent || 0 };
+          toast(data.sent > 0 ? `נשלחה הודעת "חזרנו" ל-${data.sent} לקוחות ✦` : "לא נמצאו לקוחות מתאימות");
+        }
+      }
       if (saidYes && q.kind === "gap_fill") {
         const p = q.payload || {};
         const res = await fetch("/api/slots/offer", {
@@ -2986,6 +3005,43 @@ export default function BeautyOS() {
       setBusyKey("ownerQuestion", false);
     }
   };
+
+  // Business quiet mode: manual (automations.quiet) or automatic (a calendar
+  // with history that has gone dark). While quiet, the one-question card stays
+  // silent - automatic quiet deliberately shows NO banner. See lib/quiet.js.
+  const businessQuiet = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return quietStatus({
+      pastDates: (appointments || []).map((a) => a.date).filter((d) => d && d <= todayStr),
+      manualQuiet: settings?.automations?.quiet === true,
+      manualQuietEndedAt: settings?.automations?.quiet_ended_at || null,
+    });
+  }, [appointments, settings?.automations?.quiet, settings?.automations?.quiet_ended_at]);
+
+  // The comeback question: due COMEBACK_WAIT_DAYS after a break ends (day one
+  // back looks like pressure). One question per break - deduped on the break's
+  // end date, across every status, so "לא הפעם" is never re-asked.
+  useEffect(() => {
+    if (!settings?.tenant_id || !businessQuiet.comebackDue || !businessQuiet.quietEnd) return;
+    (async () => {
+      try {
+        const { data: existing } = await supabase
+          .from("owner_questions")
+          .select("id")
+          .eq("kind", "comeback")
+          .eq("payload->>quiet_end", businessQuiet.quietEnd)
+          .limit(1);
+        if (existing && existing.length > 0) return;
+        await supabase.from("owner_questions").insert({
+          tenant_id: settings.tenant_id,
+          kind: "comeback",
+          payload: { quiet_start: businessQuiet.quietStart, quiet_end: businessQuiet.quietEnd },
+        });
+        loadPendingQuestion();
+      } catch { /* next visit tries again */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessQuiet.comebackDue, businessQuiet.quietEnd, settings?.tenant_id]);
 
   // Gap-fill trigger: ask the server to offer this freed slot to matching clients
   // over WhatsApp. All candidate selection + sending happens server-side (see
@@ -3085,6 +3141,7 @@ export default function BeautyOS() {
           // Only future slots are worth offering.
           setTimeout(async () => {
             if (restored) return;
+            if (settings?.automations?.quiet === true) return; // on a break: don't ask
             try {
               const startMs = new Date(`${appt.date}T00:00:00`).getTime() + (startMinute(appt) || 0) * 60000;
               if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) return;
@@ -7139,19 +7196,21 @@ export default function BeautyOS() {
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
-            {pendingQuestion&&pendingQuestion.kind==="gap_fill"&&(()=>{
+            {pendingQuestion&&!businessQuiet.quietNow&&(pendingQuestion.kind==="gap_fill"||pendingQuestion.kind==="comeback")&&(()=>{
               const p=pendingQuestion.payload||{};
               const d=new Date(`${p.date}T00:00:00`);
               const dayName=isNaN(d)?p.date:["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"][d.getDay()];
               const mins=Number(p.startMinute)||0;
               const hhmm=`${String(Math.floor(mins/60)).padStart(2,"0")}:${String(mins%60).padStart(2,"0")}`;
               const answered=(questionStats?.yes||0)+(questionStats?.no||0);
+              const isComeback=pendingQuestion.kind==="comeback";
+              const questionText=isComeback
+                ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
+                : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
  <div className="glass-card" style={{padding:"16px 18px",marginBottom:14,border:`1.5px solid ${pc}`,background:pcTint}}>
  <p style={{fontSize:11.5,fontWeight:700,color:pcDeep,letterSpacing:"0.03em",marginBottom:5}}>✦ שאלה אחת</p>
- <p style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>
-   התפנה תור — יום {dayName} {hhmm}{p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?
- </p>
+ <p style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>{questionText}</p>
  <div style={{display:"flex",gap:8,alignItems:"center"}}>
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"9px 20px",fontSize:12.5,opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
  <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",padding:"9px 16px",fontSize:12.5}}>לא הפעם</button>
@@ -10360,6 +10419,14 @@ export default function BeautyOS() {
 
  <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"var(--line)"}`,borderRadius:12,padding:"2px 12px"}}>
  <AutoToggleRow pc={pc} label="⏸ השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
+ {/* Manual quiet mode. Turning it OFF stamps quiet_ended_at - that stamp is
+     what makes the comeback question wait exactly a week (lib/quiet.js).
+     Automatic quiet (a dark calendar) needs no toggle and shows no banner. */}
+ <AutoToggleRow pc={pc} label="🌙 מצב שקט — הפסקה יזומה" on={autos.quiet===true} onChange={()=>{
+   const on=autos.quiet===true;
+   const stamp=new Date().toISOString();
+   setAutos(on?{...autos,quiet:false,quiet_ended_at:stamp}:{...autos,quiet:true,quiet_started_at:stamp});
+ }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו." />
  </div>
  {masterPaused&&<p style={{fontSize:11.5,color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}>⏸ כל האוטומציות מושהות כרגע.</p>}
 
