@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
-import { APP_URL } from '../../../../../lib/appUrl';
+import { APP_URL, APP_URL_IS_CONFIGURED } from '../../../../../lib/appUrl';
 import crypto from 'crypto';
 
 // The full set the lead pipeline needs:
@@ -63,6 +63,23 @@ export async function GET(request: NextRequest) {
     fbAuthUrl.searchParams.set('state', state);
     fbAuthUrl.searchParams.set('scope', FACEBOOK_SCOPES);
     fbAuthUrl.searchParams.set('response_type', 'code');
+
+    // Diagnostic: ?dryrun=1 returns the URL we would redirect to instead of
+    // redirecting. This is the ONLY way to see what Meta actually receives -
+    // the browser 302s straight to facebook.com and the dialog does not echo
+    // its parameters back - and it settles in one look whether client_id is
+    // the app being configured and whether redirect_uri points at localhost.
+    // Requires the same login as the flow itself, so it leaks nothing a
+    // connect click would not.
+    if (request.nextUrl.searchParams.get('dryrun') === '1') {
+      return NextResponse.json({
+        client_id: appId,
+        redirect_uri: redirectUri,
+        scope: FACEBOOK_SCOPES,
+        app_url_from_env: APP_URL_IS_CONFIGURED,
+        full_url: fbAuthUrl.toString(),
+      });
+    }
 
     const response = NextResponse.redirect(fbAuthUrl.toString());
     response.cookies.set('fb_oauth_state', state, {
