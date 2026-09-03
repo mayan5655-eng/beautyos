@@ -47,6 +47,39 @@ export default function TermsPage() {
           </En>
         </Section>
 
+        <Section heHeading="מידע על לקוחותיך" enHeading="Your Clients' Data">
+          <He>
+            המידע על לקוחותיך — כולל הערות בריאות, אלרגיות ותמונות — מוזן על ידך
+            ובאחריותך. את בעלת המידע; אנו מעבדים אותו עבורך בלבד, בהתאם{" "}
+            <a href="/privacy" style={{ color: "inherit" }}>למדיניות הפרטיות</a>.
+            באחריותך ליידע את לקוחותיך שפרטיהם נשמרים במערכת ולקבל את הסכמתם ככל
+            שנדרש, בפרט למידע בריאותי ולתמונות.
+          </He>
+          <En>
+            Your clients&apos; data — including health notes, allergies and photos —
+            is entered by you and under your responsibility. You own it; we process
+            it solely for you, per the <a href="/privacy" style={{ color: "inherit" }}>Privacy
+            Policy</a>. It is your responsibility to inform your clients that their
+            details are stored in the system and to obtain consent where required,
+            particularly for health information and photos.
+          </En>
+        </Section>
+
+        <Section heHeading="הודעות ולידים" enHeading="Messaging and Leads">
+          <He>
+            המערכת שולחת הודעות WhatsApp בשמך (תזכורות, אישורים, הודעות ללידים).
+            את אחראית לתוכן ההודעות ולעמידה בדיני הספאם והפרטיות, כולל כיבוד בקשות
+            הסרה. חיבור דף פייסבוק וקליטת לידים כפופים גם לתנאי Meta.
+          </He>
+          <En>
+            The system sends WhatsApp messages on your behalf (reminders,
+            confirmations, lead follow-ups). You are responsible for their content
+            and for compliance with spam and privacy laws, including honoring
+            opt-out requests. Connecting a Facebook page and receiving leads is
+            additionally subject to Meta&apos;s terms.
+          </En>
+        </Section>
+
         <Section heHeading="אחריות" enHeading="Liability">
           <He>
             השירות ניתן &quot;כפי שהוא&quot;. איננו אחראים לנזקים עקיפים הנובעים
@@ -68,10 +101,14 @@ export default function TermsPage() {
         </Section>
 
         <Section heHeading="ביטול" enHeading="Termination">
-          <He>ניתן להפסיק את השימוש בכל עת. אנו רשאים להשעות חשבון המפר תנאים אלה.</He>
+          <He>
+            ניתן להפסיק את השימוש בכל עת. אנו רשאים להשעות חשבון המפר תנאים אלה.
+            עם סגירת חשבון, הנתונים נמחקים תוך 30 יום כמפורט במדיניות הפרטיות.
+          </He>
           <En>
             You may stop using the Service at any time. We may suspend an account
-            that violates these terms.
+            that violates these terms. When an account is closed, data is deleted
+            within 30 days as described in the Privacy Policy.
           </En>
         </Section>
 
@@ -82,7 +119,7 @@ export default function TermsPage() {
         </Section>
 
         <footer style={footerStyle}>
-          עודכן לאחרונה: יולי 2026 / Last updated: July 2026
+          עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
         </footer>
       </article>
     </main>

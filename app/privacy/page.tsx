@@ -41,29 +41,73 @@ export default function PrivacyPage() {
 
         <Section heHeading="איזה מידע אנחנו אוספים" enHeading="Information We Collect">
           <He>
-            אנו אוספים מידע שאתה מספק: פרטי התחברות (אימייל), פרטי העסק, פרטי לקוחות
-            שאתה מזין (שם, טלפון), תמונות טיפולים שאתה מעלה, ונתוני פעילות עסקית
-            (תורים, קבלות, הכנסות). כמו כן נאסף מידע טכני בסיסי לתפעול השירות.
+            <strong>ממך, בעלת העסק:</strong> פרטי התחברות (אימייל), פרטי העסק (שם,
+            טלפון, כתובת, מיתוג), ונתוני פעילות עסקית — יומן תורים, קבלות, הכנסות,
+            חבילות טיפולים.
+          </He>
+          <He>
+            <strong>על הלקוחות שלך, כפי שאת מזינה או שהם ממלאים:</strong> שם, טלפון,
+            אימייל, תאריך יום הולדת, סוג עור, אלרגיות, מצב רפואי והצהרות בריאות,
+            הערות טיפול, תמונות טיפולים שאת מעלה, היסטוריית תורים ותשלומים, וחוות
+            דעת שלקוחות כותבים לאחר ביקור.
+          </He>
+          <He>
+            <strong>מפייסבוק:</strong> כאשר את מחברת דף פייסבוק ומריצה קמפיין לידים,
+            אנו מקבלים ממטא את הפרטים שהליד מילא בטופס (שם, טלפון, אימייל ושדות
+            נוספים שהגדרת בטופס), יחד עם מזהי הטופס והמודעה. איננו ניגשים לפרופיל
+            הפייסבוק של הליד מעבר למה שמולא בטופס.
+          </He>
+          <He>
+            כמו כן נאסף מידע טכני בסיסי (לוגים של שרת) הדרוש לתפעול ולאבטחה.
           </He>
           <En>
-            We collect information you provide: login details (email), business
-            details, client details you enter (name, phone), treatment photos you
-            upload, and business activity data (appointments, receipts, revenue). We
-            also collect basic technical information to operate the Service.
+            From you, the business owner: login details (email), business details
+            (name, phone, address, branding), and business activity data —
+            appointments, receipts, revenue, treatment packages. About your clients,
+            as you enter it or as they fill it in: name, phone, email, birthday,
+            skin type, allergies, medical conditions and health declarations,
+            treatment notes, treatment photos you upload, appointment and payment
+            history, and reviews clients write after a visit. From Facebook: when
+            you connect a page and run a lead campaign, we receive from Meta the
+            details the lead filled in the form (name, phone, email and any custom
+            fields), with the form and ad identifiers. We do not access the
+            lead&apos;s Facebook profile beyond the form. We also collect basic
+            technical information (server logs) needed for operations and security.
+          </En>
+        </Section>
+
+        <Section heHeading="הערות בריאות — מידע רגיש" enHeading="Health Notes — Sensitive Data">
+          <He>
+            אלרגיות, מצב רפואי והצהרות בריאות הם מידע רגיש. הם נשמרים אך ורק כדי
+            שתוכלי לתת טיפול בטוח, מוצגים רק לך בתוך כרטיס הלקוחה, ולעולם אינם
+            נשלחים בהודעות, אינם משמשים לשיווק, ואינם משותפים עם אף גורם — למעט
+            ספקי האחסון המאובטחים שמפעילים את המערכת.
+          </He>
+          <En>
+            Allergies, medical conditions and health declarations are sensitive
+            data. They are stored solely so you can treat safely, are shown only to
+            you inside the client&apos;s card, and are never sent in messages, never
+            used for marketing, and never shared with anyone — except the secure
+            hosting providers that run the system.
           </En>
         </Section>
 
         <Section heHeading="איך אנחנו משתמשים במידע" enHeading="How We Use Information">
           <He>
-            אנו משתמשים במידע כדי לספק ולתפעל את השירות, לנהל את היומן והלקוחות שלך,
-            לשלוח הודעות ואישורים בשמך (למשל דרך WhatsApp), ולשפר את השירות. איננו
-            מוכרים את המידע שלך לצדדים שלישיים.
+            אנו משתמשים במידע כדי לספק ולתפעל את השירות: ניהול היומן והלקוחות שלך,
+            שליחת תזכורות ואישורי תור בשמך דרך WhatsApp, קליטת לידים מקמפיינים,
+            והפקת תוכן ותובנות בעזרת בינה מלאכותית (למשל דירוג לידים וניסוח
+            הודעות). מידע שנשלח לעיבוד AI נשלח לספק המודל לצורך המענה בלבד ואינו
+            משמש לאימון מודלים. איננו מוכרים את המידע שלך או של לקוחותיך לאף אחד.
           </He>
           <En>
-            We use the information to provide and operate the Service, manage your
-            calendar and clients, send messages and confirmations on your behalf
-            (e.g. via WhatsApp), and improve the Service. We do not sell your
-            information to third parties.
+            We use the information to provide and operate the Service: managing your
+            calendar and clients, sending reminders and confirmations on your behalf
+            via WhatsApp, receiving leads from campaigns, and generating content and
+            insights with AI (e.g. lead scoring and message drafting). Data sent for
+            AI processing goes to the model provider solely to produce the response
+            and is not used for model training. We do not sell your data or your
+            clients&apos; data to anyone.
           </En>
         </Section>
 
@@ -80,26 +124,74 @@ export default function PrivacyPage() {
           </En>
         </Section>
 
-        <Section heHeading="שיתוף עם צד שלישי" enHeading="Third-Party Sharing">
+        <Section heHeading="מי רואה את המידע" enHeading="Who Sees the Data">
           <He>
-            אנו משתמשים בספקי שירות מהימנים לתפעול (אחסון נתונים, שליחת הודעות). אנו
-            משתפים מידע רק ככל הנדרש לתפעול השירות או על פי דרישת חוק.
+            כל עסק במערכת מבודד: את רואה רק את הלקוחות, התורים והלידים של העסק שלך,
+            והבידוד נאכף ברמת בסיס הנתונים. אנו נעזרים בספקי משנה לתפעול: אחסון
+            ובסיס נתונים (Supabase), אירוח (Vercel), שליחת הודעות WhatsApp
+            (Green API), קבלת לידים (Meta) ועיבוד AI (Anthropic). כל ספק מקבל רק את
+            המידע הדרוש לתפקידו. מעבר לכך נשתף מידע רק על פי דרישת חוק.
           </He>
           <En>
-            We use trusted service providers for operations (data storage,
-            messaging). We share information only as needed to operate the Service or
-            as required by law.
+            Every business in the system is isolated: you see only your own clients,
+            appointments and leads, enforced at the database level. We use
+            sub-processors for operations: storage and database (Supabase), hosting
+            (Vercel), WhatsApp messaging (Green API), lead delivery (Meta) and AI
+            processing (Anthropic). Each provider receives only what its role
+            requires. Beyond that, we share data only when required by law.
+          </En>
+        </Section>
+
+        <Section heHeading="כמה זמן נשמר המידע" enHeading="Data Retention">
+          <He>
+            המידע נשמר כל עוד החשבון שלך פעיל, כדי שההיסטוריה העסקית שלך תישאר
+            זמינה לך. עם סגירת חשבון, המידע נמחק תוך 30 יום, למעט רשומות שאנו
+            מחויבים לשמור על פי דין (למשל תיעוד חשבונאי).
+          </He>
+          <En>
+            Data is kept while your account is active, so your business history
+            remains available to you. When an account is closed, data is deleted
+            within 30 days, except records we are legally required to keep (e.g.
+            accounting records).
+          </En>
+        </Section>
+
+        <Section
+          id="data-deletion"
+          heHeading="מחיקת מידע"
+          enHeading="Data Deletion"
+        >
+          <He>
+            <strong>בעלת עסק</strong> יכולה לבקש מחיקה מלאה של החשבון וכל הנתונים —
+            שלחי בקשה מהאימייל שאיתו נרשמת אל <Email /> עם הנושא &quot;מחיקת
+            חשבון&quot;. המחיקה תבוצע ותאושר בחזרה תוך 30 יום.
+          </He>
+          <He>
+            <strong>לקוחה של עסק</strong> (כולל מי שהשאירה פרטים בטופס לידים
+            בפייסבוק) יכולה לפנות ישירות לעסק שבו טופלה, או אלינו ב-<Email />, ואנו
+            נמחק את פרטיה מהמערכת תוך 30 יום. ציינו את שם העסק ואת מספר הטלפון
+            שאיתו נרשמתם, כדי שנוכל לאתר את הרשומה.
+          </He>
+          <En>
+            A business owner can request full deletion of the account and all its
+            data — email <Email /> from your registration address with the subject
+            &quot;Account deletion&quot;. Deletion is completed and confirmed within
+            30 days. A client of a business (including anyone who submitted a
+            Facebook lead form) can contact the business directly, or us at{" "}
+            <Email />, and we will delete their details within 30 days. Include the
+            business name and the phone number you signed up with so we can locate
+            the record.
           </En>
         </Section>
 
         <Section heHeading="זכויות המשתמש" enHeading="User Rights">
           <He>
-            יש לך זכות לגשת למידע שלך, לתקנו, או לבקש את מחיקתו. לפניות:{" "}
-            <Email />
+            יש לך זכות לגשת למידע שלך, לתקנו, או לבקש את מחיקתו, בהתאם לחוק הגנת
+            הפרטיות. לפניות: <Email />
           </He>
           <En>
-            You have the right to access, correct, or request deletion of your data.
-            Contact: <Email />
+            You have the right to access, correct, or request deletion of your data,
+            in accordance with applicable privacy law. Contact: <Email />
           </En>
         </Section>
 
@@ -110,7 +202,7 @@ export default function PrivacyPage() {
         </Section>
 
         <footer style={footerStyle}>
-          עודכן לאחרונה: יולי 2026 / Last updated: July 2026
+          עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
         </footer>
       </article>
     </main>
@@ -121,14 +213,16 @@ export default function PrivacyPage() {
 function Section({
   heHeading,
   enHeading,
+  id,
   children,
 }: {
   heHeading: string;
   enHeading: string;
+  id?: string;
   children: ReactNode;
 }) {
   return (
-    <section style={sectionStyle}>
+    <section id={id} style={sectionStyle}>
       <h2 style={h2Style}>{heHeading}</h2>
       <p style={enHeadingStyle} dir="ltr">{enHeading}</p>
       {children}
