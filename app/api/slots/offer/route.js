@@ -125,7 +125,14 @@ export async function POST(request) {
       return Response.json({ success: true, skipped: true, reason: "automations_paused", sent: 0 });
     }
 
-    if (!settingsRow || settingsRow.gap_fill_enabled !== true) {
+    // Two ways in: the auto toggle, or an explicit yes. explicitConfirm is the
+    // "one question" card's answer - an authenticated human tapping "כן, שלחי"
+    // IS consent, and requiring the standing toggle on top of it would make
+    // the question pointless. The caller is the session's own tenant (resolved
+    // above, never from the body), and the automations master pause has
+    // already had its say - an explicit yes does not override a paused system.
+    const explicitConfirm = body.explicitConfirm === true;
+    if (!settingsRow || (settingsRow.gap_fill_enabled !== true && !explicitConfirm)) {
       return Response.json({ success: true, skipped: true, reason: "disabled", sent: 0 });
     }
 

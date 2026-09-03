@@ -956,6 +956,11 @@ export default function BeautyOS() {
   // Drives the red badge on the leads screen's inspector button: a lead that
   // arrived and failed should announce itself, not wait to be gone looking for.
   const [fbEventFails,   setFbEventFails]   = useState(0);
+  // "The one question": the newest pending owner_questions row, or null. The
+  // dashboard shows at most one question at a time; stats feed the yes-rate
+  // footer so the pattern is measured from day one.
+  const [pendingQuestion, setPendingQuestion] = useState(null);
+  const [questionStats,   setQuestionStats]   = useState(null); // {yes, no}
   // AI content generator (posts)
   const [postGoal,       setPostGoal]       = useState("");
   // Optional free text sent as CampaignInput.additionalContext.
@@ -1859,6 +1864,7 @@ export default function BeautyOS() {
   // those params so a refresh doesn't re-fire the message.
   useEffect(() => {
     loadFbConnection();
+    loadPendingQuestion();
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get("fb_success") === "true") {
@@ -2909,6 +2915,78 @@ export default function BeautyOS() {
     }
   };
 
+  // "The one question" - load the newest pending question and the running
+  // yes/no counts. Expires questions whose slot is too close for a 4h claim
+  // link to matter (under 2 hours away), so a stale question never shows.
+  const loadPendingQuestion = async () => {
+    try {
+      const { data } = await supabase
+        .from("owner_questions")
+        .select("id, kind, payload, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      const rows = data || [];
+      let show = null;
+      for (const q of rows) {
+        if (q.kind === "gap_fill") {
+          const p = q.payload || {};
+          const startMs = new Date(`${p.date}T00:00:00`).getTime() + (Number(p.startMinute) || 0) * 60000;
+          if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) {
+            supabase.from("owner_questions").update({ status: "expired", answered_at: new Date().toISOString() }).eq("id", q.id).then(() => {});
+            continue;
+          }
+        }
+        show = q; break;
+      }
+      setPendingQuestion(show);
+      const { data: answered } = await supabase
+        .from("owner_questions")
+        .select("status")
+        .in("status", ["yes", "no"]);
+      if (answered) {
+        setQuestionStats({
+          yes: answered.filter((r) => r.status === "yes").length,
+          no: answered.filter((r) => r.status === "no").length,
+        });
+      }
+    } catch { /* card simply doesn't render */ }
+  };
+
+  const answerQuestion = async (q, saidYes) => {
+    if (isBusy("ownerQuestion")) return;
+    setBusyKey("ownerQuestion", true);
+    try {
+      let result = null;
+      if (saidYes && q.kind === "gap_fill") {
+        const p = q.payload || {};
+        const res = await fetch("/api/slots/offer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: p.date, startMinute: p.startMinute, service: p.service,
+            duration: p.duration, cancelledClientId: p.cancelledClientId,
+            explicitConfirm: true,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        result = { sent: data.sent || 0 };
+        if (data.success && data.sent > 0) toast(`נשלחה הצעה ל-${data.sent} לקוחות ✦`);
+        else if (data.success) toast("לא נמצאו לקוחות מתאימות להצעה");
+        else { toast(data.error || "השליחה נכשלה", "error"); return; }
+      }
+      await supabase.from("owner_questions")
+        .update({ status: saidYes ? "yes" : "no", result, answered_at: new Date().toISOString() })
+        .eq("id", q.id);
+      setPendingQuestion(null);
+      setQuestionStats((prev) => prev ? { ...prev, [saidYes ? "yes" : "no"]: prev[saidYes ? "yes" : "no"] + 1 } : prev);
+    } catch (e) {
+      toast("משהו השתבש, נסי שוב", "error");
+    } finally {
+      setBusyKey("ownerQuestion", false);
+    }
+  };
+
   // Gap-fill trigger: ask the server to offer this freed slot to matching clients
   // over WhatsApp. All candidate selection + sending happens server-side (see
   // app/api/slots/offer); the server also re-checks the toggle, so this is a
@@ -3001,6 +3079,26 @@ export default function BeautyOS() {
         // an appointment the cosmetician restored. Gated by the settings toggle.
         if (settings.gap_fill_enabled === true) {
           setTimeout(() => { if (!restored) triggerGapFill(appt); }, 6500);
+        } else {
+          // Auto mode is off: ask instead of acting. The question is written
+          // after the same undo window, so a restored appointment never asks.
+          // Only future slots are worth offering.
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const startMs = new Date(`${appt.date}T00:00:00`).getTime() + (startMinute(appt) || 0) * 60000;
+              if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) return;
+              await supabase.from("owner_questions").insert({
+                tenant_id: settings.tenant_id,
+                kind: "gap_fill",
+                payload: {
+                  date: appt.date, startMinute: startMinute(appt), service: appt.service,
+                  duration: appt.duration, cancelledClientId: appt.client_id,
+                },
+              });
+              loadPendingQuestion();
+            } catch { /* the cancel already succeeded; the question is a bonus */ }
+          }, 6500);
         }
       },
     });
@@ -7038,6 +7136,31 @@ export default function BeautyOS() {
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
+            {/* THE ONE QUESTION - at most one, above everything. Today's only
+                kind: a cancellation opened a slot; offer it over WhatsApp?
+                The footer is the yes-rate, measured from day one. */}
+            {pendingQuestion&&pendingQuestion.kind==="gap_fill"&&(()=>{
+              const p=pendingQuestion.payload||{};
+              const d=new Date(`${p.date}T00:00:00`);
+              const dayName=isNaN(d)?p.date:["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"][d.getDay()];
+              const mins=Number(p.startMinute)||0;
+              const hhmm=`${String(Math.floor(mins/60)).padStart(2,"0")}:${String(mins%60).padStart(2,"0")}`;
+              const answered=(questionStats?.yes||0)+(questionStats?.no||0);
+              return (
+ <div className="glass-card" style={{padding:"16px 18px",marginBottom:14,border:`1.5px solid ${pc}`,background:pcTint}}>
+ <p style={{fontSize:11.5,fontWeight:700,color:pcDeep,letterSpacing:"0.03em",marginBottom:5}}>✦ שאלה אחת</p>
+ <p style={{fontSize:13.5,fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>
+   התפנה תור — יום {dayName} {hhmm}{p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?
+ </p>
+ <div style={{display:"flex",gap:8,alignItems:"center"}}>
+ <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"9px 20px",fontSize:12.5,opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
+ <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",padding:"9px 16px",fontSize:12.5}}>לא הפעם</button>
+ <div style={{flex:1}}/>
+ {answered>0&&<p style={{fontSize:10.5,color:"var(--ink-3)"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
+ </div>
+ </div>
+              );
+            })()}
             {clients.length===0&&appointments.length===0&&leads.length===0&&(
               <EmptyState icon="home" accent={pc} accentTint={pcTint}
                 title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
