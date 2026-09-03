@@ -197,6 +197,34 @@ export async function POST(request) {
       return Response.json({ success: true, sent: 0, reason: "no_candidates" });
     }
 
+    // Dry run: show exactly what a yes would do - the slot, the recipients in
+    // priority order, and the message text - without inserting an offer row or
+    // sending a single WhatsApp. Session-authenticated like everything above;
+    // phones are masked because the preview travels back to a browser and the
+    // point is WHO, not their numbers.
+    if (body.dryRun === true) {
+      const hhPreview = fmtTime(slotStartMinute);
+      const [, mmP, ddP] = slotDate.split("-");
+      const nicePreview = ddP && mmP ? `${ddP}/${mmP}` : slotDate;
+      const sampleName = candidates[0]?.name || "";
+      return Response.json({
+        success: true,
+        dryRun: true,
+        slot: { date: slotDate, time: hhPreview, service: service || null, duration },
+        candidates: candidates.map((c) => ({
+          name: c.name || "(ללא שם)",
+          phone: c.phone ? c.phone.slice(0, 3) + "****" + c.phone.slice(-3) : "",
+        })),
+        message:
+          `שלום${sampleName ? ` ${sampleName}` : ""}! ✦
+` +
+          `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${nicePreview} בשעה ${hhPreview}.
+` +
+          `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:
+<קישור אישי לכל לקוחה>`,
+      });
+    }
+
     // 5 + 6. One offer row per candidate (DB generates the unique token), then a
     //        WhatsApp with that candidate's claim link.
     const origin =
