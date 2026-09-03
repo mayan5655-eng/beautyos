@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:template": "node scripts/check-template-clean.mjs",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "migrations:status": "node --env-file=.env.local scripts/migration-status.mjs"
   },
   "//check:template": [
     "Runs BEFORE next build, on the same command Vercel runs, so it gates the",

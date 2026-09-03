@@ -1,5 +1,14 @@
 # Migration status — read this before running anything here
 
+> **This table is now a note, not the source of truth.** Run
+> `npm run migrations:status` — it parses every migration for the objects it
+> creates and checks them against the live schema, so the answer comes from
+> the database rather than from whoever last edited a comment.
+>
+> Twice in one week a header here was wrong, both times claiming NOT APPLIED
+> while the object was live in production. Neither was caught by reading.
+> Where the script and a header disagree, the script is right.
+
 **The folder name lies, and that is why this file exists.** "pending" was true
 when the directory was created. Several of these have since been applied, one is
 deliberately parked, and two are rollback artefacts that must never be run as
