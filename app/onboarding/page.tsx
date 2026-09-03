@@ -75,18 +75,27 @@ export default function OnboardingPage() {
           return;
         }
 
-        // Look up tenant_id for this user
-        const { data: members, error: memberErr } = await supabase
-          .from("tenant_members")
-          .select("tenant_id")
-          .eq("user_id", user.id)
-          .single();
-        if (memberErr || !members) {
+        // Resolve the tenant with the SAME function the RLS policies use,
+        // like beautyos.jsx does. Reading tenant_members directly from the
+        // client is itself gated by RLS and can return empty instead of
+        // erroring - a query that cannot succeed pretending it succeeded
+        // with no rows. An error and a null result are kept distinct: an
+        // error means we do not know, null means "this user has no tenant".
+        const { data: rpcTenant, error: memberErr } = await supabase.rpc(
+          "get_user_tenant_id"
+        );
+        if (memberErr) {
+          console.error("[onboarding] get_user_tenant_id failed", memberErr);
+          setError(`שגיאה בזיהוי העסק: ${memberErr.message}`);
+          setLoading(false);
+          return;
+        }
+        if (!rpcTenant) {
           setError("לא נמצא חיבור לעסק. נסי לצאת ולהיכנס שוב.");
           setLoading(false);
           return;
         }
-        setTenantId(members.tenant_id);
+        setTenantId(rpcTenant);
 
         // If settings already exist → onboarding already complete
         const { data: existing } = await supabase
