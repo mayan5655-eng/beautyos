@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { FacebookClient } from '../../../../../lib/facebook/client';
 import { encryptToken } from '../../../../../lib/facebook/encryption';
 import { APP_URL } from '../../../../../lib/appUrl';
@@ -35,14 +36,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const cookieState = request.cookies.get('fb_oauth_state')?.value;
-
-    if (!cookieState || cookieState !== state) {
-      return NextResponse.redirect(
-        `${appUrl}/dashboard?fb_error=invalid_state`
-      );
-    }
-
     const supabase = await createClient();
     const {
       data: { user },
@@ -52,6 +45,45 @@ export async function GET(request: NextRequest) {
     if (authError || !user) {
       return NextResponse.redirect(
         `${appUrl}/login?fb_error=not_authenticated`
+      );
+    }
+
+    // State verification, two layers. The cookie is the fast path; the
+    // facebook_oauth_states row written by /oauth/start is the fallback for
+    // round-trips where a sameSite=lax cookie does not survive (popups,
+    // browser-context switches). The row must belong to THIS user and be
+    // fresh; it is consumed (deleted) whichever path validated, so a state
+    // can never be replayed.
+    const cookieState = request.cookies.get('fb_oauth_state')?.value;
+    const svc = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    let stateValid = !!cookieState && cookieState === state;
+    if (!stateValid) {
+      const { data: stateRow, error: stateReadError } = await svc
+        .from('facebook_oauth_states')
+        .select('user_id, created_at')
+        .eq('state', state)
+        .maybeSingle();
+      if (stateReadError) {
+        console.error('[fb-oauth] state row read FAILED:', stateReadError.message);
+      }
+      stateValid =
+        !!stateRow &&
+        stateRow.user_id === user.id &&
+        Date.now() - new Date(stateRow.created_at).getTime() < 10 * 60 * 1000;
+    }
+
+    // Consume the row regardless of which layer validated (or neither).
+    await svc.from('facebook_oauth_states').delete().eq('state', state);
+
+    if (!stateValid) {
+      console.error('[fb-oauth] state invalid: no matching cookie and no fresh row for this user');
+      return NextResponse.redirect(
+        `${appUrl}/dashboard?fb_error=invalid_state`
       );
     }
 

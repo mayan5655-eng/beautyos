@@ -3,8 +3,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { APP_URL, APP_URL_IS_CONFIGURED } from '../../../../../lib/appUrl';
 import crypto from 'crypto';
+
+// Service-role client for the state row. facebook_oauth_states has RLS with no
+// policies (REVOKE ALL), which is correct: only these two OAuth routes may
+// touch it, and they authenticate the user themselves before doing so.
+function admin() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
 
 // The full set the lead pipeline needs:
 //   pages_show_list        - enumerate the user's pages (getUserPages)
@@ -79,6 +91,25 @@ export async function GET(request: NextRequest) {
         app_url_from_env: APP_URL_IS_CONFIGURED,
         full_url: fbAuthUrl.toString(),
       });
+    }
+
+    // Persist the state server-side BEFORE redirecting to Meta, and fail
+    // loudly if that write fails - never send the user to the consent dialog
+    // with nothing for the callback to verify against. The cookie set below
+    // remains as the fast path, but a sameSite=lax cookie can be lost across
+    // popup/browser-context round-trips; the row is the fallback that survives
+    // that. Check error, not data: an insert returning no error IS the success.
+    // (After the dryrun return above, so diagnostics do not litter state rows.)
+    const { error: stateError } = await admin()
+      .from('facebook_oauth_states')
+      .insert({ state, user_id: user.id });
+
+    if (stateError) {
+      console.error('[fb-oauth] state insert FAILED - refusing to redirect to Meta:', stateError.code || '', stateError.message);
+      return NextResponse.json(
+        { error: 'Failed to persist OAuth state', detail: stateError.message },
+        { status: 500 }
+      );
     }
 
     const response = NextResponse.redirect(fbAuthUrl.toString());
