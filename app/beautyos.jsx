@@ -1770,9 +1770,6 @@ export default function BeautyOS() {
   // failure here must not be able to blank the dashboard.
   useEffect(()=>{ refreshWaStatus(); },[refreshWaStatus]);
 
-  // Lazily, and only where it is shown.
-  useEffect(()=>{ if(activeTab==="packages") loadOfferings(); },[activeTab, loadOfferings]);
-  useEffect(()=>{ if(showSettings) loadClientReviews(); },[showSettings, loadClientReviews]);
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
   // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
@@ -4983,6 +4980,23 @@ export default function BeautyOS() {
     setClientReviewsError(false);
     setClientReviews(data || []);
   }, []);
+
+  // Lazily, and only where each is shown.
+  //
+  // THESE MUST SIT BELOW THE useCallbacks THEY NAME. They were 3,000 lines
+  // above them, and a dependency array is evaluated DURING RENDER, in source
+  // order - so [activeTab, loadOfferings] read a const that had not been
+  // initialised yet and threw "Cannot access 'loadOfferings' before
+  // initialization" on every single render of this component, server and
+  // client. The dashboard did not degrade; it did not render at all.
+  //
+  // It shipped in the catalogue-UI commit and again with the reviews
+  // moderation row, and survived ten commits of "build passed" - because the
+  // build died two steps earlier on a missing environment variable and never
+  // reached the render. The first check that got far enough found it
+  // immediately, which is the argument for the check.
+  useEffect(()=>{ if(activeTab==="packages") loadOfferings(); },[activeTab, loadOfferings]);
+  useEffect(()=>{ if(showSettings) loadClientReviews(); },[showSettings, loadClientReviews]);
 
   // HIDE, AND NOTHING ELSE. There is no edit here and there cannot be one: the
   // database refuses any change to the words, so a text field would be a box

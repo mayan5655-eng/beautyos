@@ -42,6 +42,17 @@ jobs:
       - name: Tests
         run: npm test
 
+      # The check that found the render-time crash. Placeholder credentials are
+      # deliberately unusable: they let modules construct so the pages can be
+      # rendered, and any real call made with them fails rather than reaching a
+      # live database from CI.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-key
+
 # ── Deliberately NOT here, and why ─────────────────────────────────────────
 #
 # `npm run lint` — eslint currently reports 33 errors, all pre-existing
@@ -50,9 +61,7 @@ jobs:
 # to ignore, which is worse than no pipeline. Turn it on in the same change that
 # clears them, not before.
 #
-# `npm run build` — it needs Supabase environment variables to get past page
-# data collection, and with placeholder values it then fails during static
-# export of `/` with "Cannot access 'lG' before initialization". That is very
-# likely a real initialisation-order bug in app/beautyos.jsx that the build has
-# never reached before, since it used to die two steps earlier. It deserves its
-# own investigation rather than being wired in red on day one.
+# `npm run lint` is the only thing still ungated. The build IS gated now: the
+# initialisation-order bug it found on its first successful run has been fixed,
+# and placeholder credentials are enough to get through both page data
+# collection and static export.
