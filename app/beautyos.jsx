@@ -4926,14 +4926,65 @@ export default function BeautyOS() {
     }
   };
 
-  const handleUsePackageSession = async (pkg) => {
+  // Drawing a session is an ENTRY IN A LEDGER, not an increment.
+  //
+  // This used to read used_sessions, add one, and write it back. A number with
+  // no history behind it: tap twice and there was no record that it happened,
+  // no way to know which visit either tap was for, and no way back except
+  // editing the number - which is not a correction, it is a second
+  // unverifiable claim. Six months later, when a client says she has two left,
+  // nothing in the system could settle it.
+  //
+  // packages.used_sessions is now derived. A trigger recomputes it from the
+  // entries and another refuses any direct write, so this could not go back to
+  // incrementing even if something tried - which is the point. A guarantee
+  // that depends on every future caller remembering is not a guarantee.
+  //
+  // The package row is re-read rather than patched from a response, because
+  // the number we want was written by a trigger and is not in the insert's
+  // result.
+  const writePackageEntry = async (pkg, delta, { appointmentId = null, reason = "" } = {}) => {
+    const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+    const tid = rpcTenant || settings?.tenant_id || pkg.tenant_id || null;
+    const { error } = await supabase.from("package_entries").insert([{
+      package_id: pkg.id,
+      appointment_id: appointmentId,
+      delta,
+      reason,
+      ...(tid ? { tenant_id: tid } : {}),
+    }]);
+    if (error) {
+      // 23505 is package_entries_one_draw_per_appt: this visit has already
+      // drawn from this package. Two taps on the same appointment is the
+      // mistake this feature is most likely to make, and the database
+      // refusing it beats a reversal she has to notice she needs.
+      if (error.code === "23505") { toast("כבר נוכה טיפול מהחבילה עבור התור הזה", "error"); return null; }
+      handleDbError(error, delta < 0 ? "draw package session" : "reverse package session");
+      return null;
+    }
+    const { data: fresh } = await supabase.from("packages").select("*").eq("id", pkg.id).maybeSingle();
+    if (fresh) setPackages(prev => prev.map(x => x.id === pkg.id ? fresh : x));
+    return fresh || null;
+  };
+
+  const handleUsePackageSession = async (pkg, opts) => {
     if (guardWrite()) return;
-    const used=Number(pkg.used_sessions)+1;
-    const active=used<Number(pkg.total_sessions);
-    const {data,error}=await supabase.from("packages").update({used_sessions:used,active}).eq("id",pkg.id).select();
-    if(error){handleDbError(error, "use package session"); return;}
-    if(data&&data[0]){setPackages(prev=>prev.map(p=>p.id===pkg.id?data[0]:p)); toast(active?`טיפול ${used}/${pkg.total_sessions}`:"החבילה הסתיימה");}
-    else { toast("העדכון לא נשמר — רענני ונסי שוב", "error"); }
+    if (Number(pkg.used_sessions) >= Number(pkg.total_sessions)) { toast("החבילה כבר נוצלה במלואה", "error"); return; }
+    const fresh = await writePackageEntry(pkg, -1, opts);
+    if (!fresh) return;
+    const used = Number(fresh.used_sessions);
+    toast(used < Number(fresh.total_sessions) ? `טיפול ${used}/${fresh.total_sessions}` : "החבילה הסתיימה");
+  };
+
+  // The reversal. Not a delete: the mistaken draw stays in the ledger and the
+  // correction sits beside it, so the history explains itself instead of
+  // quietly no longer containing the error.
+  const handleUndoPackageSession = async (pkg) => {
+    if (guardWrite()) return;
+    if (Number(pkg.used_sessions) <= 0) { toast("אין טיפול לבטל", "error"); return; }
+    const fresh = await writePackageEntry(pkg, 1, { reason: "ביטול ניכוי" });
+    if (!fresh) return;
+    toast(`הניכוי בוטל — ${fresh.used_sessions}/${fresh.total_sessions}`);
   };
 
   const handleSaveWaitlist = async () => {
@@ -8568,6 +8619,11 @@ export default function BeautyOS() {
  <p style={{fontSize:12,fontWeight:700,color:"var(--ink)"}}>{pkg.client_name}</p>
  <p style={{fontSize:12,color:"var(--ink-3)"}}>{pkg.service} · ₪{pkg.price}</p>
  </div>
+                        {Number(pkg.used_sessions)>0&&(
+ <button onClick={()=>handleUndoPackageSession(pkg)} title="ביטול הניכוי האחרון" style={{background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:20,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginLeft:6}}>
+                            ↩ ביטול
+ </button>
+                        )}
  <button onClick={()=>handleUsePackageSession(pkg)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:20,padding:"6px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
                         ✓ השתמשי
  </button>
