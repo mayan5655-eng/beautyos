@@ -14,7 +14,19 @@
 -- feature this file exists to allow, failing closed and looking like a bug in
 -- the form. pg_get_constraintdef returned it intact:
 --
---     slug ~ '^[a-z0-9א-ת]+(-[a-z0-9א-ת]+)*
+--     slug ~ '^[a-z0-9א-ת]+(-[a-z0-9א-ת]+)*$'
+--
+-- tenants_slug_not_reserved landed too, and was subsequently REPLACED by
+-- add_reviews.sql, which recreates it with 'review' and 'reviews' added. Reading the
+-- live constraint will show that longer list, not the one below; the list
+-- here is correct for a fresh database, where add_reviews.sql replaces it in
+-- turn.
+--
+-- NOT verified behaviourally: (b), (c) and (d) below were not run, so nothing
+-- has yet confirmed that a case-variant is refused with 23505 or that a bad
+-- shape is refused with 23514. The constraints exist; what they do when
+-- provoked is still on this file's word. Worth ten minutes before the first
+-- cosmetician claims a URL.
 --
 -- Safe to run more than once.
 --
