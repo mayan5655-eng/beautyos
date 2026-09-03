@@ -29,10 +29,12 @@
 create table if not exists public.facebook_oauth_states (
   state      text primary key,
   user_id    uuid not null,
+  tenant_id  uuid not null,
   created_at timestamptz not null default now()
 );
 
 alter table public.facebook_oauth_states add column if not exists user_id uuid;
+alter table public.facebook_oauth_states add column if not exists tenant_id uuid;
 alter table public.facebook_oauth_states add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists facebook_oauth_states_state_key

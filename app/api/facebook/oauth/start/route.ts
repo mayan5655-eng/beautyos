@@ -93,6 +93,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Resolve the tenant the same way every other route does - the
+    // get_user_tenant_id() RPC on the session client - and fail loudly if it
+    // comes back null: a user with no tenant has nothing to connect a page TO,
+    // and must not be sent to Meta's consent dialog at all.
+    const { data: tenantId, error: tenantError } = await supabase.rpc(
+      'get_user_tenant_id'
+    );
+    if (tenantError || !tenantId) {
+      console.error('[fb-oauth] tenant resolution FAILED - refusing to redirect to Meta:', tenantError?.message || 'null tenant');
+      return NextResponse.json(
+        { error: 'Could not resolve your business account', detail: tenantError?.message || 'no tenant for this user' },
+        { status: 500 }
+      );
+    }
+
     // Persist the state server-side BEFORE redirecting to Meta, and fail
     // loudly if that write fails - never send the user to the consent dialog
     // with nothing for the callback to verify against. The cookie set below
@@ -102,7 +117,7 @@ export async function GET(request: NextRequest) {
     // (After the dryrun return above, so diagnostics do not litter state rows.)
     const { error: stateError } = await admin()
       .from('facebook_oauth_states')
-      .insert({ state, user_id: user.id });
+      .insert({ state, user_id: user.id, tenant_id: tenantId });
 
     if (stateError) {
       console.error('[fb-oauth] state insert FAILED - refusing to redirect to Meta:', stateError.code || '', stateError.message);
