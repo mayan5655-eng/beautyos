@@ -23,6 +23,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { APP_URL } from "@/lib/appUrl";
+import { reviewLink } from "@/lib/reviewToken";
 import { runSmartReminders, DEFAULT_CAPS, DEFAULT_CONCURRENCY } from "../../../lib/reminders/smartReminders";
 
 // Vercel's default function timeout is short (10-15s depending on plan) and was
@@ -51,6 +53,10 @@ export async function POST(request) {
       dryRun,
       caps: DEFAULT_CAPS,
       concurrency: DEFAULT_CONCURRENCY,
+      // The engine has no imports on purpose - it is built to run against a
+      // synthetic dataset - so the signed link is built HERE, where the secret
+      // and the base URL already live, and passed in.
+      reviewLinkFor: (appointmentId) => reviewLink(APP_URL, appointmentId),
     });
 
     console.log(
