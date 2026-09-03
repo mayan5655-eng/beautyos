@@ -458,8 +458,14 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
 
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 34 };
   const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
+  // The section beat: every section opens the same way - a short accent dash,
+  // then the serif title, then 14px of air. One rhythm down the whole page, so
+  // the sections read as movements of one piece rather than widgets stacked.
   const eyebrow = (text) => (
-    <p className="serif" style={{ fontSize: 19, fontWeight: 600, color: ink, marginBottom: 14, lineHeight: 1.3 }}>{text}</p>
+    <div style={{ marginBottom: 14 }}>
+      <span aria-hidden="true" style={{ display: "block", width: 22, height: 2, borderRadius: 2, background: pc, marginBottom: 10 }} />
+      <p className="serif" style={{ fontSize: 19, fontWeight: 600, color: ink, lineHeight: 1.3 }}>{text}</p>
+    </div>
   );
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
 
@@ -502,9 +508,20 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               hero_image_url still works for anyone who set one, so nothing she
               uploaded before disappears. */}
           {brand?.portraitUrl ? (
-            <div style={{ width: "100%", maxWidth: 540, height: "min(62vh, 620px)", overflow: "hidden" }}>
+            /* The two-line lockup lives ON the portrait: the name and the
+               person are on the same screen as the face, not a scroll below
+               it. The scrim rises from the page's own cream so the text sits
+               on the photograph without the photograph going grey. */
+            <div style={{ position: "relative", width: "100%", maxWidth: 540, height: "min(62vh, 620px)", overflow: "hidden" }}>
               <img src={brand.portraitUrl} alt={bizName}
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 32%", display: "block" }} />
+              <div aria-hidden="true" style={{ position: "absolute", insetInline: 0, bottom: 0, height: "46%", background: "linear-gradient(to top, var(--brand-cream, #FEFAF7) 8%, rgba(254,250,247,0.72) 42%, transparent 100%)" }} />
+              <div style={{ position: "absolute", insetInline: 0, bottom: 14, textAlign: "center", padding: "0 20px" }}>
+                <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: 4 }}>{bizName}</h1>
+                {(person || tagline) && (
+                  <p style={{ ...T_BODY, fontWeight: person ? 600 : 400, color: person ? ink : muted, margin: 0 }}>{person || tagline}</p>
+                )}
+              </div>
             </div>
           ) : brand?.heroImageUrl ? (
             <div style={{ position: "relative", width: "100%", maxWidth: 540, height: 220, overflow: "hidden", borderRadius: "0 0 28px 28px" }}>
@@ -514,17 +531,23 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           ) : null}
 
           {/* HEADER (logo overlaps cover) */}
-          <div style={{ ...section, marginTop: (brand?.portraitUrl || brand?.heroImageUrl) ? 28 : 44, textAlign: "center" }}>
+          {/* With a portrait, the lockup already carried the name (and the
+              person, when set) - repeating them here would read the page its
+              own headline twice. The header keeps only what the hero did not
+              say. Without a portrait it remains the full introduction. */}
+          <div style={{ ...section, marginTop: brand?.portraitUrl ? 20 : brand?.heroImageUrl ? 28 : 44, textAlign: "center" }}>
             {brand?.logoUrl && (
               <img src={brand.logoUrl} alt={bizName} style={{ height: 46, maxWidth: 150, objectFit: "contain", margin: "0 auto 16px", display: "block" }} />
             )}
-            <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: person || tagline ? 8 : 12 }}>{bizName}</h1>
-            {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, marginBottom: 8 }}>{person}</p>}
+            {!brand?.portraitUrl && (
+              <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: person || tagline ? 8 : 12 }}>{bizName}</h1>
+            )}
+            {!brand?.portraitUrl && person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, marginBottom: 8 }}>{person}</p>}
             {/* Three levels, in the order a stranger needs them: who this is,
                 what they say about themselves, then the longer sentence. The
                 tagline takes the accent colour so it reads as hers and not as a
                 subtitle the page generated. */}
-            {tagline && <p style={{ ...T_BODY, color: muted, marginBottom: 10, maxWidth: 400, marginInline: "auto" }}>{tagline}</p>}
+            {tagline && (!brand?.portraitUrl || person) && <p style={{ ...T_BODY, color: muted, marginBottom: 10, maxWidth: 400, marginInline: "auto" }}>{tagline}</p>}
             {brand?.welcomeMessage && <p style={{ ...T_BODY, color: muted, marginBottom: 14, maxWidth: 400, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
             <p style={{ ...T_META, color: faint }}>
               {todayHours ? `היום ${String(todayHours.open).padStart(2, "0")}:00–${String(todayHours.close).padStart(2, "0")}:00` : "סגור היום"}
