@@ -1211,6 +1211,14 @@ export default function BeautyOS() {
   const [paymentMethod,   setPaymentMethod]   = useState("מזומן");
   const [cashierNote,     setCashierNote]     = useState("");
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
+  // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
+  // packages tab rather than in loadAll: every read there is a CORE read, and a
+  // core read that fails blanks the whole dashboard - so a table that does not
+  // exist until a hand-run migration lands has no business in that list.
+  const [offerings,        setOfferings]        = useState([]);
+  const [offeringsError,   setOfferingsError]   = useState(false);
+  const [newOffering,      setNewOffering]      = useState({service:"",sessions:5,price:0});
+  const [showOfferingForm, setShowOfferingForm] = useState(false);
   // Change-password form (Settings → כללי). Independent of handleSaveSettings.
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNew,     setPwNew]     = useState("");
@@ -1709,6 +1717,9 @@ export default function BeautyOS() {
   // Separate from loadAll on purpose: this is one small status read, and a
   // failure here must not be able to blank the dashboard.
   useEffect(()=>{ refreshWaStatus(); },[refreshWaStatus]);
+
+  // Lazily, and only where it is shown.
+  useEffect(()=>{ if(activeTab==="packages") loadOfferings(); },[activeTab, loadOfferings]);
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
   // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
@@ -4865,6 +4876,59 @@ export default function BeautyOS() {
   // and the toast below tells her to. A receipt for a package that does not
   // exist is money attributed to nothing, with nothing on any screen to show
   // for it.
+  const loadOfferings = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("package_offerings").select("*").order("sort_order", { ascending: true });
+    if (error) {
+      // Empty and broken are different answers, and this codebase has paid for
+      // conflating them before. The list says which one it is.
+      console.error("[offerings] load failed:", error.message);
+      setOfferingsError(true);
+      setOfferings([]);
+      return;
+    }
+    setOfferingsError(false);
+    setOfferings(data || []);
+  }, []);
+
+  const handleSaveOffering = async () => {
+    if (guardWrite()) return;
+    if (!newOffering.service) { toast("נא לבחור טיפול","error"); return; }
+    if (!(Number(newOffering.sessions) > 0)) { toast("מספר טיפולים חייב להיות גדול מאפס","error"); return; }
+    if (isBusy("saveOffering")) return;
+    setBusyKey("saveOffering", true);
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const row = {
+        service: newOffering.service,
+        sessions: Number(newOffering.sessions),
+        price: Number(newOffering.price) || 0,
+        sort_order: offerings.length,
+        ...(tid ? { tenant_id: tid } : {}),
+      };
+      const { data, error } = await supabase.from("package_offerings").insert([row]).select();
+      if (error) { handleDbError(error, "save package offering"); return; }
+      if (data && data[0]) {
+        setOfferings(prev => [...prev, data[0]]);
+        setNewOffering({ service:"", sessions:5, price:0 });
+        setShowOfferingForm(false);
+        toast("החבילה נוספה לקטלוג");
+      }
+    } finally { setBusyKey("saveOffering", false); }
+  };
+
+  // Retired, not deleted. Packages already sold point at this row, and a
+  // catalogue entry that disappears takes the answer to "what did she buy?"
+  // with it.
+  const toggleOffering = async (o) => {
+    if (guardWrite()) return;
+    const { data, error } = await supabase
+      .from("package_offerings").update({ active: !o.active }).eq("id", o.id).select();
+    if (error) { handleDbError(error, "update package offering"); return; }
+    if (data && data[0]) setOfferings(prev => prev.map(x => x.id === o.id ? data[0] : x));
+  };
+
   const handleSavePackage = async () => {
     if (guardWrite()) return;
     if(!newPackage.client_id||!newPackage.service){toast("נא לבחור לקוחה ושירות","error");return;}
@@ -8607,6 +8671,47 @@ export default function BeautyOS() {
  </div>
 
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
+ <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>חבילות למכירה</h3>
+ <button onClick={()=>setShowOfferingForm(v=>!v)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:20,padding:"6px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{showOfferingForm?"סגירה":"+ חבילה חדשה"}</button>
+ </div>
+              {/* The thing that exists before anyone buys it. Without this she
+                  could only ASSIGN a package - type a service, a count and a
+                  price by hand, every single time, with nothing to show a
+                  client and nothing to keep two sales of the same package
+                  consistent with each other. */}
+              {offeringsError?(
+ <p style={{fontSize:12,color:"var(--danger)",fontWeight:600}}>לא הצלחנו לטעון את החבילות למכירה.</p>
+              ):(<>
+                {showOfferingForm&&(
+ <div style={{background:"var(--surface-2)",borderRadius:12,padding:12,marginBottom:10,display:"flex",flexDirection:"column",gap:8}}>
+                    {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
+ <select value={newOffering.service} onChange={e=>setNewOffering({...newOffering,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}><option value="">— בחרי טיפול —</option>{activeServices.map(sv=><option key={sv.name}>{sv.name}</option>)}</select>
+ <div style={{display:"flex",gap:6}}>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" min={1} value={newOffering.sessions} onChange={e=>setNewOffering({...newOffering,sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מחיר ₪</p><input type="number" min={0} value={newOffering.price} onChange={e=>setNewOffering({...newOffering,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:10,padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/></div>
+ </div>
+                    {Number(newOffering.sessions)>0&&Number(newOffering.price)>0&&(
+ <p style={{fontSize:11.5,color:pcDeep,fontWeight:600}}>₪{Math.round(Number(newOffering.price)/Number(newOffering.sessions))} לטיפול</p>
+                    )}
+ <button onClick={handleSaveOffering} disabled={isBusy("saveOffering")} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"9px 0",fontSize:12}}>{isBusy("saveOffering")?"שומרת…":"הוספה לקטלוג"}</button>
+ </div>
+                )}
+                {offerings.length===0&&!showOfferingForm?(
+ <p style={{fontSize:12,color:"var(--ink-3)",lineHeight:1.6}}>עוד לא הגדרת חבילות למכירה. חבילה היא כמה טיפולים במחיר אחד — מגדירים אותה פעם אחת ומוכרים אותה שוב ושוב.</p>
+                ):offerings.map(o=>(
+ <div key={o.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 0",borderBottom:"1px solid var(--surface-2)",opacity:o.active?1:0.5}}>
+ <div style={{minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)"}}>{o.service} · {o.sessions} טיפולים</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)"}}>₪{o.price}{Number(o.sessions)>0?` · ₪${Math.round(Number(o.price)/Number(o.sessions))} לטיפול`:""}</p>
+ </div>
+ <button onClick={()=>toggleOffering(o)} style={{background:"none",border:"none",color:o.active?"var(--ink-3)":pcDeep,fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{o.active?"הסתרה":"החזרה"}</button>
+ </div>
+                ))}
+              </>)}
+ </div>
+
+ <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:18,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>חבילות פעילות ({packages.filter(p=>p.active).length})</h3>
               {packages.filter(p=>p.active).length===0?<EmptyState compact icon="package" accent={pc} accentTint={pcTint}
                  title="אין חבילות פעילות"
@@ -9295,6 +9400,21 @@ export default function BeautyOS() {
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {clients.length===0&&setupHint(NO_CLIENTS_HINT)}
                   {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
+                  {offerings.filter(o=>o.active).length>0&&(
+ <div>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:5}}>מהקטלוג</p>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        {offerings.filter(o=>o.active).map(o=>{
+                          const sel = newPackage.offering_id===o.id;
+                          return (
+ <button key={o.id} onClick={()=>setNewPackage({...newPackage,offering_id:o.id,service:o.service,total_sessions:Number(o.sessions),price:Number(o.price)})} style={{padding:"7px 11px",borderRadius:12,fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid",borderColor:sel?"transparent":"var(--line-2)",background:sel?pcGrad:"var(--surface)",color:sel?"var(--surface)":"var(--ink-2)"}}>
+                              {o.service} · {o.sessions} · ₪{o.price}
+ </button>
+                          );
+                        })}
+ </div>
+ </div>
+                  )}
  <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
  <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
