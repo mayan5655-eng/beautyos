@@ -20,7 +20,8 @@ import { createClient as createServerClient } from "../../../lib/supabase/server
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
-import { fmtApptTime } from "../../../lib/apptTime";
+import { startMinute } from "../../../lib/apptTime";
+import { greet, lines, hebrewDate, timeRange } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 
@@ -134,12 +135,19 @@ export async function POST(request) {
     // Same message as the automatic cron reminder, including confirm/cancel links.
     // Signed: /api/confirm now requires a token binding the id to the action.
     const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id);
-    const message =
-      `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-      `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
-      `✨ טיפול: ${appt.service}\n\n` +
-      `✅ לאישור התור: ${confirmLink}\n` +
-      `🚫 לביטול התור: ${cancelLink}`;
+    // Character-for-character the cron's message. They were two hand-written
+    // copies that had already drifted apart in wording; now they drift only if
+    // someone edits lib/messages, which changes both.
+    const message = lines(
+      greet(appt.name),
+      `תזכורת לתור שלך ב${businessName}.`,
+      "",
+      appt.service,
+      `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,
+      "",
+      `לאישור: ${confirmLink}`,
+      `לביטול: ${cancelLink}`
+    );
 
     const result = await sendWhatsApp(phone, message, {
       name: appt.name,

@@ -21,6 +21,7 @@ import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
+import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
@@ -392,11 +393,24 @@ async function fetchConfirmLinks(apptId) {
 // whole ones. Callers pass fmtApptTime(appt); the parameter is named for what
 // it is so the next caller cannot make the same substitution.
 function waConfirmLink(phone, name, service, date, time, links) {
+  // The THIRD hand-written copy of "remind her about tomorrow", after the cron
+  // and the manual route. Three wordings, three greeting marks, for one thing.
+  // Same voice as the other two now; it keeps its own date and time arguments
+  // because its callers pass them already formatted.
   const confirmUrl = links.confirmUrl;
   const cancelUrl  = links.cancelUrl;
   return waMsg(
     phone,
-    `שלום ${name}! ✦\nתזכורת לתור מחר:\n${service}\n${date} בשעה ${time}\n\nלאישור התור:\n${confirmUrl}\n\nלביטול התור:\n${cancelUrl}\n\nמחכים לך! `
+    msgLines(
+      msgGreet(name),
+      "תזכורת לתור מחר.",
+      "",
+      service,
+      `${date}, ${time}`,
+      "",
+      `לאישור: ${confirmUrl}`,
+      `לביטול: ${cancelUrl}`
+    )
   );
 }
 
@@ -9963,6 +9977,7 @@ export default function BeautyOS() {
      both now, and the label says which is which before she types. */}
  <div><p style={lbl}>כותרת מתחת לשם העסק</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/><p style={{fontSize:11,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצגת בדף ההזמנות מתחת לשם העסק, לא במקומו.</p></div>
  <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>לפני שמגיעים (חניה, קומה, אינטרקום)</p><input value={brand.arrival_note||""} onChange={e=>setBrand("arrival_note",e.target.value)} placeholder="למשל: חניה חופשית ברחוב, קומה 2" style={inp}/><p style={{fontSize:11,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>נשלח ללקוחה באישור התור. מונע את השיחה של &quot;איפה בדיוק?&quot; חמש דקות לפני.</p></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
  <div><p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>

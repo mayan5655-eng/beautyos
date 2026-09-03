@@ -7,7 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
-import { fmtApptTime } from "../../../lib/apptTime";
+import { startMinute } from "../../../lib/apptTime";
+import { greet, lines, hebrewDate, timeRange } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 
@@ -160,12 +161,20 @@ export async function POST(request) {
       // Signed: /api/confirm now requires a token binding the id to the action.
       const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id);
 
-      const message =
-        `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-        `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
-        `✨ טיפול: ${appt.service}\n\n` +
-        `✅ לאישור התור: ${confirmLink}\n` +
-        `🚫 לביטול התור: ${cancelLink}`;
+      // Same voice as the booking confirmation she already received: the same
+      // greeting, the same mark, the same way of saying a date. She is hearing
+      // from one business, and until now every message sounded like a different
+      // one.
+      const message = lines(
+        greet(appt.name),
+        `תזכורת לתור שלך ב${businessName}.`,
+        "",
+        appt.service,
+        `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,
+        "",
+        `לאישור: ${confirmLink}`,
+        `לביטול: ${cancelLink}`
+      );
 
       const res = await sendWhatsApp(appt.client_phone, message, {
         name: appt.name,

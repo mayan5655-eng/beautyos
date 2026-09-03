@@ -16,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
+import { greet, lines, hebrewDate } from "../../../lib/messages.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -77,13 +78,16 @@ export async function POST(request) {
     const businessName =
       (settingsRows && settingsRows[0]?.business_name) || "העסק";
 
-    const msg =
-      `שלום ${client_name || "לקוחה"}! ✦\n` +
-      `קבלה מ${businessName}\n\n` +
-      `💰 סכום: ₪${amount}\n` +
-      `💳 אמצעי תשלום: ${payment_method || "מזומן"}\n` +
-      `📅 תאריך: ${date || ""}\n\n` +
-      `תודה ונתראה בקרוב! 😊`;
+    const msg = lines(
+      greet(client_name),
+      `קבלה מ${businessName}`,
+      "",
+      `סכום: ₪${amount}`,
+      `תשלום: ${payment_method || "מזומן"}`,
+      date ? hebrewDate(date) : null,
+      "",
+      "תודה, ונתראה בקרוב."
+    );
 
     const result = await sendWhatsApp(client_phone, msg, {
       name: client_name,

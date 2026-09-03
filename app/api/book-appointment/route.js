@@ -12,7 +12,7 @@ import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../..
 import { dayHoursFrom } from "../../../lib/businessHours";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { APP_URL } from "../../../lib/appUrl";
-import { greet, lines, hebrewDate, hebrewDateShort, timeRange, durationHe, mapsLink } from "../../../lib/messages";
+import { greet, lines, hebrewDate, hebrewDateShort, timeRange, durationHe, mapsLink } from "../../../lib/messages.js";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
