@@ -951,6 +951,10 @@ export default function BeautyOS() {
   const [fbDatePreset,   setFbDatePreset]   = useState("last_30d");
   // Connected Facebook page for THIS tenant (row from facebook_pages), or null if not connected
   const [fbPage,         setFbPage]         = useState(null);
+  // Failed Facebook webhook events (facebook_webhook_events, processed=false).
+  // Drives the red badge on the leads screen's inspector button: a lead that
+  // arrived and failed should announce itself, not wait to be gone looking for.
+  const [fbEventFails,   setFbEventFails]   = useState(0);
   // AI content generator (posts)
   const [postGoal,       setPostGoal]       = useState("");
   // Optional free text sent as CampaignInput.additionalContext.
@@ -5418,6 +5422,18 @@ export default function BeautyOS() {
         .limit(1);
       setFbPage(data && data.length > 0 ? data[0] : null);
     } catch { /* non-fatal — leave as not-connected */ }
+    // Failed webhook events in the last 7 days. head:true fetches no rows, only
+    // the count; RLS scopes it to the tenant. If the table is missing (migration
+    // not applied yet) this errors and the badge simply stays off.
+    try {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { count, error } = await supabase
+        .from("facebook_webhook_events")
+        .select("id", { count: "exact", head: true })
+        .eq("processed", false)
+        .gte("created_at", since);
+      setFbEventFails(error ? 0 : (count || 0));
+    } catch { /* non-fatal — badge stays off */ }
   };
 
   // Fetch live Facebook ad campaigns for the current tenant
@@ -7600,6 +7616,13 @@ export default function BeautyOS() {
  <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>פניות <span style={{color:"var(--ink-3)",fontWeight:400}}>({leads.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ {/* The Facebook webhook inspector: every lead event Meta sent us, failures
+     included. The badge counts failed events from the last 7 days, so a lead
+     that arrived and DIDN'T become a row in this list announces itself here
+     instead of vanishing into server logs. */}
+ <button className="primary-btn" onClick={()=>{window.location.href="/dashboard/leads/webhook-events";}} style={{background:"var(--surface)",color:fbEventFails>0?"#B3261E":pcDeep,border:`1px solid ${fbEventFails>0?"#B3261E":"var(--line-2)"}`,padding:"10px 16px",fontSize:12,boxShadow:"var(--shadow-xs)",position:"relative"}}>
+   ⚡ אירועי פייסבוק{fbEventFails>0&&<span style={{background:"#B3261E",color:"#fff",borderRadius:12,padding:"1px 7px",fontSize:10.5,fontWeight:700,marginRight:6}}>{fbEventFails} נכשלו</span>}
+ </button>
  <button className="primary-btn" onClick={()=>setShowLeadImport(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"10px 16px",fontSize:12,boxShadow:"var(--shadow-xs)"}}>⇪ ייבוא פניות</button>
  <button className="primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"var(--surface)",padding:"10px 18px",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`}}>✦ פנייה חדשה</button>
  </div>

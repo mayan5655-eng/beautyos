@@ -93,6 +93,7 @@ export async function GET(request: NextRequest) {
 
     let savedCount = 0;
     let upsertFailed = false;
+    let subscribeFailed = false;
 
     for (const page of pages) {
       const encryptedPageToken = encryptToken(page.access_token);
@@ -120,6 +121,26 @@ export async function GET(request: NextRequest) {
         upsertFailed = true;
       } else {
         savedCount++;
+
+        // Subscribe the page to the app's leadgen webhook. Without this call
+        // Meta never sends a single event - saving the token alone connects
+        // nothing. This was the missing link that kept the webhook route from
+        // ever receiving a real lead.
+        try {
+          const ok = await fbClient.subscribePageToWebhook(page.id, page.access_token);
+          if (!ok) {
+            console.error('Webhook subscribe returned success=false for page:', page.id);
+            subscribeFailed = true;
+          } else {
+            console.log('Page subscribed to leadgen webhook:', page.id);
+          }
+        } catch (subscribeError) {
+          // Typically a missing pages_manage_metadata grant. The page row is
+          // saved either way; the redirect below surfaces the failure instead
+          // of claiming a working connection.
+          console.error('Webhook subscribe failed for page:', page.id, subscribeError);
+          subscribeFailed = true;
+        }
       }
     }
 
@@ -127,6 +148,15 @@ export async function GET(request: NextRequest) {
     if (upsertFailed) {
       const response = NextResponse.redirect(
         `${appUrl}/dashboard?fb_error=save_failed`
+      );
+      response.cookies.delete('fb_oauth_state');
+      return response;
+    }
+
+    // Saved but not subscribed is NOT success: leads will not arrive. Tell her.
+    if (subscribeFailed) {
+      const response = NextResponse.redirect(
+        `${appUrl}/dashboard?fb_error=subscribe_failed`
       );
       response.cookies.delete('fb_oauth_state');
       return response;

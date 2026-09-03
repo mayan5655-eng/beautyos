@@ -25,6 +25,38 @@ function admin() {
   );
 }
 
+// One row per webhook change, success or failure. This is the audit trail the
+// dashboard reads (/dashboard/leads/webhook-events), so it must be written on
+// EVERY path - the failure modes most likely in practice (page not registered,
+// token expired, Graph fetch failed) previously left no row at all, which is
+// how a lead vanishes with nothing to look at. Logging must never break lead
+// processing, hence its own try/catch.
+async function logEvent(
+  supabase: ReturnType<typeof admin>,
+  event: {
+    tenant_id: string | null;
+    facebook_page_id: string;
+    leadgen_id: string | null;
+    payload: unknown;
+    processed: boolean;
+    error_message: string | null;
+  }
+) {
+  try {
+    const { error } = await supabase.from('facebook_webhook_events').insert({
+      event_type: 'leadgen',
+      ...event,
+    });
+    if (error) {
+      console.error('[fb-webhook] event insert: FAILED', event.leadgen_id || '', error.code || '', error.message);
+    } else {
+      console.log('[fb-webhook] event insert: OK', event.leadgen_id || '', event.processed ? '' : `error: ${event.error_message}`);
+    }
+  } catch (e) {
+    console.error('[fb-webhook] event insert: THREW', event.leadgen_id || '', e);
+  }
+}
+
 interface WebhookChange {
   field: string;
   value: {
@@ -130,13 +162,40 @@ export async function POST(request: NextRequest) {
         .eq('page_id', pageId)
         .single();
 
+      // Only leadgen changes matter anywhere below; filter once so the failure
+      // paths can log exactly the changes that carried a lead.
+      const leadgenChanges = entry.changes.filter((c) => c.field === 'leadgen');
+      if (leadgenChanges.length === 0) continue;
+
       if (pageError || !pageData) {
         console.error('[fb-webhook] tenant matched: NO - page not found:', pageId, pageError?.message || '');
+        // tenant_id null: there is no tenant to attribute this to, and that is
+        // the point - a lead arrived for a page nobody registered.
+        for (const change of leadgenChanges) {
+          await logEvent(supabase, {
+            tenant_id: null,
+            facebook_page_id: pageId,
+            leadgen_id: change.value.leadgen_id,
+            payload: change.value,
+            processed: false,
+            error_message: `page not registered in facebook_pages${pageError ? `: ${pageError.message}` : ''}`,
+          });
+        }
         continue;
       }
 
       if (!pageData.is_active) {
         console.log('[fb-webhook] tenant matched: YES but page inactive, skipping:', pageId);
+        for (const change of leadgenChanges) {
+          await logEvent(supabase, {
+            tenant_id: pageData.tenant_id,
+            facebook_page_id: pageId,
+            leadgen_id: change.value.leadgen_id,
+            payload: change.value,
+            processed: false,
+            error_message: 'page is marked inactive (facebook_pages.is_active = false)',
+          });
+        }
         continue;
       }
 
@@ -147,14 +206,22 @@ export async function POST(request: NextRequest) {
         pageAccessToken = decryptToken(pageData.page_access_token_encrypted);
       } catch (decryptError) {
         console.error('Failed to decrypt token for page:', pageId, decryptError);
+        for (const change of leadgenChanges) {
+          await logEvent(supabase, {
+            tenant_id: pageData.tenant_id,
+            facebook_page_id: pageId,
+            leadgen_id: change.value.leadgen_id,
+            payload: change.value,
+            processed: false,
+            error_message: 'failed to decrypt page access token - reconnect Facebook from the dashboard',
+          });
+        }
         continue;
       }
 
       const fbClient = new FacebookClient(pageAccessToken);
 
-      for (const change of entry.changes) {
-        if (change.field !== 'leadgen') continue;
-
+      for (const change of leadgenChanges) {
         const leadgenId = change.value.leadgen_id;
 
         try {
@@ -209,24 +276,29 @@ export async function POST(request: NextRequest) {
             console.log('[fb-webhook] lead insert: OK', leadgenId, 'tenant', pageData.tenant_id, 'score', aiScore.score);
           }
 
-          // This row's error was previously discarded, which is exactly how a
-          // silent drop goes unnoticed. Capture and log it.
-          const { error: eventError } = await supabase.from('facebook_webhook_events').insert({
+          await logEvent(supabase, {
             tenant_id: pageData.tenant_id,
-            event_type: 'leadgen',
             facebook_page_id: pageId,
             leadgen_id: leadgenId,
             payload: change.value,
             processed: !insertError,
+            error_message: insertError
+              ? `lead insert failed: ${insertError.code || ''} ${insertError.message}`.trim()
+              : null,
           });
-
-          if (eventError) {
-            console.error('[fb-webhook] event insert: FAILED', leadgenId, eventError.code || '', eventError.message);
-          } else {
-            console.log('[fb-webhook] event insert: OK', leadgenId);
-          }
         } catch (leadError) {
+          // Most commonly the Graph API fetch: expired/insufficient token, or
+          // missing leads_retrieval permission. Without this row, that failure
+          // was invisible outside the hosting logs.
           console.error('Failed to process lead:', leadgenId, leadError);
+          await logEvent(supabase, {
+            tenant_id: pageData.tenant_id,
+            facebook_page_id: pageId,
+            leadgen_id: leadgenId,
+            payload: change.value,
+            processed: false,
+            error_message: `failed to fetch/process lead: ${leadError instanceof Error ? leadError.message : String(leadError)}`.slice(0, 1000),
+          });
         }
       }
     }

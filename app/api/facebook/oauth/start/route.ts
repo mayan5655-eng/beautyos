@@ -6,13 +6,23 @@ import { createClient } from '../../../../../lib/supabase/server';
 import { APP_URL } from '../../../../../lib/appUrl';
 import crypto from 'crypto';
 
-// TEMP: reduced to basic scopes that do NOT require App Review, so the OAuth
-// flow can be tested end-to-end before the app is approved. Add the
-// page-management scopes back after App Review:
-//   'pages_show_list', 'pages_manage_metadata', 'pages_read_engagement',
-//   'leads_retrieval', 'business_management'
+// The full set the lead pipeline needs:
+//   pages_show_list        - enumerate the user's pages (getUserPages)
+//   pages_manage_metadata  - subscribe the page to the app's leadgen webhook
+//   pages_read_engagement  - read page content the token is scoped to
+//   leads_retrieval        - fetch lead field data from the Graph API
+//
+// These require App Review before a user WITHOUT a role on the app can grant
+// them. While the app is in Development Mode they work for admins/developers/
+// testers of the app - which is how the flow is tested end-to-end before
+// review. (They were temporarily reduced to public_profile alone; that made
+// the OAuth dance completable but the resulting tokens useless for leads.)
 const FACEBOOK_SCOPES = [
   'public_profile',
+  'pages_show_list',
+  'pages_manage_metadata',
+  'pages_read_engagement',
+  'leads_retrieval',
 ].join(',');
 
 export async function GET(request: NextRequest) {
