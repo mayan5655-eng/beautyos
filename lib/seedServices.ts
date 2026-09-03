@@ -14,7 +14,7 @@
 // scripts/check-template-clean.mjs), and keeping the seam here means the data
 // module and the write module stay cleanly separated.
 
-import { serviceColorAt } from './serviceColors';
+import { serviceColorAt } from './serviceColors.ts';
 
 export type PickedService = {
   name: string;

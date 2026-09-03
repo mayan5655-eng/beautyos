@@ -11,7 +11,7 @@
 //   * Never blame her, and never imply her data is at risk. It is not: the gate
 //     blocks writes and never deletes anything.
 
-import type { PlanStatus } from './planState'
+import type { PlanStatus } from './planState.ts'
 
 /** Hebrew needs a real dual form: "יומיים", not "2 ימים". */
 export function daysHe(n: number): string {

@@ -1,0 +1,58 @@
+# .github/workflows/ci.yml
+#
+# The point of this file is that a check nobody runs is not a check.
+#
+# Before it, six test files existed and executed only when somebody typed a
+# filename. Three of them had been failing to load for some time - running zero
+# assertions while looking like coverage - and a fourth broke mid-session
+# without anyone noticing, because `next build` stayed green. The build compiles
+# TypeScript. It has never meant the code works.
+#
+# So: on every push and every pull request, the suite runs and the types are
+# checked, and a failure is loud and attached to the commit that caused it.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Vercel project's Node version. The suite relies on
+          # --experimental-strip-types to run the .ts tests directly, which
+          # needs 22.6+; the repo builds on 24.
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # Types first: it is the faster of the two and its failures are usually
+      # the clearer ones.
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+# ── Deliberately NOT here, and why ─────────────────────────────────────────
+#
+# `npm run lint` — eslint currently reports 33 errors, all pre-existing
+# (unescaped quotes in JSX, a setState-in-effect, an access-before-declaration).
+# Gating on it today would mean a permanently red pipeline that everybody learns
+# to ignore, which is worse than no pipeline. Turn it on in the same change that
+# clears them, not before.
+#
+# `npm run build` — it needs Supabase environment variables to get past page
+# data collection, and with placeholder values it then fails during static
+# export of `/` with "Cannot access 'lG' before initialization". That is very
+# likely a real initialisation-order bug in app/beautyos.jsx that the build has
+# never reached before, since it used to die two steps earlier. It deserves its
+# own investigation rather than being wired in red on day one.

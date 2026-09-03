@@ -16,7 +16,7 @@
 //                                     See supabase/migrations/add_appointment_no_overlap.sql.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { startFields } from "./apptTime";
+import { startFields } from "./apptTime.ts";
 
 export interface SlotBooking {
   tenant_id: string;

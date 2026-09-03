@@ -27,7 +27,7 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
-import { getCallCapStatus, AiCapExceededError } from './callCaps';
+import { getCallCapStatus, AiCapExceededError } from './callCaps.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /** How far to trust the tenant id on a usage row. */

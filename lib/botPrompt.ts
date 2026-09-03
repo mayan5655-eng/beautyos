@@ -11,7 +11,7 @@
 // the produced prompt is byte-for-byte identical to the previous webhook prompt
 // — existing behaviour is unchanged for everyone who hasn't added any Q&A.
 
-import { hoursSummaryHe, type HoursSettings } from "./businessHours";
+import { hoursSummaryHe, type HoursSettings } from "./businessHours.ts";
 
 export interface BotService {
   name?: string | null;

@@ -12,7 +12,7 @@
 // marketing AI function is grounded in the salon's real services, branding and voice.
 
 import type { createClient } from '@/lib/supabase/server'
-import type { BusinessProfile } from './marketingAI'
+import type { BusinessProfile } from './marketingAI.ts'
 import {
   splitAdvertisable,
   usableTherapistName,

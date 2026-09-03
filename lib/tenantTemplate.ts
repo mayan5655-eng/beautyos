@@ -68,7 +68,7 @@
 // tenant falls back to and which renders {clinic} from her own settings. There
 // is nothing to seed.
 
-import { legacyHoursFromMap } from './businessHours';
+import { legacyHoursFromMap } from './businessHours.ts';
 
 // ── SERVICE MENU ─────────────────────────────────────────────────────────────
 //

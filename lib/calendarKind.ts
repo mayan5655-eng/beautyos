@@ -16,7 +16,7 @@
 //
 // Pure and dependency-free, like apptTime, because the answer feeds guards.
 
-import { startMinute, MINUTES_IN_DAY, type HasStart } from './apptTime';
+import { startMinute, MINUTES_IN_DAY, type HasStart } from './apptTime.ts';
 
 export const APPOINTMENT = 'appointment';
 export const PERSONAL = 'personal';

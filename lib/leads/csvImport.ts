@@ -243,13 +243,13 @@ export function maskRow(row: string[]): string[] {
 // preview can show, and those rows are skipped — they could not have been
 // messaged anyway, which is the whole point of the import.
 
-import type { PhoneReason } from '../phone';
+import type { PhoneReason } from '../phone.ts';
 
 export {
   normalizeIsraeliMobile,
   type PhoneResult,
   type PhoneReason,
-} from '../phone';
+} from '../phone.ts';
 
 /** Human-readable Hebrew for each refusal, for the preview screen. */
 export const PHONE_REASON_HE: Record<PhoneReason, string> = {

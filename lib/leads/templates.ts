@@ -17,8 +17,8 @@ const NAME_FALLBACK = 'לקוחה יקרה';
 // The clinic name rules live in lib/clinicName.ts so that every message path
 // (lead templates, gap-fill offers, anything added later) shares one blocklist.
 // Re-exported here for existing importers.
-export { clinicName, CLINIC_FALLBACK } from '../clinicName';
-import { clinicName } from '../clinicName';
+export { clinicName, CLINIC_FALLBACK } from '../clinicName.ts';
+import { clinicName } from '../clinicName.ts';
 
 // Starting templates shown to a tenant who has never saved one. A tenant's own
 // saved text always wins - including an explicitly cleared (empty) one.
