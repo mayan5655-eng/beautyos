@@ -10,6 +10,9 @@ import { sendWhatsApp } from "../../../lib/whatsapp";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
+import { confirmLinks } from "../../../lib/confirmToken";
+import { APP_URL } from "../../../lib/appUrl";
+import { greet, lines, hebrewDate, hebrewDateShort, timeRange, durationHe, mapsLink } from "../../../lib/messages";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
@@ -132,7 +135,7 @@ export async function POST(request) {
     //     Read once, here, and reused for the notification messages below.
     const { data: settingsRows } = await supabase
       .from("settings")
-      .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days")
+      .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding")
       .eq("tenant_id", activeTenantId)
       .limit(1);
     const settingsRow =
@@ -191,6 +194,69 @@ export async function POST(request) {
       }
     }
 
+    // 0c. THE CLIENT THIS BOOKING BELONGS TO.
+    //
+    // Until now this route wrote name and client_phone onto the appointment and
+    // NO client_id, and never looked one up. Every online booking was therefore
+    // an orphan: it did not appear on the client's card, did not count towards
+    // her last visit, did not feed the lapsed-client queue, and did not join
+    // anything the cosmetician sees when she opens that woman's history.
+    //
+    // The quiet consequence was worse than the visible one. smartReminders
+    // resolves a client from appt.client_id and skips the row when there is
+    // none - so the review request never fired for a single self-booked visit.
+    // The reviews feature was structurally blind to exactly the people most
+    // likely to leave one: the ones who found her online.
+    //
+    // Matching is done on the NORMALISED number, not the stored string, because
+    // clients.phone is a mix by history: rows converted from leads hold e164
+    // ("972521234567") while rows she typed by hand hold whatever she typed
+    // ("052-123-4567"). Comparing raw would create a second client for a woman
+    // who is already in her book, which is worse than not matching at all.
+    let clientId = null;
+    let isReturningClient = false;
+    try {
+      const { data: existing } = await supabase
+        .from("clients")
+        .select("id, phone")
+        .eq("tenant_id", activeTenantId);
+
+      const match = (existing || []).find((c) => {
+        const n = normalizeIsraeliMobile(c.phone);
+        return n.ok && n.e164 === phoneCheck.e164;
+      });
+
+      if (match) {
+        clientId = match.id;
+        isReturningClient = true;
+        // Her name is NOT overwritten from this form. The record is hers, and a
+        // booking is not the place to rename a woman because she typed her name
+        // differently this time.
+      } else {
+        const { data: created, error: createErr } = await supabase
+          .from("clients")
+          .insert({
+            tenant_id: activeTenantId,
+            name,
+            // Stored normalised, so the next booking matches on the first try.
+            phone: phoneCheck.e164,
+            status: "active",
+          })
+          .select("id")
+          .single();
+        if (createErr) {
+          // Not fatal. A booking that lands without a client card is the old
+          // behaviour, and refusing the booking over it would be trading a
+          // paying client for a tidy database.
+          console.error("[book-appointment] client create failed:", createErr.message);
+        } else {
+          clientId = created?.id || null;
+        }
+      }
+    } catch (linkErr) {
+      console.error("[book-appointment] client link threw:", linkErr?.message || String(linkErr));
+    }
+
     // 1. Save the appointment to Supabase
     const { data: appt, error } = await supabase
       .from("appointments")
@@ -198,6 +264,9 @@ export async function POST(request) {
         tenant_id: activeTenantId,
         name: name,
         client_phone: phone,
+        // The link that was missing. Null only if the lookup and the create
+        // both failed, which leaves exactly today's behaviour.
+        client_id: clientId,
         service: service,
         date: date,
         // Both written during the transition: start_minute is what the app now
@@ -237,13 +306,42 @@ export async function POST(request) {
 
     // 3. Send confirmation to the CLIENT
     try {
-      const clientMsg =
-        `שלום ${name}! 💗\n` +
-        `התור שלך נקבע בהצלחה ב${businessName} ✨\n\n` +
-        `✨ טיפול: ${service}\n` +
-        `📅 תאריך: ${date}\n` +
-        `🕐 שעה: ${fmtTime(newStart)}\n\n` +
-        `נשמח לראותך! 😊`;
+      // WHAT SHE NEEDS, in the order she needs it: what she booked and how
+      // long it takes, when, where, with whom, and how to get out of it.
+      //
+      // The old version gave her the service, a raw ISO date and a start time.
+      // "2026-09-05" does not tell anybody it is a Saturday, and a start time
+      // with no duration does not let her plan the afternoon around it.
+      //
+      // THE CANCEL LINK IS THE POINT. It was not here at all: the reminder
+      // carried one, but that goes out the day before. A client who books on
+      // Monday for Saturday and then cannot come had no way to say so except
+      // phoning, so she did not, and it became a no-show. A cancellation four
+      // days out is a slot that can be refilled; a no-show is an hour already
+      // spent. confirmToken was two files away the whole time.
+      const brandJson = (settingsRow?.branding && typeof settingsRow.branding === "object") ? settingsRow.branding : {};
+      const address = String(brandJson.public_address || brandJson.address || "").trim();
+      const arrivalNote = String(brandJson.arrival_note || "").trim();
+      const therapist = String(settingsRow?.therapist_name || "").trim();
+      const { cancelUrl } = confirmLinks(APP_URL, appt.id);
+      const durationText = durationHe(duration || 60);
+
+      const clientMsg = lines(
+        greet(name),
+        `התור שלך ב${businessName} נקבע.`,
+        "",
+        durationText ? `${service} · ${durationText}` : service,
+        `${hebrewDate(date)}, ${timeRange(newStart, duration || 60)}`,
+        therapist ? `מטפלת: ${therapist}` : null,
+        address ? "" : null,
+        address ? `📍 ${address}` : null,
+        address ? mapsLink(address) : null,
+        arrivalNote ? "" : null,
+        arrivalNote || null,
+        "",
+        "לא מתאים לך? אפשר לבטל כאן:",
+        cancelUrl
+      );
       await sendWhatsApp(phone, clientMsg, { name: name, type: "booking_confirm", tenantId: activeTenantId });
     } catch (waErr) {
       console.log("Client WhatsApp failed:", waErr.message);
@@ -252,13 +350,24 @@ export async function POST(request) {
     // 4. Send alert to the BUSINESS OWNER (only if she has a phone set)
     if (ownerPhone) {
       try {
-        const ownerMsg =
-          `🔔 נקבע תור חדש!\n\n` +
-          `👤 ${name}\n` +
-          `📞 ${phone}\n` +
-          `✨ ${service}\n` +
-          `📅 ${date} בשעה ${fmtTime(newStart)}\n\n` +
-          `(נקבע דרך דף ההזמנות)`;
+        // READ MID-TREATMENT, on a phone, one-handed. The first line has to
+        // answer the only question she has while holding someone's face: WHEN,
+        // and does it collide with anything.
+        //
+        // The old version opened with a bell emoji and put the date fourth, in
+        // ISO. It also ended with "(נקבע דרך דף ההזמנות)" - provenance she does
+        // not need in a notification, and which self_booked already records on
+        // the row.
+        //
+        // "לקוחה חדשה" is possible only because this route now links the
+        // booking to a client: it is the difference between greeting a stranger
+        // and greeting someone whose last visit she can look up.
+        const ownerMsg = lines(
+          `תור חדש · ${hebrewDateShort(date)}, ${timeRange(newStart, duration || 60)}`,
+          `${name} · ${service}${durationText ? ` (${durationText})` : ""}`,
+          isReturningClient ? "לקוחה חוזרת" : "לקוחה חדשה",
+          phone
+        );
         await sendWhatsApp(ownerPhone, ownerMsg, { name: "בעלת העסק", type: "owner_alert", tenantId: activeTenantId });
       } catch (waErr) {
         console.log("Owner WhatsApp failed:", waErr.message);
