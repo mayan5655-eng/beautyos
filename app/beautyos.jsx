@@ -1210,7 +1210,7 @@ export default function BeautyOS() {
   const [cashierDiscount, setCashierDiscount] = useState(0);
   const [paymentMethod,   setPaymentMethod]   = useState("מזומן");
   const [cashierNote,     setCashierNote]     = useState("");
-  const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0});
+  const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // Change-password form (Settings → כללי). Independent of handleSaveSettings.
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNew,     setPwNew]     = useState("");
@@ -4849,16 +4849,78 @@ export default function BeautyOS() {
     }
   };
 
+  // Selling a package is the largest single transaction she makes, and until
+  // now it earned nothing. This wrote a row into `packages` carrying a price and
+  // created NO RECEIPT - and every revenue number in the product reads
+  // `receipts`. So an 1,800 shekel sale was absent from her monthly revenue, her
+  // payment breakdown and her tax report, while the package sat on screen
+  // looking like a completed sale. The one number a business owner actually
+  // checks was quietly wrong for the transaction that matters most.
+  //
+  // Two writes, and they are not equal. The package is the thing she sold; the
+  // receipt is the record that she was paid for it. There is no transaction
+  // across two PostgREST calls, so the order is chosen for which failure is
+  // recoverable: package first, then receipt. A package with no receipt is
+  // visible on her screen and can be fixed by ringing the amount up by hand,
+  // and the toast below tells her to. A receipt for a package that does not
+  // exist is money attributed to nothing, with nothing on any screen to show
+  // for it.
   const handleSavePackage = async () => {
     if (guardWrite()) return;
     if(!newPackage.client_id||!newPackage.service){toast("נא לבחור לקוחה ושירות","error");return;}
     if(isBusy("savePackage")) return;
     setBusyKey("savePackage", true);
     try {
-      const {data,error}=await supabase.from("packages").insert([newPackage]).select();
+      // Stamp the tenant the way handleSave does, and for the same reason: so
+      // the row satisfies the RLS WITH CHECK even where the column default is
+      // not applied. This insert sent newPackage raw, with no tenant_id on it
+      // at all - leaning on a database default that nothing in this repo
+      // guarantees.
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const tenantField = tid ? { tenant_id: tid } : {};
+
+      const price = Number(newPackage.price) || 0;
+      // payment_method belongs on the receipt, not on the package row - it is
+      // how she was paid, not part of what she sold.
+      const { payment_method, ...packageRow } = newPackage;
+      const {data,error}=await supabase.from("packages").insert([{ ...packageRow, ...tenantField }]).select();
       if(error){handleDbError(error, "save package"); return;}
       if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
-      setPackages(prev=>[...prev,data[0]]);setShowPackageModal(false);toast("החבילה נוספה");
+      const pkg = data[0];
+      setPackages(prev=>[...prev,pkg]);
+
+      // A free package is a real thing - a comped series, a goodwill gesture -
+      // and it should not leave a zero receipt cluttering her day.
+      if (price > 0) {
+        const receipt = {
+          client_id: pkg.client_id || null,
+          client_name: pkg.client_name || "לקוחה",
+          appointment_id: null,                    // paid up front, against no visit
+          service: "חבילה: " + pkg.service,
+          amount: price,
+          payment_method,
+          note: "חבילת " + pkg.total_sessions + " טיפולים",
+          // The same item shape the cashier writes, so this receipt renders,
+          // prints and sends through exactly the same path as every other one.
+          items: JSON.stringify([{ id: Date.now(), name: "חבילה: " + pkg.service + " (" + pkg.total_sessions + " טיפולים)", price, qty: 1 }]),
+          discount: 0,
+          ...tenantField,
+        };
+        const { data: rec, error: recErr } = await supabase.from("receipts").insert([receipt]).select();
+        if (recErr || !rec || !rec[0]) {
+          // Loud, and actionable. The package IS saved; what is missing is the
+          // money, and she is the only one who can put it in.
+          console.error("[packages] receipt insert failed", recErr);
+          toast("החבילה נשמרה, אך הקבלה לא נוצרה. נא לרשום תשלום של ₪" + price + " בקופה.", "error");
+          setShowPackageModal(false);
+          return;
+        }
+        setReceipts(prev=>[...prev, rec[0]]);
+      }
+
+      setShowPackageModal(false);
+      toast(price > 0 ? "החבילה נמכרה — ₪" + price : "החבילה נוספה");
     } finally {
       setBusyKey("savePackage", false);
     }
@@ -4880,7 +4942,9 @@ export default function BeautyOS() {
     if(isBusy("saveWaitlist")) return;
     setBusyKey("saveWaitlist", true);
     try {
-      const {data,error}=await supabase.from("waitlist").insert([newWaitlist]).select();
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const wlTid = rpcTenant || settings?.tenant_id || null;
+      const {data,error}=await supabase.from("waitlist").insert([{ ...newWaitlist, ...(wlTid ? { tenant_id: wlTid } : {}) }]).select();
       if(error){handleDbError(error, "save waitlist"); return;}
       if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
       setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");
@@ -9181,6 +9245,21 @@ export default function BeautyOS() {
  <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  <div style={{flex:1}}><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>מחיר חבילה ₪</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"8px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  </div>
+                  {/* She is taking money here, so the receipt has to say how.
+                      A receipt with no payment method drops out of
+                      paymentBreakdown without a trace - the same silence this
+                      whole change is about. */}
+                  {Number(newPackage.price)>0&&(
+ <div>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:5}}>אמצעי תשלום</p>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      {PAYMENT_METHODS.map(m=>(
+ <button key={m.key} onClick={()=>setNewPackage({...newPackage,payment_method:m.key})} style={{flex:1,minWidth:70,padding:"8px 0",borderRadius:12,border:"1px solid",borderColor:newPackage.payment_method===m.key?"transparent":"var(--line-2)",background:newPackage.payment_method===m.key?pcGrad:"var(--surface)",color:newPackage.payment_method===m.key?"var(--surface)":"var(--ink-2)",fontSize:11.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{m.key}</button>
+                      ))}
+ </div>
+ <p style={{fontSize:11,color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>תיווצר קבלה על סכום החבילה, והיא תיכנס להכנסות.</p>
+ </div>
+                  )}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowPackageModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
