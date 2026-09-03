@@ -1177,6 +1177,10 @@ export default function BeautyOS() {
   const [slugDraft, setSlugDraft] = useState(null);   // null = not editing
   const [slugBusy,  setSlugBusy]  = useState(false);
   const [slugNote,  setSlugNote]  = useState("");
+  // Reviews clients wrote. Loaded on the settings screen only - see the note on
+  // offerings for why a table read does not go in loadAll.
+  const [clientReviews,      setClientReviews]      = useState([]);
+  const [clientReviewsError, setClientReviewsError] = useState(false);
   const [showPersonalModal, setShowPersonalModal] = useState(false);
   const [personalDraft,     setPersonalDraft]     = useState(null);
   const [editSettings,   setEditSettings]   = useState(null);
@@ -1720,6 +1724,7 @@ export default function BeautyOS() {
 
   // Lazily, and only where it is shown.
   useEffect(()=>{ if(activeTab==="packages") loadOfferings(); },[activeTab, loadOfferings]);
+  useEffect(()=>{ if(showSettings) loadClientReviews(); },[showSettings, loadClientReviews]);
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
   // dashboard is shown. The route is tenant-scoped + auth-gated and returns an
@@ -4890,6 +4895,36 @@ export default function BeautyOS() {
     setOfferingsError(false);
     setOfferings(data || []);
   }, []);
+
+  const loadClientReviews = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("reviews").select("*").order("created_at", { ascending: false });
+    if (error) {
+      console.error("[reviews] load failed:", error.message);
+      setClientReviewsError(true);
+      setClientReviews([]);
+      return;
+    }
+    setClientReviewsError(false);
+    setClientReviews(data || []);
+  }, []);
+
+  // HIDE, AND NOTHING ELSE. There is no edit here and there cannot be one: the
+  // database refuses any change to the words, so a text field would be a box
+  // that throws 42501 when she pressed save. The absence of that field is the
+  // feature - a review she could rewrite is a testimonial, and the page says
+  // these are from clients.
+  const toggleReviewHidden = async (rv) => {
+    if (guardWrite()) return;
+    const next = rv.status === "hidden" ? "published" : "hidden";
+    const { data, error } = await supabase
+      .from("reviews").update({ status: next }).eq("id", rv.id).select();
+    if (error) { handleDbError(error, "update review status"); return; }
+    if (data && data[0]) {
+      setClientReviews(prev => prev.map(x => x.id === rv.id ? data[0] : x));
+      toast(next === "hidden" ? "הביקורת הוסתרה" : "הביקורת הוחזרה");
+    }
+  };
 
   const handleSaveOffering = async () => {
     if (guardWrite()) return;
@@ -9894,8 +9929,24 @@ export default function BeautyOS() {
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
- <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>⭐ ביקורות לקוחות</p>
- <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:8}}>יוצגו בעמוד העסק שלך כמו ביקורות Google (רק אם הוספת לפחות אחת)</p>
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginBottom:2}}>⭐ ביקורות מלקוחות</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:8}}>נכתבות על ידי לקוחות אחרי הטיפול, דרך קישור שנשלח בוואטסאפ. אפשר להסתיר ביקורת, אבל לא לערוך אותה — וזה מה שנותן להן ערך.</p>
+                    {clientReviewsError&&<p style={{fontSize:11.5,color:"var(--danger)",fontWeight:600,marginBottom:8}}>לא הצלחנו לטעון את הביקורות.</p>}
+                    {!clientReviewsError&&clientReviews.length===0&&(
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:10,lineHeight:1.6}}>עוד לא התקבלו ביקורות. הן יגיעו מעצמן — הבקשה נשלחת יומיים אחרי כל טיפול.</p>
+                    )}
+                    {clientReviews.map(rv=>(
+ <div key={rv.id} style={{background:"var(--surface-2)",borderRadius:12,padding:"10px 12px",marginBottom:7,opacity:rv.status==="hidden"?0.55:1}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+ <span style={{fontSize:12.5,color:pc,letterSpacing:1}}>{[1,2,3,4,5].map(n=><span key={n}>{n<=Number(rv.rating)?"★":"☆"}</span>)}</span>
+ <button onClick={()=>toggleReviewHidden(rv)} style={{background:"none",border:"none",color:rv.status==="hidden"?pcDeep:"var(--ink-3)",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{rv.status==="hidden"?"החזרה":"הסתרה"}</button>
+ </div>
+                        {rv.body&&<p style={{fontSize:12,color:"var(--ink)",lineHeight:1.6,marginBottom:3}}>{rv.body}</p>}
+ <p style={{fontSize:11,color:"var(--ink-3)"}}>{rv.client_name||"לקוחה"} · {new Date(rv.created_at).toLocaleDateString("he-IL")}{rv.status==="hidden"?" · מוסתרת":""}</p>
+ </div>
+                    ))}
+ <p style={{fontSize:12,color:"var(--ink)",fontWeight:700,marginTop:14,marginBottom:2}}>ביקורות שהוקלדו ידנית</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:8}}>מוצגות רק כל עוד אין אף ביקורת מלקוחה. ברגע שתגיע הראשונה, אלה יוחלפו בה.</p>
                     {(Array.isArray(brand.reviews)?brand.reviews:[]).map((rv,i)=>{
                       const revs=Array.isArray(brand.reviews)?brand.reviews:[];
                       const updRev=(patch)=>setBrand("reviews",revs.map((x,j)=>j===i?{...x,...patch}:x));

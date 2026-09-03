@@ -72,6 +72,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const [availabilityError, setAvailabilityError] = useState(false);
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
+  // Reviews written by clients. null until the read resolves, so "none yet" and
+  // "not loaded" stay apart.
+  const [dbReviews, setDbReviews] = useState(null);
   const [showAllHours, setShowAllHours] = useState(false);
   const [tab, setTab] = useState("book");
 
@@ -118,7 +121,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const loadData = async (t, prefillServiceName) => {
     try {
       // Every query is scoped to this tenant only.
-      const [row, sv, ap] = await Promise.all([
+      const [row, sv, ap, rv] = await Promise.all([
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
         fetchPublicSettings(supabase, t),
@@ -134,7 +137,17 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         fetch(`/api/availability?t=${encodeURIComponent(t)}`)
           .then((r) => r.json())
           .catch(() => ({ success: false })),
+        // Reviews a client wrote, through the same SECURITY DEFINER pattern as
+        // the branding: anon holds no privilege on public.reviews in either
+        // direction, and the function returns published rows only - so "hidden"
+        // is enforced once, in the database, rather than remembered by every
+        // caller.
+        supabase.rpc("get_public_reviews", { p_tenant_id: t }),
       ]);
+
+      // A failed read leaves this null, which falls back to the hand-typed
+      // array below rather than showing a business with no reviews at all.
+      setDbReviews(rv?.error ? null : (rv?.data || []));
 
       if (row) {
         setSettings(row);
@@ -369,7 +382,17 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
-  const reviews = brand?.reviews || [];
+  // REAL REVIEWS WIN. dbReviews comes from clients who were actually here;
+  // brand.reviews is the array she types herself in the branding tab. The old
+  // array is kept as a FALLBACK and not deleted, so nobody's existing
+  // testimonials vanish the day this ships - but the moment one real review
+  // exists, the typed ones stop being shown. A page cannot claim both.
+  const reviews = (dbReviews && dbReviews.length)
+    ? dbReviews.map((r) => ({ name: r.client_name, rating: r.rating, text: r.body }))
+    : (brand?.reviews || []);
+  // Whether the number above the stars is standing on anything. Three reviews
+  // averaging 5.0 should not wear the same clothes as sixty.
+  const reviewsAreReal = !!(dbReviews && dbReviews.length);
   const avgRating = reviews.length ? reviews.reduce((a, r) => a + (Number(r.rating) || 0), 0) / reviews.length : 0;
   const now = new Date();
   const weekHours = normalizeBusinessHours(settings);
@@ -615,7 +638,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                     <div style={{ fontSize: 15, color: pc, letterSpacing: 2 }}>
                       {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
                     </div>
-                    <span style={{ fontSize: 11, color: faint, letterSpacing: "0.5px" }}>{reviews.length} ביקורות</span>
+                    <span style={{ ...T_META, color: faint }}>{reviews.length} ביקורות{reviewsAreReal ? " מלקוחות" : ""}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
