@@ -1279,7 +1279,12 @@ export default function BeautyOS() {
   const toast = useCallback((msg, type = "success", action = null) => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, msg, type, action }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 5500 : 3500);
+    // Error toasts stay until tapped: they carry real reasons now (an OAuth
+    // error, a failed save), and a reason that vanishes in 3.5s while she is
+    // still reaching for her phone camera is a reason she never had.
+    if (type !== "error") {
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), action ? 5500 : 3500);
+    }
   }, []);
 
   // Keyboard activation for clickable elements that aren't native buttons:
@@ -6498,7 +6503,7 @@ export default function BeautyOS() {
             const colors={success:{bg:"var(--ink)",fg:"var(--surface)",icon:"✓"},error:{bg:"var(--danger)",fg:"var(--surface)",icon:"!"},info:{bg:pcDeep,fg:"var(--surface)",icon:"i"}};
             const c=colors[t.type]||colors.success;
             return(
- <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} style={{background:c.bg,color:c.fg,padding:"10px 18px",borderRadius:24,fontSize:12,fontWeight:600,boxShadow:"var(--shadow-lg)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8}}>
+ <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} onClick={()=>{if(t.type==="error")setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:c.bg,color:c.fg,padding:"10px 18px",borderRadius:24,fontSize:12,fontWeight:600,boxShadow:"var(--shadow-lg)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8,cursor:t.type==="error"?"pointer":"default",userSelect:t.type==="error"?"text":undefined}}>
                 <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(255,255,255,0.22)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,flexShrink:0}}>{c.icon}</span>
                 {t.msg}
                 {t.action&&<button onClick={()=>{t.action.onClick();setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:"rgba(255,255,255,0.2)",border:"none",color:c.fg,fontSize:11,fontWeight:700,padding:"4px 11px",borderRadius:16,cursor:"pointer",fontFamily:"inherit",marginRight:2,whiteSpace:"nowrap"}}>{t.action.label}</button>}
