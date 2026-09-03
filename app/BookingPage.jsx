@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
-import { fetchPublicSettings, resolveBranding } from "@/lib/branding";
+import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK } from "@/lib/branding";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
@@ -382,6 +382,11 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
+  const clinicPhotos = brand?.clinicPhotos || [];
+  // null = she never touched it -> the seeded default; [] = explicitly cleared.
+  const howIWork = brand?.howIWork === null || brand?.howIWork === undefined
+    ? DEFAULT_HOW_I_WORK
+    : brand.howIWork;
   // REAL REVIEWS WIN. dbReviews comes from clients who were actually here;
   // brand.reviews is the array she types herself in the branding tab. The old
   // array is kept as a FALLBACK and not deleted, so nobody's existing
@@ -641,6 +646,40 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               <div>
                 {eyebrow("אודות")}
                 <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+              </div>
+            </div>
+          )}
+
+          {/* HOW I WORK - her 4 steps, the trust section. Seeded with a
+              default any cosmetician could stand behind until she writes her
+              own; an explicitly cleared list renders nothing. */}
+          {howIWork.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={cardBox}>
+                {eyebrow("איך זה עובד אצלי")}
+                <div>
+                  {howIWork.map((step, i) => (
+                    <div key={i} style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}` }}>
+                      <span className="serif" style={{ fontSize: 20, fontWeight: 600, color: pc, flexShrink: 0, lineHeight: 1 }}>{i + 1}</span>
+                      <p style={{ ...T_BODY, color: ink, margin: 0 }}>{step}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* THE CLINIC - up to 3 atmosphere shots: the room, not the work.
+              Full-bleed of the column, no card, so they read as place rather
+              than portfolio. */}
+          {clinicPhotos.length > 0 && (
+            <div style={{ ...section }}>
+              <div style={{ display: "grid", gridTemplateColumns: clinicPhotos.length === 1 ? "1fr" : `repeat(${clinicPhotos.length}, 1fr)`, gap: 8 }}>
+                {clinicPhotos.map((p, i) => (
+                  <div key={i} style={{ aspectRatio: clinicPhotos.length === 1 ? "16 / 9" : "3 / 4", borderRadius: 16, overflow: "hidden", border: `1px solid ${hair}` }}>
+                    <img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </div>
+                ))}
               </div>
             </div>
           )}

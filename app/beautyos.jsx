@@ -23,6 +23,7 @@ import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION }
 import { isMissingColumnError } from "@/lib/pgError";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
+import { DEFAULT_HOW_I_WORK } from "@/lib/branding";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
@@ -3763,6 +3764,24 @@ export default function BeautyOS() {
   // Upload one gallery image and APPEND its public URL to branding.gallery (an
   // array), same tenant-scoped path rules as uploadBrandAsset. The public /book
   // page renders these as a Google-style photo grid.
+  // Same shape as the gallery upload, into branding.clinic_photos, capped at 3:
+  // atmosphere shots of the room, not the work.
+  const uploadClinicPhoto = async (file) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading("clinic");
+    try {
+      const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "clinic");
+      if(up.error){ handleDbError(up.error, "upload clinic photo"); return; }
+      const url = up.url;
+      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות קליניקה","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
+      toast("התמונה נוספה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
+  };
+
   const uploadGalleryImage = async (file) => {
     if(!file) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
