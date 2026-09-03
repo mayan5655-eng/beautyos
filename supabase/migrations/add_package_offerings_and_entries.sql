@@ -11,21 +11,25 @@
 -- The backfill was a no-op: public.packages held no rows, so there was no
 -- used_sessions to reconstruct.
 --
--- THE GUARD IS STILL UNPROVEN, and the reason is worth recording because it
--- fooled the first attempt. Verify (c) ran an UPDATE against an empty table -
--- zero rows matched, so the row-level trigger never fired, and the absence of
--- an error was read as a pass. It was not a pass; it was silence.
+-- THE GUARD IS PROVEN, verified 2026-09-03. In a rolled-back transaction, a
+-- package was inserted and then `update public.packages set used_sessions = 99`
+-- was run against it directly. It failed with 42501 from
+-- packages_used_is_derived.
 --
--- packages_used_is_derived is the load-bearing piece of this migration: without
--- it the ledger is an optional second opinion and the audit holds only for as
--- long as every future caller remembers to use it. Prove it in a transaction
--- that is thrown away, which needs no real sale:
+-- Where that was run is the point. The Supabase SQL editor bypasses RLS
+-- entirely, so this is not "the policies stopped it" - it is the trigger
+-- refusing a writer who had every permission. The ledger is genuinely the only
+-- thing that can move used_sessions, which is what the audit rests on: without
+-- it the entries would be an optional second opinion, and the guarantee would
+-- hold only for as long as every future caller remembered to write one.
 --
---     begin;
---       insert into public.packages (tenant_id, client_name, service, total_sessions, used_sessions)
---       values ('<your-tenant-id>', 'בדיקה', 'test', 5, 0) returning id;
---       update public.packages set used_sessions = 99 where id = '<that-id>';  -- must FAIL 42501
---     rollback;
+-- The first attempt at this check PASSED WITHOUT PROVING ANYTHING, and that is
+-- worth keeping. It ran the UPDATE against an empty table: zero rows matched,
+-- the row-level trigger never fired, and the absence of an error was read as a
+-- pass. It was not a pass, it was silence - the same shape as most of the bugs
+-- in this codebase's history. A verification that cannot fail has verified
+-- nothing, and the fix was to insert a row first so there was something for the
+-- trigger to refuse.
 --
 -- Safe to run more than once.
 --

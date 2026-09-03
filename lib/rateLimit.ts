@@ -170,6 +170,24 @@ export const RATE_POLICIES = {
       `יומן העסק עמוס כרגע בבקשות. אפשר לנסות שוב ${m}.`,
   },
 
+  // The review form. GET on page load, POST once - a real client generates two
+  // requests in her life, so this can be tight without ever touching her. It is
+  // deliberately not as loose as availability: unlike a booking page, nothing
+  // here degrades usefully under a cap, and the signature already makes bulk
+  // guessing pointless.
+  //
+  // Per-IP only. There is no tenant cap because the tenant is not known until
+  // the token has been verified, and a caller who cannot produce a signature
+  // never gets that far.
+  reviews: {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 200, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `יותר מדי בקשות כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   // The cheap one: a single upsert, and it is fired automatically (keepalive) as
   // the scanner page navigates to /book. It must not be the limit a real visitor
   // trips, so it is the loosest.

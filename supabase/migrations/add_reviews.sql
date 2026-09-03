@@ -9,15 +9,21 @@
 -- functions are live, and tenants_slug_not_reserved was recreated with 'review'
 -- and 'reviews' in it.
 --
--- NOT VERIFIED BEHAVIOURALLY, and this is the gap worth naming: verify (b)
--- below was not run, so nothing has yet made the immutability trigger REFUSE an
--- edit. That trigger is the whole feature - it is what separates a review from
--- a testimonial she typed - and "the trigger exists" is a weaker claim than "an
--- UPDATE to body raised 42501". Run (b) before the first client is sent a
--- review link, not after.
+-- THE IMMUTABILITY TRIGGER IS PROVEN, verified 2026-09-03. In a rolled-back
+-- transaction a review was inserted and then an UPDATE to its body was run
+-- directly. It failed with 42501 from reviews_content_is_immutable. Nothing was
+-- left behind.
 --
--- (c) and (d) - one review per visit, and hidden rows not leaving the read
--- function - are also unrun.
+-- Where it was run is the point. The Supabase SQL editor bypasses RLS, so this
+-- is not "the policies stopped it" - it is the trigger refusing a writer that
+-- had every permission there is. That matters more here than almost anywhere
+-- else in this schema, because the trigger IS the feature: it is the only thing
+-- separating a review from a testimonial she typed about herself, and the page
+-- is about to make that claim to strangers in 36px with five stars beside it.
+--
+-- Still unrun: (c), one review per visit, and (d), hidden rows not leaving
+-- get_public_reviews. Both are enforced by things simpler than a trigger - a
+-- unique index and a WHERE clause - which is why they wait.
 --
 -- Safe to run more than once.
 --
