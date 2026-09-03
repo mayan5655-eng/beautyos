@@ -298,13 +298,23 @@ const sourceLabelHe = (src) => {
   if (!s) return "לא ידוע";
   return SOURCE_LABELS_HE[s] || s;
 };
+// Reporting only, never a button. It has to be IN this list or
+// paymentBreakdown cannot count it - that function iterates PAYMENT_METHODS, so
+// a method missing from it is a receipt that silently leaves the report. But
+// "paid from a package" is a consequence of drawing a session, not a way of
+// paying, and offering it as a choice would let her write a receipt claiming a
+// package that nothing was deducted from.
+const PACKAGE_PAYMENT = "חבילה";
 const PAYMENT_METHODS = [
   {key:"מזומן",icon:"◦",color:"#C9A24B"},
   {key:"אשראי",icon:"◦",color:"#A67C52"},
   {key:"ביט",icon:"◦",color:"#C68A5E"},
   {key:"פייבוקס",icon:"◦",color:"#CBA15E"},
   {key:"העברה",icon:"◦",color:"#8C6239"},
+  {key:PACKAGE_PAYMENT,icon:"◦",color:"#6B5279"},
 ];
+/** What the till offers. PACKAGE_PAYMENT is reached by drawing, not by tapping. */
+const SELECTABLE_PAYMENT_METHODS = PAYMENT_METHODS.filter(m=>m.key!==PACKAGE_PAYMENT);
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -1214,6 +1224,10 @@ export default function BeautyOS() {
   const [cashierDiscount, setCashierDiscount] = useState(0);
   const [paymentMethod,   setPaymentMethod]   = useState("מזומן");
   const [cashierNote,     setCashierNote]     = useState("");
+  // Whether this visit is drawn from a package. OFF until she taps it: she paid
+  // up front, and a session leaving her balance without being asked for is the
+  // one thing this must never do.
+  const [drawFromPackage, setDrawFromPackage] = useState(false);
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -1629,7 +1643,27 @@ export default function BeautyOS() {
   );
   const NO_SERVICES_HINT = "עוד לא הוספת טיפולים. אפשר להוסיף אותם בהגדרות ← שירותים.";
   const NO_CLIENTS_HINT = "עוד אין לקוחות במערכת. אפשר להוסיף לקוחה במסך הלקוחות.";
-  const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0));
+  // The package this visit could be drawn from: an active one, belonging to
+  // this client, with sessions left, whose service is actually on the receipt.
+  // Matching on the service is the point - a facial package does not pay for a
+  // peel, and offering it would be worse than offering nothing.
+  const cashierPackage = useMemo(() => {
+    if (!cashierClient) return null;
+    return packages.find(pk =>
+      pk.active &&
+      String(pk.client_id) === String(cashierClient.id) &&
+      Number(pk.used_sessions) < Number(pk.total_sessions) &&
+      cashierItems.some(i => i.name === pk.service)
+    ) || null;
+  }, [cashierClient, packages, cashierItems]);
+
+  // One session, one unit. A client taking two of the same treatment in a visit
+  // draws ONE session and pays for the other - anything else spends a balance
+  // she cannot see being spent.
+  const packageCredit = (drawFromPackage && cashierPackage)
+    ? Number(cashierItems.find(i => i.name === cashierPackage.service)?.price || 0)
+    : 0;
+  const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0)-packageCredit);
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
   // Day-of-week of the picked date, parsed as LOCAL (not UTC) so it never shifts
@@ -4057,7 +4091,7 @@ export default function BeautyOS() {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierNote("");setShowCashier(true);
+    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierNote("");setDrawFromPackage(false);setShowCashier(true);
   };
 
   const handleSaveReceipt = async () => {
@@ -4067,13 +4101,22 @@ export default function BeautyOS() {
     setBusyKey("saveReceipt", true);
     try {
       const serviceNames=cashierItems.map(i=>i.name).join(", ");
+      // A drawn session leaves a receipt for whatever is still owed, which is
+      // usually nothing. A zero receipt is not clutter: it keeps the invariant
+      // that every completed visit produces one, so history and per-visit
+      // reporting stay whole - and since the money was collected at purchase,
+      // revenue is untouched either way.
+      const drewFromPackage = drawFromPackage && !!cashierPackage;
       const receipt={
         client_id:cashierClient?.id||null,
         client_name:cashierClient?.name||"לקוחה",
         appointment_id:cashierAppt?.id||null,
         service:serviceNames,
         amount:cashierTotal,
-        payment_method:paymentMethod,
+        // Only when nothing is left to pay. A covered treatment plus a cream is
+        // still a card payment, and calling that "package" would put real money
+        // in the wrong column of her breakdown.
+        payment_method:(drewFromPackage && cashierTotal === 0) ? PACKAGE_PAYMENT : paymentMethod,
         note:cashierNote,
         items:JSON.stringify(cashierItems),
         discount:Number(cashierDiscount||0),
@@ -4082,6 +4125,24 @@ export default function BeautyOS() {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast("יצירת הקבלה נכשלה","error");return;}
       setReceipts(prev=>[...prev,data[0]]);
+
+      // The deduction, AFTER the receipt, ordered by which failure is
+      // recoverable: a drawn session with no receipt is money she has to chase,
+      // while a receipt with no deduction is one session she can draw by hand
+      // from the packages tab - and the toast tells her to, by name.
+      //
+      // The appointment goes onto the entry so the ledger records which visit
+      // spent it, and so the unique index refuses a second draw against the
+      // same visit rather than leaving her to notice.
+      if (drewFromPackage) {
+        const fresh = await writePackageEntry(cashierPackage, -1, {
+          appointmentId: cashierAppt?.id || null,
+          reason: "ניכוי בקופה",
+        });
+        if (!fresh) {
+          toast(`הקבלה נוצרה, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. אפשר לנכות ידנית במסך המנויים.`, "error");
+        }
+      }
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
       // failure. Uses the same sendReceiptToClient the manual button uses.
@@ -9226,9 +9287,21 @@ export default function BeautyOS() {
  <p style={{fontSize:11,color:"var(--ink-2)",flex:1}}>הנחה (₪)</p>
  <input type="number" value={cashierDiscount||""} onChange={e=>setCashierDiscount(e.target.value)} placeholder="0" style={{width:80,border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
+            {cashierPackage&&(
+ <div style={{background:drawFromPackage?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${drawFromPackage?pc:"var(--line-2)"}`,borderRadius:12,padding:"11px 12px",marginBottom:10}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+ <div style={{minWidth:0}}>
+ <p style={{fontSize:12,fontWeight:700,color:"var(--ink)"}}>יש חבילה: {cashierPackage.service}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)"}}>נותרו {Number(cashierPackage.total_sessions)-Number(cashierPackage.used_sessions)} מתוך {cashierPackage.total_sessions}</p>
+ </div>
+ <button onClick={()=>setDrawFromPackage(v=>!v)} style={{background:drawFromPackage?pcGrad:"var(--surface)",color:drawFromPackage?"var(--surface)":pcDeep,border:drawFromPackage?"none":"1px solid var(--line-2)",borderRadius:20,padding:"7px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{drawFromPackage?"✓ מנוכה":"לחייב מהחבילה"}</button>
+ </div>
+                {drawFromPackage&&<p style={{fontSize:11,color:pcDeep,marginTop:6,lineHeight:1.5}}>טיפול אחד ינוכה מהחבילה עם שמירת הקבלה.</p>}
+ </div>
+            )}
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:5}}>אמצעי תשלום</p>
  <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
-              {PAYMENT_METHODS.map(pm=>(
+              {SELECTABLE_PAYMENT_METHODS.map(pm=>(
  <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"var(--line)",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
               ))}
  </div>
