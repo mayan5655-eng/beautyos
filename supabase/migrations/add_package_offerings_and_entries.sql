@@ -3,10 +3,29 @@
 -- Stage 1 of packages: the catalogue in front of a purchase, and the ledger
 -- underneath one.
 --
--- ── STATUS: NOT APPLIED ────────────────────────────────────────────────────
--- Run by hand in the Supabase SQL Editor. Update this header when it lands and
--- say what was run and what came back - and read the live object rather than
--- trusting this line, which this repo has had to learn twice.
+-- ── STATUS: APPLIED to production on 2026-09-03 ────────────────────────────
+-- Run by hand in the Supabase SQL Editor. Both tables, both triggers, the
+-- policies and the grants are live, and packages gained offering_id and
+-- expires_at.
+--
+-- The backfill was a no-op: public.packages held no rows, so there was no
+-- used_sessions to reconstruct.
+--
+-- THE GUARD IS STILL UNPROVEN, and the reason is worth recording because it
+-- fooled the first attempt. Verify (c) ran an UPDATE against an empty table -
+-- zero rows matched, so the row-level trigger never fired, and the absence of
+-- an error was read as a pass. It was not a pass; it was silence.
+--
+-- packages_used_is_derived is the load-bearing piece of this migration: without
+-- it the ledger is an optional second opinion and the audit holds only for as
+-- long as every future caller remembers to use it. Prove it in a transaction
+-- that is thrown away, which needs no real sale:
+--
+--     begin;
+--       insert into public.packages (tenant_id, client_name, service, total_sessions, used_sessions)
+--       values ('<your-tenant-id>', 'בדיקה', 'test', 5, 0) returning id;
+--       update public.packages set used_sessions = 99 where id = '<that-id>';  -- must FAIL 42501
+--     rollback;
 --
 -- Safe to run more than once.
 --

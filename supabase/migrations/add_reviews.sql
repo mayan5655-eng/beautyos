@@ -2,11 +2,22 @@
 --
 -- Reviews written by CLIENTS, tied to a visit that actually happened.
 --
--- ── STATUS: NOT APPLIED ────────────────────────────────────────────────────
--- Run by hand in the Supabase SQL Editor. Update this header when it lands and
--- say how it was verified - see add_appointment_no_overlap.sql for the pattern,
--- and read the live object rather than trusting a header, which this repo has
--- now had to learn twice.
+-- ── STATUS: APPLIED to production on 2026-09-03 ────────────────────────────
+-- Run by hand in the Supabase SQL Editor.
+--
+-- Verified by existence: the table, its policies, the grants and the two
+-- functions are live, and tenants_slug_not_reserved was recreated with 'review'
+-- and 'reviews' in it.
+--
+-- NOT VERIFIED BEHAVIOURALLY, and this is the gap worth naming: verify (b)
+-- below was not run, so nothing has yet made the immutability trigger REFUSE an
+-- edit. That trigger is the whole feature - it is what separates a review from
+-- a testimonial she typed - and "the trigger exists" is a weaker claim than "an
+-- UPDATE to body raised 42501". Run (b) before the first client is sent a
+-- review link, not after.
+--
+-- (c) and (d) - one review per visit, and hidden rows not leaving the read
+-- function - are also unrun.
 --
 -- Safe to run more than once.
 --
