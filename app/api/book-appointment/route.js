@@ -74,6 +74,39 @@ export async function POST(request) {
     const tenantLimited = checkTenantLimit(activeTenantId, "book-appointment");
     if (tenantLimited) return tenantLimited;
 
+    // The service must be a real, ACTIVE row on this tenant's menu. Enforced
+    // here and not only by which services the page renders, for the same
+    // reason as business hours below: the page filters archived services out,
+    // but this endpoint is reachable directly, so an old deep link (or a
+    // crafted POST) could book a service she archived - archived means
+    // archived everywhere. The row's own price and duration also override
+    // whatever the client sent: the menu is hers, not the caller's.
+    const { data: svcRows, error: svcError } = await supabase
+      .from("service_prices")
+      .select("name, price, duration, color, active")
+      .eq("tenant_id", activeTenantId)
+      .eq("name", service)
+      .limit(1);
+    if (svcError) {
+      console.error("[book-appointment] service lookup failed:", svcError.message);
+      return Response.json(
+        { success: false, error: "לא הצלחנו לבדוק את השירות, נסי שוב" },
+        { status: 500 }
+      );
+    }
+    const svcRow = svcRows && svcRows[0];
+    if (!svcRow || svcRow.active === false) {
+      return Response.json(
+        { success: false, error: "השירות הזה כבר לא זמין להזמנה. רעננו את העמוד לרשימה העדכנית." },
+        { status: 409 }
+      );
+    }
+    // Server-side truth for the booking's numbers. The client's values are
+    // used only where the row is silent (a legacy row with null duration).
+    const svcDuration = Number(svcRow.duration) > 0 ? Number(svcRow.duration) : Number(duration) > 0 ? Number(duration) : 60;
+    const svcPrice = Number.isFinite(Number(svcRow.price)) ? Number(svcRow.price) : Number(price) || 0;
+    const svcColor = svcRow.color || color || "#E91E63";
+
     // Wire format, explicit on BOTH sides - never one field carrying two
     // meanings:
     //   startMinute : minutes from midnight (870 = 14:30)   <- preferred
@@ -149,7 +182,7 @@ export async function POST(request) {
       // defaults rather than returning null - so a missing row degrades to a
       // rule, never to no rule.
       const dh = dayHoursFrom(settingsRow, weekday);
-      const bookedEnd = newStart + Number(duration || 60);
+      const bookedEnd = newStart + svcDuration;
       if (!dh) {
         return Response.json(
           { success: false, error: "העסק סגור בתאריך הזה. נא לבחור מועד אחר." },
@@ -183,7 +216,7 @@ export async function POST(request) {
       // against a full-hour one.
       const clash = clashesWith(
         newStart,
-        Number(duration || 60),
+        svcDuration,
         (sameDay || []).filter((a) => a.confirmation_status !== "cancelled")
       );
       if (clash) {
@@ -272,9 +305,9 @@ export async function POST(request) {
         // Both written during the transition: start_minute is what the app now
         // reads, hour keeps a deployment running the previous build correct.
         ...startFields(newStart),
-        duration: duration || 60,
-        price: price || 0,
-        color: color || "#E91E63",
+        duration: svcDuration,
+        price: svcPrice,
+        color: svcColor,
         self_booked: true,
         confirmation_status: "confirmed",
         confirmation_sent: true,
@@ -324,14 +357,14 @@ export async function POST(request) {
       const arrivalNote = String(brandJson.arrival_note || "").trim();
       const therapist = String(settingsRow?.therapist_name || "").trim();
       const { cancelUrl } = confirmLinks(APP_URL, appt.id);
-      const durationText = durationHe(duration || 60);
+      const durationText = durationHe(svcDuration);
 
       const clientMsg = lines(
         greet(name),
         `התור שלך ב${businessName} נקבע.`,
         "",
         durationText ? `${service} · ${durationText}` : service,
-        `${hebrewDate(date)}, ${timeRange(newStart, duration || 60)}`,
+        `${hebrewDate(date)}, ${timeRange(newStart, svcDuration)}`,
         therapist ? `מטפלת: ${therapist}` : null,
         address ? "" : null,
         address ? `📍 ${address}` : null,
@@ -363,7 +396,7 @@ export async function POST(request) {
         // booking to a client: it is the difference between greeting a stranger
         // and greeting someone whose last visit she can look up.
         const ownerMsg = lines(
-          `תור חדש · ${hebrewDateShort(date)}, ${timeRange(newStart, duration || 60)}`,
+          `תור חדש · ${hebrewDateShort(date)}, ${timeRange(newStart, svcDuration)}`,
           `${name} · ${service}${durationText ? ` (${durationText})` : ""}`,
           isReturningClient ? "לקוחה חוזרת" : "לקוחה חדשה",
           phone
