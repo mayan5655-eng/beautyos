@@ -50,7 +50,7 @@ export async function POST(request) {
 
     const { data: settingsRows } = await admin
       .from("settings")
-      .select("business_name, therapist_name, branding, automations")
+      .select("business_name, therapist_name, branding, automations, green_api_instance, green_api_token_encrypted")
       .eq("tenant_id", tenantId)
       .maybeSingle();
     const autos = settingsRows?.automations;
@@ -94,6 +94,21 @@ export async function POST(request) {
       `שלום${name ? ` ${name}` : ""}! ✦\n` +
       `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫\n` +
       `אפשר לקבוע תור כאן:\n${bookingUrl}`;
+
+    // PREPARE mode: hand back the recipients and the message for her to send
+    // herself over wa.me - the default yes-path; see slots/offer for why.
+    if (body.mode === "prepare") {
+      return Response.json({
+        success: true,
+        mode: "prepare",
+        greenApiConnected: !!(settingsRows?.green_api_instance && settingsRows?.green_api_token_encrypted),
+        messageTemplate:
+          `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫
+` +
+          `אפשר לקבוע תור כאן:`,
+        candidates: candidates.map((c) => ({ name: c.name, phone: c.phone, claimUrl: bookingUrl })),
+      });
+    }
 
     if (body.dryRun === true) {
       return Response.json({

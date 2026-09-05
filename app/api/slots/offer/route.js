@@ -113,7 +113,7 @@ export async function POST(request) {
 
     // 3. Server-side toggle check (defense in depth — nothing sends when off).
     const { data: settingsRow } = await admin
-      .from("settings").select("gap_fill_enabled, business_name, automations").eq("tenant_id", tenantId).maybeSingle();
+      .from("settings").select("gap_fill_enabled, business_name, automations, green_api_instance, green_api_token_encrypted").eq("tenant_id", tenantId).maybeSingle();
 
     // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
     // Gap-fill fires automatically 6.5s after a delete with no further input,
@@ -234,6 +234,50 @@ export async function POST(request) {
     const hh = fmtTime(slotStartMinute);
     const [yy, mm, dd] = slotDate.split("-");
     const niceDate = dd && mm ? `${dd}/${mm}` : slotDate;
+
+    // PREPARE mode: do everything except the send. Offer rows are created so
+    // the claim links are real and first-click-wins still holds - but the
+    // messages leave from HER WhatsApp via wa.me, one tap per client. This is
+    // the default yes-path in the UI: it works with no GreenAPI connected,
+    // and a message from her own number is one a client recognises.
+    if (body.mode === "prepare") {
+      const prepared = [];
+      for (const cand of candidates) {
+        const { data: offer, error: insErr } = await admin
+          .from("slot_offers")
+          .insert({
+            tenant_id: tenantId,
+            slot_date: slotDate,
+            slot_start_minute: slotStartMinute,
+            slot_hour: Math.floor(slotStartMinute / 60),
+            service: service || null,
+            duration,
+            client_id: cand.clientId,
+            client_name: cand.name,
+            phone: cand.phone,
+            status: "sent",
+            expires_at: expiresAt,
+          })
+          .select("token")
+          .single();
+        if (insErr || !offer?.token) continue;
+        prepared.push({ name: cand.name, phone: cand.phone, claimUrl: `${origin}/claim/${offer.token}` });
+      }
+      const greenApiConnected = !!(settingsRow?.green_api_instance && settingsRow?.green_api_token_encrypted);
+      return Response.json({
+        success: true,
+        mode: "prepare",
+        greenApiConnected,
+        slot: { date: slotDate, time: hh, service: service || null },
+        // The body without the link; each candidate's claim link is appended
+        // per client at send time so edits keep every link personal.
+        messageTemplate:
+          `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}.
+` +
+          `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:`,
+        candidates: prepared,
+      });
+    }
 
     let sent = 0, failed = 0;
     for (const cand of candidates) {

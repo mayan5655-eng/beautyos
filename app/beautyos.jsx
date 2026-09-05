@@ -962,6 +962,11 @@ export default function BeautyOS() {
   // footer so the pattern is measured from day one.
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const [questionStats,   setQuestionStats]   = useState(null); // {yes, no}
+  // The compose window a yes opens: she reviews the message and the list, and
+  // sends herself over wa.me - one tap per client, from her own WhatsApp.
+  // {title, messageTemplate, candidates:[{name,phone,claimUrl}], greenApiConnected, autoSend}
+  const [composeSend,     setComposeSend]     = useState(null);
+  const [composeDone,     setComposeDone]     = useState({});   // phone -> true after tap
   // AI content generator (posts)
   const [postGoal,       setPostGoal]       = useState("");
   // Optional free text sent as CampaignInput.additionalContext.
@@ -2984,40 +2989,46 @@ export default function BeautyOS() {
     setBusyKey("ownerQuestion", true);
     try {
       let result = null;
-      if (saidYes && q.kind === "comeback") {
-        const quietStart = q.payload?.quiet_start;
-        if (!quietStart) {
-          // No appointment before the break - nobody was lost to it.
+      // A yes PREPARES rather than sends: the server picks the candidates and
+      // writes the claim links, and a compose window opens for her to send
+      // from her own WhatsApp (wa.me) - works with no GreenAPI, no ban risk,
+      // and the message arrives from a number the client knows. The automatic
+      // path survives as a button in that window when GreenAPI is connected.
+      if (saidYes && (q.kind === "gap_fill" || q.kind === "comeback")) {
+        const p = q.payload || {};
+        if (q.kind === "comeback" && !p.quiet_start) {
           toast("לא נמצאו לקוחות מתאימות");
           result = { sent: 0 };
         } else {
-          const res = await fetch("/api/clients/comeback", {
+          const url = q.kind === "gap_fill" ? "/api/slots/offer" : "/api/clients/comeback";
+          const reqBody = q.kind === "gap_fill"
+            ? { date: p.date, startMinute: p.startMinute, service: p.service,
+                duration: p.duration, cancelledClientId: p.cancelledClientId,
+                explicitConfirm: true, mode: "prepare" }
+            : { quietStart: p.quiet_start, mode: "prepare" };
+          const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ quietStart }),
+            body: JSON.stringify(reqBody),
           });
           const data = await res.json().catch(() => ({}));
-          if (!data.success) { toast(data.error || "השליחה נכשלה", "error"); return; }
-          result = { sent: data.sent || 0 };
-          toast(data.sent > 0 ? `נשלחה הודעת "חזרנו" ל-${data.sent} לקוחות ✦` : "לא נמצאו לקוחות מתאימות");
+          if (!data.success) { toast(data.error || "ההכנה נכשלה", "error"); return; }
+          if (!data.candidates || data.candidates.length === 0) {
+            toast("לא נמצאו לקוחות מתאימות");
+            result = { sent: 0 };
+          } else {
+            setComposeDone({});
+            setComposeSend({
+              kind: q.kind,
+              title: q.kind === "gap_fill" ? "הצעת התור שהתפנה" : `הודעת "חזרנו"`,
+              messageTemplate: data.messageTemplate || "",
+              candidates: data.candidates,
+              greenApiConnected: data.greenApiConnected === true,
+              payload: p,
+            });
+            result = { prepared: data.candidates.length };
+          }
         }
-      }
-      if (saidYes && q.kind === "gap_fill") {
-        const p = q.payload || {};
-        const res = await fetch("/api/slots/offer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date: p.date, startMinute: p.startMinute, service: p.service,
-            duration: p.duration, cancelledClientId: p.cancelledClientId,
-            explicitConfirm: true,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        result = { sent: data.sent || 0 };
-        if (data.success && data.sent > 0) toast(`נשלחה הצעה ל-${data.sent} לקוחות ✦`);
-        else if (data.success) toast("לא נמצאו לקוחות מתאימות להצעה");
-        else { toast(data.error || "השליחה נכשלה", "error"); return; }
       }
       const { error: ansErr } = await supabase.from("owner_questions")
         .update({ status: saidYes ? "yes" : "no", result, answered_at: new Date().toISOString() })
@@ -6747,6 +6758,61 @@ export default function BeautyOS() {
           })}
  </div>
       )}
+
+      {/* COMPOSE-AND-SEND: what a yes on the one-question card opens. The
+          message is editable; each client gets a wa.me tap that opens HER
+          WhatsApp with the text plus that client's personal link. */}
+      {composeSend&&(()=>{
+        const waDigits=(raw)=>{let d=String(raw||"").replace(/D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
+        const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(`שלום${c.name?` ${c.name}`:""}! ✦
+${composeSend.messageTemplate}
+${c.claimUrl}`)}`;
+        const doneCount=composeSend.candidates.filter(c=>composeDone[c.phone]).length;
+        return (
+ <div style={{position:"fixed",inset:0,background:"rgba(30,20,40,0.45)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setComposeSend(null)}>
+ <div className="glass-card" onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,maxHeight:"85dvh",overflowY:"auto",padding:"20px 20px 16px",background:"var(--surface)"}}>
+ <p style={{fontSize:14.5,fontWeight:700,color:"var(--ink)",marginBottom:3}}>{composeSend.title}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>ההודעה נשלחת מהוואטסאפ שלך — לחיצה על לקוחה פותחת את השיחה עם ההודעה מוכנה, ואת רק שולחת.</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>ההודעה (אפשר לערוך)</p>
+ <textarea value={composeSend.messageTemplate} onChange={e=>setComposeSend({...composeSend,messageTemplate:e.target.value})} rows={3} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 12px",fontSize:12.5,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:4}}/>
+ <p style={{fontSize:10.5,color:"var(--ink-3)",marginBottom:12}}>הקישור האישי של כל לקוחה מתווסף אוטומטית בסוף.</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>{composeSend.candidates.length} לקוחות{doneCount>0?` · נשלחו ${doneCount}`:""}</p>
+ {composeSend.candidates.map((c,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||"(ללא שם)"}</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",direction:"ltr",textAlign:"right"}}>{c.phone}</p>
+ </div>
+ <a href={waHref(c)} target="_blank" rel="noreferrer" onClick={()=>setComposeDone(prev=>({...prev,[c.phone]:true}))} className="primary-btn" style={{background:composeDone[c.phone]?"var(--surface-2)":"#25D366",color:composeDone[c.phone]?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:11.5,textDecoration:"none",whiteSpace:"nowrap",borderRadius:10}}>{composeDone[c.phone]?"✓ נשלח":"שליחה בוואטסאפ"}</a>
+ </div>
+ ))}
+ <div style={{display:"flex",gap:8,marginTop:14}}>
+ {/* The automatic path, kept for a connected GreenAPI - one tap sends all,
+     from the system's number rather than hers. */}
+ {composeSend.greenApiConnected&&composeSend.kind==="gap_fill"&&(
+ <button onClick={async()=>{
+   const p=composeSend.payload||{};
+   const res=await fetch("/api/slots/offer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:p.date,startMinute:p.startMinute,service:p.service,duration:p.duration,cancelledClientId:p.cancelledClientId,explicitConfirm:true})});
+   const data=await res.json().catch(()=>({}));
+   if(data.success){toast(`נשלח אוטומטית ל-${data.sent||0} לקוחות ✦`);setComposeSend(null);}
+   else toast(data.error||"השליחה נכשלה","error");
+ }} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"9px 14px",fontSize:11.5}}>שליחה אוטומטית מהמערכת</button>
+ )}
+ {composeSend.greenApiConnected&&composeSend.kind==="comeback"&&(
+ <button onClick={async()=>{
+   const res=await fetch("/api/clients/comeback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({quietStart:composeSend.payload?.quiet_start})});
+   const data=await res.json().catch(()=>({}));
+   if(data.success){toast(`נשלח אוטומטית ל-${data.sent||0} לקוחות ✦`);setComposeSend(null);}
+   else toast(data.error||"השליחה נכשלה","error");
+ }} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"9px 14px",fontSize:11.5}}>שליחה אוטומטית מהמערכת</button>
+ )}
+ <div style={{flex:1}}/>
+ <button onClick={()=>setComposeSend(null)} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"9px 18px",fontSize:12}}>סיימתי</button>
+ </div>
+ </div>
+ </div>
+        );
+      })()}
 
       {/* CONFIRM DIALOG */}
       {confirmDialog&&(
