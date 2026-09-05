@@ -35,6 +35,7 @@ export interface SlotBooking {
   client_id?: string | null;
   name?: string | null;
   client_phone?: string | null;
+  price?: number | null;
   confirmation_status?: string; // default "confirmed"
   confirmation_sent?: boolean; // default true
 }
@@ -58,7 +59,11 @@ export async function bookAppointmentSlot(
     // keeps an older deployment reading the row correctly.
     ...startFields(b.startMinute),
     service: b.service ?? null,
-    duration: b.duration ?? null,
+    // Real numbers, not nulls: a NOT NULL on either column must not be able
+    // to kill a claim, and a zero-duration row is exempt from the overlap
+    // constraint - exactly where a double booking could hide.
+    duration: Number(b.duration) > 0 ? Number(b.duration) : 60,
+    price: Number.isFinite(Number(b.price)) ? Number(b.price) : 0,
     client_id: b.client_id ?? null,
     name: b.name ?? null,
     client_phone: b.client_phone ?? null,

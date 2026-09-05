@@ -129,6 +129,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ state: "error" }, { status: 500 });
   }
 
+  // The price comes from HER menu at claim time - slot_offers does not carry
+  // one, and the client controls nothing here. Best-effort: an unfindable
+  // service books at 0 rather than failing the claim.
+  let claimPrice = 0;
+  if (claimed.service) {
+    const { data: svc } = await supabase
+      .from("service_prices")
+      .select("price")
+      .eq("tenant_id", claimed.tenant_id)
+      .eq("name", claimed.service)
+      .maybeSingle();
+    if (svc && Number.isFinite(Number(svc.price))) claimPrice = Number(svc.price);
+  }
+
   const booked = await bookAppointmentSlot(supabase, {
     tenant_id: claimed.tenant_id,
     date: claimed.slot_date,
@@ -138,6 +152,7 @@ export async function POST(request: NextRequest) {
     client_id: claimed.client_id,
     name: claimed.client_name,
     client_phone: claimed.phone,
+    price: claimPrice,
   });
 
   if (!booked.ok) {
