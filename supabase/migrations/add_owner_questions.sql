@@ -44,7 +44,7 @@ alter table public.owner_questions enable row level security;
 -- the tenant from the session and validates the payload shape - one write
 -- path, and a browser that holds no INSERT at all. The update grant is
 -- column-limited to exactly what answering touches.
-do $
+do $$
 begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='owner_questions' and policyname='owner_questions_select_own') then
     create policy owner_questions_select_own on public.owner_questions
@@ -56,7 +56,7 @@ begin
       using (tenant_id = public.get_user_tenant_id())
       with check (tenant_id = public.get_user_tenant_id());
   end if;
-end $;
+end $$;
 
 -- Idempotent cleanup for a database where the older insert policy landed.
 drop policy if exists owner_questions_insert_own on public.owner_questions;
