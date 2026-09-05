@@ -147,6 +147,10 @@ export async function POST(request: NextRequest) {
         .eq("token", token);
       return NextResponse.json({ state: "taken" });
     }
+    // A non-race failure - a missing column, a NOT NULL, a constraint. This
+    // was previously returned as a generic error with no trace: the exact
+    // silent shape that hid a mismatched table for days.
+    console.error("[claim] booking insert FAILED:", JSON.stringify("error" in booked ? booked.error : booked));
     return NextResponse.json({ state: "error" }, { status: 500 });
   }
 
