@@ -36,8 +36,12 @@ const admin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const DEFAULT_DAYS = 90;
-const MIN_DAYS = 30;
+// ── TEST VALUE — RESTORE BEFORE RELYING ON THIS ────────────────────────────
+// DEFAULT_DAYS is 90 in production terms; temporarily 7 (and MIN_DAYS 1) so
+// the lapsed window can be seen populated on a young dataset. Restore to
+// DEFAULT_DAYS = 90, MIN_DAYS = 30 once verified.
+const DEFAULT_DAYS = 7;
+const MIN_DAYS = 1;
 const MAX_DAYS = 3650;
 
 /** Whole days between a YYYY-MM-DD date and today, in Israel time. */

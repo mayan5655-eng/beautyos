@@ -19,6 +19,57 @@ const admin = createClient(
 
 const KINDS = new Set(["gap_fill", "comeback"]);
 
+// Would a YES on this question reach anyone? Checked BEFORE the question is
+// created - an empty compose window is worse than no question at all, and
+// because this route is the ONLY insert path, every caller (the UI today, a
+// morning cron tomorrow) inherits the check. The filters mirror the yes-path
+// routes; if those change, change these with them:
+//   gap_fill  -> app/api/slots/offer   (waitlist match / lapsed 30d+ / had this service)
+//   comeback  -> app/api/clients/comeback (last visit before the break, within 240d)
+async function hasCandidates(tenantId, kind, payload) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: clients }, { data: appts }] = await Promise.all([
+    admin.from("clients").select("id, name, phone, status").eq("tenant_id", tenantId),
+    admin.from("appointments").select("client_id, service, date").eq("tenant_id", tenantId),
+  ]);
+  const lastVisit = new Map();
+  const hadService = new Set();
+  for (const a of appts || []) {
+    if (!a.client_id || !a.date || a.date > today) continue;
+    const k = String(a.client_id);
+    if (!lastVisit.has(k) || a.date > lastVisit.get(k)) lastVisit.set(k, a.date);
+    if (kind === "gap_fill" && payload.service && a.service === payload.service) hadService.add(k);
+  }
+  const daysSince = (d) => d ? Math.floor((Date.now() - new Date(`${d}T00:00:00`).getTime()) / 86400000) : Infinity;
+
+  if (kind === "gap_fill") {
+    const { data: waitlist } = await admin
+      .from("waitlist").select("client_id, phone, service")
+      .eq("tenant_id", tenantId).eq("status", "waiting");
+    const excluded = payload.cancelledClientId ? String(payload.cancelledClientId) : null;
+    for (const w of waitlist || []) {
+      if (payload.service && w.service && w.service !== payload.service) continue;
+      if (w.phone || (w.client_id && (clients || []).some((c) => String(c.id) === String(w.client_id) && c.phone))) return true;
+    }
+    return (clients || []).some((c) => {
+      if (!c.phone || String(c.id) === excluded) return false;
+      const cid = String(c.id);
+      return daysSince(lastVisit.get(cid)) >= 30 || hadService.has(cid);
+    });
+  }
+
+  // comeback: someone whose last visit predates the break, within 240 days of it.
+  const quietStart = payload.quiet_start;
+  if (!quietStart) return false;
+  const floorMs = new Date(`${quietStart}T00:00:00`).getTime() - 240 * 86400000;
+  return (clients || []).some((c) => {
+    if (c.status === "archived" || !c.phone) return false;
+    const lv = lastVisit.get(String(c.id));
+    if (!lv || lv > quietStart) return false;
+    return new Date(`${lv}T00:00:00`).getTime() >= floorMs;
+  });
+}
+
 export async function POST(request) {
   try {
     const supabase = await createServerClient();
@@ -75,6 +126,13 @@ export async function POST(request) {
       if (existing && existing.length > 0) {
         return Response.json({ success: true, duplicate: true });
       }
+    }
+
+    // No candidates, no question. success:true because nothing went wrong -
+    // there is simply nobody a yes would reach.
+    const anyone = await hasCandidates(tenantId, kind, payload);
+    if (!anyone) {
+      return Response.json({ success: true, skipped: "no_candidates" });
     }
 
     const { error } = await admin
