@@ -3057,20 +3057,17 @@ export default function BeautyOS() {
     if (!settings?.tenant_id || !businessQuiet.comebackDue || !businessQuiet.quietEnd) return;
     (async () => {
       try {
-        const { data: existing } = await supabase
-          .from("owner_questions")
-          .select("id")
-          .eq("kind", "comeback")
-          .eq("payload->>quiet_end", businessQuiet.quietEnd)
-          .limit(1);
-        if (existing && existing.length > 0) return;
-        const { error: cbErr } = await supabase.from("owner_questions").insert({
-          tenant_id: settings.tenant_id,
-          kind: "comeback",
-          payload: { quiet_start: businessQuiet.quietStart, quiet_end: businessQuiet.quietEnd },
+        // Server-side write; the route also dedups one comeback per break.
+        const res = await fetch("/api/questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "comeback", payload: {
+            quiet_start: businessQuiet.quietStart, quiet_end: businessQuiet.quietEnd,
+          }}),
         });
-        if (cbErr) { console.error("[one-question] comeback insert FAILED:", cbErr.code || "", cbErr.message); return; }
-        loadPendingQuestion();
+        const cbData = await res.json().catch(() => ({}));
+        if (!cbData.success) { console.error("[one-question] comeback insert FAILED:", cbData.error || res.status); return; }
+        if (!cbData.duplicate) loadPendingQuestion();
       } catch (e) { console.error("[one-question] comeback THREW:", e?.message || String(e)); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3178,15 +3175,19 @@ export default function BeautyOS() {
             try {
               const startMs = new Date(`${appt.date}T00:00:00`).getTime() + (startMinute(appt) || 0) * 60000;
               if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) return;
-              const { error: qInsErr } = await supabase.from("owner_questions").insert({
-                tenant_id: settings.tenant_id,
-                kind: "gap_fill",
-                payload: {
+              // Server-side write: the browser holds no INSERT on
+              // owner_questions - /api/questions stamps the tenant from the
+              // session and validates the payload shape.
+              const res = await fetch("/api/questions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ kind: "gap_fill", payload: {
                   date: appt.date, startMinute: startMinute(appt), service: appt.service,
                   duration: appt.duration, cancelledClientId: appt.client_id,
-                },
+                }}),
               });
-              if (qInsErr) { console.error("[one-question] gap_fill insert FAILED:", qInsErr.code || "", qInsErr.message); return; }
+              const qData = await res.json().catch(() => ({}));
+              if (!qData.success) { console.error("[one-question] gap_fill insert FAILED:", qData.error || res.status); return; }
               loadPendingQuestion();
             } catch (e) { console.error("[one-question] gap_fill insert THREW:", e?.message || String(e)); }
           }, 6500);

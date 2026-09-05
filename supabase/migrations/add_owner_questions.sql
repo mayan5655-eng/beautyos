@@ -39,17 +39,16 @@ create index if not exists owner_questions_tenant_status_idx
 
 alter table public.owner_questions enable row level security;
 
--- The cosmetician reads, creates and answers her own questions. All three are
--- tenant-scoped through the same SECURITY DEFINER resolver as everything else.
-do $$
+-- The cosmetician READS and ANSWERS her own questions. She does not INSERT:
+-- rows are created only by /api/questions on the service role, which stamps
+-- the tenant from the session and validates the payload shape - one write
+-- path, and a browser that holds no INSERT at all. The update grant is
+-- column-limited to exactly what answering touches.
+do $
 begin
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='owner_questions' and policyname='owner_questions_select_own') then
     create policy owner_questions_select_own on public.owner_questions
       for select to authenticated using (tenant_id = public.get_user_tenant_id());
-  end if;
-  if not exists (select 1 from pg_policies where schemaname='public' and tablename='owner_questions' and policyname='owner_questions_insert_own') then
-    create policy owner_questions_insert_own on public.owner_questions
-      for insert to authenticated with check (tenant_id = public.get_user_tenant_id());
   end if;
   if not exists (select 1 from pg_policies where schemaname='public' and tablename='owner_questions' and policyname='owner_questions_update_own') then
     create policy owner_questions_update_own on public.owner_questions
@@ -57,6 +56,11 @@ begin
       using (tenant_id = public.get_user_tenant_id())
       with check (tenant_id = public.get_user_tenant_id());
   end if;
-end $$;
+end $;
 
-grant select, insert, update on public.owner_questions to authenticated;
+-- Idempotent cleanup for a database where the older insert policy landed.
+drop policy if exists owner_questions_insert_own on public.owner_questions;
+
+revoke all on public.owner_questions from anon, authenticated;
+grant select on public.owner_questions to authenticated;
+grant update (status, result, answered_at) on public.owner_questions to authenticated;
