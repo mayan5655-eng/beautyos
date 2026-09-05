@@ -58,14 +58,17 @@ export async function bookAppointmentSlot(
     // Both written during the transition: start_minute is the new truth, hour
     // keeps an older deployment reading the row correctly.
     ...startFields(b.startMinute),
-    service: b.service ?? null,
+    // NOT NULL columns with no default (name, service, hour, duration) must
+    // never receive null from this path - an offer row can legitimately lack
+    // a name or service, and the claim must book anyway, not 23502.
+    service: b.service || "תור",
     // Real numbers, not nulls: a NOT NULL on either column must not be able
     // to kill a claim, and a zero-duration row is exempt from the overlap
     // constraint - exactly where a double booking could hide.
     duration: Number(b.duration) > 0 ? Number(b.duration) : 60,
     price: Number.isFinite(Number(b.price)) ? Number(b.price) : 0,
     client_id: b.client_id ?? null,
-    name: b.name ?? null,
+    name: b.name || "לקוחה",
     client_phone: b.client_phone ?? null,
     confirmation_status: b.confirmation_status ?? "confirmed",
     confirmation_sent: b.confirmation_sent ?? true,
