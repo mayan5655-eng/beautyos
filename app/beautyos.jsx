@@ -2949,6 +2949,36 @@ export default function BeautyOS() {
               .then(({ error: expErr }) => { if (expErr) console.error("[one-question] expire FAILED:", expErr.message); });
             continue;
           }
+          // STILL FREE? Between the cancellation and now, anyone can have
+          // booked this slot - and a card offering a slot that no longer
+          // exists invites a yes that sends real people a dead link. Checked
+          // against the calendar on every load; a taken slot marks the
+          // question 'stale' (not yes/no - she never answered it), which is
+          // measurable data: how often the market beats the question.
+          const qStart = Number(p.startMinute) || 0;
+          const qDur = Number(p.duration) > 0 ? Number(p.duration) : 60;
+          const { data: dayAppts, error: dayErr } = await supabase
+            .from("appointments")
+            .select("start_minute, hour, duration, confirmation_status")
+            .eq("date", p.date);
+          if (dayErr) {
+            console.error("[one-question] slot-free check FAILED:", dayErr.message);
+            // Cannot verify - do not show a question we cannot stand behind.
+            continue;
+          }
+          const taken = (dayAppts || []).some((a) => {
+            if (a.confirmation_status === "cancelled") return false;
+            const st = a.start_minute != null ? Number(a.start_minute) : (a.hour != null ? Number(a.hour) * 60 : null);
+            if (st === null || !Number.isFinite(st)) return false;
+            const dur = Number(a.duration) > 0 ? Number(a.duration) : 60;
+            return st < qStart + qDur && qStart < st + dur;
+          });
+          if (taken) {
+            console.log("[one-question] gap_fill went STALE before answer - slot rebooked:", p.date, qStart);
+            supabase.from("owner_questions").update({ status: "stale", answered_at: new Date().toISOString() }).eq("id", q.id)
+              .then(({ error: stErr }) => { if (stErr) console.error("[one-question] stale mark FAILED:", stErr.message); });
+            continue;
+          }
         }
         show = q; break;
       }
@@ -3012,6 +3042,18 @@ export default function BeautyOS() {
           });
           const data = await res.json().catch(() => ({}));
           if (!data.success) { toast(data.error || "ההכנה נכשלה", "error"); return; }
+          if (data.slotTaken) {
+            // The slot was booked between the card rendering and her yes. Not
+            // a yes and not a no - she never really answered; 'stale'.
+            console.log("[one-question] gap_fill went STALE at yes - slot rebooked");
+            toast("התור הזה כבר נתפס בינתיים — אין צורך להציע אותו 🎉");
+            const { error: stErr } = await supabase.from("owner_questions")
+              .update({ status: "stale", answered_at: new Date().toISOString() })
+              .eq("id", q.id);
+            if (stErr) console.error("[one-question] stale mark FAILED:", stErr.message);
+            setPendingQuestion(null);
+            return;
+          }
           if (!data.candidates || data.candidates.length === 0) {
             toast("לא נמצאו לקוחות מתאימות");
             result = { sent: 0 };

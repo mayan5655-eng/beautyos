@@ -15,7 +15,7 @@ import { createClient as createServerClient } from "../../../../lib/supabase/ser
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { clinicName } from "../../../../lib/clinicName";
-import { toMinutes, fmtTime } from "../../../../lib/apptTime";
+import { toMinutes, fmtTime, startMinute as apptStart, overlaps } from "../../../../lib/apptTime";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -134,6 +134,36 @@ export async function POST(request) {
     const explicitConfirm = body.explicitConfirm === true;
     if (!settingsRow || (settingsRow.gap_fill_enabled !== true && !explicitConfirm)) {
       return Response.json({ success: true, skipped: true, reason: "disabled", sent: 0 });
+    }
+
+    // THE SLOT MUST STILL BE FREE. Between the cancellation that created the
+    // question and the yes that reaches here, anyone can book the slot - the
+    // booking page, a walk-in typed into the calendar, a previous offer's
+    // claim. Offering a slot that no longer exists sends real people a link
+    // to disappointment, so this is checked at the moment of action, on the
+    // server, where the calendar is current.
+    {
+      const { data: dayAppts, error: dayErr } = await admin
+        .from("appointments")
+        .select("start_minute, hour, duration, confirmation_status")
+        .eq("tenant_id", tenantId)
+        .eq("date", slotDate);
+      if (dayErr) {
+        console.error("[slots/offer] slot-free check FAILED:", dayErr.message);
+        return Response.json({ success: false, error: "לא הצלחנו לבדוק את היומן, נסי שוב" }, { status: 500 });
+      }
+      const slotDur = Number(duration) > 0 ? Number(duration) : 60;
+      const taken = (dayAppts || []).some((a) => {
+        if (a.confirmation_status === "cancelled") return false;
+        const st = apptStart(a);
+        if (st === null) return false;
+        const dur = Number(a.duration) > 0 ? Number(a.duration) : 60;
+        return overlaps(st, st + dur, slotStartMinute, slotStartMinute + slotDur);
+      });
+      if (taken) {
+        console.log(`[slots/offer] slot already booked - question went stale: ${slotDate} ${fmtTime(slotStartMinute)} tenant ${tenantId}`);
+        return Response.json({ success: true, slotTaken: true, sent: 0 });
+      }
     }
 
     // Attribution: a lapsed client receiving an unattributed link from an

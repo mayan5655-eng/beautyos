@@ -27,12 +27,25 @@ create table if not exists public.owner_questions (
   tenant_id   uuid not null,
   kind        text not null,
   payload     jsonb not null default '{}'::jsonb,
-  status      text not null default 'pending' check (status in ('pending','yes','no','expired')),
+  status      text not null default 'pending' check (status in ('pending','yes','no','expired','stale')),
   -- What the yes did, e.g. {"sent": 4} for gap_fill. Written on answer.
   result      jsonb,
   created_at  timestamptz not null default now(),
   answered_at timestamptz
 );
+
+-- 'stale' joined the status vocabulary later (a gap_fill whose slot was
+-- rebooked before she answered - not a yes and not a no). On a database
+-- where the older four-value constraint is live, replace it.
+do $do$
+begin
+  if exists (select 1 from pg_constraint where conname = 'owner_questions_status_check'
+               and pg_get_constraintdef(oid) not like '%stale%') then
+    alter table public.owner_questions drop constraint owner_questions_status_check;
+    alter table public.owner_questions add constraint owner_questions_status_check
+      check (status in ('pending','yes','no','expired','stale'));
+  end if;
+end $do$;
 
 create index if not exists owner_questions_tenant_status_idx
   on public.owner_questions (tenant_id, status, created_at desc);
