@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ state: "taken" });
   }
   if (claimErr) {
+    console.error("[claim] claim update FAILED:", (claimErr as { code?: string }).code || "", claimErr.message);
     return NextResponse.json({ state: "error" }, { status: 500 });
   }
 
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
     hour: claimed.slot_hour,
   });
   if (claimedStart === null) {
+    console.error("[claim] no start minute - slot_start_minute and slot_hour both null");
     return NextResponse.json({ state: "error" }, { status: 500 });
   }
 
