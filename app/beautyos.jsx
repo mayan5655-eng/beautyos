@@ -2921,12 +2921,19 @@ export default function BeautyOS() {
   // link to matter (under 2 hours away), so a stale question never shows.
   const loadPendingQuestion = async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("owner_questions")
         .select("id, kind, payload, created_at")
         .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(5);
+      // A denied read comes back as {data:null, error} without throwing - the
+      // exact shape the old catch-all made invisible. Log it loudly; the card
+      // not rendering must never again be indistinguishable from "no rows".
+      if (error) {
+        console.error("[one-question] read FAILED:", error.code || "", error.message);
+        return;
+      }
       const rows = data || [];
       let show = null;
       for (const q of rows) {
@@ -2934,25 +2941,43 @@ export default function BeautyOS() {
           const p = q.payload || {};
           const startMs = new Date(`${p.date}T00:00:00`).getTime() + (Number(p.startMinute) || 0) * 60000;
           if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) {
-            supabase.from("owner_questions").update({ status: "expired", answered_at: new Date().toISOString() }).eq("id", q.id).then(() => {});
+            supabase.from("owner_questions").update({ status: "expired", answered_at: new Date().toISOString() }).eq("id", q.id)
+              .then(({ error: expErr }) => { if (expErr) console.error("[one-question] expire FAILED:", expErr.message); });
             continue;
           }
         }
         show = q; break;
       }
       setPendingQuestion(show);
-      const { data: answered } = await supabase
+      const { data: answered, error: statsErr } = await supabase
         .from("owner_questions")
         .select("status")
         .in("status", ["yes", "no"]);
+      if (statsErr) console.error("[one-question] stats read FAILED:", statsErr.message);
       if (answered) {
         setQuestionStats({
           yes: answered.filter((r) => r.status === "yes").length,
           no: answered.filter((r) => r.status === "no").length,
         });
       }
-    } catch { /* card simply doesn't render */ }
+    } catch (e) {
+      console.error("[one-question] load THREW:", e?.message || String(e));
+    }
   };
+
+  // The mount-only load missed two real paths on mobile: a PWA resumed from
+  // the background (no remount, stale state), and navigating to the dashboard
+  // tab after the mount already ran. Reload on both.
+  useEffect(() => {
+    if (activeTab === "dashboard") loadPendingQuestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") loadPendingQuestion(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const answerQuestion = async (q, saidYes) => {
     if (isBusy("ownerQuestion")) return;
@@ -2994,9 +3019,16 @@ export default function BeautyOS() {
         else if (data.success) toast("לא נמצאו לקוחות מתאימות להצעה");
         else { toast(data.error || "השליחה נכשלה", "error"); return; }
       }
-      await supabase.from("owner_questions")
+      const { error: ansErr } = await supabase.from("owner_questions")
         .update({ status: saidYes ? "yes" : "no", result, answered_at: new Date().toISOString() })
         .eq("id", q.id);
+      if (ansErr) {
+        // The send (on yes) already happened; the MEASUREMENT failed. Say so -
+        // a yes-rate quietly missing its rows is worse than a visible error.
+        console.error("[one-question] answer update FAILED:", ansErr.code || "", ansErr.message);
+        toast(`התשובה לא נשמרה: ${ansErr.message}`, "error");
+        return;
+      }
       setPendingQuestion(null);
       setQuestionStats((prev) => prev ? { ...prev, [saidYes ? "yes" : "no"]: prev[saidYes ? "yes" : "no"] + 1 } : prev);
     } catch (e) {
@@ -3032,13 +3064,14 @@ export default function BeautyOS() {
           .eq("payload->>quiet_end", businessQuiet.quietEnd)
           .limit(1);
         if (existing && existing.length > 0) return;
-        await supabase.from("owner_questions").insert({
+        const { error: cbErr } = await supabase.from("owner_questions").insert({
           tenant_id: settings.tenant_id,
           kind: "comeback",
           payload: { quiet_start: businessQuiet.quietStart, quiet_end: businessQuiet.quietEnd },
         });
+        if (cbErr) { console.error("[one-question] comeback insert FAILED:", cbErr.code || "", cbErr.message); return; }
         loadPendingQuestion();
-      } catch { /* next visit tries again */ }
+      } catch (e) { console.error("[one-question] comeback THREW:", e?.message || String(e)); }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessQuiet.comebackDue, businessQuiet.quietEnd, settings?.tenant_id]);
@@ -3145,7 +3178,7 @@ export default function BeautyOS() {
             try {
               const startMs = new Date(`${appt.date}T00:00:00`).getTime() + (startMinute(appt) || 0) * 60000;
               if (isNaN(startMs) || startMs - Date.now() < 2 * 60 * 60 * 1000) return;
-              await supabase.from("owner_questions").insert({
+              const { error: qInsErr } = await supabase.from("owner_questions").insert({
                 tenant_id: settings.tenant_id,
                 kind: "gap_fill",
                 payload: {
@@ -3153,8 +3186,9 @@ export default function BeautyOS() {
                   duration: appt.duration, cancelledClientId: appt.client_id,
                 },
               });
+              if (qInsErr) { console.error("[one-question] gap_fill insert FAILED:", qInsErr.code || "", qInsErr.message); return; }
               loadPendingQuestion();
-            } catch { /* the cancel already succeeded; the question is a bonus */ }
+            } catch (e) { console.error("[one-question] gap_fill insert THREW:", e?.message || String(e)); }
           }, 6500);
         }
       },
