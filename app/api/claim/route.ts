@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
+import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
@@ -169,6 +170,34 @@ export async function POST(request: NextRequest) {
     // silent shape that hid a mismatched table for days.
     console.error("[claim] booking insert FAILED:", JSON.stringify("error" in booked ? booked.error : booked));
     return NextResponse.json({ state: "error" }, { status: 500 });
+  }
+
+  // Same confirmation a regular booking sends - business name, tappable
+  // address, service, date/time, duration, cancel link - plus the owner
+  // alert, marked as a filled gap. One shared template (lib/bookingNotify),
+  // deliberately not a third copy. Best-effort: the slot is booked either way.
+  try {
+    const { data: settingsRow } = await supabase
+      .from("settings")
+      .select("business_name, business_phone, therapist_name, branding")
+      .eq("tenant_id", claimed.tenant_id)
+      .maybeSingle();
+    if (booked.id && claimed.phone) {
+      await sendBookingNotifications({
+        settingsRow,
+        tenantId: claimed.tenant_id,
+        appointmentId: booked.id,
+        name: claimed.client_name || "לקוחה",
+        phone: claimed.phone,
+        service: claimed.service || "תור",
+        date: claimed.slot_date,
+        startMinute: claimedStart,
+        duration: Number(claimed.duration) > 0 ? Number(claimed.duration) : 60,
+        ownerNote: "תור שהתפנה נתפס דרך הצעת וואטסאפ ✦",
+      });
+    }
+  } catch (notifyErr) {
+    console.error("[claim] notifications failed:", notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
   }
 
   // Retire the other recipients' offers for this slot (best effort).

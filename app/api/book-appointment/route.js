@@ -6,13 +6,14 @@
 // looked up per-tenant from settings.
 
 import { createClient } from "@supabase/supabase-js";
-import { sendWhatsApp } from "../../../lib/whatsapp";
+
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
-import { confirmLinks } from "../../../lib/confirmToken";
-import { APP_URL } from "../../../lib/appUrl";
-import { greet, lines, hebrewDate, hebrewDateShort, timeRange, durationHe, mapsLink } from "../../../lib/messages.js";
+
+
+
+import { sendBookingNotifications } from "../../../lib/bookingNotify";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
@@ -337,75 +338,22 @@ export async function POST(request) {
     const businessName = settingsRow?.business_name || "העסק";
     const ownerPhone = settingsRow?.business_phone || "";
 
-    // 3. Send confirmation to the CLIENT
-    try {
-      // WHAT SHE NEEDS, in the order she needs it: what she booked and how
-      // long it takes, when, where, with whom, and how to get out of it.
-      //
-      // The old version gave her the service, a raw ISO date and a start time.
-      // "2026-09-05" does not tell anybody it is a Saturday, and a start time
-      // with no duration does not let her plan the afternoon around it.
-      //
-      // THE CANCEL LINK IS THE POINT. It was not here at all: the reminder
-      // carried one, but that goes out the day before. A client who books on
-      // Monday for Saturday and then cannot come had no way to say so except
-      // phoning, so she did not, and it became a no-show. A cancellation four
-      // days out is a slot that can be refilled; a no-show is an hour already
-      // spent. confirmToken was two files away the whole time.
-      const brandJson = (settingsRow?.branding && typeof settingsRow.branding === "object") ? settingsRow.branding : {};
-      const address = String(brandJson.public_address || brandJson.address || "").trim();
-      const arrivalNote = String(brandJson.arrival_note || "").trim();
-      const therapist = String(settingsRow?.therapist_name || "").trim();
-      const { cancelUrl } = confirmLinks(APP_URL, appt.id);
-      const durationText = durationHe(svcDuration);
-
-      const clientMsg = lines(
-        greet(name),
-        `התור שלך ב${businessName} נקבע.`,
-        "",
-        durationText ? `${service} · ${durationText}` : service,
-        `${hebrewDate(date)}, ${timeRange(newStart, svcDuration)}`,
-        therapist ? `מטפלת: ${therapist}` : null,
-        address ? "" : null,
-        address ? `📍 ${address}` : null,
-        address ? mapsLink(address) : null,
-        arrivalNote ? "" : null,
-        arrivalNote || null,
-        "",
-        "לא מתאים לך? אפשר לבטל כאן:",
-        cancelUrl
-      );
-      await sendWhatsApp(phone, clientMsg, { name: name, type: "booking_confirm", tenantId: activeTenantId });
-    } catch (waErr) {
-      console.log("Client WhatsApp failed:", waErr.message);
-    }
-
-    // 4. Send alert to the BUSINESS OWNER (only if she has a phone set)
-    if (ownerPhone) {
-      try {
-        // READ MID-TREATMENT, on a phone, one-handed. The first line has to
-        // answer the only question she has while holding someone's face: WHEN,
-        // and does it collide with anything.
-        //
-        // The old version opened with a bell emoji and put the date fourth, in
-        // ISO. It also ended with "(נקבע דרך דף ההזמנות)" - provenance she does
-        // not need in a notification, and which self_booked already records on
-        // the row.
-        //
-        // "לקוחה חדשה" is possible only because this route now links the
-        // booking to a client: it is the difference between greeting a stranger
-        // and greeting someone whose last visit she can look up.
-        const ownerMsg = lines(
-          `תור חדש · ${hebrewDateShort(date)}, ${timeRange(newStart, svcDuration)}`,
-          `${name} · ${service}${durationText ? ` (${durationText})` : ""}`,
-          isReturningClient ? "לקוחה חוזרת" : "לקוחה חדשה",
-          phone
-        );
-        await sendWhatsApp(ownerPhone, ownerMsg, { name: "בעלת העסק", type: "owner_alert", tenantId: activeTenantId });
-      } catch (waErr) {
-        console.log("Owner WhatsApp failed:", waErr.message);
-      }
-    }
+    // 3+4. Client confirmation + owner alert, via the ONE shared template
+    //      (lib/bookingNotify) - the same messages the gap-fill claim sends,
+    //      so the two flows cannot drift. The long rationale for the message
+    //      shape lives there.
+    await sendBookingNotifications({
+      settingsRow,
+      tenantId: activeTenantId,
+      appointmentId: appt.id,
+      name,
+      phone,
+      service,
+      date,
+      startMinute: newStart,
+      duration: svcDuration,
+      isReturningClient,
+    });
 
     return Response.json({ success: true, appointmentId: appt.id });
   } catch (err) {

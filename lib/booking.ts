@@ -41,18 +41,18 @@ export interface SlotBooking {
 }
 
 export type BookResult =
-  | { ok: true }
+  | { ok: true; id: string | null }
   | { ok: false; taken: true }
   | { ok: false; error: unknown };
 
-// Insert an appointment for a specific whole-hour slot. Behaviour is identical to
-// the original claim insert (no .select()); a unique-violation surfaces as
-// `taken` rather than a generic error.
+// Insert an appointment for a specific slot. Returns the new row's id so the
+// caller can build the confirmation's cancel link; a unique-violation
+// surfaces as `taken` rather than a generic error.
 export async function bookAppointmentSlot(
   admin: SupabaseClient,
   b: SlotBooking
 ): Promise<BookResult> {
-  const { error } = await admin.from("appointments").insert({
+  const { data, error } = await admin.from("appointments").insert({
     tenant_id: b.tenant_id,
     date: b.date,
     // Both written during the transition: start_minute is the new truth, hour
@@ -72,7 +72,7 @@ export async function bookAppointmentSlot(
     client_phone: b.client_phone ?? null,
     confirmation_status: b.confirmation_status ?? "confirmed",
     confirmation_sent: b.confirmation_sent ?? true,
-  });
+  }).select("id").maybeSingle();
 
   if (error) {
     // 23505 = uniq_appt_slot_active (same start minute).
@@ -82,5 +82,5 @@ export async function bookAppointmentSlot(
     if (code === "23505" || code === "23P01") return { ok: false, taken: true };
     return { ok: false, error };
   }
-  return { ok: true };
+  return { ok: true, id: (data as { id?: string } | null)?.id ?? null };
 }
