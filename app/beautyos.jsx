@@ -1536,7 +1536,6 @@ export default function BeautyOS() {
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
     // Was: settings.green_api_token, which the browser no longer receives.
-    { key:"whatsapp", done: !!waStatus?.connected, label:"חיבור וואטסאפ", hint:"לשליחת תזכורות והודעות אוטומטית", onClick:()=>openSetupTab("automations") },
   ];
   // Guided, one step at a time - deliberately NOT an accordion. Only the next
   // incomplete step can be opened; completed ones sit collapsed with their tick
@@ -6787,25 +6786,9 @@ ${c.claimUrl}`)}`;
  </div>
  ))}
  <div style={{display:"flex",gap:8,marginTop:14}}>
- {/* The automatic path, kept for a connected GreenAPI - one tap sends all,
-     from the system's number rather than hers. */}
- {composeSend.greenApiConnected&&composeSend.kind==="gap_fill"&&(
- <button onClick={async()=>{
-   const p=composeSend.payload||{};
-   const res=await fetch("/api/slots/offer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:p.date,startMinute:p.startMinute,service:p.service,duration:p.duration,cancelledClientId:p.cancelledClientId,explicitConfirm:true})});
-   const data=await res.json().catch(()=>({}));
-   if(data.success){toast(`נשלח אוטומטית ל-${data.sent||0} לקוחות ✦`);setComposeSend(null);}
-   else toast(data.error||"השליחה נכשלה","error");
- }} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"9px 14px",fontSize:11.5}}>שליחה אוטומטית מהמערכת</button>
- )}
- {composeSend.greenApiConnected&&composeSend.kind==="comeback"&&(
- <button onClick={async()=>{
-   const res=await fetch("/api/clients/comeback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({quietStart:composeSend.payload?.quiet_start})});
-   const data=await res.json().catch(()=>({}));
-   if(data.success){toast(`נשלח אוטומטית ל-${data.sent||0} לקוחות ✦`);setComposeSend(null);}
-   else toast(data.error||"השליחה נכשלה","error");
- }} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"9px 14px",fontSize:11.5}}>שליחה אוטומטית מהמערכת</button>
- )}
+ {/* No automatic-send button, by decision: marketing goes out from HER
+     WhatsApp only. A personal number connected to an API got restricted;
+     wa.me carries no such risk, so it is the only marketing path. */}
  <div style={{flex:1}}/>
  <button onClick={()=>setComposeSend(null)} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",padding:"9px 18px",fontSize:12}}>סיימתי</button>
  </div>
@@ -10566,61 +10549,15 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":skinMode==="approval"?"באישור — נכין עבורך הצעות, וכל הודעה תישלח רק לאחר אישורך.":"אוטומטי — יופעל בקרוב; בינתיים ההצעות ממתינות לאישורך (לא נשלח דבר אוטומטית)."}</p>
  </div>
 
+ {/* The GreenAPI connect form that stood here is gone, by decision: a
+     cosmetician's personal WhatsApp number was RESTRICTED for being
+     connected to the API. No tenant should carry that risk, so the product
+     no longer invites it. Utility messages (reminders, confirmations) go
+     out from the central BloomOS number; marketing is sent by her, from
+     her own WhatsApp, via the compose window's wa.me links. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:8}}>
- <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>חיבור וואטסאפ (GreenAPI)</p>
- <span style={{fontSize:11.5,fontWeight:700,borderRadius:20,padding:"5px 11px",...(waConnected?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--warning)",background:"rgba(242,184,75,0.16)"})}}>{waConnected?"מחובר ✓":"לא מחובר"}</span>
- </div>
- <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>חברי את מספר הוואטסאפ שלך דרך GreenAPI כדי שההודעות (תזכורות, קבלות ועוד) יישלחו מהמספר שלך. את הפרטים תמצאי בקונסולת GreenAPI. אם לא תחברי — נשלח מהמספר הכללי של המערכת.</p>
- <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מזהה מכשיר (idInstance)</p><input value={editSettings.green_api_instance||""} onChange={e=>setEditSettings({...editSettings,green_api_instance:e.target.value})} placeholder="7103000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
- <div>
- <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>טוקן (apiTokenInstance)</p>
- {/* WRITE-ONLY. The server never sends the token back, so there is nothing
-     to prefill and nothing sitting in a form field. It goes out through
-     /api/settings/whatsapp, which encrypts it before it reaches the table. */}
- {waStatus?.connected && !waReplacing ? (
- <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
- <span style={{fontSize:11.5,fontWeight:700,color:"var(--success)"}}>✓ טוקן שמור</span>
- <button type="button" onClick={()=>{setWaReplacing(true);setWaTokenInput("");}} style={{fontSize:11,fontWeight:600,color:"var(--ink-2)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>החלפה</button>
- <button type="button" onClick={()=>askConfirm({
-   title:"לנתק את וואטסאפ?",
-   message:"תזכורות, אישורי תורים וכל ההודעות האוטומטיות יפסיקו להישלח מיד. אפשר לחבר מחדש בכל שלב עם טוקן חדש.",
-   confirmText:"נתקי",
-   cancelText:"ביטול",
-   danger:true,
-   onConfirm:async()=>{
-     setWaSavingToken(true);
-     try{
-       const r=await fetch("/api/settings/whatsapp",{method:"DELETE"});
-       const d=await r.json().catch(()=>null);
-       if(d&&d.success){toast("וואטסאפ נותק");await refreshWaStatus();}
-       else toast("הניתוק נכשל","error");
-     }catch{toast("הניתוק נכשל — בדקי את החיבור","error");}
-     finally{setWaSavingToken(false);}
-   },
- })} disabled={waSavingToken} style={{fontSize:11,fontWeight:600,color:"var(--danger)",background:"none",border:"none",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:2}}>ניתוק</button>
- </div>
- ) : (
- <div style={{display:"flex",gap:7,alignItems:"stretch"}}>
- <input type="password" value={waTokenInput} onChange={e=>setWaTokenInput(e.target.value)} placeholder="••••••••••••••••" autoComplete="new-password" style={{flex:1,minWidth:0,border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/>
- <button type="button" disabled={!waTokenInput.trim()||waSavingToken} onClick={async()=>{
-   setWaSavingToken(true);
-   try{
-     const r=await fetch("/api/settings/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:waTokenInput.trim()})});
-     const d=await r.json().catch(()=>null);
-     if(d&&d.success){setWaTokenInput("");setWaReplacing(false);toast("הטוקן נשמר מוצפן");await refreshWaStatus();}
-     else toast((d&&d.error)||"שמירת הטוקן נכשלה","error");
-   }catch{toast("שמירת הטוקן נכשלה — בדקי את החיבור","error");}
-   finally{setWaSavingToken(false);}
- }} className="primary-btn" style={{padding:"0 14px",borderRadius:12,background:(!waTokenInput.trim()||waSavingToken)?"var(--line-2)":pcGrad,color:(!waTokenInput.trim()||waSavingToken)?"var(--ink-3)":"var(--surface)",fontSize:11.5,fontWeight:700,whiteSpace:"nowrap"}}>{waSavingToken?"שומרת…":"שמירה"}</button>
- {waReplacing&&<button type="button" onClick={()=>{setWaReplacing(false);setWaTokenInput("");}} style={{fontSize:11,color:"var(--ink-3)",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:"0 4px"}}>ביטול</button>}
- </div>
- )}
- <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטוקן נשמר מוצפן ולא מוצג שוב. שמירת ההגדרות למטה לא משנה אותו.</p>
- </div>
- <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>כתובת API (אופציונלי)</p><input value={editSettings.green_api_url||""} onChange={e=>setEditSettings({...editSettings,green_api_url:e.target.value})} placeholder="https://7103.api.greenapi.com" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface-2)"}}/></div>
- </div>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.6}}>תזכורות ואישורי תורים נשלחים אוטומטית מהמספר המרכזי של BloomOS, עם שם העסק שלך בגוף ההודעה. הודעות שיווקיות (הצעות תור, מבצעים, "חזרנו") נשלחות תמיד מהוואטסאפ האישי שלך — המערכת מכינה את ההודעה ואת פותחת ושולחת. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
