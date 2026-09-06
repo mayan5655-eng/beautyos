@@ -1084,6 +1084,12 @@ export default function BeautyOS() {
   // - that field is gone from what it receives. This asks the server instead.
   // { connected, idInstance } or null when unknown.
   const [waStatus,          setWaStatus]           = useState(null);
+  // Lead-intake API key: configured yes/no from the server; the plaintext key
+  // exists ONLY in leadKeyJustGenerated, immediately after a rotation, and is
+  // gone on any navigation - by design, it cannot be re-shown.
+  const [leadKeyConfigured, setLeadKeyConfigured]  = useState(null);
+  const [leadKeyJustGenerated, setLeadKeyJustGenerated] = useState(null);
+  const [leadKeyBusy,       setLeadKeyBusy]        = useState(false);
   const [waTokenInput,      setWaTokenInput]       = useState("");
   const [waReplacing,       setWaReplacing]        = useState(false);
   const [waSavingToken,     setWaSavingToken]      = useState(false);
@@ -1793,6 +1799,9 @@ export default function BeautyOS() {
   // Separate from loadAll on purpose: this is one small status read, and a
   // failure here must not be able to blank the dashboard.
   useEffect(()=>{ refreshWaStatus(); },[refreshWaStatus]);
+  useEffect(()=>{
+    fetch("/api/settings/lead-key").then(r=>r.json()).then(d=>{ if(d?.success) setLeadKeyConfigured(!!d.configured); }).catch(()=>{});
+  },[]);
 
 
   // Fetch existing Skin Follow-up suggestions into the unified queue when the
@@ -10597,6 +10606,45 @@ ${c.claimUrl}`)}`;
      no longer invites it. Utility messages (reminders, confirmations) go
      out from the central BloomOS number; marketing is sent by her, from
      her own WhatsApp, via the compose window's wa.me links. */}
+ {/* Lead-intake API key: lets an external landing page or site form post
+     leads straight into her list. The key is shown ONCE at generation; the
+     server keeps only a hash. */}
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>מפתח API לקליטת לידים</p>
+ {leadKeyConfigured!==null&&<span style={{fontSize:11.5,fontWeight:700,borderRadius:20,padding:"5px 11px",...(leadKeyConfigured?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--ink-3)",background:"var(--surface-2)"})}}>{leadKeyConfigured?"פעיל ✓":"לא הופק"}</span>}
+ </div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.6,marginBottom:8}}>מאפשר לדף נחיתה או לאתר חיצוני לשלוח לידים ישירות לרשימה שלך. המפתח מוצג פעם אחת בלבד — העתיקי ושמרי אותו אצל בונה האתר. הפקה מחדש מבטלת את המפתח הקודם מיד.</p>
+ {leadKeyJustGenerated&&(
+ <div style={{background:"var(--pc-tint)",border:`1px solid ${pc}`,borderRadius:12,padding:"10px 12px",marginBottom:8}}>
+ <p style={{fontSize:11.5,fontWeight:700,color:pcDeep,marginBottom:4}}>המפתח שלך — מוצג פעם אחת בלבד:</p>
+ <p style={{fontSize:11.5,fontFamily:"monospace",direction:"ltr",textAlign:"left",wordBreak:"break-all",background:"var(--surface)",borderRadius:8,padding:"8px 10px",userSelect:"all"}}>{leadKeyJustGenerated}</p>
+ <button onClick={()=>{try{navigator.clipboard.writeText(leadKeyJustGenerated);toast("המפתח הועתק");}catch{toast("ההעתקה נכשלה — סמני והעתיקי ידנית","error");}}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--surface)",padding:"7px 14px",fontSize:11.5}}>העתקה</button>
+ <p style={{fontSize:11,color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר — שליחת ליד:</p>
+ <pre style={{fontSize:10,fontFamily:"monospace",direction:"ltr",textAlign:"left",background:"var(--surface)",borderRadius:8,padding:"8px 10px",overflowX:"auto",whiteSpace:"pre",userSelect:"all"}}>{`curl -X POST ${typeof window!=="undefined"?window.location.origin:""}/api/leads/intake \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: ${leadKeyJustGenerated}" \
+  -d '{"name":"דנה לוי","phone":"0501234567","source":"landing-facebook"}'`}</pre>
+ </div>
+ )}
+ <button onClick={async()=>{
+   if(leadKeyBusy)return;
+   const go=async()=>{
+     setLeadKeyBusy(true);
+     try{
+       const r=await fetch("/api/settings/lead-key",{method:"POST"});
+       const d=await r.json().catch(()=>null);
+       if(d&&d.success&&d.key){setLeadKeyJustGenerated(d.key);setLeadKeyConfigured(true);}
+       else toast((d&&d.error)||"הפקת המפתח נכשלה","error");
+     }catch{toast("הפקת המפתח נכשלה — בדקי את החיבור","error");}
+     finally{setLeadKeyBusy(false);}
+   };
+   if(leadKeyConfigured){
+     askConfirm({title:"להפיק מפתח חדש?",message:"המפתח הקיים יפסיק לעבוד מיד, וכל טופס שמשתמש בו יפסיק לשלוח לידים עד שיעודכן.",confirmText:"הפיקי חדש",cancelText:"ביטול",danger:true,onConfirm:go});
+   } else { go(); }
+ }} disabled={leadKeyBusy} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"8px 16px",fontSize:11.5,opacity:leadKeyBusy?0.6:1}}>{leadKeyBusy?"מפיקה…":leadKeyConfigured?"הפקת מפתח חדש":"הפקת מפתח"}</button>
+ </div>
+
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
  <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.6}}>תזכורות ואישורי תורים נשלחים אוטומטית מהמספר המרכזי של BloomOS, עם שם העסק שלך בגוף ההודעה. הודעות שיווקיות (הצעות תור, מבצעים, "חזרנו") נשלחות תמיד מהוואטסאפ האישי שלך — המערכת מכינה את ההודעה ואת פותחת ושולחת. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>

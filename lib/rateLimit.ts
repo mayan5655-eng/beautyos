@@ -199,6 +199,17 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) =>
       `הסורק עמוס כרגע בבקשות. אפשר לנסות שוב ${m}.`,
   },
+
+  // External lead intake (/api/leads/intake): key-authenticated but public-
+  // facing - the key lives in a landing page's backend, and a leaked key must
+  // not be able to flood a tenant's lead list. Messages are English: the
+  // caller is a developer's HTTP client, not a person on a Hebrew page.
+  'lead-intake': {
+    perIp: { limit: 10, windowMs: MINUTE },
+    perTenant: { limit: 30, windowMs: MINUTE },
+    ipMessage: (m: string) => `Too many requests from this address. Try again ${m}.`,
+    tenantMessage: (m: string) => `Rate limit reached for this account. Try again ${m}.`,
+  },
 } as const;
 
 export type PolicyName = keyof typeof RATE_POLICIES;
