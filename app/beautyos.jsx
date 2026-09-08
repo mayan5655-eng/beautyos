@@ -161,6 +161,98 @@ const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","�
 // Reassuring steps cycled through while the AI skin scan is processing, so the
 // wait feels alive and progressing rather than frozen.
 const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
+// Help page (nav "עזרה"). The text of help-content.md, one entry per "##"
+// heading, embedded verbatim rather than fetched: the page must work offline
+// and cannot depend on a file the deploy may not carry. Body lines render by
+// prefix - "- " is a bullet, "### " a sub-heading, anything else a paragraph -
+// and **bold** inside a line renders bold. Nothing here rewrites the copy.
+const HELP_TITLE = "עזרה — איך המערכת עובדת";
+const HELP_INTRO = "מדריך קצר לכל מסך במערכת. אפשר לפתוח כל חלק בנפרד.";
+const HELP_SECTIONS = [
+  { key:"calendar", title:"📅 יומן", body:[
+    "היומן הוא המסך הראשי שלך. כאן את רואה את כל התורים, קובעת חדשים, ומנהלת את הזמן שלך.",
+    "- מעבר בין תצוגת **יום** ל**שבוע**, וקפיצה מהירה ל**היום**",
+    "- **✦ תור חדש** — או פשוט לחיצה על משבצת ריקה ביומן, והשעה כבר מוכנה",
+    "- לחיצה על תור קיים פותחת אותו לעריכה",
+    "- **🔒 אירוע אישי** — חסימת זמן לעצמך, שלא ייקבע בו תור",
+    "- כל תור מסומן בצבע לפי הסטטוס: אישרה, ביטלה, ממתין, אישי",
+    "- מהתור אפשר לשלוח תזכורת, לסמן תשלום, ולפתוח את כרטיס הלקוחה",
+    "בחלון קביעת התור את מחפשת לקוחה לפי שם או טלפון (או מקלידה חדשה), בוחרת תאריך ושעה — שעות תפוסות מסומנות ⛔ — בוחרת טיפול ומשך (30, 45, 60 או 90 דקות), ושומרת.",
+  ]},
+  { key:"clients", title:"👥 לקוחות", body:[
+    "כל הלקוחות שלך במקום אחד, עם כל ההיסטוריה שלהן.",
+    "- חיפוש לפי שם או טלפון, וסינון לפי סטטוס (פעילות, חמות, VIP, להתחדשות) או סוג עור",
+    "- **✦ מטופלת חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** להעלאה מקובץ",
+    "- **⏱ מזמן לא הגיעו** — מוצא מי לא הגיעה מזמן ושולח לכולן הודעת חזרה בלחיצה אחת",
+    "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
+    "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
+  ]},
+  { key:"client-card", title:"👤 כרטיס הלקוחה", body:[
+    "לחיצה על לקוחה פותחת חלון צד עם הכל עליה. למעלה — שם, טלפון, סוג עור, וכמה הוציאה אצלך בסך הכל. לפעמים יופיע שם גם רמז אוטומטי, כמו \"לא ביקרה 60 ימים — שווה הודעת התחדשות\".",
+    "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.",
+    "### הלשוניות",
+    "- **פרטים** — סיכום לקריאה: יום הולדת, סוג עור, אלרגיות (צהוב), מידע רפואי (כחול), הערות. לעריכה — הכפתור ✎ למעלה",
+    "- **היסטוריה** — כל התורים מהחדש לישן, עם טיפול, תאריך ומחיר. לכל שורה כפתור **שלחי תזכורת**",
+    "- **סריקות עור** — כל הסריקות שנשמרו, עם ציון צבעוני. לחיצה פותחת את הדוח המלא מחדש",
+    "- **קבלות** — כל התשלומים, לחיצה פותחת את הקבלה",
+    "- **חבילות** — חבילות פעילות עם פס התקדמות, וכפתור **✓ השתמשי** שמנצל טיפול",
+    "- **טפסים** — שליחת טופס לחתימה דיגיטלית לפי סוג טיפול (פלזמה, לייזר, פילינג ועוד). מתחת רואים מה נחתם ✓ ומה ממתין ⏳",
+    "- **לפני/אחרי** — העלאת זוג תמונות עם שם טיפול והערה",
+    "- **תמונות** — כל התמונות. הראשונה הופכת לתמונת הפרופיל",
+    "### ✦ סריקת עור AI — איך זה עובד",
+    "מצלמת פנים של הלקוחה (או מעלה תמונה), וממתינה כמה שניות. מקבלת דוח: ציון 0-100, סוג עור, ממצאים, טיפול מומלץ, תוכנית טיפול בקליניקה, תוכנית טיפוח לבית, והערות מקצועיות בשבילך.",
+    "אם הטיפול המומלץ קיים ברשימת השירותים שלך — יופיע כפתור לקביעת התור ישירות. הסריקה נשמרת אוטומטית בכרטיס הלקוחה.",
+    "⚠️ יש מכסת סריקות חודשית, מוצגת בהגדרות → כללי.",
+  ]},
+  { key:"leads", title:"💬 פניות", body:[
+    "כל מי שפנתה אלייך ועדיין לא הפכה ללקוחה — מהאתר, מפייסבוק או שהזנת ידנית.",
+    "- סינון לפי סטטוס: חדש, אין מענה, ממתינה לתשובה, בטיפול, נשלח מחיר, נקבע תור, לא הגיע, למעקב בהמשך, נסגר, לא רלוונטי",
+    "- **✦ פנייה חדשה** להוספה ידנית, **⇪ ייבוא פניות** מקובץ",
+    "- **✆ שליחת וואטסאפ** לכל הפניות בסטטוס מסוים בבת אחת",
+    "- לחיצה על פנייה פותחת אותה: שינוי סטטוס, תזכורת מעקב, הודעות מוכנות, והמרה ללקוחה רשומה",
+    "- פניות מפייסבוק ומדף נחיתה נכנסות לכאן אוטומטית",
+  ]},
+  { key:"services", title:"💅 שירותים והיסטוריית טיפולים", body:[
+    "רשימת השירותים והמחירים נמצאת ב**הגדרות → שירותים**. שם את מוסיפה טיפול, קובעת מחיר, ומעדכנת מתי שרוצה. אפשר גם לבחור מרשימה מוכנה במקום להקליד הכל.",
+    "ההיסטוריה של כל טיפול שנתת נשמרת בכרטיס הלקוחה, בלשונית **היסטוריה** — יחד עם התמונות לפני/אחרי.",
+  ]},
+  { key:"marketing", title:"📣 שיווק", body:[
+    "ארבעה כלים בלשונית אחת:",
+    "### 🖊️ יצירת פוסטים",
+    "כותבת מה את רוצה לפרסם, ואם בא לך מוסיפה עוד פרטים. לוחצת **✦ צרי לי 5 פוסטים**. מקבלת אסטרטגיה קצרה וחמישה פוסטים מוכנים — כל אחד עם כותרת, טקסט, קריאה לפעולה והאשטגים.",
+    "מכל פוסט אפשר: **להעתיק**, **לשתף לפייסבוק**, או **להוריד תמונה**. לאינסטגרם — מורידים את התמונה ומדביקים את הטקסט ידנית.",
+    "כפתור **✦ שמרי את הקמפיין** שומר הכל תחת **הקמפיינים שלי**.",
+    "⚠️ טיפולים רפואיים כמו בוטוקס ומילויים מסוננים אוטומטית מהפוסטים.",
+    "### 📋 מה לצלם השבוע",
+    "לחיצה אחת, בלי להקליד כלום. מקבלת 3-5 רעיונות לצילום, מותאמים לשירותים שלך ולתורים של השבוע הקרוב. חלקם מסומנים \"בלי להצטלם\" אם את לא רוצה להיות בתמונה. מכל רעיון אפשר לעבור ישר ל**🎬 צרי ריל מזה**.",
+    "### 🎬 רילסים",
+    "כותבת על מה הריל, בוחרת אורך (15/30/60 שניות) ווייב (רגוע ומפנק, אנרגטי וקצבי). מקבלת תסריט מלא — סצנה־סצנה עם מה אומרים, מה כתוב על המסך, ואיך לצלם. בסוף: תיאור לפוסט וסגנון מוזיקה מומלץ.",
+    "ומתחת — **הפכי את התסריט לסרטון**: מוסיפה תמונה לכל סצנה, הכתוביות והתזמונים כבר מוכנים, אפשר להוסיף מוזיקה, ולוחצת **צרי סרטון**. הסרטון יורד למכשיר ואת מעלה אותו לאינסטגרם או לסטטוס.",
+    "### הקמפיינים שלי",
+    "כל קמפיין ששמרת, עם הפוסטים שלו. אפשר להעתיק או למחוק.",
+  ]},
+  { key:"advisor", title:"🤖 יועץ AI", body:[
+    "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך — התורים, הקבלות, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
+    "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
+    "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת — אפשר לחזור אליה בכל זמן.",
+  ]},
+  { key:"settings", title:"⚙️ הגדרות", body:[
+    "כאן מגדירים את המערכת פעם אחת, ואחר כך כמעט לא נוגעים.",
+    "- **כללי** — שם העסק, שם המטפלת, צבע, קישור לביקורות גוגל, וקישורי ההזמנה שלך",
+    "- **מיתוג** — הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
+    "- **אוטומציות** — תזכורות, מצב שקט, בוט הוואטסאפ, ומפתח API לקליטת פניות מדף נחיתה",
+    "- **שירותים** — הטיפולים והמחירים שלך",
+    "- **ייבוא נתונים** — העלאת לקוחות ופניות מקובץ",
+    "- **שאלות ותשובות** — התשובות שהבוט נותן ללקוחות",
+    "- **שעות** — שעות פתיחה לכל יום",
+    "- **תשלום** — מספר הטלפון לביט",
+    "⚠️ אל תשכחי ללחוץ **✓ שמירה** בסוף.",
+  ]},
+];
+// "**x**" -> <b>x</b>; everything else passes through untouched.
+const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
+  part.startsWith("**") && part.endsWith("**") ? <b key={i}>{part.slice(2,-2)}</b> : part
+);
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
 // שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
@@ -1553,6 +1645,8 @@ export default function BeautyOS() {
   // key stops matching nextSetupKey on its own, so the following step arrives
   // collapsed and no effect is needed to reset anything.
   const [expandedSetupKey, setExpandedSetupKey] = useState(null);
+  // Help page accordion: the key she opened; null = the first section.
+  const [expandedHelpKey, setExpandedHelpKey] = useState(null);
 
   const setupDone = setupSteps.filter(s=>s.done).length;
   const setupTotal = setupSteps.length;
@@ -6311,7 +6405,7 @@ export default function BeautyOS() {
   // flag brings a tab back with its data intact. campaigns and insights are
   // never filtered - see lib/featureFlags.ts for why that is a deliberate
   // exception and not an oversight.
-  const MORE_NAV = visibleTabIds(settings, ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp"]);
+  const MORE_NAV = visibleTabIds(settings, ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp","help"]);
 
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
@@ -6327,6 +6421,7 @@ export default function BeautyOS() {
     {id:"packages", label:"מנויים"},
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
+    {id:"help",     label:"עזרה"},
   ].filter(item => isTabVisible(settings, item.id));
   const navIcon = (id) => {
     const p = { fill:"none", stroke:"currentColor", strokeWidth:1.6, strokeLinecap:"round", strokeLinejoin:"round" };
@@ -6345,6 +6440,7 @@ export default function BeautyOS() {
       case "packages":  return svg(<><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" {...p}/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" {...p}/></>);
       case "protocols": return svg(<><rect x="5" y="3" width="14" height="18" rx="2.5" {...p}/><path d="M9 8h6M9 12h6M9 16h4" {...p}/></>);
       case "advisor":   return svg(<><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.6L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z" {...p}/><path d="M12 7.5v.01M9.5 10.2a2.6 2.6 0 1 1 3.6 2.4c-.7.3-1.1.8-1.1 1.6" {...p}/></>);
+      case "help":      return svg(<><circle cx="12" cy="12" r="9" {...p}/><path d="M9.4 9.3a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.2-2.6 4" {...p}/><path d="M12 17.3h.01" {...p} strokeWidth={2.4}/></>);
       default: return svg(<circle cx="12" cy="12" r="8" {...p}/>);
     }
   };
@@ -9320,6 +9416,46 @@ ${c.claimUrl}`)}`;
  </div>
  </div>
  </>)}
+          {activeTab==="help"&&(()=>{
+            // Read-only, no writes, no gating. Same one-open-at-a-time list as
+            // the setup checklist: a collapsed line per section, the body
+            // revealed on request. The first section is open on arrival so the
+            // page never reads empty.
+            const openKey = expandedHelpKey ?? (HELP_SECTIONS[0]||{}).key;
+            return (
+ <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
+ <div style={{marginBottom:16}}>
+ <h2 className="serif" style={{fontSize:24,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>{HELP_TITLE}</h2>
+ <p style={{fontSize:12.5,color:"var(--ink-2)",lineHeight:1.6}}>{HELP_INTRO}</p>
+ </div>
+ <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
+                {HELP_SECTIONS.map((sec,i)=>{
+                  const open = openKey===sec.key;
+                  return (
+ <div key={sec.key} style={{borderTop:i===0?"none":"1px solid var(--line)",background:open?pcTint:"transparent",transition:"background 0.18s"}}>
+ <button
+                      onClick={()=>setExpandedHelpKey(open?"":sec.key)}
+                      aria-expanded={open}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:"pointer"}}>
+ <span style={{flex:1,minWidth:0,fontSize:13.5,fontWeight:open?700:600,color:"var(--ink)"}}>{sec.title}</span>
+ <span aria-hidden style={{fontSize:13,color:open?pc:"var(--ink-3)",flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>
+ </button>
+                      {open&&(
+ <div style={{padding:"0 14px 14px 14px"}}>
+                          {sec.body.map((line,j)=>{
+                            if(line.startsWith("### ")) return <p key={j} style={{fontSize:13,fontWeight:700,color:pcDeep,margin:"12px 0 5px"}}>{helpInline(line.slice(4))}</p>;
+                            if(line.startsWith("- ")) return <p key={j} style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.75,margin:"0 0 3px",paddingRight:14,textIndent:-14}}>• {helpInline(line.slice(2))}</p>;
+                            return <p key={j} style={{fontSize:12.5,color:"var(--ink)",lineHeight:1.75,margin:"0 0 9px"}}>{helpInline(line)}</p>;
+                          })}
+ </div>
+                      )}
+ </div>
+                  );
+                })}
+ </div>
+ </div>
+            );
+          })()}
  </div>
  </main>
  </div>
