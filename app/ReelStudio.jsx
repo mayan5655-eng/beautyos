@@ -86,7 +86,11 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
   const [music, setMusic] = useState(null); // {file, url}
   // Burned-in subtitles from the script's spoken lines. On by default when a
   // script is present - subtitles are the specific thing she shouldn't touch.
-  const [subtitlesOn, setSubtitlesOn] = useState(true);
+  // Which ONE text layer is burned into the export: "caption" (the scene's
+  // on-screen text, static for the whole scene) or "spoken" (what she says,
+  // paced in chunks). Both at once plus the business name made three bands of
+  // text in a phone's lower third, so it is a choice, not two toggles.
+  const [burnLayer, setBurnLayer] = useState("caption");
   const [building, setBuilding] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
@@ -248,45 +252,24 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         wrapText(ctx, title, W / 2, 190, W - 150, 78);
       }
 
-      // Per-slide caption near bottom
-      if (slide.caption) {
-        ctx.fillStyle = colors.caption;
-        ctx.font = "600 58px Arial";
-        ctx.textAlign = "center";
-        ctx.direction = "rtl";
-        wrapText(ctx, slide.caption, W / 2, H - 350, W - 150, 72);
-      }
-
-      // Burned-in subtitle: the scene's SPOKEN line, chunked to subtitle
-      // length and paced evenly across this slide's duration by t - one chunk
-      // on screen at a time, like real captions. A dark pill behind the text
-      // keeps it readable over any photo; sized to the measured line.
-      if (subtitlesOn && slide.spoken) {
+      // The burned text layer - exactly one, per burnLayer. Its bottom baseline
+      // sits at H-210; the business name is at H-110 below it, and the title at
+      // the top, so nothing overlaps. Same dark pill for both layers: the
+      // outline-only caption used to wash out over a bright photo.
+      // "spoken" falls back to the caption for a scene with no spoken line, so
+      // her choice never leaves a scene silent.
+      const BURN_BASELINE = H - 210;
+      const useSpoken = burnLayer === "spoken" && !!slide.spoken;
+      if (useSpoken) {
         const chunks = chunkSpoken(slide.spoken);
         if (chunks.length > 0) {
           const chunk = chunks[Math.min(Math.floor(t * chunks.length), chunks.length - 1)];
           ctx.font = "700 54px Arial";
-          ctx.textAlign = "center";
-          ctx.direction = "rtl";
-          const metrics = ctx.measureText(chunk);
-          const padX = 34, padY = 22, lineH = 64;
-          const boxW = Math.min(metrics.width + padX * 2, W - 80);
-          const yBase = H - 210;
-          const bx = (W - boxW) / 2;
-          const by = yBase - lineH + 10;
-          const r = 18;
-          ctx.fillStyle = "rgba(0,0,0,0.62)";
-          ctx.beginPath();
-          ctx.moveTo(bx + r, by);
-          ctx.arcTo(bx + boxW, by, bx + boxW, by + lineH + padY, r);
-          ctx.arcTo(bx + boxW, by + lineH + padY, bx, by + lineH + padY, r);
-          ctx.arcTo(bx, by + lineH + padY, bx, by, r);
-          ctx.arcTo(bx, by, bx + boxW, by, r);
-          ctx.closePath();
-          ctx.fill();
-          ctx.fillStyle = "#FFFFFF";
-          ctx.fillText(chunk, W / 2, yBase, W - 148);
+          drawPill(ctx, [chunk], W, BURN_BASELINE, 64);
         }
+      } else if (slide.caption) {
+        ctx.font = "600 58px Arial";
+        drawPill(ctx, wrapLines(ctx, slide.caption, W - 230), W, BURN_BASELINE, 72);
       }
 
       // Business name watermark. Skipped entirely when there is no name, so a
@@ -298,7 +281,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         ctx.fillText(businessName, W / 2, H - 110);
       }
     },
-    [title, businessName, subtitlesOn]
+    [title, businessName, burnLayer]
   );
 
   // ---- Pick a supported video mime type ----
@@ -585,15 +568,30 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
 
       {/* MUSIC (optional) */}
       <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
-        {/* Subtitle toggle - only meaningful with a script, whose spoken
-            lines are what gets burned in. Default on: subtitles are the
-            specific thing she shouldn't have to touch. */}
+        {/* Which text layer burns - only meaningful with a script, which is
+            where both texts come from. Without one the typed captions burn,
+            as before. Default "caption": the on-screen text is the line the
+            script wrote to be READ, the spoken line is the one to be heard. */}
         {hasScript && (
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, cursor: "pointer" }}>
-            <input type="checkbox" checked={subtitlesOn} onChange={(e) => setSubtitlesOn(e.target.checked)} style={{ width: 17, height: 17, accentColor: pcHex }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>כתוביות צרובות מהתסריט</span>
-            <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>(מה שנאמר בכל סצנה, מתוזמן אוטומטית)</span>
-          </label>
+          <div style={{ marginBottom: 14 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>מה נצרב על הסרטון</p>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[
+                { k: "caption", l: "הטקסט על המסך", d: "הכיתוב של כל סצנה, לכל אורכה" },
+                { k: "spoken",  l: "מה שנאמר",       d: "משפט־משפט, מתוזמן אוטומטית" },
+              ].map((o) => {
+                const on = burnLayer === o.k;
+                return (
+                  <button key={o.k} type="button" onClick={() => setBurnLayer(o.k)} aria-pressed={on}
+                    style={{ flex: 1, textAlign: "right", padding: "9px 12px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+                             border: `1px solid ${on ? pcHex : "var(--line-2)"}`, background: on ? "var(--pc-tint)" : "var(--surface)" }}>
+                    <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: on ? pcHex : "var(--ink)" }}>{o.l}</span>
+                    <span style={{ display: "block", fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>{o.d}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
         <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
         <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 11.5, color: pc, cursor: "pointer", fontWeight: 600 }}>
@@ -746,13 +744,20 @@ function legibleOnDark(color) {
  * of n owns the i-th slice of the slide's duration, which tracks natural
  * speech closely enough without any transcription.
  */
+// The whitespace class is BUILT, not written. This file's tooling has twice
+// stripped the backslash out of an inline regex, turning the whitespace class
+// into the literal letter s - which Hebrew never contains, so every spoken line
+// became one unbroken chunk. String.fromCharCode(92) cannot be stripped.
+const WS = String.fromCharCode(92) + "s";
+const SENTENCE_BREAK = new RegExp("(?<=[,.!?…،])" + WS + "+|" + WS + "+[-–—]" + WS + "+");
+const WORD_BREAK = new RegExp(WS + "+");
 function chunkSpoken(text) {
   const clean = String(text || "").trim();
   if (!clean) return [];
-  const pieces = clean.split(/(?<=[,.!?…،])s+|s+[-–—]s+/).filter(Boolean);
+  const pieces = clean.split(SENTENCE_BREAK).filter(Boolean);
   const chunks = [];
   for (const piece of pieces) {
-    const words = piece.trim().split(/s+/);
+    const words = piece.trim().split(WORD_BREAK);
     for (let i = 0; i < words.length; i += 5) {
       const chunk = words.slice(i, i + 5).join(" ").replace(/[,.]+$/, "");
       if (chunk) chunks.push(chunk);
@@ -761,7 +766,8 @@ function chunkSpoken(text) {
   return chunks;
 }
 
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+/** Word-wrap `text` to `maxWidth` with the context's current font. */
+function wrapLines(ctx, text, maxWidth) {
   const words = String(text).split(" ");
   let line = "";
   const lines = [];
@@ -775,10 +781,43 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     }
   }
   if (line) lines.push(line);
-  lines.forEach((ln, i) => {
+  return lines;
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  wrapLines(ctx, text, maxWidth).forEach((ln, i) => {
     ctx.lineWidth = 6;
     ctx.strokeStyle = "rgba(0,0,0,0.55)";
     ctx.strokeText(ln, x, y + i * lineHeight);
     ctx.fillText(ln, x, y + i * lineHeight);
   });
+}
+
+/**
+ * White text on a dark rounded pill, centered, RTL, sized to the widest line.
+ * `yBottom` is the baseline of the LAST line; extra lines grow upward, so the
+ * pill's bottom edge stays put however long the caption is. Uses the current
+ * ctx.font. Keeps text readable over any photo, which an outline alone did not.
+ */
+function drawPill(ctx, lines, W, yBottom, lineH) {
+  if (!lines || lines.length === 0) return;
+  ctx.textAlign = "center";
+  ctx.direction = "rtl";
+  const padX = 34, padY = 22, r = 18;
+  const widest = Math.max(...lines.map((ln) => ctx.measureText(ln).width));
+  const boxW = Math.min(widest + padX * 2, W - 80);
+  const boxH = lineH * lines.length + padY;
+  const bx = (W - boxW) / 2;
+  const by = yBottom - lineH * lines.length + 10;
+  ctx.fillStyle = "rgba(0,0,0,0.62)";
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.arcTo(bx + boxW, by, bx + boxW, by + boxH, r);
+  ctx.arcTo(bx + boxW, by + boxH, bx, by + boxH, r);
+  ctx.arcTo(bx, by + boxH, bx, by, r);
+  ctx.arcTo(bx, by, bx + boxW, by, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#FFFFFF";
+  lines.forEach((ln, i) => ctx.fillText(ln, W / 2, yBottom - (lines.length - 1 - i) * lineH, W - 148));
 }
