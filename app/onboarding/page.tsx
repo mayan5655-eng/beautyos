@@ -6,20 +6,11 @@ import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
 import ServiceTemplatePicker from "../ServiceTemplatePicker";
 import { lighten } from "@/lib/theme";
-import { buildSeedSettings, SEEDED_SETTINGS_KEYS } from "@/lib/tenantTemplate";
+import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 
-// PostgREST reports an unknown column as PGRST204 ("column ... does not exist
-// in the schema cache"); Postgres itself uses SQLSTATE 42703. The message check
-// is the belt-and-braces third form, because this decides whether a failed
-// signup is retried or surfaced, and guessing wrong in the strict direction
-// costs a customer her account.
-function isMissingColumnError(err: unknown): boolean {
-  const e = err as { code?: string; message?: string } | null;
-  if (!e) return false;
-  if (e.code === "PGRST204" || e.code === "42703") return true;
-  return /could not find|does not exist|schema cache|unknown column/i.test(e.message || "");
-}
+// The missing-column retry that used to live here moved with the insert into
+// app/api/settings/save; lib/pgError.ts is its one definition now.
 
 const PRESET_COLORS = ["#4A2E5A", "var(--pc-tint)", "#A7C4F4", "var(--success)", "var(--pc-tint)", "rgba(242,184,75,0.16)", "var(--pc)", "var(--ink)"];
 
@@ -165,31 +156,22 @@ export default function OnboardingPage() {
         // typed; they reach the row through that one derivation.
       };
 
-      const { error: insertErr } = await supabase.from("settings").insert([settings]);
-      if (insertErr) {
-        // Every column the seed writes was verified against information_schema
-        // on 2026-08-31 and all 19 exist, so this branch should never run.
-        //
-        // It stays because of HOW schema changes reach this database: by hand,
-        // in the Supabase SQL editor, with finished migrations sometimes parked
-        // in supabase/migrations/pending for weeks. An insert naming one column
-        // that does not exist fails the WHOLE row — so the day someone adds a
-        // key to the seed ahead of its migration, signup breaks for every new
-        // cosmetician, and the only symptom is "שגיאה בשמירה".
-        //
-        // One retry with the seeded keys stripped. She still gets her account
-        // with what she typed; the seeded defaults are what is lost, and every
-        // one of them has a working fallback in its reader. When the migration
-        // does land, the full seed starts applying again on its own.
-        if (isMissingColumnError(insertErr)) {
-          console.warn("[Onboarding] settings insert rejected a seeded column; retrying with the seed stripped", insertErr);
-          const reduced: Record<string, unknown> = { ...settings };
-          for (const key of SEEDED_SETTINGS_KEYS) delete reduced[key];
-          const { error: retryErr } = await supabase.from("settings").insert([reduced]);
-          if (retryErr) throw retryErr;
-        } else {
-          throw insertErr;
-        }
+      // Through the server, like every settings write (app/api/settings/save).
+      // The route stamps tenant_id from her session, keeps only the columns in
+      // lib/settingsColumns.ts, and carries the retry-with-the-seed-stripped
+      // that used to live here: migrations are applied by hand and can lag
+      // the code, and an insert naming one column that does not exist fails
+      // the whole row - on the signup path, for every new cosmetician.
+      // The browser can no longer insert into settings directly
+      // (supabase/migrations/add_settings_write_guard.sql).
+      const saveRes = await fetch("/api/settings/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings }),
+      });
+      const saveData = await saveRes.json().catch(() => ({}));
+      if (!saveRes.ok || !saveData.success) {
+        throw new Error(saveData.error || `settings save failed (HTTP ${saveRes.status})`);
       }
 
       // Her picked treatments, now that the settings row exists. A failure here

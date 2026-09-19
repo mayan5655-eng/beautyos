@@ -153,6 +153,14 @@ export async function POST(request) {
     // Resolve tenant strictly from the GreenAPI instance that received the
     // message. We never fall back to a default tenant - replying under the
     // wrong business would leak/derail another cosmetician's conversation.
+    //
+    // EXACTLY ONE row may match. The lookup used to take the first of any
+    // number, unordered, so a second tenant who wrote this instance id into
+    // her own settings could win the race for another tenant's messages.
+    // The settings save can no longer write that column and the database
+    // now refuses a duplicate (add_settings_write_guard.sql); this is the
+    // third guard, for a duplicate that predates both: two matches means
+    // nobody gets the message, and the log says so.
     let tenantId = null;
     if (idInstance) {
       try {
@@ -160,9 +168,11 @@ export async function POST(request) {
           .from("settings")
           .select("tenant_id")
           .eq("green_api_instance", String(idInstance))
-          .limit(1);
-        if (!error && data && data.length > 0 && data[0].tenant_id) {
+          .limit(2);
+        if (!error && data && data.length === 1 && data[0].tenant_id) {
           tenantId = data[0].tenant_id;
+        } else if (!error && data && data.length > 1) {
+          console.error(`[whatsapp-webhook] instance ${String(idInstance)} matches ${data.length} tenants; refusing to route`);
         }
       } catch (_) { /* no tenant -> skip below */ }
     }

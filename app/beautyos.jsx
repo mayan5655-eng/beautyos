@@ -4246,12 +4246,7 @@ export default function BeautyOS() {
       // itself gated by RLS and frequently returns null - which made tenant_id
       // wrong, the UPDATE miss 0 rows, and the INSERT fail with an empty {} error.
       const { data: rpcTenant, error: rpcErr } = await supabase.rpc("get_user_tenant_id");
-      const { data: { user: dbgUser } } = await supabase.auth.getUser();
-      console.log("[SETTINGS DEBUG] auth user id:", dbgUser?.id);
-      console.log("[SETTINGS DEBUG] rpc get_user_tenant_id ->", { rpcTenant, rpcErr: rpcErr && { message: rpcErr.message, code: rpcErr.code, details: rpcErr.details, hint: rpcErr.hint } });
-      console.log("[SETTINGS DEBUG] settings.id / settings.tenant_id in state:", settings.id, settings.tenant_id);
       const tenantId = rpcTenant || settings.tenant_id || null;
-      console.log("[SETTINGS DEBUG] resolved tenantId:", tenantId);
       if (!tenantId) {
         // Offline, get_user_tenant_id cannot answer, so we can land here with a
         // perfectly valid account. "Log out and back in" is the worst possible
@@ -4265,42 +4260,31 @@ export default function BeautyOS() {
         return;
       }
 
-      // Build a clean payload: editable fields only. Never write the primary key
-      // or created_at (immutable / generated), and always stamp the resolved
-      // tenant_id so the RLS WITH CHECK passes.
-      const payload = { ...editSettings };
-      delete payload.id;
-      delete payload.created_at;
-      delete payload.tenant_id;
-      // The GreenAPI token is NOT written from the browser. It is encrypted
-      // server-side by /api/settings/whatsapp, the only writer. The ciphertext
-      // is stripped here because the browser has no business round-tripping a
-      // value it cannot read - and sending it back would overwrite a token
-      // saved since this screen was opened.
-      delete payload.green_api_token_encrypted;
-      payload.tenant_id = tenantId;
-      if ("bot_active" in payload) {
-        payload.bot_active = !(payload.bot_active === false || payload.bot_active === "false");
-      }
-
-      // Update the tenant's existing settings row. We key on tenant_id (not the
-      // cached settings.id) so the write lines up exactly with the RLS USING
-      // clause and can't miss because of a stale/empty id in state.
-      console.log("[SETTINGS DEBUG] UPDATE payload:", JSON.stringify(payload));
+      // The write goes through the server: app/api/settings/save keeps only
+      // the columns in lib/settingsColumns.ts, stamps the tenant from her
+      // session, and creates the row when there is none. The browser used to
+      // write the whole row back here - which let a tenant set the webhook's
+      // instance id, the lead-key hash and the platform's feature flags on her
+      // own row - and it logged that whole row to the console on every save.
+      // The draft is sent as-is; what the server refuses, it drops and logs.
       let savedRow = null;
-      const {data:upd,error:updErr} = await supabase.from("settings").update(payload).eq("tenant_id",tenantId).select();
-      console.log("[SETTINGS DEBUG] UPDATE result -> rows:", upd, "| error:", updErr && { message: updErr.message, code: updErr.code, details: updErr.details, hint: updErr.hint });
-      if (updErr) { handleDbError(updErr, "update settings"); return; }
-      savedRow = (upd && upd[0]) || null;
-
-      // Only create a row if this tenant genuinely has none yet.
-      if (!savedRow) {
-        console.log("[SETTINGS DEBUG] UPDATE matched 0 rows -> attempting INSERT");
-        const {data:ins,error:insErr} = await supabase.from("settings").insert([payload]).select();
-        console.log("[SETTINGS DEBUG] INSERT result -> rows:", ins, "| error:", insErr && { message: insErr.message, code: insErr.code, details: insErr.details, hint: insErr.hint });
-        if (insErr) { handleDbError(insErr, "create settings"); return; }
-        savedRow = (ins && ins[0]) || null;
+      let res;
+      try {
+        res = await fetch("/api/settings/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: editSettings }),
+        });
+      } catch (netErr) {
+        handleDbError(netErr, "update settings");
+        return;
       }
+      const saveData = await res.json().catch(() => ({}));
+      if (!res.ok || !saveData.success) {
+        handleDbError({ message: saveData.error || `HTTP ${res.status}` }, "update settings");
+        return;
+      }
+      savedRow = saveData.settings || null;
       if (!savedRow) {
         // Both paths returned 0 rows - this is an RLS / permissions problem,
         // not a success. Tell the truth instead of toasting "saved".
