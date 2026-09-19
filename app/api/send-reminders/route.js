@@ -8,9 +8,10 @@ import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
-import { greet, lines, hebrewDate, timeRange } from "../../../lib/messages.js";
+import { greet, lines, hebrewDate, timeRange, hhmm } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
+import { reportReminderFailures, STATUS_FAILED, STATUS_NO_PHONE } from "../../../lib/reminders/failureReport.js";
 
 // Vercel's default function timeout is short (10-15s depending on plan) and was
 // never declared here. This job sends serially to every tenant's appointments
@@ -75,7 +76,11 @@ export async function POST(request) {
     // column every row reads as an appointment, which is exactly today's
     // behaviour. Same bet, and the same test for it, as softCancelAppointment
     // makes for the cancel-audit columns.
-    const COLS = "id, name, service, date, hour, start_minute, client_phone, tenant_id, confirmation_status";
+    // `duration` was missing from this list, so timeRange() below only ever
+    // had a start and every reminder read "14:30" where the booking
+    // confirmation had said "14:30–15:15". Same column every other reader
+    // selects; NOT NULL since the booking path stopped writing zero.
+    const COLS = "id, name, service, date, hour, start_minute, duration, client_phone, tenant_id, confirmation_status";
     const loadTomorrow = (cols) => supabase
       .from("appointments")
       .select(cols)
@@ -132,7 +137,18 @@ export async function POST(request) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
 
     // Send a reminder to each appointment, using its tenant's business name.
+    //
+    // Every result row carries the tenant and the appointment's time, not just
+    // a name and a status: the failure report after the loop groups by tenant
+    // and tells her WHEN the un-reminded client is due, which is the one fact
+    // she needs to send it herself.
     const results = [];
+    const row = (appt, status) => ({
+      name: appt.name,
+      status,
+      tenantId: appt.tenant_id,
+      time: hhmm(startMinute(appt)),
+    });
     for (const appt of appointments) {
       // Her own blocked-out time is not a client and has nobody to remind.
       // Checked explicitly rather than left to the missing client_phone below,
@@ -144,16 +160,16 @@ export async function POST(request) {
           console.log(`[send-reminders] skipped: automations paused for tenant ${appt.tenant_id}`);
           pausedLogged.add(appt.tenant_id);
         }
-        results.push({ name: appt.name, status: "מושהה (השהיית אוטומציות)" });
+        results.push(row(appt, "מושהה (השהיית אוטומציות)"));
         continue;
       }
       // Respect the tenant's "appointment reminders" automation toggle.
       if (!remindersEnabled(appt.tenant_id)) {
-        results.push({ name: appt.name, status: "מושבת (הגדרות)" });
+        results.push(row(appt, "מושבת (הגדרות)"));
         continue;
       }
       if (!appt.client_phone) {
-        results.push({ name: appt.name, status: "אין מספר טלפון" });
+        results.push(row(appt, STATUS_NO_PHONE));
         continue;
       }
 
@@ -182,10 +198,30 @@ export async function POST(request) {
         tenantId: appt.tenant_id,
       });
 
-      results.push({ name: appt.name, status: res.ok ? "נשלח" : "נכשל" });
+      results.push(row(appt, res.ok ? "נשלח" : STATUS_FAILED));
     }
 
-    return Response.json({ success: true, date: tomorrow, results });
+    // The push half of the send log. A failed reminder used to sit in the
+    // WhatsApp log waiting to be noticed; now it is reported to her tonight,
+    // and to the operator when any tenant had one. Silence means all sent.
+    // Caught twice over - inside, per send, and here, whole - because the
+    // reminders have already gone out and a report that threw would hide the
+    // results behind a 500.
+    let report = null;
+    try {
+      report = await reportReminderFailures({
+        results,
+        date: tomorrow,
+        settingsByTenant,
+        send: sendWhatsApp,
+        operatorPhone: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP,
+      });
+      console.log("[send-reminders] failure report:", JSON.stringify(report));
+    } catch (reportErr) {
+      console.error("[send-reminders] failure report threw:", reportErr?.message || String(reportErr));
+    }
+
+    return Response.json({ success: true, date: tomorrow, results, report });
   } catch (err) {
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }

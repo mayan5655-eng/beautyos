@@ -6269,11 +6269,20 @@ export default function BeautyOS() {
     }
     setWaLogLoading(false);
   };
+  // The dashboard reads the same log to surface automated sends that failed in
+  // the last day (see the "failed-auto" queue item). Loaded once, when the
+  // dashboard is first shown, and shared with the WhatsApp tab's log view so
+  // opening that view later costs nothing.
+  useEffect(()=>{
+    if(activeTab!=="dashboard"||waMessages!==null||waLogLoading) return;
+    loadWaMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeTab]);
   // Hebrew labels for the message_type column. slot_offer and lead_bulk are
   // written by the gap-fill and lead-template send paths.
   const WA_TYPE_LABELS = {
     reminder:"תזכורת", confirmation:"אישור הגעה", booking_confirm:"אישור תור",
-    owner_alert:"התראת תור", receipt:"קבלה", skin_report:"דוח עור",
+    owner_alert:"התראת תור", reminder_failure:"דוח תזכורות", receipt:"קבלה", skin_report:"דוח עור",
     skin_lead_alert:"ליד מהסורק", slot_offer:"הצעת תור", lead_bulk:"הודעה ללידים",
     general:"כללי",
   };
@@ -7623,6 +7632,24 @@ ${c.claimUrl}`)}`;
                       if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
                       (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
+                      // Automated sends that FAILED in the last day, from the same log the
+                      // WhatsApp tab shows. This is the in-app half of the failure report:
+                      // the cron also WhatsApps her (lib/reminders/failureReport.js), but
+                      // that push rides the same channel that just failed, so the card is
+                      // the one that always shows. Manual sends are excluded - their result
+                      // was shown to her in the modal that sent them. The key carries the
+                      // newest failure's timestamp, so dismissing hides this batch and a
+                      // new failure brings the card back.
+                      {
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","reminder_failure"]);
+                        const dayAgo=Date.now()-24*60*60*1000;
+                        const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&new Date(m.created_at).getTime()>dayAgo);
+                        if(failedAuto.length>0){
+                          const names=[...new Set(failedAuto.map(m=>m.recipient_name).filter(Boolean))];
+                          const shown=names.slice(0,4).join(", ")+(names.length>4?` ועוד ${names.length-4}`:"");
+                          q.push({key:`failed-auto:${failedAuto[0].created_at}`,icon:"⚠",accent:"var(--danger)",source:"וואטסאפ",what:"הודעות אוטומטיות שלא נשלחו",who:failedAuto.length===1?"הודעה אחת ב-24 השעות האחרונות":`${failedAuto.length} הודעות ב-24 השעות האחרונות`,why:shown?`אל: ${shown}`:"",primaryLabel:"פתחי את יומן ההודעות",run:()=>{setWaView("log");setActiveTab("whatsapp");}});
+                        }
+                      }
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});

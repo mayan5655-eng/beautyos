@@ -147,6 +147,13 @@ The real gap is narrower and still worth fixing: the log is **pull, not push**. 
 to go and look. If a reminder fails at 20:00 the night before, nothing tells her — she finds out
 when the client does not arrive. What is missing is a failure *notification*, not the log itself.
 
+**Fixed 2026-09-20.** `lib/reminders/failureReport.js`: after each reminder run, one WhatsApp per
+tenant that had a failure (to `settings.business_phone`, the same owner-alert number the booking and
+skin-lead alerts use), naming each un-reminded client and her time, plus one line to the support
+number when any tenant failed. Silence means all sent. The dashboard also shows a card for automated
+sends that failed in the last 24 hours, read from the same log, so the alert survives a WhatsApp
+outage. Covered by `test-reminder-failure-report.js`.
+
 **F4. CORRECTED — gap-fill is built; it is switched off. [verified]** An earlier draft claimed
 this was not a flow. Also wrong. It is complete and race-safe end to end:
 `app/beautyos.jsx:1716` schedules `triggerGapFill(appt)` 6.5s after a delete, guarded by the
