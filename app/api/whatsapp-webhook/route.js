@@ -5,6 +5,15 @@
 // MULTI-TENANT: each cosmetician connects her own GreenAPI instance.
 // We resolve the tenant from instanceData.idInstance (settings.green_api_instance);
 // until she connects her own, we fall back to the default tenant.
+//
+// AUTHENTICATED. Every delivery must carry GREENAPI_WEBHOOK_SECRET, as the
+// webhook URL token GreenAPI sends in the Authorization header or as ?token=
+// on the URL (lib/webhookAuth.js). Checked before the body is read, so a
+// forged delivery costs nothing and reveals nothing. Before this gate the
+// route trusted the instance id, the sender and the text from the JSON body,
+// which made the platform's WhatsApp number an open relay: post a payload
+// naming a tenant's instance id, and a Claude-written reply went from our
+// number to any phone you named, billed to her.
 
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -14,6 +23,7 @@ import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { hit } from "@/lib/rateLimit";
+import { isAuthorizedWebhook, webhookUnauthorized } from "../../../lib/webhookAuth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -116,6 +126,14 @@ async function generateReply({ message, clientName, tenantId }) {
 }
 
 export async function POST(request) {
+  // The gate, before anything is parsed. A 401 rather than a silent 200:
+  // GreenAPI retries a non-200 for a while and then stops, and the retries are
+  // the signal she needs while configuring the token - a silent 200 would make
+  // a wrong token look like a working webhook with a mute bot.
+  if (!isAuthorizedWebhook(request)) {
+    console.warn("[whatsapp-webhook] refused: missing or wrong webhook secret");
+    return webhookUnauthorized();
+  }
   try {
     const body = await request.json();
 
@@ -165,8 +183,9 @@ export async function POST(request) {
     //
     // This is the one AI call in the product that a stranger can trigger at
     // will: every inbound WhatsApp message becomes a Claude call, billed to her
-    // tenant. Nothing here is authenticated and nothing can be - the whole
-    // point is that her clients message her without an account.
+    // tenant. The webhook secret above proves the delivery came from GreenAPI;
+    // it says nothing about who messaged her, and her clients message her
+    // without an account - so the per-sender cap still stands.
     //
     // Per-IP would be meaningless: the request comes from GreenAPI's servers,
     // not from the sender, so every message shares one IP. The two keys that
