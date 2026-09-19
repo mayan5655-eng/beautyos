@@ -83,6 +83,13 @@ export function resolveLeadTemplate(settings: any, status: string): string {
 // wording so a sent message never contains a raw {placeholder}.
 //   {name}   -> the lead's name
 //   {clinic} -> the business name from settings
+//
+// Called ONCE PER RECIPIENT, inside the send loop of
+// app/api/leads/send-bulk/route.js. It used to be called once at compose
+// time, with the group's "lead" being null, so every recipient of a group send
+// got the fallback while a single send from the drawer got her real name - the
+// same template behaving two ways. The composer now keeps the placeholders in
+// the textarea and shows a preview (see pickPreviewLead); the route renders.
 export function renderLeadTemplate(
   text: string,
   lead: { name?: string | null } | null | undefined,
@@ -92,4 +99,25 @@ export function renderLeadTemplate(
   const name = (lead?.name || '').trim() || NAME_FALLBACK;
   const clinic = clinicName(settings);
   return text.replace(/\{name\}/g, name).replace(/\{clinic\}/g, clinic);
+}
+
+// True when the text still carries something the route will fill in per
+// recipient. Decides whether the composer shows a preview at all: a message
+// with no placeholders goes out exactly as typed, and a preview of identical
+// text would only make her wonder what differs.
+export function hasLeadPlaceholders(text: string | null | undefined): boolean {
+  return /\{(name|clinic)\}/.test(String(text || ''));
+}
+
+// The recipient whose name fills the composer's preview: the first one who
+// would actually receive the message. Leads without a phone are skipped by the
+// route, so previewing one of them would show a name that never gets sent to.
+// Null when nobody in the group is reachable, in which case the preview
+// renders with the neutral fallback - which is also exactly what would be
+// sent if such a lead somehow reached the route.
+export function pickPreviewLead<T extends { name?: string | null; phone?: string | null }>(
+  leads: T[] | null | undefined
+): T | null {
+  if (!Array.isArray(leads)) return null;
+  return leads.find((l) => l && l.phone) || null;
 }

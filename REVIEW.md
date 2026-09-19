@@ -278,6 +278,11 @@ why this is a deliberate deferral and not a one-line change.
 
 Logged 2026-08-31, alongside merging the leads status filter and the bulk-send strip into one control.
 
+**Fixed 2026-09-20.** The composer keeps the placeholders in the textarea and shows a preview
+rendered for the first reachable recipient; the route renders `{name}` and `{clinic}` once per lead
+inside its send loop, so a literal message and a template take the same path. Covered by
+`test-lead-templates.ts`.
+
 **The app loads every appointment ever, on every boot. [verified]** `app/beautyos.jsx:1733-1743`
 issues ten `.select("*")` with no `.limit()`, no `.range()` and no date window — appointments,
 clients, forms, leads, service_prices, settings, receipts, packages, waitlist, expenses. The

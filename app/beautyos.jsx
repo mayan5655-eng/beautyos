@@ -9,7 +9,7 @@ import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/
 import { planState } from "@/lib/planState";
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
 import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
-import { renderLeadTemplate, resolveLeadTemplate, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
+import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPreviewLead, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
@@ -3872,9 +3872,13 @@ export default function BeautyOS() {
              : singleLead ? [singleLead.id]
              : null
     );
-    // A group send has no one name to address, so {name} resolves to the
-    // neutral fallback for everyone. See the note in REVIEW.md.
-    setBulkMessage(tpl ? renderLeadTemplate(tpl, singleLead, settings) : "");
+    // The template goes into the textarea AS SAVED, placeholders and all. It
+    // used to be rendered here, once, with `singleLead` - null for a group -
+    // so every recipient of a group send got "לקוחה יקרה" while a send from
+    // the drawer got her real name. The route now renders per recipient
+    // (app/api/leads/send-bulk/route.js), and the modal shows her a preview
+    // for the first recipient so she still sees a real message, not braces.
+    setBulkMessage(tpl || "");
     setBulkResult(null); setBulkError(""); setBulkStep("compose");
   };
   const closeBulk = () => {
@@ -9801,6 +9805,17 @@ ${c.claimUrl}`)}`;
           : leads.filter(l=>l.status===bulkStatus);
         const withPhone=inGroup.filter(l=>l.phone).length;
         const noPhone=inGroup.length-withPhone;
+        // Preview for the first reachable recipient. Rendered client-side with
+        // the same helper the route uses per recipient, so what she reads here
+        // is what that one lead gets; the others get their own names.
+        const previewLead=pickPreviewLead(inGroup);
+        const personalised=hasLeadPlaceholders(bulkMessage);
+        const previewText=personalised?renderLeadTemplate(bulkMessage,previewLead,settings):bulkMessage;
+        const previewNote=personalised
+          ?(withPhone>1
+              ?`כך תראה ההודעה אצל ${previewLead?.name||"הנמענת הראשונה"} — כל נמענת מקבלת אותה עם השם שלה`
+              :`כך תראה ההודעה אצל ${previewLead?.name||"הנמענת"}`)
+          :"";
         return(
  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1300,padding:14}} onClick={bulkStep==="sending"?undefined:closeBulk}>
  <div onClick={e=>e.stopPropagation()} className="modal-card" dir="rtl" style={{background:"var(--surface)",borderRadius:22,padding:24,width:400,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto"}}>
@@ -9808,7 +9823,13 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
 
             {bulkStep==="compose"&&(<>
- <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?"כתבי כאן את ההודעה שתישלח לפניות שנבחרו...":"כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..."} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:16}}/>
+ <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?"כתבי כאן את ההודעה שתישלח לפניות שנבחרו...":"כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה..."} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"11px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:personalised?8:16}}/>
+              {personalised&&(
+ <div style={{marginBottom:16}}>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:4}}>{previewNote}</p>
+ <div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:12,padding:"10px 12px",fontSize:11.5,whiteSpace:"pre-wrap",maxHeight:120,overflowY:"auto",color:"var(--ink)"}}>{previewText}</div>
+ </div>
+              )}
  <div style={{display:"flex",gap:6}}>
  <button onClick={closeBulk} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={()=>setBulkStep("confirm")} disabled={!bulkMessage.trim()||withPhone===0} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:12}}>המשך</button>
@@ -9817,7 +9838,8 @@ ${c.claimUrl}`)}`;
 
             {bulkStep==="confirm"&&(<>
  <div style={{background:"rgba(242,184,75,0.16)",border:"1px solid var(--line)",borderRadius:12,padding:"11px 13px",marginBottom:12,fontSize:11.5,color:"var(--warning)",lineHeight:1.6}}>⚠ פעולה זו תשלח הודעת <b>וואטסאפ אמיתית</b> ל-<b>{withPhone}</b> נמענים.{noPhone>0?` (${noPhone} ללא טלפון ידולגו)`:""}</div>
- <div style={{background:pcTint,borderRadius:12,padding:"11px 13px",marginBottom:12,fontSize:11.5,whiteSpace:"pre-wrap",maxHeight:140,overflowY:"auto"}}>{bulkMessage}</div>
+              {personalised&&<p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:4}}>{previewNote}</p>}
+ <div style={{background:pcTint,borderRadius:12,padding:"11px 13px",marginBottom:12,fontSize:11.5,whiteSpace:"pre-wrap",maxHeight:140,overflowY:"auto"}}>{previewText}</div>
               {bulkError&&<p style={{color:"var(--danger)",fontSize:11,marginBottom:10}}>{bulkError}</p>}
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>{setBulkStep("compose");setBulkError("");}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>חזרה לעריכה</button>

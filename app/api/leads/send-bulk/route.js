@@ -14,6 +14,7 @@ import { createClient as createServerClient } from "../../../../lib/supabase/ser
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { LEAD_STATUS_KEYS } from "../../../../lib/leads/statuses";
+import { renderLeadTemplate } from "../../../../lib/leads/templates";
 
 // Service-role client for reading the tenant's leads (bypasses RLS; always
 // filtered by the session-derived tenant_id below).
@@ -86,8 +87,25 @@ export async function POST(request) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    // The business name, for {clinic}. One read for the whole batch; a missing
+    // row just means the neutral fallback, which is what renderLeadTemplate
+    // does with an empty settings object anyway.
+    const { data: settingsRow } = await admin
+      .from("settings")
+      .select("business_name")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+
     // 5. Send to each lead that has a phone. Leads with no phone are skipped
     //    (reported, not failed). One failure never aborts the batch.
+    //
+    //    The message arrives as the TEMPLATE, placeholders intact, and is
+    //    rendered here once per recipient. That is the whole fix for the gap
+    //    logged in REVIEW.md: substitution used to happen once in the
+    //    composer, with no lead to substitute for a group, so every recipient
+    //    got the same "לקוחה יקרה". A message she typed with no placeholders
+    //    passes through renderLeadTemplate unchanged, so a literal message and
+    //    a template take the same path and there is nothing to distinguish.
     let sent = 0;
     let failed = 0;
     let skipped_no_phone = 0;
@@ -102,7 +120,8 @@ export async function POST(request) {
         continue;
       }
 
-      const res = await sendWhatsApp(lead.phone, message, {
+      const text = renderLeadTemplate(message, lead, settingsRow || {});
+      const res = await sendWhatsApp(lead.phone, text, {
         name: lead.name,
         type: "lead_bulk",
         tenantId,
