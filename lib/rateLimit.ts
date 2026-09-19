@@ -210,9 +210,55 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `Too many requests from this address. Try again ${m}.`,
     tenantMessage: (m: string) => `Rate limit reached for this account. Try again ${m}.`,
   },
+
+  // ── The two that were missing ──────────────────────────────────────────────
+  // app/api/clients/comeback and app/api/questions called checkTenantLimit with
+  // these names from the day the limiter shipped, and neither name existed
+  // here. The lookup returned undefined, the next line read `.perTenant` off
+  // it, and both routes threw on EVERY call - a 500 swallowed by their own
+  // try/catch. Both callers are .js files, so the PolicyName type that would
+  // have refused the string at compile time never ran on them. The guard in
+  // checkIpLimit/checkTenantLimit below is the second half of the fix: an
+  // unknown name now fails open and logs, instead of taking the route down.
+
+  // The comeback blast: session-authenticated, up to 30 WhatsApps per call,
+  // fired only by a YES on an owner question. Once is the whole use; three in
+  // ten minutes is a double-tap plus a retry, and anything past that is a loop.
+  comeback: {
+    perIp: { limit: 5, windowMs: 10 * MINUTE },
+    perTenant: { limit: 3, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `הודעת החזרנו כבר יצאה לפני רגע. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Owner questions: one cheap row per event (a cancellation opens a gap-fill
+  // question). Session-authenticated and written by the server only, so the
+  // cap is against a runaway client loop, not a person.
+  'owner-questions': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `יותר מדי בקשות כרגע. אפשר לנסות שוב ${m}.`,
+  },
 } as const;
 
 export type PolicyName = keyof typeof RATE_POLICIES;
+
+// A policy name that is not in the table. This is a COST control, not a
+// security boundary (see the fails-open note in lib/ai/callCaps.ts), so the
+// right answer to "the limiter is misconfigured" is to let the request through
+// and say so loudly, never to 500 a route that was working before the limiter
+// existed. Typed callers cannot reach this; .js callers can, and did.
+function policyOrNull(policy: string): (typeof RATE_POLICIES)[PolicyName] | null {
+  const p = (RATE_POLICIES as Record<string, (typeof RATE_POLICIES)[PolicyName]>)[policy];
+  if (p) return p;
+  console.error(`[rateLimit] unknown policy "${policy}" - failing open. Add it to RATE_POLICIES.`);
+  return null;
+}
 
 // ── The counter ──────────────────────────────────────────────────────────────
 //
@@ -337,7 +383,8 @@ function limited(message: string, retryAfterSec: number): Response {
  * null when the request may proceed.
  */
 export function checkIpLimit(request: Request, policy: PolicyName): Response | null {
-  const p = RATE_POLICIES[policy];
+  const p = policyOrNull(policy);
+  if (!p) return null;
   const verdict = hit(`${policy}:ip:${clientIp(request)}`, p.perIp);
   if (verdict.ok) return null;
   return limited(p.ipMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
@@ -354,7 +401,8 @@ export function checkIpLimit(request: Request, policy: PolicyName): Response | n
  */
 export function checkTenantLimit(tenantId: string | null | undefined, policy: PolicyName): Response | null {
   if (!tenantId) return null;
-  const p = RATE_POLICIES[policy];
+  const p = policyOrNull(policy);
+  if (!p) return null;
   const verdict = hit(`${policy}:tenant:${tenantId}`, p.perTenant);
   if (verdict.ok) return null;
   return limited(p.tenantMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
