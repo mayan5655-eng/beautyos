@@ -4,19 +4,29 @@
 // the safe public fields for the requested tenant.
 
 import { createClient } from "@supabase/supabase-js";
+import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request) {
+  // Per-IP first, before the tenant is even read: the only unauthenticated
+  // route that had no limit at all, and it hands back a business phone for
+  // any tenant id. Same shape as every other public route.
+  const ipLimited = checkIpLimit(request, "community");
+  if (ipLimited) return ipLimited;
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get("t");
-    if (!tenantId) {
+    if (!tenantId || !UUID_RE.test(tenantId)) {
       return Response.json({ success: false, error: "missing tenant" }, { status: 400 });
     }
+    const tenantLimited = checkTenantLimit(tenantId, "community");
+    if (tenantLimited) return tenantLimited;
 
     // Business name for the header (best-effort)
     const [postsRes, settingsRes] = await Promise.all([

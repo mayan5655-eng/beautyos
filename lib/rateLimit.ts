@@ -233,6 +233,20 @@ export const RATE_POLICIES = {
       `הודעת החזרנו כבר יצאה לפני רגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // The public community feed: an unauthenticated read that returns the
+  // business name, colour and phone for any tenant id, with no limit at all
+  // until now. Reads only, so the concern is scraping, not spend. A visitor
+  // opens the page once and maybe refreshes; 30 in ten minutes from one
+  // address is a script.
+  community: {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 300, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `העמוד עמוס כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   // Owner questions: one cheap row per event (a cancellation opens a gap-fill
   // question). Session-authenticated and written by the server only, so the
   // cap is against a runaway client loop, not a person.
