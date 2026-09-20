@@ -1,8 +1,22 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { securityHeaders } from "./lib/securityHeaders";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@supabase/ssr', '@supabase/supabase-js'],
+
+  // Every response, pages and API routes alike. Built in lib/securityHeaders.ts
+  // so the policy is one readable, testable list rather than a string here.
+  // The development flag loosens exactly two things (eval for React Refresh,
+  // the hot-reload socket) and drops HSTS, which has no business on localhost.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders({ dev: process.env.NODE_ENV !== "production" }),
+      },
+    ];
+  },
 };
 
 // Sentry build plugin. Its job at build time is source maps: without them a
