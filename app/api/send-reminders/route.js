@@ -175,7 +175,8 @@ export async function POST(request) {
 
       const businessName = settingsByTenant[appt.tenant_id]?.business_name || "העסק";
       // Signed: /api/confirm now requires a token binding the id to the action.
-      const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id);
+      // Dated: the links die three days after the appointment, not never.
+      const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id, { date: appt.date });
 
       // Same voice as the booking confirmation she already received: the same
       // greeting, the same mark, the same way of saying a date. She is hearing

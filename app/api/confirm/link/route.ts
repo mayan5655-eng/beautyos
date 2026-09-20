@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // used because every other query in this app does the same.
     const { data: appt, error } = await session
       .from('appointments')
-      .select('id')
+      .select('id, date')
       .eq('id', appointmentId)
       .eq('tenant_id', tenantId)
       .single();
@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
     }
 
     const origin = new URL(request.url).origin;
-    return NextResponse.json({ success: true, ...confirmLinks(origin, appointmentId) });
+    // Dated, like every other minting site: the links die three days after
+    // the appointment rather than never.
+    return NextResponse.json({ success: true, ...confirmLinks(origin, appointmentId, { date: appt.date }) });
   } catch (err) {
     console.error('confirm/link: unexpected error', err);
     return NextResponse.json({ error: 'שגיאה בשרת' }, { status: 500 });

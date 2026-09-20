@@ -15,53 +15,58 @@
 // The signature binds the id to the action, so a "confirm" link cannot be
 // edited into a "cancel" link, and neither can be pointed at a different
 // appointment.
+//
+// ── Expiry ─────────────────────────────────────────────────────────────────
+// A link now dies three days after the appointment's date, or 90 days after
+// it was minted when the date is not to hand. Before this, a cancel link in
+// a forwarded message worked forever. Tokens are `<exp>.<sig>`; un-dated
+// tokens from messages already sent keep verifying until the legacy window
+// in lib/signedToken.ts closes.
+//
+// The secret comes from lib/linkSecret.ts: CONFIRM_LINK_SECRET, else the
+// service-role key with a loud warning once per process.
 
-import { createHmac, timingSafeEqual } from 'crypto';
+import { signingSecret, legacySecrets } from './linkSecret.ts';
+import { signWithExpiry, verifyWithExpiry, expiryAfterDate } from './signedToken.ts';
 
-// Prefer a dedicated secret, but fall back to the service-role key rather than
-// failing closed on a missing env var. Both are server-only and neither ever
-// reaches the browser. The fallback is deliberate: the app cannot run at all
-// without SUPABASE_SERVICE_ROLE_KEY, so links can never silently stop working
-// because one extra variable was not set in Vercel. Setting CONFIRM_LINK_SECRET
-// is still preferable - it lets the link signature be rotated on its own,
-// without rotating database credentials.
-function secret(): string {
-  const s = process.env.CONFIRM_LINK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('confirmToken: no signing secret available');
-  return s;
-}
+const ENV = 'CONFIRM_LINK_SECRET';
+export const CONFIRM_GRACE_DAYS = 3;
+export const CONFIRM_DEFAULT_TTL_MS = 90 * 86_400_000;
 
 export type ConfirmAction = 'confirm' | 'cancel';
 
-/** Signature for one (appointment, action) pair. URL-safe, 32 chars. */
-export function signConfirm(appointmentId: string, action: ConfirmAction): string {
-  return createHmac('sha256', secret())
-    .update(`${appointmentId}:${action}`)
-    .digest('base64url')
-    .slice(0, 32);
+const message = (appointmentId: string, action: ConfirmAction) => `${appointmentId}:${action}`;
+
+/** The expiry for an appointment's links: end of its day plus grace, else 90 days out. */
+export function confirmExpiry(date?: string | null, nowMs: number = Date.now()): number {
+  return expiryAfterDate(date || '', CONFIRM_GRACE_DAYS, nowMs + CONFIRM_DEFAULT_TTL_MS);
+}
+
+/** Signature for one (appointment, action) pair, dying at `expiresAtMs`. */
+export function signConfirm(appointmentId: string, action: ConfirmAction, expiresAtMs: number = confirmExpiry()): string {
+  return signWithExpiry(signingSecret(ENV), message(appointmentId, action), expiresAtMs);
 }
 
 /** Constant-time check. Returns false rather than throwing on malformed input. */
-export function verifyConfirm(appointmentId: string, action: string, token: string): boolean {
+export function verifyConfirm(appointmentId: string, action: string, token: string, nowMs: number = Date.now()): boolean {
   if (!appointmentId || !token) return false;
   if (action !== 'confirm' && action !== 'cancel') return false;
-  let expected: string;
   try {
-    expected = signConfirm(appointmentId, action);
+    return verifyWithExpiry(token, message(appointmentId, action), signingSecret(ENV), legacySecrets(ENV), nowMs);
   } catch {
     return false;
   }
-  const a = Buffer.from(expected);
-  const b = Buffer.from(token);
-  // timingSafeEqual throws on length mismatch; the length is not secret.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
-/** The two links for one appointment, already signed. */
-export function confirmLinks(origin: string, appointmentId: string) {
+/**
+ * The two links for one appointment, already signed. Pass the appointment's
+ * date whenever it is to hand, so the links die three days after the visit
+ * rather than 90 days after minting.
+ */
+export function confirmLinks(origin: string, appointmentId: string, opts: { date?: string | null; nowMs?: number } = {}) {
+  const exp = confirmExpiry(opts.date, opts.nowMs);
   return {
-    confirmUrl: `${origin}/confirm?id=${appointmentId}&action=confirm&t=${signConfirm(appointmentId, 'confirm')}`,
-    cancelUrl: `${origin}/confirm?id=${appointmentId}&action=cancel&t=${signConfirm(appointmentId, 'cancel')}`,
+    confirmUrl: `${origin}/confirm?id=${appointmentId}&action=confirm&t=${signConfirm(appointmentId, 'confirm', exp)}`,
+    cancelUrl: `${origin}/confirm?id=${appointmentId}&action=cancel&t=${signConfirm(appointmentId, 'cancel', exp)}`,
   };
 }

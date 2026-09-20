@@ -16,44 +16,40 @@
 // The one-review-per-appointment rule is NOT here. It lives in the unique index
 // on reviews.appointment_id, because a signature can be replayed and a database
 // constraint cannot.
+//
+// ── Expiry ─────────────────────────────────────────────────────────────────
+// A review link dies 30 days after it is minted. It goes out two days after
+// the visit; a month is long enough for anyone who meant to answer. Un-dated
+// tokens from messages already sent keep verifying until the legacy window
+// in lib/signedToken.ts closes.
+//
+// The secret comes from lib/linkSecret.ts: REVIEW_LINK_SECRET, else the
+// service-role key with a loud warning once per process.
 
-import { createHmac, timingSafeEqual } from 'crypto';
+import { signingSecret, legacySecrets } from './linkSecret.ts';
+import { signWithExpiry, verifyWithExpiry } from './signedToken.ts';
 
-// Mirrors confirmToken's reasoning exactly: prefer a dedicated secret, fall
-// back to the service-role key rather than failing closed on a missing env var.
-// The app cannot run without SUPABASE_SERVICE_ROLE_KEY, so a review link can
-// never silently stop working because one more variable was not set in Vercel.
-function secret(): string {
-  const s = process.env.REVIEW_LINK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('reviewToken: no signing secret available');
-  return s;
-}
+const ENV = 'REVIEW_LINK_SECRET';
+export const REVIEW_TTL_MS = 30 * 86_400_000;
 
-/** Signature for one appointment's review link. URL-safe, 32 chars. */
-export function signReview(appointmentId: string): string {
-  return createHmac('sha256', secret())
-    .update(`${appointmentId}:review`)
-    .digest('base64url')
-    .slice(0, 32);
+const message = (appointmentId: string) => `${appointmentId}:review`;
+
+/** Signature for one appointment's review link. */
+export function signReview(appointmentId: string, expiresAtMs: number = Date.now() + REVIEW_TTL_MS): string {
+  return signWithExpiry(signingSecret(ENV), message(appointmentId), expiresAtMs);
 }
 
 /** Constant-time check. Returns false rather than throwing on malformed input. */
-export function verifyReview(appointmentId: string, token: string): boolean {
+export function verifyReview(appointmentId: string, token: string, nowMs: number = Date.now()): boolean {
   if (!appointmentId || !token) return false;
-  let expected: string;
   try {
-    expected = signReview(appointmentId);
+    return verifyWithExpiry(token, message(appointmentId), signingSecret(ENV), legacySecrets(ENV), nowMs);
   } catch {
     return false;
   }
-  const a = Buffer.from(expected);
-  const b = Buffer.from(token);
-  // timingSafeEqual throws on a length mismatch; the length is not secret.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
 /** The review link for one appointment, already signed. */
-export function reviewLink(origin: string, appointmentId: string): string {
-  return `${origin}/review?id=${appointmentId}&t=${signReview(appointmentId)}`;
+export function reviewLink(origin: string, appointmentId: string, nowMs: number = Date.now()): string {
+  return `${origin}/review?id=${appointmentId}&t=${signReview(appointmentId, nowMs + REVIEW_TTL_MS)}`;
 }

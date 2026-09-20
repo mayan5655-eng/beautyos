@@ -134,7 +134,7 @@ export async function POST(request) {
 
     // Same message as the automatic cron reminder, including confirm/cancel links.
     // Signed: /api/confirm now requires a token binding the id to the action.
-    const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id);
+    const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id, { date: appt.date });
     // Character-for-character the cron's message. They were two hand-written
     // copies that had already drifted apart in wording; now they drift only if
     // someone edits lib/messages, which changes both.

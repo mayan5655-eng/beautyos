@@ -31,15 +31,26 @@
 
 import { createHmac, timingSafeEqual } from 'crypto';
 
-// Same fallback chain as confirmToken: prefer a dedicated secret, fall back to
-// the service-role key rather than failing closed on a missing env var. Both
-// are server-only and neither reaches the browser. The app cannot run at all
-// without SUPABASE_SERVICE_ROLE_KEY, so links can never stop working because
-// one extra variable was not set in Vercel.
+// The signing key: SCAN_LINK_SECRET if set, else CONFIRM_LINK_SECRET (the
+// historical choice, namespaced by PURPOSE below), else the service-role key
+// with the loud warning lib/linkSecret.ts prints. Verification tries every
+// key in that chain, so setting a dedicated variable later does not turn the
+// QR code on her counter into a dead link - the durable-artefact rule at the
+// top of this file is exactly why.
+import { signingSecret, legacySecrets } from './linkSecret.ts';
+
 function secret(): string {
-  const s = process.env.CONFIRM_LINK_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!s) throw new Error('scanToken: no signing secret available');
-  return s;
+  const dedicated = String(process.env.SCAN_LINK_SECRET || '').trim();
+  if (dedicated) return dedicated;
+  return signingSecret('CONFIRM_LINK_SECRET');
+}
+
+function allSecrets(): string[] {
+  const out: string[] = [];
+  for (const s of [String(process.env.SCAN_LINK_SECRET || '').trim(), ...legacySecrets('CONFIRM_LINK_SECRET')]) {
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
 }
 
 // Namespaced so a scanner signature can never be replayed as a confirm-link
@@ -60,18 +71,21 @@ export function signScanLink(tenantId: string): string {
  */
 export function verifyScanLink(tenantId: string, token: string | null | undefined): boolean {
   if (!tenantId || !token) return false;
-  let expected: string;
+  const b = Buffer.from(String(token));
+  let keys: string[];
   try {
-    expected = signScanLink(tenantId);
+    keys = allSecrets();
   } catch {
     return false;
   }
-  const a = Buffer.from(expected);
-  const b = Buffer.from(String(token));
-  // timingSafeEqual throws on a length mismatch, which would itself leak
-  // length. Compare lengths first and return the same false either way.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  for (const key of keys) {
+    const expected = createHmac('sha256', key).update(`${PURPOSE}:${tenantId}`).digest('base64url').slice(0, 32);
+    const a = Buffer.from(expected);
+    // timingSafeEqual throws on a length mismatch, which would itself leak
+    // length. Compare lengths first and return the same false either way.
+    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+  }
+  return false;
 }
 
 /** The full public scanner URL for a tenant, signed. */
