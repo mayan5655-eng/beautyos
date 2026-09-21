@@ -40,6 +40,14 @@ const SCAN_STEPS = [
 export default function SkinScanPage() {
   const [preview, setPreview] = useState(null);         // FRONT photo (primary — analyzed)
   const [imageData, setImageData] = useState(null);
+  // Before the camera opens: she is 18 or over, and she agrees that a photo
+  // of her face goes to an automated analysis. Both gate the photo pickers
+  // and the analyse button; neither is stored - a refusal simply means no
+  // photo is taken. Interim wording until the lawyer's answer.
+  const [isAdult, setIsAdult] = useState(false);
+  const [photoConsent, setPhotoConsent] = useState(false);
+  const [gateError, setGateError] = useState("");
+  const gateOk = isAdult && photoConsent;
   const [mediaType, setMediaType] = useState("image/jpeg");
   const [leftPreview, setLeftPreview] = useState(null);   // optional left-profile photo
   const [rightPreview, setRightPreview] = useState(null); // optional right-profile photo
@@ -274,14 +282,31 @@ export default function SkinScanPage() {
               </div>
             )}
 
+            {/* AGE GATE + CONSENT, before any photo. The pickers below refuse
+                to open until both are ticked, and say why. */}
+            <div style={{ borderRadius: 16, border: `1px solid ${gateOk ? ACCENT : LINE}`, background: "var(--brand-surface, #FAF6FC)", padding: "12px 14px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={isAdult} onChange={(e) => { setIsAdult(e.target.checked); setGateError(""); }} aria-label="אני בת 18 ומעלה" style={{ width: 20, height: 20, marginTop: 1, flexShrink: 0, accentColor: ACCENT }} />
+                <span style={{ fontSize: 13.5, color: INK2, lineHeight: 1.55 }}><b style={{ color: DEEP }}>אני בת 18 ומעלה.</b> הסריקה מיועדת לבגירות בלבד.</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={photoConsent} onChange={(e) => { setPhotoConsent(e.target.checked); setGateError(""); }} aria-label="הסכמה לניתוח התמונה" style={{ width: 20, height: 20, marginTop: 1, flexShrink: 0, accentColor: ACCENT }} />
+                <span style={{ fontSize: 13.5, color: INK2, lineHeight: 1.55 }}>
+                  אני מסכימה שתמונת הפנים שלי תישלח לניתוח אוטומטי לצורך הערכה קוסמטית בלבד, ושהתוצאה תוצג לי ולעסק.{" "}
+                  <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: ACCENT, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+                </span>
+              </label>
+              {gateError && <p style={{ fontSize: 12.5, color: "var(--danger, #E05B6F)", fontWeight: 600 }}>{gateError}</p>}
+            </div>
+
             {/* 3-ANGLE CAPTURE — front (required, analyzed) + optional left/right profiles */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12, opacity: gateOk ? 1 : 0.55 }}>
               {[
                 { key: "front", label: "חזית", req: true, thumb: preview, onPick: () => fileRef.current?.click() },
                 { key: "left", label: "פרופיל שמאל", req: false, thumb: leftPreview, onPick: () => leftRef.current?.click() },
                 { key: "right", label: "פרופיל ימין", req: false, thumb: rightPreview, onPick: () => rightRef.current?.click() },
               ].map((a) => (
-                <div key={a.key} onClick={a.onPick} style={{ cursor: "pointer", borderRadius: 16, overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #EDE7F0)`, background: a.thumb ? "var(--brand-surface, #FAF6FC)" : "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius: 16, overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #EDE7F0)`, background: a.thumb ? "var(--brand-surface, #FAF6FC)" : "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                   {a.thumb ? (
                     <>
                       <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
@@ -331,7 +356,7 @@ export default function SkinScanPage() {
                 <p style={{ fontSize: 11.5, color: INK2 }}>רגע אחד, מכינות עבורך ניתוח אישי ✦</p>
               </div>
             ) : (
-              preview && (
+              preview && gateOk && (
                 <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius: 15, background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", fontSize: 16.5, fontWeight: 700, boxShadow: `0 10px 26px rgba(91,62,103,0.28)` }}>קבלי את הניתוח שלך ✦</button>
               )
             )}

@@ -6571,7 +6571,7 @@ export default function BeautyOS() {
     {id:"clients",  label:"לקוחות"},
     {id:"leads",    label:"לידים"},
     {id:"cashier",  label:"קופה"},
-    {id:"tax",      label:"דוחות מס"},
+    {id:"tax",      label:"סיכום הכנסות"},
     {id:"whatsapp", label:"הודעות"},
     {id:"campaigns",label:"שיווק"},
     {id:"community",label:"קהילה"},
@@ -9250,7 +9250,11 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:720,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{textAlign:"center",marginBottom:6}}>
  <p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>ניהול פיננסי</p>
- <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דוחות מס</h2>
+ {/* "סיכום הכנסות", not "דוחות מס". Nothing on this screen is a document
+     she can file: it sums receipts by period and estimates VAT. The old
+     name claimed otherwise. The accountant's answer decides what a real
+     report needs; until then the screen says what it is. */}
+ <h2 className="serif" style={{fontSize:26,fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>סיכום הכנסות</h2>
  </div>
  <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-2)",marginBottom:16}}>סטטוס העסק: <b style={{color:pcDeep}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
 
@@ -10737,14 +10741,14 @@ ${c.claimUrl}`)}`;
  <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#5B3E67","#7A5A88","#9B6FB0","#B784C4","#D98BA0","#C2557A","#A34A6B","#C68A5E","#C9A24B","#2A2233"].map(col=><button key={col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  <div><p style={{fontSize:11.5,color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
- <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לדוחות מס)</p>
+ <div><p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לסיכום ההכנסות)</p>
  <div style={{display:"flex",gap:6}}>
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
                     const sel=(editSettings.business_tax_status||"exempt")===o.k;
                     return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:11,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
                   })}
  </div>
- <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב דוח המס שלך במסך "דוחות מס"</p></div>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. זה סיכום לנוחותך, לא דוח להגשה.</p></div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:12,color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{width:"100%",padding:"11px 0",background:pcGrad,color:"var(--surface)",borderRadius:12,fontSize:12,marginBottom:7,boxShadow:`0 6px 14px ${pcShadow}`}}>✦ העתקת קישור לסורק העור</button>

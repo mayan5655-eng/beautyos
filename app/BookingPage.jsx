@@ -89,6 +89,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  // Consent to the booking's data use, ticked before submit. Interim wording
+  // until the lawyer's answer; the point is that nothing is stored or sent
+  // before she has been told what for and has said yes.
+  const [agreed, setAgreed] = useState(false);
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
@@ -291,6 +295,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
     // and told neither of them anything was wrong. Same rule server-side.
     const phoneErr = phoneErrorHe(phone);
     if (phoneErr) { setErrorMsg(phoneErr); return; }
+    if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -976,6 +981,18 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 14 }} />
+
+                {/* CONSENT, before the button. What is stored, what it is
+                    used for, where the full policy is - and a tick that the
+                    button waits for. Shown here rather than after, because
+                    after is too late to be asked. */}
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: 14, border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FAF6FC)", marginBottom: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת הפרטים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                  <span style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>
+                    אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
+                    <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pc, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+                  </span>
+                </label>
 
                 {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
