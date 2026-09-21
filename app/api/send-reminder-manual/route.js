@@ -18,7 +18,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../lib/planGuard";
-import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
+import { sendWhatsApp } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
 import { greet, lines, hebrewDate, timeRange } from "../../../lib/messages.js";
@@ -115,14 +115,12 @@ export async function POST(request) {
       return Response.json({ success: false, error: "אין ללקוחה מספר טלפון" }, { status: 400 });
     }
 
-    // If neither the tenant's own GreenAPI nor the global env fallback is
-    // configured, report it explicitly so the UI can use the wa.me fallback.
-    if (!(await isWhatsAppConnected(tenantId))) {
-      return Response.json(
-        { success: false, notConnected: true, error: "וואטסאפ לא מחובר" },
-        { status: 200 }
-      );
-    }
+    // No connection gate. A reminder is a utility message and goes out from
+    // the platform number, exactly as the nightly cron sends the same message.
+    // This route used to check isWhatsAppConnected, which asked for a tenant-
+    // owned instance after those were retired - so it refused every call, and
+    // the dashboard's reminder button always fell through to the wa.me path
+    // behind an error toast.
 
     // Business name from THIS tenant's settings (never trust the client).
     const { data: settingsRows } = await supabase

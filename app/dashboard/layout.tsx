@@ -35,7 +35,7 @@ export default async function DashboardLayout({
         so a home-screen launch always lands in this layout.
 
         The vertical 32px stays: the other pages under /dashboard (admin,
-        marketing, reel-studio) are ordinary content pages that want breathing
+        marketing) are ordinary content pages that want breathing
         room at the top. Only the horizontal padding was ever wrong, because
         only this route also hosts the full-bleed app shell, which draws its own
         header, main and bottom bar and manages its own safe-area insets.

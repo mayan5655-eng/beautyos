@@ -15,7 +15,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../lib/planGuard";
-import { sendWhatsApp, isWhatsAppConnected } from "../../../lib/whatsapp";
+import { sendWhatsApp } from "../../../lib/whatsapp";
 import { greet, lines, hebrewDate } from "../../../lib/messages.js";
 
 const supabase = createClient(
@@ -57,17 +57,11 @@ export async function POST(request) {
       );
     }
 
-    // If neither this tenant's own GreenAPI instance nor the global env fallback
-    // is configured, it's a "not connected" state — report it explicitly
-    // (notConnected) so the UI can guide her to connect WhatsApp and fall back to
-    // the direct wa.me link, instead of a vague "send failed". 200 so the client
-    // reads the flag from the body.
-    if (!(await isWhatsAppConnected(tenantId))) {
-      return Response.json(
-        { success: false, notConnected: true, error: "וואטסאפ לא מחובר" },
-        { status: 200 }
-      );
-    }
+    // A receipt is a utility message - the same class as a booking confirmation
+    // and a reminder - and goes out from the platform number like they do
+    // (lib/whatsapp.js). This route used to gate on isWhatsAppConnected, which
+    // asked for a tenant-owned instance after per-tenant instances were retired,
+    // so it refused every call and the "send to client" button never worked.
 
     // Business name from THIS tenant's settings (never trust the client).
     const { data: settingsRows } = await supabase

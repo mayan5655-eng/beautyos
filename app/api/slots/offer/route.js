@@ -293,11 +293,9 @@ export async function POST(request) {
         if (insErr || !offer?.token) continue;
         prepared.push({ name: cand.name, phone: cand.phone, claimUrl: `${origin}/claim/${offer.token}` });
       }
-      const greenApiConnected = !!(settingsRow?.green_api_instance && settingsRow?.green_api_token_encrypted);
       return Response.json({
         success: true,
         mode: "prepare",
-        greenApiConnected,
         slot: { date: slotDate, time: hh, service: service || null },
         // The body without the link; each candidate's claim link is appended
         // per client at send time so edits keep every link personal.

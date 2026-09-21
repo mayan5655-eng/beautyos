@@ -32,7 +32,6 @@ import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
-import { insertPickedServices } from "@/lib/seedServices";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -1170,33 +1169,18 @@ export default function BeautyOS() {
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
   const [loadError,         setLoadError]          = useState(null);
-  // ── WhatsApp connection status ────────────────────────────────────────────
-  // The token is AES-256-GCM at rest and the server never returns it, so the
-  // browser can no longer tell "connected" by looking at settings.green_api_token
-  // - that field is gone from what it receives. This asks the server instead.
-  // { connected, idInstance } or null when unknown.
-  const [waStatus,          setWaStatus]           = useState(null);
+  // No per-tenant WhatsApp connection state. Per-tenant GreenAPI instances
+  // were retired (lib/whatsapp.js): every automated message leaves from the
+  // platform number, marketing goes through wa.me from her own phone. The
+  // status fetch, the token inputs and the settings route that served them
+  // were removed with the truth pass; nothing in the UI had used them for a
+  // while, and the fetch ran on every load for nothing.
   // Lead-intake API key: configured yes/no from the server; the plaintext key
   // exists ONLY in leadKeyJustGenerated, immediately after a rotation, and is
   // gone on any navigation - by design, it cannot be re-shown.
   const [leadKeyConfigured, setLeadKeyConfigured]  = useState(null);
   const [leadKeyJustGenerated, setLeadKeyJustGenerated] = useState(null);
   const [leadKeyBusy,       setLeadKeyBusy]        = useState(false);
-  const [waTokenInput,      setWaTokenInput]       = useState("");
-  const [waReplacing,       setWaReplacing]        = useState(false);
-  const [waSavingToken,     setWaSavingToken]      = useState(false);
-
-  const refreshWaStatus = useCallback(async () => {
-    try {
-      const r = await fetch("/api/settings/whatsapp");
-      const d = await r.json().catch(() => null);
-      // Unknown is NOT the same as disconnected: leave it null on failure so
-      // the UI can say "we could not check" rather than assert she is offline.
-      setWaStatus(d && d.success ? { connected: !!d.connected, idInstance: d.idInstance ?? null } : null);
-    } catch {
-      setWaStatus(null);
-    }
-  }, []);
   // -- "תקועה?" -- reaching a human from anywhere in the app ------------------
   // Until now the only route to support was the WhatsApp link on the trial
   // banner, which only appears when her PLAN needs attention. Someone stuck on
@@ -1892,7 +1876,6 @@ export default function BeautyOS() {
 
   // Separate from loadAll on purpose: this is one small status read, and a
   // failure here must not be able to blank the dashboard.
-  useEffect(()=>{ refreshWaStatus(); },[refreshWaStatus]);
   useEffect(()=>{
     fetch("/api/settings/lead-key").then(r=>r.json()).then(d=>{ if(d?.success) setLeadKeyConfigured(!!d.configured); }).catch(()=>{});
   },[]);
@@ -1929,17 +1912,26 @@ export default function BeautyOS() {
     return ()=>{cancelled=true;};
   },[activeTab]);
 
-  // Approve a Skin Follow-up suggestion — MOCKED test mode ONLY. Validates the
-  // client still exists and has a phone, guards against double-clicks, and shows
-  // a clear success state. It NEVER calls the WhatsApp send endpoint and never
-  // sends a real message; production sending is a separate, gated step.
+  // Approve a Skin Follow-up suggestion: open her WhatsApp with the prepared
+  // message so she sends it from her own phone. This is a marketing message,
+  // and marketing goes out through wa.me like the comeback and gap-fill
+  // windows (lib/whatsapp.js). It used to be a "test mode" button that added a
+  // key to a Set and toasted "no real message was sent" - an approve step with
+  // nothing behind it, on a card that promised a follow-up. Now the tap is the
+  // send. Validates the client still exists and has a phone, and guards
+  // against a second tap on the same card.
   const approveSkinFollowup = (it) => {
     if(queueApproved.has(it.key)) return; // double-click / repeated-approval guard
     const c = clients.find(x=>String(x.id)===String(it.clientId));
     if(!c){ toast("הלקוחה כבר לא קיימת — הפעולה בוטלה","error"); return; }
     if(!(c.phone&&String(c.phone).trim())){ toast("אין מספר טלפון ללקוחה — לא ניתן לשלוח","error"); return; }
+    const text = String(it.message||"").trim();
+    if(!text){ toast("אין הודעה מוכנה לכרטיס הזה","error"); return; }
+    const link = waMsg(c.phone, text);
+    if(!link){ toast("מספר הטלפון של הלקוחה לא תקין","error"); return; }
+    window.open(link, "_blank", "noopener");
     setQueueApproved(prev=>{const n=new Set(prev);n.add(it.key);return n;});
-    toast("אושר במצב בדיקה — לא נשלחה הודעה אמיתית ✓","success");
+    toast("נפתחה שיחת וואטסאפ עם ההודעה מוכנה — שלחי משם ✓","success");
   };
 
   // Connect a free-text Advisor reply to ONE existing next action. The Advisor
@@ -3124,8 +3116,8 @@ export default function BeautyOS() {
       // A yes PREPARES rather than sends: the server picks the candidates and
       // writes the claim links, and a compose window opens for her to send
       // from her own WhatsApp (wa.me) - works with no GreenAPI, no ban risk,
-      // and the message arrives from a number the client knows. The automatic
-      // path survives as a button in that window when GreenAPI is connected.
+      // and the message arrives from a number the client knows. There is no
+      // automatic path: marketing leaves from her phone only.
       if (saidYes && (q.kind === "gap_fill" || q.kind === "comeback")) {
         const p = q.payload || {};
         if (q.kind === "comeback" && !p.quiet_start) {
@@ -3167,7 +3159,6 @@ export default function BeautyOS() {
               title: q.kind === "gap_fill" ? "הצעת התור שהתפנה" : `הודעת "חזרנו"`,
               messageTemplate: data.messageTemplate || "",
               candidates: data.candidates,
-              greenApiConnected: data.greenApiConnected === true,
               payload: p,
             });
             result = { prepared: data.candidates.length };
@@ -4531,7 +4522,7 @@ export default function BeautyOS() {
           reason: "ניכוי בקופה",
         });
         if (!fresh) {
-          toast(`הקבלה נוצרה, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. אפשר לנכות ידנית במסך המנויים.`, "error");
+          toast(`הקבלה נוצרה, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
         }
       }
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
@@ -4966,12 +4957,7 @@ export default function BeautyOS() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        if (!silent) toast(
-          data.notConnected
-            ? "וואטסאפ לא מחובר — חברי בהגדרות, או שלחי בקישור הישיר"
-            : "שליחת הקבלה נכשלה — נסי בקישור הישיר",
-          "error"
-        );
+        if (!silent) toast("שליחת הקבלה נכשלה — אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
       if (!silent) toast("הקבלה נשלחה ללקוחה ב-WhatsApp ✦");
@@ -5057,10 +5043,10 @@ export default function BeautyOS() {
       `🚫 לביטול התור: ${cancelLink}`;
   };
 
-  // Send a one-off reminder for a specific appointment. Tries the tenant's
-  // GreenAPI (server route, mirrors sendReceiptToClient); if that isn't
-  // connected or fails, falls back to opening WhatsApp with the message
-  // pre-filled (wa.me) so the reminder still goes out.
+  // Send a one-off reminder for a specific appointment through the server
+  // route (the platform number, same as the nightly cron). If the send fails,
+  // fall back to opening WhatsApp with the message pre-filled (wa.me) so the
+  // reminder still goes out from her own phone.
   const sendReminderToClient = async (appt) => {
     if (guardWrite()) return;
     if (!appt || isBusy("sendReminder")) return;
@@ -5077,7 +5063,7 @@ export default function BeautyOS() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
       // Fallback: open WhatsApp with the reminder pre-filled.
-      toast(data.notConnected ? "וואטסאפ לא מחובר — נפתחת שליחה ידנית" : "השליחה נכשלה — נפתחת שליחה ידנית", "error");
+      toast("השליחה נכשלה — נפתחת שליחה ידנית", "error");
       const text = await reminderText(appt);
       const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
@@ -5281,41 +5267,12 @@ export default function BeautyOS() {
     try { rec.start(); } catch { setVoiceStatus("error"); setVoiceErr("לא ניתן להפעיל את המיקרופון"); }
   };
 
-  // Credit card payment via Grow - opens secure payment page
-  const handleCreditPayment = async () => {
-    if (guardWrite()) return;
-    if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
-    if(isBusy("creditPayment")) return;
-    setBusyKey("creditPayment", true);
-    try {
-      const serviceNames=cashierItems.map(i=>i.name).join(", ");
-      const res=await fetch("/api/payment/create",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          sum:cashierTotal,
-          description:serviceNames,
-          fullName:cashierClient?.name||"לקוחה",
-          phone:cashierClient?.phone||"",
-          clientId:cashierClient?.id||"",
-          appointmentId:cashierAppt?.id||"",
-        }),
-      });
-      const data=await res.json();
-      if(data.ok&&data.url){
-        // Open Grow secure payment page in a new tab
-        window.open(data.url,"_blank");
-        toast("💳 דף התשלום נפתח - הקבלה תיווצר אוטומטית לאחר התשלום");
-        setShowCashier(false);
-      }else{
-        toast(`שגיאה בפתיחת התשלום: ${data.error||"לא ידוע"}`,"error");
-      }
-    } catch(err) {
-      handleDbError(err,"credit payment");
-    } finally {
-      setBusyKey("creditPayment", false);
-    }
-  };
+  // There is no card-payment integration. A "pay by card through Grow" button
+  // used to sit in the cashier and POST to /api/payment/create, a route that
+  // never existed, while promising the receipt would be created on its own.
+  // Card payments are recorded here like cash: she takes the payment on her
+  // own terminal and writes the receipt. The button comes back with a
+  // provider, not before.
 
   // Selling a package is the largest single transaction she makes, and until
   // now it earned nothing. This wrote a row into `packages` carrying a price and
@@ -5563,7 +5520,10 @@ export default function BeautyOS() {
     try {
       const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
       const wlTid = rpcTenant || settings?.tenant_id || null;
-      const {data,error}=await supabase.from("waitlist").insert([{ ...newWaitlist, ...(wlTid ? { tenant_id: wlTid } : {}) }]).select();
+      // status written explicitly: the list filters on "waiting", and no
+      // migration in the repo gives the column a default, so an entry saved
+      // without it could vanish from the list on the next reload.
+      const {data,error}=await supabase.from("waitlist").insert([{ ...newWaitlist, status: "waiting", ...(wlTid ? { tenant_id: wlTid } : {}) }]).select();
       if(error){handleDbError(error, "save waitlist"); return;}
       if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
       setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");
@@ -5947,7 +5907,9 @@ export default function BeautyOS() {
   const copyPublicLink = async (kind) => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק - נסי לרענן", "error"); return; }
-    const base = "https://beautyos-theta.vercel.app";
+    // The origin the app is served on, so the copied link points at THIS
+    // install (bloomos.com today) rather than a hardcoded vendor address.
+    const base = (typeof window !== "undefined" && window.location.origin) || "https://beautyos-theta.vercel.app";
 
     if (kind === "scan") {
       try {
@@ -6144,9 +6106,13 @@ export default function BeautyOS() {
     const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
     let copied = true;
     try { await navigator.clipboard.writeText(text); } catch { copied = false; }
-    const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" +
-      encodeURIComponent("https://beautyos-theta.vercel.app") +
-      "&quote=" + encodeURIComponent(text);
+    // Share HER booking page, from whatever origin the app is served on - not
+    // a hardcoded vendor URL, which sent every post to our deploy rather than
+    // her business. No `quote` parameter: Facebook dropped it years ago, so
+    // the clipboard copy above is the only way the text reaches the composer.
+    const origin = (typeof window !== "undefined" && window.location.origin) || "";
+    const pageUrl = `${origin}/book?t=${encodeURIComponent(settings.tenant_id || "")}`;
+    const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(pageUrl);
     window.open(shareUrl, "_blank", "width=640,height=640");
     toast(copied
       ? "הטקסט הועתק - הדביקי אותו בחלון של פייסבוק"
@@ -6906,7 +6872,10 @@ export default function BeautyOS() {
           message is editable; each client gets a wa.me tap that opens HER
           WhatsApp with the text plus that client's personal link. */}
       {composeSend&&(()=>{
-        const waDigits=(raw)=>{let d=String(raw||"").replace(/D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
+        // \D, not D: an earlier tooling pass ate the backslash, so this stripped
+        // the letter D and left dashes and spaces in the number, and every
+        // wa.me link built from a phone stored as "050-123 4567" was dead.
+        const waDigits=(raw)=>{let d=String(raw||"").replace(/\D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
         const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(`שלום${c.name?` ${c.name}`:""}! ✦
 ${composeSend.messageTemplate}
 ${c.claimUrl}`)}`;
@@ -7671,7 +7640,7 @@ ${c.claimUrl}`)}`;
                                 )}
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                                   {it.isSkin?(
- <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"var(--surface)",fontSize:13,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>אשרי (בדיקה) ✓</button>
+ <button onClick={()=>approveSkinFollowup(it)} disabled={!it.hasPhone} className="primary-btn" style={{background:it.hasPhone?pcGrad:"var(--line-2)",color:"var(--surface)",fontSize:13,padding:"7px 15px",opacity:it.hasPhone?1:0.65,cursor:it.hasPhone?"pointer":"not-allowed"}}>שליחה בוואטסאפ ✓</button>
                                   ):(
  <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--surface)",fontSize:13,padding:"7px 15px"}}>{it.primaryLabel}</button>
                                   )}
@@ -9010,11 +8979,12 @@ ${c.claimUrl}`)}`;
  {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:14,border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600,marginBottom:2}}>🎵 סגנון מוזיקה מומלץ</p><p style={{fontSize:12.5,color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
 
  {/* The studio, inline, directly under the script that feeds it.
-     It lived at /dashboard/reel-studio, which nothing in the app ever linked
-     to - so the half that turns a script into a file was unreachable unless
-     you typed the URL. Rendering it here fixes that and the handoff at the
-     same time: reelData is right there in state, so the script never has to
-     survive a route change or be persisted to be passed along. */}
+     It once lived at /dashboard/reel-studio, which nothing in the app ever
+     linked to - so the half that turns a script into a file was unreachable
+     unless you typed the URL. Rendering it here fixed that and the handoff at
+     the same time: reelData is right there in state, so the script never has
+     to survive a route change or be persisted to be passed along. The old
+     page was deleted in the truth pass; this is the studio's only home. */}
  <div style={{borderTop:"1px solid var(--line)",marginTop:22,paddingTop:22}}>
  <ReelStudio primaryColor={pc} businessName={settings.business_name||""} script={reelData}/>
  </div>
@@ -9949,9 +9919,6 @@ ${c.claimUrl}`)}`;
  <span style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{cashierTotal.toLocaleString()}</span>
  </div>
-            {paymentMethod==="אשראי"&&(
-              <button onClick={handleCreditPayment} disabled={isBusy("creditPayment")} className="primary-btn" style={{width:"100%",padding:"13px 0",background:`linear-gradient(90deg,${pc},${pc2})`,color:"var(--surface)",fontSize:13,marginBottom:8}}>{isBusy("creditPayment")?"פותח תשלום...":"💳 גבי באשראי דרך Grow"}</button>
-            )}
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setShowCashier(false)} className="primary-btn" style={{flex:1,padding:"12px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--surface)",fontSize:13}}>{isBusy("saveReceipt")?"שומר...":"צרי קבלה ידנית ✓"}</button>
@@ -10693,10 +10660,6 @@ ${c.claimUrl}`)}`;
                 const botOn=onDefaultTrue("bot_active");
                 const gapOn=(editSettings.gap_fill_enabled===true);
                 const receiptOn=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");
-                // Connected = her own instance id + token are both set (mirrors
-                // isWhatsAppConnected's per-tenant rule; url is optional).
-                // From the server, not from a field the browser no longer holds.
-                const waConnected=!!waStatus?.connected;
                 const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});
                 // Structured automation config lives in the settings.automations JSONB
                 // (same store as business_hours/faq). Read/write defensively.
@@ -10742,6 +10705,13 @@ ${c.claimUrl}`)}`;
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="תזכורת אוטומטית ללקוחה שסיימה חבילת טיפולים, לקביעת המשך." />
  </div>
 
+ {/* The inbound bot answers messages that arrive on a GreenAPI instance
+     mapped to this tenant (settings.green_api_instance). Nothing in the
+     product writes that column any more - per-tenant instances were
+     retired - so only a tenant mapped by hand can ever receive an inbound
+     message. Showing bot toggles to everyone else configured a bot that
+     could never be triggered. The section renders only for a mapped tenant. */}
+ {!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
  <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
@@ -10756,17 +10726,21 @@ ${c.claimUrl}`)}`;
  </div>
  )}
  </div>
+ )}
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:12,color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink-2)",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
  <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
  <div style={{display:"flex",gap:6,opacity:masterPaused?0.5:1}}>
-                    {[["off","כבוי"],["approval","באישור"],["automatic","אוטומטי"]].map(([m,l])=>(
+                    {/* Two modes, not three. "אוטומטי" was offered with the
+                        note "coming soon" and nothing behind it: no cron, no
+                        sender. A mode that cannot do anything is not a mode. */}
+                    {[["off","כבוי"],["approval","באישור"]].map(([m,l])=>(
  <button key={m} onClick={()=>!masterPaused&&setSkinMode(m)} disabled={masterPaused} style={{flex:1,padding:"9px 0",borderRadius:10,fontSize:11,fontWeight:600,cursor:masterPaused?"default":"pointer",fontFamily:"inherit",border:skinMode===m?`2px solid ${pc}`:"1px solid var(--line)",background:skinMode===m?pcTint:"var(--surface)",color:pc}}>{l}</button>
                     ))}
  </div>
- <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":skinMode==="approval"?"באישור — נכין עבורך הצעות, וכל הודעה תישלח רק לאחר אישורך.":"אוטומטי — יופעל בקרוב; בינתיים ההצעות ממתינות לאישורך (לא נשלח דבר אוטומטית)."}</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":"באישור — נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
  </div>
 
  {/* The GreenAPI connect form that stood here is gone, by decision: a

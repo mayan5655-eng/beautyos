@@ -165,9 +165,13 @@ export default function SkinScanPage() {
   };
 
   // Booking that PRESERVES context (treatment + name + phone) — no re-entry.
+  // Null without a tenant: /book cannot resolve a business from nothing, so
+  // a bare "/book" link would land the client on an error page. The two
+  // callers render no button in that case.
   const bookHref = () => {
+    if (!tenantId) return null;
     const p = new URLSearchParams();
-    if (tenantId) p.set("t", tenantId);
+    p.set("t", tenantId);
     if (report?.matched_service) p.set("service", report.matched_service);
     if (clientName.trim()) p.set("name", clientName.trim());
     if (clientPhone.trim()) p.set("phone", clientPhone.trim());
@@ -215,7 +219,7 @@ export default function SkinScanPage() {
   const priority = concerns[0]; // the AI lists concerns most-important first
 
   const bookCard = (label) => (
-    <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: "var(--brand-surface, #FAF6FC)", color: DEEP, padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, textAlign: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>{label}</a>
+    bookHref() ? <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: "var(--brand-surface, #FAF6FC)", color: DEEP, padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, textAlign: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>{label}</a> : null
   );
 
   return (
@@ -432,7 +436,7 @@ export default function SkinScanPage() {
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
               <p style={{ fontSize: 12.5, color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
-              <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>
+              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>}
               {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", padding: "13px 0", borderRadius: 14, fontSize: 14.5, fontWeight: 700, marginTop: 10, boxShadow: "0 8px 20px rgba(37,211,102,0.3)" }}>💬 ייעוץ נוסף בוואטסאפ</a>}
             </div>
 

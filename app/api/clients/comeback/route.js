@@ -101,7 +101,6 @@ export async function POST(request) {
       return Response.json({
         success: true,
         mode: "prepare",
-        greenApiConnected: !!(settingsRows?.green_api_instance && settingsRows?.green_api_token_encrypted),
         messageTemplate:
           `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫
 ` +

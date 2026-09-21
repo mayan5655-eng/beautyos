@@ -12,11 +12,17 @@
 // The system knows the dates. She knows the people. So the automation is
 // suppressed for anyone she handles here, and the list is hers to triage.
 //
-// ── Two clicks, with the count in between ──────────────────────────────────
-// Same shape as the lead importer: the button on the list opens a confirmation
-// panel that states how many people are about to receive a message; only the
-// button on THAT panel sends. This is a marketing message to real clients from
-// her own number - it should not be one click away.
+// ── She sends, from her own WhatsApp ───────────────────────────────────────
+// This is a marketing message, and marketing leaves from HER number through
+// wa.me - the rule the comeback and gap-fill compose windows already follow
+// (lib/whatsapp.js explains why: a personal number connected to an API got
+// restricted; a wa.me link carries no such risk, and the message arrives from
+// a number the client knows). The modal used to POST to a server route that
+// sent through GreenAPI and gated on a per-tenant connection that could no
+// longer exist, so it refused every time. Now: pick, write, then one tap per
+// client opens the conversation with the message ready. Each tap also tells
+// the server to mark that client, so the automation stays quiet for her, and
+// only for the ones actually tapped.
 //
 // ── "no data" and "couldn't load" are different screens ────────────────────
 // A failed fetch renders an error with a retry, never an empty list. An empty
@@ -24,6 +30,7 @@
 // failed is how you conclude your retention is fine when you simply cannot see.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toWhatsAppNumber } from '@/lib/phone';
 
 const PRESETS = [
   { days: 90, label: '3 חודשים' },
@@ -34,6 +41,19 @@ const PRESETS = [
 const DEFAULT_MESSAGE =
   'שלום! 💗\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊';
 
+/** The message for one client: a leading "שלום!" becomes "שלום <name>!". */
+function personalise(message, name) {
+  const n = String(name || '').trim();
+  if (!n) return message;
+  return message.replace(/^שלום!/, `שלום ${n}!`);
+}
+
+function waLink(phone, text) {
+  const digits = toWhatsAppNumber(phone);
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
 export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow }) {
   const [days, setDays] = useState(90);
   const [loadError, setLoadError] = useState('');
@@ -42,11 +62,11 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState(() => new Set());
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
-  // 'list' -> 'confirming' -> 'sending' -> 'done'
+  // 'list' -> 'compose'
   const [stage, setStage] = useState('list');
-  const [sendResult, setSendResult] = useState(null);
-  const [sendError, setSendError] = useState('');
-  const [notConnected, setNotConnected] = useState(false);
+  // Clients she has tapped in the compose stage, and marks that failed.
+  const [done, setDone] = useState(() => new Set());
+  const [markFailed, setMarkFailed] = useState(0);
 
   // Every setState here happens in a promise callback, never synchronously in
   // the effect body - and the AbortController is not decoration. Without it,
@@ -81,6 +101,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   // Only people we can actually reach are selectable.
   const selectable = useMemo(() => rows.filter((r) => r.hasPhone), [rows]);
   const allSelected = selectable.length > 0 && selected.size === selectable.length;
+  const chosen = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
 
   const toggle = (id) => setSelected((s) => {
     const next = new Set(s);
@@ -90,41 +111,28 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(selectable.map((r) => r.id)));
 
   const close = useCallback(() => {
-    setStage('list'); setSendResult(null); setSendError(''); setSelected(new Set());
-    setData(null); setLoadError(''); setNotConnected(false);
+    setStage('list'); setSelected(new Set()); setDone(new Set()); setMarkFailed(0);
+    setData(null); setLoadError('');
     onClose();
   }, [onClose]);
 
-  const send = useCallback(async () => {
-    if (selected.size === 0 || !message.trim()) return;
-    setStage('sending'); setSendError(''); setSendResult(null); setNotConnected(false);
-    try {
-      const res = await fetch('/api/clients/lapsed/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientIds: [...selected], message: message.trim() }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!json) {
-        setSendError('לא קיבלנו תשובה מהשרת. ייתכן שחלק מההודעות נשלחו — כדאי לבדוק לפני ניסיון נוסף.');
-        setStage('done');
-        return;
-      }
-      if (!json.success) {
-        setNotConnected(!!json.notConnected);
-        setSendError(json.error || 'השליחה נכשלה');
-        setStage('done');
-        return;
-      }
-      setSendResult(json);
-      setStage('done');
-    } catch {
-      // The request may have reached the server and sent before the connection
-      // dropped, so this must NOT claim nothing went out.
-      setSendError('החיבור נקטע. ייתכן שחלק מההודעות כבר נשלחו — כדאי לבדוק לפני ניסיון נוסף.');
-      setStage('done');
-    }
-  }, [selected, message]);
+  // One tap: the link opens WhatsApp (the anchor does that on its own); this
+  // records the tap and asks the server to suppress the automation for her.
+  // A failed mark is counted and shown, never hidden - the cost of a hidden
+  // failure is the client hearing from her twice.
+  const tapped = useCallback((client) => {
+    setDone((d) => new Set(d).add(client.id));
+    fetch('/api/clients/lapsed/mark', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientIds: [client.id] }),
+    })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json || !json.success) setMarkFailed((n) => n + 1);
+      })
+      .catch(() => setMarkFailed((n) => n + 1));
+  }, []);
 
   if (!open) return null;
 
@@ -145,9 +153,8 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
           <div>
             <h3 className="serif" style={{ fontSize: 21, fontWeight: 600, color: 'var(--ink)' }}>לקוחות שמזמן לא הגיעו</h3>
             <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
-              {stage === 'done' ? 'השליחה הסתיימה.'
-                : stage === 'sending' ? 'שולחת — נא לא לסגור את החלון.'
-                : stage === 'confirming' ? 'אישור אחרון לפני שליחה.'
+              {stage === 'compose'
+                ? 'לחיצה על לקוחה פותחת את השיחה בוואטסאפ שלך עם ההודעה מוכנה. את רק שולחת.'
                 : 'הרשימה מסודרת לפי משך ההיעדרות. את בוחרת למי לפנות.'}
             </p>
           </div>
@@ -254,83 +261,71 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 12, padding: '10px 12px', fontSize: 12.5, fontFamily: 'inherit', lineHeight: 1.7, color: 'var(--ink)', background: 'var(--surface-2)', resize: 'vertical', outline: 'none' }}
             />
             <p style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
-              ההודעה נשלחת מהמספר שלך בלבד, בקבוצות קטנות עם הפסקה ביניהן.
-              מי שתקבל הודעה כאן לא תקבל גם את הפנייה האוטומטית.
+              ההודעה נשלחת מהוואטסאפ שלך, לקוחה אחת בכל לחיצה. פתיחה ב&quot;שלום!&quot; מקבלת את שם הלקוחה.
+              מי שתשלחי לה כאן לא תקבל גם את הפנייה האוטומטית.
             </p>
           </>
         )}
 
-        {/* ── confirm ── */}
-        {stage === 'confirming' && (
-          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: `1px solid ${pc}` }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
-              לשלוח ל־{selected.size} לקוחות?
+        {/* ── compose: one tap per client ── */}
+        {stage === 'compose' && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, marginBottom: 6 }}>
+              {chosen.length} לקוחות{done.size > 0 ? ` · נשלחו ${done.size}` : ''}
             </p>
-            <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75 }}>
-              ההודעה תישלח מהמספר שלך, בקבוצות של 20 עם הפסקה קצרה ביניהן.
-              אחרי השליחה הן לא יקבלו את הפנייה האוטומטית על אותה היעדרות.
-            </p>
-          </div>
-        )}
-
-        {/* ── result ── */}
-        {stage === 'done' && (
-          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
-            {sendError ? (
-              <>
-                <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>
-                  {notConnected ? 'וואטסאפ לא מחובר' : 'השליחה לא הושלמה'}
-                </p>
-                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.7 }}>{sendError}</p>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>נשלח</p>
-                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75 }}>
-                  נשלחו <strong>{sendResult?.sent ?? 0}</strong> הודעות
-                  {sendResult?.failed ? <> · נכשלו <strong>{sendResult.failed}</strong></> : null}
-                  {sendResult?.skipped_no_phone ? <> · דולגו (אין טלפון) <strong>{sendResult.skipped_no_phone}</strong></> : null}
-                  .
-                </p>
-                {sendResult?.marked !== sendResult?.sent && (
-                  <p style={{ fontSize: 11.5, color: 'var(--danger)', lineHeight: 1.6, marginTop: 6 }}>
-                    שימי לב: לא הצלחנו לסמן חלק מהלקוחות, וייתכן שיקבלו גם את הפנייה האוטומטית.
-                  </p>
-                )}
-              </>
+            <div style={{ border: '1px solid var(--line-2)', borderRadius: 12, marginBottom: 12, maxHeight: 360, overflowY: 'auto' }}>
+              {chosen.map((c, i) => {
+                const href = waLink(c.phone, personalise(message.trim(), c.name));
+                const isDone = done.has(c.id);
+                return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || '(ללא שם)'}</p>
+                      <p style={{ fontSize: 11, color: 'var(--ink-3)', direction: 'ltr', textAlign: 'right' }}>{c.phone}</p>
+                    </div>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noreferrer" onClick={() => tapped(c)} className="primary-btn"
+                        style={{ background: isDone ? 'var(--surface-2)' : '#25D366', color: isDone ? 'var(--ink-3)' : '#fff', padding: '8px 14px', fontSize: 11.5, textDecoration: 'none', whiteSpace: 'nowrap', borderRadius: 10 }}>
+                        {isDone ? '✓ נשלח' : 'שליחה בוואטסאפ'}
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--danger)' }}>מספר לא תקין</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {markFailed > 0 && (
+              <p style={{ fontSize: 11.5, color: 'var(--danger)', lineHeight: 1.6, marginBottom: 8 }}>
+                שימי לב: לא הצלחנו לסמן {markFailed} לקוחות, וייתכן שיקבלו גם את הפנייה האוטומטית.
+              </p>
             )}
           </div>
         )}
 
         {/* ── actions ── */}
         <div style={{ display: 'flex', gap: 9, justifyContent: 'flex-start', marginTop: 4, flexWrap: 'wrap' }}>
-          <button type="button" onClick={stage === 'confirming' ? () => setStage('list') : close}
-            disabled={stage === 'sending'}
-            style={{ fontSize: 12, padding: '9px 17px', borderRadius: 22, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: stage === 'sending' ? 'default' : 'pointer', fontFamily: 'inherit', opacity: stage === 'sending' ? 0.5 : 1 }}>
-            {stage === 'confirming' ? 'חזרה' : 'סגירה'}
+          <button type="button" onClick={stage === 'compose' ? () => setStage('list') : close}
+            style={{ fontSize: 12, padding: '9px 17px', borderRadius: 22, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer', fontFamily: 'inherit' }}>
+            {stage === 'compose' ? 'חזרה לרשימה' : 'סגירה'}
           </button>
 
           {stage === 'list' && rows.length > 0 && (
             <button
               type="button"
               disabled={selected.size === 0 || !message.trim()}
-              onClick={() => setStage('confirming')}
+              onClick={() => setStage('compose')}
               className="primary-btn"
               style={{ fontSize: 12, padding: '9px 20px', borderRadius: 22, border: 'none', background: selected.size ? pcGrad : 'var(--line-2)', color: 'var(--surface)', cursor: selected.size ? 'pointer' : 'default', fontFamily: 'inherit', fontWeight: 700, boxShadow: selected.size ? `0 8px 18px ${pcShadow}` : 'none' }}>
-              שליחה ל־{selected.size} לקוחות
+              המשך לשליחה ({selected.size})
             </button>
           )}
 
-          {stage === 'confirming' && (
-            // The ONLY button that sends.
-            <button type="button" onClick={send} className="primary-btn"
+          {stage === 'compose' && (
+            <button type="button" onClick={close} className="primary-btn"
               style={{ fontSize: 12, padding: '9px 20px', borderRadius: 22, border: 'none', background: pcGrad, color: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, boxShadow: `0 8px 18px ${pcShadow}` }}>
-              כן, שלחי ל־{selected.size} לקוחות
+              סיימתי
             </button>
-          )}
-
-          {stage === 'sending' && (
-            <span style={{ fontSize: 12, color: 'var(--ink-2)', alignSelf: 'center' }}>שולחת…</span>
           )}
         </div>
       </div>

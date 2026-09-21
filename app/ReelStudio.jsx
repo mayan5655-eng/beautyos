@@ -72,9 +72,9 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
   // The canvas has the same problem for a different reason (see safeColor).
   //
   // Resolved in an effect rather than during render because this component is
-  // server-rendered by app/dashboard/reel-studio/page.jsx, where there is no
-  // document; starting at the default and correcting after mount also keeps
-  // the first client render identical to the server's, so no hydration warning.
+  // server-rendered as part of the dashboard, where there is no document;
+  // starting at the default and correcting after mount also keeps the first
+  // client render identical to the server's, so no hydration warning.
   const [pcHex, setPcHex] = useState("#5B3E67");
   useEffect(() => {
     setPcHex(safeColor(readCssVar(primaryColor, "#5B3E67"), "#5B3E67"));

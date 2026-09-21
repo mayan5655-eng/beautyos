@@ -94,11 +94,9 @@ export default function CommunityPage() {
                     {p.cta_label}
                   </a>
                 )}
-                {p.cta_label && !business.phone && (
-                  <span style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #4A2E5A),var(--pc-tint, #EDE7F0))", color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 22 }}>
-                    {p.cta_label}
-                  </span>
-                )}
+                {/* No phone, no button. A span styled exactly like the link
+                    above used to render here - a button that did nothing,
+                    shipped to her clients whenever business_phone was blank. */}
               </div>
             </div>
           ))}
