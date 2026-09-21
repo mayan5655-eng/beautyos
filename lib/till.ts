@@ -147,6 +147,52 @@ export function totalsOf(receipts: ReceiptLike[]): Totals {
   };
 }
 
+/**
+ * Receipts created in a given local calendar month. `month` is 0-based, as
+ * Date.getMonth() gives it. The month total and its per-method breakdown
+ * MUST both be computed from this one set - see monthSummary - or the cards
+ * under the headline can show a method exceeding the headline, which is what
+ * happened when the breakdown ran over every receipt ever.
+ */
+export function receiptsInMonth<T extends ReceiptLike>(receipts: T[], month: number, year: number): T[] {
+  return receipts.filter((r) => {
+    if (!r.created_at) return false;
+    const d = new Date(r.created_at);
+    return !isNaN(d.getTime()) && d.getMonth() === month && d.getFullYear() === year;
+  });
+}
+
+/**
+ * The headline and the breakdown from ONE set, so they cannot disagree:
+ * `total` is the sum every method line adds up to.
+ */
+export function monthSummary(receipts: ReceiptLike[], month: number, year: number): Totals {
+  return totalsOf(receiptsInMonth(receipts, month, year));
+}
+
+export const OTHER_METHOD = 'אחר';
+
+/**
+ * The breakdown as the screen shows it: one row per KNOWN method, in the
+ * order given (zeros included, so the list is the same shape every day), plus
+ * an "אחר" row for anything else a receipt was ever stamped with - a legacy
+ * string, a hand-typed method - so the rows always sum to `totals.total`.
+ */
+export function bucketByMethod(totals: Totals, known: readonly string[], otherLabel: string = OTHER_METHOD): { method: string; total: number; count: number; known: boolean }[] {
+  const rows = known.map((method) => {
+    const row = totals.byMethod.find((b) => b.method === method);
+    return { method, total: row ? row.total : 0, count: row ? row.count : 0, known: true };
+  });
+  let otherTotal = 0, otherCount = 0;
+  for (const b of totals.byMethod) {
+    if (known.includes(b.method)) continue;
+    otherTotal += b.total;
+    otherCount += b.count;
+  }
+  if (otherCount > 0) rows.push({ method: otherLabel, total: Math.round(otherTotal * 100) / 100, count: otherCount, known: false });
+  return rows;
+}
+
 /** Receipts created on a given local YYYY-MM-DD day. */
 export function receiptsOnDay<T extends ReceiptLike>(receipts: T[], dayKey: string): T[] {
   return receipts.filter((r) => localDayKey(r.created_at) === dayKey);

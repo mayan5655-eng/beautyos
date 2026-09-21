@@ -5,7 +5,8 @@
 
 import {
   paymentsOf, isSplit, validateSplit, discountAmount, voidedIds, liveReceipts, voidOf,
-  totalsOf, receiptsOnDay, localDayKey, paidWith, SPLIT_METHOD,
+  totalsOf, receiptsOnDay, localDayKey, paidWith, SPLIT_METHOD, receiptsInMonth, monthSummary,
+  bucketByMethod, OTHER_METHOD,
 } from './lib/till.ts';
 import {
   isLateCancellation, clientReliability, reliabilityLine, canMarkNoShow,
@@ -78,6 +79,64 @@ eq(discountAmount(199, 'pct', 15), 29.85, 'rounded to agorot');
   eq(t.byMethod, [{ method: 'מזומן', total: 300, count: 2 }, { method: 'ביט', total: 200, count: 1 }], 'by method, each split line to its own method, largest first');
   eq(localDayKey('nope'), '', 'junk timestamp is an empty key');
   eq(localDayKey(null), '', 'null timestamp is an empty key');
+}
+
+// ── THE INVARIANT: the breakdown always sums to the total ──────────────────
+// The bug: the month headline filtered to this month while the per-method
+// cards ran over every receipt ever, so cash showed 2,700 under a 1,400
+// month. Both now come from monthSummary(), one set; this proves that set's
+// lines add up to its total under every shape a receipt can take - single,
+// split, tipped, voided, other months, junk dates.
+{
+  const sumBy = (t: { byMethod: { total: number }[] }) => Math.round(t.byMethod.reduce((s, b) => s + b.total, 0) * 100) / 100;
+  const rs = [
+    { id: 1, amount: 1400, tip: 100, payment_method: 'מזומן', created_at: '2026-09-03T10:00:00' },
+    { id: 2, amount: 800, payment_method: SPLIT_METHOD, payments: [{ method: 'ביט', amount: 500 }, { method: 'מזומן', amount: 300 }], created_at: '2026-09-15T10:00:00' },
+    { id: 3, amount: 2700, payment_method: 'מזומן', created_at: '2026-08-30T10:00:00' },   // last month: the 2,700
+    { id: 4, amount: 999, payment_method: 'מזומן', created_at: '2026-09-20T10:00:00' },     // voided below
+    { id: 5, amount: 60.5, payment_method: 'אשראי', created_at: '2026-09-21T23:59:59' },
+    { id: 6, amount: 10, payment_method: 'מזומן', created_at: 'not a date' },
+    { id: 7, amount: 55, payment_method: 'ביט', created_at: null },
+  ];
+  const voids = [{ receipt_id: 4, reason: 'טעות', created_at: '2026-09-20T11:00:00' }];
+  const live = liveReceipts(rs, voids);
+
+  // The month, September 2026 (getMonth() is 0-based).
+  const sept = monthSummary(live, 8, 2026);
+  eq(sept.total, 2260.5, 'September total: 1400 + 800 + 60.5, not last month, not the void');
+  eq(sumBy(sept), sept.total, 'THE INVARIANT: September breakdown sums to the September total');
+  eq(sept.byMethod.find((b) => b.method === 'מזומן')?.total, 1700, 'cash is 1400 + the 300 half of the split - never the 2,700 from August');
+  eq(sept.tips, 100, 'tips beside the total, not inside it');
+  eq(sept.byMethod.every((b) => b.total <= sept.total), true, 'no method exceeds the total');
+
+  // Last month has its own consistent pair.
+  const aug = monthSummary(live, 7, 2026);
+  eq(aug.total, 2700, 'August total');
+  eq(sumBy(aug), aug.total, 'August breakdown sums to the August total');
+
+  // All-time also holds, so the property is of totalsOf, not of one window.
+  const all = totalsOf(live);
+  eq(sumBy(all), all.total, 'all-time breakdown sums to the all-time total');
+  eq(receiptsInMonth(rs, 8, 2026).map((r) => r.id), [1, 2, 4, 5], 'month filter drops junk and null dates');
+
+  // And with voids ignored the invariant still holds - it is about the set,
+  // whichever set is chosen; the caller's job is to choose the same one twice.
+  const raw = totalsOf(rs);
+  eq(sumBy(raw), raw.total, 'even the unfiltered set sums to its own total');
+
+  // The rows the screen renders: every known method, plus "אחר" for the rest,
+  // and THOSE rows sum to the total too - including when a receipt carries a
+  // method nobody listed.
+  const KNOWN = ['מזומן', 'אשראי', 'ביט', 'פייבוקס', 'העברה', 'חבילה'];
+  const withStray = [...live, { id: 8, amount: 40, payment_method: 'צ׳ק', created_at: '2026-09-22T09:00:00' }];
+  const t = monthSummary(withStray, 8, 2026);
+  const rows = bucketByMethod(t, KNOWN);
+  eq(rows.length, KNOWN.length + 1, 'six known rows plus one "other"');
+  eq(rows.slice(0, KNOWN.length).map((r) => r.method), KNOWN, 'known rows in the given order, zeros included');
+  eq(rows[rows.length - 1], { method: OTHER_METHOD, total: 40, count: 1, known: false }, 'the stray method lands in "other"');
+  eq(Math.round(rows.reduce((s, r) => s + r.total, 0) * 100) / 100, t.total, 'THE INVARIANT, on the rendered rows: they sum to the total');
+  eq(bucketByMethod(monthSummary(live, 8, 2026), KNOWN).some((r) => r.method === OTHER_METHOD), false, 'no "other" row when nothing is stray');
+  eq(rows.find((r) => r.method === 'פייבוקס')?.total, 0, 'an unused method shows as zero, not missing');
 }
 
 // ── no-show and late cancellation ──────────────────────────────────────────

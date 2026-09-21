@@ -21,7 +21,7 @@ import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, totalsOf, receiptsOnDay, paidWith, SPLIT_METHOD } from "@/lib/till";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, SPLIT_METHOD } from "@/lib/till";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
@@ -2312,8 +2312,14 @@ export default function BeautyOS() {
   const clientAppts = useMemo(() => appointments.filter(isClientAppointment), [appointments]);
   // Every revenue figure reads liveRcpts - receipts minus voids. `receipts`
   // itself is for lists and history, where a voided receipt must still show.
-  const thisMonthRevenue = useMemo(() => liveRcpts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [liveRcpts, thisMonth, thisYear]);
-  const lastMonthRevenue = useMemo(() => liveRcpts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [liveRcpts, lastMonth, lastMonthYear]);
+  // ONE computation for the month: the headline is `monthTotals.total` and the
+  // per-method cards are `monthTotals.byMethod`, so they add up by
+  // construction. They used to be two: the headline filtered to this month,
+  // the breakdown ran over every receipt ever - and the cash card showed 2,700
+  // under a 1,400 month. Same set, same window, same void rule, or nothing.
+  const monthTotals = useMemo(() => monthSummary(liveRcpts, thisMonth, thisYear), [liveRcpts, thisMonth, thisYear]);
+  const thisMonthRevenue = monthTotals.total;
+  const lastMonthRevenue = useMemo(() => monthSummary(liveRcpts, lastMonth, lastMonthYear).total, [liveRcpts, lastMonth, lastMonthYear]);
   // Today, for the till: what she took, by method, with tips beside it.
   const todayTotals = useMemo(() => totalsOf(receiptsOnDay(liveRcpts, today)), [liveRcpts, today]);
   // Two lists per day, on purpose. *Entries are what she sees - her whole day,
@@ -2509,14 +2515,11 @@ export default function BeautyOS() {
     return {source,icon:SOURCE_ICONS[source],total:sourceLeads.length,converted:converted.length,revenue,rate:sourceLeads.length>0?Math.round((converted.length/sourceLeads.length)*100):0};
   }).filter(s=>s.total>0).sort((a,b)=>b.revenue-a.revenue), [leads, liveRcpts]);
 
-  // By method, through lib/till totalsOf: a split receipt contributes each of
-  // its lines to its own method and counts once. Voids excluded.
-  const paymentBreakdown = useMemo(() => {
-    const t = totalsOf(liveRcpts);
-    return PAYMENT_METHODS.map(m=>{ const row=t.byMethod.find(b=>b.method===m.key); return {...m,total:row?row.total:0,count:row?row.count:0}; }).filter(m=>m.count>0);
-  }, [liveRcpts]);
-  // The list keeps voided receipts (badged) and matches a split receipt under
-  // each of its methods.
+  // The per-method rows are rendered straight from monthTotals/todayTotals
+  // through lib/till bucketByMethod - there is deliberately no separate
+  // breakdown memo, because a second computation is how the cards stopped
+  // agreeing with the headline. The list below keeps voided receipts (badged)
+  // and matches a split receipt under each of its methods.
   const filteredReceipts = receiptFilter==="all"?receipts:receipts.filter(r=>paidWith(r,receiptFilter));
 
   // Search on both screens goes through lib/search/matchQuery. The old
@@ -8391,44 +8394,37 @@ ${c.claimUrl}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇩ ייצוא Excel</button>
  </div>
  </div>
- {/* TODAY. The one question she asks at the end of the day: how much did I
-     take. By method, with tips beside the total rather than inside it, and
-     nothing that was voided. */}
- <div className="glass-card" style={{padding:"16px 18px",marginBottom:14}}>
+ {/* INCOME. Today and this month, side by side on a desk, stacked on a
+     phone. Each is ONE computation (lib/till totalsOf over one set of
+     receipts), and the method rows under a total are that same computation's
+     lines - so they add up to it by construction. Every known method is
+     listed, zeros included, plus "אחר" for anything stamped with a method
+     nobody listed. Tips sit outside every method and outside the total.
+     This replaces a month headline with all-time method cards under it,
+     which showed cash at 2,700 under a 1,400 month. */}
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:16}}>
+              {[["היום",todayTotals],["החודש",monthTotals]].map(([label,t])=>{
+                const rows=bucketByMethod(t, PAYMENT_METHODS.map(m=>m.key));
+                return (
+ <div key={label} className="glass-card" style={{padding:"16px 18px"}}>
  <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
  <div>
- <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>היום · {todayTotals.count===0?"אין עדיין תשלומים":todayTotals.count===1?"תשלום אחד":`${todayTotals.count} תשלומים`}</p>
- <p className="serif" style={{fontSize:32,fontWeight:600,color:pc,lineHeight:1.1,marginTop:4}}>₪{todayTotals.total.toLocaleString()}</p>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>{label} · {t.count===0?"אין תשלומים":t.count===1?"תשלום אחד":`${t.count} תשלומים`}</p>
+ <p className="serif" style={{fontSize:32,fontWeight:600,color:pc,lineHeight:1.1,marginTop:4}}>₪{t.total.toLocaleString()}</p>
  </div>
- {todayTotals.tips>0&&<div style={{textAlign:"left"}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600}}>טיפים</p><p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink-2)"}}>₪{todayTotals.tips.toLocaleString()}</p><p style={{fontSize:11,color:"var(--ink-3)"}}>בקופה: ₪{todayTotals.collected.toLocaleString()}</p></div>}
+                    {t.tips>0&&<div style={{textAlign:"left"}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600}}>+ טיפים</p><p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink-2)"}}>₪{t.tips.toLocaleString()}</p><p style={{fontSize:11,color:"var(--ink-3)"}}>סה״כ בקופה ₪{t.collected.toLocaleString()}</p></div>}
  </div>
- {todayTotals.byMethod.length>0&&(
- <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
-                  {todayTotals.byMethod.map(b=>{const pm=PAYMENT_METHODS.find(p=>p.key===b.method);return(
- <span key={b.method} className="pill" style={{gap:6,padding:"6px 11px",fontSize:12.5,background:"var(--surface-2)",border:"1px solid var(--line)"}}><span style={{width:8,height:8,borderRadius:"50%",background:pm?.color||"var(--ink-3)"}}/>{b.method} <b>₪{b.total.toLocaleString()}</b></span>
-                  );})}
+ <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px",marginTop:12,paddingTop:10,borderTop:"1px solid var(--line)"}}>
+                    {rows.map(r=>{const pm=PAYMENT_METHODS.find(p=>p.key===r.method);const zero=r.total===0;return(
+ <div key={r.method} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:28,opacity:zero?0.45:1}}>
+ <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12.5,color:"var(--ink-2)"}}><span style={{width:8,height:8,borderRadius:"50%",background:pm?.color||"var(--ink-3)",flexShrink:0}}/>{r.method}</span>
+ <span className="serif" style={{fontSize:14,fontWeight:700,color:zero?"var(--ink-3)":"var(--ink)"}}>₪{r.total.toLocaleString()}</span>
  </div>
- )}
+                    );})}
  </div>
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:18}}>
- <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)",position:"relative",overflow:"hidden"}}>
- <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:"radial-gradient(circle at 100% 0%, var(--pc-tint), transparent 70%)",pointerEvents:"none"}}/>
- <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:pc,background:"var(--pc-tint)"}}>₪</span>
- <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>הכנסות החודש</p>
  </div>
- <p className="serif" style={{position:"relative",fontSize:26,fontWeight:600,color:pc,lineHeight:1}}>₪{thisMonthRevenue.toLocaleString()}</p>
- </motion.div>
-              {paymentBreakdown.map((p,i)=>(
- <motion.div key={p.key} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,delay:0.05*(i+1),ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)"}}>
- <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
- <span style={{width:34,height:34,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,background:"var(--surface-2)",border:"1px solid var(--line)"}}>{p.icon}</span>
- <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>{p.key}</p>
- </div>
- <p className="serif" style={{fontSize:22,fontWeight:600,color:"var(--ink)",lineHeight:1}}>₪{p.total.toLocaleString()}</p>
- <p style={{fontSize:12,color:"var(--ink-3)",marginTop:6}}>{p.count} עסקאות</p>
- </motion.div>
-              ))}
+                );
+              })}
  </div>
 
             {todayAppts.length>0&&(
