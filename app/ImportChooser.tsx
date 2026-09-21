@@ -1,4 +1,5 @@
 'use client';
+import Icon, { type IconName } from "./Icon";
 
 /**
  * ImportChooser — the "what would you like to bring across?" list.
@@ -25,9 +26,9 @@ export const IMPORT_KINDS: {
   blurb: string;
   ready: boolean;
 }[] = [
-  { id:'clients',  icon:'👥', title:'לקוחות',          blurb:'שמות, טלפונים, הערות, אלרגיות', ready:true },
-  { id:'services', icon:'✦',  title:'שירותים ומחירים', blurb:'שם הטיפול, מחיר ומשך',          ready:true },
-  { id:'appts',    icon:'◴',  title:'תורים עתידיים',    blurb:'תאריך, שעה ולקוחה — היסטוריה לא מיובאת', ready:true },
+  { id:'clients',  icon:'people', title:'לקוחות',          blurb:'שמות, טלפונים, הערות, אלרגיות', ready:true },
+  { id:'services', icon:'sparkle',  title:'שירותים ומחירים', blurb:'שם הטיפול, מחיר ומשך',          ready:true },
+  { id:'appts',    icon:'clock',  title:'תורים עתידיים',    blurb:'תאריך, שעה ולקוחה — היסטוריה לא מיובאת', ready:true },
 ];
 
 export default function ImportChooser({
@@ -47,7 +48,7 @@ export default function ImportChooser({
           onClick={() => k.ready && onPick(k.id)}
           disabled={!k.ready}
           style={{
-            display:'flex', alignItems:'center', gap:13, padding:'14px 15px', borderRadius:16,
+            display:'flex', alignItems:'center', gap:13, padding:'14px 15px', borderRadius:"var(--r-md)",
             textAlign:'right', width:'100%', fontFamily:'inherit',
             border:`1px solid ${k.ready ? 'var(--line)' : 'var(--line-2)'}`,
             background: k.ready ? 'var(--surface)' : 'var(--surface-2)',
@@ -56,18 +57,18 @@ export default function ImportChooser({
           }}
         >
           <span style={{
-            width:40, height:40, borderRadius:13, flexShrink:0, display:'flex',
-            alignItems:'center', justifyContent:'center', fontSize:18,
+            width:40, height:40, borderRadius:"var(--r-sm)", flexShrink:0, display:'flex',
+            alignItems:'center', justifyContent:'center', fontSize:"var(--t-xl)",
             background: k.ready ? accentTint : 'var(--surface)', color: accent,
-          }}>{k.icon}</span>
+          }}><Icon name={k.icon as IconName} size={18} /></span>
           <span style={{ flex:1, minWidth:0 }}>
-            <span style={{ display:'block', fontSize:13.5, fontWeight:700, color:'var(--ink)' }}>{k.title}</span>
-            <span style={{ display:'block', fontSize:12, color:'var(--ink-3)', marginTop:2 }}>{k.blurb}</span>
+            <span style={{ display:'block', fontSize:"var(--t-md)", fontWeight:700, color:'var(--ink)' }}>{k.title}</span>
+            <span style={{ display:'block', fontSize:"var(--t-sm)", color:'var(--ink-3)', marginTop:2 }}>{k.blurb}</span>
           </span>
-          {k.ready && <span aria-hidden style={{ fontSize:16, color:accent, flexShrink:0 }}>←</span>}
+          {k.ready && <span aria-hidden style={{ fontSize:"var(--t-lg)", color:accent, flexShrink:0 }}>←</span>}
         </button>
       ))}
-      <p style={{ fontSize:12, color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
+      <p style={{ fontSize:"var(--t-sm)", color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
         איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת — ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
       </p>
     </div>

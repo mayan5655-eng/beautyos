@@ -30,6 +30,8 @@
 // failed is how you conclude your retention is fine when you simply cannot see.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Spinner from "./Spinner";
+import Sheet from "./Sheet";
 import { toWhatsAppNumber } from '@/lib/phone';
 
 const PRESETS = [
@@ -136,40 +138,32 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
 
   if (!open) return null;
 
-  const th = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
-  const td = { fontSize: 11.5, color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
+  const th = { textAlign: 'right', fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
+  const td = { fontSize:"var(--t-sm)", color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
 
   return (
-    <div
-      dir="rtl"
-      onClick={close}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(43,34,51,0.45)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5100, padding: 14 }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 880, maxHeight: '92vh', overflowY: 'auto', background: 'var(--surface)', borderRadius: 20, padding: '22px 22px 18px', boxShadow: '0 24px 60px rgba(74,46,90,0.28)' }}
-      >
+    <Sheet open onClose={close} width={880} zIndex={5100} ariaLabel="לקוחות שמזמן לא הגיעו">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
           <div>
-            <h3 className="serif" style={{ fontSize: 21, fontWeight: 600, color: 'var(--ink)' }}>לקוחות שמזמן לא הגיעו</h3>
-            <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
+            <h3 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: 'var(--ink)' }}>לקוחות שמזמן לא הגיעו</h3>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
               {stage === 'compose'
                 ? 'לחיצה על לקוחה פותחת את השיחה בוואטסאפ שלך עם ההודעה מוכנה. את רק שולחת.'
                 : 'הרשימה מסודרת לפי משך ההיעדרות. את בוחרת למי לפנות.'}
             </p>
           </div>
           <button type="button" onClick={close} aria-label="סגירה"
-            style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
+            style={{ background: 'none', border: 'none', fontSize:"var(--t-xl)", color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
         </div>
 
         {/* ── threshold ── */}
         {stage === 'list' && (
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', margin: '14px 0 10px', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>לא הגיעו מעל</span>
+            <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>לא הגיעו מעל</span>
             {PRESETS.map((p) => (
               <button key={p.days} type="button" onClick={() => { if (p.days === days) return; setData(null); setLoadError(''); setSelected(new Set()); setDays(p.days); }}
                 style={{
-                  fontSize: 11.5, padding: '6px 13px', borderRadius: 20, cursor: 'pointer',
+                  fontSize:"var(--t-sm)", padding: '6px 13px', borderRadius:"var(--r-lg)", cursor: 'pointer',
                   border: `1px solid ${days === p.days ? pc : 'var(--line-2)'}`,
                   background: days === p.days ? pc : 'var(--surface)',
                   color: days === p.days ? 'var(--surface)' : 'var(--ink-2)',
@@ -181,15 +175,15 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
           </div>
         )}
 
-        {loading && <p style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 12 }}>טוענת…</p>}
+        {loading && <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginTop: 12 }}><Spinner inline label="טוענת"/></p>}
 
         {/* couldn't load - NOT the same as an empty list */}
         {loadError && (
-          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius: 12, background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)' }}>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>לא הצלחנו לטעון</p>
-            <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 9 }}>{loadError}</p>
+          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)' }}>
+            <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>לא הצלחנו לטעון</p>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 9 }}>{loadError}</p>
             <button type="button" onClick={() => { setLoadError(''); setData(null); setReloadToken((t) => t + 1); }}
-              style={{ fontSize: 11.5, padding: '7px 15px', borderRadius: 20, border: `1px solid ${pc}`, background: 'var(--surface)', color: pc, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
+              style={{ fontSize:"var(--t-sm)", padding: '7px 15px', borderRadius:"var(--r-lg)", border: `1px solid ${pc}`, background: 'var(--surface)', color: pc, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
               נסי שוב
             </button>
           </div>
@@ -197,8 +191,8 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
 
         {/* genuinely empty */}
         {!loading && !loadError && data && rows.length === 0 && (
-          <div style={{ marginTop: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
-            <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.7 }}>
+          <div style={{ marginTop: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
+            <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2)', lineHeight: 1.7 }}>
               אין לקוחות שלא הגיעו מעל {days} ימים. 🎉
             </p>
           </div>
@@ -213,7 +207,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               <Stat label="נבחרו" value={selected.size} tone={selected.size ? 'ok' : undefined} />
             </div>
 
-            <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--line-2)', borderRadius: 12, marginBottom: 12 }}>
+            <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)' }}>
                   <tr>
@@ -241,7 +235,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
                       <td style={td}>{r.name || '—'}</td>
                       <td style={td}>{r.lastVisit}</td>
                       <td style={td}>{formatGap(r.daysSince)}</td>
-                      <td style={{ ...td, fontSize: 11, color: 'var(--ink-3)' }}>
+                      <td style={{ ...td, fontSize:"var(--t-xs)", color: 'var(--ink-3)' }}>
                         {!r.hasPhone ? 'אין טלפון' : r.alreadyMessaged ? 'כבר נשלחה פנייה' : ''}
                       </td>
                     </tr>
@@ -250,7 +244,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               </table>
             </div>
 
-            <label htmlFor="lapsed-msg" style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)', display: 'block', marginBottom: 6 }}>
+            <label htmlFor="lapsed-msg" style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)', display: 'block', marginBottom: 6 }}>
               ההודעה
             </label>
             <textarea
@@ -258,9 +252,9 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
-              style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 12, padding: '10px 12px', fontSize: 12.5, fontFamily: 'inherit', lineHeight: 1.7, color: 'var(--ink)', background: 'var(--surface-2)', resize: 'vertical', outline: 'none' }}
+              style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", padding: '10px 12px', fontSize:"var(--t-sm)", fontFamily: 'inherit', lineHeight: 1.7, color: 'var(--ink)', background: 'var(--surface-2)', resize: 'vertical', outline: 'none' }}
             />
-            <p style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
+            <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
               ההודעה נשלחת מהוואטסאפ שלך, לקוחה אחת בכל לחיצה. פתיחה ב&quot;שלום!&quot; מקבלת את שם הלקוחה.
               מי שתשלחי לה כאן לא תקבל גם את הפנייה האוטומטית.
             </p>
@@ -270,33 +264,33 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {/* ── compose: one tap per client ── */}
         {stage === 'compose' && (
           <div style={{ marginTop: 10 }}>
-            <p style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, marginBottom: 6 }}>
+            <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', fontWeight: 600, marginBottom: 6 }}>
               {chosen.length} לקוחות{done.size > 0 ? ` · נשלחו ${done.size}` : ''}
             </p>
-            <div style={{ border: '1px solid var(--line-2)', borderRadius: 12, marginBottom: 12, maxHeight: 360, overflowY: 'auto' }}>
+            <div style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 12, maxHeight: 360, overflowY: 'auto' }}>
               {chosen.map((c, i) => {
                 const href = waLink(c.phone, personalise(message.trim(), c.name));
                 const isDone = done.has(c.id);
                 return (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || '(ללא שם)'}</p>
-                      <p style={{ fontSize: 11, color: 'var(--ink-3)', direction: 'ltr', textAlign: 'right' }}>{c.phone}</p>
+                      <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || '(ללא שם)'}</p>
+                      <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', direction: 'ltr', textAlign: 'right' }}>{c.phone}</p>
                     </div>
                     {href ? (
                       <a href={href} target="_blank" rel="noreferrer" onClick={() => tapped(c)} className="primary-btn"
-                        style={{ background: isDone ? 'var(--surface-2)' : '#25D366', color: isDone ? 'var(--ink-3)' : '#fff', padding: '8px 14px', fontSize: 11.5, textDecoration: 'none', whiteSpace: 'nowrap', borderRadius: 10 }}>
+                        style={{ background: isDone ? 'var(--surface-2)' : '#25D366', color: isDone ? 'var(--ink-3)' : '#fff', padding: '8px 14px', fontSize:"var(--t-sm)", textDecoration: 'none', whiteSpace: 'nowrap', borderRadius:"var(--r-sm)" }}>
                         {isDone ? '✓ נשלח' : 'שליחה בוואטסאפ'}
                       </a>
                     ) : (
-                      <span style={{ fontSize: 11, color: 'var(--danger)' }}>מספר לא תקין</span>
+                      <span style={{ fontSize:"var(--t-xs)", color: 'var(--danger)' }}>מספר לא תקין</span>
                     )}
                   </div>
                 );
               })}
             </div>
             {markFailed > 0 && (
-              <p style={{ fontSize: 11.5, color: 'var(--danger)', lineHeight: 1.6, marginBottom: 8 }}>
+              <p style={{ fontSize:"var(--t-sm)", color: 'var(--danger)', lineHeight: 1.6, marginBottom: 8 }}>
                 שימי לב: לא הצלחנו לסמן {markFailed} לקוחות, וייתכן שיקבלו גם את הפנייה האוטומטית.
               </p>
             )}
@@ -306,7 +300,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {/* ── actions ── */}
         <div style={{ display: 'flex', gap: 9, justifyContent: 'flex-start', marginTop: 4, flexWrap: 'wrap' }}>
           <button type="button" onClick={stage === 'compose' ? () => setStage('list') : close}
-            style={{ fontSize: 12, padding: '9px 17px', borderRadius: 22, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ fontSize:"var(--t-sm)", padding: '9px 17px', borderRadius:"var(--r-lg)", border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer', fontFamily: 'inherit' }}>
             {stage === 'compose' ? 'חזרה לרשימה' : 'סגירה'}
           </button>
 
@@ -316,20 +310,19 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               disabled={selected.size === 0 || !message.trim()}
               onClick={() => setStage('compose')}
               className="primary-btn"
-              style={{ fontSize: 12, padding: '9px 20px', borderRadius: 22, border: 'none', background: selected.size ? pcGrad : 'var(--line-2)', color: 'var(--surface)', cursor: selected.size ? 'pointer' : 'default', fontFamily: 'inherit', fontWeight: 700, boxShadow: selected.size ? `0 8px 18px ${pcShadow}` : 'none' }}>
-              המשך לשליחה ({selected.size})
+              style={{ fontSize:"var(--t-sm)", padding: '9px 20px', borderRadius:"var(--r-lg)", border: 'none', background: selected.size ? pcGrad : 'var(--line-2)', color: 'var(--surface)', cursor: selected.size ? 'pointer' : 'default', fontFamily: 'inherit', fontWeight: 700, boxShadow: selected.size ? "var(--shadow-accent)" : 'none' }}>
+              המשיכי לשליחה ({selected.size})
             </button>
           )}
 
           {stage === 'compose' && (
             <button type="button" onClick={close} className="primary-btn"
-              style={{ fontSize: 12, padding: '9px 20px', borderRadius: 22, border: 'none', background: pcGrad, color: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, boxShadow: `0 8px 18px ${pcShadow}` }}>
+              style={{ fontSize:"var(--t-sm)", padding: '9px 20px', borderRadius:"var(--r-lg)", border: 'none', background: pcGrad, color: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, boxShadow:"var(--shadow-accent)" }}>
               סיימתי
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -346,9 +339,9 @@ function formatGap(days) {
 function Stat({ label, value, tone }) {
   const color = tone === 'ok' ? 'var(--ok, #2E7D5B)' : tone === 'warn' ? 'var(--danger)' : 'var(--ink)';
   return (
-    <div style={{ border: '1px solid var(--line-2)', borderRadius: 11, padding: '7px 12px', background: 'var(--surface-2)', minWidth: 86 }}>
-      <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 700 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
+    <div style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", padding: '7px 12px', background: 'var(--surface-2)', minWidth: 86 }}>
+      <div style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize:"var(--t-lg)", fontWeight: 700, color }}>{value}</div>
     </div>
   );
 }

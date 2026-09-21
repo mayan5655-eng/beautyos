@@ -97,8 +97,8 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
           maxWidth: 440,
           background: '#FFFFFF',
           border: '1px solid #ECE4F0',
-          borderRadius: 20,
-          boxShadow: '0 18px 44px rgba(74, 46, 90, 0.10)',
+          borderRadius:"var(--r-lg)",
+          boxShadow:"var(--shadow-lg)",
           padding: '32px 26px',
           textAlign: 'center',
         }}
@@ -131,7 +131,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
         <h1
           style={{
             fontFamily: "var(--display, 'Frank Ruhl Libre', Georgia, serif)",
-            fontSize: 24,
+            fontSize:"var(--t-2xl)",
             fontWeight: 600,
             margin: '0 0 10px',
             letterSpacing: '-0.01em',
@@ -140,7 +140,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
           משהו השתבש
         </h1>
 
-        <p style={{ fontSize: 15, lineHeight: 1.6, color: '#6B6275', margin: '0 0 22px' }}>
+        <p style={{ fontSize:"var(--t-lg)", lineHeight: 1.6, color: '#6B6275', margin: '0 0 22px' }}>
           נתקלנו בתקלה זמנית. הנתונים שלך בטוחים.
           <br />
           אפשר לנסות שוב — ואם זה חוזר, שלחי לנו את הקוד למטה.
@@ -151,18 +151,18 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
             style={{
               background: '#FAF6FC',
               border: '1px solid #E2D6EA',
-              borderRadius: 14,
+              borderRadius:"var(--r-md)",
               padding: '14px 16px',
               marginBottom: 20,
             }}
           >
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#6B6275', marginBottom: 6 }}>
+            <div style={{ fontSize:"var(--t-md)", fontWeight: 600, color: '#6B6275', marginBottom: 6 }}>
               קוד התקלה
             </div>
             <div
               style={{
                 fontFamily: "'SF Mono', ui-monospace, Menlo, Consolas, monospace",
-                fontSize: 26,
+                fontSize:"var(--t-3xl)",
                 fontWeight: 700,
                 letterSpacing: '0.14em',
                 color: '#4C3457',
@@ -179,7 +179,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
                 background: 'none',
                 border: 'none',
                 color: '#5B3E67',
-                fontSize: 14,
+                fontSize:"var(--t-md)",
                 fontWeight: 600,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -200,11 +200,11 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
               style={{
                 width: '100%',
                 padding: '14px 20px',
-                borderRadius: 999,
+                borderRadius:"var(--r-full)",
                 border: 'none',
                 background: 'linear-gradient(135deg, #7D6489 0%, #4C3457 100%)',
                 color: '#FFFFFF',
-                fontSize: 16,
+                fontSize:"var(--t-lg)",
                 fontWeight: 600,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -218,11 +218,11 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
             style={{
               width: '100%',
               padding: '13px 20px',
-              borderRadius: 999,
+              borderRadius:"var(--r-full)",
               border: '1px solid #E2D6EA',
               background: '#FFFFFF',
               color: '#5B3E67',
-              fontSize: 15,
+              fontSize:"var(--t-lg)",
               fontWeight: 600,
               textDecoration: 'none',
               fontFamily: 'inherit',

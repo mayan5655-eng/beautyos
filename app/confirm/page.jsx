@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense, useCallback } from 'react';
+import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
 
 function ConfirmContent() {
@@ -23,7 +24,7 @@ function ConfirmContent() {
     !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
   );
   const [message, setMessage] = useState(() =>
-    !id ? 'הלינק לא תקין - חסר מזהה תור' : ''
+    !id ? 'הלינק לא תקין — חסר מזהה תור' : ''
   );
   // Public branding from the API's success path; optional - no logo, no space.
   const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '' });
@@ -122,24 +123,24 @@ function ConfirmContent() {
     }}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '16px',
+        borderRadius:"var(--r-md)",
         padding: '40px',
         maxWidth: '400px',
         width: '100%',
         textAlign: 'center',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        boxShadow:"var(--shadow-sm)"
       }}>
         {/* Her logo above the status mark - natural aspect, never cropped. */}
         {brandInfo.logoUrl ? (
           <img src={brandInfo.logoUrl} alt={brandInfo.businessName || 'לוגו'} style={{ maxHeight: 52, maxWidth: 170, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 18px' }} />
         ) : brandInfo.businessName ? (
-          <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>{brandInfo.businessName}</p>
+          <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>{brandInfo.businessName}</p>
         ) : null}
         <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center', minHeight: 58 }}>
-          {markKind ? mark(markKind, styles.color) : <span style={{ fontSize: '58px', lineHeight: 1 }}>{styles.emoji}</span>}
+          {markKind ? mark(markKind, styles.color) : <span style={{ fontSize:"var(--t-hero)", lineHeight: 1 }}>{styles.emoji}</span>}
         </div>
         <h1 style={{
-          fontSize: '24px',
+          fontSize:"var(--t-2xl)",
           fontWeight: 'bold',
           color: styles.color,
           marginBottom: '12px'
@@ -147,12 +148,11 @@ function ConfirmContent() {
           {styles.title}
         </h1>
         <p style={{
-          fontSize: '16px',
+          fontSize:"var(--t-lg)",
           color: 'var(--ink)',
           lineHeight: '1.5'
         }}>
-          {status === 'working' ? 'מעדכן את התור שלך...'
-            : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהלינק הזה. אם התכוונת לאשר את התור — סגרי את החלון ופתחי את הלינק השני בהודעה.'
+          {status === 'working' ? <Spinner inline label="מעדכן את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהלינק הזה. אם התכוונת לאשר את התור — סגרי את החלון ופתחי את הלינק השני בהודעה.'
             : status === 'declined' ? 'לא שינינו כלום. נתראה בתור.'
             : message}
         </p>
@@ -163,9 +163,9 @@ function ConfirmContent() {
               type="button"
               onClick={sendNow}
               style={{
-                width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',
+                width: '100%', padding: '14px 0', borderRadius:"var(--r-sm)", border: 'none',
                 background: 'var(--danger, #C2557A)', color: '#fff',
-                fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer'
+                fontSize:"var(--t-lg)", fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer'
               }}
             >
               כן, בטלי את התור
@@ -174,10 +174,10 @@ function ConfirmContent() {
               type="button"
               onClick={() => setStatus('declined')}
               style={{
-                width: '100%', padding: '14px 0', borderRadius: 12,
+                width: '100%', padding: '14px 0', borderRadius:"var(--r-sm)",
                 border: '1px solid var(--line-2, #E6DDE4)', background: '#fff',
                 color: 'var(--ink-2, #5C4F63)',
-                fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer'
+                fontSize:"var(--t-lg)", fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer'
               }}
             >
               לא, השאירי את התור
@@ -190,9 +190,9 @@ function ConfirmContent() {
             type="button"
             onClick={action === 'cancel' ? () => setStatus('ready') : sendNow}
             style={{
-              marginTop: 20, padding: '12px 24px', borderRadius: 12,
+              marginTop: 20, padding: '12px 24px', borderRadius:"var(--r-sm)",
               border: '1px solid var(--line-2, #E6DDE4)', background: '#fff',
-              color: 'var(--ink-2, #5C4F63)', fontSize: 14, fontWeight: 600,
+              color: 'var(--ink-2, #5C4F63)', fontSize:"var(--t-md)", fontWeight: 600,
               fontFamily: 'inherit', cursor: 'pointer'
             }}
           >
@@ -202,7 +202,7 @@ function ConfirmContent() {
 
         {(status === 'success' || status === 'already' || status === 'declined') && (
           <p style={{
-            fontSize: '14px',
+            fontSize:"var(--t-md)",
             color: 'var(--ink-3)',
             marginTop: '20px'
           }}>
@@ -223,7 +223,7 @@ export default function ConfirmPage() {
         alignItems: 'center',
         justifyContent: 'center'
       }}>
-        טוען...
+        <Spinner label="טוענת" />
       </div>
     }>
       <ConfirmContent />

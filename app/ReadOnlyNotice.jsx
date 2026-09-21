@@ -28,14 +28,14 @@ export default function ReadOnlyNotice({ plan }) {
         margin: "0 0 20px",
         background: "var(--brand-cream, #FEFAF7)",
         border: "1px solid var(--line)",
-        borderRadius: 16,
+        borderRadius:"var(--r-md)",
         padding: "16px 18px",
         fontFamily: "'Assistant', system-ui, sans-serif",
       }}
     >
-      <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{title}</p>
-      <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.65 }}>{body}</p>
-      <p style={{ margin: "3px 0 12px", fontSize: 12, color: "var(--ink-3)" }}>{CTA_RENEW_HINT_HE}</p>
+      <p style={{ margin: 0, fontSize:"var(--t-lg)", fontWeight: 700, color: "var(--ink)" }}>{title}</p>
+      <p style={{ margin: "5px 0 0", fontSize:"var(--t-md)", color: "var(--ink-2)", lineHeight: 1.65 }}>{body}</p>
+      <p style={{ margin: "3px 0 12px", fontSize:"var(--t-sm)", color: "var(--ink-3)" }}>{CTA_RENEW_HINT_HE}</p>
       {/* Same guard as TrialBanner: an <a href="undefined"> looks like a
           working button and is not one. */}
       {supportWhatsAppUrl() && (
@@ -47,10 +47,10 @@ export default function ReadOnlyNotice({ plan }) {
           display: "inline-block",
           background: "linear-gradient(135deg, var(--pc-2, #6B5279) 0%, var(--pc) 100%)",
           color: "var(--surface)",
-          fontSize: 13,
+          fontSize:"var(--t-md)",
           fontWeight: 600,
           padding: "10px 18px",
-          borderRadius: 12,
+          borderRadius:"var(--r-sm)",
           textDecoration: "none",
         }}
       >

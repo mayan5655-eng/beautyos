@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Icon from "../Icon";
+import Spinner from "../Spinner";
 import { useRouter } from "next/navigation";
 import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
@@ -206,7 +208,7 @@ export default function OnboardingPage() {
   if (loading) {
     return (
       <div style={containerStyle}>
-        <p style={{ fontSize: 14, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>💎 רגע, טוענים...</p>
+        <p style={{ fontSize:"var(--t-md)", color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}><Spinner inline label="רגע, טוענת" /></p>
       </div>
     );
   }
@@ -230,15 +232,15 @@ export default function OnboardingPage() {
       <div style={cardStyle}>
         {/* Brand mark */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ fontSize: 26, marginBottom: 4 }}>💎</div>
-          <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
+          <div style={{ marginBottom: 4, color: "var(--pc)" }}><Icon name="gem" size={26}/></div>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
         </div>
 
         {/* Progress — written, not graphic. Step names with arrows between
             them, the current one in her accent. RTL reads right to left, so
             "←" points forward. */}
         <nav aria-label="התקדמות" style={{ marginBottom: 26, display: "flex", alignItems: "center",
-              justifyContent: "center", flexWrap: "wrap", gap: 7, fontSize: 12.5, lineHeight: 1.6 }}>
+              justifyContent: "center", flexWrap: "wrap", gap: 7, fontSize:"var(--t-sm)", lineHeight: 1.6 }}>
           {STEP_NAMES.map((name, i) => {
             const n = i + 1;
             const current = n === step;
@@ -255,7 +257,7 @@ export default function OnboardingPage() {
                   {name}
                 </span>
                 {n < STEP_NAMES.length && (
-                  <span aria-hidden style={{ color: "var(--ink-3)", fontSize: 11 }}>←</span>
+                  <span aria-hidden style={{ color: "var(--ink-3)", fontSize:"var(--t-xs)" }}>←</span>
                 )}
               </span>
             );
@@ -266,7 +268,7 @@ export default function OnboardingPage() {
         <div key={step} className="step-body">
           {step === 1 && (
             <>
-              <h1 style={titleStyle}>😊 ברוכה הבאה!</h1>
+              <h1 style={titleStyle}><Icon name="smile" size={22}/> ברוכה הבאה!</h1>
               <p style={subtitleStyle}>שמחים שאת איתנו. בואי נכיר — נתחיל מהדברים הבסיסיים על העסק שלך. אפשר תמיד לדלג ולעדכן אחר כך.</p>
               <Field label="שם העסק">
                 <input
@@ -291,7 +293,7 @@ export default function OnboardingPage() {
 
           {step === 2 && (
             <>
-              <h1 style={titleStyle}>📱 פרטי קשר ועיצוב</h1>
+              <h1 style={titleStyle}><Icon name="phone" size={22}/> פרטי קשר ועיצוב</h1>
               <p style={subtitleStyle}>הטלפון לתשלומים יוצמד אוטומטית להודעות הבקשה לתשלום בוואטסאפ. אפשר להשאיר ריק.</p>
               <Field label="טלפון לתשלומים (ביט / פייבוקס)">
                 <input
@@ -305,7 +307,7 @@ export default function OnboardingPage() {
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
-                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius: 10, cursor: "pointer", background: "var(--brand-cream, #FEFAF7)" }} />
+                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FEFAF7)" }} />
                   <input
                     className="ob-input"
                     value={data.primary_color}
@@ -346,8 +348,8 @@ export default function OnboardingPage() {
                 accent={pc}
                 accentTint={pcTint}
               />
-              <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius: 14, padding: "12px 15px", marginTop: 12 }}>
-                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
+              <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "12px 15px", marginTop: 12 }}>
+                <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0
                     ? "לא נוסיף שום טיפול שלא סימנת. אפשר להוסיף הכל ידנית מאוחר יותר תחת הגדרות ← שירותים."
                     : `${pickedServices.length} טיפולים ייווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
@@ -358,15 +360,15 @@ export default function OnboardingPage() {
 
           {step === 5 && (
             <>
-              <h1 style={titleStyle}>📥 יש לך נתונים בתוכנה אחרת?</h1>
+              <h1 style={titleStyle}><Icon name="download" size={22}/> יש לך נתונים בתוכנה אחרת?</h1>
               {!showChooser ? (
                 <>
                   <p style={subtitleStyle}>
                     אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות — בלי להקליד הכל מחדש.
                     מייצאים מהתוכנה הקודמת לאקסל, מעתיקים ומדביקים. אנחנו נשאל מה כל עמודה מייצגת.
                   </p>
-                  <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius: 14, padding: "13px 15px", marginTop: 4 }}>
-                    <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
+                  <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "13px 15px", marginTop: 4 }}>
+                    <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                       אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
                     </p>
                   </div>
@@ -375,8 +377,7 @@ export default function OnboardingPage() {
                 <>
                   <p style={subtitleStyle}>
                     {saving
-                      ? "רגע, שומרים את ההגדרות ופותחים את הייבוא..."
-                      : "מה להעביר קודם? נשמור את ההגדרות ונמשיך ישר לשם."}
+                      ?<Spinner inline label="רגע, שומרים את ההגדרות ופותחים את הייבוא"/>: "מה להעביר קודם? נשמור את ההגדרות ונמשיך ישר לשם."}
                   </p>
                   <ImportChooser onPick={k => finish(k)} accent={pc} accentTint={pcTint} />
                 </>
@@ -386,7 +387,7 @@ export default function OnboardingPage() {
 
           {step === 3 && (
             <>
-              <h1 style={titleStyle}>🕐 שעות עבודה</h1>
+              <h1 style={titleStyle}><Icon name="clock" size={22}/> שעות עבודה</h1>
               <p style={subtitleStyle}>שעות ההתחלה והסיום הרגילות שלך, מ-0 עד 24. בהגדרות ← שעות אפשר לקבוע שעות שונות לכל יום בנפרד, כולל שישי ושבת וכולל שעות ערב.</p>
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
                 <Field label="התחלה" inline>
@@ -400,7 +401,7 @@ export default function OnboardingPage() {
                     style={{ ...inputStyle, textAlign: "center" }}
                   />
                 </Field>
-                <span style={{ fontSize: 18, color: "var(--ink-3)", marginTop: 22, fontWeight: 600 }}>—</span>
+                <span style={{ fontSize:"var(--t-xl)", color: "var(--ink-3)", marginTop: 22, fontWeight: 600 }}>—</span>
                 <Field label="סיום" inline>
                   <input
                     className="ob-input"
@@ -413,7 +414,7 @@ export default function OnboardingPage() {
                   />
                 </Field>
               </div>
-              <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius: 11, padding: "11px 14px", fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                 ✨ כמעט סיימנו — עוד שלב אחד ואנחנו בפנים.
               </div>
             </>
@@ -422,7 +423,7 @@ export default function OnboardingPage() {
 
         {/* Error */}
         {error && (
-          <div style={{ background: "rgba(224,91,111,0.10)", border: "1px solid var(--danger)", color: "var(--danger)", padding: "10px 14px", borderRadius: 10, fontSize: 12, marginTop: 14, textAlign: "right" }}>
+          <div style={{ background: "rgba(224,91,111,0.10)", border: "1px solid var(--danger)", color: "var(--danger)", padding: "10px 14px", borderRadius:"var(--r-sm)", fontSize:"var(--t-sm)", marginTop: 14, textAlign: "right" }}>
             ⚠️ {error}
           </div>
         )}
@@ -438,7 +439,7 @@ export default function OnboardingPage() {
           {step < STEP_NAMES.length ? (
             <>
               <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                דלג
+                דלגי
               </button>
               <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc }}>
                 הבא ←
@@ -452,7 +453,7 @@ export default function OnboardingPage() {
             <>
               <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-secondary"
                 style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                {saving ? "שומר..." : "לא עכשיו"}
+                {saving ?<Spinner inline label="שומר"/>: "לא עכשיו"}
               </button>
               {!showChooser && (
                 <button onClick={()=>setShowChooser(true)} className="ob-btn-primary"
@@ -466,7 +467,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Tiny footer hint */}
-      <p style={{ marginTop: 14, fontSize: 12, color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
+      <p style={{ marginTop: 14, fontSize:"var(--t-sm)", color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
         {/* The gear is an inline SVG in the app now, so naming an emoji here
             points her at a glyph that no longer appears anywhere. */}
         תמיד אפשר לעדכן את כל ההגדרות מאוחר יותר במסך ההגדרות
@@ -479,7 +480,7 @@ export default function OnboardingPage() {
 function Field({ label, children, inline = false }: { label: string; children: React.ReactNode; inline?: boolean }) {
   return (
     <div style={{ marginBottom: inline ? 0 : 14, flex: inline ? 1 : undefined }}>
-      <label style={{ display: "block", fontSize: 11, color: "var(--ink-2)", fontWeight: 600, marginBottom: 6 }}>{label}</label>
+      <label style={{ display: "block", fontSize:"var(--t-xs)", color: "var(--ink-2)", fontWeight: 600, marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   );
@@ -501,14 +502,14 @@ const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 460,
   background: "var(--surface)",
-  borderRadius: 18,
+  borderRadius:"var(--r-lg)",
   padding: 28,
-  boxShadow: "0 14px 44px rgba(44,26,26,0.08), 0 2px 8px rgba(44,26,26,0.04)",
+  boxShadow:"var(--shadow-lg)",
   border: "1px solid var(--line)",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: 22,
+  fontSize:"var(--t-2xl)",
   fontWeight: 800,
   color: "var(--ink)",
   marginBottom: 6,
@@ -516,7 +517,7 @@ const titleStyle: React.CSSProperties = {
 };
 
 const subtitleStyle: React.CSSProperties = {
-  fontSize: 12.5,
+  fontSize:"var(--t-sm)",
   color: "var(--ink-3)",
   marginBottom: 22,
   lineHeight: 1.6,
@@ -525,9 +526,9 @@ const subtitleStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   border: "1.5px solid var(--line)",
-  borderRadius: 10,
+  borderRadius:"var(--r-sm)",
   padding: "11px 13px",
-  fontSize: 13.5,
+  fontSize:"var(--t-md)",
   fontFamily: "inherit",
   outline: "none",
   direction: "rtl",
@@ -539,9 +540,9 @@ const inputStyle: React.CSSProperties = {
 const btnPrimaryStyle: React.CSSProperties = {
   padding: "11px 24px",
   border: "none",
-  borderRadius: 10,
+  borderRadius:"var(--r-sm)",
   color: "var(--surface)",
-  fontSize: 13,
+  fontSize:"var(--t-md)",
   fontWeight: 700,
   cursor: "pointer",
   fontFamily: "inherit",
@@ -554,9 +555,9 @@ const btnPrimaryStyle: React.CSSProperties = {
 const btnSecondaryStyle: React.CSSProperties = {
   padding: "11px 16px",
   border: "1.5px solid var(--line)",
-  borderRadius: 10,
+  borderRadius:"var(--r-sm)",
   background: "var(--surface)",
-  fontSize: 13,
+  fontSize:"var(--t-md)",
   color: "var(--ink-2)",
   cursor: "pointer",
   fontFamily: "inherit",

@@ -42,30 +42,30 @@ export default async function WebhookEventsPage() {
 
   return (
     <div dir="rtl" style={{ maxWidth: 860, margin: '0 auto', padding: '24px 16px', fontFamily: 'inherit' }}>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>אירועי לידים מפייסבוק</h1>
-      <p style={{ color: '#666', fontSize: 13, marginTop: 0 }}>
+      <h1 style={{ fontSize:"var(--t-2xl)", marginBottom: 4 }}>אירועי לידים מפייסבוק</h1>
+      <p style={{ color: '#666', fontSize:"var(--t-md)", marginTop: 0 }}>
         כל התראת ליד שפייסבוק שלחה אלינו — כולל כאלה שנכשלו. אם ליד לא הופיע ברשימת הלידים, הסיבה תופיע כאן.
       </p>
 
       {error && (
-        <div style={{ background: '#FDECEA', color: '#B3261E', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
+        <div style={{ background: '#FDECEA', color: '#B3261E', padding: '10px 14px', borderRadius:"var(--r-xs)", fontSize:"var(--t-md)" }}>
           {/* Most likely: the migration has not been applied yet. */}
           שגיאה בטעינת האירועים: {error.message}
         </div>
       )}
 
       {!error && events.length === 0 && (
-        <div style={{ background: '#F5F5F5', padding: '14px 16px', borderRadius: 8, fontSize: 13, color: '#555' }}>
+        <div style={{ background: '#F5F5F5', padding: '14px 16px', borderRadius:"var(--r-xs)", fontSize:"var(--t-md)", color: '#555' }}>
           עדיין לא התקבל אף אירוע מפייסבוק. אם קמפיין רץ עכשיו וזה נשאר ריק — הדף כנראה לא מחובר או לא רשום לעדכוני לידים.
         </div>
       )}
 
       {!error && events.length > 0 && (
         <>
-          <p style={{ fontSize: 13, color: failed > 0 ? '#B3261E' : '#2E7D32' }}>
+          <p style={{ fontSize:"var(--t-md)", color: failed > 0 ? '#B3261E' : '#2E7D32' }}>
             {events.length} אירועים אחרונים, מתוכם {failed} נכשלו.
           </p>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize:"var(--t-md)" }}>
             <thead>
               <tr style={{ textAlign: 'right', color: '#888', borderBottom: '1px solid #ddd' }}>
                 <th style={{ padding: '6px 8px' }}>מתי</th>

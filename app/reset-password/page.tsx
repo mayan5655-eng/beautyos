@@ -8,6 +8,7 @@
 // user set a new password via supabase.auth.updateUser.
 
 import { useEffect, useState } from 'react'
+import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
@@ -26,7 +27,7 @@ import {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12, border: `1px solid ${ACCENT_LINE_2}`,
-  borderRadius: 14, fontSize: 15, boxSizing: 'border-box', background: CREAM,
+  borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", boxSizing: 'border-box', background: CREAM,
   color: DEEP, outline: 'none', fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
 }
@@ -36,17 +37,17 @@ function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
     color: kind === 'error' ? '#B25B52' : '#2E7D50',
     background: kind === 'error' ? '#F9EFEE' : '#EEF5F0',
     border: `1px solid ${kind === 'error' ? '#EBD5D2' : '#D4E7DB'}`,
-    padding: 12, borderRadius: 12, marginBottom: 16, fontSize: 13.5, textAlign: 'center',
+    padding: 12, borderRadius:"var(--r-sm)", marginBottom: 16, fontSize:"var(--t-md)", textAlign: 'center',
   }
 }
 function btnStyle(loading: boolean): React.CSSProperties {
   return {
-    width: '100%', padding: 15, color: CONTRAST, border: 'none', borderRadius: 14,
+    width: '100%', padding: 15, color: CONTRAST, border: 'none', borderRadius:"var(--r-md)",
     // Text sits over the purple end of the gradient: 11.5:1.
     background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
-    fontSize: 15.5, fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
+    fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1,
-    boxShadow: `0 14px 30px -14px ${DEEP_SHADOW}`,
+    boxShadow:"var(--shadow-accent)",
     transition: 'transform 0.15s, box-shadow 0.15s',
   }
 }
@@ -196,13 +197,13 @@ export default function ResetPasswordPage() {
       setError(
         sameAsOld
           ? 'יש לבחור סיסמה חדשה, שונה מהקודמת.'
-          : 'לא ניתן לעדכן את הסיסמה. נסה/י שוב.'
+          : 'לא ניתן לעדכן את הסיסמה. נסי שוב.'
       )
       setLoading(false)
       return
     }
 
-    setNotice('הסיסמה עודכנה בהצלחה! מעביר/ה אותך לכניסה...')
+    setNotice('הסיסמה עודכנה בהצלחה! מעבירה אותך לכניסה…')
     // Clear the recovery session so the user logs in fresh with the new password.
     await supabase.auth.signOut()
     setTimeout(() => router.push('/login'), 2000)
@@ -240,24 +241,24 @@ export default function ResetPasswordPage() {
         className="auth-card"
         style={{
           background: SURFACE, padding: '38px 40px 42px',
-          borderRadius: 28, boxShadow: `0 26px 64px -32px ${DEEP_SHADOW}, 0 4px 14px rgba(48,24,72,0.05)`,
+          borderRadius:"var(--r-xl)", boxShadow:"var(--shadow-accent)",
           border: `1px solid ${ACCENT_LINE}`,
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <p style={{ margin: 0, color: MUTED, fontSize: 11, letterSpacing: '2.5px', fontWeight: 600 }}>
+          <p style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
             בחירת סיסמה חדשה
           </p>
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-            <span style={{ color: ROSE, fontSize: 12, lineHeight: 1 }}>✦</span>
+            <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>
 
         {checking ? (
-          <p style={{ textAlign: 'center', color: '#8A7A70', fontSize: 15, letterSpacing: '0.5px' }}>
-            טוען...
+          <p style={{ textAlign: 'center', color: '#8A7A70', fontSize:"var(--t-lg)", letterSpacing: '0.5px' }}>
+            <Spinner inline label="טוענת" />
           </p>
         ) : notice ? (
           <div style={noticeStyle('ok')}>{notice}</div>
@@ -285,7 +286,7 @@ export default function ResetPasswordPage() {
             {error && <div style={noticeStyle('error')}>{error}</div>}
 
             <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
-              {loading ? 'מעדכן...' : 'עדכון סיסמה'}
+              {loading ? <Spinner inline label="מעדכן" /> : 'עדכון סיסמה'}
             </button>
           </form>
         ) : (

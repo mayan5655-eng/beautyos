@@ -64,6 +64,21 @@
   --shadow-lg: 0 18px 44px rgba(43, 34, 51, 0.10), 0 6px 14px rgba(43, 34, 51, 0.05);
   --shadow-xl: 0 30px 70px rgba(43, 34, 51, 0.16), 0 10px 24px rgba(43, 34, 51, 0.07);
   --shadow-glow: 0 14px 40px rgba(74, 46, 90, 0.26);
+  /* The accent-tinted lift under primary buttons. One recipe, follows --pc. */
+  --shadow-accent: 0 8px 18px var(--pc-shadow);
+
+  /* — Type scale — eight steps, the whole product. Inline styles read these
+     and nothing else; a raw number for fontSize is a lint error
+     (eslint.config.mjs → local/design-tokens). Before this there were 27
+     distinct inline sizes, six of them half a pixel apart. */
+  --t-xs:   11px;   /* badge, chip, footnote */
+  --t-sm:   12px;   /* meta, secondary text */
+  --t-md:   14px;   /* body, inputs, buttons */
+  --t-lg:   16px;   /* emphasised body, big buttons */
+  --t-xl:   20px;   /* card titles */
+  --t-2xl:  24px;   /* section headings */
+  --t-3xl:  28px;   /* page headings, headline numbers */
+  --t-hero: 34px;   /* one number on a screen */
 
   /* — Signature gradients — */
   /* Purple → pink, exactly like the wordmark. No consumers yet. */
@@ -313,4 +328,62 @@ h1, h2, h3 {
 ::selection {
   background: rgba(232, 201, 233, 0.6);
   color: var(--plum-700);
+}
+
+/* ── Sheet: the one modal (app/Sheet.tsx) ──────────────────────────────────
+   One backdrop, one card, one radius, one shadow, one max height. Centred
+   card on a desk; bottom sheet on a phone, pinned where the thumb is. */
+.sheet-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(43, 34, 51, 0.45);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s-2);
+}
+.sheet {
+  width: var(--sheet-width, 380px); max-width: 100%;
+  max-height: 90dvh; overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl);
+  padding: var(--s-3);
+  animation: sheet-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.sheet-flush { padding: 0; }
+/* The card is a column whose child owns the scrolling (settings: pinned footer). */
+.sheet-column { display: flex; flex-direction: column; overflow: hidden; }
+.sheet-head { margin-bottom: var(--s-2); }
+.sheet-title { font-size: var(--t-xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.sheet-subtitle { font-size: var(--t-sm); color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (max-width: 680px) {
+  .sheet-backdrop { align-items: flex-end; padding: 0; }
+  .sheet {
+    width: 100%; max-width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-bottom: none;
+    padding: var(--s-3) var(--s-2) calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
+    animation-name: sheet-up;
+  }
+  .sheet-flush { padding: 0 0 env(safe-area-inset-bottom, 0px); }
+  .sheet input, .sheet select, .sheet textarea { font-size: 16px !important; } /* no zoom-on-focus on iOS */
+  @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+
+/* ── Spinner: the one loading state (app/Spinner.tsx) ────────────────────── */
+.spinner {
+  display: inline-block; border-radius: 50%; box-sizing: border-box;
+  border-style: solid; border-color: var(--pc-tint-2); border-top-color: var(--pc);
+  animation: spin 0.8s linear infinite; flex-shrink: 0;
+}
+.spinner-block { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: var(--s-3) 0; }
+.spinner-label { font-size: var(--t-sm); color: var(--ink-3); font-weight: 600; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } .sheet { animation: none; } }
+
+/* ── Tap targets: 44px on a phone, whatever the desk size ─────────────────── */
+@media (max-width: 680px) {
+  .tap44 { min-width: 44px !important; min-height: 44px !important; }
 }

@@ -1,6 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Icon from "../../../Icon";
+import Spinner from "../../../Spinner";
 import { useState } from 'react'
 import PostDesigner from './PostDesigner'
 import usePlanState from '../../../usePlanState'
@@ -121,8 +123,8 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
                 {campaign.status === 'active' ? '🚀 פעיל' : '✏️ טיוטה'}
               </span>
             </div>
-            <p className="text-purple-100 text-lg mb-2">🎯 {campaign.goal}</p>
-            <p className="text-purple-200 text-sm">📅 נוצר ב-{formatDate(campaign.created_at)}</p>
+            <p className="text-purple-100 text-lg mb-2"><Icon name="target" size={16}/> {campaign.goal}</p>
+            <p className="text-purple-200 text-sm"><Icon name="calendar" size={13}/> נוצר ב-{formatDate(campaign.created_at)}</p>
           </div>
           <button
             onClick={handleDelete}
@@ -130,7 +132,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
             title={readOnly ? DISABLED_REASON_HE : undefined}
             className={`text-white px-6 py-3 rounded-xl font-bold transition border-2 border-white/30 ${readOnly ? 'bg-red-500/10 opacity-50 cursor-not-allowed' : 'bg-red-500/20 hover:bg-red-500/40'}`}
           >
-            {deleting ? '⏳' : '🗑️ מחק קמפיין'}
+            {deleting ? <Spinner inline label="מוחקת" /> : <><Icon name="trash" size={14}/> מחיקת קמפיין</>}
           </button>
         </div>
       </div>
@@ -138,13 +140,13 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {campaign.service_type && (
           <div className="bg-white rounded-2xl shadow-lg p-5 border-r-4 border-pink-500">
-            <div className="text-sm text-gray-500 font-semibold mb-1">💆 סוג טיפול</div>
+            <div className="text-sm text-gray-500 font-semibold mb-1"><Icon name="spa" size={13}/> סוג טיפול</div>
             <div className="text-lg font-bold text-gray-800">{campaign.service_type}</div>
           </div>
         )}
         {campaign.target_audience && (
           <div className="bg-white rounded-2xl shadow-lg p-5 border-r-4 border-blue-500">
-            <div className="text-sm text-gray-500 font-semibold mb-1">👥 קהל יעד</div>
+            <div className="text-sm text-gray-500 font-semibold mb-1"><Icon name="people" size={13}/> קהל יעד</div>
             <div className="text-lg font-bold text-gray-800">{campaign.target_audience}</div>
           </div>
         )}
@@ -153,22 +155,22 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
       {campaign.ai_strategy && (
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            🤖 אסטרטגיית AI
+            <Icon name="robot" size={20}/> אסטרטגיית AI
           </h2>
           <div className="space-y-4">
             <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-5">
-              <h3 className="font-bold text-purple-800 text-lg mb-2">📋 הגישה</h3>
+              <h3 className="font-bold text-purple-800 text-lg mb-2"><Icon name="clipboard" size={16}/> הגישה</h3>
               <p className="text-gray-700 leading-relaxed">{campaign.ai_strategy}</p>
             </div>
             {campaign.ai_tone && (
               <div className="bg-pink-50 border-2 border-pink-200 rounded-2xl p-5">
-                <h3 className="font-bold text-pink-800 text-lg mb-2">🎨 טון הקמפיין</h3>
+                <h3 className="font-bold text-pink-800 text-lg mb-2"><Icon name="palette" size={16}/> טון הקמפיין</h3>
                 <p className="text-gray-700">{campaign.ai_tone}</p>
               </div>
             )}
             {campaign.ai_key_points && campaign.ai_key_points.length > 0 && (
               <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5">
-                <h3 className="font-bold text-amber-800 text-lg mb-3">💡 מסרים מרכזיים</h3>
+                <h3 className="font-bold text-amber-800 text-lg mb-3"><Icon name="bulb" size={16}/> מסרים מרכזיים</h3>
                 <ul className="space-y-2">
                   {campaign.ai_key_points.map((p, i) => (
                     <li key={i} className="flex gap-2 text-gray-700">
@@ -186,7 +188,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
       {posts.length > 0 && (
         <div className="bg-white rounded-3xl shadow-xl p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            ✍️ הפוסטים שלך ({posts.length})
+            <Icon name="pen" size={20}/> הפוסטים שלך ({posts.length})
           </h2>
           <div className="space-y-5">
             {posts.map((post) => (
@@ -205,7 +207,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
                 <h3 className="font-bold text-gray-800 text-xl mb-2">{post.title}</h3>
                 <p className="text-gray-700 whitespace-pre-wrap mb-3 leading-relaxed">{post.body}</p>
                 <div className="bg-white rounded-xl p-3 mb-3">
-                  <p className="text-purple-700 font-semibold mb-1">📢 {post.call_to_action}</p>
+                  <p className="text-purple-700 font-semibold mb-1"><Icon name="megaphone" size={14}/> {post.call_to_action}</p>
                   {post.hashtags && post.hashtags.length > 0 && (
                     <p className="text-blue-600 text-sm">{post.hashtags.join(' ')}</p>
                   )}
@@ -254,13 +256,13 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
                     onClick={() => copyPost(post)}
                     className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl hover:scale-105 transition shadow-md"
                   >
-                    📋 העתק פוסט
+                    <Icon name="copy" size={14}/> העתקת פוסט
                   </button>
                   <button
                     onClick={() => setDesignPost(post)}
                     className="w-full py-3 bg-white border-2 border-purple-300 text-purple-700 font-bold rounded-xl hover:bg-purple-50 transition shadow-md"
                   >
-                    🎨 צור פוסט מעוצב
+                    <Icon name="palette" size={14}/> צרי פוסט מעוצב
                   </button>
                 </div>
               </div>
@@ -271,7 +273,7 @@ export default function CampaignClient({ campaign, posts, settings }: { campaign
 
       {posts.length === 0 && (
         <div className="bg-white rounded-3xl shadow-lg p-12 text-center">
-          <div className="text-6xl mb-4">📝</div>
+          <div className="mb-4 text-gray-400"><Icon name="pen" size={44}/></div>
           <p className="text-gray-600 text-lg">אין פוסטים בקמפיין הזה</p>
         </div>
       )}

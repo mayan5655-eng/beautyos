@@ -155,16 +155,16 @@ export default function AdminClient({
   }
 
   const th: React.CSSProperties = {
-    textAlign: 'right', fontSize: 11, fontWeight: 600, color: ink2,
+    textAlign: 'right', fontSize:"var(--t-xs)", fontWeight: 600, color: ink2,
     letterSpacing: '0.3px', padding: '10px 12px', whiteSpace: 'nowrap',
     borderBottom: `1px solid ${line}`,
   }
   const td: React.CSSProperties = {
-    fontSize: 13, color: ink, padding: '13px 12px', verticalAlign: 'middle',
+    fontSize:"var(--t-md)", color: ink, padding: '13px 12px', verticalAlign: 'middle',
     borderBottom: `1px solid ${line}`,
   }
   const btn: React.CSSProperties = {
-    fontSize: 11.5, fontWeight: 500, padding: '6px 12px', borderRadius: 999,
+    fontSize:"var(--t-sm)", fontWeight: 500, padding: '6px 12px', borderRadius:"var(--r-full)",
     border: `1px solid ${line}`, background: surface, color: ink,
     cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   }
@@ -172,10 +172,10 @@ export default function AdminClient({
   return (
     <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif", color: ink }}>
       <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
+        <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
           ניהול מנויים
         </h1>
-        <p style={{ fontSize: 13, color: ink2, marginTop: 6, lineHeight: 1.6 }}>
+        <p style={{ fontSize:"var(--t-md)", color: ink2, marginTop: 6, lineHeight: 1.6 }}>
           כל העסקים במערכת, מצב המנוי שלהם והפעולות הזמינות. שינוי כאן משפיע מיד על
           מה שהעסק יכול לעשות. שום פעולה כאן לא מוחקת נתונים.
         </p>
@@ -185,44 +185,44 @@ export default function AdminClient({
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
         {(['expired', 'paused', 'trial', 'active'] as PlanStatus[]).map((s) => (
           <div key={s} style={{
-            padding: '10px 16px', borderRadius: 14, background: STATUS_COLOR[s].bg,
+            padding: '10px 16px', borderRadius:"var(--r-md)", background: STATUS_COLOR[s].bg,
             border: `1px solid ${STATUS_COLOR[s].border}`, minWidth: 96,
           }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: STATUS_COLOR[s].fg }}>
+            <div style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: STATUS_COLOR[s].fg }}>
               {counts[s]}
             </div>
-            <div style={{ fontSize: 11, color: STATUS_COLOR[s].fg, opacity: 0.85 }}>
+            <div style={{ fontSize:"var(--t-xs)", color: STATUS_COLOR[s].fg, opacity: 0.85 }}>
               {STATUS_HE[s]}
             </div>
           </div>
         ))}
         <div style={{
-          padding: '10px 16px', borderRadius: 14, background: cream,
+          padding: '10px 16px', borderRadius:"var(--r-md)", background: cream,
           border: `1px solid ${line}`, minWidth: 96,
         }}>
-          <div style={{ fontSize: 20, fontWeight: 600 }}>{rows.length}</div>
-          <div style={{ fontSize: 11, color: ink2 }}>סך הכל</div>
+          <div style={{ fontSize:"var(--t-xl)", fontWeight: 600 }}>{rows.length}</div>
+          <div style={{ fontSize:"var(--t-xs)", color: ink2 }}>סך הכל</div>
         </div>
       </div>
 
       {notice && (
         <div style={{
-          padding: '11px 15px', borderRadius: 12, background: '#EDF4EE',
-          border: '1px solid #D3E5D6', color: '#4E7A55', fontSize: 13, marginBottom: 14,
+          padding: '11px 15px', borderRadius:"var(--r-sm)", background: '#EDF4EE',
+          border: '1px solid #D3E5D6', color: '#4E7A55', fontSize:"var(--t-md)", marginBottom: 14,
         }}>{notice}</div>
       )}
       {error && (
         <div style={{
-          padding: '11px 15px', borderRadius: 12, background: '#FAEDEB',
-          border: '1px solid #EBD4D0', color: '#9A5148', fontSize: 13, marginBottom: 14,
+          padding: '11px 15px', borderRadius:"var(--r-sm)", background: '#FAEDEB',
+          border: '1px solid #EBD4D0', color: '#9A5148', fontSize:"var(--t-md)", marginBottom: 14,
         }}>{error}</div>
       )}
 
       {rows.length === 0 ? (
-        <p style={{ fontSize: 14, color: ink2 }}>אין עדיין עסקים במערכת.</p>
+        <p style={{ fontSize:"var(--t-md)", color: ink2 }}>אין עדיין עסקים במערכת.</p>
       ) : (
         <div style={{
-          overflowX: 'auto', background: surface, borderRadius: 18,
+          overflowX: 'auto', background: surface, borderRadius:"var(--r-lg)",
           border: `1px solid ${line}`,
         }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
@@ -250,16 +250,16 @@ export default function AdminClient({
                       <div style={{ fontWeight: 500 }}>{tenant.name || 'ללא שם'}</div>
                       {isOwn && (
                         <span style={{
-                          fontSize: 12, color: ink2, background: cream,
-                          border: `1px solid ${line}`, borderRadius: 999,
+                          fontSize:"var(--t-sm)", color: ink2, background: cream,
+                          border: `1px solid ${line}`, borderRadius:"var(--r-full)",
                           padding: '2px 8px', display: 'inline-block', marginTop: 4,
                         }}>העסק שלך</span>
                       )}
                     </td>
                     <td style={td}>
                       <span style={{
-                        fontSize: 11.5, fontWeight: 600, color: c.fg, background: c.bg,
-                        border: `1px solid ${c.border}`, borderRadius: 999, padding: '4px 12px',
+                        fontSize:"var(--t-sm)", fontWeight: 600, color: c.fg, background: c.bg,
+                        border: `1px solid ${c.border}`, borderRadius:"var(--r-full)", padding: '4px 12px',
                       }}>{STATUS_HE[plan.status]}</span>
                     </td>
                     <td style={{ ...td, color: plan.daysRemaining !== null && plan.daysRemaining <= 7 ? '#9A5148' : ink }}>
@@ -268,7 +268,7 @@ export default function AdminClient({
                     <td style={{ ...td, color: ink2 }}>{fmtDate(tenant.trial_started_at)}</td>
                     <td style={{ ...td, color: ink2 }}>{fmtDate(tenant.trial_ends_at)}</td>
                     <td style={td}>{fmtPrice(tenant.plan_price)}</td>
-                    <td style={{ ...td, color: ink2, fontSize: 12 }}>{tenant.signup_source || '—'}</td>
+                    <td style={{ ...td, color: ink2, fontSize:"var(--t-sm)" }}>{tenant.signup_source || '—'}</td>
                     <td style={td}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         {EXTEND_PRESETS.map((d) => (
@@ -285,7 +285,7 @@ export default function AdminClient({
                           disabled={busy}
                           onChange={(e) => setExtendDays((p) => ({ ...p, [tenant.id]: Number(e.target.value) }))}
                           style={{
-                            width: 58, fontSize: 11.5, padding: '6px 8px', borderRadius: 10,
+                            width: 58, fontSize:"var(--t-sm)", padding: '6px 8px', borderRadius:"var(--r-sm)",
                             border: `1px solid ${line}`, fontFamily: 'inherit', textAlign: 'center',
                           }}
                           aria-label="מספר ימים להארכה"
@@ -328,7 +328,7 @@ export default function AdminClient({
         </div>
       )}
 
-      <p style={{ fontSize: 11.5, color: ink2, marginTop: 16, lineHeight: 1.7 }}>
+      <p style={{ fontSize:"var(--t-sm)", color: ink2, marginTop: 16, lineHeight: 1.7 }}>
         הארכה מוסיפה ימים מהיום או מתאריך הסיום הקיים, לפי המאוחר מביניהם, ומחזירה
         את העסק למצב התנסות. הפעלה משאירה את תאריכי ההתנסות כפי שהם, כתיעוד.
         השהיה מעבירה למצב צפייה בלבד: העסק ממשיך לראות הכל, ודף ההזמנות הציבורי

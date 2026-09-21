@@ -108,7 +108,7 @@ export default function ServiceTemplatePicker({
             key={group.key}
             style={{
               border: '1px solid var(--line)',
-              borderRadius: 14,
+              borderRadius:"var(--r-md)",
               overflow: 'hidden',
               background: 'var(--surface)',
             }}
@@ -130,24 +130,24 @@ export default function ServiceTemplatePicker({
                 textAlign: 'right',
               }}
             >
-              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>
+              <span style={{ flex: 1, fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)' }}>
                 {group.label}
               </span>
               {chosenHere > 0 && (
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize:"var(--t-sm)",
                     fontWeight: 700,
                     color: accent,
                     background: 'var(--surface)',
-                    borderRadius: 999,
+                    borderRadius:"var(--r-full)",
                     padding: '3px 10px',
                   }}
                 >
                   {chosenHere} נבחרו
                 </span>
               )}
-              <span aria-hidden style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+              <span aria-hidden style={{ fontSize:"var(--t-md)", color: 'var(--ink-3)' }}>
                 {open ? '▲' : '▼'}
               </span>
             </button>
@@ -193,11 +193,11 @@ export default function ServiceTemplatePicker({
                             width: 22,
                             height: 22,
                             flexShrink: 0,
-                            borderRadius: 7,
+                            borderRadius:"var(--r-xs)",
                             border: isPicked ? `2px solid ${accent}` : '1.5px solid var(--line-2)',
                             background: isPicked ? accent : 'var(--surface)',
                             color: 'var(--surface)',
-                            fontSize: 13,
+                            fontSize:"var(--t-md)",
                             fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
@@ -211,7 +211,7 @@ export default function ServiceTemplatePicker({
                           <span
                             style={{
                               display: 'block',
-                              fontSize: 13,
+                              fontSize:"var(--t-md)",
                               fontWeight: 600,
                               color: 'var(--ink)',
                               lineHeight: 1.4,
@@ -220,7 +220,7 @@ export default function ServiceTemplatePicker({
                             {item.name}
                           </span>
                           <span
-                            style={{ display: 'block', fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}
+                            style={{ display: 'block', fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 2 }}
                           >
                             {already
                               ? 'כבר ברשימה שלך'
@@ -262,7 +262,7 @@ export default function ServiceTemplatePicker({
                               style={numInput}
                             />
                           </label>
-                          <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>
+                          <span style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)' }}>
                             הצעה בלבד — אפשר לשנות
                           </span>
                         </div>
@@ -283,7 +283,7 @@ const fieldLabel: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  fontSize: 12,
+  fontSize:"var(--t-sm)",
   color: 'var(--ink-2)',
   fontWeight: 600,
 };
@@ -292,10 +292,10 @@ const numInput: React.CSSProperties = {
   width: 74,
   // 16px so iOS Safari does not zoom the page on focus — the rule the mobile
   // work established for every form field.
-  fontSize: 16,
+  fontSize:"var(--t-lg)",
   fontFamily: 'inherit',
   border: '1px solid var(--line-2)',
-  borderRadius: 9,
+  borderRadius:"var(--r-xs)",
   padding: '7px 9px',
   textAlign: 'center',
   background: 'var(--surface)',

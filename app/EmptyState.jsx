@@ -56,7 +56,7 @@ export default function EmptyState({
         textAlign: "center",
         padding: compact ? "20px 14px" : "34px 18px",
         background: accentTint,
-        borderRadius: 16,
+        borderRadius:"var(--r-md)",
         margin: compact ? "6px 0" : "10px 0",
       }}
     >
@@ -79,13 +79,13 @@ export default function EmptyState({
         </svg>
       </div>
 
-      <p style={{ fontSize: compact ? 13 : 15, fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
+      <p style={{ fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
         {title}
       </p>
       {body && (
         <p
           style={{
-            fontSize: compact ? 11.5 : 12.5,
+            fontSize: compact ? "var(--t-xs)" : "var(--t-sm)",
             color: "var(--ink-2)",
             lineHeight: 1.65,
             maxWidth: 300,
@@ -116,13 +116,13 @@ export default function EmptyState({
                 i === 0
                   ? {
                       background: accent, color: "var(--surface)", border: "none",
-                      borderRadius: 24, padding: "11px 20px", fontSize: 12.5,
+                      borderRadius:"var(--r-xl)", padding: "11px 20px", fontSize:"var(--t-sm)",
                       fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                     }
                   : {
                       background: "var(--surface)", color: "var(--ink-2)",
-                      border: "1px solid var(--line-2)", borderRadius: 24,
-                      padding: "11px 18px", fontSize: 12.5, fontWeight: 600,
+                      border: "1px solid var(--line-2)", borderRadius:"var(--r-xl)",
+                      padding: "11px 18px", fontSize:"var(--t-sm)", fontWeight: 600,
                       cursor: "pointer", fontFamily: "inherit",
                     }
               }

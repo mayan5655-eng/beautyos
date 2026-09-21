@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import Icon from "../Icon";
+import Spinner from "../Spinner";
 import { supabase } from "../supabase";
 import { fetchPublicBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
@@ -219,15 +221,15 @@ export default function SkinScanPage() {
     : s >= 55 ? "יש לך בסיס יפה לעבודה. עם ליווי מותאם אפשר לראות שיפור נעים וברור."
     : "יחד נבנה תוכנית מותאמת שתעשה שינוי אמיתי, צעד אחר צעד, בקצב שלך.";
 
-  const card = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 18, padding: "18px 20px", boxShadow: "0 6px 22px rgba(91,62,103,0.06)", border: `1px solid ${LINE}`, marginBottom: 14 };
-  const sectionLabel = { fontSize: 11.5, letterSpacing: "1.5px", color: ACCENT, fontWeight: 700, marginBottom: 8 };
+  const card = { background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)", padding: "18px 20px", boxShadow:"var(--shadow-md)", border: `1px solid ${LINE}`, marginBottom: 14 };
+  const sectionLabel = { fontSize:"var(--t-sm)", letterSpacing: "1.5px", color: ACCENT, fontWeight: 700, marginBottom: 8 };
   const pro = report?.therapist_notes || {};
   const plan = report?.clinic_plan || {};
   const concerns = report?.concerns || [];
   const priority = concerns[0]; // the AI lists concerns most-important first
 
   const bookCard = (label) => (
-    bookHref() ? <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: "var(--brand-surface, #FAF6FC)", color: DEEP, padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, textAlign: "center", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>{label}</a> : null
+    bookHref() ? <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: "var(--brand-surface, #FAF6FC)", color: DEEP, padding: "15px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 800, textAlign: "center", boxShadow:"var(--shadow-md)" }}>{label}</a> : null
   );
 
   return (
@@ -258,22 +260,22 @@ export default function SkinScanPage() {
             amputated. A soft padded surface at natural aspect instead: contain
             never crops, wide takes width, square takes height. */}
         {brand?.logoUrl ? (
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-surface, #FAF6FC)", borderRadius: 18, padding: "10px 16px", boxShadow: "0 12px 30px -14px rgba(70,50,60,0.4)", margin: "0 auto 12px", border: `1px solid ${ACCENT}33`, maxWidth: "80%" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)", padding: "10px 16px", boxShadow:"var(--shadow-lg)", margin: "0 auto 12px", border: `1px solid ${ACCENT}33`, maxWidth: "80%" }}>
             <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 64, maxWidth: 190, width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
           </div>
         ) : brand?.businessName ? (
-          <p className="serif" style={{ fontSize: 19, fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
+          <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
         ) : null}
-        <p style={{ fontSize: 11, letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
-        <h1 className="serif" style={{ fontSize: 30, fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך<br />וקבלי המלצה מקצועית</>}</h1>
-        <p style={{ fontSize: 13.5, color: INK2, fontWeight: 500, lineHeight: 1.6 }}>{brand?.welcomeMessage || "העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה."}</p>
+        <p style={{ fontSize:"var(--t-xs)", letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
+        <h1 className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך<br />וקבלי המלצה מקצועית</>}</h1>
+        <p style={{ fontSize:"var(--t-md)", color: INK2, fontWeight: 500, lineHeight: 1.6 }}>{brand?.welcomeMessage || "העלי תמונה אחת, וקבלי ניתוח אישי והמלצת טיפול תוך כדקה."}</p>
       </div>
 
       <div style={{ width: "100%", maxWidth: 500, padding: "14px 20px 0" }}>
 
         {/* ===== WELCOME + UPLOAD / PREVIEW ===== */}
         {!report && (
-          <div className="ss-card" style={{ ...card, padding: "22px 20px 24px", borderRadius: 22, textAlign: "center" }}>
+          <div className="ss-card" style={{ ...card, padding: "22px 20px 24px", borderRadius:"var(--r-lg)", textAlign: "center" }}>
             {!preview && !loading && (
               <div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap", marginBottom: 18 }}>
                 <span className="chip">✦ ניתוח אישי</span>
@@ -284,19 +286,19 @@ export default function SkinScanPage() {
 
             {/* AGE GATE + CONSENT, before any photo. The pickers below refuse
                 to open until both are ticked, and say why. */}
-            <div style={{ borderRadius: 16, border: `1px solid ${gateOk ? ACCENT : LINE}`, background: "var(--brand-surface, #FAF6FC)", padding: "12px 14px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ borderRadius:"var(--r-md)", border: `1px solid ${gateOk ? ACCENT : LINE}`, background: "var(--brand-surface, #FAF6FC)", padding: "12px 14px", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                 <input type="checkbox" checked={isAdult} onChange={(e) => { setIsAdult(e.target.checked); setGateError(""); }} aria-label="אני בת 18 ומעלה" style={{ width: 20, height: 20, marginTop: 1, flexShrink: 0, accentColor: ACCENT }} />
-                <span style={{ fontSize: 13.5, color: INK2, lineHeight: 1.55 }}><b style={{ color: DEEP }}>אני בת 18 ומעלה.</b> הסריקה מיועדת לבגירות בלבד.</span>
+                <span style={{ fontSize:"var(--t-md)", color: INK2, lineHeight: 1.55 }}><b style={{ color: DEEP }}>אני בת 18 ומעלה.</b> הסריקה מיועדת לבגירות בלבד.</span>
               </label>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                 <input type="checkbox" checked={photoConsent} onChange={(e) => { setPhotoConsent(e.target.checked); setGateError(""); }} aria-label="הסכמה לניתוח התמונה" style={{ width: 20, height: 20, marginTop: 1, flexShrink: 0, accentColor: ACCENT }} />
-                <span style={{ fontSize: 13.5, color: INK2, lineHeight: 1.55 }}>
+                <span style={{ fontSize:"var(--t-md)", color: INK2, lineHeight: 1.55 }}>
                   אני מסכימה שתמונת הפנים שלי תישלח לניתוח אוטומטי לצורך הערכה קוסמטית בלבד, ושהתוצאה תוצג לי ולעסק.{" "}
                   <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: ACCENT, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
                 </span>
               </label>
-              {gateError && <p style={{ fontSize: 12.5, color: "var(--danger, #E05B6F)", fontWeight: 600 }}>{gateError}</p>}
+              {gateError && <p style={{ fontSize:"var(--t-sm)", color: "var(--danger, #E05B6F)", fontWeight: 600 }}>{gateError}</p>}
             </div>
 
             {/* 3-ANGLE CAPTURE — front (required, analyzed) + optional left/right profiles */}
@@ -306,23 +308,23 @@ export default function SkinScanPage() {
                 { key: "left", label: "פרופיל שמאל", req: false, thumb: leftPreview, onPick: () => leftRef.current?.click() },
                 { key: "right", label: "פרופיל ימין", req: false, thumb: rightPreview, onPick: () => rightRef.current?.click() },
               ].map((a) => (
-                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius: 16, overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #EDE7F0)`, background: a.thumb ? "var(--brand-surface, #FAF6FC)" : "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius:"var(--r-md)", overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #EDE7F0)`, background: a.thumb ? "var(--brand-surface, #FAF6FC)" : "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                   {a.thumb ? (
                     <>
                       <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(58,46,56,0.55)", color: "var(--brand-surface, #FAF6FC)", fontSize: 12, fontWeight: 600, padding: "3px 0" }}>{a.label} · החלפה</span>
+                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(58,46,56,0.55)", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, padding: "3px 0" }}>{a.label} · החלפה</span>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 22, marginBottom: 6 }}>📷</div>
-                      <p style={{ fontSize: 11.5, fontWeight: 700, color: DEEP, lineHeight: 1.3 }}>{a.label}</p>
-                      <p style={{ fontSize: 11.5, color: a.req ? ACCENT : INK2, marginTop: 2, fontWeight: a.req ? 700 : 500 }}>{a.req ? "חובה" : "רשות"}</p>
+                      <div style={{ marginBottom: 6 }}><Icon name="camera" size={24}/></div>
+                      <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: DEEP, lineHeight: 1.3 }}>{a.label}</p>
+                      <p style={{ fontSize:"var(--t-sm)", color: a.req ? ACCENT : INK2, marginTop: 2, fontWeight: a.req ? 700 : 500 }}>{a.req ? "חובה" : "רשות"}</p>
                     </>
                   )}
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: 12, color: "var(--brand-muted, #98879B)", lineHeight: 1.55, marginBottom: 14, textAlign: "center" }}>
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.55, marginBottom: 14, textAlign: "center" }}>
               <b style={{ color: DEEP }}>תמונת חזית</b> היא כל מה שצריך לניתוח. אפשר להוסיף גם פרופיל שמאל וימין אם תרצי (רשות).
             </p>
 
@@ -331,33 +333,33 @@ export default function SkinScanPage() {
             <input ref={rightRef} type="file" accept="image/*" capture="user" onChange={(e) => handleSide(e, "right")} style={{ display: "none" }} />
 
             {!preview && !loading && (
-              <div style={{ background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${LINE}`, borderRadius: 14, padding: "12px 14px", marginBottom: 16, textAlign: "right" }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: DEEP, marginBottom: 7 }}>לתוצאה הכי מדויקת</p>
-                {[["☀️", "אור טבעי ורך, פנים אל מול האור"], ["🙂", "פנים במרכז התמונה, מבט למצלמה"], ["💧", "ללא איפור, שיער אסוף"]].map(([ic, tx], i) => (
+              <div style={{ background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${LINE}`, borderRadius:"var(--r-md)", padding: "12px 14px", marginBottom: 16, textAlign: "right" }}>
+                <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: DEEP, marginBottom: 7 }}>לתוצאה הכי מדויקת</p>
+                {[["sun", "אור טבעי ורך, פנים אל מול האור"], ["smile", "פנים במרכז התמונה, מבט למצלמה"], ["drop", "ללא איפור, שיער אסוף"]].map(([ic, tx], i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: i < 2 ? 6 : 0 }}>
-                    <span style={{ fontSize: 13, flexShrink: 0 }}>{ic}</span>
-                    <p style={{ fontSize: 12.5, color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{tx}</p>
+                    <span style={{ flexShrink: 0, display: "inline-flex" }}><Icon name={ic} size={16} /></span>
+                    <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{tx}</p>
                   </div>
                 ))}
               </div>
             )}
 
             {errorMsg && (
-              <div style={{ background: "rgba(224,91,111,0.10)", border: "1px solid rgba(224,91,111,0.10)", borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
-                <p style={{ color: "var(--danger, #E05B6F)", fontSize: 13, fontWeight: 600 }}>{errorMsg}</p>
-                <p style={{ color: "var(--danger, #E05B6F)", fontSize: 11.5, marginTop: 3 }}>אפשר לנסות שוב עם תמונה ברורה יותר.</p>
+              <div style={{ background: "rgba(224,91,111,0.10)", border: "1px solid rgba(224,91,111,0.10)", borderRadius:"var(--r-sm)", padding: "10px 12px", marginBottom: 12 }}>
+                <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600 }}>{errorMsg}</p>
+                <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-sm)", marginTop: 3 }}>אפשר לנסות שוב עם תמונה ברורה יותר.</p>
               </div>
             )}
 
             {loading ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, padding: "16px 0" }}>
                 <div className="ss-ring" />
-                <p key={loadStep} className="ss-fade" style={{ fontSize: 14, color: DEEP, fontWeight: 600, minHeight: 20 }}>{SCAN_STEPS[loadStep]}</p>
-                <p style={{ fontSize: 11.5, color: INK2 }}>רגע אחד, מכינות עבורך ניתוח אישי ✦</p>
+                <p key={loadStep} className="ss-fade" style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 600, minHeight: 20 }}>{SCAN_STEPS[loadStep]}</p>
+                <p style={{ fontSize:"var(--t-sm)", color: INK2 }}>רגע אחד, מכינות עבורך ניתוח אישי ✦</p>
               </div>
             ) : (
               preview && gateOk && (
-                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius: 15, background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", fontSize: 16.5, fontWeight: 700, boxShadow: `0 10px 26px rgba(91,62,103,0.28)` }}>קבלי את הניתוח שלך ✦</button>
+                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 700, boxShadow:"var(--shadow-xs)" }}>קבלי את הניתוח שלך ✦</button>
               )
             )}
           </div>
@@ -369,24 +371,24 @@ export default function SkinScanPage() {
 
             {/* MEDICAL DISCLAIMER — clear + visible at the very top of the results */}
             <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", border: "1px solid rgba(74,46,90,0.14)", display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>ℹ️</span>
-              <p style={{ fontSize: 12, color: "var(--brand-muted, #98879B)", lineHeight: 1.6, fontWeight: 500 }}>הסריקה נועדה להתרשמות ראשונית בלבד ואינה מחליפה ייעוץ או אבחון מקצועי. אין להסתמך על ההמלצות כאבחנה סופית.</p>
+              <span style={{ fontSize:"var(--t-lg)", flexShrink: 0, marginTop: 1 }}>ℹ️</span>
+              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, fontWeight: 500 }}>הסריקה נועדה להתרשמות ראשונית בלבד ואינה מחליפה ייעוץ או אבחון מקצועי. אין להסתמך על ההמלצות כאבחנה סופית.</p>
             </div>
 
             {/* 1) OVERALL SUMMARY — score + type + warm one-liner */}
-            <div style={{ ...card, padding: "26px 20px", borderRadius: 22, textAlign: "center" }}>
+            <div style={{ ...card, padding: "26px 20px", borderRadius:"var(--r-lg)", textAlign: "center" }}>
               <p style={{ ...sectionLabel, marginBottom: 12 }}>מדד בריאות העור שלך</p>
               <div style={{ width: 116, height: 116, borderRadius: "50%", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: `6px solid ${scoreColor(report.score)}`, background: "var(--brand-surface, #FAF6FC)" }}>
-                <span className="serif" style={{ fontSize: 40, fontWeight: 700, color: scoreColor(report.score) }}>{report.score}</span>
+                <span className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 700, color: scoreColor(report.score) }}>{report.score}</span>
               </div>
-              <p className="serif" style={{ fontSize: 18, fontWeight: 600, color: INK, marginTop: 14 }}>{report.skin_type}</p>
-              {report.summary && <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", lineHeight: 1.7, marginTop: 8 }}>{report.summary}</p>}
+              <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: INK, marginTop: 14 }}>{report.skin_type}</p>
+              {report.summary && <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)", lineHeight: 1.7, marginTop: 8 }}>{report.summary}</p>}
             </div>
 
             {/* 2) POSITIVE OBSERVATIONS — build confidence first (from the real score band) */}
             <div style={{ ...card, background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FEFAF7))", border: "1px solid rgba(70,179,123,0.12)" }}>
               <p style={{ ...sectionLabel, color: "var(--success, #46B37B)" }}>החדשות הטובות</p>
-              <p style={{ fontSize: 14, color: "var(--success, #46B37B)", lineHeight: 1.65, fontWeight: 500 }}>{positiveNote(report.score)}</p>
+              <p style={{ fontSize:"var(--t-md)", color: "var(--success, #46B37B)", lineHeight: 1.65, fontWeight: 500 }}>{positiveNote(report.score)}</p>
             </div>
 
             {/* 3) MAIN CONCERNS — clear, calm cards */}
@@ -395,10 +397,10 @@ export default function SkinScanPage() {
                 <p style={sectionLabel}>מה שכדאי לשים לב אליו</p>
                 {concerns.map((c, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "10px 0", borderTop: i > 0 ? `1px solid ${LINE}` : "none" }}>
-                    <span style={{ width: 24, height: 24, borderRadius: 8, flexShrink: 0, background: "var(--brand-cream, #FEFAF7)", color: ACCENT, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{i + 1}</span>
+                    <span style={{ width: 24, height: 24, borderRadius:"var(--r-xs)", flexShrink: 0, background: "var(--brand-cream, #FEFAF7)", color: ACCENT, fontSize:"var(--t-sm)", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{i + 1}</span>
                     <div>
-                      <p style={{ fontSize: 14, color: INK, lineHeight: 1.55, fontWeight: 500 }}>{c}</p>
-                      <p style={{ fontSize: 11.5, color: "var(--brand-muted, #98879B)", marginTop: 2 }}>ניתן לשיפור עם ליווי וטיפול מותאם</p>
+                      <p style={{ fontSize:"var(--t-md)", color: INK, lineHeight: 1.55, fontWeight: 500 }}>{c}</p>
+                      <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", marginTop: 2 }}>ניתן לשיפור עם ליווי וטיפול מותאם</p>
                     </div>
                   </div>
                 ))}
@@ -409,46 +411,46 @@ export default function SkinScanPage() {
             {priority && (
               <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", borderColor: "rgba(74,46,90,0.14)" }}>
                 <p style={sectionLabel}>במה נתמקד קודם</p>
-                <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, lineHeight: 1.5 }}>{priority}</p>
-                <p style={{ fontSize: 12.5, color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל. הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
+                <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, lineHeight: 1.5 }}>{priority}</p>
+                <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל. הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
               </div>
             )}
 
             {/* 5) RECOMMENDED TREATMENT — one primary recommendation + Book (money moment) */}
-            <div className="ss-card" style={{ background: `linear-gradient(140deg,${DEEP} 0%,${ACCENT} 100%)`, borderRadius: 20, padding: "22px 20px", boxShadow: `0 12px 30px rgba(91,62,103,0.30)`, marginBottom: 14, textAlign: "center" }}>
-              <p style={{ fontSize: 11.5, color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, letterSpacing: "1px", marginBottom: 6 }}>הטיפול המקצועי שהכי מתאים לך</p>
-              <p className="serif" style={{ fontSize: 21, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
-              {report.matched_service && <p style={{ fontSize: 13, color: "var(--brand-surface, #FAF6FC)", opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
-              {(plan.sessions || plan.treatment_type) && <p style={{ fontSize: 12, color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
-              <p style={{ fontSize: 12.5, color: "var(--brand-surface, #FAF6FC)", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך, כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
+            <div className="ss-card" style={{ background: `linear-gradient(140deg,${DEEP} 0%,${ACCENT} 100%)`, borderRadius:"var(--r-lg)", padding: "22px 20px", boxShadow:"var(--shadow-xs)", marginBottom: 14, textAlign: "center" }}>
+              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, letterSpacing: "1px", marginBottom: 6 }}>הטיפול המקצועי שהכי מתאים לך</p>
+              <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
+              {report.matched_service && <p style={{ fontSize:"var(--t-md)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
+              {(plan.sessions || plan.treatment_type) && <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
+              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך, כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
               {bookCard(ctaText + " ✦")}
-              <p style={{ fontSize: 11, color: "var(--brand-surface, #FAF6FC)", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p>
+              <p style={{ fontSize:"var(--t-xs)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p>
             </div>
 
             {/* 6) EXPECTED BENEFIT — from clinic_plan.expected_results (real data) */}
             {plan.expected_results && (
               <div style={{ ...card, borderColor: "rgba(70,179,123,0.12)", background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FEFAF7))" }}>
                 <p style={{ ...sectionLabel, color: "var(--success, #46B37B)" }}>מה אפשר לצפות</p>
-                <p style={{ fontSize: 14, color: "var(--success, #46B37B)", lineHeight: 1.7 }}>{plan.expected_results}</p>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--success, #46B37B)", lineHeight: 1.7 }}>{plan.expected_results}</p>
               </div>
             )}
 
             {/* Skincare routine — valuable but secondary, collapsed */}
             {(report.routine_morning?.length > 0 || report.routine_evening?.length > 0) && (
               <div style={{ marginBottom: 14 }}>
-                <button onClick={() => setShowRoutine(!showRoutine)} className="ss-btn" style={{ width: "100%", padding: "13px 18px", borderRadius: 16, background: "var(--brand-surface, #FAF6FC)", color: DEEP, fontSize: 13.5, fontWeight: 700, border: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <button onClick={() => setShowRoutine(!showRoutine)} className="ss-btn" style={{ width: "100%", padding: "13px 18px", borderRadius:"var(--r-md)", background: "var(--brand-surface, #FAF6FC)", color: DEEP, fontSize:"var(--t-md)", fontWeight: 700, border: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>שגרת הטיפוח האישית שלך לבית</span><span style={{ color: ACCENT }}>{showRoutine ? "▲" : "▼"}</span>
                 </button>
                 {showRoutine && (
                   <div className="ss-fade" style={{ marginTop: 12 }}>
                     {report.routine_morning?.length > 0 && (
-                      <div style={card}><p style={{ fontSize: 13.5, fontWeight: 700, color: INK, marginBottom: 10 }}>בוקר</p>
-                        {report.routine_morning.map((t, i) => (<div key={i} style={{ display: "flex", gap: 9, marginBottom: 7 }}><span style={{ fontSize: 11.5, fontWeight: 700, color: ACCENT, flexShrink: 0, marginTop: 1 }}>{i + 1}</span><p style={{ fontSize: 13, color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{t}</p></div>))}
+                      <div style={card}><p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: INK, marginBottom: 10 }}>בוקר</p>
+                        {report.routine_morning.map((t, i) => (<div key={i} style={{ display: "flex", gap: 9, marginBottom: 7 }}><span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: ACCENT, flexShrink: 0, marginTop: 1 }}>{i + 1}</span><p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{t}</p></div>))}
                       </div>
                     )}
                     {report.routine_evening?.length > 0 && (
-                      <div style={card}><p style={{ fontSize: 13.5, fontWeight: 700, color: INK, marginBottom: 10 }}>ערב</p>
-                        {report.routine_evening.map((t, i) => (<div key={i} style={{ display: "flex", gap: 9, marginBottom: 7 }}><span style={{ fontSize: 11.5, fontWeight: 700, color: ACCENT, flexShrink: 0, marginTop: 1 }}>{i + 1}</span><p style={{ fontSize: 13, color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{t}</p></div>))}
+                      <div style={card}><p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: INK, marginBottom: 10 }}>ערב</p>
+                        {report.routine_evening.map((t, i) => (<div key={i} style={{ display: "flex", gap: 9, marginBottom: 7 }}><span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: ACCENT, flexShrink: 0, marginTop: 1 }}>{i + 1}</span><p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)", lineHeight: 1.5 }}>{t}</p></div>))}
                       </div>
                     )}
                   </div>
@@ -459,39 +461,39 @@ export default function SkinScanPage() {
             {/* 7) NEXT STEP — Book (primary, always reachable) + WhatsApp (secondary) */}
             <div style={{ ...card, background: "linear-gradient(140deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", borderColor: "rgba(74,46,90,0.14)", textAlign: "center" }}>
               <p style={sectionLabel}>הצעד הבא</p>
-              <p style={{ fontSize: 14.5, color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
-              <p style={{ fontSize: 12.5, color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
-              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", padding: "15px 0", borderRadius: 14, fontSize: 16, fontWeight: 800, boxShadow: `0 10px 24px rgba(91,62,103,0.28)` }}>{ctaText} ✦</a>}
-              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", padding: "13px 0", borderRadius: 14, fontSize: 14.5, fontWeight: 700, marginTop: 10, boxShadow: "0 8px 20px rgba(37,211,102,0.3)" }}>💬 ייעוץ נוסף בוואטסאפ</a>}
+              <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
+              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
+              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", padding: "15px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 800, boxShadow:"var(--shadow-xs)" }}>{ctaText} ✦</a>}
+              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", padding: "13px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-md)", fontWeight: 700, marginTop: 10, boxShadow:"var(--shadow-md)" }}><Icon name="whatsapp" size={15}/> ייעוץ נוסף בוואטסאפ</a>}
             </div>
 
             {/* SECONDARY — full report on WhatsApp (also captures the lead) */}
             <div style={{ ...card, background: "rgba(70,179,123,0.12)", border: "1px solid rgba(70,179,123,0.16)" }}>
               {sent ? (
                 <div style={{ textAlign: "center", padding: "6px 0" }}>
-                  <div style={{ fontSize: 34, marginBottom: 6 }}>✓</div>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: "var(--success, #46B37B)" }}>הדוח נשלח לוואטסאפ שלך</p>
-                  <p style={{ fontSize: 12.5, color: "var(--success, #46B37B)", marginTop: 4 }}>שמרנו לך גם את הפרטים לקביעת התור 💚</p>
+                  <div style={{ fontSize:"var(--t-hero)", marginBottom: 6 }}>✓</div>
+                  <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: "var(--success, #46B37B)" }}>הדוח נשלח לוואטסאפ שלך</p>
+                  <p style={{ fontSize:"var(--t-sm)", color: "var(--success, #46B37B)", marginTop: 4 }}>שמרנו לך גם את הפרטים לקביעת התור 💚</p>
                 </div>
               ) : (
                 <>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--success, #46B37B)", marginBottom: 3 }}>מעדיפה בוואטסאפ? נדבר.</p>
-                  <p style={{ fontSize: 12, color: "var(--success, #46B37B)", marginBottom: 12 }}>נשלח לך את הניתוח המלא לנייד, ונשמח לענות על כל שאלה.</p>
-                  <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="שם (לא חובה)" style={{ width: "100%", border: "1.5px solid rgba(70,179,123,0.16)", borderRadius: 12, padding: "12px 14px", fontSize: 14, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 9 }} />
-                  <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} type="tel" inputMode="tel" placeholder="טלפון נייד" style={{ width: "100%", border: "1.5px solid rgba(70,179,123,0.16)", borderRadius: 12, padding: "12px 14px", fontSize: 14, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
-                  {sendError && <p style={{ color: "var(--danger, #E05B6F)", fontSize: 12.5, fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{sendError}</p>}
-                  <button onClick={sendReport} disabled={sending} className="ss-btn" style={{ width: "100%", padding: "13px 0", borderRadius: 12, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize: 14.5, fontWeight: 700, boxShadow: "0 6px 16px rgba(37,211,102,0.32)" }}>{sending ? "שולחת…" : "שליחה לוואטסאפ שלי"}</button>
+                  <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: "var(--success, #46B37B)", marginBottom: 3 }}>מעדיפה בוואטסאפ? נדבר.</p>
+                  <p style={{ fontSize:"var(--t-sm)", color: "var(--success, #46B37B)", marginBottom: 12 }}>נשלח לך את הניתוח המלא לנייד, ונשמח לענות על כל שאלה.</p>
+                  <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="שם (לא חובה)" style={{ width: "100%", border: "1.5px solid rgba(70,179,123,0.16)", borderRadius:"var(--r-sm)", padding: "12px 14px", fontSize:"var(--t-md)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 9 }} />
+                  <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} type="tel" inputMode="tel" placeholder="טלפון נייד" style={{ width: "100%", border: "1.5px solid rgba(70,179,123,0.16)", borderRadius:"var(--r-sm)", padding: "12px 14px", fontSize:"var(--t-md)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
+                  {sendError && <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-sm)", fontWeight: 600, marginBottom: 10, textAlign: "center" }}>{sendError}</p>}
+                  <button onClick={sendReport} disabled={sending} className="ss-btn" style={{ width: "100%", padding: "13px 0", borderRadius:"var(--r-sm)", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-md)", fontWeight: 700, boxShadow:"var(--shadow-md)" }}>{sending ?<Spinner inline label="שולחת"/>: "שליחה לוואטסאפ שלי"}</button>
                 </>
               )}
             </div>
 
             {/* TRUST — reassuring, honest */}
             <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", borderColor: LINE }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: DEEP, marginBottom: 6 }}>איך זה עובד</p>
+              <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: DEEP, marginBottom: 6 }}>איך זה עובד</p>
               {["הניתוח מבוסס על התמונה והמידע שהעלית.", "התוצאות מיועדות כהכוונה קוסמטית מקצועית, לא כאבחון רפואי.", "פגישת ייעוץ בקליניקה תאפשר התאמה אישית מלאה עבורך."].map((t, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: i < 2 ? 5 : 0 }}>
-                  <span style={{ color: ACCENT, fontSize: 12, flexShrink: 0, marginTop: 1 }}>✦</span>
-                  <p style={{ fontSize: 12, color: "var(--brand-muted, #98879B)", lineHeight: 1.55 }}>{t}</p>
+                  <span style={{ color: ACCENT, fontSize:"var(--t-sm)", flexShrink: 0, marginTop: 1 }}>✦</span>
+                  <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.55 }}>{t}</p>
                 </div>
               ))}
             </div>
@@ -499,26 +501,26 @@ export default function SkinScanPage() {
             {/* THERAPIST SECTION — de-emphasized */}
             {report.therapist_notes && (
               <>
-                <button onClick={() => setShowPro(!showPro)} className="ss-btn" style={{ width: "100%", padding: "11px 0", borderRadius: 12, background: "transparent", color: INK2, fontSize: 12, fontWeight: 600, border: `1px solid ${LINE}`, marginBottom: 12 }}>{showPro ? "הסתרת החלק המקצועי" : "חלק מקצועי למטפלת"}</button>
+                <button onClick={() => setShowPro(!showPro)} className="ss-btn" style={{ width: "100%", padding: "11px 0", borderRadius:"var(--r-sm)", background: "transparent", color: INK2, fontSize:"var(--t-sm)", fontWeight: 600, border: `1px solid ${LINE}`, marginBottom: 12 }}>{showPro ? "הסתרת החלק המקצועי" : "חלק מקצועי למטפלת"}</button>
                 {showPro && (
-                  <div className="ss-fade" style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius: 16, padding: "18px", border: "1px solid var(--pc-tint, #EDE7F0)", marginBottom: 14 }}>
-                    <p style={{ fontSize: 13, fontWeight: 800, color: "var(--pc, #4A2E5A)", marginBottom: 12 }}>הערות קליניות למטפלת</p>
-                    {pro.skin_assessment && (<div style={{ marginBottom: 12 }}><p style={{ fontSize: 12, fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 3 }}>הערכת עור</p><p style={{ fontSize: 13, color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.skin_assessment}</p></div>)}
-                    {pro.active_ingredients?.length > 0 && (<div style={{ marginBottom: 12 }}><p style={{ fontSize: 12, fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 5 }}>מרכיבים פעילים מומלצים</p>{pro.active_ingredients.map((a, i) => (<div key={i} style={{ display: "flex", gap: 7, marginBottom: 4 }}><span style={{ fontSize: 12, color: "var(--pc, #4A2E5A)", flexShrink: 0 }}>•</span><p style={{ fontSize: 13, color: "var(--ink, #2A2233)", lineHeight: 1.5 }}>{a}</p></div>))}</div>)}
-                    {pro.protocol && (<div style={{ marginBottom: 12 }}><p style={{ fontSize: 12, fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 3 }}>פרוטוקול טיפול</p><p style={{ fontSize: 13, color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.protocol}</p></div>)}
-                    {pro.cautions && (<div style={{ background: "rgba(224,91,111,0.10)", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(224,91,111,0.10)" }}><p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger, #E05B6F)", marginBottom: 3 }}>אזהרות / תשומת לב</p><p style={{ fontSize: 12.5, color: "var(--danger, #E05B6F)", lineHeight: 1.5 }}>{pro.cautions}</p></div>)}
+                  <div className="ss-fade" style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius:"var(--r-md)", padding: "18px", border: "1px solid var(--pc-tint, #EDE7F0)", marginBottom: 14 }}>
+                    <p style={{ fontSize:"var(--t-md)", fontWeight: 800, color: "var(--pc, #4A2E5A)", marginBottom: 12 }}>הערות קליניות למטפלת</p>
+                    {pro.skin_assessment && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 3 }}>הערכת עור</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.skin_assessment}</p></div>)}
+                    {pro.active_ingredients?.length > 0 && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 5 }}>מרכיבים פעילים מומלצים</p>{pro.active_ingredients.map((a, i) => (<div key={i} style={{ display: "flex", gap: 7, marginBottom: 4 }}><span style={{ fontSize:"var(--t-sm)", color: "var(--pc, #4A2E5A)", flexShrink: 0 }}>•</span><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.5 }}>{a}</p></div>))}</div>)}
+                    {pro.protocol && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #4A2E5A)", marginBottom: 3 }}>פרוטוקול טיפול</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.protocol}</p></div>)}
+                    {pro.cautions && (<div style={{ background: "rgba(224,91,111,0.10)", borderRadius:"var(--r-sm)", padding: "10px 12px", border: "1px solid rgba(224,91,111,0.10)" }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--danger, #E05B6F)", marginBottom: 3 }}>אזהרות / תשומת לב</p><p style={{ fontSize:"var(--t-sm)", color: "var(--danger, #E05B6F)", lineHeight: 1.5 }}>{pro.cautions}</p></div>)}
                   </div>
                 )}
               </>
             )}
 
-            <button onClick={reset} className="ss-btn" style={{ width: "100%", padding: "13px 0", borderRadius: 14, background: "transparent", color: INK2, fontSize: 13, fontWeight: 600 }}>סריקה חדשה</button>
+            <button onClick={reset} className="ss-btn" style={{ width: "100%", padding: "13px 0", borderRadius:"var(--r-md)", background: "transparent", color: INK2, fontSize:"var(--t-md)", fontWeight: 600 }}>סריקה חדשה</button>
           </div>
         )}
 
       </div>
 
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize: 11, color: "rgba(74,46,90,0.14)" }}>מופעל ע"י BloomOS</div>
+      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: "rgba(74,46,90,0.14)" }}>מופעל ע"י BloomOS</div>
     </div>
   );
 }

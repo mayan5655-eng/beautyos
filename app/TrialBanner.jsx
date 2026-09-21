@@ -50,7 +50,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           gap: 9,
           background: pcTint,
           border: "1px solid var(--line)",
-          borderRadius: 14,
+          borderRadius:"var(--r-md)",
           padding: "9px 15px",
           boxShadow: "var(--shadow-xs)",
         }}
@@ -59,7 +59,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           aria-hidden
           style={{ width: 7, height: 7, borderRadius: "50%", background: pcGrad, flexShrink: 0 }}
         />
-        <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--ink-2)" }}>
+        <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: "var(--ink-2)" }}>
           {trialGentleHe(days)}
         </p>
       </div>
@@ -96,9 +96,9 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         flexWrap: "wrap",
         background: "var(--surface)",
         border: `1px solid ${pc}55`,
-        borderRadius: 18,
+        borderRadius:"var(--r-lg)",
         padding: "15px 19px",
-        boxShadow: `0 12px 28px -20px ${pcShadow}`,
+        boxShadow:"var(--shadow-accent)",
       }}
     >
       {/* Accent on the inline-start edge. The shell is dir="rtl", so that is the right. */}
@@ -110,11 +110,11 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
       <div style={{ flex: 1, minWidth: 210 }}>
         <p
           className="serif"
-          style={{ fontSize: 15, fontWeight: 600, color: pcDeep, marginBottom: 3 }}
+          style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}
         >
           {title}
         </p>
-        <p style={{ fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+        <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
       </div>
 
       {/* No number configured means no WhatsApp route. The banner still says
@@ -128,13 +128,13 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         style={{
           background: pcGrad,
           color: "var(--surface)",
-          fontSize: 12,
+          fontSize:"var(--t-sm)",
           fontWeight: 600,
           padding: "10px 18px",
-          borderRadius: 13,
+          borderRadius:"var(--r-sm)",
           textDecoration: "none",
           whiteSpace: "nowrap",
-          boxShadow: `0 8px 18px ${pcShadow}`,
+          boxShadow:"var(--shadow-accent)",
           flexShrink: 0,
         }}
       >

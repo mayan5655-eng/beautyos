@@ -15,6 +15,7 @@
 // can be a client component in the first place.
 
 import { useState, useEffect, useRef } from "react";
+import Spinner from "../Spinner";
 import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
 
 export default function ReviewPage() {
@@ -86,15 +87,15 @@ export default function ReviewPage() {
   };
 
   if (state === "loading") {
-    return <div dir="rtl" style={wrap}><p style={{ fontSize: 30, color: muted }}>✦</p></div>;
+    return <div dir="rtl" style={wrap}><p style={{ fontSize:"var(--t-hero)", color: muted }}>✦</p></div>;
   }
 
   if (state === "error") {
     return (
       <div dir="rtl" style={wrap}>
-        <p style={{ fontSize: 30, color: muted, marginBottom: 14 }}>✦</p>
-        <h1 style={{ fontSize: 22, fontWeight: 600, color: ink, marginBottom: 10 }}>{errorMsg}</h1>
-        <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, maxWidth: 340 }}>
+        <p style={{ fontSize:"var(--t-hero)", color: muted, marginBottom: 14 }}>✦</p>
+        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 10 }}>{errorMsg}</h1>
+        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, maxWidth: 340 }}>
           אפשר לבקש קישור חדש מהעסק.
         </p>
       </div>
@@ -108,23 +109,23 @@ export default function ReviewPage() {
   if (state === "sent" || state === "already") {
     return (
       <div dir="rtl" style={wrap}>
-        <p style={{ fontSize: 34, color: pc, marginBottom: 14 }}>✦</p>
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: ink, marginBottom: 10 }}>
+        <p style={{ fontSize:"var(--t-hero)", color: pc, marginBottom: 14 }}>✦</p>
+        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 10 }}>
           {state === "already" ? "כבר קיבלנו את הביקורת שלך" : "תודה רבה!"}
         </h1>
-        <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 22 }}>
+        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 22 }}>
           {state === "already"
             ? "הביקורת שהשארת נשמרה, ואי אפשר לשנות אותה מכאן."
             : `הביקורת שלך תופיע בעמוד של ${info?.businessName || "העסק"}.`}
         </p>
         {info?.googleReviewUrl && (
           <>
-            <p style={{ fontSize: 14, color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 12 }}>
+            <p style={{ fontSize:"var(--t-md)", color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 12 }}>
               {GOOGLE_REVIEW_NOTE}
             </p>
             <a href={info.googleReviewUrl} target="_blank" rel="noreferrer"
                style={{ display: "block", textDecoration: "none", background: pc, color: "#fff",
-                        borderRadius: 14, padding: "14px 26px", fontSize: 16, fontWeight: 600 }}>
+                        borderRadius:"var(--r-md)", padding: "14px 26px", fontSize:"var(--t-lg)", fontWeight: 600 }}>
               ביקורת בגוגל
             </a>
           </>
@@ -140,12 +141,12 @@ export default function ReviewPage() {
         {info?.logoUrl ? (
           <img src={info.logoUrl} alt={info?.businessName || "לוגו"} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", display: "block", marginBottom: 10 }} />
         ) : (
-          <p style={{ fontSize: 13, color: muted, marginBottom: 6 }}>{info?.businessName}</p>
+          <p style={{ fontSize:"var(--t-md)", color: muted, marginBottom: 6 }}>{info?.businessName}</p>
         )}
-        <h1 style={{ fontSize: 24, fontWeight: 600, color: ink, marginBottom: 8, lineHeight: 1.3 }}>
+        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 8, lineHeight: 1.3 }}>
           {info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}
         </h1>
-        <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, marginBottom: 26 }}>
+        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, marginBottom: 26 }}>
           {info?.service ? `${info.service} · ${info.date}` : info?.date}
         </p>
 
@@ -156,7 +157,7 @@ export default function ReviewPage() {
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} onClick={() => setRating(n)} aria-label={`${n} כוכבים`}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 4,
-                       fontSize: 40, lineHeight: 1, color: n <= rating ? pc : "rgba(74,46,90,0.22)" }}>
+                       fontSize:"var(--t-hero)", lineHeight: 1, color: n <= rating ? pc : "rgba(74,46,90,0.22)" }}>
               {n <= rating ? "★" : "☆"}
             </button>
           ))}
@@ -167,23 +168,23 @@ export default function ReviewPage() {
             form gets abandoned at the last step. */}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
           maxLength={2000} placeholder="משהו שתרצי להוסיף? (לא חובה)"
-          style={{ width: "100%", border: "1px solid rgba(74,46,90,0.18)", borderRadius: 14,
-                   padding: "12px 14px", fontSize: 16, fontFamily: "inherit", outline: "none",
+          style={{ width: "100%", border: "1px solid rgba(74,46,90,0.18)", borderRadius:"var(--r-md)",
+                   padding: "12px 14px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none",
                    background: "#fff", color: ink, resize: "vertical", marginBottom: 14 }} />
 
         {errorMsg && (
-          <p style={{ fontSize: 14, color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>
+          <p style={{ fontSize:"var(--t-md)", color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>
         )}
 
         <button onClick={submit} disabled={!rating || submitting}
-          style={{ width: "100%", height: 52, borderRadius: 14, border: "none",
+          style={{ width: "100%", height: 52, borderRadius:"var(--r-md)", border: "none",
                    background: rating ? pc : "rgba(74,46,90,0.22)", color: "#fff",
-                   fontSize: 16, fontWeight: 600, fontFamily: "inherit",
+                   fontSize:"var(--t-lg)", fontWeight: 600, fontFamily: "inherit",
                    cursor: rating && !submitting ? "pointer" : "default" }}>
-          {submitting ? "שולחת…" : "שליחת הביקורת"}
+          {submitting ?<Spinner inline label="שולחת"/>: "שליחת הביקורת"}
         </button>
 
-        <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, marginTop: 12 }}>
+        <p style={{ fontSize:"var(--t-md)", color: muted, lineHeight: 1.6, marginTop: 12 }}>
           הביקורת תופיע בעמוד של העסק עם שמך הפרטי.
         </p>
       </div>

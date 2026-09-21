@@ -9,6 +9,7 @@
 // ============================================================
 
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import Icon from "./Icon";
 
 // Vertical reel canvas size (Instagram/TikTok 9:16)
 const W = 1080;
@@ -447,10 +448,10 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       <audio ref={audioElRef} style={{ display: "none" }} crossOrigin="anonymous" />
 
       <div style={{ textAlign: "center", marginBottom: 18 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
-          🎬 {hasScript ? "הפכי את התסריט לסרטון" : "סטודיו רילסים"}
+        <h2 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
+          <Icon name="film" size={20}/> {hasScript ? "הפכי את התסריט לסרטון" : "סטודיו רילסים"}
         </h2>
-        <p style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
+        <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)" }}>
           {hasScript
             ? `העלי תמונה לכל סצנה — הכיתובים והתזמונים כבר מוכנים מהתסריט שלמעלה`
             : "העלי תמונות וקבלי סרטון מוכן לאינסטגרם"}
@@ -458,25 +459,25 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       </div>
 
       {/* TITLE + TIMING */}
-      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
-        <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
+      <div style={{ background: "var(--surface)", borderRadius:"var(--r-md)", padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+        <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>כותרת לסרטון (לא חובה)</p>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="לדוגמה: תוצאות טיפול פנים ✨"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 12, padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none", direction: "rtl", background: pcTint, boxSizing: "border-box", marginBottom: 12 }}
+          style={{ width: "100%", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "9px 12px", fontSize:"var(--t-md)", fontFamily: "inherit", outline: "none", direction: "rtl", background: pcTint, boxSizing: "border-box", marginBottom: 12 }}
         />
         {/* With a script each slide has its own length, so one global slider
             would be lying about what is going to happen. Show the total the
             script actually adds up to instead. */}
         {hasScript ? (
-          <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600 }}>
             אורך הסרטון: <strong style={{ color: pc }}>{totalSeconds.toFixed(1)} שניות</strong>
             {" "}— לפי הזמנים שבתסריט
           </p>
         ) : (
           <>
-            <p style={{ fontSize: 12, color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 }}>
               זמן לכל תמונה: {secondsPer} שניות
             </p>
             <input
@@ -490,10 +491,10 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
       </div>
 
       {/* PHOTOS */}
-      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+      <div style={{ background: "var(--surface)", borderRadius:"var(--r-md)", padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>תמונות ({slides.length})</p>
-          <label style={{ background: pcGrad, color: "var(--surface)", borderRadius: 20, padding: "7px 14px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: "var(--ink)" }}>תמונות ({slides.length})</p>
+          <label style={{ background: pcGrad, color: "var(--surface)", borderRadius:"var(--r-lg)", padding: "7px 14px", fontSize:"var(--t-xs)", fontWeight: 600, cursor: "pointer" }}>
             + הוספת תמונות
             <input type="file" accept="image/*" multiple style={{ display: "none" }}
               onChange={(e) => addPhotos(e.target.files)} />
@@ -501,7 +502,7 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         </div>
 
         {slides.length === 0 ? (
-          <p style={{ fontSize: 11, color: "var(--line-2)", textAlign: "center", padding: "20px 0" }}>
+          <p style={{ fontSize:"var(--t-xs)", color: "var(--line-2)", textAlign: "center", padding: "20px 0" }}>
             {hasScript
               ? `עוד לא הוספת תמונות. התמונה הראשונה תקבל את סצנה ${scenes[0]?.scene_number || 1}.`
               : 'עוד לא הוספת תמונות. לחצי "הוספת תמונות" כדי להתחיל.'}
@@ -509,25 +510,25 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {slides.map((s, i) => (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: pcTint, borderRadius: 12 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: pc, width: 20 }}>
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: pcTint, borderRadius:"var(--r-sm)" }}>
+                <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: pc, width: 20 }}>
                   {hasScript ? `${Math.min(i, scenes.length - 1) + 1}` : i + 1}
                 </span>
-                <img alt="" src={s.url} style={{ width: 44, height: 60, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} />
+                <img alt="" src={s.url} style={{ width: 44, height: 60, objectFit: "cover", borderRadius:"var(--r-xs)", flexShrink: 0 }} />
                 <input
                   value={s.caption}
                   onChange={(e) => setCaption(s.id, e.target.value)}
                   placeholder="כיתוב (לא חובה)"
-                  style={{ flex: 1, minWidth: 0, border: "1px solid var(--line)", borderRadius: 8, padding: "6px 9px", fontSize: 11, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--surface)" }}
+                  style={{ flex: 1, minWidth: 0, border: "1px solid var(--line)", borderRadius:"var(--r-xs)", padding: "6px 9px", fontSize:"var(--t-xs)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--surface)" }}
                 />
-                <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
-                <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 6, width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
+                <button onClick={() => moveSlide(s.id, -1)} disabled={i === 0} className="tap44" aria-label="הזזה למעלה" style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius:"var(--r-xs)", width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === 0 ? 0.4 : 1 }}>↑</button>
+                <button onClick={() => moveSlide(s.id, 1)} disabled={i === slides.length - 1} className="tap44" aria-label="הזזה למטה" style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius:"var(--r-xs)", width: 24, height: 24, cursor: "pointer", color: pc, opacity: i === slides.length - 1 ? 0.4 : 1 }}>↓</button>
                 {hasScript && (
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-3)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: "var(--ink-3)", whiteSpace: "nowrap" }}>
                     {slideDurations[i]?.toFixed(1)}ש׳
                   </span>
                 )}
-                <button onClick={() => removeSlide(s.id)} style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 15, cursor: "pointer" }}>✕</button>
+                <button onClick={() => removeSlide(s.id)} className="tap44" aria-label="הסרת שקופית" style={{ background: "none", border: "none", color: "var(--danger)", fontSize:"var(--t-lg)", cursor: "pointer" }}>✕</button>
               </div>
             ))}
           </div>
@@ -539,15 +540,15 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
             us overruling her. Naming the scenes means she can tell the
             difference between "I skipped that" and "I forgot that". */}
         {missingScenes.length > 0 && (
-          <div style={{ marginTop: 10, background: "var(--surface-2)", border: "1px dashed var(--line-2)", borderRadius: 12, padding: "10px 12px" }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>
+          <div style={{ marginTop: 10, background: "var(--surface-2)", border: "1px dashed var(--line-2)", borderRadius:"var(--r-sm)", padding: "10px 12px" }}>
+            <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--ink-2)", marginBottom: 4 }}>
               עוד אין תמונה ל־{missingScenes.length} סצנות
             </p>
-            <p style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.5, marginBottom: 6 }}>
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", lineHeight: 1.5, marginBottom: 6 }}>
               אפשר לייצר את הסרטון גם ככה — הסצנות האלה פשוט לא ייכנסו.
             </p>
             {missingScenes.map((sc, i) => (
-              <p key={i} style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <p key={i} style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                 <strong style={{ color: pc }}>{sc.scene_number || slides.length + i + 1}.</strong>{" "}
                 {sc.on_screen_text || sc.spoken || "—"}
               </p>
@@ -559,22 +560,22 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
           <button
             type="button"
             onClick={resyncToScript}
-            style={{ marginTop: 10, width: "100%", background: "none", border: "1px solid var(--line)", borderRadius: 10, padding: "8px 0", fontSize: 11, fontWeight: 600, fontFamily: "inherit", color: pc, cursor: "pointer" }}
+            style={{ marginTop: 10, width: "100%", background: "none", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "8px 0", fontSize:"var(--t-xs)", fontWeight: 600, fontFamily: "inherit", color: pc, cursor: "pointer" }}
           >
-            ↻ מלאי מחדש את הכיתובים מהתסריט
+            <Icon name="refresh" size={14}/> מלאי מחדש את הכיתובים מהתסריט
           </button>
         )}
       </div>
 
       {/* MUSIC (optional) */}
-      <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
+      <div style={{ background: "var(--surface)", borderRadius:"var(--r-md)", padding: "16px 18px", border: "1px solid var(--line)", marginBottom: 14 }}>
         {/* Which text layer burns - only meaningful with a script, which is
             where both texts come from. Without one the typed captions burn,
             as before. Default "caption": the on-screen text is the line the
             script wrote to be READ, the spoken line is the one to be heard. */}
         {hasScript && (
           <div style={{ marginBottom: 14 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>מה נצרב על הסרטון</p>
+            <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>מה נצרב על הסרטון</p>
             <div style={{ display: "flex", gap: 6 }}>
               {[
                 { k: "caption", l: "הטקסט על המסך", d: "הכיתוב של כל סצנה, לכל אורכה" },
@@ -583,57 +584,57 @@ export default function ReelStudio({ primaryColor = "var(--pc)", businessName = 
                 const on = burnLayer === o.k;
                 return (
                   <button key={o.k} type="button" onClick={() => setBurnLayer(o.k)} aria-pressed={on}
-                    style={{ flex: 1, textAlign: "right", padding: "9px 12px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+                    style={{ flex: 1, textAlign: "right", padding: "9px 12px", borderRadius:"var(--r-sm)", cursor: "pointer", fontFamily: "inherit",
                              border: `1px solid ${on ? pcHex : "var(--line-2)"}`, background: on ? "var(--pc-tint)" : "var(--surface)" }}>
-                    <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: on ? pcHex : "var(--ink)" }}>{o.l}</span>
-                    <span style={{ display: "block", fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>{o.d}</span>
+                    <span style={{ display: "block", fontSize:"var(--t-sm)", fontWeight: 700, color: on ? pcHex : "var(--ink)" }}>{o.l}</span>
+                    <span style={{ display: "block", fontSize:"var(--t-sm)", color: "var(--ink-3)", marginTop: 2 }}>{o.d}</span>
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
-        <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius: 10, border: "1px dashed var(--line)", fontSize: 11.5, color: pc, cursor: "pointer", fontWeight: 600 }}>
+        <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 8 }}>מוזיקה (לא חובה)</p>
+        <label style={{ display: "block", padding: "10px 0", textAlign: "center", borderRadius:"var(--r-sm)", border: "1px dashed var(--line)", fontSize:"var(--t-sm)", color: pc, cursor: "pointer", fontWeight: 600 }}>
           {music ? "✓ " + music.file.name : "+ העלאת קובץ מוזיקה (MP3)"}
           <input type="file" accept="audio/*" style={{ display: "none" }}
             onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) setMusic({ file: f, url: URL.createObjectURL(f) }); }} />
         </label>
-        <p style={{ fontSize: 11.5, color: "var(--line-2)", marginTop: 6, textAlign: "center" }}>
+        <p style={{ fontSize:"var(--t-sm)", color: "var(--line-2)", marginTop: 6, textAlign: "center" }}>
           השתמשי במוזיקה חופשית לשימוש (כדי שאינסטגרם לא יחסום)
         </p>
       </div>
 
       {/* BUILD */}
       <button onClick={buildVideo} disabled={building || slides.length === 0}
-        style={{ width: "100%", padding: "14px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700, cursor: building ? "default" : "pointer", fontFamily: "inherit", opacity: building || slides.length === 0 ? 0.6 : 1, marginBottom: 12 }}>
-        {building ? "יוצרת סרטון... 🎬" : "🎬 צרי סרטון"}
+        style={{ width: "100%", padding: "14px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 700, cursor: building ? "default" : "pointer", fontFamily: "inherit", opacity: building || slides.length === 0 ? 0.6 : 1, marginBottom: 12 }}>
+        {building ? "יוצרת סרטון... 🎬" : <><Icon name="film" size={15}/> צרי סרטון</>}
       </button>
 
       {building && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ background: "var(--pc-tint)", borderRadius: 8, height: 10, overflow: "hidden", marginBottom: 6 }}>
+          <div style={{ background: "var(--pc-tint)", borderRadius:"var(--r-xs)", height: 10, overflow: "hidden", marginBottom: 6 }}>
             <div style={{ background: pcGrad, height: 10, width: `${progress}%`, transition: "width 0.2s" }} />
           </div>
-          <p style={{ fontSize: 11, color: pc, textAlign: "center", fontWeight: 500 }}>{statusText} {progress}%</p>
+          <p style={{ fontSize:"var(--t-xs)", color: pc, textAlign: "center", fontWeight: 500 }}>{statusText} {progress}%</p>
         </div>
       )}
 
       {error && (
-        <div style={{ background: "var(--surface-2)", border: "1px solid rgba(242,184,75,0.16)", borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
-          <p style={{ fontSize: 11.5, color: pc, fontWeight: 600 }}>{error}</p>
+        <div style={{ background: "var(--surface-2)", border: "1px solid rgba(242,184,75,0.16)", borderRadius:"var(--r-sm)", padding: "12px 16px", marginBottom: 14 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: pc, fontWeight: 600 }}>{error}</p>
         </div>
       )}
 
       {videoUrl && (
-        <div style={{ background: "var(--surface)", borderRadius: 16, padding: "16px 18px", border: "1px solid var(--line)", textAlign: "center" }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}>✨ הסרטון מוכן!</p>
-          <video src={videoUrl} controls playsInline style={{ width: "100%", maxWidth: 270, borderRadius: 14, marginBottom: 12, background: "#000" }} />
+        <div style={{ background: "var(--surface)", borderRadius:"var(--r-md)", padding: "16px 18px", border: "1px solid var(--line)", textAlign: "center" }}>
+          <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 12 }}><Icon name="sparkle" size={16}/> הסרטון מוכן!</p>
+          <video src={videoUrl} controls playsInline style={{ width: "100%", maxWidth: 270, borderRadius:"var(--r-md)", marginBottom: 12, background: "#000" }} />
           <button onClick={downloadVideo}
-            style={{ width: "100%", padding: "13px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius: 14, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            ⬇ הורדת הסרטון
+            style={{ width: "100%", padding: "13px 0", background: pcGrad, color: "var(--surface)", border: "none", borderRadius:"var(--r-md)", fontSize:"var(--t-md)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            <Icon name="download" size={15}/> הורדת הסרטון
           </button>
-          <p style={{ fontSize: 11.5, color: "var(--line-2)", marginTop: 8 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--line-2)", marginTop: 8 }}>
             הורידי את הקובץ והעלי אותו ישירות לאינסטגרם / וואטסאפ סטטוס
           </p>
         </div>

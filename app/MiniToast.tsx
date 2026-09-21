@@ -13,6 +13,8 @@
 // and a hook plus a component is less machinery than a tree-wide singleton.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Spinner from "./Spinner";
+import Sheet from "./Sheet";
 
 type Kind = 'ok' | 'error'
 
@@ -46,15 +48,15 @@ export function useMiniToast() {
         zIndex: 6000,
         maxWidth: 'min(92vw, 380px)',
         padding: '12px 18px',
-        borderRadius: 14,
+        borderRadius:"var(--r-md)",
         background: msg.kind === 'error' ? 'var(--danger, #C2557A)' : 'var(--ink, #2B2233)',
         color: '#fff',
-        fontSize: 13,
+        fontSize:"var(--t-md)",
         fontWeight: 600,
         lineHeight: 1.5,
         textAlign: 'center',
         fontFamily: 'inherit',
-        boxShadow: '0 12px 32px rgba(43,34,51,0.28)',
+        boxShadow:"var(--shadow-lg)",
       }}
     >
       {msg.text}
@@ -85,42 +87,14 @@ export function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  // Escape closes it, the same as every modal in the main app.
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
-
-  if (!open) return null
-
+  // Escape and backdrop close it; <Sheet> owns both, like every modal in the app.
   return (
-    <div
-      dir="rtl"
-      onClick={onCancel}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 6100,
-        background: 'rgba(43,34,51,0.45)',
-        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        style={{
-          width: '100%', maxWidth: 380, background: 'var(--surface, #fff)',
-          borderRadius: 20, padding: '22px 20px',
-          boxShadow: '0 24px 60px rgba(74,46,90,0.28)', fontFamily: 'inherit',
-        }}
-      >
-        <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink, #2B2233)', marginBottom: message ? 8 : 16 }}>
+    <Sheet open={open} onClose={onCancel} busy={busy} width={380} zIndex={6100} ariaLabel={typeof title === 'string' ? title : 'אישור'}>
+        <h3 style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: 'var(--ink, #2B2233)', marginBottom: message ? 8 : 16 }}>
           {title}
         </h3>
         {message && (
-          <p style={{ fontSize: 13, color: 'var(--ink-2, #5C4F63)', lineHeight: 1.65, marginBottom: 18 }}>
+          <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2, #5C4F63)', lineHeight: 1.65, marginBottom: 18 }}>
             {message}
           </p>
         )}
@@ -129,9 +103,9 @@ export function ConfirmDialog({
             type="button"
             onClick={onCancel}
             style={{
-              flex: 1, padding: '12px 0', borderRadius: 12,
+              flex: 1, padding: '12px 0', borderRadius:"var(--r-sm)",
               border: '1px solid var(--line-2, #E6DDE4)', background: 'var(--surface, #fff)',
-              color: 'var(--ink-2, #5C4F63)', fontSize: 13, fontWeight: 600,
+              color: 'var(--ink-2, #5C4F63)', fontSize:"var(--t-md)", fontWeight: 600,
               fontFamily: 'inherit', cursor: 'pointer',
             }}
           >
@@ -142,17 +116,16 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             style={{
-              flex: 2, padding: '12px 0', borderRadius: 12, border: 'none',
+              flex: 2, padding: '12px 0', borderRadius:"var(--r-sm)", border: 'none',
               background: danger ? 'var(--danger, #C2557A)' : 'var(--pc, #4A2E5A)',
-              color: '#fff', fontSize: 13, fontWeight: 700,
+              color: '#fff', fontSize:"var(--t-md)", fontWeight: 700,
               fontFamily: 'inherit', cursor: busy ? 'default' : 'pointer',
               opacity: busy ? 0.6 : 1,
             }}
           >
-            {busy ? 'רגע…' : confirmText}
+            {busy ? <Spinner inline label="רגע" /> : confirmText}
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   )
 }

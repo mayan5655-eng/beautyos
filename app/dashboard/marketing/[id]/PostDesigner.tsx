@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Icon from "../../../Icon";
+import Sheet from "../../../Sheet";
 
 // ============================================================
 // BeautyOS - Designed Post (PostDesigner)
@@ -71,24 +73,7 @@ export default function PostDesigner({
   }
 
   return (
-    <div
-      dir="rtl"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: 'rgba(45,55,48,0.55)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        gap: 20,
-        padding: '24px 16px',
-        overflowY: 'auto',
-        fontFamily: "'Heebo', sans-serif",
-      }}
-      onClick={onClose}
-    >
+    <Sheet open onClose={onClose} width={420} zIndex={50} ariaLabel="עיצוב פוסט">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Suez+One&family=Heebo:wght@400;600;800&display=swap');
       `}</style>
@@ -102,10 +87,10 @@ export default function PostDesigner({
             width: 360,
             height: 360,
             position: 'relative',
-            borderRadius: 24,
+            borderRadius:"var(--r-xl)",
             overflow: 'hidden',
             background: `linear-gradient(150deg, ${pc} 0%, ${pc}cc 45%, ${pc}88 100%)`,
-            boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+            boxShadow:"var(--shadow-lg)",
           }}
         >
           {/* Uploaded image as background */}
@@ -124,27 +109,27 @@ export default function PostDesigner({
           )}
 
           {/* Business name */}
-          <div style={{ position: 'absolute', top: 22, right: 24, color: 'var(--surface)', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+          <div style={{ position: 'absolute', top: 22, right: 24, color: 'var(--surface)', fontWeight: 800, fontSize:"var(--t-md)", letterSpacing: 0.5, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
             {businessName || ''}
           </div>
 
           {/* Headline + body */}
           <div style={{ position: 'absolute', bottom: 96, right: 24, left: 24, textAlign: 'right' }}>
-            <div style={{ fontFamily: "'Suez One', serif", color: 'var(--surface)', fontSize: 30, lineHeight: 1.15, textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
+            <div style={{ fontFamily: "'Suez One', serif", color: 'var(--surface)', fontSize:"var(--t-hero)", lineHeight: 1.15, textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
               {post.title}
             </div>
-            <div style={{ color: 'var(--brand-cream, #FEFAF7)', fontSize: 14, fontWeight: 600, marginTop: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            <div style={{ color: 'var(--brand-cream, #FEFAF7)', fontSize:"var(--t-md)", fontWeight: 600, marginTop: 8, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {post.body}
             </div>
           </div>
 
           {/* CTA pill */}
           <div style={{ position: 'absolute', bottom: 28, right: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ background: 'var(--surface)', color: pc, borderRadius: 999, padding: '10px 20px', fontWeight: 800, fontSize: 14, boxShadow: '0 6px 16px rgba(0,0,0,0.2)' }}>
+            <div style={{ background: 'var(--surface)', color: pc, borderRadius:"var(--r-full)", padding: '10px 20px', fontWeight: 800, fontSize:"var(--t-md)", boxShadow:"var(--shadow-md)" }}>
               {post.call_to_action} ›
             </div>
             {phone && (
-              <div style={{ color: 'var(--surface)', fontWeight: 600, fontSize: 13, textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+              <div style={{ color: 'var(--surface)', fontWeight: 600, fontSize:"var(--t-md)", textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
                 {phone}
               </div>
             )}
@@ -152,33 +137,33 @@ export default function PostDesigner({
         </div>
 
         {/* ============ CONTROLS ============ */}
-        <div style={{ width: 360, background: 'var(--surface)', borderRadius: 18, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}>
+        <div style={{ width: 360, background: 'var(--surface)', borderRadius:"var(--r-lg)", padding: 18, display: 'flex', flexDirection: 'column', gap: 12, boxShadow:"var(--shadow-md)" }}>
           {post.image_suggestion && (
-            <div style={{ fontSize: 13, color: 'var(--warning)', background: 'var(--surface-2)', borderRadius: 10, padding: 10 }}>
+            <div style={{ fontSize:"var(--t-md)", color: 'var(--warning)', background: 'var(--surface-2)', borderRadius:"var(--r-sm)", padding: 10 }}>
               💡 הצעת תמונה: {post.image_suggestion}
             </div>
           )}
 
-          <label style={{ background: 'var(--brand-cream, #FEFAF7)', border: `1px dashed ${pc}`, borderRadius: 10, padding: 12, textAlign: 'center', color: pc, fontWeight: 600, cursor: 'pointer' }}>
-            {image ? '✓ תמונה הועלתה — לחצי להחלפה' : '📷 העלי תמונה'}
+          <label style={{ background: 'var(--brand-cream, #FEFAF7)', border: `1px dashed ${pc}`, borderRadius:"var(--r-sm)", padding: 12, textAlign: 'center', color: pc, fontWeight: 600, cursor: 'pointer' }}>
+            {image ? '✓ תמונה הועלתה — לחצי להחלפה' : <><Icon name="camera" size={15}/> העלי תמונה</>}
             <input type="file" accept="image/*" onChange={handleImage} style={{ display: 'none' }} />
           </label>
 
           <button
             onClick={downloadImage}
-            style={{ background: pc, color: 'var(--surface)', border: 'none', borderRadius: 12, padding: 14, fontFamily: "'Heebo', sans-serif", fontWeight: 800, fontSize: 16, cursor: 'pointer' }}
+            style={{ background: pc, color: 'var(--surface)', border: 'none', borderRadius:"var(--r-sm)", padding: 14, fontFamily: "'Heebo', sans-serif", fontWeight: 800, fontSize:"var(--t-lg)", cursor: 'pointer' }}
           >
-            📥 הורד תמונה לאינסטגרם
+            <Icon name="download" size={15}/> הורדת תמונה לאינסטגרם
           </button>
 
           <button
             onClick={onClose}
-            style={{ background: 'transparent', color: 'var(--ink-2)', border: 'none', padding: 6, fontFamily: "'Heebo', sans-serif", fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+            style={{ background: 'transparent', color: 'var(--ink-2)', border: 'none', padding: 6, fontFamily: "'Heebo', sans-serif", fontWeight: 600, fontSize:"var(--t-md)", cursor: 'pointer' }}
           >
-            סגור
+            סגירה
           </button>
         </div>
       </div>
-    </div>
+    </Sheet>
   )
 }

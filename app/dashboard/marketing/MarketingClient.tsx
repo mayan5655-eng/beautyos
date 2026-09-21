@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import Icon from "../../Icon";
 import { useState } from 'react'
 
 type Campaign = {
@@ -35,14 +36,14 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-3xl shadow-2xl p-8 mb-8 text-white">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-2">🎯 הקמפיינים שלי</h1>
+            <h1 className="text-4xl font-bold mb-2"><Icon name="target" size={30}/> הקמפיינים שלי</h1>
             <p className="text-purple-100 text-lg">נהלי את כל הקמפיינים השיווקיים שלך במקום אחד</p>
           </div>
           <button
             onClick={() => router.push('/dashboard/marketing/new')}
             className="bg-white text-purple-700 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 transition-all"
           >
-            ✨ צרי קמפיין חדש
+            <Icon name="sparkle" size={15}/> צרי קמפיין חדש
           </button>
         </div>
       </div>
@@ -50,19 +51,19 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-purple-500">
-          <div className="text-4xl mb-2">📊</div>
+          <div className="mb-2 text-purple-600"><Icon name="chart" size={34}/></div>
           <div className="text-3xl font-bold text-gray-800">{campaigns.length}</div>
           <div className="text-gray-500 font-semibold">סך הקמפיינים</div>
         </div>
         <div className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-pink-500">
-          <div className="text-4xl mb-2">✏️</div>
+          <div className="mb-2 text-purple-600"><Icon name="pen" size={34}/></div>
           <div className="text-3xl font-bold text-gray-800">
             {campaigns.filter(c => c.status === 'draft').length}
           </div>
           <div className="text-gray-500 font-semibold">טיוטות</div>
         </div>
         <div className="bg-white rounded-2xl shadow-lg p-6 border-r-4 border-green-500">
-          <div className="text-4xl mb-2">🚀</div>
+          <div className="mb-2 text-purple-600"><Icon name="plane" size={34}/></div>
           <div className="text-3xl font-bold text-gray-800">
             {campaigns.filter(c => c.status === 'active').length}
           </div>
@@ -77,7 +78,7 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 חיפוש קמפיין לפי שם או מטרה..."
+            placeholder="חיפוש קמפיין לפי שם או מטרה…"
             className="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:outline-none transition shadow-md"
           />
         </div>
@@ -86,14 +87,14 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
       {/* Empty state */}
       {campaigns.length === 0 && (
         <div className="bg-white rounded-3xl shadow-lg p-12 text-center">
-          <div className="text-7xl mb-4">📭</div>
+          <div className="mb-4 text-gray-400"><Icon name="package" size={48}/></div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">אין קמפיינים עדיין</h2>
           <p className="text-gray-500 mb-6 text-lg">צרי את הקמפיין הראשון שלך וה-AI יעזור לך לכתוב פוסטים מנצחים!</p>
           <button
             onClick={() => router.push('/dashboard/marketing/new')}
             className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:scale-105 transition"
           >
-            ✨ ליצירת קמפיין ראשון
+            <Icon name="sparkle" size={15}/> ליצירת קמפיין ראשון
           </button>
         </div>
       )}
@@ -154,7 +155,7 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
                   }}
                   className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-bold hover:scale-105 transition shadow-md whitespace-nowrap"
                 >
-                  👁️ צפה
+                  <Icon name="eye" size={14}/> צפייה
                 </button>
               </div>
             </div>
@@ -165,7 +166,7 @@ export default function MarketingClient({ campaigns }: { campaigns: Campaign[] }
       {/* No search results */}
       {campaigns.length > 0 && filtered.length === 0 && (
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="text-5xl mb-2">🔍</div>
+          <div className="mb-2 text-gray-400"><Icon name="search" size={40}/></div>
           <p className="text-gray-600 text-lg">לא נמצאו קמפיינים תואמים לחיפוש</p>
         </div>
       )}

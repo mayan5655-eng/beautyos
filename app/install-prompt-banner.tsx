@@ -161,11 +161,11 @@ export default function InstallPromptBanner() {
           style={{
             appearance: "none",
             border: "none",
-            borderRadius: "999px",
+            borderRadius:"var(--r-full)",
             padding: "9px 18px",
             background: "var(--pc, #5B3E67)",
             color: "var(--pc-contrast, #FFFFFF)",
-            fontSize: "13px",
+            fontSize:"var(--t-md)",
             fontWeight: 600,
             fontFamily: "inherit",
             cursor: busy ? "default" : "pointer",

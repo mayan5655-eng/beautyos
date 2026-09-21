@@ -67,7 +67,7 @@ export default function InstallBannerCard({
           placeItems: "center",
           width: "38px",
           height: "38px",
-          borderRadius: "999px",
+          borderRadius:"var(--r-full)",
           background: "var(--lavender-100, var(--pc-tint))",
           color: "var(--plum-600, var(--pc))",
         }}
@@ -79,7 +79,7 @@ export default function InstallBannerCard({
         <div
           style={{
             fontWeight: 600,
-            fontSize: "14px",
+            fontSize:"var(--t-md)",
             lineHeight: 1.35,
             color: "var(--plum-700, var(--pc-deep))",
           }}
@@ -89,7 +89,7 @@ export default function InstallBannerCard({
         <div
           style={{
             marginTop: "2px",
-            fontSize: "13px",
+            fontSize:"var(--t-md)",
             lineHeight: 1.45,
             color: "var(--ink-2, var(--ink-2))",
           }}
@@ -110,10 +110,10 @@ export default function InstallBannerCard({
           background: "transparent",
           color: "var(--ink-3, var(--ink-3))",
           cursor: "pointer",
-          fontSize: "20px",
+          fontSize:"var(--t-xl)",
           lineHeight: 1,
           padding: "2px 4px",
-          borderRadius: "8px",
+          borderRadius:"var(--r-xs)",
         }}
       >
         ×

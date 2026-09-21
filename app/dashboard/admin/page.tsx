@@ -53,8 +53,8 @@ export default async function AdminPage() {
   if (error) {
     return (
       <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif" }}>
-        <h1 style={{ fontSize: 26, fontWeight: 600, marginBottom: 12 }}>ניהול מנויים</h1>
-        <p style={{ color: '#B4453C', fontSize: 14 }}>
+        <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, marginBottom: 12 }}>ניהול מנויים</h1>
+        <p style={{ color: '#B4453C', fontSize:"var(--t-md)" }}>
           שגיאה בטעינת רשימת העסקים: {error.message}
         </p>
       </div>

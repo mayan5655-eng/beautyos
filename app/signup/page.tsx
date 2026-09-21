@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
@@ -110,7 +111,7 @@ export default function SignupPage() {
               Matches the same divider on /login. */}
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-            <span style={{ color: ROSE, fontSize: 12, lineHeight: 1 }}>✦</span>
+            <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>
@@ -168,7 +169,7 @@ export default function SignupPage() {
           {error && <div style={errorStyle}>{error}</div>}
 
           <button type="submit" disabled={loading} className="signup-btn" style={buttonStyle(loading)}>
-            {loading ? 'יוצרת חשבון...' : 'הרשמה'}
+            {loading ? <Spinner inline label="יוצרת חשבון" /> : 'הרשמה'}
           </button>
 
           <p style={footerStyle}>
@@ -223,8 +224,8 @@ const cardStyle: React.CSSProperties = {
   zIndex: 1,
   background: SURFACE,
   padding: '38px 40px 42px',
-  borderRadius: 28,
-  boxShadow: `0 26px 64px -32px ${DEEP_SHADOW}, 0 4px 14px rgba(48,24,72,0.05)`,
+  borderRadius:"var(--r-xl)",
+  boxShadow:"var(--shadow-accent)",
   border: `1px solid ${ACCENT_LINE}`,
   width: '100%',
   maxWidth: 430,
@@ -239,7 +240,7 @@ const logoStyle: React.CSSProperties = {
 const welcomeTitleStyle: React.CSSProperties = {
   margin: '0 0 6px 0',
   color: DEEP,
-  fontSize: 22,
+  fontSize:"var(--t-2xl)",
   fontWeight: 600,
   letterSpacing: '0.3px',
   fontFamily: "'Frank Ruhl Libre', Georgia, serif",
@@ -248,7 +249,7 @@ const welcomeTitleStyle: React.CSSProperties = {
 const welcomeSubtitleStyle: React.CSSProperties = {
   margin: 0,
   color: MUTED,
-  fontSize: 13.5,
+  fontSize:"var(--t-md)",
   lineHeight: 1.7,
 }
 
@@ -256,8 +257,8 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '13px 15px',
   border: `1px solid ${ACCENT_LINE_2}`,
-  borderRadius: 12,
-  fontSize: 15,
+  borderRadius:"var(--r-sm)",
+  fontSize:"var(--t-lg)",
   boxSizing: 'border-box',
   background: CREAM,
   color: DEEP,
@@ -267,14 +268,14 @@ const inputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize:"var(--t-sm)",
   color: DEEP,
   fontWeight: 600,
   letterSpacing: '0.3px',
 }
 
 const hintStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize:"var(--t-xs)",
   color: MUTED,
 }
 
@@ -283,9 +284,9 @@ const errorStyle: React.CSSProperties = {
   background: '#F7ECEA',
   border: '1px solid #EAD3CF',
   padding: 11,
-  borderRadius: 10,
+  borderRadius:"var(--r-sm)",
   marginBottom: 16,
-  fontSize: 13.5,
+  fontSize:"var(--t-md)",
   textAlign: 'center',
 }
 
@@ -296,20 +297,20 @@ const buttonStyle = (loading: boolean): React.CSSProperties => ({
   background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
   color: '#fff',
   border: 'none',
-  borderRadius: 12,
-  fontSize: 15.5,
+  borderRadius:"var(--r-sm)",
+  fontSize:"var(--t-lg)",
   fontWeight: 600,
   letterSpacing: '1px',
   cursor: loading ? 'not-allowed' : 'pointer',
   opacity: loading ? 0.8 : 1,
   fontFamily: 'inherit',
-  boxShadow: `0 14px 30px -14px ${DEEP_SHADOW}`,
+  boxShadow:"var(--shadow-accent)",
   transition: 'transform 0.15s, box-shadow 0.15s',
 })
 
 const footerStyle: React.CSSProperties = {
   textAlign: 'center',
-  fontSize: 13.5,
+  fontSize:"var(--t-md)",
   color: MUTED,
   margin: '20px 0 0 0',
 }

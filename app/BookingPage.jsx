@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
+import Icon from "./Icon";
+import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK } from "@/lib/branding";
@@ -7,6 +9,7 @@ import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
+import { accentStyle } from "@/lib/theme";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -202,8 +205,12 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
     }
   };
 
-  const pc = brand?.primary || settings?.primary_color || "#4A2E5A";
-  const deep = brand?.deep || pc;
+  // The tenant's accent is set ONCE, as CSS variables on the page root
+  // (accentStyle → --pc, --pc-deep, --pc-tint, --pc-soft …). Everything below
+  // reads the variables, so no heading can fall back to the default purple.
+  const accent = brand?.primary || settings?.primary_color || "#4A2E5A";
+  const pc = "var(--pc)";
+  const deep = "var(--pc-deep)";
 
   // Half-hour granularity, and slotsBetween refuses any start whose treatment
   // would run past closing - the old loop offered the last hour of the day even
@@ -334,7 +341,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize: 15, letterSpacing: "1px", color: pc }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pc }}>
         ✦ טוען
       </div>
     );
@@ -344,9 +351,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   if (tenantError) {
     return (
       <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)", padding: 24, textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 16, color: "var(--pc, #4A2E5A)" }}>✦</div>
-        <h1 className="serif" style={{ fontSize: 23, fontWeight: 600, color: "var(--brand-muted, #98879B)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
-        <p style={{ fontSize: 14, color: "var(--brand-muted, #98879B)", maxWidth: 320, lineHeight: 1.7 }}>
+        <div style={{ fontSize:"var(--t-hero)", marginBottom: 16, color: "var(--pc, #4A2E5A)" }}>✦</div>
+        <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #98879B)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
+        <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)", maxWidth: 320, lineHeight: 1.7 }}>
           נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
         </p>
       </div>
@@ -456,31 +463,31 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const faint = "var(--brand-muted, #98879B)";
   const hair = "rgba(74,46,90,0.14)";
   // One shape for every "here is why this is empty" line on the page.
-  const noticeBox = { background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${hair}`, borderRadius: 12, padding: "10px 13px", marginBottom: 12, fontSize: 12.5, lineHeight: 1.6, color: ink };
+  const noticeBox = { background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${hair}`, borderRadius:"var(--r-sm)", padding: "10px 13px", marginBottom: 12, fontSize:"var(--t-sm)", lineHeight: 1.6, color: ink };
   const cream = "var(--brand-cream, #FEFAF7)";
   // ── type scale ───────────────────────────────────────────────────────────
   // display / body / meta. Nothing between them, because a size that is nearly
   // another size is just noise. Hebrew carries more leading than Latin at the
   // same size, so body runs at 1.7.
-  const T_DISPLAY = { fontSize: 34, fontWeight: 600, lineHeight: 1.15, letterSpacing: 0 };
-  const T_BODY    = { fontSize: 16, fontWeight: 400, lineHeight: 1.7 };
-  const T_META    = { fontSize: 13, fontWeight: 400, lineHeight: 1.5 };
+  const T_DISPLAY = { fontSize:"var(--t-hero)", fontWeight: 600, lineHeight: 1.15, letterSpacing: 0 };
+  const T_BODY    = { fontSize:"var(--t-lg)", fontWeight: 400, lineHeight: 1.7 };
+  const T_META    = { fontSize:"var(--t-md)", fontWeight: 400, lineHeight: 1.5 };
 
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 34 };
-  const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius: 22, padding: "26px 24px", boxShadow: "0 20px 48px -28px rgba(70,50,60,0.25)", border: `1px solid ${hair}` };
+  const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)", padding: "26px 24px", boxShadow:"var(--shadow-lg)", border: `1px solid ${hair}` };
   // The section beat: every section opens the same way - a short accent dash,
   // then the serif title, then 14px of air. One rhythm down the whole page, so
   // the sections read as movements of one piece rather than widgets stacked.
   const eyebrow = (text) => (
     <div style={{ marginBottom: 14 }}>
-      <span aria-hidden="true" style={{ display: "block", width: 22, height: 2, borderRadius: 2, background: pc, marginBottom: 10 }} />
-      <p className="serif" style={{ fontSize: 19, fontWeight: 600, color: ink, lineHeight: 1.3 }}>{text}</p>
+      <span aria-hidden="true" style={{ display: "block", width: 22, height: 2, borderRadius:"var(--r-xs)", background: pc, marginBottom: 10 }} />
+      <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: ink, lineHeight: 1.3 }}>{text}</p>
     </div>
   );
-  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow: "0 8px 20px -14px rgba(70,50,60,0.4)" });
+  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
 
   return (
-    <div dir="rtl" style={{ fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
@@ -600,18 +607,18 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           {!canBook && (
             <div style={{ ...section }}>
               <div style={{ ...cardBox, textAlign: "center" }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: deep, marginBottom: 8 }}>
+                <p style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, marginBottom: 8 }}>
                   ההזמנות המקוונות ייפתחו כאן בקרוב
                 </p>
-                <p style={{ fontSize: 13.5, color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
                   {(!hasServices ? "רשימת הטיפולים עדיין בהכנה. " : "אין כרגע ימים פנויים לקביעת תור אונליין. ") +
                     (wa ? "אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור."
                         : "אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק.")}
                 </p>
                 {wa && (
                   <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
-                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius: 16, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, letterSpacing: "0.5px", boxShadow: "0 14px 30px -16px rgba(37,211,102,0.9)" }}>
-                    💬 לתיאום תור בוואטסאפ
+                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
+                    <Icon name="whatsapp" size={15}/> לתיאום תור בוואטסאפ
                   </a>
                 )}
               </div>
@@ -650,7 +657,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div style={{ ...section }}>
               <div>
                 {eyebrow("אודות")}
-                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
               </div>
             </div>
           )}
@@ -665,7 +672,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <div>
                   {howIWork.map((step, i) => (
                     <div key={i} style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}` }}>
-                      <span className="serif" style={{ fontSize: 20, fontWeight: 600, color: pc, flexShrink: 0, lineHeight: 1 }}>{i + 1}</span>
+                      <span className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: pc, flexShrink: 0, lineHeight: 1 }}>{i + 1}</span>
                       <p style={{ ...T_BODY, color: ink, margin: 0 }}>{step}</p>
                     </div>
                   ))}
@@ -681,7 +688,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div style={{ ...section }}>
               <div style={{ display: "grid", gridTemplateColumns: clinicPhotos.length === 1 ? "1fr" : `repeat(${clinicPhotos.length}, 1fr)`, gap: 8 }}>
                 {clinicPhotos.map((p, i) => (
-                  <div key={i} style={{ aspectRatio: clinicPhotos.length === 1 ? "16 / 9" : "3 / 4", borderRadius: 16, overflow: "hidden", border: `1px solid ${hair}` }}>
+                  <div key={i} style={{ aspectRatio: clinicPhotos.length === 1 ? "16 / 9" : "3 / 4", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
                     <img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   </div>
                 ))}
@@ -696,7 +703,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 {eyebrow("גלריה")}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8 }}>
                   {gallery.map((g, i) => (
-                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" style={{ display: "block", aspectRatio: "1 / 1", borderRadius: 14, overflow: "hidden", border: `1px solid ${hair}` }}>
+                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" style={{ display: "block", aspectRatio: "1 / 1", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
                       <img src={g} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     </a>
                   ))}
@@ -711,9 +718,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               <div style={cardBox}>
                 {eyebrow("ביקורות")}
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                  <span className="serif" style={{ fontSize: 36, fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
+                  <span className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
                   <div>
-                    <div style={{ fontSize: 15, color: pc, letterSpacing: 2 }}>
+                    <div style={{ fontSize:"var(--t-lg)", color: pc, letterSpacing: 2 }}>
                       {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
                     </div>
                     <span style={{ ...T_META, color: faint }}>{reviews.length} ביקורות{reviewsAreReal ? " מלקוחות" : ""}</span>
@@ -721,12 +728,12 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 </div>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
                   {reviews.map((rv, i) => (
-                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius: 18, padding: "18px 20px" }}>
-                      <div style={{ fontSize: 13.5, color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
+                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius:"var(--r-lg)", padding: "18px 20px" }}>
+                      <div style={{ fontSize:"var(--t-md)", color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
                         {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
-                      {rv.text && <p className="serif" style={{ fontSize: 14.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
-                      {rv.name && <p style={{ fontSize: 11.5, fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
+                      {rv.text && <p className="serif" style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
+                      {rv.name && <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
                     </div>
                   ))}
                 </div>
@@ -751,9 +758,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 const v = weekHours[d];
                 const today = d === now.getDay();
                 return (
-                  <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius: 10, background: today ? `${pc}0D` : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
-                    <span style={{ fontSize: 13.5, color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
-                    <span style={{ fontSize: 13.5, color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
+                  <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius:"var(--r-sm)", background: today ? "var(--pc-tint)" : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
+                    <span style={{ fontSize:"var(--t-md)", color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
                   </div>
                 );
               })}
@@ -765,8 +772,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div style={{ ...section }}>
               <div>
                 {eyebrow("מיקום")}
-                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
-                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: `${pc}10`, color: deep, textDecoration: "none", padding: "11px 20px", borderRadius: 999, fontSize: 13, fontWeight: 600, letterSpacing: "0.4px", border: `1px solid ${pc}30` }}>ניווט במפות Google</a>}
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
+                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--pc-tint)", color: deep, textDecoration: "none", padding: "11px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", border: "1px solid var(--pc-soft)" }}>ניווט במפות Google</a>}
               </div>
             </div>
           )}
@@ -798,29 +805,29 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 {eyebrow("עדכונים")}
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {recentPosts.map((p) => (
-                    <div key={p.id} style={{ background: cream, borderRadius: 16, border: `1px solid ${hair}`, overflow: "hidden" }}>
+                    <div key={p.id} style={{ background: cream, borderRadius:"var(--r-md)", border: `1px solid ${hair}`, overflow: "hidden" }}>
                       {p.image_url && (
                         <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
                       )}
                       <div style={{ padding: "15px 17px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius: 999, letterSpacing: "0.4px" }}>
+                          <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
                             {postTypeLabel(p.post_type)}
                           </span>
-                          <span style={{ fontSize: 12, color: faint, letterSpacing: "0.3px" }}>
+                          <span style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.3px" }}>
                             {new Date(p.created_at).toLocaleDateString("he-IL")}
                           </span>
                         </div>
-                        {p.title && <p className="serif" style={{ fontSize: 16.5, fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
-                        {p.body && <p style={{ fontSize: 13.5, color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.title && <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
+                        {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                         {p.cta_label && (
                           wa ? (
                             <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
-                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, textDecoration: "none", letterSpacing: "0.4px", boxShadow: `0 10px 24px -14px ${pc}` }}>
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", textDecoration: "none", letterSpacing: "0.4px", boxShadow:"var(--shadow-accent)" }}>
                               {p.cta_label}
                             </a>
                           ) : (
-                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 999, letterSpacing: "0.4px" }}>
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
                               {p.cta_label}
                             </span>
                           )
@@ -844,8 +851,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           padding: "14px 20px calc(14px + env(safe-area-inset-bottom, 0px))",
           background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FEFAF7) 38%)" }}>
           <button onClick={goToServices} className="bk-btn"
-            style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 52, borderRadius: 14,
-              background: pc, color: brand?.onPrimary || "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600 }}>
+            style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 52, borderRadius:"var(--r-md)",
+              background: pc, color: brand?.onPrimary || "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600 }}>
             {brand?.ctaLabel || "קביעת תור"}
           </button>
           <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 8 }}>אישור מיידי בוואטסאפ</p>
@@ -860,14 +867,14 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {brand?.logoUrl ? (
               <img src={brand.logoUrl} alt={bizName} style={{ maxHeight: 48, maxWidth: 160, objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             ) : null}
-            <h2 className="serif" style={{ fontSize: 20, fontWeight: 600, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
+            <h2 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
           </div>
 
           {/* PROGRESS BAR */}
           {step < 4 && (
             <div style={{ display: "flex", gap: 6, marginBottom: 22, padding: "10px 20px 0" }}>
               {[1, 2, 3].map((s) => (
-                <div key={s} style={{ width: 44, height: 4, borderRadius: 4, background: step >= s ? pc : hair, transition: "background 0.3s" }} />
+                <div key={s} style={{ width: 44, height: 4, borderRadius:"var(--r-xs)", background: step >= s ? pc : hair, transition: "background 0.3s" }} />
               ))}
             </div>
           )}
@@ -877,14 +884,14 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 2 — CHOOSE DATE + TIME */}
             {step === 2 && (
               <div className="bk-card">
-                <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pc, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה לעמוד העסק</button>
-                <div style={{ background: cream, borderRadius: 16, padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 11, border: `1px solid ${hair}` }}>
+                <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pc, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה לעמוד העסק</button>
+                <div style={{ background: cream, borderRadius:"var(--r-md)", padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 11, border: `1px solid ${hair}` }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedService.color || pc }} />
-                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, flex: 1 }}>{selectedService.name}</p>
-                  <p className="serif" style={{ fontSize: 15, fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
+                  <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink, flex: 1 }}>{selectedService.name}</p>
+                  <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
                 </div>
 
-                <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
                 {availableDays.length === 0 ? (
                   <div style={{ ...noticeBox, marginBottom: 22 }}>
                     אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.
@@ -895,10 +902,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
                       <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
-                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius: 16, textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? `0 10px 24px -12px ${pc}` : "0 6px 16px -12px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
-                        <p className="serif" style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
-                        <p style={{ fontSize: 11.5, opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
+                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                        <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
+                        <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
+                        <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
                       </div>
                     );
                   })}
@@ -920,7 +927,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
                       </div>
                     )}
-                    <p style={{ fontSize: 12, letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
+                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     {visibleSlots.length === 0 && (
                       <div style={noticeBox}>אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.</div>
                     )}
@@ -934,7 +941,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius: 12, fontSize: 14, fontWeight: 600, background: taken ? "var(--brand-cream, #FEFAF7)" : isSel ? pc : "var(--brand-surface, #FAF6FC)", color: taken ? faint : isSel ? "var(--brand-surface, #FAF6FC)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "0 4px 12px -8px rgba(70,50,60,0.4)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FEFAF7)" : isSel ? pc : "var(--brand-surface, #FAF6FC)", color: taken ? faint : isSel ? "var(--brand-surface, #FAF6FC)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
                           </button>
                         );
@@ -942,8 +949,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                     </div>
                     {selectedStart !== null && (
                       <button onClick={() => setStep(3)} className="bk-btn"
-                        style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 15, fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow: `0 16px 34px -18px ${pc}` }}>
-                        המשך ←
+                        style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
+                        המשיכי ←
                       </button>
                     )}
                   </>
@@ -954,51 +961,51 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 3 — DETAILS */}
             {step === 3 && (
               <div className="bk-card">
-                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pc, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
+                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pc, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
 
-                <div style={{ background: cream, borderRadius: 18, padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
-                  <p style={{ fontSize: 12, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
+                <div style={{ background: cream, borderRadius:"var(--r-lg)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
+                  <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, color: muted }}>טיפול</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{selectedService.name}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, color: muted }}>תאריך</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>תאריך</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, color: muted }}>שעה</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{fmtTime(selectedStart)}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>שעה</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{fmtTime(selectedStart)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${hair}`, paddingTop: 10, marginTop: 4 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: ink }}>מחיר</span>
-                    <span className="serif" style={{ fontSize: 17, fontWeight: 600, color: deep }}>₪{selectedService.price}</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>מחיר</span>
+                    <span className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</span>
                   </div>
                 </div>
 
-                <p style={{ fontSize: 12, letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius: 14, padding: "14px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 14 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 14 }} />
 
                 {/* CONSENT, before the button. What is stored, what it is
                     used for, where the full policy is - and a tick that the
                     button waits for. Shown here rather than after, because
                     after is too late to be asked. */}
-                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: 14, border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FAF6FC)", marginBottom: 12, cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius:"var(--r-md)", border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FAF6FC)", marginBottom: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת הפרטים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
-                  <span style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>
+                  <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>
                     אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
                     <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pc, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
                   </span>
                 </label>
 
-                {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
+                {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
-                  style={{ width: "100%", padding: "16px 0", borderRadius: 16, background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize: 16, fontWeight: 600, letterSpacing: "0.8px", boxShadow: `0 16px 36px -18px ${pc}` }}>
-                  {submitting ? "קובע תור..." : (brand?.ctaLabel || "קביעת תור")}
+                  style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
+                  {submitting ?<Spinner inline label="קובע תור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
                 <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור מאושר מיד, ואישור נשלח אלייך בוואטסאפ</p>
               </div>
@@ -1007,18 +1014,18 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 4 — SUCCESS */}
             {step === 4 && (
               <div className="bk-card" style={{ textAlign: "center", paddingTop: 24 }}>
-                <div style={{ fontSize: 48, marginBottom: 14, color: pc }}>✦</div>
-                <h2 className="serif" style={{ fontSize: 26, fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
-                <p style={{ fontSize: 14, color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
+                <div style={{ fontSize:"var(--t-hero)", marginBottom: 14, color: pc }}>✦</div>
+                <h2 className="serif" style={{ fontSize:"var(--t-3xl)", fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
                   נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}
                 </p>
-                <div style={{ background: cream, borderRadius: 18, padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 13, color: muted }}>טיפול</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 13, color: muted }}>שם</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{name}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, color: muted }}>טלפון</span><span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{phone}</span></div>
+                <div style={{ background: cream, borderRadius:"var(--r-lg)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "12px 22px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}>💬 שלחי לנו הודעה</a>}
-                <p style={{ fontSize: 12, color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
+                <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>
             )}
 
@@ -1029,9 +1036,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       {/* FOOTER */}
       <div style={{ marginTop: "auto", textAlign: "center", padding: "34px 20px 0" }}>
         {addr && step === 1 && (
-          <p style={{ fontSize: 12, color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
+          <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
-        <p style={{ fontSize: 12, color: faint, letterSpacing: "1px" }}>מופעל ע"י BloomOS ✦</p>
+        <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "1px" }}>מופעל ע"י BloomOS ✦</p>
       </div>
     </div>
   );

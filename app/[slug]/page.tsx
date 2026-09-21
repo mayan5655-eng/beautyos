@@ -123,11 +123,11 @@ export default async function SlugPage({ params }: Props) {
           background: 'var(--brand-cream, #FEFAF7)',
         }}
       >
-        <p style={{ fontSize: 34, color: 'var(--brand-muted, #98879B)', marginBottom: 14 }}>✦</p>
-        <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
+        <p style={{ fontSize:"var(--t-hero)", color: 'var(--brand-muted, #98879B)', marginBottom: 14 }}>✦</p>
+        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
           לא מצאנו עסק בכתובת הזו
         </h1>
-        <p style={{ fontSize: 16, color: 'var(--brand-muted, #98879B)', lineHeight: 1.7, maxWidth: 340 }}>
+        <p style={{ fontSize:"var(--t-lg)", color: 'var(--brand-muted, #98879B)', lineHeight: 1.7, maxWidth: 340 }}>
           ייתכן שהקישור השתנה או הוקלד עם שגיאה. כדאי לבקש מהעסק קישור מעודכן.
         </p>
       </div>

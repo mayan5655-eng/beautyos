@@ -10,7 +10,7 @@
 // THIS MODAL CAN NOW WRITE, on exactly one path:
 //
 //   preview  ->  [ייבוא N פניות]      opens the confirmation panel. No write.
-//   confirming -> [כן, ייבא N פניות]  the only place dryRun:false is sent.
+//   confirming -> [כן, ייבאי N פניות]  the only place dryRun:false is sent.
 //
 // Two clicks, with the row count stated in between. The endpoint also treats a
 // missing or malformed dryRun field as a dry run, so a request that loses it
@@ -30,6 +30,9 @@
 // writes 244 is worse than no preview, so both read from one implementation.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import Icon from "./Icon";
+import Spinner from "./Spinner";
+import Sheet from "./Sheet";
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from '@/lib/leads/buildRows';
 import { maskValue } from '@/lib/leads/csvImport';
 
@@ -170,23 +173,15 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
 
   if (!open) return null;
 
-  const th = { textAlign: 'right', fontSize: 12, fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
-  const td = { fontSize: 11.5, color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
+  const th = { textAlign: 'right', fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink-3)', padding: '7px 9px', whiteSpace: 'nowrap', borderBottom: '1px solid var(--line-2)' };
+  const td = { fontSize:"var(--t-sm)", color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
 
   return (
-    <div
-      dir="rtl"
-      onClick={close}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(43,34,51,0.45)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5100, padding: 14 }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', background: 'var(--surface)', borderRadius: 20, padding: '22px 22px 18px', boxShadow: '0 24px 60px rgba(74,46,90,0.28)' }}
-      >
+    <Sheet open onClose={close} busy={stage === 'importing'} width={860} zIndex={5100} ariaLabel="ייבוא פניות מקובץ">
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
           <div>
-            <h3 className="serif" style={{ fontSize: 21, fontWeight: 600, color: 'var(--ink)' }}>ייבוא פניות מקובץ</h3>
-            <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
+            <h3 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: 'var(--ink)' }}>ייבוא פניות מקובץ</h3>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
               {stage === 'done'
                 ? 'הייבוא הסתיים.'
                 : stage === 'importing'
@@ -197,7 +192,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             </p>
           </div>
           <button type="button" onClick={close} aria-label="סגירה"
-            style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
+            style={{ background: 'none', border: 'none', fontSize:"var(--t-xl)", color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
         </div>
 
         {/* ── file picker ── */}
@@ -211,10 +206,10 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             id="lead-csv-input"
           />
           <label htmlFor="lead-csv-input" className="primary-btn"
-            style={{ display: 'inline-block', background: pcGrad, color: 'var(--surface)', padding: '10px 18px', fontSize: 12, borderRadius: 24, cursor: 'pointer', boxShadow: `0 8px 18px ${pcShadow}` }}>
-            {fileName ? 'בחירת קובץ אחר' : '⇪ בחירת קובץ (Excel או CSV)'}
+            style={{ display: 'inline-block', background: pcGrad, color: 'var(--surface)', padding: '10px 18px', fontSize:"var(--t-sm)", borderRadius:"var(--r-xl)", cursor: 'pointer', boxShadow:"var(--shadow-accent)" }}>
+            {fileName ? 'בחירת קובץ אחר' : <><Icon name="upload" size={14}/> בחירת קובץ (Excel או CSV)</>}
           </label>
-          {fileName && <span style={{ fontSize: 11.5, color: 'var(--ink-2)', marginInlineStart: 10 }}>{fileName}</span>}
+          {fileName && <span style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginInlineStart: 10 }}>{fileName}</span>}
         </div>
 
         {/* ── inline help ──
@@ -223,10 +218,10 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             answers the questions that actually cost us time - a PDF or a print-
             out instead of the data, and phone numbers stored as numbers. */}
         <details style={{ marginTop: 10 }}>
-          <summary style={{ fontSize: 12, color: 'var(--ink-2)', cursor: 'pointer', userSelect: 'none', padding: '4px 0' }}>
+          <summary style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', cursor: 'pointer', userSelect: 'none', padding: '4px 0' }}>
             לא בטוחה איזה קובץ להעלות?
           </summary>
-          <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--line-2)', fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.85 }}>
+          <div style={{ marginTop: 8, padding: '12px 14px', borderRadius:"var(--r-sm)", background: 'var(--surface-2)', border: '1px solid var(--line-2)', fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.85 }}>
             <p style={{ marginBottom: 9 }}>
               <strong style={{ color: 'var(--ink)' }}>מה צריך:</strong> קובץ עם לפחות עמודת שם ועמודת טלפון. כל שאר העמודות — אופציונליות.
             </p>
@@ -255,28 +250,28 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
         {/* ── sheet picker: only when the workbook really has more than one tab ── */}
         {sheetNames.length > 1 && (
           <div style={{ margin: '10px 0 2px', display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-            <label htmlFor="lead-sheet-select" style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>גיליון</label>
+            <label htmlFor="lead-sheet-select" style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>גיליון</label>
             <select
               id="lead-sheet-select"
               value={sheet ?? ''}
               disabled={analyzing}
               onChange={(e) => onSheetChange(e.target.value)}
-              style={{ fontSize: 12, padding: '7px 10px', borderRadius: 10, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', minWidth: 160 }}
+              style={{ fontSize:"var(--t-sm)", padding: '7px 10px', borderRadius:"var(--r-sm)", border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', minWidth: 160 }}
             >
               {sheetNames.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+            <span style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)' }}>
               בקובץ יש {sheetNames.length} גיליונות. הייבוא יכלול רק את הגיליון שנבחר.
             </span>
           </div>
         )}
 
-        {analyzing && <p style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 12 }}>מנתחת את הקובץ…</p>}
+        {analyzing && <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginTop: 12 }}><Spinner inline label="מנתחת את הקובץ"/></p>}
 
         {error && (
-          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius: 12, background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)' }}>
-            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>הקובץ לא נותח</p>
-            <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.6 }}>{error}</p>
+          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)' }}>
+            <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>הקובץ לא נותח</p>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6 }}>{error}</p>
           </div>
         )}
 
@@ -288,7 +283,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
               <Stat label="ייובאו" value={preview.counts.valid} tone="ok" />
               <Stat label="ידולגו" value={preview.counts.skipped} tone={preview.counts.skipped ? 'warn' : undefined} />
             </div>
-            <p style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.7, marginBottom: 12 }}>
+            <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', lineHeight: 1.7, marginBottom: 12 }}>
               {/* Encoding and delimiter are CSV concepts. A workbook has
                   neither, so showing them (empty) would be noise at best and
                   misleading at worst. */}
@@ -301,25 +296,25 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             </p>
 
             {/* ── mapping, every field editable ── */}
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>התאמת עמודות</h4>
+            <h4 style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>התאמת עמודות</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 9, marginBottom: 6 }}>
               {FIELD_ORDER.map((field) => {
                 const proposed = result.mapping?.[field];
                 const conf = proposed?.confidence ?? 0;
                 return (
-                  <div key={field} style={{ border: '1px solid var(--line-2)', borderRadius: 12, padding: '9px 11px', background: 'var(--surface-2)' }}>
+                  <div key={field} style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", padding: '9px 11px', background: 'var(--surface-2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink)' }}>
+                      <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>
                         {FIELD_LABELS[field]}{field === 'phone' && <span style={{ color: 'var(--danger)' }}> *</span>}
                       </span>
                       {mapping[field] && conf > 0 && (
-                        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>ביטחון {Math.round(conf * 100)}%</span>
+                        <span style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)' }}>ביטחון {Math.round(conf * 100)}%</span>
                       )}
                     </div>
                     <select
                       value={mapping[field] ?? ''}
                       onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value || null }))}
-                      style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 9, padding: '7px 9px', fontSize: 11.5, fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}
+                      style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius:"var(--r-xs)", padding: '7px 9px', fontSize:"var(--t-sm)", fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}
                     >
                       <option value="">— לא מיובא —</option>
                       {(result.headers || []).map((h) => <option key={h} value={h}>{h}</option>)}
@@ -328,13 +323,13 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                 );
               })}
             </div>
-            <p style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 14, lineHeight: 1.6 }}>
+            <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', marginBottom: 14, lineHeight: 1.6 }}>
               טלפון הוא שדה חובה: הוא גם מזהה הכפילות, כך שהרצה חוזרת של אותו קובץ לא תיצור כפילויות.
             </p>
 
             {!phoneMapped && (
-              <div style={{ padding: '11px 13px', borderRadius: 12, background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)', marginBottom: 14 }}>
-                <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+              <div style={{ padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)', marginBottom: 14 }}>
+                <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6 }}>
                   בלי עמודת טלפון אי אפשר לייבא: כל השורות ידולגו.
                 </p>
               </div>
@@ -343,19 +338,19 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             {/* ── skipped, with reasons ── */}
             {preview.counts.skipped > 0 && (
               <div style={{ marginBottom: 14 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
+                <h4 style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
                   שורות שידולגו ({preview.counts.skipped})
                 </h4>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
                   {Object.entries(preview.counts.byReason)
                     .filter(([, n]) => n > 0)
                     .map(([reason, n]) => (
-                      <span key={reason} style={{ fontSize: 11, padding: '5px 11px', borderRadius: 20, background: 'var(--surface-2)', border: '1px solid var(--line-2)', color: 'var(--ink-2)' }}>
+                      <span key={reason} style={{ fontSize:"var(--t-xs)", padding: '5px 11px', borderRadius:"var(--r-lg)", background: 'var(--surface-2)', border: '1px solid var(--line-2)', color: 'var(--ink-2)' }}>
                         {SKIP_REASON_HE[reason]}: <strong>{n}</strong>
                       </span>
                     ))}
                 </div>
-                <div style={{ overflowX: 'auto', border: '1px solid var(--line-2)', borderRadius: 12 }}>
+                <div style={{ overflowX: 'auto', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)" }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr><th style={th}>שורה</th><th style={th}>שם</th><th style={th}>ערך הטלפון</th><th style={th}>סיבה</th></tr></thead>
                     <tbody>
@@ -372,7 +367,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                   </table>
                 </div>
                 {preview.skipped.length > 5 && (
-                  <p style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>
+                  <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', marginTop: 6 }}>
                     ועוד {preview.skipped.length - 5} שורות.
                   </p>
                 )}
@@ -380,13 +375,13 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             )}
 
             {/* ── first 5 rows exactly as they would be inserted ── */}
-            <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
+            <h4 style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
               5 השורות הראשונות, בדיוק כפי שייכנסו
             </h4>
             {preview.valid.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--ink-2)', marginBottom: 14 }}>אין שורות תקינות לייבוא.</p>
+              <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginBottom: 14 }}>אין שורות תקינות לייבוא.</p>
             ) : (
-              <div style={{ overflowX: 'auto', border: '1px solid var(--line-2)', borderRadius: 12, marginBottom: 6 }}>
+              <div style={{ overflowX: 'auto', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 6 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -409,7 +404,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                 </table>
               </div>
             )}
-            <p style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', lineHeight: 1.7, marginBottom: 16 }}>
               כל השורות ייכנסו בסטטוס <strong>{IMPORT_STATUS}</strong> ובמקור <strong>{IMPORT_SOURCE}</strong>,
               כך שאפשר לבחור אותן כקבוצה אחת. הטלפון המנורמל משמש גם כמזהה החיצוני.
             </p>
@@ -418,18 +413,18 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
 
         {/* ── the confirmation step: states the count before anything fires ── */}
         {stage === 'confirming' && preview && (
-          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: `1px solid ${pc}` }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
+          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: `1px solid ${pc}` }}>
+            <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', marginBottom: 7 }}>
               לייבא {preview.counts.valid} פניות?
             </p>
-            <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75, marginBottom: 5 }}>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.75, marginBottom: 5 }}>
               ייווצרו <strong>{preview.counts.valid}</strong> פניות חדשות בסטטוס <strong>{IMPORT_STATUS}</strong> ובמקור <strong>{IMPORT_SOURCE}</strong>.
               {preview.counts.skipped > 0 && <> {preview.counts.skipped} שורות ידולגו.</>}
               {/* Name the tab at the moment of approval: with several sheets,
                   "which one" is as much a part of the decision as "how many". */}
               {sheetNames.length > 1 && sheet && <> הייבוא הוא מגיליון <strong>{sheet}</strong> בלבד.</>}
             </p>
-            <p style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.7 }}>
+            <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', lineHeight: 1.7 }}>
               זו הפעולה הראשונה שכותבת לבסיס הנתונים. אפשר להריץ שוב בבטחה אם משהו נכשל: הייבוא מזוהה לפי מספר הטלפון ולא יוצר כפילויות.
             </p>
           </div>
@@ -437,18 +432,18 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
 
         {/* ── the result ── */}
         {stage === 'done' && (
-          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius: 14, background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
+          <div style={{ marginTop: 4, marginBottom: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
             {importError ? (
               <>
-                <p style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>הייבוא לא הושלם</p>
-                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.7 }}>{importError}</p>
+                <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--danger)', marginBottom: 6 }}>הייבוא לא הושלם</p>
+                <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.7 }}>{importError}</p>
               </>
             ) : importResult?.result ? (
               <>
-                <p style={{ fontSize: 13.5, fontWeight: 700, color: importResult.success ? 'var(--success)' : 'var(--danger)', marginBottom: 6 }}>
+                <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: importResult.success ? 'var(--success)' : 'var(--danger)', marginBottom: 6 }}>
                   {importResult.success ? 'הייבוא הושלם' : 'הייבוא הושלם חלקית'}
                 </p>
-                <p style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.75 }}>{importResult.message}</p>
+                <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.75 }}>{importResult.message}</p>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                   <Stat label="נשמרו" value={importResult.result.landed} tone="ok" />
                   {importResult.result.notLanded > 0 && <Stat label="לא נשמרו" value={importResult.result.notLanded} tone="warn" />}
@@ -457,13 +452,13 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                   )}
                 </div>
                 {importResult.result.failedChunks > 0 && (
-                  <p style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 9, lineHeight: 1.7 }}>
+                  <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 9, lineHeight: 1.7 }}>
                     {importResult.result.failedChunks} מקטעים נכשלו. אפשר לסגור ולהריץ את אותו קובץ שוב — מה שכבר נשמר לא ישוכפל.
                   </p>
                 )}
               </>
             ) : (
-              <p style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>{importResult?.error || 'הייבוא נכשל'}</p>
+              <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)' }}>{importResult?.error || 'הייבוא נכשל'}</p>
             )}
           </div>
         )}
@@ -472,14 +467,14 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
         <div style={{ display: 'flex', gap: 9, alignItems: 'center', borderTop: '1px solid var(--line-2)', paddingTop: 14 }}>
           {stage === 'done' ? (
             <button type="button" onClick={close} className="primary-btn"
-              style={{ flex: 1, padding: '11px 0', borderRadius: 24, border: 'none', background: pcGrad, color: 'var(--surface)', fontSize: 12, fontWeight: 700 }}>
+              style={{ flex: 1, padding: '11px 0', borderRadius:"var(--r-xl)", border: 'none', background: pcGrad, color: 'var(--surface)', fontSize:"var(--t-sm)", fontWeight: 700 }}>
               סגירה
             </button>
           ) : (
             <>
               <button type="button" onClick={stage === 'confirming' ? () => setStage('preview') : close}
                 disabled={stage === 'importing'} className="primary-btn"
-                style={{ flex: 1, padding: '11px 0', border: '1.5px solid var(--line-2)', borderRadius: 24, background: 'var(--surface)', fontSize: 12, color: 'var(--ink-2)', opacity: stage === 'importing' ? 0.5 : 1 }}>
+                style={{ flex: 1, padding: '11px 0', border: '1.5px solid var(--line-2)', borderRadius:"var(--r-xl)", background: 'var(--surface)', fontSize:"var(--t-sm)", color: 'var(--ink-2)', opacity: stage === 'importing' ? 0.5 : 1 }}>
                 {stage === 'confirming' ? 'חזרה' : 'סגירה'}
               </button>
 
@@ -488,35 +483,34 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                 <button type="button"
                   onClick={() => setStage('confirming')}
                   disabled={!preview || preview.counts.valid === 0 || !phoneMapped}
-                  style={{ flex: 2, padding: '11px 0', borderRadius: 24, border: 'none', background: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--line-2)' : pcGrad, color: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--ink-3)' : 'var(--surface)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'not-allowed' : 'pointer' }}>
+                  style={{ flex: 2, padding: '11px 0', borderRadius:"var(--r-xl)", border: 'none', background: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--line-2)' : pcGrad, color: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'var(--ink-3)' : 'var(--surface)', fontSize:"var(--t-sm)", fontWeight: 700, fontFamily: 'inherit', cursor: (!preview || preview.counts.valid === 0 || !phoneMapped) ? 'not-allowed' : 'pointer' }}>
                   ייבוא {preview ? preview.counts.valid : 0} פניות
                 </button>
               ) : (
                 // THE WRITE. Only this button sends dryRun:false.
                 <button type="button" onClick={runImport} disabled={stage === 'importing'}
-                  style={{ flex: 2, padding: '11px 0', borderRadius: 24, border: 'none', background: pcGrad, color: 'var(--surface)', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: stage === 'importing' ? 'wait' : 'pointer', opacity: stage === 'importing' ? 0.7 : 1 }}>
-                  {stage === 'importing' ? 'מייבאת…' : `כן, ייבא ${preview ? preview.counts.valid : 0} פניות`}
+                  style={{ flex: 2, padding: '11px 0', borderRadius:"var(--r-xl)", border: 'none', background: pcGrad, color: 'var(--surface)', fontSize:"var(--t-sm)", fontWeight: 700, fontFamily: 'inherit', cursor: stage === 'importing' ? 'wait' : 'pointer', opacity: stage === 'importing' ? 0.7 : 1 }}>
+                  {stage === 'importing' ? <Spinner inline label="מייבאת" /> : `כן, ייבאי ${preview ? preview.counts.valid : 0} פניות`}
                 </button>
               )}
             </>
           )}
         </div>
         {stage === 'preview' && (
-          <p style={{ fontSize: 12, color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', textAlign: 'center', marginTop: 9, lineHeight: 1.6 }}>
             עדיין לא נשמר כלום. הכפתור פותח מסך אישור לפני הייבוא.
           </p>
         )}
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
 function Stat({ label, value, tone }) {
   const color = tone === 'ok' ? 'var(--success)' : tone === 'warn' ? 'var(--danger)' : 'var(--ink)';
   return (
-    <div style={{ padding: '9px 15px', borderRadius: 13, background: 'var(--surface-2)', border: '1px solid var(--line-2)', minWidth: 92 }}>
-      <div style={{ fontSize: 19, fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</div>
+    <div style={{ padding: '9px 15px', borderRadius:"var(--r-sm)", background: 'var(--surface-2)', border: '1px solid var(--line-2)', minWidth: 92 }}>
+      <div style={{ fontSize:"var(--t-xl)", fontWeight: 700, color }}>{value}</div>
+      <div style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)' }}>{label}</div>
     </div>
   );
 }

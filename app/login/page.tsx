@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
@@ -19,13 +20,13 @@ import {
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12,
   border: `1px solid ${ACCENT_LINE_2}`,
-  borderRadius: 14, fontSize: 15, boxSizing: 'border-box', background: CREAM,
+  borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", boxSizing: 'border-box', background: CREAM,
   color: 'var(--brand-deep, #301848)', outline: 'none', fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
 }
 const textLinkStyle: React.CSSProperties = {
   // Purple, not pink: pink on cream is 2.66:1 and fails AA. Purple is 11.1:1.
-  background: 'none', border: 'none', color: ACCENT, fontSize: 13.5, cursor: 'pointer',
+  background: 'none', border: 'none', color: ACCENT, fontSize:"var(--t-md)", cursor: 'pointer',
   textDecoration: 'underline', padding: 0, fontFamily: 'inherit', fontWeight: 600,
 }
 function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
@@ -33,17 +34,17 @@ function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
     color: kind === 'error' ? '#B25B52' : '#2E7D50',
     background: kind === 'error' ? '#F9EFEE' : '#EEF5F0',
     border: `1px solid ${kind === 'error' ? '#EBD5D2' : '#D4E7DB'}`,
-    padding: 11, borderRadius: 12, marginBottom: 16, fontSize: 13.5, textAlign: 'center',
+    padding: 11, borderRadius:"var(--r-sm)", marginBottom: 16, fontSize:"var(--t-md)", textAlign: 'center',
   }
 }
 function btnStyle(loading: boolean): React.CSSProperties {
   return {
-    width: '100%', padding: 15, color: CONTRAST, border: 'none', borderRadius: 14,
+    width: '100%', padding: 15, color: CONTRAST, border: 'none', borderRadius:"var(--r-md)",
     // Text sits over the purple end of the gradient: 11.5:1.
     background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
-    fontSize: 15.5, fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
+    fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
     cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1,
-    boxShadow: `0 14px 30px -14px ${DEEP_SHADOW}`,
+    boxShadow:"var(--shadow-accent)",
     transition: 'transform 0.15s, box-shadow 0.15s',
   }
 }
@@ -88,7 +89,7 @@ export default function LoginPage() {
 
     setLoading(false)
     if (error) {
-      setError('שליחת הקישור נכשלה. נסה/י שוב.')
+      setError('שליחת הקישור נכשלה. נסי שוב.')
     } else {
       // Neutral message either way, so we don't reveal whether the email exists.
       setResetNotice('אם קיים חשבון עם כתובת זו, נשלח אליו קישור לאיפוס הסיסמה.')
@@ -146,19 +147,19 @@ export default function LoginPage() {
 
         <div className="auth-card" style={{
           background: SURFACE, padding: '38px 40px 42px',
-          borderRadius: 28,
-          boxShadow: `0 26px 64px -32px ${DEEP_SHADOW}, 0 4px 14px rgba(48,24,72,0.05)`,
+          borderRadius:"var(--r-xl)",
+          boxShadow:"var(--shadow-accent)",
           border: `1px solid ${ACCENT_LINE}`,
         }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <p style={{ margin: 0, color: MUTED, fontSize: 11, letterSpacing: '2.5px', fontWeight: 600 }}>
+            <p style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
               {mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}
             </p>
             {/* Hairline rule with a small rose glyph, echoing the lotus mark
                 above the wordmark in the logo. */}
             <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
               <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-              <span style={{ color: ROSE, fontSize: 12, lineHeight: 1 }}>✦</span>
+              <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
               <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
             </div>
           </div>
@@ -190,8 +191,8 @@ export default function LoginPage() {
 
             <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
               {mode === 'login'
-                ? (loading ? 'מתחבר...' : 'כניסה')
-                : (loading ? 'שולח...' : 'שליחת קישור לאיפוס')}
+                ? (loading ? <Spinner inline label="מתחבר" /> : 'כניסה')
+                : (loading ? <Spinner inline label="שולח" /> : 'שליחת קישור לאיפוס')}
             </button>
           </form>
 
@@ -208,7 +209,7 @@ export default function LoginPage() {
           </div>
 
           {mode === 'login' && (
-            <p style={{ marginTop: 16, textAlign: 'center', fontSize: 13.5, color: MUTED }}>
+            <p style={{ marginTop: 16, textAlign: 'center', fontSize:"var(--t-md)", color: MUTED }}>
               אין לך חשבון?{' '}
               <a href="/signup" className="auth-link" style={{ color: ACCENT, fontWeight: 700, textDecoration: 'none' }}>
                 הירשמי

@@ -5,6 +5,8 @@
 // Visited via /community?t=<tenant_id> (the link the cosmetician shares).
 
 import { useEffect, useState } from "react";
+import Icon from "../Icon";
+import Spinner from "../Spinner";
 
 type Post = {
   id: string;
@@ -53,44 +55,44 @@ export default function CommunityPage() {
       <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 14px 48px" }}>
         {/* Header */}
         <div style={{ textAlign: "center", padding: "34px 16px 22px" }}>
-          <div style={{ fontSize: 30, marginBottom: 6 }}>💜</div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--ink, #2A2233)", margin: 0 }}>
+          <div style={{ marginBottom: 6, color: "var(--pc)" }}><Icon name="heart" size={30}/></div>
+          <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, color: "var(--ink, #2A2233)", margin: 0 }}>
             {business.name ? `הקהילה של ${business.name}` : "מרחב הלקוחות"}
           </h1>
-          <p style={{ fontSize: 12.5, color: "var(--brand-muted, #98879B)", marginTop: 6 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", marginTop: 6 }}>
             עדכונים, מבצעים וטיפים — במקום אחד
           </p>
         </div>
 
-        {loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize: 13 }}>טוען...</p>}
-        {error && !loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize: 13 }}>{error}</p>}
+        {loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
+        {error && !loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize:"var(--t-md)" }}>{error}</p>}
 
         {!loading && !error && posts.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FAF6FC)", borderRadius: 18 }}>
-            <p style={{ fontSize: 13.5, color: "var(--brand-muted, #98879B)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים. 💜</p>
+          <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)" }}>
+            <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים. 💜</p>
           </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {posts.map((p) => (
-            <div key={p.id} style={{ background: "var(--brand-surface, #FAF6FC)", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(74,46,90,0.14)", boxShadow: "0 1px 6px rgba(0,0,0,0.03)" }}>
+            <div key={p.id} style={{ background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-md)", overflow: "hidden", border: "1px solid rgba(74,46,90,0.14)", boxShadow:"var(--shadow-sm)" }}>
               {p.image_url && (
                 <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 320, objectFit: "cover", objectPosition: "center", display: "block" }} />
               )}
               <div style={{ padding: "15px 17px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius: 20 }}>
+                  <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius:"var(--r-lg)" }}>
                     {typeLabel(p.post_type)}
                   </span>
-                  <span style={{ fontSize: 11.5, color: "rgba(74,46,90,0.14)" }}>
+                  <span style={{ fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)" }}>
                     {new Date(p.created_at).toLocaleDateString("he-IL")}
                   </span>
                 </div>
-                {p.title && <p style={{ fontSize: 15.5, fontWeight: 700, color: "var(--ink, #2A2233)", margin: "0 0 5px" }}>{p.title}</p>}
-                {p.body && <p style={{ fontSize: 13, color: "var(--ink, #2A2233)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                {p.title && <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: "var(--ink, #2A2233)", margin: "0 0 5px" }}>{p.title}</p>}
+                {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                 {p.cta_label && business.phone && (
                   <a href={`https://wa.me/972${business.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noreferrer"
-                     style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #4A2E5A),var(--pc-tint, #EDE7F0))", color: "var(--brand-surface, #FAF6FC)", fontSize: 12.5, fontWeight: 600, borderRadius: 22, textDecoration: "none" }}>
+                     style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #4A2E5A),var(--pc-tint, #EDE7F0))", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-lg)", textDecoration: "none" }}>
                     {p.cta_label}
                   </a>
                 )}
@@ -102,7 +104,7 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize: 11.5, color: "rgba(74,46,90,0.14)", marginTop: 30 }}>BloomOS 💜</p>
+        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)", marginTop: 30 }}>BloomOS 💜</p>
       </div>
     </div>
   );

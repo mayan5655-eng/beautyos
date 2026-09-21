@@ -176,14 +176,14 @@ const cardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 760,
   background: SURFACE,
-  borderRadius: 20,
+  borderRadius:"var(--r-lg)",
   padding: "44px 40px",
   border: `1px solid ${ACCENT_LINE}`,
-  boxShadow: `0 14px 44px ${DEEP_SHADOW}, 0 2px 8px rgba(48,24,72,0.04)`,
+  boxShadow:"var(--shadow-accent)",
 };
 
 const brandStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize:"var(--t-xs)",
   fontWeight: 600,
   letterSpacing: 2,
   color: MUTED,
@@ -192,7 +192,7 @@ const brandStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
-  fontSize: 38,
+  fontSize:"var(--t-hero)",
   fontWeight: 600,
   color: DEEP,
   lineHeight: 1.2,
@@ -201,7 +201,7 @@ const titleStyle: CSSProperties = {
 
 const enSubtitleStyle: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
-  fontSize: 17,
+  fontSize:"var(--t-lg)",
   color: MUTED,
   letterSpacing: 0.5,
 };
@@ -214,14 +214,14 @@ const sectionStyle: CSSProperties = {
 
 const h2Style: CSSProperties = {
   fontFamily: "var(--font-cormorant), 'Cormorant Garamond', serif",
-  fontSize: 22,
+  fontSize:"var(--t-2xl)",
   fontWeight: 600,
   color: DEEP,
   marginBottom: 2,
 };
 
 const enHeadingStyle: CSSProperties = {
-  fontSize: 12,
+  fontSize:"var(--t-sm)",
   fontWeight: 600,
   letterSpacing: 0.8,
   textTransform: "uppercase",
@@ -230,14 +230,14 @@ const enHeadingStyle: CSSProperties = {
 };
 
 const heBodyStyle: CSSProperties = {
-  fontSize: 14.5,
+  fontSize:"var(--t-md)",
   lineHeight: 1.9,
   color: DEEP,
   marginBottom: 10,
 };
 
 const enBodyStyle: CSSProperties = {
-  fontSize: 13.5,
+  fontSize:"var(--t-md)",
   lineHeight: 1.85,
   color: MUTED,
   textAlign: "left",
@@ -254,7 +254,7 @@ const footerStyle: CSSProperties = {
   marginTop: 34,
   paddingTop: 20,
   borderTop: `1px solid ${ACCENT_LINE}`,
-  fontSize: 12,
+  fontSize:"var(--t-sm)",
   color: MUTED,
   textAlign: "center",
 };
