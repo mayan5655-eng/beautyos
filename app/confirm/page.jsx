@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
+import { accentStyle } from "@/lib/theme";
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
@@ -27,7 +28,7 @@ function ConfirmContent() {
     !id ? 'הלינק לא תקין — חסר מזהה תור' : ''
   );
   // Public branding from the API's success path; optional - no logo, no space.
-  const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '' });
+  const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '', primaryColor: '' });
 
   // Does not set 'working' itself. On mount that is already the status for a
   // confirm link, and setting state synchronously from an effect is a
@@ -43,7 +44,7 @@ function ConfirmContent() {
         if (data.success) {
           setStatus(data.alreadyDone ? 'already' : 'success');
           setMessage(data.message);
-          setBrandInfo({ businessName: data.businessName || '', logoUrl: data.logoUrl || '' });
+          setBrandInfo({ businessName: data.businessName || '', logoUrl: data.logoUrl || '', primaryColor: data.primaryColor || '' });
         } else {
           setStatus('error');
           setMessage(data.error || 'משהו השתבש');
@@ -112,6 +113,7 @@ function ConfirmContent() {
 
   return (
     <div style={{
+      ...accentStyle(brandInfo.primaryColor || null),
       minHeight: '100dvh',
       display: 'flex',
       alignItems: 'center',

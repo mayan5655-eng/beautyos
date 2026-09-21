@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
+import { publicAccent } from '@/lib/branding';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -28,13 +29,14 @@ import { verifyConfirm } from '@/lib/confirmToken';
 // Branding rides only on the SUCCESS path, after the signature check: the
 // same public logo and name her booking page shows, and nothing else - the
 // no-data rule above still holds for everything about the appointment.
-const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string } = {}) =>
+const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {}) =>
   NextResponse.json({
     success: true,
     action,
     alreadyDone,
     businessName: brand.businessName || '',
     logoUrl: brand.logoUrl || '',
+    primaryColor: brand.primaryColor || '',
     message: alreadyDone
       ? action === 'confirm' ? 'התור כבר אושר בעבר' : 'התור כבר בוטל בעבר'
       : action === 'confirm' ? 'התור אושר בהצלחה' : 'התור בוטל בהצלחה',
@@ -76,16 +78,17 @@ export async function POST(request: NextRequest) {
 
     // Public branding for the page header; best-effort - a failed read
     // leaves the confirmation working, just unbranded.
-    let brand: { businessName?: string; logoUrl?: string } = {};
+    let brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {};
     try {
       const { data: st } = await supabase
         .from('settings')
-        .select('business_name, branding')
+        .select('business_name, branding, primary_color')
         .eq('tenant_id', appt.tenant_id)
         .maybeSingle();
       brand = {
         businessName: st?.business_name || '',
         logoUrl: (st?.branding as { logo_url?: string } | null)?.logo_url || '',
+        primaryColor: publicAccent(st),
       };
     } catch { /* unbranded, not broken */ }
 

@@ -5,6 +5,7 @@ import Spinner from "../Spinner";
 import { supabase } from "../supabase";
 import { fetchPublicBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
+import { accentStyle } from "@/lib/theme";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -16,11 +17,16 @@ import FloralCorners from "../FloralCorners";
 // No new scanner, no new AI, no new booking/lead system.
 // ============================================================
 
-const ACCENT_DEFAULT = "var(--pc, #4A2E5A)"; // muted plum-rose (fallback primary)
-const DEEP_DEFAULT = "var(--pc, #4A2E5A)"; // plum (fallback brand ink)
+// The clinic's accent family, as CSS variables. accentStyle() sets --pc,
+// --pc-deep, --pc-soft, --pc-contrast … on the page root from her
+// primary_color, and everything below reads the variables - so no chrome on
+// this page can stay the BloomOS purple once her branding has loaded.
+const ACCENT = "var(--pc)";
+const DEEP = "var(--pc-deep)";
+const ON_ACCENT = "var(--pc-contrast, #FFFFFF)";
 const INK = "var(--ink, #2A2233)";
 const INK2 = "var(--brand-muted, #98879B)";
-const LINE = "rgba(74,46,90,0.14)";
+const LINE = "var(--pc-soft)";
 
 // Normalize a phone into an international wa.me target (Israel-aware).
 function normalizeWa(raw) {
@@ -189,9 +195,9 @@ export default function SkinScanPage() {
     return "/book" + (qs ? `?${qs}` : "");
   };
 
-  // Clinic colors (safe-resolved) drive every accent + CTA; fall back to defaults.
-  const ACCENT = brand?.primary || ACCENT_DEFAULT;
-  const DEEP = brand?.deep || DEEP_DEFAULT;
+  // Her colour (safe-resolved in resolveBranding); null until branding loads,
+  // which accentStyle renders as the default family.
+  const accent = brand?.primary || null;
   const ctaText = (brand?.ctaLabel || "קביעת תור לטיפול");
   const wa = normalizeWa(brand?.whatsappNumber);
 
@@ -233,7 +239,7 @@ export default function SkinScanPage() {
   );
 
   return (
-    <div dir="rtl" style={{ fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&display=swap');
         * { box-sizing: border-box; }
@@ -244,7 +250,7 @@ export default function SkinScanPage() {
         .ss-btn:hover:not(:disabled) { filter: saturate(1.04); transform: translateY(-1px); }
         .ss-btn:active:not(:disabled) { transform: scale(0.98); }
         .ss-btn:disabled { opacity: 0.55; cursor: default; }
-        .ss-ring { width: 52px; height: 52px; border-radius: 50%; border: 3px solid rgba(74,46,90,0.14); border-top-color: ${ACCENT}; animation: ssSpin 0.9s linear infinite; }
+        .ss-ring { width: 52px; height: 52px; border-radius: 50%; border: 3px solid ${LINE}; border-top-color: ${ACCENT}; animation: ssSpin 0.9s linear infinite; }
         @keyframes ssSpin { to { transform: rotate(360deg); } }
         .ss-fade { animation: ssFade 0.5s ease both; }
         @keyframes ssFade { from { opacity: 0; } to { opacity: 1; } }
@@ -359,7 +365,7 @@ export default function SkinScanPage() {
               </div>
             ) : (
               preview && gateOk && (
-                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 700, boxShadow:"var(--shadow-xs)" }}>קבלי את הניתוח שלך ✦</button>
+                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, fontSize:"var(--t-lg)", fontWeight: 700, boxShadow:"var(--shadow-xs)" }}>קבלי את הניתוח שלך ✦</button>
               )
             )}
           </div>
@@ -370,7 +376,7 @@ export default function SkinScanPage() {
           <div className="ss-card">
 
             {/* MEDICAL DISCLAIMER — clear + visible at the very top of the results */}
-            <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", border: "1px solid rgba(74,46,90,0.14)", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-start" }}>
               <span style={{ fontSize:"var(--t-lg)", flexShrink: 0, marginTop: 1 }}>ℹ️</span>
               <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, fontWeight: 500 }}>הסריקה נועדה להתרשמות ראשונית בלבד ואינה מחליפה ייעוץ או אבחון מקצועי. אין להסתמך על ההמלצות כאבחנה סופית.</p>
             </div>
@@ -409,7 +415,7 @@ export default function SkinScanPage() {
 
             {/* 4) PRIORITY — what to focus on first (the top concern) */}
             {priority && (
-              <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", borderColor: "rgba(74,46,90,0.14)" }}>
+              <div style={{ ...card, background: "var(--brand-cream, #FEFAF7)", borderColor: LINE }}>
                 <p style={sectionLabel}>במה נתמקד קודם</p>
                 <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, lineHeight: 1.5 }}>{priority}</p>
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל. הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
@@ -418,13 +424,13 @@ export default function SkinScanPage() {
 
             {/* 5) RECOMMENDED TREATMENT — one primary recommendation + Book (money moment) */}
             <div className="ss-card" style={{ background: `linear-gradient(140deg,${DEEP} 0%,${ACCENT} 100%)`, borderRadius:"var(--r-lg)", padding: "22px 20px", boxShadow:"var(--shadow-xs)", marginBottom: 14, textAlign: "center" }}>
-              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, letterSpacing: "1px", marginBottom: 6 }}>הטיפול המקצועי שהכי מתאים לך</p>
-              <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
-              {report.matched_service && <p style={{ fontSize:"var(--t-md)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
-              {(plan.sessions || plan.treatment_type) && <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
-              <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך, כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
+              <p style={{ fontSize:"var(--t-sm)", color: ON_ACCENT, opacity: 0.85, letterSpacing: "1px", marginBottom: 6 }}>הטיפול המקצועי שהכי מתאים לך</p>
+              <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: ON_ACCENT, marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
+              {report.matched_service && <p style={{ fontSize:"var(--t-md)", color: ON_ACCENT, opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
+              {(plan.sessions || plan.treatment_type) && <p style={{ fontSize:"var(--t-sm)", color: ON_ACCENT, opacity: 0.85, marginBottom: 4 }}>{[plan.treatment_type, plan.sessions].filter(Boolean).join(" · ")}</p>}
+              <p style={{ fontSize:"var(--t-sm)", color: ON_ACCENT, opacity: 0.9, lineHeight: 1.6, margin: "8px 0 16px" }}>נבחר במיוחד עבורך, כדי לטפל במה שזוהה בעור ולחדד את התוצאה.</p>
               {bookCard(ctaText + " ✦")}
-              <p style={{ fontSize:"var(--t-xs)", color: "var(--brand-surface, #FAF6FC)", opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p>
+              <p style={{ fontSize:"var(--t-xs)", color: ON_ACCENT, opacity: 0.8, marginTop: 10 }}>נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p>
             </div>
 
             {/* 6) EXPECTED BENEFIT — from clinic_plan.expected_results (real data) */}
@@ -459,11 +465,11 @@ export default function SkinScanPage() {
             )}
 
             {/* 7) NEXT STEP — Book (primary, always reachable) + WhatsApp (secondary) */}
-            <div style={{ ...card, background: "linear-gradient(140deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", borderColor: "rgba(74,46,90,0.14)", textAlign: "center" }}>
+            <div style={{ ...card, background: "linear-gradient(140deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", borderColor: LINE, textAlign: "center" }}>
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
               <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
-              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: "var(--brand-surface, #FAF6FC)", padding: "15px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 800, boxShadow:"var(--shadow-xs)" }}>{ctaText} ✦</a>}
+              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, padding: "15px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 800, boxShadow:"var(--shadow-xs)" }}>{ctaText} ✦</a>}
               {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", padding: "13px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-md)", fontWeight: 700, marginTop: 10, boxShadow:"var(--shadow-md)" }}><Icon name="whatsapp" size={15}/> ייעוץ נוסף בוואטסאפ</a>}
             </div>
 
@@ -520,7 +526,7 @@ export default function SkinScanPage() {
 
       </div>
 
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: "rgba(74,46,90,0.14)" }}>מופעל ע"י BloomOS</div>
+      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6 }}>מופעל ע"י BloomOS</div>
     </div>
   );
 }

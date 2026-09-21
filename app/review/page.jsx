@@ -17,6 +17,7 @@
 import { useState, useEffect, useRef } from "react";
 import Spinner from "../Spinner";
 import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
+import { accentStyle } from "@/lib/theme";
 
 export default function ReviewPage() {
   const [state, setState] = useState("loading"); // loading | form | sent | already | error
@@ -78,8 +79,12 @@ export default function ReviewPage() {
 
   const ink = "var(--ink, #2A2233)";
   const muted = "var(--brand-muted, #98879B)";
-  const pc = "var(--brand-accent, #4A2E5A)";
+  // Her accent, set as CSS variables on the wrapper once /api/reviews has
+  // answered; until then the default family. --brand-accent is the BloomOS
+  // wordmark purple and has no business on a client's review page.
+  const pc = "var(--pc)";
   const wrap = {
+    ...accentStyle(info?.primaryColor || null),
     minHeight: "100dvh", display: "flex", flexDirection: "column",
     alignItems: "center", justifyContent: "center", textAlign: "center",
     padding: "0 24px", background: "var(--brand-cream, #FEFAF7)",
@@ -124,7 +129,7 @@ export default function ReviewPage() {
               {GOOGLE_REVIEW_NOTE}
             </p>
             <a href={info.googleReviewUrl} target="_blank" rel="noreferrer"
-               style={{ display: "block", textDecoration: "none", background: pc, color: "#fff",
+               style={{ display: "block", textDecoration: "none", background: pc, color: "var(--pc-contrast, #FFFFFF)",
                         borderRadius:"var(--r-md)", padding: "14px 26px", fontSize:"var(--t-lg)", fontWeight: 600 }}>
               ביקורת בגוגל
             </a>
@@ -157,7 +162,7 @@ export default function ReviewPage() {
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} onClick={() => setRating(n)} aria-label={`${n} כוכבים`}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 4,
-                       fontSize:"var(--t-hero)", lineHeight: 1, color: n <= rating ? pc : "rgba(74,46,90,0.22)" }}>
+                       fontSize:"var(--t-hero)", lineHeight: 1, color: n <= rating ? pc : "var(--pc-tint-2)" }}>
               {n <= rating ? "★" : "☆"}
             </button>
           ))}
@@ -168,7 +173,7 @@ export default function ReviewPage() {
             form gets abandoned at the last step. */}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
           maxLength={2000} placeholder="משהו שתרצי להוסיף? (לא חובה)"
-          style={{ width: "100%", border: "1px solid rgba(74,46,90,0.18)", borderRadius:"var(--r-md)",
+          style={{ width: "100%", border: "1px solid var(--pc-tint-2)", borderRadius:"var(--r-md)",
                    padding: "12px 14px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none",
                    background: "#fff", color: ink, resize: "vertical", marginBottom: 14 }} />
 
@@ -178,7 +183,7 @@ export default function ReviewPage() {
 
         <button onClick={submit} disabled={!rating || submitting}
           style={{ width: "100%", height: 52, borderRadius:"var(--r-md)", border: "none",
-                   background: rating ? pc : "rgba(74,46,90,0.22)", color: "#fff",
+                   background: rating ? pc : "var(--pc-tint-2)", color: rating ? "var(--pc-contrast, #FFFFFF)" : "#fff",
                    fontSize:"var(--t-lg)", fontWeight: 600, fontFamily: "inherit",
                    cursor: rating && !submitting ? "pointer" : "default" }}>
           {submitting ?<Spinner inline label="שולחת"/>: "שליחת הביקורת"}

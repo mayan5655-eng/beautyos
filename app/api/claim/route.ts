@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
 import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
+import { publicAccent } from "@/lib/branding";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
 function admin() {
@@ -50,11 +51,11 @@ async function loadOffer(supabase: ReturnType<typeof admin>, token: string) {
 
   const { data: settings } = await supabase
     .from("settings")
-    .select("business_name")
+    .select("business_name, primary_color")
     .eq("tenant_id", offer.tenant_id)
     .maybeSingle();
 
-  return { offer, businessName: settings?.business_name || "העסק" };
+  return { offer, businessName: settings?.business_name || "העסק", primaryColor: publicAccent(settings) };
 }
 
 export async function GET(request: NextRequest) {
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
   const loaded = await loadOffer(supabase, token);
   if (!loaded) return NextResponse.json({ state: "invalid" });
 
-  const { offer, businessName } = loaded;
+  const { offer, businessName, primaryColor } = loaded;
   return NextResponse.json({
     state: stateOf(offer),
     service: offer.service,
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
     slotTime: fmtTime(startMinute({ start_minute: offer.slot_start_minute, hour: offer.slot_hour })),
     clientName: offer.client_name,
     businessName,
+    primaryColor,
   });
 }
 

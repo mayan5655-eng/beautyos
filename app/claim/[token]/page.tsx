@@ -13,7 +13,8 @@ import { useParams } from "next/navigation";
 // Client-facing page: a client opens this from HER cosmetician's WhatsApp, so
 // it takes the ACCENT tier (--pc-*), not the BloomOS brand tier. When the
 // tenant's colour is applied the whole page follows it.
-import { PC, PC_DEEP, PC_TINT, PC_SOFT, CREAM, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW } from '@/lib/brand';
+import { PC, PC_DEEP, PC_TINT, PC_SOFT, CREAM, SURFACE, MUTED } from '@/lib/brand';
+import { accentStyle } from '@/lib/theme';
 
 const BLUSH = PC;
 const BLUSH_DEEP = PC_DEEP;
@@ -28,6 +29,7 @@ type Details = {
   slotTime?: string | null;
   clientName?: string | null;
   businessName?: string | null;
+  primaryColor?: string | null;
 };
 
 // "YYYY-MM-DD" -> "יום רביעי, 5 באוגוסט"
@@ -89,6 +91,7 @@ export default function ClaimPage() {
 
   return (
     <div dir="rtl" style={{
+      ...accentStyle(details.primaryColor || null),
       minHeight: "100dvh", background: `linear-gradient(160deg, ${PAPER} 0%, ${PC_TINT} 100%)`,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
       fontFamily: "'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif", color: INK,
@@ -96,7 +99,7 @@ export default function ClaimPage() {
       <div style={{
         background: SURFACE, borderRadius:"var(--r-xl)", width: "100%", maxWidth: 400,
         padding: "34px 26px", textAlign: "center",
-        boxShadow:"var(--shadow-accent)", border: `1px solid ${ACCENT_LINE}`,
+        boxShadow:"var(--shadow-accent)", border: `1px solid ${PC_SOFT}`,
       }}>
         <div aria-hidden style={{ marginBottom: 6 }}><Icon name="leaf" size={30}/></div>
         <div style={{ fontSize:"var(--t-sm)", letterSpacing: "0.14em", color: GOLD, fontWeight: 700, marginBottom: 18 }}>
@@ -126,7 +129,7 @@ export default function ClaimPage() {
               style={{
                 width: "100%", padding: "16px 0", border: "none", borderRadius:"var(--r-md)",
                 background: claiming ? PC_TINT : `linear-gradient(90deg, ${BLUSH}, ${BLUSH_DEEP})`,
-                color: SURFACE, fontSize:"var(--t-lg)", fontWeight: 700, cursor: claiming ? "default" : "pointer",
+                color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 700, cursor: claiming ? "default" : "pointer",
                 fontFamily: "inherit", boxShadow:"var(--shadow-md)",
               }}
             >
@@ -168,7 +171,7 @@ function SlotRow({ label, value, last }: { label: string; value: string; last?: 
   return (
     <div style={{
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "9px 2px", borderBottom: last ? "none" : `1px solid ${ACCENT_LINE}`,
+      padding: "9px 2px", borderBottom: last ? "none" : `1px solid ${PC_SOFT}`,
     }}>
       <span style={{ fontSize:"var(--t-sm)", color: MUTED }}>{label}</span>
       <span style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: INK }}>{value}</span>

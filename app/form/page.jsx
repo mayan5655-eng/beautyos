@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
+import { accentStyle } from "@/lib/theme";
 
 const FORMS = {
   "general": {
@@ -83,7 +84,7 @@ export default function FormPage() {
   const [formId, setFormId] = useState(null);
   const [formData, setFormData] = useState(null);
   // Public branding from /api/forms — logo (never cropped) or name; optional.
-  const [brandInfo, setBrandInfo] = useState({ businessName: "", logoUrl: "" });
+  const [brandInfo, setBrandInfo] = useState({ businessName: "", logoUrl: "", primaryColor: "" });
   const [answers, setAnswers] = useState({});
   const [signed, setSigned] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -130,7 +131,7 @@ export default function FormPage() {
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.success && data.form) {
         setFormData(data.form);
-        setBrandInfo({ businessName: data.businessName || "", logoUrl: data.logoUrl || "" });
+        setBrandInfo({ businessName: data.businessName || "", logoUrl: data.logoUrl || "", primaryColor: data.primaryColor || "" });
       } else if (data && data.notFound) {
         setLoadError("notfound");   // genuinely missing
       } else {
@@ -288,7 +289,7 @@ export default function FormPage() {
   const progress = Math.round((answeredCount / formTemplate.questions.length) * 100);
 
   return (
-    <div dir="rtl" style={{fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100dvh",padding:"24px 16px"}}>
+    <div dir="rtl" style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FEFAF7)",minHeight:"100dvh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
 
         {/* Brand row: her logo at natural aspect (contain, capped, never
@@ -302,17 +303,17 @@ export default function FormPage() {
         )}
 
         <div style={{background:"var(--ink, #2A2233)",borderRadius:"var(--r-md)",padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
-          <div style={{marginBottom:4,color:"var(--pc-deep, #3E2749)"}}><Icon name="gem" size={24}/></div>
+          <div style={{marginBottom:4,color:"var(--pc-tint)"}}><Icon name="gem" size={24}/></div>
           <h1 style={{color:"var(--brand-cream, #FEFAF7)",fontSize:"var(--t-xl)",fontWeight:800,margin:0}}>{formTemplate.title}</h1>
-          <p style={{color:"var(--pc-deep, #3E2749)",fontSize:"var(--t-md)",marginTop:4}}>שלום {formData.client_name} 👋</p>
+          <p style={{color:"var(--pc-tint)",fontSize:"var(--t-md)",marginTop:4}}>שלום {formData.client_name} 👋</p>
         </div>
 
-        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-sm)",padding:"10px 16px",marginBottom:16,border:"1px solid rgba(74,46,90,0.14)"}}>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-sm)",padding:"10px 16px",marginBottom:16,border:"1px solid var(--pc-soft)"}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:"var(--t-sm)",color:"var(--brand-muted, #98879B)",marginBottom:6}}>
             <span>התקדמות</span>
             <span>{answeredCount}/{formTemplate.questions.length} שאלות</span>
           </div>
-          <div style={{background:"rgba(74,46,90,0.14)",borderRadius:"var(--r-sm)",height:8}}>
+          <div style={{background:"var(--pc-soft)",borderRadius:"var(--r-sm)",height:8}}>
             <div style={{background:"var(--pc, #4A2E5A)",borderRadius:"var(--r-sm)",height:8,width:`${progress}%`,transition:"width 0.3s"}}/>
           </div>
         </div>
@@ -321,7 +322,7 @@ export default function FormPage() {
           ⚠️ נא לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
         </div>
 
-        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid rgba(74,46,90,0.14)"}}>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
           <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:16}}>שאלות רפואיות</h3>
           {formTemplate.questions.map((q, i) => (
             <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid var(--brand-cream, #FEFAF7)":"none"}}>
@@ -329,7 +330,7 @@ export default function FormPage() {
               <div style={{display:"flex",gap:8}}>
                 {["כן","לא"].map(ans => (
                   <button key={ans} onClick={()=>setAnswers({...answers,[i]:ans})}
-                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #2A2233)":"rgba(74,46,90,0.14)",borderRadius:"var(--r-sm)",background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #EDE7F0)":"var(--success, #46B37B)"):"var(--brand-cream, #FEFAF7)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #2A2233)":"var(--pc-soft)",borderRadius:"var(--r-sm)",background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #EDE7F0)":"var(--success, #46B37B)"):"var(--brand-cream, #FEFAF7)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
                     {ans==="כן"?"✓ כן":"✗ לא"}
                   </button>
                 ))}
@@ -337,19 +338,19 @@ export default function FormPage() {
               {answers[i]==="כן" && (
                 <textarea onChange={e=>setAnswers({...answers,[`${i}_note`]:e.target.value})}
                   placeholder="פרטים נוספים..." rows={2}
-                  style={{width:"100%",marginTop:8,border:"1.5px solid var(--pc-tint, #EDE7F0)",borderRadius:"var(--r-xs)",padding:"8px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--pc-tint, #EDE7F0)",resize:"none"}}/>
+                  style={{width:"100%",marginTop:8,border:"1.5px solid var(--pc-tint-2)",borderRadius:"var(--r-xs)",padding:"8px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--pc-tint, #EDE7F0)",resize:"none"}}/>
               )}
             </div>
           ))}
         </div>
 
-        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid rgba(74,46,90,0.14)"}}>
+        <div style={{background:"var(--brand-surface, #FAF6FC)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
           <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:4}}><Icon name="pen" size={16}/> חתימה דיגיטלית</h3>
           <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #98879B)",marginBottom:12}}>חתמי באצבע או בעכבר בתוך המסגרת</p>
           <canvas ref={canvasRef} width={460} height={130}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={()=>setDrawing(false)}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={()=>setDrawing(false)}
-            style={{width:"100%",height:130,border:"1.5px solid rgba(74,46,90,0.14)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FEFAF7)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
+            style={{width:"100%",height:130,border:"1.5px solid var(--pc-soft)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FEFAF7)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
           <button onClick={clearSignature}
             style={{marginTop:8,background:"none",border:"none",fontSize:"var(--t-sm)",color:"var(--brand-muted, #98879B)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
             מחקי חתימה
@@ -368,7 +369,7 @@ export default function FormPage() {
         )}
 
         <button onClick={handleSubmit} disabled={submitting}
-          style={{width:"100%",background:submitting?"var(--brand-muted, #98879B)":"var(--pc, #4A2E5A)",color:"var(--brand-surface, #FAF6FC)",border:"none",borderRadius:"var(--r-sm)",padding:"16px",fontSize:"var(--t-lg)",fontWeight:700,cursor:submitting?"default":"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"var(--shadow-md)"}}>
+          style={{width:"100%",background:submitting?"var(--brand-muted, #98879B)":"var(--pc)",color:"var(--pc-contrast, #FFFFFF)",border:"none",borderRadius:"var(--r-sm)",padding:"16px",fontSize:"var(--t-lg)",fontWeight:700,cursor:submitting?"default":"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"var(--shadow-md)"}}>
           {submitting ?<Spinner inline label="שולחת"/>: "שליחה וחתימה ✓"}
         </button>
       </div>

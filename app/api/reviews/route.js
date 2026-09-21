@@ -20,6 +20,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { verifyReview } from "../../../lib/reviewToken";
 import { checkIpLimit } from "../../../lib/rateLimit";
+import { publicAccent } from "@/lib/branding";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -73,7 +74,7 @@ export async function GET(request) {
   // an unauthenticated browser, so the column list is the enforcement.
   const { data: s } = await admin
     .from("settings")
-    .select("business_name, review_url, branding")
+    .select("business_name, review_url, branding, primary_color")
     .eq("tenant_id", appt.tenant_id)
     .maybeSingle();
 
@@ -82,6 +83,7 @@ export async function GET(request) {
     businessName: s?.business_name || "",
     // The same public logo the booking page shows; nothing else from branding.
     logoUrl: (s?.branding && s.branding.logo_url) || "",
+    primaryColor: publicAccent(s),
     // Offered AFTER she has written something here, and offered to everyone
     // regardless of what she wrote. Showing it only to people who left four or
     // five stars is review gating, which Google's policy prohibits outright.

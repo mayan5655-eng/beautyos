@@ -39,6 +39,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
+import { publicAccent } from '@/lib/branding';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -100,20 +101,23 @@ export async function GET(request: Request) {
     // read leaves the form working, just unbranded.
     let businessName = '';
     let logoUrl = '';
+    let primaryColor = '';
     try {
       const { data: s } = await supabase
         .from('settings')
-        .select('business_name, branding')
+        .select('business_name, branding, primary_color')
         .eq('tenant_id', data.tenant_id)
         .maybeSingle();
       businessName = s?.business_name || '';
       logoUrl = (s?.branding as { logo_url?: string } | null)?.logo_url || '';
+      primaryColor = publicAccent(s);
     } catch { /* unbranded, not broken */ }
 
     return Response.json({
       success: true,
       businessName,
       logoUrl,
+      primaryColor,
       form: {
         id: data.id,
         client_name: data.client_name,
