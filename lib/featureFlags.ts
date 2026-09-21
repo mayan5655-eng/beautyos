@@ -2,12 +2,18 @@
 //
 // Per-tenant visibility for features that exist but are not ready to be seen.
 //
-// The three tabs below are one-insert stubs: `packages`, `treatment_protocols`
-// and `community` each have exactly one write path. They look finished in the
-// nav and feel abandoned on contact, and a half-built feature costs more trust
-// than an absent one - a cosmetician evaluating this in ten minutes cannot tell
-// what the product is FOR when nine of the thirteen tabs are things she did not
-// ask for.
+// The tabs below are stubs: `treatment_protocols` and `community` each have
+// exactly one write path. They look finished in the nav and feel abandoned on
+// contact, and a half-built feature costs more trust than an absent one - a
+// cosmetician evaluating this in ten minutes cannot tell what the product is
+// FOR when nine of the thirteen tabs are things she did not ask for.
+//
+// `packages` was the third stub and is no longer one. Since it was hidden it
+// gained a catalogue (package_offerings), a ledger (package_entries) with a
+// trigger that derives used_sessions, a receipt written at the moment of sale,
+// and a draw at checkout. The chain was traced end to end on 2026-09-22 -
+// offering, sale plus receipt, draw, counter - and unhidden. `community`
+// stays hidden until there is more than one cosmetician to talk to.
 //
 // HIDDEN, NOT DELETED. Every tab's state, loader, render block and table is
 // untouched; only the two nav lists are filtered. Flipping one flag brings a
@@ -42,7 +48,7 @@
 // the safe default for a half-built feature is not to show it.
 
 /** Tabs that are hidden unless a tenant explicitly opts back in. */
-export const STUB_TABS = ['packages', 'protocols', 'community'] as const;
+export const STUB_TABS = ['protocols', 'community'] as const;
 
 /** Tabs that must never be hidden by this mechanism. Guarded, not documented. */
 export const NEVER_HIDDEN = ['campaigns', 'insights'] as const;
@@ -99,7 +105,7 @@ export function visibleTabIds(settings: SettingsLike, ids: readonly string[]): s
  *          || jsonb_build_object(
  *               'feature_flags',
  *               coalesce(automations->'feature_flags', '{}'::jsonb)
- *                 || '{"packages": true}'::jsonb
+ *                 || '{"protocols": true}'::jsonb
  *             )
  *    where tenant_id = '<tenant-id>';   -- always filter, and check it is the right one
  *

@@ -5409,7 +5409,13 @@ export default function BeautyOS() {
       // payment_method belongs on the receipt, not on the package row - it is
       // how she was paid, not part of what she sold.
       const { payment_method, ...packageRow } = newPackage;
-      const {data,error}=await supabase.from("packages").insert([{ ...packageRow, ...tenantField }]).select();
+      // active: true, written explicitly. The packages list and the cashier's
+      // "charge from package" card both filter on it, the sync trigger only
+      // sets it once the first ledger entry lands, and the table's own default
+      // is defined nowhere in this repo. A package that sold as inactive would
+      // vanish from both screens until its first draw - which could never
+      // happen, because the draw is on the screen it vanished from.
+      const {data,error}=await supabase.from("packages").insert([{ ...packageRow, active: true, ...tenantField }]).select();
       if(error){handleDbError(error, "save package"); return;}
       if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
       const pkg = data[0];
