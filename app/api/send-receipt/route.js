@@ -46,7 +46,7 @@ export async function POST(request) {
     const guard = await requireActiveTenant(session);
     if (!guard.ok) return guard.response;
 
-    const { client_name, client_phone, amount, payment_method, date } =
+    const { client_name, client_phone, amount, payment_method, date, tip, payments_text } =
       await request.json().catch(() => ({}));
 
     // Only send when there is a phone number.
@@ -77,7 +77,8 @@ export async function POST(request) {
       `קבלה מ${businessName}`,
       "",
       `סכום: ₪${amount}`,
-      `תשלום: ${payment_method || "מזומן"}`,
+      `תשלום: ${payment_method || "מזומן"}${payments_text ? ` (${String(payments_text).slice(0, 120)})` : ""}`,
+      Number(tip) > 0 ? `טיפ: ₪${Number(tip)}` : null,
       date ? hebrewDate(date) : null,
       "",
       "תודה, ונתראה בקרוב."

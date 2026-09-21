@@ -96,10 +96,16 @@ export async function POST(request: NextRequest) {
     if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand);
 
     const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
-    const { error } = await supabase
-      .from('appointments')
-      .update({ confirmation_status: newStatus })
-      .eq('id', appointmentId);
+    // A cancellation carries WHEN it happened: that is what separates a late
+    // cancellation from an on-time one on the client's card. The audit columns
+    // are added by hand (add_till_and_calendar_small_things.sql); until they
+    // exist the update is retried without them, as the app's own cancel does.
+    const patch: Record<string, unknown> = { confirmation_status: newStatus };
+    if (newStatus === 'cancelled') { patch.cancelled_at = new Date().toISOString(); patch.cancelled_by = 'client'; }
+    let { error } = await supabase.from('appointments').update(patch).eq('id', appointmentId);
+    if (error && /cancelled_at|cancelled_by|schema cache|does not exist/i.test(String(error.message || ''))) {
+      ({ error } = await supabase.from('appointments').update({ confirmation_status: newStatus }).eq('id', appointmentId));
+    }
 
     if (error) {
       console.error('confirm: update failed', error.message);

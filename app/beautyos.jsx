@@ -21,6 +21,8 @@ import EmptyState from "./EmptyState";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, totalsOf, receiptsOnDay, paidWith, SPLIT_METHOD } from "@/lib/till";
+import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { DEFAULT_HOW_I_WORK } from "@/lib/branding";
@@ -942,6 +944,11 @@ export default function BeautyOS() {
   const [forms,        setForms]        = useState([]);
   const [leads,        setLeads]        = useState([]);
   const [receipts,     setReceipts]     = useState([]);
+  // Voids: a cancelling record per voided receipt (receipt_voids). The receipt
+  // row itself is never altered; every total reads `liveRcpts`, which drops
+  // the voided ones, and the lists show the original with a badge.
+  const [receiptVoids, setReceiptVoids] = useState([]);
+  const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
   const [expenses,     setExpenses]     = useState([]);
   const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
@@ -1340,6 +1347,19 @@ export default function BeautyOS() {
   const [cashierDiscount, setCashierDiscount] = useState(0);
   const [paymentMethod,   setPaymentMethod]   = useState("מזומן");
   const [cashierNote,     setCashierNote]     = useState("");
+  // The till's small things. Discount can be shekels or a percentage; the
+  // shekel figure is what gets stored either way. A tip is its own column and
+  // never part of the amount. A split is two or more (method, amount) lines
+  // that have to add up to the total before the receipt is written.
+  const [cashierDiscountMode, setCashierDiscountMode] = useState("ils"); // ils | pct
+  const [cashierTip,      setCashierTip]      = useState(0);
+  const [splitOn,         setSplitOn]         = useState(false);
+  const [splitLines,      setSplitLines]      = useState([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);
+  // Void form on the receipt modal: the reason is required.
+  const [voidOpen,        setVoidOpen]        = useState(false);
+  const [voidReason,      setVoidReason]      = useState("");
+  // A recurring appointment: "every N weeks, M times", new appointments only.
+  const [apptRepeat,      setApptRepeat]      = useState({on:false, everyWeeks:3, count:6});
   // Whether this visit is drawn from a package. OFF until she taps it: she paid
   // up front, and a session leaving her balance without being asked for is the
   // one thing this must never do.
@@ -1785,7 +1805,18 @@ export default function BeautyOS() {
   const packageCredit = (drawFromPackage && cashierPackage)
     ? Number(cashierItems.find(i => i.name === cashierPackage.service)?.price || 0)
     : 0;
-  const cashierTotal = Math.max(0,cashierItems.reduce((s,item)=>s+(item.price*item.qty),0)-Number(cashierDiscount||0)-packageCredit);
+  // Subtotal, then the discount in shekels whichever way she typed it, then
+  // the package credit. The tip sits outside all of it: it is what she was
+  // handed, not what the treatment cost.
+  const cashierSubtotal = cashierItems.reduce((s,item)=>s+(item.price*item.qty),0);
+  const cashierDiscountIls = discountAmount(cashierSubtotal, cashierDiscountMode, Number(cashierDiscount||0));
+  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit) * 100) / 100);
+  // Two lines: the first is what she types, the second is whatever is left.
+  const splitResolved = useMemo(() => {
+    const first = { method: splitLines[0]?.method || "ביט", amount: Number(splitLines[0]?.amount) || 0 };
+    const rest = Math.max(0, Math.round((cashierTotal - first.amount) * 100) / 100);
+    return [first, { method: splitLines[1]?.method || "מזומן", amount: rest }];
+  }, [splitLines, cashierTotal]);
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
   // Day-of-week of the picked date, parsed as LOCAL (not UTC) so it never shifts
@@ -2135,6 +2166,10 @@ export default function BeautyOS() {
         ["service_prices", supabase.from("service_prices").select("*")],
         ["settings",       supabase.from("settings").select("*")],
         ["receipts",       supabase.from("receipts").select("*")],
+        // Not core: the table arrives with add_till_and_calendar_small_things.sql,
+        // applied by hand, and a missing table must not stop the boot. Until it
+        // exists no receipt can be voided, which the void button says.
+        ["receipt_voids",  supabase.from("receipt_voids").select("*")],
         ["packages",       supabase.from("packages").select("*")],
         ["waitlist",       supabase.from("waitlist").select("*")],
         // Business expenses (for input-VAT in tax reports). RLS-scoped to tenant.
@@ -2150,7 +2185,7 @@ export default function BeautyOS() {
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
       READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
-      const [a,c,f,l,sv,st,r,pk,wl,ex,tn] = settled;
+      const [a,c,f,l,sv,st,r,rv,pk,wl,ex,tn] = settled;
 
       // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
       // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
@@ -2170,7 +2205,7 @@ export default function BeautyOS() {
       // unblocked - because this is the BILLING row, and a transient error
       // there must never lock her out of her own calendar. Failing open on
       // billing and failing loud on data is the intended asymmetry.
-      const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants");
+      const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants" && n !== "receipt_voids");
       const failedReads = CORE_READS.filter((n) => res[n]?.error);
       if (failedReads.length > 0) {
         const first = res[failedReads[0]].error;
@@ -2239,6 +2274,9 @@ export default function BeautyOS() {
         try { Sentry.setTag("tenant_id", myRow?.tenant_id || myTenantId || "unknown"); } catch {}
       }
       setReceipts(r.data || []);
+      // A failed voids read (table not migrated yet) is an empty set, logged.
+      if (rv?.error) console.warn("[BeautyOS] receipt_voids not readable yet:", rv.error.code || "", rv.error.message || "");
+      setReceiptVoids(rv?.error ? [] : (rv?.data || []));
       setExpenses(ex?.data || []);
       setPackages(pk.data || []);
       setWaitlist(wl.data || []);
@@ -2272,8 +2310,12 @@ export default function BeautyOS() {
   // feature. `clientAppts` is the one to count, remind, confirm and bill
   // against; the entries lists below are what she LOOKS at.
   const clientAppts = useMemo(() => appointments.filter(isClientAppointment), [appointments]);
-  const thisMonthRevenue = useMemo(() => receipts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [receipts, thisMonth, thisYear]);
-  const lastMonthRevenue = useMemo(() => receipts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [receipts, lastMonth, lastMonthYear]);
+  // Every revenue figure reads liveRcpts - receipts minus voids. `receipts`
+  // itself is for lists and history, where a voided receipt must still show.
+  const thisMonthRevenue = useMemo(() => liveRcpts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [liveRcpts, thisMonth, thisYear]);
+  const lastMonthRevenue = useMemo(() => liveRcpts.filter(r=>{if(!r.created_at)return false;const d=new Date(r.created_at);return d.getMonth()===lastMonth&&d.getFullYear()===lastMonthYear;}).reduce((s,r)=>s+(Number(r.amount)||0),0), [liveRcpts, lastMonth, lastMonthYear]);
+  // Today, for the till: what she took, by method, with tips beside it.
+  const todayTotals = useMemo(() => totalsOf(receiptsOnDay(liveRcpts, today)), [liveRcpts, today]);
   // Two lists per day, on purpose. *Entries are what she sees - her whole day,
   // her own commitments included. *Appts are what gets counted, because a count
   // labelled תורים that includes her accountant is a lie about her workload.
@@ -2328,13 +2370,13 @@ export default function BeautyOS() {
   // - so a full scan of receipts per comparison, then again in the filter.
   const clientTotalById = useMemo(() => {
     const m = new Map();
-    for (const r of receipts) {
+    for (const r of liveRcpts) {
       if (!r.client_id) continue;
       const k = String(r.client_id);
       m.set(k, (m.get(k) || 0) + (Number(r.amount) || 0));
     }
     return m;
-  }, [receipts]);
+  }, [liveRcpts]);
   const getClientTotal = (cid) => clientTotalById.get(String(cid)) || 0;
   const getClientAppts = (cid) => appointments.filter(a=>String(a.client_id)===String(cid));
   const getClientForms = (cid) => forms.filter(f=>String(f.client_id)===String(cid));
@@ -2372,19 +2414,19 @@ export default function BeautyOS() {
       .map(s => ({
         ...s,
         count: appointments.filter(a => a.service === s.name).length,
-        revenue: receipts.filter(r => r.service === s.name).reduce((sum,r)=>sum+(Number(r.amount)||0),0),
+        revenue: liveRcpts.filter(r => r.service === s.name).reduce((sum,r)=>sum+(Number(r.amount)||0),0),
       }))
       .sort((a,b)=>b.count-a.count);
-  }, [activeServices, services, appointments, receipts]);
-  const avgTransaction = useMemo(() => receipts.length>0?Math.round(receipts.reduce((s,r)=>s+(Number(r.amount)||0),0)/receipts.length):0, [receipts]);
+  }, [activeServices, services, appointments, receipts, liveRcpts]);
+  const avgTransaction = useMemo(() => liveRcpts.length>0?Math.round(liveRcpts.reduce((s,r)=>s+(Number(r.amount)||0),0)/liveRcpts.length):0, [liveRcpts]);
 
   const monthlyData = useMemo(() => Array.from({length:6},(_,i)=>{
     const d=new Date(now);d.setMonth(now.getMonth()-(5-i));
     const m=d.getMonth(),y=d.getFullYear();
     const appts=appointments.filter(a=>{if(!a.date)return false;const ad=new Date(a.date);return ad.getMonth()===m&&ad.getFullYear()===y;});
-    const rev=receipts.filter(r=>{if(!r.created_at)return false;const rd=new Date(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const rev=liveRcpts.filter(r=>{if(!r.created_at)return false;const rd=new Date(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
     return {month:MONTHS_HE[m].slice(0,3),count:appts.length,revenue:rev};
-  /* now is derived from thisMonth/thisYear, which gate this memo */ }), [appointments, receipts, thisMonth, thisYear]);
+  /* now is derived from thisMonth/thisYear, which gate this memo */ }), [appointments, liveRcpts, thisMonth, thisYear]);
 
   const upcomingBirthdays = useMemo(() => clients.filter(c=>{
     if(!c.birthday)return false;
@@ -2463,12 +2505,19 @@ export default function BeautyOS() {
   const campaignStats = useMemo(() => LEAD_SOURCES.map(source=>{
     const sourceLeads=leads.filter(l=>l.source===source);
     const converted=sourceLeads.filter(l=>l.status==="closed");
-    const revenue=converted.reduce((sum,l)=>{if(!l.client_id)return sum;return sum+receipts.filter(r=>String(r.client_id)===String(l.client_id)).reduce((s,r)=>s+(Number(r.amount)||0),0);},0);
+    const revenue=converted.reduce((sum,l)=>{if(!l.client_id)return sum;return sum+liveRcpts.filter(r=>String(r.client_id)===String(l.client_id)).reduce((s,r)=>s+(Number(r.amount)||0),0);},0);
     return {source,icon:SOURCE_ICONS[source],total:sourceLeads.length,converted:converted.length,revenue,rate:sourceLeads.length>0?Math.round((converted.length/sourceLeads.length)*100):0};
-  }).filter(s=>s.total>0).sort((a,b)=>b.revenue-a.revenue), [leads, receipts]);
+  }).filter(s=>s.total>0).sort((a,b)=>b.revenue-a.revenue), [leads, liveRcpts]);
 
-  const paymentBreakdown = useMemo(() => PAYMENT_METHODS.map(m=>({...m,total:receipts.filter(r=>r.payment_method===m.key).reduce((s,r)=>s+(Number(r.amount)||0),0),count:receipts.filter(r=>r.payment_method===m.key).length})).filter(m=>m.count>0), [receipts]);
-  const filteredReceipts = receiptFilter==="all"?receipts:receipts.filter(r=>r.payment_method===receiptFilter);
+  // By method, through lib/till totalsOf: a split receipt contributes each of
+  // its lines to its own method and counts once. Voids excluded.
+  const paymentBreakdown = useMemo(() => {
+    const t = totalsOf(liveRcpts);
+    return PAYMENT_METHODS.map(m=>{ const row=t.byMethod.find(b=>b.method===m.key); return {...m,total:row?row.total:0,count:row?row.count:0}; }).filter(m=>m.count>0);
+  }, [liveRcpts]);
+  // The list keeps voided receipts (badged) and matches a split receipt under
+  // each of its methods.
+  const filteredReceipts = receiptFilter==="all"?receipts:receipts.filter(r=>paidWith(r,receiptFilter));
 
   // Search on both screens goes through lib/search/matchQuery. The old
   // `phone?.includes(q)` could not find an imported lead at all: the importer
@@ -2954,6 +3003,7 @@ export default function BeautyOS() {
     setApptClientQuery("");
     setApptMoreOpen(false);
     setApptAllServices(false);
+    setApptRepeat({on:false, everyWeeks:3, count:6});
   };
 
   const handleSave = async () => {
@@ -3002,6 +3052,46 @@ export default function BeautyOS() {
         if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
         setApptNote("");closeApptModal();
         toast("התור עודכן בהצלחה");
+      } else if (apptRepeat.on && Number(apptRepeat.count) > 1) {
+        // RECURRING. One row per date, inserted one at a time so each can be
+        // judged on its own: a date that clashes with something already in
+        // the calendar - or that the database's overlap constraint refuses -
+        // is skipped and NAMED in the summary, never silently dropped. The
+        // rows share a series_id (the same column personal events use) so
+        // the series can be found again.
+        const dates = recurrenceDates(newAppt.date, apptRepeat.everyWeeks, apptRepeat.count);
+        const seriesId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
+        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField};
+        const start = apptEffectiveStart, end = start + Number(newAppt.duration||0);
+        const clashed = [], saved = [];
+        for (const date of dates) {
+          const localClash = appointments.some(a=>{
+            if(a.date!==date || a.confirmation_status==="cancelled") return false;
+            const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
+            return start < be && bs < end;
+          });
+          if (localClash) { clashed.push(date); continue; }
+          const {data,error}=await supabase.from("appointments").insert([{...base,date}]).select();
+          if (error) {
+            // 23P01 is appointments_no_overlap, 23505 the active-slot index:
+            // something landed there since the calendar loaded. Same answer.
+            if (error.code==="23P01" || error.code==="23505") { clashed.push(date); continue; }
+            handleDbError(error, "create appointment"); break;
+          }
+          if (data && data[0]) saved.push(data[0]);
+        }
+        if (saved.length) setAppointments(prev=>[...prev,...saved]);
+        setApptNote("");closeApptModal();
+        if (clashed.length) {
+          askConfirm({
+            title: `נקבעו ${saved.length} מתוך ${dates.length} תורים`,
+            message: `התאריכים האלה התנגשו עם משהו שכבר ביומן ולא נקבעו: ${shortDates(clashed)}. אפשר לקבוע אותם ידנית בשעה אחרת.`,
+            confirmText: "הבנתי",
+            cancelText: "סגירה",
+          });
+        } else {
+          toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
+        }
       } else {
         const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
         const {data,error}=await supabase.from("appointments").insert([appt]).select();
@@ -3271,6 +3361,37 @@ export default function BeautyOS() {
     }
     return res;
   }, []);
+
+  // No-show: the appointment stood and she was not there. Set by hand, on or
+  // after the day, never by the system - nothing but the person who was
+  // waiting can know. Counted on the client card (lib/reliability.ts). The
+  // row keeps its slot, its price and its history; only the status moves,
+  // and the toast offers the way back.
+  const markNoShow = (appt) => {
+    if (guardWrite()) return;
+    askConfirm({
+      title: "לא הגיעה",
+      message: `לסמן ש${appt.name} לא הגיעה לתור ב-${appt.date} ${fmtApptTime(appt)}? הסימון נספר בכרטיס הלקוחה.`,
+      confirmText: "סמני: לא הגיעה",
+      danger: true,
+      onConfirm: async () => {
+        const previousStatus = appt.confirmation_status || "pending";
+        const { data, error } = await supabase.from("appointments").update({ confirmation_status: NO_SHOW }).eq("id", appt.id).select();
+        if (error) {
+          // 23514: the status check constraint still lists three values.
+          if (error.code === "23514") { toast("סימון 'לא הגיעה' עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error"); return; }
+          handleDbError(error, "mark no-show"); return;
+        }
+        if (data && data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? data[0] : a));
+        toast("סומן: לא הגיעה", "success", { label: "החזרה", onClick: async () => {
+          const r = await supabase.from("appointments").update({ confirmation_status: previousStatus }).eq("id", appt.id).select();
+          if (r.error) { handleDbError(r.error, "restore appointment"); return; }
+          if (r.data && r.data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? r.data[0] : a));
+          toast("הסימון בוטל");
+        }});
+      },
+    });
+  };
 
   const handleDelete = (appt) => {
     if (guardWrite()) return;
@@ -4465,6 +4586,36 @@ export default function BeautyOS() {
     );
   };
 
+  // Void: a row in receipt_voids naming the receipt and why. The receipt row
+  // is not touched. The reason is required by the schema as well as the form.
+  const handleVoidReceipt = async (receipt) => {
+    if (guardWrite()) return;
+    if (!receipt || !voidReason.trim()) { toast("נא לכתוב סיבה לביטול", "error"); return; }
+    if (isBusy("voidReceipt")) return;
+    setBusyKey("voidReceipt", true);
+    try {
+      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+      const tid = rpcTenant || settings?.tenant_id || null;
+      const { data, error } = await supabase.from("receipt_voids").insert([{
+        receipt_id: receipt.id,
+        reason: voidReason.trim(),
+        ...(tid ? { tenant_id: tid } : {}),
+      }]).select();
+      if (error) {
+        // 42P01: the table is not there yet. Say so rather than "error".
+        if (error.code === "42P01" || /receipt_voids/.test(String(error.message||""))) {
+          toast("ביטול קבלות עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error");
+          return;
+        }
+        if (error.code === "23505") { toast("הקבלה כבר מבוטלת", "error"); return; }
+        handleDbError(error, "void receipt"); return;
+      }
+      if (data && data[0]) setReceiptVoids(prev => [...prev, data[0]]);
+      setVoidOpen(false); setVoidReason("");
+      toast("הקבלה בוטלה — המקור נשמר, והסכום ירד מהסיכומים");
+    } finally { setBusyKey("voidReceipt", false); }
+  };
+
   const handleOpenCashier = (appt) => {
     setCashierAppt(appt||null);
     if(appt){
@@ -4473,7 +4624,7 @@ export default function BeautyOS() {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierNote("");setDrawFromPackage(false);setShowCashier(true);
+    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setShowCashier(true);
   };
 
   const handleSaveReceipt = async () => {
@@ -4489,6 +4640,16 @@ export default function BeautyOS() {
       // reporting stay whole - and since the money was collected at purchase,
       // revenue is untouched either way.
       const drewFromPackage = drawFromPackage && !!cashierPackage;
+      const coveredByPackage = drewFromPackage && cashierTotal === 0;
+      // A split has to add up before anything is written. validateSplit is the
+      // same arithmetic the tests prove; a rounding slip becomes a sentence
+      // naming both numbers, not a receipt whose lines disagree with its total.
+      const useSplit = splitOn && !coveredByPackage && cashierTotal > 0;
+      if (useSplit) {
+        const v = validateSplit(splitResolved, cashierTotal);
+        if (!v.ok) { toast(v.error, "error"); return; }
+      }
+      const tip = Math.max(0, Number(cashierTip) || 0);
       const receipt={
         client_id:cashierClient?.id||null,
         client_name:cashierClient?.name||"לקוחה",
@@ -4497,13 +4658,31 @@ export default function BeautyOS() {
         amount:cashierTotal,
         // Only when nothing is left to pay. A covered treatment plus a cream is
         // still a card payment, and calling that "package" would put real money
-        // in the wrong column of her breakdown.
-        payment_method:(drewFromPackage && cashierTotal === 0) ? PACKAGE_PAYMENT : paymentMethod,
+        // in the wrong column of her breakdown. A split is the literal SPLIT
+        // string, with the lines in `payments`.
+        payment_method:coveredByPackage ? PACKAGE_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
         note:cashierNote,
         items:JSON.stringify(cashierItems),
-        discount:Number(cashierDiscount||0),
+        discount:cashierDiscountIls,
+        // The three new columns. Tip is never part of amount; discount_pct is
+        // the percentage she typed, if she typed one; payments are the split.
+        tip,
+        discount_pct: cashierDiscountMode==="pct" ? Math.min(100, Math.max(0, Number(cashierDiscount)||0)) : null,
+        payments: useSplit ? splitResolved : null,
       };
-      const {data,error}=await supabase.from("receipts").insert([receipt]).select();
+      let {data,error}=await supabase.from("receipts").insert([receipt]).select();
+      if (error && isMissingColumnError(error)) {
+        // The migration has not run. Write the receipt without the three new
+        // columns so her money is recorded, and say plainly what was lost:
+        // a split becomes its first method, a tip and a percentage are dropped.
+        const legacy = { ...receipt };
+        delete legacy.tip; delete legacy.discount_pct; delete legacy.payments;
+        if (useSplit) legacy.payment_method = splitResolved[0].method;
+        ({data,error}=await supabase.from("receipts").insert([legacy]).select());
+        if (!error && (useSplit || tip > 0 || cashierDiscountMode==="pct")) {
+          toast("הקבלה נשמרה, אבל פיצול, טיפ ואחוז הנחה עדיין לא נתמכים בבסיס הנתונים — יש להריץ את המיגרציה.", "error");
+        }
+      }
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast("יצירת הקבלה נכשלה","error");return;}
       setReceipts(prev=>[...prev,data[0]]);
@@ -4534,8 +4713,8 @@ export default function BeautyOS() {
           .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
       }
       setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);
-      setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierNote("");setCashierAppt(null);
-      toast(`קבלה נוצרה — ₪${cashierTotal}`);
+      setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);
+      toast(`קבלה נוצרה — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}`);
     } finally {
       setBusyKey("saveReceipt", false);
     }
@@ -4847,8 +5026,8 @@ export default function BeautyOS() {
   const revenueInfo = (intent) => {
     const period = intent.period === "today" ? "today" : "month";
     const rs = period === "today"
-      ? receipts.filter(r => (r.created_at||"").slice(0,10) === today)
-      : receipts.filter(r => { const c = r.created_at && new Date(r.created_at); return c && c.getMonth() === thisMonth && c.getFullYear() === thisYear; });
+      ? receiptsOnDay(liveRcpts, today)
+      : liveRcpts.filter(r => { const c = r.created_at && new Date(r.created_at); return c && c.getMonth() === thisMonth && c.getFullYear() === thisYear; });
     const total = rs.reduce((s,r) => s + (Number(r.amount)||0), 0);
     setVoiceInfo({ kind: "revenue", period, total, count: rs.length });
     setVoiceStatus("info");
@@ -4952,6 +5131,8 @@ export default function BeautyOS() {
           client_phone: phone,
           amount: receipt.amount,
           payment_method: receipt.payment_method,
+          tip: Number(receipt.tip) || 0,
+          payments_text: isSplit(receipt) ? paymentsOf(receipt).map(p=>`${p.method} ₪${p.amount}`).join(", ") : "",
           date: (receipt.created_at || "").slice(0, 10),
         }),
       });
@@ -4982,8 +5163,12 @@ export default function BeautyOS() {
       ["שירות", esc(receipt.service || "")],
       ["אמצעי תשלום", esc(receipt.payment_method || "")],
     ];
-    if (Number(receipt.discount) > 0) rows.push(["הנחה", "−₪" + esc(receipt.discount)]);
+    if (isSplit(receipt)) for (const ln of paymentsOf(receipt)) rows.push(["· " + esc(ln.method), "₪" + esc(ln.amount)]);
+    if (Number(receipt.discount) > 0) rows.push(["הנחה" + (receipt.discount_pct ? ` (${esc(receipt.discount_pct)}%)` : ""), "−₪" + esc(receipt.discount)]);
+    if (Number(receipt.tip) > 0) rows.push(["טיפ", "₪" + esc(receipt.tip)]);
     if (receipt.note) rows.push(["הערה", esc(receipt.note)]);
+    const vd = voidOf(receipt, receiptVoids);
+    if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(String(vd.created_at || "").slice(0, 10))]);
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>קבלה</title>
 <style>
@@ -7324,6 +7509,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:12,color:"var(--ink-2)"}}>{fmtApptTime(a)} · {a.service}</p>
                   {a.confirmation_status==="confirmed"&&<span style={{fontSize:12,color:"var(--success)",fontWeight:700}}>אישרה</span>}
                   {a.confirmation_status==="cancelled"&&<span style={{fontSize:12,color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
+                  {a.confirmation_status===NO_SHOW&&<span style={{fontSize:12,color:"var(--danger)",fontWeight:700}}>לא הגיעה</span>}
  <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--surface)",border:"none",borderRadius:14,padding:"3px 9px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3,display:"block"}}>גבי</button>
  </div>
               ))}
@@ -7342,7 +7528,7 @@ ${c.claimUrl}`)}`;
  </div>
               {tomorrowEntries.map(a=>{
                 const client=clients.find(c=>String(c.id)===String(a.client_id));
-                const confColor=a.confirmation_status==="confirmed"?"var(--success)":a.confirmation_status==="cancelled"?"var(--danger)":"var(--ink-2)";
+                const confColor=a.confirmation_status==="confirmed"?"var(--success)":(a.confirmation_status==="cancelled"||a.confirmation_status===NO_SHOW)?"var(--danger)":"var(--ink-2)";
                 return(
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--surface-2),#FFFFFF)",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:10,padding:"6px 8px",marginBottom:5}}>
  <p style={{fontSize:11,fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
@@ -7350,7 +7536,7 @@ ${c.claimUrl}`)}`;
                     {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:14,padding:"3px 8px",fontSize:11.5,cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
-                    {a.confirmation_sent&&<span style={{fontSize:12,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":"נשלח"}</span>}
+                    {a.confirmation_sent&&<span style={{fontSize:12,color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נשלח"}</span>}
  </div>
                 );
               })}
@@ -7532,7 +7718,7 @@ ${c.claimUrl}`)}`;
                       ):todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
                         // "ממתין" on her own time would be a lie about a
                         // confirmation nobody is waiting for.
-                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)",bg:"var(--surface-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)",bg:"var(--surface-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה",c:"var(--danger)",bg:"rgba(224,91,111,0.08)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
                         return(
  <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:14,marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
  <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:11,padding:"5px 0"}}>
@@ -7801,6 +7987,7 @@ ${c.claimUrl}`)}`;
  <div className="desktop-only" style={{display:"flex",gap:10,fontSize:12,color:"var(--ink-2)",alignItems:"center"}}>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--success)"}}/>אישרה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)"}}/>ביטלה</span>
+ <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--danger)",opacity:0.5}}/>לא הגיעה</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-3)"}}/>ממתין</span>
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-2)"}}/>אישי</span>
  </div>
@@ -7980,12 +8167,14 @@ ${c.claimUrl}`)}`;
  <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:13,fontWeight:700,color:"var(--ink-3)"}}>{appt&&isAllDay(appt)?"—":fmtTime(row.min)}</div>
                             {appt?(
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:14,padding:"12px 14px",cursor:"pointer",boxShadow:"0 3px 8px rgba(43,34,51,0.14)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":""}</p>
+ <p style={{fontSize:15,fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":appt.confirmation_status===NO_SHOW?" · לא הגיעה":""}</p>
  <p style={{fontSize:12.5,color:"rgba(255,255,255,0.92)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
  <div style={{display:"flex",gap:8,marginTop:10}}>
                                   {!isPersonal(appt)&&appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
                                   {!isPersonal(appt)&&hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
                                   {!isPersonal(appt)&&<button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>}
+                                  {/* No-show: only a client visit, only on or after its day. */}
+                                  {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button aria-label="לא הגיעה" title="לא הגיעה" onClick={e=>{e.stopPropagation();markNoShow(appt);}} style={{...agBtn,fontSize:11,fontWeight:700,width:"auto",padding:"0 10px"}}>לא הגיעה</button>}
  <button aria-label={isPersonal(appt)?"מחיקת האירוע":"מחיקה"} onClick={e=>{e.stopPropagation();if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
  </div>
  </div>
@@ -8202,6 +8391,25 @@ ${c.claimUrl}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:24,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>⇩ ייצוא Excel</button>
  </div>
  </div>
+ {/* TODAY. The one question she asks at the end of the day: how much did I
+     take. By method, with tips beside the total rather than inside it, and
+     nothing that was voided. */}
+ <div className="glass-card" style={{padding:"16px 18px",marginBottom:14}}>
+ <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+ <div>
+ <p style={{fontSize:12.5,color:"var(--ink-3)",fontWeight:600}}>היום · {todayTotals.count===0?"אין עדיין תשלומים":todayTotals.count===1?"תשלום אחד":`${todayTotals.count} תשלומים`}</p>
+ <p className="serif" style={{fontSize:32,fontWeight:600,color:pc,lineHeight:1.1,marginTop:4}}>₪{todayTotals.total.toLocaleString()}</p>
+ </div>
+ {todayTotals.tips>0&&<div style={{textAlign:"left"}}><p style={{fontSize:12,color:"var(--ink-3)",fontWeight:600}}>טיפים</p><p className="serif" style={{fontSize:20,fontWeight:600,color:"var(--ink-2)"}}>₪{todayTotals.tips.toLocaleString()}</p><p style={{fontSize:11,color:"var(--ink-3)"}}>בקופה: ₪{todayTotals.collected.toLocaleString()}</p></div>}
+ </div>
+ {todayTotals.byMethod.length>0&&(
+ <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+                  {todayTotals.byMethod.map(b=>{const pm=PAYMENT_METHODS.find(p=>p.key===b.method);return(
+ <span key={b.method} className="pill" style={{gap:6,padding:"6px 11px",fontSize:12.5,background:"var(--surface-2)",border:"1px solid var(--line)"}}><span style={{width:8,height:8,borderRadius:"50%",background:pm?.color||"var(--ink-3)"}}/>{b.method} <b>₪{b.total.toLocaleString()}</b></span>
+                  );})}
+ </div>
+ )}
+ </div>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:18}}>
  <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}} className="stat-card" style={{background:"var(--surface)",borderRadius:20,padding:"18px 20px",border:"1px solid var(--line)",position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:"radial-gradient(circle at 100% 0%, var(--pc-tint), transparent 70%)",pointerEvents:"none"}}/>
@@ -8231,7 +8439,7 @@ ${c.claimUrl}`)}`;
  </div>
                 {todayAppts.map(a=>{
                   const client=clients.find(c=>String(c.id)===String(a.client_id));
-                  const paid=receipts.some(r=>String(r.appointment_id)===String(a.id));
+                  const paid=liveRcpts.some(r=>String(r.appointment_id)===String(a.id));
                   return(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 13px",background:paid?"rgba(70,179,123,0.08)":"var(--surface-2)",borderRadius:14,marginBottom:7,border:`1px solid ${paid?"rgba(70,179,123,0.35)":"var(--line)"}`,flexWrap:"wrap"}}>
  <div style={{flex:1,minWidth:120}}>
@@ -8277,16 +8485,18 @@ ${c.claimUrl}`)}`;
               ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
                 const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
                 const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
+                const voided=!!voidOf(r,receiptVoids);
                 return(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:14,marginBottom:6,cursor:"pointer"}} className="client-row">
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}${voided?" (מבוטלת)":""}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:`1px solid ${voided?"rgba(224,91,111,0.45)":"var(--line)"}`,borderRadius:14,marginBottom:6,cursor:"pointer",opacity:voided?0.7:1}} className="client-row">
  <div style={{width:36,height:36,borderRadius:12,background:`linear-gradient(135deg,${lighten(pmColor,0.35)},${pmColor})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,color:"var(--surface)",flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
                       {pm?.icon||"₪"}
  </div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:12,fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
- <p style={{fontSize:12,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}</p>
+ <p style={{fontSize:12,color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
  </div>
- <p className="serif" style={{fontSize:15,fontWeight:600,color:pc}}>₪{r.amount}</p>
+ {voided&&<span className="pill" style={{fontSize:11,color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטלת</span>}
+ <p className="serif" style={{fontSize:15,fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
  </div>
                 );
               })}
@@ -9005,7 +9215,7 @@ ${c.claimUrl}`)}`;
             const status = settings.business_tax_status || "exempt";
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
-            const inYear = receipts.filter(r=>r.created_at && new Date(r.created_at).getFullYear()===taxYear);
+            const inYear = liveRcpts.filter(r=>r.created_at && new Date(r.created_at).getFullYear()===taxYear);
             let periodReceipts, rangeLabel;
             if(status==="exempt"){
               periodReceipts=inYear; rangeLabel=`שנת ${taxYear}`;
@@ -9555,11 +9765,43 @@ ${c.claimUrl}`)}`;
  <input type="number" value={newAppt.price||""} onChange={e=>setNewAppt({...newAppt,price:e.target.value})} placeholder="₪ מחיר" aria-label="מחיר" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)",textAlign:"right"}}/>
  <textarea value={apptNote} onChange={e=>setApptNote(e.target.value)} placeholder="הערה" aria-label="הערה" rows={2} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
               </>)}
+
+              {/* RECURRING. New appointments only: the regular client, "every
+                  three weeks, six times". Every date is checked against the
+                  calendar and the overlap constraint; the ones that clash are
+                  named back to her, never silently skipped. */}
+              {!editingAppointmentId&&(
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:8}}>
+ <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--ink-2)",fontWeight:700,cursor:"pointer",minHeight:36}}>
+ <input type="checkbox" checked={apptRepeat.on} onChange={e=>setApptRepeat({...apptRepeat,on:e.target.checked})} style={{width:18,height:18,accentColor:pc}}/>
+                    תור חוזר
+ </label>
+                  {apptRepeat.on&&(
+ <div style={{display:"flex",gap:6,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
+ <span style={{fontSize:12,color:"var(--ink-3)"}}>כל</span>
+ <select value={apptRepeat.everyWeeks} onChange={e=>setApptRepeat({...apptRepeat,everyWeeks:Number(e.target.value)})} aria-label="כל כמה שבועות" style={{minHeight:40,border:"1px solid var(--line-2)",borderRadius:10,padding:"0 10px",fontSize:13,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}>
+                        {[1,2,3,4,5,6,8].map(w=><option key={w} value={w}>{w===1?"שבוע":`${w} שבועות`}</option>)}
+ </select>
+ <span style={{fontSize:12,color:"var(--ink-3)"}}>·</span>
+ <select value={apptRepeat.count} onChange={e=>setApptRepeat({...apptRepeat,count:Number(e.target.value)})} aria-label="כמה פעמים" style={{minHeight:40,border:"1px solid var(--line-2)",borderRadius:10,padding:"0 10px",fontSize:13,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}>
+                        {[2,3,4,6,8,10,12].map(n=><option key={n} value={n}>{n} פעמים</option>)}
+ </select>
+ <span style={{fontSize:11.5,color:"var(--ink-3)",flexBasis:"100%"}}>{newAppt.date?`מ-${shortDates([newAppt.date])} עד ${shortDates(recurrenceDates(newAppt.date,apptRepeat.everyWeeks,apptRepeat.count).slice(-1))}, באותה שעה. תאריך שתפוס לא ייקבע ותקבלי רשימה.`:""}</span>
+ </div>
+                  )}
+ </div>
+              )}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={closeApptModal} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"var(--surface)",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומר...":!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":editingAppointmentId?"עדכון ✓":"שמירה ✓"}</button>
+ <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"var(--surface)",fontSize:12,boxShadow:`0 8px 18px ${pcShadow}`,opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?"שומרת...":!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":editingAppointmentId?"עדכון ✓":(apptRepeat.on&&apptRepeat.count>1)?`קביעת ${apptRepeat.count} תורים ✓`:"שמירה ✓"}</button>
  </div>
+              {/* Edit mode, past or today: mark the client as not having come.
+                  The same action the agenda card offers, for the appointment
+                  she has open in front of her. */}
+              {editingAppointmentId&&(()=>{const cur=appointments.find(a=>a.id===editingAppointmentId);return cur&&canMarkNoShow(cur,today)?(
+ <button onClick={()=>{closeApptModal();markNoShow(cur);}} style={{width:"100%",marginTop:8,background:"none",border:"1px solid var(--line-2)",borderRadius:12,color:"var(--danger)",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>הלקוחה לא הגיעה</button>
+              ):null;})()}
  </div>
  </div>
       )}
@@ -9891,9 +10133,21 @@ ${c.claimUrl}`)}`;
  </div>
                 ))}
  </div>
+ {/* Discount: shekels or a percentage. The shekel figure is what is stored
+     either way; the percentage is remembered beside it. */}
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+ <p style={{fontSize:12,color:"var(--ink-2)",flex:1}}>הנחה{cashierDiscountMode==="pct"&&cashierDiscountIls>0?<span style={{color:"var(--ink-3)"}}> · ₪{cashierDiscountIls}</span>:null}</p>
+ <div style={{display:"flex",borderRadius:10,overflow:"hidden",border:"1px solid var(--line)"}}>
+                {[["ils","₪"],["pct","%"]].map(([m,l])=>(
+ <button key={m} onClick={()=>{setCashierDiscountMode(m);setCashierDiscount(0);}} aria-label={m==="pct"?"הנחה באחוזים":"הנחה בשקלים"} style={{minWidth:40,height:40,border:"none",background:cashierDiscountMode===m?pc:"var(--surface)",color:cashierDiscountMode===m?"var(--surface)":"var(--ink-2)",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                ))}
+ </div>
+ <input type="number" inputMode="decimal" min={0} max={cashierDiscountMode==="pct"?100:undefined} value={cashierDiscount||""} onChange={e=>setCashierDiscount(e.target.value)} placeholder="0" aria-label="סכום ההנחה" style={{width:80,height:40,border:"1px solid var(--line)",borderRadius:10,padding:"0 10px",fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
+ </div>
+ {/* Tip: its own column, never part of the amount. */}
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
- <p style={{fontSize:11,color:"var(--ink-2)",flex:1}}>הנחה (₪)</p>
- <input type="number" value={cashierDiscount||""} onChange={e=>setCashierDiscount(e.target.value)} placeholder="0" style={{width:80,border:"1px solid var(--line)",borderRadius:10,padding:"7px 10px",fontSize:11,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
+ <p style={{fontSize:12,color:"var(--ink-2)",flex:1}}>טיפ (₪)<span style={{color:"var(--ink-3)"}}> · לא נכלל בהכנסות</span></p>
+ <input type="number" inputMode="decimal" min={0} value={cashierTip||""} onChange={e=>setCashierTip(e.target.value)} placeholder="0" aria-label="טיפ" style={{width:80,height:40,border:"1px solid var(--line)",borderRadius:10,padding:"0 10px",fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
             {cashierPackage&&(
  <div style={{background:drawFromPackage?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${drawFromPackage?pc:"var(--line-2)"}`,borderRadius:12,padding:"11px 12px",marginBottom:10}}>
@@ -9907,12 +10161,35 @@ ${c.claimUrl}`)}`;
                 {drawFromPackage&&<p style={{fontSize:11,color:pcDeep,marginTop:6,lineHeight:1.5}}>טיפול אחד ינוכה מהחבילה עם שמירת הקבלה.</p>}
  </div>
             )}
- <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600,marginBottom:5}}>אמצעי תשלום</p>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+ <p style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>אמצעי תשלום</p>
+ {cashierTotal>0&&<button onClick={()=>setSplitOn(v=>!v)} style={{background:splitOn?pc:"var(--surface)",color:splitOn?"var(--surface)":pcDeep,border:`1px solid ${splitOn?pc:"var(--line-2)"}`,borderRadius:20,padding:"6px 12px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}>{splitOn?"✓ פיצול תשלום":"פיצול תשלום"}</button>}
+ </div>
+ {!splitOn&&(
  <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
               {SELECTABLE_PAYMENT_METHODS.map(pm=>(
- <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"var(--line)",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
+ <button key={pm.key} onClick={()=>setPaymentMethod(pm.key)} style={{flex:"1 0 28%",minHeight:40,padding:"9px 4px",border:"1px solid",borderColor:paymentMethod===pm.key?pm.color:"var(--line)",borderRadius:12,background:paymentMethod===pm.key?pm.color:pcTint,color:paymentMethod===pm.key?"var(--surface)":"var(--ink-2)",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{pm.icon} {pm.key}</button>
               ))}
  </div>
+ )}
+ {/* Split: two lines. She types the first amount; the second is what is
+     left, so the two can only ever add up to the total. */}
+ {splitOn&&(
+ <div style={{background:"var(--surface-2)",border:"1px solid var(--line-2)",borderRadius:12,padding:"10px 12px",marginBottom:10,display:"flex",flexDirection:"column",gap:8}}>
+                {splitResolved.map((ln,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+ <select value={ln.method} onChange={e=>setSplitLines(prev=>{const n=[...prev];n[i]={...(n[i]||{}),method:e.target.value};return n;})} aria-label={`אמצעי תשלום ${i+1}`} style={{flex:1,minHeight:40,border:"1px solid var(--line)",borderRadius:10,padding:"0 10px",fontSize:13,fontFamily:"inherit",outline:"none",background:"var(--surface)"}}>
+                      {SELECTABLE_PAYMENT_METHODS.map(pm=><option key={pm.key} value={pm.key}>{pm.key}</option>)}
+ </select>
+ {i===0
+   ? <input type="number" inputMode="decimal" min={0} max={cashierTotal} value={splitLines[0]?.amount||""} onChange={e=>setSplitLines(prev=>{const n=[...prev];n[0]={...(n[0]||{}),amount:e.target.value};return n;})} placeholder="0" aria-label="סכום החלק הראשון" style={{width:96,minHeight:40,border:"1px solid var(--line)",borderRadius:10,padding:"0 10px",fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+   : <span style={{width:96,minHeight:40,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:pcDeep,background:pcTint,borderRadius:10}}>₪{ln.amount}</span>}
+ </div>
+                ))}
+ {splitResolved[0].method===splitResolved[1].method&&<p style={{fontSize:11.5,color:"var(--danger)",fontWeight:600}}>אותו אמצעי תשלום פעמיים — בחרי שניים שונים.</p>}
+ {(!(Number(splitLines[0]?.amount)>0)||Number(splitLines[0]?.amount)>=cashierTotal)&&<p style={{fontSize:11.5,color:"var(--ink-3)"}}>כתבי כמה שולם ב{splitResolved[0].method}; השאר יירשם ב{splitResolved[1].method}.</p>}
+ </div>
+ )}
             {["ביט","פייבוקס","העברה"].includes(paymentMethod)&&cashierClient?.phone&&(
  <div style={{background:"var(--pc-tint)",borderRadius:12,padding:"10px 12px",marginBottom:10}}>
  <p style={{fontSize:12,color:"var(--pc-deep)",fontWeight:600,marginBottom:6}}>שלחי בקשת תשלום ב-{paymentMethod}</p>
@@ -9921,9 +10198,12 @@ ${c.claimUrl}`)}`;
  </div>
             )}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לקבלה" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:12,padding:"9px 12px",fontSize:11,fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 14px",background:pcTint,borderRadius:14,marginBottom:14}}>
+ <div style={{padding:"12px 14px",background:pcTint,borderRadius:14,marginBottom:14}}>
+ <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:12,color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
  <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{cashierTotal.toLocaleString()}</span>
+ </div>
+ {Number(cashierTip)>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}><span style={{fontSize:11.5,color:"var(--ink-3)"}}>+ טיפ</span><span style={{fontSize:13,fontWeight:700,color:"var(--ink-2)"}}>₪{Number(cashierTip).toLocaleString()}</span></div>}
  </div>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setShowCashier(false)} className="primary-btn" style={{flex:1,padding:"12px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>ביטול</button>
@@ -9948,13 +10228,24 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{showReceipt.created_at?.slice(0,10)}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
-                {showReceipt.discount>0&&<div style={{display:"flex",justifyContent:"space-between",color:pc}}><span>הנחה:</span><span>−₪{showReceipt.discount}</span></div>}
+                {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
+ <div key={i} style={{display:"flex",justifyContent:"space-between",paddingRight:12}}><span style={{color:"var(--ink-3)"}}>· {ln.method}</span><span>₪{ln.amount}</span></div>
+                ))}
+                {showReceipt.discount>0&&<div style={{display:"flex",justifyContent:"space-between",color:pc}}><span>הנחה{showReceipt.discount_pct?` (${showReceipt.discount_pct}%)`:""}:</span><span>−₪{showReceipt.discount}</span></div>}
+                {Number(showReceipt.tip)>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>טיפ:</span><span>₪{showReceipt.tip}</span></div>}
                 {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>הערה:</span><span>{showReceipt.note}</span></div>}
  </div>
  <div style={{borderTop:"2px dashed var(--line-2)",marginTop:14,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:13,fontWeight:600,color:"var(--ink-2)"}}>סה״כ:</span>
- <span className="serif" style={{fontSize:26,fontWeight:700,color:pc}}>₪{showReceipt.amount}</span>
+ <span className="serif" style={{fontSize:26,fontWeight:700,color:voidOf(showReceipt,receiptVoids)?"var(--ink-3)":pc,textDecoration:voidOf(showReceipt,receiptVoids)?"line-through":"none"}}>₪{showReceipt.amount}</span>
  </div>
+              {(()=>{const vd=voidOf(showReceipt,receiptVoids);return vd?(
+ <div style={{marginTop:12,padding:"10px 12px",borderRadius:12,background:"rgba(224,91,111,0.08)",border:"1px solid var(--danger)"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--danger)"}}>קבלה מבוטלת</p>
+ <p style={{fontSize:12,color:"var(--ink-2)",marginTop:2,lineHeight:1.5}}>{vd.reason}</p>
+ <p style={{fontSize:11,color:"var(--ink-3)",marginTop:2}}>{String(vd.created_at||"").slice(0,10)} · המקור נשמר כפי שהיה ואינו נספר בסיכומים</p>
+ </div>
+              ):null;})()}
  <p style={{textAlign:"center",fontSize:11.5,color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
               {/* NEXT APPOINTMENT — the whole point of putting this here.
@@ -10020,6 +10311,26 @@ ${c.claimUrl}`)}`;
               ):null;})()}
  <button onClick={()=>setShowReceipt(null)} className="primary-btn" style={{flex:1,padding:"11px 0",background:pcGrad,color:"var(--surface)",fontSize:11}}>סגירה</button>
  </div>
+              {/* VOID. A cancelling record, never an edit and never a delete:
+                  the reason is required, the original stays exactly as it was,
+                  and every total stops counting it. */}
+              {!voidOf(showReceipt,receiptVoids)&&(
+ <div style={{margin:"0 24px 18px"}}>
+                  {!voidOpen?(
+ <button onClick={()=>{setVoidOpen(true);setVoidReason("");}} style={{background:"none",border:"none",color:"var(--danger)",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"6px 0",minHeight:36}}>ביטול קבלה</button>
+                  ):(
+ <div style={{padding:"12px",borderRadius:12,background:"rgba(224,91,111,0.06)",border:"1px solid var(--danger)"}}>
+ <p style={{fontSize:12.5,fontWeight:700,color:"var(--ink)",marginBottom:4}}>למה הקבלה מבוטלת?</p>
+ <p style={{fontSize:11.5,color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הקבלה המקורית תישאר כפי שהיא, מסומנת כמבוטלת, ולא תיספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו.</p>
+ <textarea value={voidReason} onChange={e=>setVoidReason(e.target.value)} rows={2} placeholder="למשל: סכום שגוי, נרשם ללקוחה הלא נכונה" aria-label="סיבת הביטול" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:10,padding:"9px 12px",fontSize:13,fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"none",marginBottom:8}}/>
+ <div style={{display:"flex",gap:6}}>
+ <button onClick={()=>setVoidOpen(false)} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:12,color:"var(--ink-2)"}}>חזרה</button>
+ <button onClick={()=>handleVoidReceipt(showReceipt)} disabled={!voidReason.trim()||isBusy("voidReceipt")} className="primary-btn" style={{flex:2,padding:"10px 0",background:voidReason.trim()?"var(--danger)":"var(--line-2)",color:"var(--surface)",fontSize:12}}>{isBusy("voidReceipt")?"מבטלת…":"בטלי את הקבלה"}</button>
+ </div>
+ </div>
+                  )}
+ </div>
+              )}
               {/* Zero-dependency fallback: opens WhatsApp with the receipt pre-filled,
                   works even if GreenAPI isn't connected. */}
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));const phone=(cl?.phone||showReceipt.client_phone||"").trim();return phone?(
@@ -10041,6 +10352,19 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:11.5,color:"var(--ink-3)",marginBottom:14}}>הזמן הזה ייחסם ליומן — לקוחה לא תוכל להזמין אותו</p>
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
 
+ {/* Presets: the three things she blocks time for most, one tap each.
+     Lunch is an hour at one, a day off is the day, a vacation is a week she
+     then trims. The title stays editable underneath. */}
+ {!personalDraft.ids.length&&(
+ <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {PERSONAL_PRESETS.map(p=>{
+                      const sel=personalDraft.title===p.title;
+                      return (
+ <button key={p.key} onClick={()=>setPersonalDraft(d=>applyPersonalPreset(d,p))} style={{flex:"1 0 30%",minHeight:40,padding:"8px 10px",borderRadius:12,fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",border:sel?"1px solid transparent":"1px solid var(--line-2)",background:sel?pcGrad:"var(--surface-2)",color:sel?"var(--surface)":"var(--ink-2)"}}>{p.icon} {p.title}</button>
+                      );
+                    })}
+ </div>
+ )}
  <div>
  <p style={{fontSize:11.5,color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>מה?</p>
  <input value={personalDraft.title} onChange={e=>setPersonalDraft({...personalDraft,title:e.target.value})} placeholder="פגישה עם רואה חשבון" aria-label="כותרת האירוע" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:12,padding:"9px 12px",fontSize:12,fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
@@ -11108,6 +11432,16 @@ ${c.claimUrl}`)}`;
                           </span>
  </div>
                       ); })()}
+                      {/* Reliability: no-shows and late cancellations, from her
+                          appointments. Shown only when there is something to
+                          say - a row reading "0 · 0" would shame a client who
+                          has simply always turned up. */}
+                      {(()=>{ const line=reliabilityLine(clientReliability(appts)); return line?(
+ <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}>
+ <span style={{color:"var(--ink-3)"}}>אמינות</span>
+ <span style={{fontWeight:600,color:"var(--danger)"}}>{line}</span>
+ </div>
+                      ):null; })()}
                       {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
                       {c.skinType&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>סוג עור</span><span style={{fontWeight:600}}>{c.skinType}</span></div>}
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:10,border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:11.5,marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
