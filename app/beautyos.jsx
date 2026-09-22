@@ -994,6 +994,11 @@ export default function BeautyOS() {
   // is enforced against her CLIENTS in a request she is not part of, so without
   // this she would learn about it by noticing her leads had stopped.
   const [scanQuota,         setScanQuota]          = useState(null);
+  // The signed scanner link (this origin + /skin-scan?t=…&s=…) and its QR,
+  // loaded when settings opens so she sees the current link, not a memory.
+  const [scanLink,          setScanLink]           = useState(null);
+  const [scanQr,            setScanQr]             = useState(null);
+  const [scanLinkError,     setScanLinkError]      = useState("");
 
   // ── List windows ────────────────────────────────────────────────────────
   // The leads and clients screens render every matching row. A lead card is
@@ -5526,6 +5531,42 @@ export default function BeautyOS() {
   useEffect(()=>{ if(activeTab==="packages") loadOfferings(); },[activeTab, loadOfferings]);
   useEffect(()=>{ if(showSettings) loadClientReviews(); },[showSettings, loadClientReviews]);
 
+  // The scanner link she should share: signed by the server, on the origin
+  // she is using. Returns the url (or null) so the copy button can await it.
+  // The QR is drawn from the SAME string - one link, three surfaces.
+  const loadScanLink = useCallback(async () => {
+    try {
+      const res = await fetch("/api/skin-scan/link");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success || !(data.path || data.url)) {
+        setScanLinkError((data && data.error) || "לא הצלחנו להפיק את הקישור");
+        return null;
+      }
+      setScanQuota(data);
+      const origin = (typeof window !== "undefined" && window.location.origin) || "";
+      const url = data.path && origin ? `${origin}${data.path}` : data.url;
+      setScanLink(url);
+      setScanLinkError("");
+      try {
+        const QRCode = (await import("qrcode")).default;
+        setScanQr(await QRCode.toDataURL(url, { width: 640, margin: 2, errorCorrectionLevel: "M", color: { dark: "#2B2233", light: "#FFFFFF" } }));
+      } catch { setScanQr(null); }
+      return url;
+    } catch {
+      setScanLinkError("לא הצלחנו להפיק את הקישור. בדקי את החיבור ונסי שוב.");
+      return null;
+    }
+  }, []);
+  useEffect(()=>{ if(showSettings && !scanLink) loadScanLink(); },[showSettings, scanLink, loadScanLink]);
+
+  const downloadScanQr = () => {
+    if (!scanQr) return;
+    const a = document.createElement("a");
+    a.href = scanQr;
+    a.download = `${(settings.business_name || "bloomos").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`;
+    a.click();
+  };
+
   // HIDE, AND NOTHING ELSE. There is no edit here and there cannot be one: the
   // database refuses any change to the words, so a text field would be a box
   // that throws 42501 when she pressed save. The absence of that field is the
@@ -6109,22 +6150,14 @@ export default function BeautyOS() {
     const base = (typeof window !== "undefined" && window.location.origin) || "https://beautyos-theta.vercel.app";
 
     if (kind === "scan") {
+      // Always the signed link, on this origin - the one the QR is drawn from.
+      const url = scanLink || (await loadScanLink());
+      if (!url) { toast(scanLinkError || "לא הצלחנו להפיק את הקישור", "error"); return; }
       try {
-        const res = await fetch("/api/skin-scan/link");
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !data.success || !data.url) {
-          toast((data && data.error) || "לא הצלחנו להפיק את הקישור", "error");
-          return;
-        }
-        setScanQuota(data);
-        try {
-          await navigator.clipboard.writeText(data.url);
-          toast("קישור הסורק הועתק");
-        } catch {
-          toast(data.url, "info");
-        }
+        await navigator.clipboard.writeText(url);
+        toast("קישור הסורק הועתק");
       } catch {
-        toast("לא הצלחנו להפיק את הקישור. בדקי את החיבור ונסי שוב.", "error");
+        toast(url, "info");
       }
       return;
     }
@@ -10695,7 +10728,39 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. זה סיכום לנוחותך, לא דוח להגשה.</p></div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
- <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{width:"100%",padding:"11px 0",background:pcGrad,color:"var(--surface)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",marginBottom:7,boxShadow:"var(--shadow-accent)"}}>✦ העתקת קישור לסורק העור</button>
+ {/* The scanner link, as she should share it: signed (?t=…&s=…) so the page
+     loads HER colour and details and the scan is attributed to her. Shown in
+     full, copied from the same string, and the QR is drawn from that string -
+     a printed code and a bio link can never drift apart. */}
+ <div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
+   <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור — הקישור לשיתוף</p>
+   {scanLink ? (
+     <>
+       <div style={{display:"flex",gap:6,alignItems:"stretch",marginBottom:8}}>
+         <input readOnly value={scanLink} onFocus={e=>e.target.select()} aria-label="קישור סורק העור" dir="ltr" style={{flex:1,minWidth:0,border:"1px solid var(--line-2)",borderRadius:"var(--r-xs)",padding:"9px 10px",fontSize:"var(--t-xs)",fontFamily:"ui-monospace, monospace",color:"var(--ink-2)",background:"var(--surface)",textOverflow:"ellipsis"}}/>
+         <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{padding:"9px 14px",background:pcGrad,color:"var(--surface)",fontSize:"var(--t-sm)",whiteSpace:"nowrap",boxShadow:"var(--shadow-accent)"}}>העתקת קישור</button>
+       </div>
+       {scanQr && (
+         <div style={{display:"flex",gap:12,alignItems:"center"}}>
+           {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn on the client; next/image has nothing to optimise */}
+           <img src={scanQr} alt="קוד QR לסורק העור" width={112} height={112} style={{width:112,height:112,borderRadius:"var(--r-xs)",border:"1px solid var(--line)",background:"#fff",flexShrink:0}}/>
+           <div style={{flex:1,minWidth:0}}>
+             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד QR — לשלט בקליניקה, לכרטיס ביקור או לסטורי.</p>
+             <button onClick={downloadScanQr} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 14px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="download" size={13}/> הורדת ה-QR (PNG)</button>
+           </div>
+         </div>
+       )}
+       <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginTop:8}}>הקישור נושא את מזהה העסק והחתימה שלך — כך הסורק מציג את הצבע והפרטים שלך, והסריקה נרשמת אצלך. קישורים ישנים שכבר שיתפת (עם ‎?t=‎) ממשיכים לעבוד.</p>
+     </>
+   ) : scanLinkError ? (
+     <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between"}}>
+       <p style={{fontSize:"var(--t-sm)",color:"var(--danger)"}}>{scanLinkError}</p>
+       <button onClick={loadScanLink} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>נסי שוב</button>
+     </div>
+   ) : (
+     <Spinner inline label="מפיקה את הקישור"/>
+   )}
+ </div>
  {/* The ceiling, shown BEFORE it is reached. When it is hit, the client sees
      the refusal and she is not in that request at all - so this is the only
      place she can find out, and it has to be visible early enough to act on. */}

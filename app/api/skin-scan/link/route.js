@@ -49,9 +49,15 @@ export async function GET() {
 
     const quota = await getQuotaStatus(tenantId);
 
+    const url = buildScanUrl(appBase(), tenantId);
     return Response.json({
       success: true,
-      url: buildScanUrl(appBase(), tenantId),
+      url,
+      // The same link without a host. The app prefixes its own origin, so the
+      // link she copies points at the domain she is using right now - the
+      // booking link already works this way, and NEXT_PUBLIC_APP_URL can lag
+      // a domain change.
+      path: url.slice(appBase().length),
       used: quota.used,
       limit: quota.limit,
       remaining: quota.remaining,
