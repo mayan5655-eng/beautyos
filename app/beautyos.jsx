@@ -9222,9 +9222,10 @@ ${c.claimUrl}`)}`;
      page was deleted in the truth pass; this is the studio's only home. */}
  <div style={{borderTop:"1px solid var(--line)",marginTop:22,paddingTop:22}}>
  <ReelStudio primaryColor={pc} businessName={settings.business_name||""} script={reelData}/>
- {CESDK_POC && <CesdkReelPoc settings={settings}/>}{/* cesdk-poc */}
  </div>
  </div>)}
+ {/* cesdk-poc: on the reels view whether or not a script has been generated - the POC does not need one */}
+ {CESDK_POC && <CesdkReelPoc settings={settings}/>}
  </>)}
  </>)}
  </div>
