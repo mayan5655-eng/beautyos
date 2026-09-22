@@ -18,6 +18,7 @@ const PUBLIC_PREFIXES = [
   '/form',
   '/confirm',
   '/api',
+  '/cesdk-poc', // cesdk-poc: the caption font under public/cesdk-poc; delete with app/cesdk-poc
 ];
 
 function isPublicPath(pathname: string): boolean {

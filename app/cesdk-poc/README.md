@@ -31,14 +31,16 @@ Inside this folder: `flag.ts`, `buildReel.js` (the template), `ReelPoc.jsx`
 3. `app/beautyos.jsx` - one import and one `{CESDK_POC && <ReelPoc …/>}` line
    under `<ReelStudio>`.
 4. `test-cesdk-poc.ts` - builds the template in headless Node and checks it.
+5. `lib/supabase/middleware.ts` - `/cesdk-poc` in the public prefixes, so the
+   engine can fetch the font without a session cookie.
 
 ## Delete it
 
     git rm -r app/cesdk-poc public/cesdk-poc test-cesdk-poc.ts
 
-then remove the two `cesdk-poc` lines in `app/beautyos.jsx` and the
-`cesdk-poc` block in `lib/securityHeaders.ts`, and drop the two variables
-from `.env.local`. `grep -rn cesdk-poc .` should then find nothing.
+then remove the two `cesdk-poc` lines in `app/beautyos.jsx`, the
+`cesdk-poc` block in `lib/securityHeaders.ts`, the `/cesdk-poc` line in
+`lib/supabase/middleware.ts`, and drop the two variables from `.env.local`. `grep -rn cesdk-poc .` should then find nothing.
 
 ## What the evaluation found (why it is built this way)
 
