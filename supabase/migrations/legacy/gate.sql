@@ -78,6 +78,7 @@ declare
     'client_photos', 'treatment_protocols', 'skin_scans',
     -- AI and marketing output.
     'advisor_messages', 'campaigns', 'campaign_posts', 'community_posts',
+    'designs',
     -- Messaging and automation state.
     'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages'
     -- NOTE: 'settings' is intentionally absent. See the header for why.

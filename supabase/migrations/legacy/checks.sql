@@ -11,7 +11,7 @@
 
 
 -- ── 6a. Inventory ──────────────────────────────────────────────────────────
--- EXPECT 60 rows. Every row must read:
+-- EXPECT 63 rows. Every row must read:
 --   permissive = RESTRICTIVE
 --   roles      = {authenticated}
 --   cmd        in (INSERT, UPDATE, DELETE)      <-- never SELECT, never ALL
@@ -23,7 +23,7 @@ select tablename, policyname, permissive, roles, cmd
 
 
 -- ── 6b. Counts ─────────────────────────────────────────────────────────────
--- EXPECT policy_count = 60 and tables_gated = 20 (three policies each on twenty
+-- EXPECT policy_count = 63 and tables_gated = 21 (three policies each on twenty-one
 -- tables). A lower number means a table was skipped: 6g names which one.
 select count(*) as policy_count, count(distinct tablename) as tables_gated
   from pg_policies
