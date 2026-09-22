@@ -16,6 +16,9 @@ import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import ReelStudio from "./ReelStudio";
+import dynamic from "next/dynamic";
+import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
+const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
@@ -9219,6 +9222,7 @@ ${c.claimUrl}`)}`;
      page was deleted in the truth pass; this is the studio's only home. */}
  <div style={{borderTop:"1px solid var(--line)",marginTop:22,paddingTop:22}}>
  <ReelStudio primaryColor={pc} businessName={settings.business_name||""} script={reelData}/>
+ {CESDK_POC && <CesdkReelPoc settings={settings}/>}{/* cesdk-poc */}
  </div>
  </div>)}
  </>)}

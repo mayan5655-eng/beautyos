@@ -71,11 +71,18 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     dev ? 'http://localhost:*' : null,
   ].filter(Boolean);
 
+  // cesdk-poc: the CE.SDK proof of concept loads its engine (script + wasm +
+  // assets) from IMG.LY's CDN. Only while NEXT_PUBLIC_CESDK_POC=1, which is
+  // set in .env.local and never in Vercel. Delete with app/cesdk-poc.
+  const cesdkPoc = env.NEXT_PUBLIC_CESDK_POC === '1';
+  const cesdkCdn = cesdkPoc ? ['https://cdn.img.ly'] : [];
+  if (cesdkPoc) connect.push('https://cdn.img.ly');
+
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', ...(dev ? ["'unsafe-eval'"] : [])],
+    'script-src': ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', ...(dev ? ["'unsafe-eval'"] : []), ...cesdkCdn, ...(cesdkPoc ? ["'wasm-unsafe-eval'"] : [])],
     'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-    'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+    'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:', ...cesdkCdn],
     'img-src': ["'self'", 'data:', 'blob:', 'https:'],
     'media-src': ["'self'", 'blob:', 'data:'],
     'connect-src': connect as string[],
