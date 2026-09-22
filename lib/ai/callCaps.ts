@@ -70,6 +70,11 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   'marketing/variations': 200,
   'marketing/groups': 150,
   'marketing/reel': 80,
+  // Creatives (OpenAI images, ~13 cents each at high quality). The test
+  // surface is admin-only and small; the real call site gets its own number
+  // when stage 4 wires it.
+  'creatives/test-image': 30,
+  'creatives/image': 60,
 };
 
 /**

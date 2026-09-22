@@ -258,6 +258,19 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) =>
       `יותר מדי בקשות כרגע. אפשר לנסות שוב ${m}.`,
   },
+
+  // AI image generation (creatives). Each accepted call spends real money on
+  // OpenAI, and one image takes tens of seconds: nobody legitimately asks for
+  // more than a handful in ten minutes. The monthly cap in callCaps.ts is the
+  // budget; this is the brake on a stuck retry loop.
+  'creatives': {
+    perIp: { limit: 10, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נוצרו יותר מדי תמונות ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `העסק הגיע למכסת התמונות לעשר הדקות האלה. אפשר לנסות שוב ${m}.`,
+  },
 } as const;
 
 export type PolicyName = keyof typeof RATE_POLICIES;
