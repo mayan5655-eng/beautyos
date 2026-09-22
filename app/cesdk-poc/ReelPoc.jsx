@@ -54,7 +54,7 @@ export default function ReelPoc({ settings }) {
         logoUrl: branding.logo_url || '',
         businessName: settings?.business_name || '',
         accent: settings?.primary_color || '#5B3E67',
-        fontUri: `${window.location.origin}/cesdk-poc/Assistant.ttf`,
+        fontUri: `${window.location.origin}/design-fonts/Assistant.ttf`,
       });
       const blob = await engine.block.exportVideo(page, {
         mimeType: 'video/mp4',

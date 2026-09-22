@@ -15,6 +15,9 @@ import DomPreview from './DomPreview';
 import ImagePicker from './ImagePicker';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { captureElementPng, downloadBlob, uploadExport } from './exportPng';
+import Sheet from '../Sheet';
+import CesdkEditor from './CesdkEditor';
+import { EDITOR_AVAILABLE } from './renderers';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const label = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4, display: 'block' };
@@ -24,6 +27,10 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   const [values, setValues] = useState(design.values || {});
   const [images, setImages] = useState(design.images || {});
   const [consent, setConsent] = useState(design.overrides?.consent || {});
+  // Her layout edits (positions, sizes, colours, hidden layers) from the
+  // advanced editor; consent is kept apart and merged back on save.
+  const [overrides, setOverrides] = useState(() => { const o = { ...(design.overrides || {}) }; delete o.consent; return o; });
+  const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -34,7 +41,6 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   // State starts from the row; the parent remounts this editor (key=design.id)
   // when another design opens, so no effect has to reset anything.
   const fill = useMemo(() => fillTemplate(template, { settings, inputs: values, images }), [template, settings, values, images]);
-  const overrides = design.overrides || {};
 
   const patch = async (body) => {
     const res = await fetch(`/api/designs/${design.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -145,6 +151,9 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             </button>
             <button onClick={duplicate} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="copy" size={14} /> שכפול</button>
             <button onClick={makeDefault} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="star" size={14} /> {design.is_default ? 'לא ברירת מחדל' : 'ברירת מחדל לקטגוריה'}</button>
+            {EDITOR_AVAILABLE && (
+              <button onClick={() => setAdvanced(true)} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--pc)', fontSize: 'var(--t-sm)' }}><Icon name="edit" size={14} /> עריכה מתקדמת</button>
+            )}
             <button onClick={remove} disabled={readOnly} style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', padding: '11px 6px' }}><Icon name="trash" size={14} /> מחיקה</button>
           </div>
           {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
@@ -155,6 +164,19 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
       <div aria-hidden style={{ position: 'fixed', left: -20000, top: 0, pointerEvents: 'none' }}>
         <div ref={exportRef}><DomPreview template={template} fill={fill} overrides={overrides} width={1080} /></div>
       </div>
+
+      {EDITOR_AVAILABLE && (
+        <Sheet open={advanced} onClose={() => setAdvanced(false)} width={560} zIndex={1200} title="עריכה מתקדמת" subtitle="גררי, שני גודל, הקישי פעמיים לעריכת טקסט. השינויים נשמרים עם העיצוב.">
+          {advanced && (
+            <CesdkEditor
+              template={template} fill={fill} overrides={overrides} values={values}
+              onChange={(next) => { setOverrides(next.overrides); setValues((p) => ({ ...p, ...next.values })); setDirty(true); }}
+              onExport={(blob) => downloadBlob(blob, `${(name || template.name).replace(/[^p{L}p{N}]+/gu, '-')}-${template.format}.png`)}
+              onClose={() => setAdvanced(false)}
+            />
+          )}
+        </Sheet>
+      )}
 
       <ImagePicker
         key={pickSlot ? pickSlot.key : 'none'}

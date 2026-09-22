@@ -71,10 +71,11 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     dev ? 'http://localhost:*' : null,
   ].filter(Boolean);
 
-  // cesdk-poc: the CE.SDK proof of concept loads its engine (script + wasm +
-  // assets) from IMG.LY's CDN. Only while NEXT_PUBLIC_CESDK_POC=1, which is
-  // set in .env.local and never in Vercel. Delete with app/cesdk-poc.
-  const cesdkPoc = env.NEXT_PUBLIC_CESDK_POC === '1';
+  // CE.SDK loads its engine (script + wasm + assets) from IMG.LY's CDN. Only
+  // when the design studio's editor renderer is CE.SDK (NEXT_PUBLIC_DESIGN_
+  // RENDERER=cesdk, app/design/renderers) or the reel POC is on
+  // (NEXT_PUBLIC_CESDK_POC=1). Off, the CSP never names the vendor.
+  const cesdkPoc = env.NEXT_PUBLIC_CESDK_POC === '1' || env.NEXT_PUBLIC_DESIGN_RENDERER === 'cesdk';
   const cesdkCdn = cesdkPoc ? ['https://cdn.img.ly'] : [];
   if (cesdkPoc) connect.push('https://cdn.img.ly');
 
