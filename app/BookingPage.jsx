@@ -823,11 +823,11 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         {p.cta_label && (
                           wa ? (
                             <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
-                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", textDecoration: "none", letterSpacing: "0.4px", boxShadow:"var(--shadow-accent)" }}>
+                               style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", textDecoration: "none", letterSpacing: "0.4px", boxShadow:"var(--shadow-accent)" }}>
                               {p.cta_label}
                             </a>
                           ) : (
-                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
+                            <span style={{ display: "inline-block", marginTop: 13, padding: "9px 20px", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
                               {p.cta_label}
                             </span>
                           )
@@ -852,7 +852,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FEFAF7) 38%)" }}>
           <button onClick={goToServices} className="bk-btn"
             style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 52, borderRadius:"var(--r-md)",
-              background: pc, color: brand?.onPrimary || "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600 }}>
+              background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600 }}>
             {brand?.ctaLabel || "קביעת תור"}
           </button>
           <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 8 }}>אישור מיידי בוואטסאפ</p>
@@ -949,7 +949,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                     </div>
                     {selectedStart !== null && (
                       <button onClick={() => setStep(3)} className="bk-btn"
-                        style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
+                        style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
                         המשיכי ←
                       </button>
                     )}
@@ -1004,7 +1004,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
-                  style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
+                  style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
                   {submitting ?<Spinner inline label="קובע תור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
                 <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור מאושר מיד, ואישור נשלח אלייך בוואטסאפ</p>
