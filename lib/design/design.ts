@@ -26,7 +26,19 @@ export type Overrides = {
   layers?: Record<string, LayerOverride>;
   colors?: Partial<Record<ColorRole, string>>;
   order?: string[];
+  /** Slot -> she confirmed the client agreed to publication (before/after). */
+  consent?: Record<string, boolean>;
 };
+
+/**
+ * A picture reference a design may hold: a public https URL, or a private
+ * storage path prefixed "private:" (client before/after photos), which the
+ * renderer turns into a short-lived signed URL at view time and never
+ * stores signed.
+ */
+export const PRIVATE_REF = /^private:[0-9a-f-]{36}\/clients\/[A-Za-z0-9._\/-]{1,300}$/i;
+export const isPrivateRef = (v: unknown): v is string => typeof v === 'string' && PRIVATE_REF.test(v);
+export const privatePath = (ref: string) => ref.replace(/^private:/, '');
 
 export type DesignRow = {
   id: string;
@@ -88,6 +100,11 @@ export function sanitizeOverrides(raw: unknown): Overrides {
     const order = o.order.filter((id): id is string => typeof id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(id));
     if (order.length) out.order = [...new Set(order)];
   }
+  const consent = o.consent && typeof o.consent === 'object' && !Array.isArray(o.consent) ? (o.consent as Record<string, unknown>) : null;
+  if (consent) {
+    out.consent = {};
+    for (const [slot, v] of Object.entries(consent)) if (/^[a-z0-9_-]{1,40}$/i.test(slot) && v === true) out.consent[slot] = true;
+  }
   return out;
 }
 
@@ -111,7 +128,7 @@ export function sanitizeImages(template: Template, raw: unknown): Record<string,
   for (const s of template.slots) {
     const v = o[s.key];
     if (v === null) { out[s.key] = null; continue; }
-    if (typeof v === 'string' && /^https:\/\/[^\s"'<>]{1,2000}$/.test(v)) out[s.key] = v;
+    if (typeof v === 'string' && (/^https:\/\/[^\s"'<>]{1,2000}$/.test(v) || isPrivateRef(v))) out[s.key] = v;
   }
   return out;
 }

@@ -19,6 +19,8 @@ import ReelStudio from "./ReelStudio";
 import dynamic from "next/dynamic";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
+// The design studio: templates in her branding, her saved designs (lib/design + app/design).
+const DesignStudio = dynamic(() => import("./design/DesignStudio"), { ssr: false });
 import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
@@ -8908,12 +8910,15 @@ ${c.claimUrl}`)}`;
 
  <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
  <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)",flexWrap:"wrap",justifyContent:"center"}}>
+ <button onClick={()=>setAiPostsView("studio")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="studio"?pcGrad:"transparent",color:aiPostsView==="studio"?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600}}>סטודיו</button>
  <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="create"?pcGrad:"transparent",color:aiPostsView==="create"?"var(--pc-contrast)":"var(--ink-2)"}}>יצירת פוסטים</button>
  <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="saved"?pcGrad:"transparent",color:aiPostsView==="saved"?"var(--pc-contrast)":"var(--ink-2)"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
  <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="film" size={14}/> רילסים</button>
  <button onClick={()=>setAiPostsView("shootlist")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="shootlist"?pcGrad:"transparent",color:aiPostsView==="shootlist"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="clipboard" size={14}/> מה לצלם השבוע</button>
  </div>
  </div>
+
+ {aiPostsView==="studio"&&<DesignStudio settings={settings} readOnly={readOnly} toast={toast}/>}
 
  {aiPostsView==="create"&&(<>
  <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>

@@ -91,5 +91,9 @@ assert.deepEqual(sanitizeValues(getTemplate('offer-feed')!, { headline: ' x\u000
 assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: 'https://cdn/a.jpg', other: 'https://x' }), { photo: 'https://cdn/a.jpg' });
 assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: 'javascript:alert(1)' }), {});
 assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: null }), { photo: null });
+// Client photos travel as private references, resolved to signed URLs only at view time.
+const ref = 'private:8d4c2b3a-1111-4222-8333-444455556666/clients/abc/before_1.jpg';
+assert.deepEqual(sanitizeImages(getTemplate('before-after-feed')!, { before: ref, after: 'private:../etc/passwd' }), { before: ref });
+assert.deepEqual(sanitizeOverrides({ consent: { before: true, after: 'yes', 'bad id!': true } }), { consent: { before: true } });
 
 console.log('design templates: ok');

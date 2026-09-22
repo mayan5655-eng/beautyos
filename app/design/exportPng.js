@@ -1,0 +1,35 @@
+'use client';
+
+// app/design/exportPng.js
+//
+// The PNG export for the DOM renderer: capture a full-size DomPreview
+// (1080 wide, mounted off-screen by the caller) with html2canvas, the same
+// library the post designer already uses. Returns a Blob; the caller
+// downloads it and, when the design is saved, uploads it as export_path.
+
+import { supabase } from '../supabase';
+import { PUBLIC_BUCKET } from '@/lib/clientImages';
+
+export async function captureElementPng(el) {
+  if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
+  // Let the auto-fit pass settle after fonts arrive.
+  await new Promise((r) => setTimeout(r, 120));
+  const html2canvas = (await import('html2canvas')).default;
+  const canvas = await html2canvas(el, { scale: 1, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('הייצוא נכשל'))), 'image/png'));
+}
+
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** Store the export next to her other assets; returns the storage path. */
+export async function uploadExport(blob, tenantId, designId) {
+  const path = `${tenantId}/designs/${designId}_${Date.now()}.png`;
+  const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: 'image/png' });
+  if (error) throw new Error(error.message);
+  return path;
+}
