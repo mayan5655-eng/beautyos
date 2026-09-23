@@ -12,7 +12,13 @@
 //   brand:  { logo?, phone?, instagram? } // false hides that part of the strip on THIS design
 // }
 
-import { COLOR_ROLES, type ColorRole, type Layer, type Template } from './contract.ts';
+import { COLOR_ROLES, type ColorRole, type Layer, type SlotDef, type Template, type VariableDef } from './contract.ts';
+
+/** What the sanitisers need from a template or a reel: the fields she can fill. */
+export type FillSurface = { variables: VariableDef[]; slots: SlotDef[] };
+
+/** The post text that travels with a design. */
+export type DesignCopy = { text?: string; hashtags?: string[] };
 
 export type LayerOverride = {
   box?: { x: number; y: number; w: number; h: number };
@@ -56,6 +62,7 @@ export type DesignRow = {
   values: Record<string, string>;
   images: Record<string, string | null>;
   overrides: Overrides;
+  copy: DesignCopy;
   preview_path: string | null;
   export_path: string | null;
   is_default: boolean;
@@ -120,7 +127,7 @@ export function sanitizeOverrides(raw: unknown): Overrides {
 }
 
 /** Text values, trimmed and capped by the template's own maxLength. */
-export function sanitizeValues(template: Template, raw: unknown): Record<string, string> {
+export function sanitizeValues(template: FillSurface, raw: unknown): Record<string, string> {
   const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const out: Record<string, string> = {};
   for (const v of template.variables) {
@@ -133,13 +140,25 @@ export function sanitizeValues(template: Template, raw: unknown): Record<string,
 }
 
 /** Slot -> URL, only for slots the template has and only http(s) URLs. */
-export function sanitizeImages(template: Template, raw: unknown): Record<string, string | null> {
+export function sanitizeImages(template: FillSurface, raw: unknown): Record<string, string | null> {
   const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const out: Record<string, string | null> = {};
   for (const s of template.slots) {
     const v = o[s.key];
     if (v === null) { out[s.key] = null; continue; }
     if (typeof v === 'string' && (/^https:\/\/[^\s"'<>]{1,2000}$/.test(v) || isPrivateRef(v))) out[s.key] = v;
+  }
+  return out;
+}
+
+/** Caption text and hashtags, trimmed and capped; anything else dropped. */
+export function sanitizeCopy(raw: unknown): DesignCopy {
+  const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const out: DesignCopy = {};
+  if (typeof o.text === 'string') out.text = o.text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, 2200);
+  if (Array.isArray(o.hashtags)) {
+    const tags = o.hashtags.filter((h): h is string => typeof h === 'string').map((h) => h.trim()).filter((h) => /^#\S{1,40}$/.test(h)).slice(0, 15);
+    if (tags.length) out.hashtags = [...new Set(tags)];
   }
   return out;
 }

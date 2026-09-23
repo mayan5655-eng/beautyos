@@ -12,7 +12,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { getTemplate } from '@/lib/design/templates';
-import { sanitizeImages, sanitizeValues, sanitizeOverrides } from '@/lib/design/design';
+import { getReel } from '@/lib/design/reels';
+import { sanitizeImages, sanitizeValues, sanitizeOverrides, sanitizeCopy } from '@/lib/design/design';
 
 type Ctx = { params: Promise<{ id: string }> };
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -28,7 +29,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
   const { data, error } = await supabase.from('designs').select('*').eq('id', id).maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
-  const template = getTemplate(data.template_key, data.template_version);
+  const template = getTemplate(data.template_key, data.template_version) || getReel(data.template_key, data.template_version);
   return NextResponse.json({ success: true, design: data, template });
 }
 
@@ -44,7 +45,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const { data: current, error: curErr } = await supabase.from('designs').select('id, tenant_id, template_key, template_version, category').eq('id', id).maybeSingle();
   if (curErr) return NextResponse.json({ success: false, error: curErr.message }, { status: 500 });
   if (!current) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
-  const template = getTemplate(current.template_key, current.template_version);
+  const template = getTemplate(current.template_key, current.template_version) || getReel(current.template_key, current.template_version);
   if (!template) return NextResponse.json({ success: false, error: 'התבנית של העיצוב הזה כבר לא קיימת' }, { status: 409 });
 
   let body: Record<string, unknown> = {};
@@ -55,6 +56,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   if (body.values !== undefined) patch.values = sanitizeValues(template, body.values);
   if (body.images !== undefined) patch.images = sanitizeImages(template, body.images);
   if (body.overrides !== undefined) patch.overrides = sanitizeOverrides(body.overrides);
+  if (body.copy !== undefined) patch.copy = sanitizeCopy(body.copy);
   if (body.status === 'draft' || body.status === 'final' || body.status === 'archived') patch.status = body.status;
   if (isPath(body.preview_path)) patch.preview_path = body.preview_path;
   if (isPath(body.export_path)) patch.export_path = body.export_path;

@@ -33,6 +33,17 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   const [overrides, setOverrides] = useState(() => { const o = { ...(design.overrides || {}) }; delete o.consent; delete o.brand; return o; });
   // Which brand marks this design shows. Absent = on when she has it.
   const [brand, setBrand] = useState(design.overrides?.brand || {});
+  // The post text that goes with the picture: from the AI, or typed here.
+  const [copyText, setCopyText] = useState(design.copy?.text || '');
+  const [hashtags, setHashtags] = useState(Array.isArray(design.copy?.hashtags) ? design.copy.hashtags.join(' ') : '');
+  const captionFull = () => [copyText.trim(), hashtags.trim()].filter(Boolean).join('\n\n');
+  const copyCaption = async () => {
+    const text = captionFull();
+    if (!text) { toast?.('אין עדיין טקסט לפוסט', 'error'); return; }
+    try { await navigator.clipboard.writeText(text); toast?.('הטקסט הועתק'); } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); }
+  };
+  const shareWhatsApp = () => { const text = captionFull(); window.open(`https://wa.me/?text=${encodeURIComponent(text || name)}`, '_blank', 'noopener'); };
+  const shareFacebook = async () => { await copyCaption(); window.open('https://www.facebook.com/', '_blank', 'noopener'); toast?.('הטקסט הועתק. הורידי את התמונה וצרפי אותה לפוסט'); };
   const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,7 +71,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
     if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
     setSaving(true); setError('');
     try {
-      const saved = await patch({ name, values, images, overrides: { ...overrides, consent, brand } });
+      const saved = await patch({ name, values, images, overrides: { ...overrides, consent, brand }, copy: { text: copyText, hashtags: hashtags.split(/\s+/).filter(Boolean) } });
       setDirty(false); onSaved?.(saved); toast?.('העיצוב נשמר');
     } catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
   };
@@ -127,6 +138,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             template={template} designId={design.id} readOnly={readOnly} toast={toast}
             imageSlot={template.slots.find((s) => s.sources.includes('ai')) || null}
             onValues={(v) => { setValues((p) => ({ ...p, ...v })); setDirty(true); }}
+            onCopy={(c) => { if (c?.text) setCopyText(c.text); if (Array.isArray(c?.hashtags)) setHashtags(c.hashtags.join(' ')); setDirty(true); }}
             onImage={(slotKey, url) => { setImages((p) => ({ ...p, [slotKey]: url })); setDirty(true); }}
           />
           {template.slots.length > 0 && (
@@ -170,6 +182,18 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
                 )}
               </label>
             ))}
+          </div>
+
+          <div style={{ marginTop: 16, border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px' }}>
+            <span style={label}>הטקסט לפוסט</span>
+            <textarea value={copyText} rows={4} maxLength={2200} placeholder="מה כתוב מתחת לתמונה. ה-AI ממלא את זה, או שאת." onChange={(e) => { setCopyText(e.target.value); setDirty(true); }} style={{ ...input, resize: 'vertical', marginBottom: 8 }} />
+            <input value={hashtags} placeholder="#האשטגים #מופרדים #ברווח" onChange={(e) => { setHashtags(e.target.value); setDirty(true); }} style={{ ...input, direction: 'rtl' }} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <button onClick={copyCaption} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="copy" size={14} /> העתקת הטקסט</button>
+              <button onClick={shareWhatsApp} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="whatsapp" size={14} /> וואטסאפ</button>
+              <button onClick={shareFacebook} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="share" size={14} /> פייסבוק</button>
+            </div>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: הורידי את ה-PNG למטה והדביקי את הטקסט.</p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>

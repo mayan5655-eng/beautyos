@@ -33,3 +33,11 @@ export async function uploadExport(blob, tenantId, designId) {
   if (error) throw new Error(error.message);
   return path;
 }
+
+/** Store a rendered reel next to her other assets; returns the storage path. */
+export async function uploadReel(blob, tenantId, designId, ext = 'webm') {
+  const path = `${tenantId}/designs/${designId}_${Date.now()}.${ext === 'mp4' ? 'mp4' : 'webm'}`;
+  const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: ext === 'mp4' ? 'video/mp4' : 'video/webm' });
+  if (error) throw new Error(error.message);
+  return path;
+}

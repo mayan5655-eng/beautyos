@@ -17,13 +17,17 @@ import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
+import ReelEditor from './ReelEditor';
 import Generate from './Generate';
+import { latestReels, getReel } from '@/lib/design/reels';
+import { fillReel } from '@/lib/design/reel';
 import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
 import { CATEGORY_LABELS, GROUP_LABELS } from '@/lib/design/contract';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
+const REEL_GROUP = 'reels';
 
 const chip = (on) => ({ padding: '7px 13px', borderRadius: 'var(--r-full)', border: '1px solid var(--line-2)', background: on ? 'var(--pc)' : 'var(--surface)', color: on ? 'var(--pc-contrast)' : 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
 const ghost = { padding: '8px 0', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 };
@@ -47,6 +51,7 @@ function openOccasions() {
 }
 
 export default function DesignStudio({ settings, readOnly, toast }) {
+  const [view, setView] = useState('templates'); // the door's views: templates | mine
   const [group, setGroup] = useState(null); // null = all three groups, each under its heading
   const [designs, setDesigns] = useState(null);
   const [open, setOpen] = useState(null); // design being edited
@@ -85,6 +90,22 @@ export default function DesignStudio({ settings, readOnly, toast }) {
       setOpen(data.design);
     } catch (e) { setError(String(e.message || e)); } finally { setCreating(''); }
   };
+
+  if (open && open.format === 'reel') {
+    const reel = getReel(open.template_key, open.template_version);
+    if (!reel) { setOpen(null); return null; }
+    return (
+      <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+        <ReelEditor
+          key={open.id}
+          design={open} reel={reel} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
+          onBack={() => setOpen(null)}
+          onSaved={(d) => { setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x))); }}
+          onDeleted={(id) => { setDesigns((p) => (p || []).filter((x) => x.id !== id)); setOpen(null); }}
+        />
+      </div>
+    );
+  }
 
   if (open) {
     const template = getTemplate(open.template_key, open.template_version);
@@ -166,11 +187,43 @@ export default function DesignStudio({ settings, readOnly, toast }) {
     );
   };
 
+  const reelCard = (r) => {
+    const f = fillReel(r, { settings });
+    const blocked = r.category === 'review' && !hasReviews;
+    return (
+      <div key={r.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {r.scenes.slice(0, 3).map((s, i) => (
+            <div key={s.id} style={{ flex: 1, borderRadius: 'var(--r-xs)', overflow: 'hidden', border: '1px solid var(--line)', aspectRatio: '9 / 16', background: 'var(--surface-2)' }}>
+              <DomPreview template={s.frame} fill={f.scenes[i]} width={48} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} />
+            </div>
+          ))}
+        </div>
+        <div>
+          <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}><Icon name="film" size={12} /> {r.name}</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.4 }}>{r.scenes.length} סצנות · {f.totalSeconds} שניות · {blocked ? 'צריך ביקורת שמורה' : r.needs.length ? `צריך: ${r.needs.join(', ')}` : 'לא צריך כלום'}</p>
+        </div>
+        <button onClick={() => create(r)} disabled={blocked || creating === r.key || readOnly} className="primary-btn" style={{ padding: '9px 0', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: blocked || readOnly ? 0.5 : 1 }}>
+          {creating === r.key ? <Spinner inline label="פותחת" /> : 'ליצור רילס'}
+        </button>
+      </div>
+    );
+  };
+
+  const viewChip = (k, l, n) => (
+    <button key={k} onClick={() => setView(k)} style={{ ...chip(view === k), display: 'flex', gap: 6, alignItems: 'center' }}>{l}{typeof n === 'number' ? <span style={{ fontSize: 'var(--t-xs)', opacity: 0.8 }}>{n}</span> : null}</button>
+  );
+
   return (
     <>
-      <Generate settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => setDesigns((p) => [...list, ...(p || [])])} onOpen={(d) => setOpen(d)} />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {viewChip('templates', 'תבניות')}
+        {viewChip('mine', 'שלי', (designs || []).length)}
+      </div>
 
-      {occasions.length > 0 && (
+      {view === 'templates' && <Generate settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => { setDesigns((p) => [...list, ...(p || [])]); }} onOpen={(d) => setOpen(d)} />}
+
+      {view === 'templates' && occasions.length > 0 && (
         <div className="glass-card" style={{ padding: '18px 24px', marginBottom: 18 }}>
           {occasions.map(({ upcoming, template }) => (
             <div key={template.key} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -189,13 +242,25 @@ export default function DesignStudio({ settings, readOnly, toast }) {
         </div>
       )}
 
-      <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+      {view === 'templates' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>תבניות מוכנות, כבר בצבעים שלך</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           <button style={chip(!group)} onClick={() => setGroup(null)}>הכול</button>
           {GROUPS.map((g) => <button key={g} style={chip(group === g)} onClick={() => setGroup(g)}>{GROUP_LABELS[g]}</button>)}
+          <button style={chip(group === REEL_GROUP)} onClick={() => setGroup(REEL_GROUP)}><Icon name="film" size={12} /> רילסים</button>
         </div>
+        {(!group || group === REEL_GROUP) && (
+          <div style={{ marginBottom: 22 }}>
+            <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels().length}</span>
+            </p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
+              {latestReels().map(reelCard)}
+            </div>
+          </div>
+        )}
         {sections.map((s) => (
           <div key={s.group} style={{ marginBottom: 22 }}>
             <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 10, display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -207,32 +272,33 @@ export default function DesignStudio({ settings, readOnly, toast }) {
           </div>
         ))}
         {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
-      </div>
+      </div>}
 
-      <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+      {view === 'mine' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 10 }}>העיצובים שלי</p>
         {designs === null ? <Spinner inline label="טוענת" /> : designs.length === 0 ? (
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>עוד אין עיצובים שמורים. בחרי תבנית למעלה.</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
             {designs.map((d) => {
-              const t = getTemplate(d.template_key, d.template_version);
+              const reel = d.format === 'reel' ? getReel(d.template_key, d.template_version) : null;
+              const t = reel ? reel.scenes[0].frame : getTemplate(d.template_key, d.template_version);
               if (!t) return null;
-              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
+              const fill = reel ? fillReel(reel, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand }).scenes[0] : fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
                 <button key={d.id} onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                   <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: d.is_default ? '2px solid var(--pc)' : '1px solid var(--line)', aspectRatio: ratio, background: 'var(--surface-2)' }}>
                     <DomPreview template={t} fill={fill} overrides={d.overrides} width={130} style={{ width: '100%', height: 'auto', aspectRatio: ratio }} />
                   </div>
-                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>{d.is_default && <Icon name="star" size={12} />}{d.name}</p>
+                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>{d.is_default && <Icon name="star" size={12} />}{reel && <Icon name="film" size={12} />}{d.name}</p>
                   <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{CATEGORY_LABELS[d.category] || d.category} · {new Date(d.updated_at).toLocaleDateString('he-IL')}</p>
                 </button>
               );
             })}
           </div>
         )}
-      </div>
+      </div>}
     </>
   );
 }

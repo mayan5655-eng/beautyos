@@ -68,16 +68,16 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
  * @param overrides her overrides (lib/design/design.ts)
  * @param width     rendered width in px (the canvas scales to it)
  */
-export default function DomPreview({ template, fill, overrides = null, width = 300, id, style }) {
+export default function DomPreview({ template, fill, overrides = null, width = 300, id, style, layerFilter = null, transparent = false }) {
   const canvas = CANVAS[template.format] || CANVAS.feed45;
   const k = width / canvas.w;
   const height = Math.round(canvas.h * k);
   const colors = { ...fill.colors, ...(overrides?.colors || {}) };
-  const layers = applyOverrides(template, overrides);
+  const layers = applyOverrides(template, overrides).filter((l, i, all) => (layerFilter ? layerFilter(l, i, all) : true));
   const resolved = useResolvedImages(fill.images);
 
   return (
-    <div id={id} dir="rtl" style={{ position: 'relative', width, height, overflow: 'hidden', background: colors.surface, borderRadius: 0, ...style }}>
+    <div id={id} dir="rtl" style={{ position: 'relative', width, height, overflow: 'hidden', background: transparent ? 'transparent' : colors.surface, borderRadius: 0, ...style }}>
       {layers.map((l) => {
         const box = { position: 'absolute', left: pct(l.box.x), top: pct(l.box.y), width: pct(l.box.w), height: pct(l.box.h) };
         if (l.type === 'shape') {

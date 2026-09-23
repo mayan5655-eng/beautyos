@@ -18,7 +18,7 @@ const box = { border: '1px dashed var(--pc)', borderRadius: 'var(--r-md)', paddi
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '10px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 };
 
-export default function AiFill({ template, designId, imageSlot, readOnly, onValues, onImage, toast }) {
+export default function AiFill({ template, designId, imageSlot, readOnly, onValues, onImage, onCopy, toast }) {
   const [brief, setBrief] = useState('');
   const [state, setState] = useState('idle'); // idle | filling | done
   const [result, setResult] = useState(null);
@@ -37,6 +37,7 @@ export default function AiFill({ template, designId, imageSlot, readOnly, onValu
       if (!res.ok || !data?.success) throw new Error(data?.error || 'ה-AI לא ענה');
       setResult(data); setTakes({});
       onValues?.(data.values || {});
+      onCopy?.(data.copy || null);
       setState('done');
       toast?.('הטקסטים מולאו. אפשר לשנות כל מילה.');
     } catch (e) { setError(String(e.message || e)); setState('idle'); }

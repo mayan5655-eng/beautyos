@@ -149,9 +149,10 @@ export async function POST(request: NextRequest) {
         values: o.values,
         images: pic ? sanitizeImages(template, { [pic.slot]: pic.url }) : {},
         overrides: {},
+        copy: { text: plan.copy.text, hashtags: plan.copy.hashtags },
         status: 'draft',
       })
-      .select('id, template_key, template_version, category, format, name, values, images, overrides, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
+      .select('id, template_key, template_version, category, format, name, values, images, overrides, copy, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
       .single();
     if (error) { console.error('[designs/generate] insert failed:', error.message); continue; }
     designs.push({ ...data, angle: o.angle, pictureFailed: !!o.imageSubject && !pic });

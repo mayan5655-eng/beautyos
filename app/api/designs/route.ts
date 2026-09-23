@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { getTemplate } from '@/lib/design/templates';
+import { getReel } from '@/lib/design/reels';
 import { sanitizeImages, sanitizeValues, sanitizeOverrides } from '@/lib/design/design';
 import { CATEGORY_LABELS } from '@/lib/design/contract';
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   const status = url.searchParams.get('status');
   let q = supabase
     .from('designs')
-    .select('id, template_key, template_version, category, format, name, values, images, overrides, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
+    .select('id, template_key, template_version, category, format, name, values, images, overrides, copy, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
     .order('updated_at', { ascending: false })
     .limit(200);
   if (category && category in CATEGORY_LABELS) q = q.eq('category', category);
@@ -84,7 +85,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, design: data });
   }
 
-  const template = getTemplate(String(body.templateKey || ''), typeof body.templateVersion === 'number' ? body.templateVersion : null);
+  const key = String(body.templateKey || ''), version = typeof body.templateVersion === 'number' ? body.templateVersion : null;
+  const template = getTemplate(key, version) || getReel(key, version);
   if (!template) return NextResponse.json({ success: false, error: 'תבנית לא מוכרת' }, { status: 400 });
 
   const { data, error } = await supabase
