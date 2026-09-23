@@ -18,7 +18,7 @@ export type LayerOverride = {
   size?: number;
   color?: ColorRole;
   align?: 'right' | 'center' | 'left';
-  weight?: 400 | 500 | 600 | 700 | 800;
+  weight?: 400 | 500 | 600 | 700 | 800 | 900;
   hidden?: boolean;
 };
 
@@ -84,7 +84,7 @@ export function sanitizeOverrides(raw: unknown): Overrides {
       const size = num(l.size, 8, 400); if (size !== null) lo.size = size;
       if (typeof l.color === 'string' && COLOR_ROLES.includes(l.color as ColorRole)) lo.color = l.color as ColorRole;
       if (l.align === 'right' || l.align === 'center' || l.align === 'left') lo.align = l.align;
-      if ([400, 500, 600, 700, 800].includes(Number(l.weight))) lo.weight = Number(l.weight) as LayerOverride['weight'];
+      if ([400, 500, 600, 700, 800, 900].includes(Number(l.weight))) lo.weight = Number(l.weight) as LayerOverride['weight'];
       if (typeof l.hidden === 'boolean') lo.hidden = l.hidden;
       if (Object.keys(lo).length) out.layers[id] = lo;
     }

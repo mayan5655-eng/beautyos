@@ -12,7 +12,7 @@
 // auto-size would, so a long business name does not spill out of a pill.
 
 import { useLayoutEffect, useRef } from 'react';
-import { CANVAS } from '@/lib/design/contract';
+import { CANVAS, ratingCount } from '@/lib/design/contract';
 import { applyOverrides, isPrivateRef } from '@/lib/design/design';
 import { useResolvedImages } from './images';
 
@@ -23,11 +23,13 @@ const hexToRgb = (hex) => {
 };
 const rgba = (hex, a) => { const { r, g, b } = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
 const pct = (n) => `${n}%`;
+// A five-point star in a 24-unit box.
+const STAR = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z';
 
 // Shrinks the text until it fits its box, to half the base size at most.
 // Works on the element's style directly: measuring and shrinking is a
 // layout concern, not state, and it must finish before paint.
-function AutoFitText({ content, basePx, lineHeight, maxLines, align, weight, font, color, pill, pillColor }) {
+function AutoFitText({ content, basePx, lineHeight, maxLines, align, weight, font, color, pill, pillColor, letterSpacing }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -48,7 +50,7 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, weight, fon
         ref={ref}
         style={{
           maxWidth: '100%', maxHeight: '100%', overflow: 'hidden',
-          fontFamily: font, fontSize: `${basePx}px`, fontWeight: weight || 600, lineHeight: lineHeight || 1.2,
+          fontFamily: font, fontSize: `${basePx}px`, fontWeight: weight || 600, lineHeight: lineHeight || 1.2, letterSpacing: letterSpacing ? `${letterSpacing}em` : undefined,
           color, textAlign: align, whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word',
           display: maxLines && maxLines > 1 ? '-webkit-box' : 'block', WebkitLineClamp: maxLines && maxLines > 1 ? maxLines : undefined, WebkitBoxOrient: 'vertical',
           ...(pill ? { background: pillColor, borderRadius: `${pill.radius * (basePx / 40)}px`, padding: `${pill.padding * 0.6 * (basePx / 40)}px ${pill.padding * (basePx / 40)}px` } : {}),
@@ -80,7 +82,27 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         const box = { position: 'absolute', left: pct(l.box.x), top: pct(l.box.y), width: pct(l.box.w), height: pct(l.box.h) };
         if (l.type === 'shape') {
           const bg = l.gradient ? `linear-gradient(${l.gradient.angle}deg, ${colors[l.color]}, ${colors[l.gradient.to]})` : colors[l.color];
-          return <div key={l.id} style={{ ...box, background: bg, opacity: l.opacity ?? 1, borderRadius: `${(l.radius || 0) * k}px` }} />;
+          return <div key={l.id} style={{ ...box, background: bg, opacity: l.opacity ?? 1, borderRadius: l.shape === 'ellipse' ? '50%' : `${(l.radius || 0) * k}px` }} />;
+        }
+        if (l.type === 'rating') {
+          const n = ratingCount(fill.values?.[l.bind]);
+          return (
+            <div key={l.id} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: l.align === 'left' ? 'flex-start' : 'flex-end', gap: '3%', direction: 'rtl' }}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <svg key={i} viewBox="0 0 24 24" style={{ height: '100%', width: 'auto', flexShrink: 0 }}>
+                  <path d={STAR} fill={i < n ? colors[l.color] : 'none'} stroke={colors[l.color]} strokeWidth="1.6" strokeLinejoin="round" />
+                </svg>
+              ))}
+            </div>
+          );
+        }
+        if (l.type === 'deco') {
+          // The drawing is a mask; the colour role fills it. One SVG serves every brand.
+          const mask = `url(/design-deco/${l.asset}.svg) center / contain no-repeat`;
+          return <div key={l.id} style={{ ...box, WebkitMask: mask, mask, background: colors[l.color], opacity: l.opacity ?? 1, transform: l.flip ? 'scaleX(-1)' : undefined, pointerEvents: 'none' }} />;
+        }
+        if (l.type === 'texture') {
+          return <div key={l.id} style={{ ...box, backgroundImage: 'url(/design-grain.png)', backgroundSize: `${Math.max(96, 256 * k)}px`, opacity: l.opacity, mixBlendMode: l.blend || 'soft-light', pointerEvents: 'none' }} />;
         }
         if (l.type === 'image') {
           const ref = fill.images?.[l.slot];
@@ -89,12 +111,14 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
           const overlay = l.overlay
             ? l.overlay.direction === 'bottom'
               ? `linear-gradient(to top, ${rgba(colors[l.overlay.color], l.overlay.opacity)} 0%, ${rgba(colors[l.overlay.color], l.overlay.opacity * 0.6)} 40%, transparent 75%)`
-              : l.overlay.direction === 'top'
+              : l.overlay.direction === 'rise'
+              ? `linear-gradient(to top, ${rgba(colors[l.overlay.color], l.overlay.opacity)} 0%, ${rgba(colors[l.overlay.color], l.overlay.opacity)} 38%, ${rgba(colors[l.overlay.color], l.overlay.opacity * 0.55)} 55%, transparent 80%)`
+            : l.overlay.direction === 'top'
                 ? `linear-gradient(to bottom, ${rgba(colors[l.overlay.color], l.overlay.opacity)} 0%, transparent 70%)`
                 : rgba(colors[l.overlay.color], l.overlay.opacity)
             : null;
           return (
-            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.tint}, ${colors.surface})` }}>
+            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})` }}>
               {src && (
                 // eslint-disable-next-line @next/next/no-img-element -- her own pictures at their own size, captured by the exporter
                 <img src={src} alt="" crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: l.fit, objectPosition: `${focus.x * 100}% ${focus.y * 100}%`, display: 'block' }} />
@@ -125,7 +149,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
           return (
             <div key={l.id} style={box}>
               <AutoFitText
-                content={str} basePx={l.size * k} lineHeight={l.lineHeight} maxLines={l.maxLines} align={l.align} weight={l.weight}
+                content={str} basePx={l.size * k} lineHeight={l.lineHeight} maxLines={l.maxLines} align={l.align} weight={l.weight} letterSpacing={l.letterSpacing}
                 font={fill.fonts[l.font]} color={colors[l.color]}
                 pill={l.background || null} pillColor={l.background ? colors[l.background.color] : undefined}
               />

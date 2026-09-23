@@ -20,6 +20,8 @@ const PUBLIC_PREFIXES = [
   '/api',
   '/cesdk-poc', // cesdk-poc: the caption font under public/cesdk-poc; delete with app/cesdk-poc
   '/design-fonts', // the design studio's fonts (public/design-fonts), fetched by the renderer without a session
+  '/design-deco', // the studio's line drawings (public/design-deco), fetched by the renderer the same way
+  '/design-grain.png', // the studio's film grain
 ];
 
 function isPublicPath(pathname: string): boolean {

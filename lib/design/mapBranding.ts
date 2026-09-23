@@ -8,15 +8,15 @@
 //
 // Fallback rules, the ones the gallery preview relies on:
 //   - no logo            -> the logo layer draws her business name (or nothing)
-//   - no picture in slot -> the image layer draws a plate in her tint
+//   - no picture in slot -> the image layer draws a plate in her blush
 //   - light accent       -> text on it goes dark (contrastOn), as everywhere
 //   - empty variable     -> its source, then its default, then ''
 
-import { buildAccentTokens, contrastOn } from '../theme.ts';
+import { buildAccentTokens, contrastOn, hexToRgb } from '../theme.ts';
 import type { ColorRole, Template, VariableDef } from './contract.ts';
 
 export type BrandingInput = {
-  settings?: { business_name?: string | null; therapist_name?: string | null; primary_color?: string | null; branding?: unknown } | null;
+  settings?: { business_name?: string | null; therapist_name?: string | null; business_phone?: string | null; primary_color?: string | null; branding?: unknown } | null;
   /** Values she typed for this design; win over sources and defaults. */
   inputs?: Record<string, string> | null;
   /** Pictures she picked, by slot key (public or signed URL). */
@@ -31,7 +31,7 @@ export type Fill = {
   values: Record<string, string>;
   images: Record<string, string | null>;
   colors: Record<ColorRole, string>;
-  fonts: { display: string; body: string };
+  fonts: { display: string; body: string; accent: string };
   logoUrl: string | null;
   /** Variable keys and slot keys that are required and still empty. */
   missing: string[];
@@ -40,14 +40,31 @@ export type Fill = {
 export const FONTS = {
   display: "var(--font-frank), 'Frank Ruhl Libre', serif",
   body: "var(--font-assistant), 'Assistant', sans-serif",
+  accent: "var(--font-heebo), 'Heebo', sans-serif",
 };
 
 const DEFAULT_ACCENT = '#5B3E67';
 const INK = '#2A2233';
-const SURFACE = '#FFFFFF';
-const MUTED = '#7A6C80';
+const MUTED = '#7C6F68';
+// The studio look never sits on white: a warm cream, a blush of her hue on
+// it, and a warm neutral. Each takes a little of her accent so a gold brand
+// gets honey-cream and a plum brand gets rose-cream.
+const CREAM = '#FAF6F0';
+const NEUTRAL = '#EDE5DA';
+
+const hex2 = (n: number) => Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0');
+/** a mixed toward b by t (0..1), as hex. */
+export function mix(a: string, b: string, t: number): string {
+  const x = hexToRgb(a), y = hexToRgb(b);
+  return '#' + hex2(x.r + (y.r - x.r) * t) + hex2(x.g + (y.g - x.g) * t) + hex2(x.b + (y.b - x.b) * t);
+}
 
 const clean = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+/** "@handle" from whatever she typed: a handle, an @handle or a full instagram.com link. */
+export const instagramHandle = (v: unknown): string => {
+  const s = clean(v).replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(s) ? '@' + s : '';
+};
 const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim());
 
 /** Every colour role from one accent (and an optional secondary). */
@@ -61,8 +78,10 @@ export function colorsFor(primary?: string | null, secondary?: string | null): R
     contrast: contrastOn(pc),
     secondary: isHex(secondary) ? secondary.trim() : t['--pc-2'],
     ink: INK,
-    surface: SURFACE,
+    surface: mix(CREAM, pc, 0.05),
     muted: MUTED,
+    blush: mix(CREAM, pc, 0.16),
+    sand: mix(NEUTRAL, pc, 0.08),
   };
 }
 
@@ -80,6 +99,10 @@ function sourceValue(v: VariableDef, input: BrandingInput, branding: Record<stri
     case 'therapist_name': return clean(s.therapist_name);
     case 'therapist_title': return clean(branding.therapist_title);
     case 'booking_url': return clean(input.bookingUrl);
+    case 'phone': return clean(s.business_phone);
+    case 'instagram': return instagramHandle(branding.instagram);
+    // The strip at the bottom of every design: phone and handle, whichever she has.
+    case 'contact': return [clean(s.business_phone), instagramHandle(branding.instagram)].filter(Boolean).join('   ·   ');
     case 'review_text': return review ? clean(review.text) : '';
     case 'review_name': return review ? clean(review.name) : '';
     case 'review_rating': return review ? stars(review.rating) : '';

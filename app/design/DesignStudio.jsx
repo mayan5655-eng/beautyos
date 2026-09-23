@@ -2,22 +2,47 @@
 
 // app/design/DesignStudio.jsx
 //
-// The studio's front door on the marketing tab: the gallery of templates,
-// each one already drawn with HER logo, colours, name and first pictures,
-// and the list of designs she has saved. Pick a template -> a design row is
-// created from it -> the editor opens. No AI on this screen; the AI is one
-// way to fill a design (stage 4), not the way in.
+// The studio's front door on the marketing tab, top to bottom:
+//   1. free-form generation, capped (Generate.jsx) - she types, gets options
+//   2. the occasion cards - "ראש השנה בעוד 12 ימים, תרצי פוסט?" when a
+//      seasonal template's window is open (lib/design/holidays.ts)
+//   3. the gallery of templates, each already drawn with HER logo, colours,
+//      name and first pictures; one card per key, the 9:16 story folded
+//      into its 4:5 card as a second button. Unlimited, always open.
+//   4. the designs she has saved
+// Pick a template -> a design row is created from it -> the editor opens.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
-import { latestTemplates, getTemplate } from '@/lib/design/templates';
+import Generate from './Generate';
+import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
 import { CATEGORY_LABELS } from '@/lib/design/contract';
 import { fillTemplate } from '@/lib/design/mapBranding';
+import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
 
 const chip = (on) => ({ padding: '7px 13px', borderRadius: 'var(--r-full)', border: '1px solid var(--line-2)', background: on ? 'var(--pc)' : 'var(--surface)', color: on ? 'var(--pc-contrast)' : 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
+const ghost = { padding: '8px 0', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 };
+
+async function fetchDesigns() {
+  const res = await fetch('/api/designs');
+  const data = await res.json().catch(() => null);
+  return res.ok && data?.success ? data.designs : [];
+}
+
+/** The seasonal templates whose window is open today: one card each, newest feed version. */
+function openOccasions() {
+  let upcoming = [];
+  try { upcoming = upcomingHolidays(); } catch { return []; }
+  const out = [];
+  for (const u of upcoming) {
+    const t = TEMPLATES.filter((x) => x.holiday === u.holiday.key && x.format === 'feed45').sort((a, b) => b.version - a.version)[0];
+    if (t) out.push({ upcoming: u, template: t });
+  }
+  return out;
+}
 
 export default function DesignStudio({ settings, readOnly, toast }) {
   const [category, setCategory] = useState(null);
@@ -26,14 +51,14 @@ export default function DesignStudio({ settings, readOnly, toast }) {
   const [creating, setCreating] = useState('');
   const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    const res = await fetch('/api/designs');
-    const data = await res.json().catch(() => null);
-    if (res.ok && data?.success) setDesigns(data.designs); else setDesigns([]);
+  useEffect(() => {
+    let alive = true;
+    fetchDesigns().then((d) => { if (alive) setDesigns(d); });
+    return () => { alive = false; };
   }, []);
-  useEffect(() => { load(); }, [load]);
 
-  const templates = useMemo(() => latestTemplates(category), [category]);
+  const templates = useMemo(() => galleryTemplates(category), [category]);
+  const occasions = useMemo(() => openOccasions(), []);
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
@@ -67,35 +92,64 @@ export default function DesignStudio({ settings, readOnly, toast }) {
     );
   }
 
+  const card = (t, blocked) => {
+    const fill = fillTemplate(t, { settings });
+    const story = storySibling(t.key);
+    return (
+      <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)' }}>
+          <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+        </div>
+        <div>
+          <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.4 }}>{blocked ? 'צריך לפחות ביקורת אחת שמורה בהגדרות' : t.needs.length ? `צריך: ${t.needs.join(', ')}` : 'לא צריך כלום'}</p>
+        </div>
+        <button onClick={() => create(t)} disabled={blocked || creating === t.key || readOnly} className="primary-btn" style={{ padding: '9px 0', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: blocked || readOnly ? 0.5 : 1 }}>
+          {creating === t.key ? <Spinner inline label="פותחת" /> : story ? 'פוסט 4:5' : 'להשתמש בתבנית'}
+        </button>
+        {story && (
+          <button onClick={() => create(story)} disabled={blocked || creating === story.key || readOnly} style={{ ...ghost, opacity: blocked || readOnly ? 0.5 : 1 }}>
+            {creating === story.key ? <Spinner inline label="פותחת" /> : 'סטורי 9:16'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
+      <Generate settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => setDesigns((p) => [...list, ...(p || [])])} onOpen={(d) => setOpen(d)} />
+
+      {occasions.length > 0 && (
+        <div className="glass-card" style={{ padding: '18px 24px', marginBottom: 18 }}>
+          {occasions.map(({ upcoming, template }) => (
+            <div key={template.key} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div style={{ width: 64, borderRadius: 'var(--r-xs)', overflow: 'hidden', border: '1px solid var(--line)', flexShrink: 0 }}>
+                <DomPreview template={template} fill={fillTemplate(template, { settings })} width={64} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)' }}><Icon name="calendar" size={16} /> {holidayPrompt(upcoming)}</p>
+                <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>תבנית {template.name} כבר בצבעים שלך; שני מילה, שני תמונה, והורידי.</p>
+              </div>
+              <button onClick={() => create(template)} disabled={creating === template.key || readOnly} className="primary-btn" style={{ padding: '9px 16px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)' }}>
+                {creating === template.key ? <Spinner inline label="פותחת" /> : 'כן, בואי נכין'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>תבניות מוכנות, כבר בצבעים שלך</p>
-        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי.</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           <button style={chip(!category)} onClick={() => setCategory(null)}>הכול</button>
           {Object.entries(CATEGORY_LABELS).map(([k, l]) => <button key={k} style={chip(category === k)} onClick={() => setCategory(k)}>{l}</button>)}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
-          {templates.map((t) => {
-            const fill = fillTemplate(t, { settings });
-            const blocked = t.category === 'review' && !hasReviews;
-            return (
-              <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)' }}>
-                  <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</p>
-                  <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.4 }}>{blocked ? 'צריך לפחות ביקורת אחת שמורה בהגדרות' : t.needs.length ? `צריך: ${t.needs.join(', ')}` : 'לא צריך כלום'}</p>
-                </div>
-                <button onClick={() => create(t)} disabled={blocked || creating === t.key || readOnly} className="primary-btn" style={{ padding: '9px 0', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: blocked || readOnly ? 0.5 : 1 }}>
-                  {creating === t.key ? <Spinner inline label="פותחת" /> : 'להשתמש בתבנית'}
-                </button>
-              </div>
-            );
-          })}
+          {templates.map((t) => card(t, t.category === 'review' && !hasReviews))}
         </div>
+        {templates.length === 0 && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>עוד אין תבניות בקטגוריה הזו.</p>}
         {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
       </div>
 
@@ -109,10 +163,11 @@ export default function DesignStudio({ settings, readOnly, toast }) {
               const t = getTemplate(d.template_key, d.template_version);
               if (!t) return null;
               const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images });
+              const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
                 <button key={d.id} onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: d.is_default ? '2px solid var(--pc)' : '1px solid var(--line)', aspectRatio: '4 / 5', background: 'var(--surface-2)' }}>
-                    <DomPreview template={t} fill={fill} overrides={d.overrides} width={130} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+                  <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: d.is_default ? '2px solid var(--pc)' : '1px solid var(--line)', aspectRatio: ratio, background: 'var(--surface-2)' }}>
+                    <DomPreview template={t} fill={fill} overrides={d.overrides} width={130} style={{ width: '100%', height: 'auto', aspectRatio: ratio }} />
                   </div>
                   <p style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>{d.is_default && <Icon name="star" size={12} />}{d.name}</p>
                   <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{CATEGORY_LABELS[d.category] || d.category} · {new Date(d.updated_at).toLocaleDateString('he-IL')}</p>

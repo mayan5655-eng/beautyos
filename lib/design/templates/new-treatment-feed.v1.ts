@@ -6,7 +6,7 @@ import type { Template } from '../contract.ts';
 export const newTreatmentFeedV1: Template = {
   key: 'new-treatment-feed',
   version: 1,
-  category: 'new_treatment',
+  category: 'treatment',
   format: 'feed45',
   name: 'טיפול חדש',
   description: 'תמונה למעלה, פאנל עם שם הטיפול, תיאור קצר וכפתור למטה.',

@@ -13,7 +13,6 @@
 // need no direction marks; font file URLs must not contain brackets.
 
 import { initEngine } from './engine';
-import { CANVAS } from '@/lib/design/contract';
 import { pxBoxToPercent, boxChanged } from '@/lib/design/sceneSpec';
 import { resolveImageRef } from '../../images';
 
@@ -25,7 +24,7 @@ const hexToRgba = (hex, a = 1) => {
 };
 
 const typefaceFor = (file) => {
-  const name = /Frank/i.test(file) ? 'Frank Ruhl Libre' : 'Assistant';
+  const name = /Frank/i.test(file) ? 'Frank Ruhl Libre' : /Heebo/i.test(file) ? 'Heebo' : 'Assistant';
   const uri = /^https?:/.test(file) ? file : `${window.location.origin}${file}`;
   return { name, fonts: [{ uri, subFamily: 'Regular', weight: 'normal', style: 'normal' }] };
 };
@@ -89,6 +88,9 @@ export default class CesdkRenderer {
     for (const b of spec.blocks) {
       let id = null;
       if (b.kind === 'rect') id = this.rect(b);
+      else if (b.kind === 'texture') id = this.texture(b);
+      else if (b.kind === 'deco') id = await this.deco(b);
+      else if (b.kind === 'rating') { this.rating(b); continue; }
       else if (b.kind === 'image') id = await this.image(b);
       else if (b.kind === 'logo') id = await this.logo(b);
       else if (b.kind === 'text') id = this.text(b);
@@ -109,10 +111,72 @@ export default class CesdkRenderer {
     e.setPositionX(id, b.x); e.setPositionY(id, b.y); e.setWidth(id, b.w); e.setHeight(id, b.h);
   }
 
-  rect(b) {
+  texture(b) {
     const e = this.engine.block;
     const id = e.create('graphic');
     e.setShape(id, e.createShape('rect'));
+    const fill = e.createFill('image');
+    e.setString(fill, 'fill/image/imageFileURI', `${window.location.origin}/design-grain.png`);
+    e.setFill(id, fill);
+    try { e.setContentFillMode(id, 'Cover'); } catch { /* ignore */ }
+    try { e.setOpacity(id, b.opacity); } catch { /* ignore */ }
+    try { e.setEnum(id, 'blend/mode', b.blend === 'multiply' ? 'Multiply' : 'SoftLight'); } catch { /* ignore */ }
+    this.place(id, b);
+    return id;
+  }
+
+
+  // Five stars as star shapes, the first `count` filled, the rest outlined.
+  rating(b) {
+    const e = this.engine.block;
+    const group = [];
+    const size = b.h;
+    const gap = size * 0.18;
+    for (let i = 0; i < b.total; i++) {
+      const id = e.create('graphic');
+      const shape = e.createShape('star');
+      try { e.setInt(shape, 'shape/star/points', 5); e.setFloat(shape, 'shape/star/innerDiameter', 0.5); } catch { /* defaults */ }
+      e.setShape(id, shape);
+      const filled = i < b.count;
+      const fill = e.createFill('color');
+      e.setColor(fill, 'fill/color/value', hexToRgba(b.color, filled ? 1 : 0));
+      e.setFill(id, fill);
+      try { e.setStrokeEnabled(id, true); e.setStrokeColor(id, hexToRgba(b.color)); e.setStrokeWidth(id, Math.max(1.5, size * 0.06)); } catch { /* ignore */ }
+      // RTL: the first star is the rightmost.
+      const x = b.align === 'left' ? b.x + i * (size + gap) : b.x + b.w - (i + 1) * size - i * gap;
+      e.setPositionX(id, x); e.setPositionY(id, b.y); e.setWidth(id, size); e.setHeight(id, size);
+      for (const scope of ['layer/move', 'layer/resize', 'editor/select']) { try { e.setScopeEnabled(id, scope, false); } catch { /* ignore */ } }
+      e.appendChild(this.page, id);
+      group.push(id);
+    }
+    return group.length ? group[0] : null;
+  }
+
+  // A line drawing in one colour: the SVG's currentColor becomes the role's hex,
+  // and the result goes in as a data URI, so the engine never fetches it.
+  async deco(b) {
+    const e = this.engine.block;
+    let svg = '';
+    try { svg = await (await fetch(b.ref)).text(); } catch { return null; }
+    if (!svg) return null;
+    const tinted = svg.replace(/currentColor/g, b.color);
+    const id = e.create('graphic');
+    e.setShape(id, e.createShape('rect'));
+    const fill = e.createFill('image');
+    e.setString(fill, 'fill/image/imageFileURI', 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(tinted))));
+    e.setFill(id, fill);
+    try { e.setContentFillMode(id, 'Contain'); } catch { /* ignore */ }
+    try { e.setOpacity(id, b.opacity); } catch { /* ignore */ }
+    if (b.flip) { try { e.setFlipHorizontal(id, true); } catch { /* ignore */ } }
+    this.place(id, b);
+    for (const scope of ['layer/move', 'layer/resize', 'editor/select']) { try { e.setScopeEnabled(id, scope, false); } catch { /* ignore */ } }
+    return id;
+  }
+
+  rect(b) {
+    const e = this.engine.block;
+    const id = e.create('graphic');
+    e.setShape(id, e.createShape(b.shape === 'ellipse' ? 'ellipse' : 'rect'));
     let fill;
     if (b.gradientTo) {
       try {
@@ -142,8 +206,15 @@ export default class CesdkRenderer {
       e.setFill(id, fill);
       try { e.setContentFillMode(id, b.fit === 'contain' ? 'Contain' : 'Cover'); } catch { /* ignore */ }
     } else {
-      const fill = e.createFill('color');
-      e.setColor(fill, 'fill/color/value', hexToRgba(this.spec.background === '#FFFFFF' ? '#EFE7F3' : this.spec.background));
+      // No picture yet: the plate the spec names, so every renderer shows the same cream.
+      let fill = null;
+      try {
+        fill = e.createFill('gradient/linear');
+        e.setGradientColorStops(fill, 'fill/gradient/colors', [{ color: hexToRgba(this.spec.plate.from), stop: 0 }, { color: hexToRgba(this.spec.plate.to), stop: 1 }]);
+        e.setFloat(fill, 'fill/gradient/linear/startPointX', 0); e.setFloat(fill, 'fill/gradient/linear/startPointY', 0);
+        e.setFloat(fill, 'fill/gradient/linear/endPointX', 1); e.setFloat(fill, 'fill/gradient/linear/endPointY', 1);
+      } catch { fill = null; }
+      if (!fill) { fill = e.createFill('color'); e.setColor(fill, 'fill/color/value', hexToRgba(this.spec.plate.from)); }
       e.setFill(id, fill);
     }
     this.place(id, b);
@@ -156,7 +227,9 @@ export default class CesdkRenderer {
         try {
           fill = e.createFill('gradient/linear');
           const solid = hexToRgba(b.overlayColor, b.overlayOpacity), clear = hexToRgba(b.overlayColor, 0);
-          const stops = b.overlayDirection === 'bottom' ? [{ color: clear, stop: 0.25 }, { color: solid, stop: 1 }] : [{ color: solid, stop: 0 }, { color: clear, stop: 0.7 }];
+          const stops = b.overlayDirection === 'bottom' ? [{ color: clear, stop: 0.25 }, { color: solid, stop: 1 }]
+            : b.overlayDirection === 'rise' ? [{ color: clear, stop: 0.2 }, { color: hexToRgba(b.overlayColor, b.overlayOpacity * 0.55), stop: 0.45 }, { color: solid, stop: 0.62 }, { color: solid, stop: 1 }]
+            : [{ color: solid, stop: 0 }, { color: clear, stop: 0.7 }];
           e.setGradientColorStops(fill, 'fill/gradient/colors', stops);
           e.setFloat(fill, 'fill/gradient/linear/startPointX', 0.5); e.setFloat(fill, 'fill/gradient/linear/startPointY', 0);
           e.setFloat(fill, 'fill/gradient/linear/endPointX', 0.5); e.setFloat(fill, 'fill/gradient/linear/endPointY', 1);
@@ -196,6 +269,7 @@ export default class CesdkRenderer {
     e.setBool(id, 'text/automaticFontSizeEnabled', false);
     e.setFloat(id, 'text/fontSize', b.sizePx);
     e.setFloat(id, 'text/lineHeight', b.lineHeight);
+    try { e.setFloat(id, 'text/letterSpacing', b.letterSpacing || 0); } catch { /* ignore */ }
     e.setEnum(id, 'text/horizontalAlignment', b.align === 'left' ? 'Left' : b.align === 'center' ? 'Center' : 'Right');
     try { e.setEnum(id, 'text/verticalAlignment', 'Center'); } catch { /* ignore */ }
     e.setFont(id, typefaceFor(b.fontFile).fonts[0].uri, typefaceFor(b.fontFile));

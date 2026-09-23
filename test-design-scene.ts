@@ -4,14 +4,17 @@ import { getTemplate } from './lib/design/templates/index.ts';
 import { fillTemplate } from './lib/design/mapBranding.ts';
 import { buildSceneSpec, pxBoxToPercent, boxChanged } from './lib/design/sceneSpec.ts';
 import { CANVAS } from './lib/design/contract.ts';
+import { colorsFor } from './lib/design/mapBranding.ts';
 
-const fonts = { display: '/design-fonts/FrankRuhlLibre.ttf', body: '/design-fonts/Assistant.ttf' };
-const t = getTemplate('offer-feed')!;
+const fonts = { display: '/design-fonts/FrankRuhlLibre.ttf', body: '/design-fonts/Assistant.ttf', accent: '/design-fonts/Heebo.ttf' };
+// Pinned to version 1: the test describes that layout, and versions are immutable.
+const t = getTemplate('offer-feed', 1)!;
 const fill = fillTemplate(t, { settings: { business_name: 'הקליניקה של מאיה', primary_color: '#C9A24B', branding: { gallery: ['https://cdn/g1.jpg'] } }, inputs: { price: '₪249' } });
 
 const spec = buildSceneSpec(t, fill, null, fonts);
 assert.equal(spec.width, 1080); assert.equal(spec.height, 1350);
-assert.equal(spec.background, '#FFFFFF');
+assert.equal(spec.background, colorsFor('#C9A24B').surface, 'the page is her cream');
+assert.deepEqual(spec.plate, { from: colorsFor('#C9A24B').blush, to: colorsFor('#C9A24B').sand }, 'an empty slot shows the same plate in every renderer');
 const photo = spec.blocks.find((b) => b.id === 'photo');
 assert.ok(photo && photo.kind === 'image' && photo.ref === 'https://cdn/g1.jpg' && photo.w === 1080 && photo.h === 1350, 'full-bleed photo in pixels');
 assert.ok(photo && photo.kind === 'image' && photo.overlayColor && photo.overlayDirection === 'bottom');
@@ -36,5 +39,15 @@ assert.deepEqual(pxBoxToPercent(CANVAS.feed45, { x: 108, y: 675, w: 864, h: 135 
 assert.deepEqual(pxBoxToPercent(CANVAS.feed45, { x: -50, y: 1300, w: 2000, h: 200 }), { x: 0, y: 85.19, w: 100, h: 14.81 }, 'dragged off-canvas comes back inside');
 assert.equal(boxChanged({ x: 10, y: 50, w: 80, h: 10 }, { x: 10.01, y: 50, w: 80, h: 10 }), false);
 assert.equal(boxChanged({ x: 10, y: 50, w: 80, h: 10 }, { x: 12, y: 50, w: 80, h: 10 }), true);
+
+// The studio layers reach the spec: a decoration as a tinted file, a rating as a count.
+const rh = getTemplate('rosh-hashana-feed')!;
+const rhSpec = buildSceneSpec(rh, fillTemplate(rh, { settings: { primary_color: '#C9A24B', branding: {} } }), null, fonts);
+const deco = rhSpec.blocks.find((b) => b.kind === 'deco');
+assert.ok(deco && deco.kind === 'deco' && deco.ref === '/design-deco/pomegranate.svg' && deco.color === '#C9A24B');
+const rv = getTemplate('review-feed', 2)!;
+const rvSpec = buildSceneSpec(rv, fillTemplate(rv, { settings: { branding: { reviews: [{ name: 'דנה', rating: 4, text: 'מדהים' }] } } }), null, fonts);
+const rating = rvSpec.blocks.find((b) => b.kind === 'rating');
+assert.ok(rating && rating.kind === 'rating' && rating.count === 4 && rating.total === 5, 'four of five stars');
 
 console.log('design scene: ok');

@@ -16,7 +16,7 @@
 //     inside the canvas
 
 export type Format = 'feed45' | 'story' | 'square';
-export type Category = 'offer' | 'before_after' | 'tip' | 'review' | 'new_treatment' | 'seasonal';
+export type Category = 'offer' | 'before_after' | 'tip' | 'review' | 'treatment' | 'seasonal' | 'announce';
 
 export const CANVAS: Record<Format, { w: number; h: number }> = {
   feed45: { w: 1080, h: 1350 },
@@ -25,19 +25,28 @@ export const CANVAS: Record<Format, { w: number; h: number }> = {
 };
 
 export const CATEGORY_LABELS: Record<Category, string> = {
-  offer: 'מבצע',
+  offer: 'מבצעים',
   before_after: 'לפני / אחרי',
-  tip: 'טיפ',
-  review: 'ביקורת לקוחה',
-  new_treatment: 'טיפול חדש',
-  seasonal: 'עונתי',
+  review: 'לקוחות מספרות',
+  treatment: 'טיפולים',
+  tip: 'טיפים וידע',
+  seasonal: 'חגים ועונות',
+  announce: 'הודעות',
 };
 
-/** Colour roles. mapBranding turns her primary colour into all of them. */
-export type ColorRole = 'primary' | 'deep' | 'tint' | 'contrast' | 'secondary' | 'ink' | 'surface' | 'muted';
-export const COLOR_ROLES: ColorRole[] = ['primary', 'deep', 'tint', 'contrast', 'secondary', 'ink', 'surface', 'muted'];
+/**
+ * Colour roles. mapBranding turns her primary colour into all of them.
+ *   primary / deep / tint / contrast / secondary  - her accent and its family
+ *   ink / muted                                    - text
+ *   surface / blush / sand                         - the three backgrounds of
+ *     the studio look: warm cream, a blush of her hue on cream, a warm
+ *     neutral. Never white.
+ */
+export type ColorRole = 'primary' | 'deep' | 'tint' | 'contrast' | 'secondary' | 'ink' | 'surface' | 'muted' | 'blush' | 'sand';
+export const COLOR_ROLES: ColorRole[] = ['primary', 'deep', 'tint', 'contrast', 'secondary', 'ink', 'surface', 'muted', 'blush', 'sand'];
 
-export type FontRole = 'display' | 'body';
+/** display = Frank Ruhl Libre (headlines), body = Assistant, accent = Heebo (kickers, labels). */
+export type FontRole = 'display' | 'body' | 'accent';
 
 /** Position and size as percentages of the canvas (0..100). */
 export type Box = { x: number; y: number; w: number; h: number };
@@ -51,12 +60,14 @@ export type TextLayer = {
   font: FontRole;
   /** Pixels at canvas scale (1080 wide). */
   size: number;
-  weight?: 400 | 500 | 600 | 700 | 800;
+  weight?: 400 | 500 | 600 | 700 | 800 | 900;
   color: ColorRole;
   align: 'right' | 'center' | 'left';
   /** Wrap at most this many lines; the renderer shrinks the text to fit. */
   maxLines?: number;
   lineHeight?: number;
+  /** In em, e.g. 0.08 for a spaced kicker. */
+  letterSpacing?: number;
   /** A pill behind the text. */
   background?: { color: ColorRole; radius: number; padding: number };
   editable?: boolean;
@@ -72,14 +83,20 @@ export type ImageLayer = {
   radius?: number;
   /** Focal point (0..1) the cover crop keeps. */
   focus?: { x: number; y: number };
-  /** A wash over the picture so text on it reads. */
-  overlay?: { color: ColorRole; opacity: number; direction?: 'top' | 'bottom' | 'flat' };
+  /**
+   * A wash over the picture so text on it reads. bottom/top fade from one
+   * edge; flat covers evenly; rise is solid across the lower part and fades
+   * out above it - cream climbing a full-bleed photo.
+   */
+  overlay?: { color: ColorRole; opacity: number; direction?: 'top' | 'bottom' | 'flat' | 'rise' };
 };
 
 export type ShapeLayer = {
   id: string;
   type: 'shape';
   box: Box;
+  /** rect (default) or ellipse: soft layered blobs behind content. */
+  shape?: 'rect' | 'ellipse';
   color: ColorRole;
   opacity?: number;
   radius?: number;
@@ -96,11 +113,63 @@ export type LogoLayer = {
   color?: ColorRole;
 };
 
-export type Layer = TextLayer | ImageLayer | ShapeLayer | LogoLayer;
+/** Film grain over everything below it: the difference between flat and printed. */
+export type TextureLayer = {
+  id: string;
+  type: 'texture';
+  box: Box;
+  opacity: number;
+  blend?: 'soft-light' | 'multiply';
+};
+
+/**
+ * A delicate line drawing in one colour role, from public/design-deco/<asset>.svg
+ * (stroked, currentColor). Only where the theme calls for it: a leaf, a
+ * ribbon, a candle for the holidays. Kept inside `contain` in its box.
+ */
+export type DecoAsset = 'leaf' | 'ribbon' | 'candle' | 'pomegranate' | 'sparkle' | 'wave';
+export const DECO_ASSETS: DecoAsset[] = ['leaf', 'ribbon', 'candle', 'pomegranate', 'sparkle', 'wave'];
+
+export type DecoLayer = {
+  id: string;
+  type: 'deco';
+  asset: DecoAsset;
+  box: Box;
+  color: ColorRole;
+  opacity?: number;
+  /** Mirror horizontally, so one drawing serves both corners. */
+  flip?: boolean;
+};
+
+/**
+ * Five stars drawn as shapes, filled up to the rating the bound variable
+ * holds ("★★★★☆" from her review, or a digit). Shapes, not glyphs: the
+ * Hebrew fonts have no star.
+ */
+export type RatingLayer = {
+  id: string;
+  type: 'rating';
+  bind: string;
+  box: Box;
+  color: ColorRole;
+  align: 'right' | 'left';
+};
+
+export type Layer = TextLayer | ImageLayer | ShapeLayer | LogoLayer | TextureLayer | DecoLayer | RatingLayer;
+
+/** How many stars a rating value means: "★★★★☆" -> 4, "5" -> 5, anything else -> 5. */
+export function ratingCount(value: string | null | undefined): number {
+  const s = String(value || '');
+  const filled = (s.match(/★/g) || []).length;
+  if (filled) return Math.min(5, filled);
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? Math.round(n) : 5;
+}
 
 /** Where a variable's value comes from before she types anything. */
 export type VariableSource =
   | 'business_name' | 'therapist_name' | 'therapist_title' | 'booking_url'
+  | 'phone' | 'instagram' | 'contact'
   | 'review_text' | 'review_name' | 'review_rating' | 'static' | 'user';
 
 export type VariableDef = {
@@ -121,6 +190,8 @@ export type SlotDef = {
   key: string;
   label: string;
   sources: ImageSource[];
+  /** For the AI source: what the picture should be when no client photo belongs (abstract, on-brand, no text). */
+  aiHint?: string;
   required?: boolean;
   /** Pictures of a client: the picker refuses them without recorded consent. */
   consent?: boolean;
@@ -138,12 +209,17 @@ export type Template = {
   layers: Layer[];
   /** What she must have for this template to fill fully (shown in the gallery). */
   needs: string[];
+  /** Seasonal: which occasion opens its window (lib/design/holidays.ts). */
+  holiday?: string;
 };
 
 export const templateId = (t: Pick<Template, 'key' | 'version'>) => `${t.key}@${t.version}`;
 
 const inCanvas = (b: Box) =>
   [b.x, b.y, b.w, b.h].every((n) => Number.isFinite(n)) && b.x >= 0 && b.y >= 0 && b.w > 0 && b.h > 0 && b.x + b.w <= 100.0001 && b.y + b.h <= 100.0001;
+
+const bleeds = (b: Box) =>
+  [b.x, b.y, b.w, b.h].every((n) => Number.isFinite(n)) && b.w > 0 && b.h > 0 && b.x > -60 && b.y > -60 && b.x + b.w < 160 && b.y + b.h < 160;
 
 /** Every problem with a template, or an empty list. */
 export function validateTemplate(t: Template): string[] {
@@ -170,7 +246,9 @@ export function validateTemplate(t: Template): string[] {
   for (const l of t.layers) {
     if (ids.has(l.id)) errors.push(`duplicate layer id ${l.id}`);
     ids.add(l.id);
-    if (!inCanvas(l.box)) errors.push(`layer ${l.id} box is outside the canvas`);
+    // Decorative blobs and washes may bleed past the edge; content may not.
+    const decorative = l.type === 'shape' || l.type === 'texture';
+    if (decorative ? !bleeds(l.box) : !inCanvas(l.box)) errors.push(`layer ${l.id} box is outside the canvas`);
     if (l.type === 'text') {
       if (!vars.has(l.bind)) errors.push(`text layer ${l.id} binds to unknown variable ${l.bind}`);
       if (!COLOR_ROLES.includes(l.color)) errors.push(`text layer ${l.id} uses unknown colour role ${l.color}`);
@@ -182,6 +260,14 @@ export function validateTemplate(t: Template): string[] {
       if (!COLOR_ROLES.includes(l.color)) errors.push(`shape ${l.id} uses unknown colour role ${l.color}`);
     } else if (l.type === 'logo') {
       if (l.color && !COLOR_ROLES.includes(l.color)) errors.push(`logo ${l.id} uses unknown colour role`);
+    } else if (l.type === 'texture') {
+      if (!(l.opacity > 0 && l.opacity <= 0.6)) errors.push(`texture ${l.id} opacity must be in (0, 0.6]`);
+    } else if (l.type === 'rating') {
+      if (!vars.has(l.bind)) errors.push(`rating ${l.id} binds to unknown variable ${l.bind}`);
+      if (!COLOR_ROLES.includes(l.color)) errors.push(`rating ${l.id} uses unknown colour role ${l.color}`);
+    } else if (l.type === 'deco') {
+      if (!DECO_ASSETS.includes(l.asset)) errors.push(`deco ${l.id} uses unknown asset ${l.asset}`);
+      if (!COLOR_ROLES.includes(l.color)) errors.push(`deco ${l.id} uses unknown colour role ${l.color}`);
     }
   }
   return errors;

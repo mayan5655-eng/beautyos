@@ -76,6 +76,12 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   'creatives/direct': 120,
   'creatives/test-image': 30,
   'creatives/image': 60,
+  // Free-form post generation (lib/ai/postGenerator.ts): the number she
+  // sees as "3 מתוך 9 החודש". One generation = one Claude call + up to three
+  // pictures, ~$0.45. settings.ai_generation_cap overrides it per tenant.
+  // The pictures inside a generation have their own ceiling as a backstop.
+  'designs/generate': 9,
+  'designs/generate-image': 30,
 };
 
 /**

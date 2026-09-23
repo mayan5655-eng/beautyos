@@ -19,7 +19,7 @@ create table if not exists public.designs (
   tenant_id         uuid not null,
   template_key      text not null,
   template_version  integer not null check (template_version >= 1),
-  category          text not null check (category in ('offer','before_after','tip','review','new_treatment','seasonal')),
+  category          text not null check (category in ('offer','before_after','tip','review','treatment','seasonal','announce')),
   format            text not null default 'feed45' check (format in ('feed45','story','square')),
   name              text not null default '',
   values            jsonb not null default '{}'::jsonb,   -- variable key -> text she filled

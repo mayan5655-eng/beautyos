@@ -26,4 +26,5 @@ export async function createEditorRenderer() {
 export const FONT_FILES = {
   display: '/design-fonts/FrankRuhlLibre.ttf',
   body: '/design-fonts/Assistant.ttf',
+  accent: '/design-fonts/Heebo.ttf',
 };
