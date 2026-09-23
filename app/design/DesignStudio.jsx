@@ -19,9 +19,11 @@ import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import Generate from './Generate';
 import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
-import { CATEGORY_LABELS } from '@/lib/design/contract';
+import { CATEGORY_LABELS, GROUP_LABELS } from '@/lib/design/contract';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
+
+const GROUPS = ['evergreen', 'seasonal', 'closer'];
 
 const chip = (on) => ({ padding: '7px 13px', borderRadius: 'var(--r-full)', border: '1px solid var(--line-2)', background: on ? 'var(--pc)' : 'var(--surface)', color: on ? 'var(--pc-contrast)' : 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
 const ghost = { padding: '8px 0', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 };
@@ -45,7 +47,7 @@ function openOccasions() {
 }
 
 export default function DesignStudio({ settings, readOnly, toast }) {
-  const [category, setCategory] = useState(null);
+  const [group, setGroup] = useState(null); // null = all three groups, each under its heading
   const [designs, setDesigns] = useState(null);
   const [open, setOpen] = useState(null); // design being edited
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
@@ -58,8 +60,16 @@ export default function DesignStudio({ settings, readOnly, toast }) {
     return () => { alive = false; };
   }, []);
 
-  const templates = useMemo(() => galleryTemplates(category), [category]);
   const occasions = useMemo(() => openOccasions(), []);
+  // Per group: its cards, the seasonal ones whose window is open lifted to the front with their days left.
+  const sections = useMemo(() => {
+    const open = new Map(occasions.map((o) => [o.template.key, o.upcoming]));
+    return GROUPS.filter((g) => !group || g === group).map((g) => {
+      const list = galleryTemplates(null, g);
+      const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : 0);
+      return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
+    });
+  }, [group, occasions]);
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
@@ -130,20 +140,22 @@ export default function DesignStudio({ settings, readOnly, toast }) {
     );
   }
 
-  const card = (t, blocked) => {
+  const card = (t, blocked, upcoming) => {
     const fill = fillTemplate(t, { settings });
     const story = storySibling(t.key);
+    const storyOnly = t.format === 'story';
     return (
-      <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={() => setPreview(t)} title="לתצוגה גדולה" style={{ padding: 0, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)', cursor: 'zoom-in', display: 'block', width: '100%' }}>
-          <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+      <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
+        {upcoming && <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'var(--pc)', color: 'var(--pc-contrast)', fontSize: 'var(--t-xs)', fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--r-full)' }}>{upcoming.daysLeft <= 0 ? 'עכשיו' : upcoming.daysLeft === 1 ? 'מחר' : `בעוד ${upcoming.daysLeft} ימים`}</span>}
+        <button onClick={() => setPreview(t)} title="לתצוגה גדולה" style={{ padding: 0, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden', boxShadow: 'var(--shadow-xs)', aspectRatio: storyOnly ? '9 / 16' : '4 / 5', background: 'var(--surface-2)', cursor: 'zoom-in', display: 'block', width: '100%' }}>
+          <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: storyOnly ? '9 / 16' : '4 / 5' }} />
         </button>
         <div>
           <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</p>
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.4 }}>{blocked ? 'צריך לפחות ביקורת אחת שמורה בהגדרות' : t.needs.length ? `צריך: ${t.needs.join(', ')}` : 'לא צריך כלום'}</p>
         </div>
         <button onClick={() => create(t)} disabled={blocked || creating === t.key || readOnly} className="primary-btn" style={{ padding: '9px 0', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: blocked || readOnly ? 0.5 : 1 }}>
-          {creating === t.key ? <Spinner inline label="פותחת" /> : story ? 'פוסט 4:5' : 'להשתמש בתבנית'}
+          {creating === t.key ? <Spinner inline label="פותחת" /> : story ? 'פוסט 4:5' : storyOnly ? 'סטורי 9:16' : 'להשתמש בתבנית'}
         </button>
         {story && (
           <button onClick={() => create(story)} disabled={blocked || creating === story.key || readOnly} style={{ ...ghost, opacity: blocked || readOnly ? 0.5 : 1 }}>
@@ -181,13 +193,19 @@ export default function DesignStudio({ settings, readOnly, toast }) {
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>תבניות מוכנות, כבר בצבעים שלך</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
-          <button style={chip(!category)} onClick={() => setCategory(null)}>הכול</button>
-          {Object.entries(CATEGORY_LABELS).map(([k, l]) => <button key={k} style={chip(category === k)} onClick={() => setCategory(k)}>{l}</button>)}
+          <button style={chip(!group)} onClick={() => setGroup(null)}>הכול</button>
+          {GROUPS.map((g) => <button key={g} style={chip(group === g)} onClick={() => setGroup(g)}>{GROUP_LABELS[g]}</button>)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
-          {templates.map((t) => card(t, t.category === 'review' && !hasReviews))}
-        </div>
-        {templates.length === 0 && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>עוד אין תבניות בקטגוריה הזו.</p>}
+        {sections.map((s) => (
+          <div key={s.group} style={{ marginBottom: 22 }}>
+            <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 10, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              {GROUP_LABELS[s.group]} <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{s.templates.length}</span>
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
+              {s.templates.map((t) => card(t, t.category === 'review' && !hasReviews, s.open.get(t.key) || null))}
+            </div>
+          </div>
+        ))}
         {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
       </div>
 

@@ -24,6 +24,14 @@ export const CANVAS: Record<Format, { w: number; h: number }> = {
   square: { w: 1080, h: 1080 },
 };
 
+/** How the gallery groups the library: what she posts all year, what the calendar brings, what closes a sale. */
+export type TemplateGroup = 'evergreen' | 'seasonal' | 'closer';
+export const GROUP_LABELS: Record<TemplateGroup, string> = {
+  evergreen: 'כל השנה',
+  seasonal: 'חגים ועונות',
+  closer: 'סוגרים עסקה',
+};
+
 export const CATEGORY_LABELS: Record<Category, string> = {
   offer: 'מבצעים',
   before_after: 'לפני / אחרי',
@@ -211,6 +219,8 @@ export type Template = {
   needs: string[];
   /** Seasonal: which occasion opens its window (lib/design/holidays.ts). */
   holiday?: string;
+  /** Gallery group; a template without one sits with the evergreens. */
+  group?: TemplateGroup;
 };
 
 export const templateId = (t: Pick<Template, 'key' | 'version'>) => `${t.key}@${t.version}`;

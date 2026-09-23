@@ -6,16 +6,23 @@ import { createHash } from 'node:crypto';
 import { CANVAS, CATEGORY_LABELS, templateId, validateTemplate } from './lib/design/contract.ts';
 import { TEMPLATES, CREAM_DEFS, getTemplate, latestTemplates, galleryTemplates, storySibling } from './lib/design/templates/index.ts';
 import { creamTemplate } from './lib/design/templates/cream.ts';
+import { HOLIDAYS } from './lib/design/holidays.ts';
 import { fillTemplate, colorsFor } from './lib/design/mapBranding.ts';
 import { applyOverrides, sanitizeOverrides, sanitizeValues, sanitizeImages } from './lib/design/design.ts';
 
 // ── Library shape ────────────────────────────────────────────────────────────
-assert.equal(CREAM_DEFS.length, 5, 'the five studio definitions under review');
-assert.equal(TEMPLATES.length, 6 + CREAM_DEFS.length * 2, 'six hand-written v1 templates, and feed + story of every studio definition');
+assert.equal(CREAM_DEFS.length, 50, 'the launch library: 20 evergreen, 15 holidays and seasons, 15 closers');
+assert.deepEqual(CREAM_DEFS.reduce((acc, d) => ({ ...acc, [d.group]: (acc[d.group] || 0) + 1 }), {} as Record<string, number>), { evergreen: 20, seasonal: 15, closer: 15 });
+const built = CREAM_DEFS.reduce((n, d) => n + (d.formats || ['feed45', 'story']).length, 0);
+assert.equal(TEMPLATES.length, 6 + built, 'six hand-written v1 templates, and every format of every studio definition');
+assert.equal(new Set(TEMPLATES.map(templateId)).size, TEMPLATES.length, 'no two templates share key@version');
+assert.equal(CREAM_DEFS.filter((d) => d.holiday).length, 14, 'every holiday and season has a window; birthday has none');
+for (const d of CREAM_DEFS) if (d.holiday) assert.ok(HOLIDAYS.some((h) => h.key === d.holiday), `${d.slug}: known occasion ${d.holiday}`);
+assert.ok(CREAM_DEFS.filter((d) => d.deco).length >= 20 && CREAM_DEFS.filter((d) => !d.deco).length >= 20, 'decoration only where the theme asks: many with, many without');
 
 // ── The studio look, as the builder guarantees it ───────────────────────────
 for (const def of CREAM_DEFS) {
-  for (const t of [creamTemplate(def, 'feed45'), creamTemplate(def, 'story')]) {
+  for (const t of (def.formats || ['feed45', 'story']).map((f) => creamTemplate(def, f))) {
     const ids = new Set(t.layers.map((l) => l.id));
     for (const id of ['strip', 'logo', 'contact', 'grain']) assert.ok(ids.has(id), `${templateId(t)} has the ${id} layer`);
     assert.ok(t.variables.some((v) => v.source === 'contact'), 'her phone and handle in the strip');
@@ -34,9 +41,13 @@ assert.equal(getTemplate('rosh-hashana-feed')!.holiday, 'rosh_hashana');
 assert.equal(getTemplate('gift-card-story')!.layers.find((l) => l.id === 'photo')!.type, 'image');
 assert.ok(getTemplate('review-feed', 2)!.layers.some((l) => l.type === 'rating'), 'stars are shapes, not glyphs');
 assert.equal(storySibling('offer-feed')!.key, 'offer-story');
-assert.equal(storySibling('tip-feed'), null, 'a v1 template has no story yet');
-assert.ok(!galleryTemplates().some((t) => /-story$/.test(t.key)), 'the gallery folds stories into their feed card');
-assert.equal(galleryTemplates().length, latestTemplates().length - CREAM_DEFS.length);
+assert.equal(storySibling('new-treatment-feed'), null, 'a v1 template has no story');
+assert.ok(!galleryTemplates().some((t) => /-story$/.test(t.key) && t.key !== 'glow-story-story'), 'the gallery folds stories into their feed card; the story-only one stands alone');
+assert.equal(galleryTemplates().length, 50, 'one card per definition');
+assert.ok(galleryTemplates().every((t) => t.group), 'the v1 generation is not offered any more');
+assert.equal(galleryTemplates(null, 'seasonal').length, 15);
+assert.equal(galleryTemplates('offer', 'closer').length, 3, 'duo, gift card, referral');
+assert.ok(latestTemplates().some((t) => t.key === 'new-treatment-feed'), 'but a v1 template still resolves for saved designs');
 for (const t of TEMPLATES) {
   assert.deepEqual(validateTemplate(t), [], `${templateId(t)} is valid`);
   assert.deepEqual(JSON.parse(JSON.stringify(t)), t, `${templateId(t)} is plain JSON`);
@@ -47,7 +58,7 @@ for (const t of TEMPLATES) {
 assert.equal(getTemplate('offer-feed')?.version, 2, 'latest wins when no version is asked for');
 assert.equal(getTemplate('offer-feed', 1)?.version, 1);
 assert.equal(getTemplate('offer-feed', 99), null);
-assert.equal(galleryTemplates('offer').length, 2, 'the offer and the gift card, each with its story folded in');
+assert.equal(galleryTemplates('offer').length, 6, 'offer, package, new client, duo, gift card, referral');
 
 // ── Immutability: hashes match the lock file ────────────────────────────────
 const deep = (v: unknown): unknown => (Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, deep((v as Record<string, unknown>)[k])])) : v);
@@ -104,7 +115,7 @@ assert.equal(rv.values.stars, '★★★★☆');
 assert.equal(rv.values.review_name, 'דנה');
 
 // The tip needs nothing at all.
-const tip = fillTemplate(getTemplate('tip-feed')!, { settings: { therapist_name: 'מאיה', branding: {} } });
+const tip = fillTemplate(getTemplate('tip-feed', 1)!, { settings: { therapist_name: 'מאיה', branding: {} } });
 assert.deepEqual(tip.missing, []);
 assert.equal(tip.values.therapist_title, 'קוסמטיקאית', 'default title');
 

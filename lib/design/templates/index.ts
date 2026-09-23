@@ -12,7 +12,7 @@
 // stage, and the studio look built from short definitions by cream.ts
 // (feed 4:5 and story 9:16 of each). New keys go in cream/*.ts.
 
-import type { Template, Category } from '../contract.ts';
+import type { Template, Category, TemplateGroup } from '../contract.ts';
 import { offerFeedV1 } from './offer-feed.v1.ts';
 import { beforeAfterFeedV1 } from './before-after-feed.v1.ts';
 import { tipFeedV1 } from './tip-feed.v1.ts';
@@ -62,9 +62,14 @@ export function storySibling(feedKey: string): Template | null {
   return getTemplate(feedKey.replace(/-feed$/, '-story'));
 }
 
-/** Newest templates with a card in the gallery: one per key, stories folded into their feed sibling. */
-export function galleryTemplates(category?: Category | null): Template[] {
-  const latest = latestTemplates(category);
+/**
+ * Newest templates with a card in the gallery: the studio generation only
+ * (a template with a group), one card per key, stories folded into their
+ * feed sibling. The first-stage v1 templates stay in TEMPLATES so saved
+ * designs reopen, but they are no longer offered.
+ */
+export function galleryTemplates(category?: Category | null, group?: TemplateGroup | null): Template[] {
+  const latest = latestTemplates(category).filter((t) => t.group && (!group || t.group === group));
   const feedKeys = new Set(latest.map((t) => t.key));
   return latest.filter((t) => !(/-story$/.test(t.key) && feedKeys.has(feedKeyOf(t.key))));
 }

@@ -5,8 +5,7 @@ the builder in `lib/design/templates/cream.ts` turns each one into a feed
 4:5 and a story 9:16 template (keys `<slug>-feed` / `<slug>-story`). All 50
 fill from her settings: logo, accent colour, business name, phone and
 Instagram handle in the strip, her gallery for the photo, and every text is
-editable in the fill form. Status: **the first five are built** (marked ✔);
-the other 45 wait for her word on those five.
+editable in the fill form. Status: **all 50 are built** (the five marked ✔ were the review set).
 
 Layouts the builder knows:
 
@@ -28,7 +27,7 @@ recorded consent; **product** = a product shot she uploads.
 | 1 ✔ | `offer` | מבצע | offer | top | gallery / AI | ✔ | – | headline, price |
 | 2 ✔ | `before-after` | לפני / אחרי | before_after | pair | client ×2 | – | – | two consented photos |
 | 3 ✔ | `review` | לקוחה מספרת | review | quote | gallery / AI | – | – | a saved review |
-| 4 | `tip` | טיפ לעור | tip | top | gallery / AI | – | leaf | headline |
+| 4 | `tip` (feed v2) | טיפ לעור | tip | top | gallery / AI | – | leaf | headline |
 | 5 | `package` | חבילת טיפולים | offer | top | gallery / AI | ✔ | – | headline, price |
 | 6 | `acne` | טיפול באקנה | treatment | top | gallery / AI | – | – | headline |
 | 7 | `pigmentation` | פיגמנטציה | treatment | top | gallery / AI | – | – | headline |
@@ -89,7 +88,7 @@ the runtime's Hebrew calendar, so the table never goes stale.
 | 47 | `skin-health` | בריאות העור | tip | top | – | – | headline |
 | 48 | `thank-you` | תודה | announce | top | – | sparkle | headline |
 | 49 | `referral` | חברה מביאה חברה | offer | top | ✔ (optional) | – | headline |
-| 50 | `glow-story` | זוהר (סטורי בלבד) | treatment | bleed | – | sparkle | headline |
+| 50 | `glow-story` (key `glow-story-story`) | זוהר (סטורי בלבד) | treatment | bleed | – | sparkle | headline |
 
 Category totals for the gallery chips: offer 8, before_after 1, review 1,
 treatment 19, tip 8, seasonal 15, announce 3 (template 50 is story-only, so

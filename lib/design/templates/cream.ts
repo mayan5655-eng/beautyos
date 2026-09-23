@@ -19,13 +19,16 @@
 // percentages, which is what the contract wants; the output is plain data
 // like any hand-written template and goes through the same lock file.
 
-import { CANVAS, type Category, type ColorRole, type DecoAsset, type Format, type Layer, type SlotDef, type Template, type VariableDef } from '../contract.ts';
+import { CANVAS, type Category, type ColorRole, type DecoAsset, type Format, type Layer, type SlotDef, type Template, type TemplateGroup, type VariableDef } from '../contract.ts';
 
 export type CreamDef = {
   /** 'offer' -> keys offer-feed and offer-story. */
   slug: string;
   name: string;
   category: Category;
+  group: TemplateGroup;
+  /** Which formats to build; both by default. */
+  formats?: ('feed45' | 'story')[];
   description: string;
   needs?: string[];
   holiday?: string;
@@ -34,8 +37,11 @@ export type CreamDef = {
   photo: 'top' | 'bleed' | 'pair';
   photoSlot?: Partial<Pick<SlotDef, 'sources' | 'aiHint' | 'required' | 'label'>>;
   kicker?: { default: string; maxLength?: number };
-  headline: { default: string; maxLength?: number };
-  subline?: { default: string; maxLength?: number };
+  /** lines 1 = a short one-liner (a question, a myth); 2 = the usual two-line headline. */
+  headline: { default: string; maxLength?: number; lines?: 1 | 2 };
+  subline?: { default: string; maxLength?: number; lines?: 1 | 2 };
+  /** Three short lines under a one-line headline (a routine, three facts); replaces the subline. */
+  bullets?: string[];
   /** A large price beside the headline (offers, gift cards, packages). */
   price?: { default: string; label?: string; note?: string; required?: boolean };
   /** The testimonial layout: her saved review as a quote instead of headline/subline. */
@@ -57,9 +63,10 @@ const DEFAULT_SOURCES: SlotDef['sources'] = ['gallery', 'clinic', 'hero', 'uploa
 /** The per-format numbers: where the photo ends and how large the type is. */
 function metrics(format: Format, def: CreamDef) {
   const story = format === 'story';
+  const short = def.quote || !!def.bullets || def.subline?.lines === 2;
   return story
-    ? { photoBottom: def.quote ? 1064 : 1184, bodyTop: def.quote ? 1100 : 1232, kicker: 26, headline: 92, headlineLines: 3, headlineH: 290, subline: 34, price: 140, priceH: 170, cta: 30, ctaY: 1648, quoteText: 44, quoteLines: 5, quoteH: 300 }
-    : { photoBottom: def.quote ? 646 : 748, bodyTop: def.quote ? 670 : 788, kicker: 24, headline: 84, headlineLines: 2, headlineH: 190, subline: 32, price: 128, priceH: 150, cta: 28, ctaY: 1094, quoteText: 40, quoteLines: 4, quoteH: 216 };
+    ? { photoBottom: short ? 1064 : 1184, bodyTop: short ? 1100 : 1232, kicker: 26, headline: 92, headlineLines: 3, headlineH: 290, headlineOneH: 110, subline: 34, price: 140, priceH: 170, cta: 30, ctaY: 1648, quoteText: 44, quoteLines: 5, quoteH: 300, bullet: 32, bulletH: 54 }
+    : { photoBottom: short ? 646 : 748, bodyTop: short ? 670 : 788, kicker: 24, headline: 84, headlineLines: 2, headlineH: 190, headlineOneH: 100, subline: 32, price: 128, priceH: 150, cta: 28, ctaY: 1094, quoteText: 40, quoteLines: 4, quoteH: 216, bullet: 30, bulletH: 48 };
 }
 
 export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Template {
@@ -83,7 +90,8 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
     );
   } else {
     variables.push({ key: 'headline', label: 'כותרת', kind: 'text', source: 'user', default: def.headline.default, maxLength: def.headline.maxLength || 44, required: true });
-    if (def.subline) variables.push({ key: 'subline', label: 'שורת משנה', kind: 'text', source: 'user', default: def.subline.default, maxLength: def.subline.maxLength || 60 });
+    if (def.subline && !def.bullets) variables.push({ key: 'subline', label: 'שורת משנה', kind: 'text', source: 'user', default: def.subline.default, maxLength: def.subline.maxLength || (def.subline.lines === 2 ? 120 : 60) });
+    if (def.bullets) def.bullets.forEach((b, i) => variables.push({ key: `line_${i + 1}`, label: `שורה ${i + 1}`, kind: 'text', source: 'user', default: b, maxLength: 44 }));
   }
   if (def.price) {
     variables.push({ key: 'price', label: def.price.label || 'מחיר', kind: 'price', source: 'user', default: def.price.default, maxLength: 12, required: def.price.required !== false });
@@ -151,15 +159,23 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
   } else {
     const priceW = def.price ? (format === 'story' ? 360 : 330) : 0;
     const headX = def.price ? M + priceW + 32 : M;
-    layers.push({ id: 'headline', type: 'text', bind: 'headline', box: pct({ x: headX, y, w: W - M - headX, h: m.headlineH }), font: 'display', size: m.headline, weight: headlineWeight, color: 'ink', align: 'right', maxLines: m.headlineLines, lineHeight: 1.06 });
+    const oneLine = def.headline.lines === 1 || !!def.bullets;
+    const headH = oneLine ? m.headlineOneH : m.headlineH;
+    layers.push({ id: 'headline', type: 'text', bind: 'headline', box: pct({ x: headX, y, w: W - M - headX, h: headH }), font: 'display', size: m.headline, weight: headlineWeight, color: 'ink', align: 'right', maxLines: oneLine ? 1 : m.headlineLines, lineHeight: 1.06 });
     if (def.price) {
       layers.push({ id: 'price', type: 'text', bind: 'price', box: pct({ x: M, y, w: priceW, h: m.priceH }), font: 'display', size: m.price, weight: 900, color: 'primary', align: 'left', maxLines: 1, lineHeight: 1 });
       if (def.price.note) layers.push({ id: 'price_note', type: 'text', bind: 'price_note', box: pct({ x: M, y: y + m.priceH + 6, w: priceW, h: 32 }), font: 'accent', size: 24, weight: 400, color: 'muted', align: 'left', maxLines: 1, letterSpacing: 0.04 });
     }
-    y += m.headlineH + 12;
-    if (def.subline) {
+    y += headH + 12;
+    if (def.bullets) {
       const sx = def.deco ? 260 : M;
-      layers.push({ id: 'subline', type: 'text', bind: 'subline', box: pct({ x: sx, y, w: W - M - sx, h: m.subline + 14 }), font: 'body', size: m.subline, weight: 400, color: 'muted', align: 'right', maxLines: 1 });
+      def.bullets.forEach((_, i) => {
+        layers.push({ id: `line_${i + 1}`, type: 'text', bind: `line_${i + 1}`, box: pct({ x: sx, y: y + i * m.bulletH, w: W - M - sx, h: m.bulletH }), font: 'body', size: m.bullet, weight: i === 0 ? 600 : 400, color: 'ink', align: 'right', maxLines: 1 });
+      });
+    } else if (def.subline) {
+      const sx = def.deco ? 260 : M;
+      const two = def.subline.lines === 2;
+      layers.push({ id: 'subline', type: 'text', bind: 'subline', box: pct({ x: sx, y, w: W - M - sx, h: two ? m.subline * 2.8 : m.subline + 14 }), font: 'body', size: m.subline, weight: 400, color: 'muted', align: 'right', maxLines: two ? 2 : 1, ...(two ? { lineHeight: 1.35 } : {}) });
     }
   }
 
@@ -196,8 +212,9 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
     layers,
   };
   if (def.holiday) t.holiday = def.holiday;
+  t.group = def.group;
   return t;
 }
 
 /** Feed 4:5 and story 9:16 of one definition. */
-export const creamTemplates = (def: CreamDef): Template[] => [creamTemplate(def, 'feed45'), creamTemplate(def, 'story')];
+export const creamTemplates = (def: CreamDef): Template[] => (def.formats || ['feed45', 'story']).map((f) => creamTemplate(def, f));
