@@ -90,7 +90,7 @@ export interface GroupSuggestion {
 // =====================
 // Helper: Build business context string for prompts
 // =====================
-function buildBusinessContext(profile: BusinessProfile): string {
+export function buildBusinessContext(profile: BusinessProfile): string {
   const parts: string[] = []
 
   if (profile.business_name) {
@@ -178,7 +178,7 @@ export const GROUNDING_RULES = `== כללי דיוק — מחייבים ==
 // =====================
 // Helper: Parse JSON from Claude (strips markdown fences)
 // =====================
-function parseClaudeJSON<T>(text: string): T {
+export function parseClaudeJSON<T>(text: string): T {
   const cleanText = text.replace(/```json|```/g, '').trim()
   return JSON.parse(cleanText) as T
 }

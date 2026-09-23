@@ -18,6 +18,7 @@ import { captureElementPng, downloadBlob, uploadExport } from './exportPng';
 import Sheet from '../Sheet';
 import CesdkEditor from './CesdkEditor';
 import { EDITOR_AVAILABLE } from './renderers';
+import AiFill from './AiFill';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const label = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4, display: 'block' };
@@ -116,6 +117,12 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
         </div>
 
         <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+          <AiFill
+            template={template} designId={design.id} readOnly={readOnly} toast={toast}
+            imageSlot={template.slots.find((s) => s.sources.includes('ai')) || null}
+            onValues={(v) => { setValues((p) => ({ ...p, ...v })); setDirty(true); }}
+            onImage={(slotKey, url) => { setImages((p) => ({ ...p, [slotKey]: url })); setDirty(true); }}
+          />
           {template.slots.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <span style={label}>תמונות</span>
