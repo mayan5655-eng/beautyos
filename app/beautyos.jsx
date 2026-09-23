@@ -40,7 +40,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
-import { isTabVisible, visibleTabIds } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 
@@ -6428,20 +6428,25 @@ export default function BeautyOS() {
 
   // Bottom bar: the five destinations she reaches most in a working day.
   // Everything else lives behind "עוד" so the bar never crowds.
+  // The day's five. Leads and messages live inside לקוחות (a segment bar on
+  // those three screens), so the bar holds what she opens every day and
+  // תוכן, the one door to posts, reels and campaigns.
   const BOTTOM_NAV = [
+    {id:"dashboard", label:"היום"},
     {id:"calendar",  label:"יומן"},
     {id:"clients",   label:"לקוחות"},
-    {id:"leads",     label:"לידים"},
     {id:"cashier",   label:"תשלום"},
-    {id:"dashboard", label:"בית"},
-  ];
+    {id:"campaigns", label:"תוכן"},
+  ].filter(item => isTabVisible(settings, item.id));
+  // Screens that highlight לקוחות in the bar: people, however they arrived.
+  const PEOPLE_TABS = ["clients","leads","whatsapp"];
   // The three one-insert stubs (community, packages, protocols) are filtered
   // out of BOTH nav lists unless this tenant has opted back in. Hidden, not
   // deleted: every loader, render block and table below is untouched, so the
   // flag brings a tab back with its data intact. campaigns and insights are
   // never filtered - see lib/featureFlags.ts for why that is a deliberate
   // exception and not an oversight.
-  const MORE_NAV = visibleTabIds(settings, ["insights","tax","campaigns","community","packages","protocols","advisor","whatsapp","help"]);
+  const MORE_NAV = visibleTabIds(settings, ["insights","tax","packages","protocols","advisor","community","help"]);
 
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
@@ -6452,13 +6457,28 @@ export default function BeautyOS() {
     {id:"cashier",  label:"קופה"},
     {id:"tax",      label:"סיכום הכנסות"},
     {id:"whatsapp", label:"הודעות"},
-    {id:"campaigns",label:"שיווק"},
+    {id:"campaigns",label:"תוכן"},
     {id:"community",label:"קהילה"},
     {id:"packages", label:"מנויים"},
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
     {id:"help",     label:"עזרה"},
   ].filter(item => isTabVisible(settings, item.id));
+  // לקוחות · פניות · הודעות: one row of chips on each of the three people
+  // screens, so they read as one place. Leads keeps its badge here.
+  const peopleSegments = () => {
+    const segs = [["clients","לקוחות"],["leads","פניות"],["whatsapp","הודעות"]].filter(([id]) => isTabVisible(settings, id));
+    if (segs.length < 2) return null;
+    return (
+ <div style={{display:"inline-flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
+        {segs.map(([id,label])=>(
+ <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
+            {label}{id==="leads"&&newLeadsCount>0&&<span style={{background:activeTab===id?"rgba(255,255,255,0.35)":pcGrad,color:activeTab===id?"inherit":"var(--pc-contrast)",fontSize:"var(--t-xs)",fontWeight:700,padding:"1px 7px",borderRadius:"var(--r-full)"}}>{newLeadsCount}</span>}
+ </button>
+        ))}
+ </div>
+    );
+  };
   const navIcon = (id) => {
     const p = { fill:"none", stroke:"currentColor", strokeWidth:1.6, strokeLinecap:"round", strokeLinejoin:"round" };
     const svg = (children) => <svg viewBox="0 0 24 24" width="19" height="19">{children}</svg>;
@@ -8061,6 +8081,7 @@ ${c.claimUrl}`)}`;
           {/* CLIENTS */}
           {activeTab==="clients"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ {peopleSegments()}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>ניהול קשרי לקוחות</p>
@@ -8133,6 +8154,7 @@ ${c.claimUrl}`)}`;
           {/* LEADS */}
           {activeTab==="leads"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ {peopleSegments()}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>צינור מכירות</p>
@@ -8251,6 +8273,7 @@ ${c.claimUrl}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה וקבלות</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תשלומים</h2>
+ <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>
@@ -8413,6 +8436,7 @@ ${c.claimUrl}`)}`;
 
             return(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+ {peopleSegments()}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>מרכז הודעות</h2>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
@@ -8576,8 +8600,8 @@ ${c.claimUrl}`)}`;
           {/* CAMPAIGNS */}
           {activeTab==="campaigns"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>שיווק וצמיחה</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:16}}>שיווק</h2>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>פוסטים, רילסים וקמפיינים</p>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:16}}>תוכן</h2>
 
  <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
@@ -10247,7 +10271,7 @@ ${c.claimUrl}`)}`;
         alignItems:"stretch",
         paddingBottom:"env(safe-area-inset-bottom, 0px)"}}>
         {BOTTOM_NAV.map(item=>{
-          const on = activeTab===item.id;
+          const on = activeTab===item.id || (item.id==="clients" && PEOPLE_TABS.includes(activeTab));
           return (
  <button key={item.id} onClick={()=>{setActiveTab(item.id);setShowMoreSheet(false);}}
         aria-current={on?"page":undefined} aria-label={item.label}
@@ -10258,7 +10282,7 @@ ${c.claimUrl}`)}`;
  <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:38,height:26,
                borderRadius:"var(--r-sm)",background:on?"var(--pc-tint)":"transparent",transition:"background 0.18s"}}>
               {navIcon(item.id)}
-              {item.id==="leads"&&newLeadsCount>0&&(
+              {item.id==="clients"&&newLeadsCount>0&&(
  <span style={{position:"absolute",top:4,insetInlineEnd:"50%",transform:"translateX(50%) translateX(14px)",
                background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,lineHeight:1,
                padding:"2px 6px",borderRadius:"var(--r-lg)",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>
@@ -10652,6 +10676,15 @@ ${c.claimUrl}`)}`;
  <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div style={{gridColumn:"1 / -1",marginTop:6,padding:"12px 14px",border:"1px solid var(--line)",borderRadius:"var(--r-md)",background:"var(--surface-2)"}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>הקישורים שלך</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>העמודים הפומבניים שלך, בצבעים שלך. העתיקי ושלחי.</p>
+ <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+ <button onClick={()=>copyPublicLink("book")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>עמוד ההזמנות</button>
+ <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>סורק העור</button>
+                    {isTabVisible(settings,"community")&&<button onClick={()=>copyPublicLink("community")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>הקהילה</button>}
+ </div>
+ </div>
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
@@ -10768,6 +10801,18 @@ ${c.claimUrl}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
  <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
+
+ <div style={{marginTop:22}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>מסכים נוספים</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>מה שכבוי כאן יוצא מהתפריט; הנתונים נשארים, ואפשר להחזיר בכל רגע.</p>
+                    {SWITCHABLE_TABS.map((id)=>{
+                      const on = isTabVisible(editSettings, id);
+                      return <AutoToggleRow key={id} pc={pc} label={SWITCHABLE_LABELS[id]} on={on} onChange={()=>{
+                        const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
+                        setAutos({...autos, screens:{...screens, [id]: !on}});
+                      }} />;
+                    })}
+ </div>
  {botOn&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>מתי הבוט יענה?</p>

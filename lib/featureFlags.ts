@@ -49,6 +49,20 @@
 
 /** Tabs that are hidden unless a tenant explicitly opts back in. */
 export const STUB_TABS = ['protocols', 'community'] as const;
+/**
+ * Tabs she can switch off herself (Settings -> אוטומציות -> מסכים נוספים).
+ * On by default; only an explicit false hides one. Stored under
+ * automations.screens, which - unlike feature_flags - the settings save
+ * route lets a tenant write, because it only ever hides a screen she owns.
+ */
+export const SWITCHABLE_TABS = ['packages', 'advisor', 'leads', 'protocols', 'community'] as const;
+export const SWITCHABLE_LABELS: Record<(typeof SWITCHABLE_TABS)[number], string> = {
+  packages: 'מנויים וחבילות',
+  advisor: 'יועץ AI',
+  leads: 'פניות (לידים)',
+  protocols: 'פרוטוקולים',
+  community: 'קהילה',
+};
 
 /** Tabs that must never be hidden by this mechanism. Guarded, not documented. */
 export const NEVER_HIDDEN = ['campaigns', 'insights'] as const;
@@ -71,6 +85,7 @@ const asObject = (v: unknown): Flags =>
 export function tenantFlags(settings: SettingsLike): Flags {
   const automations = asObject(settings?.automations);
   return {
+    ...asObject(automations.screens),
     ...asObject(automations.feature_flags),
     ...asObject(settings?.feature_flags),
   };
@@ -88,8 +103,10 @@ export function tenantFlags(settings: SettingsLike): Flags {
  */
 export function isTabVisible(settings: SettingsLike, tabId: string): boolean {
   if ((NEVER_HIDDEN as readonly string[]).includes(tabId)) return true;
-  if (!(STUB_TABS as readonly string[]).includes(tabId)) return true;
-  return tenantFlags(settings)[tabId] === true;
+  const flags = tenantFlags(settings);
+  if ((STUB_TABS as readonly string[]).includes(tabId)) return flags[tabId] === true;
+  if ((SWITCHABLE_TABS as readonly string[]).includes(tabId)) return flags[tabId] !== false;
+  return true;
 }
 
 /** Filter a list of tab ids. Order is preserved. */
