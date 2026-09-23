@@ -15,7 +15,6 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
-import ReelStudio from "./ReelStudio";
 import dynamic from "next/dynamic";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
@@ -1078,14 +1077,6 @@ export default function BeautyOS() {
   // {title, messageTemplate, candidates:[{name,phone,claimUrl}], greenApiConnected, autoSend}
   const [composeSend,     setComposeSend]     = useState(null);
   const [composeDone,     setComposeDone]     = useState({});   // phone -> true after tap
-  const [groups,         setGroups]         = useState(null);
-  const [groupsLoading,  setGroupsLoading]  = useState(false);
-  const [groupsError,    setGroupsError]    = useState(null);
-  const [savedCampaigns, setSavedCampaigns] = useState(null);
-  // Kept apart from savedCampaigns on purpose: "we could not load them" and
-  // "you have none" are different sentences, and null alone renders as a
-  // spinner that never stops.
-  const [campaignsError, setCampaignsError] = useState("");
   // AI business advisor chat
   const [advisorMessages, setAdvisorMessages] = useState(null); // null = not loaded yet
   const [advisorInput,    setAdvisorInput]    = useState("");
@@ -1116,9 +1107,6 @@ export default function BeautyOS() {
   const recognitionRef = useRef(null);
   const [aiPostsView,    setAiPostsView]    = useState("studio"); // studio | saved | reels | shootlist
   // The planning agent's output: {week_note, ideas:[...]} from /api/marketing/shooting-list
-  const [shootList,      setShootList]      = useState(null);
-  const [shootLoading,   setShootLoading]   = useState(false);
-  const [shootError,     setShootError]     = useState(null);
   // AI reel generator
   const [reelTopic,   setReelTopic]   = useState("");
   // Length and vibe: /api/marketing/reel has always accepted these two and the
@@ -2085,14 +2073,6 @@ export default function BeautyOS() {
   useEffect(() => {
     if (!isTabVisible(settings, activeTab)) setActiveTab("dashboard");
   }, [settings, activeTab]);
-
-  // Load saved campaigns the first time the AI marketing view is opened
-  useEffect(() => {
-    if (activeTab === "campaigns" && marketingView === "ai" && savedCampaigns === null) {
-      loadSavedCampaigns();
-    }
-    /* eslint-disable-next-line */
-  }, [activeTab, marketingView]);
 
   useEffect(() => {
     if (activeTab === "community") loadCommunityPosts();
@@ -6022,24 +6002,6 @@ export default function BeautyOS() {
   };
 
   // === AI MARKETING: full flow (strategy -> posts with images, + groups) ===
-  const generateShootingList = async () => {
-    if (shootLoading) return;
-    setShootLoading(true); setShootError(null);
-    try {
-      const res = await fetch("/api/marketing/shooting-list", { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.success && data.list) {
-        setShootList(data.list);
-      } else {
-        setShootError(data.error || "יצירת הרשימה נכשלה");
-      }
-    } catch (err) {
-      setShootError(err.message);
-    } finally {
-      setShootLoading(false);
-    }
-  };
-
   const generateReel = async () => {
     if (!reelTopic.trim()) { toast("כתבי נושא לרילס", "error"); return; }
     if (reelLoading) return;
@@ -6063,33 +6025,6 @@ export default function BeautyOS() {
     }
   };
 
-  const loadGroups = async () => {
-    if (groupsLoading) return;
-    setGroupsLoading(true); setGroupsError(null);
-    try {
-      const res = await fetch("/api/marketing/groups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: 10 }),
-      });
-      const data = await res.json();
-      if (res.ok && data.groups) {
-        setGroups(data.groups);
-      } else {
-        setGroupsError(data.error || "טעינת הקבוצות נכשלה");
-      }
-    } catch (err) {
-      setGroupsError(err.message);
-    } finally {
-      setGroupsLoading(false);
-    }
-  };
-
-  // Copy a public link (scanner / booking) for the current tenant
-  //
-  // The SCANNER link is now signed, and the signing secret is server-only, so
-  // it cannot be assembled here any more - it is fetched. Booking and community
-  // links are unchanged.
   const copyPublicLink = async (kind) => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק — נסי לרענן", "error"); return; }
@@ -6268,18 +6203,6 @@ export default function BeautyOS() {
     });
   };
 
-  const copyPost = async (v) => {
-    const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      toast("הפוסט הועתק — אפשר להדביק בפייסבוק/אינסטגרם");
-    } catch {
-      toast("לא ניתן להעתיק אוטומטית", "error");
-    }
-  };
-
-  // Open Facebook's share dialog. We also copy the post text to the clipboard
-  // so she can paste it straight into the Facebook composer.
   const loadWaMessages = async () => {
     setWaLogLoading(true); setWaLogError("");
     try {
@@ -6310,40 +6233,6 @@ export default function BeautyOS() {
     general:"כללי",
   };
 
-  const loadSavedCampaigns = async () => {
-    setCampaignsError("");
-    try {
-      const res = await fetch("/api/marketing/list");
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && data.campaigns) { setSavedCampaigns(data.campaigns); return; }
-      setCampaignsError("לא הצלחנו לטעון את הקמפיינים השמורים");
-    } catch {
-      setCampaignsError("אין חיבור לשרת. הקמפיינים השמורים לא נטענו");
-    }
-  };
-
-  const deleteCampaign = (campaignId) => {
-    if (guardWrite()) return;
-    askConfirm({
-      title: "מחיקת קמפיין",
-      message: "למחוק את הקמפיין וכל הפוסטים שלו?",
-      confirmText: "מחיקה",
-      danger: true,
-      onConfirm: async () => {
-        const res = await fetch("/api/marketing/delete-campaign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ campaignId }),
-        });
-        if (res.ok) {
-          toast("הקמפיין נמחק");
-          loadSavedCampaigns();
-        } else {
-          toast("המחיקה נכשלה", "error");
-        }
-      },
-    });
-  };
 
   if(loading) return (
     <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",padding:"22px 18px",fontFamily:"'Heebo',sans-serif"}}>
@@ -8605,7 +8494,7 @@ ${c.claimUrl}`)}`;
 
  <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
- <button onClick={()=>{setMarketingView("ai");if(savedCampaigns===null)loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="ai"?pcGrad:"transparent",color:marketingView==="ai"?"var(--pc-contrast)":"var(--ink-2)"}}>תוכן AI</button>
+ <button onClick={()=>setMarketingView("ai")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="ai"?pcGrad:"transparent",color:marketingView==="ai"?"var(--pc-contrast)":"var(--ink-2)"}}>תוכן AI</button>
  </div>
 
  {marketingView==="campaigns"&&(<>
@@ -8773,125 +8662,11 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
  <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)",flexWrap:"wrap",justifyContent:"center"}}>
  <button onClick={()=>setAiPostsView("studio")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="studio"?pcGrad:"transparent",color:aiPostsView==="studio"?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600}}>סטודיו</button>
- <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="saved"?pcGrad:"transparent",color:aiPostsView==="saved"?"var(--pc-contrast)":"var(--ink-2)"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
- <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="film" size={14}/> רילסים</button>
- <button onClick={()=>setAiPostsView("shootlist")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="shootlist"?pcGrad:"transparent",color:aiPostsView==="shootlist"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="clipboard" size={14}/> מה לצלם השבוע</button>
+ <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="film" size={14}/> תסריט לצילום</button>
  </div>
  </div>
 
- {aiPostsView==="studio"&&<DesignStudio settings={settings} readOnly={readOnly} toast={toast}/>}
-
- {aiPostsView==="saved"&&(<>
- <div className="glass-card" style={{padding:"22px 24px",marginTop:24}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קבוצות פייסבוק לפרסום</h3>
- <button onClick={loadGroups} disabled={groupsLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{groupsLoading?<Spinner inline label="מחפשת"/>:groups===null?"הציעי לי קבוצות":"רענני"}</button>
- </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",marginBottom:groups?14:0}}>קבוצות שכדאי לחפש ולהצטרף אליהן כדי לפרסם בהן</p>
- {groupsError&&<p style={{fontSize:"var(--t-xs)",color:pc,fontWeight:600,marginTop:10}}>{groupsError}</p>}
-                  {/* An empty array is a successful load that found nothing, and
-                      it used to render exactly like a button that did nothing.
-                      null is "never asked", so the two are distinguishable. */}
-                  {groups&&groups.length===0&&!groupsError&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",fontWeight:600,marginTop:10}}>לא נמצאו קבוצות מתאימות כרגע. אפשר לנסות שוב מאוחר יותר.</p>}
- {groups&&groups.length>0&&groups.map((g,i)=>(
- <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 0",borderBottom:i<groups.length-1?"1px solid var(--surface-2)":"none"}}>
- <div style={{flex:1,minWidth:0}}>
- <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{g.name}</p>
- <span style={{fontSize:"var(--t-xs)",background:"var(--pc-tint)",color:pc,padding:"2px 8px",borderRadius:"var(--r-lg)",fontWeight:500}}>{g.category}</span>
- </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>{g.reasoning}</p>
- </div>
- <a href={`https://www.facebook.com/search/groups/?q=${encodeURIComponent(g.name)}`} target="_blank" rel="noreferrer" className="wa-btn" style={{background:"#5580C4",padding:"5px 10px",fontSize:"var(--t-sm)",whiteSpace:"nowrap"}}>חפשי</a>
- </div>
- ))}
- </div>
- </>)}
-
- {aiPostsView==="saved"&&(<>
- {campaignsError&&(
- <div style={{textAlign:"center",padding:"24px 16px"}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)",marginBottom:4}}>{campaignsError}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:12}}>הקמפיינים עדיין שם — זו בעיית טעינה בלבד.</p>
- <button onClick={loadSavedCampaigns} className="empty-cta" style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"10px 20px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>נסי שוב</button>
- </div>
- )}
- {!campaignsError&&savedCampaigns===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",padding:"30px 0"}}><Spinner inline label="טוען"/></p>}
- {savedCampaigns&&savedCampaigns.length===0&&(
- <div className="pop-in" style={{background:"var(--grad-hero)",borderRadius:"var(--r-lg)",padding:"46px 20px",textAlign:"center",border:"1px solid var(--line)"}}>
- <div style={{width:56,height:56,borderRadius:"var(--r-lg)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>✦</div>
- <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>עדיין לא שמרת קמפיינים</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>צרי פוסטים בלשונית "יצירת פוסטים" ולחצי "שמרי את הקמפיין"</p>
- </div>
- )}
- {savedCampaigns&&savedCampaigns.length>0&&savedCampaigns.map(c=>(
- <div key={c.id} className="glass-card card-flush" style={{marginBottom:14}}>
- <div style={{background:"var(--pc-tint)",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,borderBottom:"1px solid var(--line)"}}>
- <div style={{flex:1,minWidth:0}}>
- <p className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)"}}>{c.name||c.goal}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>{c.created_at?new Date(c.created_at).toLocaleDateString("he-IL"):""} · {(c.posts||[]).length} פוסטים</p>
- </div>
- <button onClick={()=>deleteCampaign(c.id)} className="primary-btn" style={{padding:"5px 12px",background:"var(--surface)",color:"var(--danger)",border:"1px solid rgba(224,91,111,0.10)",fontSize:"var(--t-sm)"}}>מחקי</button>
- </div>
- <div style={{padding:"14px 18px"}}>
- {c.ai_strategy&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>{c.ai_strategy}</p>}
- {(c.posts||[]).map((p,i)=>(
- <div key={i} style={{borderTop:i>0?"1px solid var(--surface-2)":"none",padding:"10px 0"}}>
- {/* Saved list is a preview, so prefer the thumbnail and fall back to the
-     full image. Skipped entirely when the post has no image. */}
- {(p.image_thumb_url||p.image_url)&&(
- <div style={{position:"relative",borderRadius:"var(--r-sm)",overflow:"hidden",marginBottom:8}}>
- <img alt={p.image_alt||p.title||""} src={p.image_thumb_url||p.image_url} style={{width:"100%",height:140,objectFit:"cover",objectPosition:"center",display:"block"}}/>
- {p.image_credit_name&&(
- <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:"var(--t-xs)",padding:"2px 7px",borderRadius:"var(--r-sm)"}}>
- {/* Unsplash terms require the photographer name to link to their profile. */}
- צילום: {p.image_credit_url?<a href={p.image_credit_url} target="_blank" rel="noopener noreferrer" style={{color:"var(--surface)",textDecoration:"underline"}}>{p.image_credit_name}</a>:p.image_credit_name}
- </span>
- )}
- </div>
- )}
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,gap:6}}>
- {p.title&&<p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)"}}>{p.title}</p>}
- <button onClick={()=>copyPost({body:p.body,callToAction:p.call_to_action,hashtags:p.hashtags})} className="primary-btn" style={{padding:"4px 10px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",flexShrink:0}}>העתיקי</button>
- </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>
- {p.call_to_action&&<p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600,marginTop:4}}>{p.call_to_action}</p>}
- {p.hashtags&&p.hashtags.length>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:4}}>{p.hashtags.join(" ")}</p>}
- </div>
- ))}
- </div>
- </div>
- ))}
- </>)}
-
- {aiPostsView==="shootlist"&&(<>
- <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
- <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>רשימת צילומים לשבוע</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>3-5 רעיונות ספציפיים לפי השירותים שלך, העונה, היומן שלך ומה שכבר פרסמת. כל רעיון — 10 דקות בקליניקה עם הטלפון.</p>
- <button onClick={generateShootingList} disabled={shootLoading} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",opacity:shootLoading?0.6:1}}>{shootLoading?<Spinner inline label="מכינה רשימה"/>:shootList?"רשימה חדשה":"מה לצלם השבוע?"}</button>
- {shootError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",marginTop:10}}>{shootError}</p>}
- </div>
- {shootList&&(<>
- {shootList.week_note&&<p style={{fontSize:"var(--t-sm)",color:pcDeep,fontWeight:600,marginBottom:12,padding:"0 4px"}}>✦ {shootList.week_note}</p>}
- {(shootList.ideas||[]).map((idea,i)=>(
- <div key={i} className="glass-card" style={{padding:"16px 18px",marginBottom:10}}>
- <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
- <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",flex:1,minWidth:0}}>{idea.title}</p>
- {idea.no_face&&<span style={{fontSize:"var(--t-xs)",fontWeight:700,color:pcDeep,background:"var(--pc-tint)",borderRadius:"var(--r-full)",padding:"3px 9px",whiteSpace:"nowrap"}}>בלי להצטלם</span>}
- </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:8}}>{idea.brief}</p>
- <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",flex:1,minWidth:0}}>
-   {[idea.film_day?`📅 ${idea.film_day}`:null, idea.minutes?`⏱ ${idea.minutes} דק'`:null, idea.service?`✂ ${idea.service}`:null].filter(Boolean).join("  ·  ")}
- </p>
- {/* The handoff: this idea IS a reel topic. One tap carries it into the
-     existing generator - the planning agent feeds the content agent. */}
- <button onClick={()=>{setReelTopic(idea.title+(idea.brief?" — "+idea.brief:""));setAiPostsView("reels");}} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"7px 14px",fontSize:"var(--t-sm)",whiteSpace:"nowrap"}}><Icon name="film" size={14}/> צרי רילס מזה</button>
- </div>
- </div>
- ))}
- </>)}
- </>)}
+ {aiPostsView==="studio"&&<DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services}/>}
 
  {aiPostsView==="reels"&&(<>
  <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
@@ -8983,9 +8758,6 @@ ${c.claimUrl}`)}`;
      the same time: reelData is right there in state, so the script never has
      to survive a route change or be persisted to be passed along. The old
      page was deleted in the truth pass; this is the studio's only home. */}
- <div style={{borderTop:"1px solid var(--line)",marginTop:22,paddingTop:22}}>
- <ReelStudio primaryColor={pc} businessName={settings.business_name||""} script={reelData}/>
- </div>
  </div>)}
  {/* cesdk-poc: on the reels view whether or not a script has been generated - the POC does not need one */}
  {CESDK_POC && <CesdkReelPoc settings={settings}/>}

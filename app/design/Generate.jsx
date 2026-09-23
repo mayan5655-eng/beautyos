@@ -13,6 +13,8 @@ import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import { getTemplate } from '@/lib/design/templates';
+import { getReel } from '@/lib/design/reels';
+import { fillReel } from '@/lib/design/reel';
 import { fillTemplate } from '@/lib/design/mapBranding';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '10px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)', resize: 'vertical', minHeight: 64 };
@@ -24,9 +26,10 @@ async function fetchAllowance() {
   return res.ok && data?.success ? { used: data.used, cap: data.cap } : null;
 }
 
-export default function Generate({ settings, readOnly, toast, onCreated, onOpen }) {
-  const [brief, setBrief] = useState('');
-  const [format, setFormat] = useState('feed45');
+/** @param preset { brief, format } to start from (the week view hands over a filming idea as a reel brief); remount with a key to apply a new one. */
+export default function Generate({ settings, readOnly, toast, onCreated, onOpen, preset = null }) {
+  const [brief, setBrief] = useState(preset?.brief || '');
+  const [format, setFormat] = useState(preset?.format || 'feed45');
   const [allowance, setAllowance] = useState(null); // { used, cap } | null while loading
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { options, copy }
@@ -80,12 +83,12 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen 
           <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: מבצע לטיפול פנים קלאסי ב-249 ₪ לפני ראש השנה" style={input} dir="rtl" maxLength={400} rows={2} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 4 }}>
-              {[['feed45', 'פוסט 4:5'], ['story', 'סטורי 9:16']].map(([k, l]) => (
+              {[['feed45', 'פוסט 4:5'], ['story', 'סטורי 9:16'], ['reel', 'רילס']].map(([k, l]) => (
                 <button key={k} onClick={() => setFormat(k)} style={{ ...btn, minHeight: 34, padding: '5px 12px', background: format === k ? 'var(--pc)' : 'var(--surface)', color: format === k ? 'var(--pc-contrast)' : 'var(--ink-2)' }}>{l}</button>
               ))}
             </div>
             <button onClick={generate} disabled={busy || readOnly || allowance === null} className="primary-btn" style={{ padding: '10px 18px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', marginInlineStart: 'auto', opacity: busy || readOnly ? 0.6 : 1 }}>
-              {busy ? <Spinner inline label="בונה שלוש אפשרויות, עד דקה" /> : 'צרי לי פוסט'}
+              {busy ? <Spinner inline label="בונה שלוש אפשרויות, עד דקה" /> : format === 'reel' ? 'צרי לי רילס' : 'צרי לי פוסט'}
             </button>
           </div>
         </>
@@ -96,9 +99,10 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen 
         <div style={{ marginTop: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
             {result.options.map((d, i) => {
-              const t = getTemplate(d.template_key, d.template_version);
+              const reel = d.format === 'reel' ? getReel(d.template_key, d.template_version) : null;
+              const t = reel ? reel.scenes[0].frame : getTemplate(d.template_key, d.template_version);
               if (!t) return null;
-              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
+              const fill = reel ? fillReel(reel, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand }).scenes[0] : fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
                 <div key={d.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

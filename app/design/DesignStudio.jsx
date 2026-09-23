@@ -19,6 +19,8 @@ import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
 import Generate from './Generate';
+import WeekView from './WeekView';
+import Archive from './Archive';
 import { latestReels, getReel } from '@/lib/design/reels';
 import { fillReel } from '@/lib/design/reel';
 import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
@@ -50,8 +52,10 @@ function openOccasions() {
   return out;
 }
 
-export default function DesignStudio({ settings, readOnly, toast }) {
-  const [view, setView] = useState('templates'); // the door's views: templates | mine
+export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [] }) {
+  const [view, setView] = useState('week'); // the door's views: week | templates | mine
+  const [preset, setPreset] = useState(null); // a brief handed to the AI card, e.g. a filming idea as a reel
+  const [presetKey, setPresetKey] = useState(0);
   const [group, setGroup] = useState(null); // null = all three groups, each under its heading
   const [designs, setDesigns] = useState(null);
   const [open, setOpen] = useState(null); // design being edited
@@ -79,11 +83,11 @@ export default function DesignStudio({ settings, readOnly, toast }) {
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
 
-  const create = async (t) => {
+  const create = async (t, values = null) => {
     if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
     setCreating(t.key); setError('');
     try {
-      const res = await fetch('/api/designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateKey: t.key, templateVersion: t.version }) });
+      const res = await fetch('/api/designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateKey: t.key, templateVersion: t.version, ...(values ? { values } : {}) }) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.error || 'לא הצלחנו ליצור עיצוב');
       setDesigns((p) => [data.design, ...(p || [])]);
@@ -217,13 +221,22 @@ export default function DesignStudio({ settings, readOnly, toast }) {
   return (
     <>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {viewChip('week', 'השבוע')}
         {viewChip('templates', 'תבניות')}
         {viewChip('mine', 'שלי', (designs || []).length)}
       </div>
 
-      {view === 'templates' && <Generate settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => { setDesigns((p) => [...list, ...(p || [])]); }} onOpen={(d) => setOpen(d)} />}
+      {view === 'week' && (
+        <>
+          <WeekView settings={settings} appointments={appointments} services={services} designs={designs || []} readOnly={readOnly} creating={creating} toast={toast}
+            onCreate={(t, values) => create(t, values)}
+            onReel={(brief) => { setPreset({ brief, format: 'reel' }); setPresetKey((k) => k + 1); toast?.('הרעיון נכנס לכרטיס ה-AI למטה'); }} />
+          <Generate key={presetKey} preset={preset} settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => { setDesigns((p) => [...list, ...(p || [])]); }} onOpen={(d) => setOpen(d)} />
+          {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 12 }}>{error}</p>}
+        </>
+      )}
 
-      {view === 'templates' && occasions.length > 0 && (
+      {false && occasions.length > 0 && (
         <div className="glass-card" style={{ padding: '18px 24px', marginBottom: 18 }}>
           {occasions.map(({ upcoming, template }) => (
             <div key={template.key} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -298,6 +311,7 @@ export default function DesignStudio({ settings, readOnly, toast }) {
             })}
           </div>
         )}
+        <Archive toast={toast} />
       </div>}
     </>
   );

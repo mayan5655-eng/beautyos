@@ -18,6 +18,7 @@ import { trackedCreate } from './usage.ts';
 import { getCallCapStatus, type CapStatus } from './callCaps.ts';
 import { buildBusinessContext, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import type { Template } from '../design/contract.ts';
+import type { Fillable } from '../design/reel.ts';
 import { sanitizeValues } from '../design/design.ts';
 import { fillableVariables } from './creativeDirector.ts';
 
@@ -48,20 +49,22 @@ export type PostPlan = {
  * in the wanted format, never one that needs a client photo with consent,
  * never one that reads her saved reviews unless she has some.
  */
-export function candidateTemplates(all: Template[], format: 'feed45' | 'story', hasReviews: boolean): Template[] {
+export function candidateTemplates<T extends Fillable>(all: T[], format: 'feed45' | 'story' | 'reel', hasReviews: boolean): T[] {
   return all.filter((t) => t.format === format
     && !t.slots.some((s) => s.consent)
     && (hasReviews || !t.variables.some((v) => v.source === 'review_text')));
 }
 
 /** The picture slot the generator fills, when the template allows an AI picture. */
-export const aiSlotOf = (t: Template) => t.slots.find((s) => s.sources.includes('ai')) || null;
+export const aiSlotOf = (t: Fillable) => t.slots.find((s) => s.sources.includes('ai')) || null;
 
-export function buildGeneratePrompt(profile: BusinessProfile, brief: string, candidates: Template[]): string {
+export function buildGeneratePrompt(profile: BusinessProfile, brief: string, candidates: Fillable[]): string {
   const catalogue = candidates.map((t) => {
     const vars = fillableVariables(t).map((v) => `"${v.key}" (${v.label}${v.kind === 'price' ? ', מחיר' : v.kind === 'cta' ? ', קריאה לפעולה' : ''}${v.maxLength ? `, עד ${v.maxLength} תווים` : ''})`).join(', ');
     const slot = aiSlotOf(t);
-    return `- key "${t.key}": ${t.name}. ${t.description}${t.holiday ? ` (חג: ${t.holiday})` : ''}. שדות: ${vars}.${slot ? ` תמונת AI: ${slot.aiHint || 'תמונה אחת מתאימה'}` : ' בלי תמונת AI.'}`;
+    const desc = (t as Template).description || '';
+    const holiday = (t as Template).holiday;
+    return `- key "${t.key}": ${t.name}. ${desc}${holiday ? ` (חג: ${holiday})` : ''}. שדות: ${vars}.${slot ? ` תמונת AI: ${slot.aiHint || 'תמונה אחת מתאימה'}` : ' בלי תמונת AI.'}`;
   }).join('\n');
 
   return `את קריאייטיב דיירקטורית לעסקי יופי בישראל. קוסמטיקאית כתבה בקשה קצרה לפוסט, ואת בונה ממנה ${OPTIONS_PER_GENERATION} אפשרויות שונות זו מזו - כל אחת תבנית מהקטלוג, הטקסטים שנכנסים לשדות שלה, ותיאור התמונה שתצולם עבורה. היא תבחר אחת ותערוך.
@@ -92,7 +95,7 @@ ${catalogue}
 }
 
 /** Claude's answer, validated against the catalogue: unknown keys dropped, values sanitised, 2-3 options or an error. */
-export function parseGeneratePlan(text: string, candidates: Template[]): PostPlan {
+export function parseGeneratePlan(text: string, candidates: Fillable[]): PostPlan {
   const raw = parseClaudeJSON<Record<string, unknown>>(text);
   const byKey = new Map(candidates.map((t) => [t.key, t]));
   const options: PostOption[] = [];
@@ -115,7 +118,7 @@ export function parseGeneratePlan(text: string, candidates: Template[]): PostPla
 const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 /** One Claude call: brief -> a plan of 2-3 options. Metered as GENERATE_CALL_SITE; that is what the cap counts. */
-export async function planPost(profile: BusinessProfile, brief: string, candidates: Template[], tenantId: string | null): Promise<PostPlan> {
+export async function planPost(profile: BusinessProfile, brief: string, candidates: Fillable[], tenantId: string | null): Promise<PostPlan> {
   const message = await trackedCreate(anthropic(), {
     model: GENERATE_MODEL,
     max_tokens: 3000,

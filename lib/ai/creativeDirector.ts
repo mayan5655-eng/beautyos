@@ -49,7 +49,7 @@ export const DIRECTOR_AVOID =
 const clean = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
 
 /** Which of the template's variables the director may fill: what she would type herself. */
-export function fillableVariables(template: Template) {
+export function fillableVariables(template: Pick<Template, 'variables'>) {
   return template.variables.filter((v) => v.source === 'user' || v.source === 'static');
 }
 

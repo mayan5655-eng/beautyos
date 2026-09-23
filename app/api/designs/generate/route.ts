@@ -28,8 +28,10 @@ import { generateImage } from '@/lib/ai/openaiImages';
 import { composeImagePrompt, type ImageFormat } from '@/lib/ai/imagePrompt';
 import { DIRECTOR_AVOID } from '@/lib/ai/creativeDirector';
 import { latestTemplates, getTemplate } from '@/lib/design/templates';
+import { latestReels, getReel } from '@/lib/design/reels';
 import { sanitizeImages } from '@/lib/design/design';
 import { candidateTemplates, aiSlotOf, planPost, generationAllowance, GENERATE_IMAGE_CALL_SITE } from '@/lib/ai/postGenerator';
+import type { Fillable } from '@/lib/design/reel';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -79,7 +81,8 @@ export async function POST(request: NextRequest) {
   try { body = (await request.json()) || {}; } catch { /* empty */ }
   const brief = String(body.brief || '').replace(/\s+/g, ' ').trim().slice(0, 400);
   if (brief.length < 3) return NextResponse.json({ success: false, error: 'כתבי מה תרצי לפרסם, למשל: מבצע לטיפול פנים לפני החג' }, { status: 400 });
-  const format: 'feed45' | 'story' = body.format === 'story' ? 'story' : 'feed45';
+  const format: 'feed45' | 'story' | 'reel' = body.format === 'story' ? 'story' : body.format === 'reel' ? 'reel' : 'feed45';
+  const imageFormat: ImageFormat = format === 'feed45' ? 'feed45' : 'story';
 
   const allowance = await generationAllowance(tenantId, settings?.ai_generation_cap);
   if (allowance.exceeded) {
@@ -88,7 +91,8 @@ export async function POST(request: NextRequest) {
 
   const branding = (settings?.branding && typeof settings.branding === 'object' ? settings.branding : {}) as Record<string, unknown>;
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
-  const candidates = candidateTemplates(latestTemplates(), format, hasReviews);
+  const pool: Fillable[] = format === 'reel' ? latestReels() : latestTemplates();
+  const candidates = candidateTemplates(pool, format, hasReviews);
   if (!candidates.length) return NextResponse.json({ success: false, error: 'אין תבניות מתאימות לפורמט הזה עדיין' }, { status: 400 });
 
   const supabase = await createClient();
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
   const storage = admin().storage.from(PUBLIC_BUCKET);
   const stamp = Date.now();
   const pictures = await Promise.all(plan.options.map(async (o, i) => {
-    const template = getTemplate(o.templateKey, o.templateVersion);
+    const template = getTemplate(o.templateKey, o.templateVersion) || getReel(o.templateKey, o.templateVersion);
     const slot = template ? aiSlotOf(template) : null;
     if (!template || !slot || !o.imageSubject) return null;
     try {
@@ -116,9 +120,9 @@ export async function POST(request: NextRequest) {
         offer: o.values.price || null,
         brandKit: { businessName: (settings?.business_name as string) || null, primaryColor: (settings?.primary_color as string) || null, secondaryColor: typeof branding.secondary_color === 'string' ? branding.secondary_color : null, visualStyle: typeof branding.brand_tone === 'string' ? branding.brand_tone : null, avoid: DIRECTOR_AVOID },
         direction: { concept: slot.aiHint || null, negativeSpace: 'bottom', palette: null },
-        format: format as ImageFormat,
+        format: imageFormat,
       });
-      const image = await generateImage({ prompt, format: format as ImageFormat, tenantId, callSite: GENERATE_IMAGE_CALL_SITE });
+      const image = await generateImage({ prompt, format: imageFormat, tenantId, callSite: GENERATE_IMAGE_CALL_SITE });
       const path = `${tenantId}/designs/gen_${stamp}_${i}.png`;
       const { error } = await storage.upload(path, image.png, { contentType: 'image/png' });
       if (error) throw new Error(error.message);
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
   const designs = [];
   for (let i = 0; i < plan.options.length; i++) {
     const o = plan.options[i];
-    const template = getTemplate(o.templateKey, o.templateVersion);
+    const template = getTemplate(o.templateKey, o.templateVersion) || getReel(o.templateKey, o.templateVersion);
     if (!template) continue;
     const pic = pictures[i];
     const { data, error } = await supabase
