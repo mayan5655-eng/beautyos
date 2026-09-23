@@ -48,6 +48,7 @@ export default function DesignStudio({ settings, readOnly, toast }) {
   const [category, setCategory] = useState(null);
   const [designs, setDesigns] = useState(null);
   const [open, setOpen] = useState(null); // design being edited
+  const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
   const [error, setError] = useState('');
 
@@ -92,14 +93,51 @@ export default function DesignStudio({ settings, readOnly, toast }) {
     );
   }
 
+  if (preview) {
+    const story = storySibling(preview.key);
+    const fill = fillTemplate(preview, { settings });
+    return (
+      <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => setPreview(null)} style={{ ...ghost, flex: 'none', padding: '8px 14px' }}><Icon name="arrow-right" size={14} /> חזרה לגלריה</button>
+          <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)' }}>{preview.name}</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>ככה זה נראה עם הלוגו, הצבע והשם שלך, לפני שנוגעים במשהו.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ width: 'min(100%, 400px)' }}>
+            <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', aspectRatio: '4 / 5' }}>
+              <DomPreview template={preview} fill={fill} width={400} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+            </div>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, textAlign: 'center' }}>פוסט 4:5</p>
+          </div>
+          {story && (
+            <div style={{ width: 'min(100%, 300px)' }}>
+              <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', aspectRatio: '9 / 16' }}>
+                <DomPreview template={story} fill={fillTemplate(story, { settings })} width={300} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} />
+              </div>
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, textAlign: 'center' }}>סטורי 9:16</p>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+          <button onClick={() => create(preview)} disabled={creating === preview.key || readOnly} className="primary-btn" style={{ padding: '9px 18px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)' }}>
+            {creating === preview.key ? <Spinner inline label="פותחת" /> : 'להשתמש בתבנית ולערוך'}
+          </button>
+          {story && <button onClick={() => create(story)} disabled={creating === story.key || readOnly} style={{ ...ghost, flex: 'none', padding: '9px 18px', fontSize: 'var(--t-sm)' }}>{creating === story.key ? <Spinner inline label="פותחת" /> : 'סטורי 9:16'}</button>}
+        </div>
+        {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
+      </div>
+    );
+  }
+
   const card = (t, blocked) => {
     const fill = fillTemplate(t, { settings });
     const story = storySibling(t.key);
     return (
       <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)' }}>
+        <button onClick={() => setPreview(t)} title="לתצוגה גדולה" style={{ padding: 0, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)', cursor: 'zoom-in', display: 'block', width: '100%' }}>
           <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
-        </div>
+        </button>
         <div>
           <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</p>
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.4 }}>{blocked ? 'צריך לפחות ביקורת אחת שמורה בהגדרות' : t.needs.length ? `צריך: ${t.needs.join(', ')}` : 'לא צריך כלום'}</p>
