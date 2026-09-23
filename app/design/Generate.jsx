@@ -98,7 +98,7 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen 
             {result.options.map((d, i) => {
               const t = getTemplate(d.template_key, d.template_version);
               if (!t) return null;
-              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images });
+              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
                 <div key={d.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

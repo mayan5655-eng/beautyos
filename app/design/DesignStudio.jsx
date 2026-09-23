@@ -218,7 +218,7 @@ export default function DesignStudio({ settings, readOnly, toast }) {
             {designs.map((d) => {
               const t = getTemplate(d.template_key, d.template_version);
               if (!t) return null;
-              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images });
+              const fill = fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
                 <button key={d.id} onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>

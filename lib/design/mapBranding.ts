@@ -14,6 +14,7 @@
 
 import { buildAccentTokens, contrastOn, hexToRgb } from '../theme.ts';
 import type { ColorRole, Template, VariableDef } from './contract.ts';
+import type { BrandToggles } from './design.ts';
 
 export type BrandingInput = {
   settings?: { business_name?: string | null; therapist_name?: string | null; business_phone?: string | null; primary_color?: string | null; branding?: unknown } | null;
@@ -25,6 +26,8 @@ export type BrandingInput = {
   reviewIndex?: number;
   /** Where her booking page lives, for booking_url. */
   bookingUrl?: string | null;
+  /** This design's brand toggles (overrides.brand): false hides the logo, the phone or the handle. */
+  brand?: BrandToggles | null;
 };
 
 export type Fill = {
@@ -99,10 +102,10 @@ function sourceValue(v: VariableDef, input: BrandingInput, branding: Record<stri
     case 'therapist_name': return clean(s.therapist_name);
     case 'therapist_title': return clean(branding.therapist_title);
     case 'booking_url': return clean(input.bookingUrl);
-    case 'phone': return clean(s.business_phone);
-    case 'instagram': return instagramHandle(branding.instagram);
-    // The strip at the bottom of every design: phone and handle, whichever she has.
-    case 'contact': return [clean(s.business_phone), instagramHandle(branding.instagram)].filter(Boolean).join('   ·   ');
+    case 'phone': return input.brand?.phone === false ? '' : clean(s.business_phone);
+    case 'instagram': return input.brand?.instagram === false ? '' : instagramHandle(branding.instagram);
+    // The strip at the bottom of every design: phone and handle, whichever she has and shows on this design.
+    case 'contact': return [input.brand?.phone === false ? '' : clean(s.business_phone), input.brand?.instagram === false ? '' : instagramHandle(branding.instagram)].filter(Boolean).join('   ·   ');
     case 'review_text': return review ? clean(review.text) : '';
     case 'review_name': return review ? clean(review.name) : '';
     case 'review_rating': return review ? stars(review.rating) : '';
@@ -152,7 +155,8 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
     images,
     colors,
     fonts: FONTS,
-    logoUrl: clean(branding.logo_url) || null,
+    // Logo off on this design: the logo layer falls back to her name, so the strip stays balanced.
+    logoUrl: input.brand?.logo === false ? null : clean(branding.logo_url) || null,
     missing,
   };
 }

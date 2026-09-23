@@ -9,6 +9,7 @@
 //   layers: { [layerId]: { box?, size?, color?, hidden?, align?, weight? } },
 //   colors: { [role]: '#hex' },          // her palette swaps
 //   order:  ['layerId', ...]              // z-order, when she reordered
+//   brand:  { logo?, phone?, instagram? } // false hides that part of the strip on THIS design
 // }
 
 import { COLOR_ROLES, type ColorRole, type Layer, type Template } from './contract.ts';
@@ -22,10 +23,14 @@ export type LayerOverride = {
   hidden?: boolean;
 };
 
+/** Which of her brand marks this design shows; absent = the default (on when she has it). */
+export type BrandToggles = { logo?: boolean; phone?: boolean; instagram?: boolean };
+
 export type Overrides = {
   layers?: Record<string, LayerOverride>;
   colors?: Partial<Record<ColorRole, string>>;
   order?: string[];
+  brand?: BrandToggles;
   /** Slot -> she confirmed the client agreed to publication (before/after). */
   consent?: Record<string, boolean>;
 };
@@ -99,6 +104,12 @@ export function sanitizeOverrides(raw: unknown): Overrides {
   if (Array.isArray(o.order)) {
     const order = o.order.filter((id): id is string => typeof id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(id));
     if (order.length) out.order = [...new Set(order)];
+  }
+  const brand = o.brand && typeof o.brand === 'object' && !Array.isArray(o.brand) ? (o.brand as Record<string, unknown>) : null;
+  if (brand) {
+    const b: BrandToggles = {};
+    for (const k of ['logo', 'phone', 'instagram'] as const) if (typeof brand[k] === 'boolean') b[k] = brand[k] as boolean;
+    if (Object.keys(b).length) out.brand = b;
   }
   const consent = o.consent && typeof o.consent === 'object' && !Array.isArray(o.consent) ? (o.consent as Record<string, unknown>) : null;
   if (consent) {

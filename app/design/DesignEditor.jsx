@@ -30,7 +30,9 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   const [consent, setConsent] = useState(design.overrides?.consent || {});
   // Her layout edits (positions, sizes, colours, hidden layers) from the
   // advanced editor; consent is kept apart and merged back on save.
-  const [overrides, setOverrides] = useState(() => { const o = { ...(design.overrides || {}) }; delete o.consent; return o; });
+  const [overrides, setOverrides] = useState(() => { const o = { ...(design.overrides || {}) }; delete o.consent; delete o.brand; return o; });
+  // Which brand marks this design shows. Absent = on when she has it.
+  const [brand, setBrand] = useState(design.overrides?.brand || {});
   const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,7 +43,11 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
 
   // State starts from the row; the parent remounts this editor (key=design.id)
   // when another design opens, so no effect has to reset anything.
-  const fill = useMemo(() => fillTemplate(template, { settings, inputs: values, images }), [template, settings, values, images]);
+  const fill = useMemo(() => fillTemplate(template, { settings, inputs: values, images, brand }), [template, settings, values, images, brand]);
+  const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
+  const has = { logo: !!branding.logo_url, phone: !!settings?.business_phone, instagram: !!branding.instagram };
+  const toggles = [['logo', 'לוגו'], ['phone', 'טלפון'], ['instagram', 'אינסטגרם']].filter(([k]) => has[k]);
+  const flip = (k) => { setBrand((p) => ({ ...p, [k]: p[k] === false })); setDirty(true); };
 
   const patch = async (body) => {
     const res = await fetch(`/api/designs/${design.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -54,7 +60,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
     if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
     setSaving(true); setError('');
     try {
-      const saved = await patch({ name, values, images, overrides: { ...overrides, consent } });
+      const saved = await patch({ name, values, images, overrides: { ...overrides, consent, brand } });
       setDirty(false); onSaved?.(saved); toast?.('העיצוב נשמר');
     } catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
   };
@@ -133,6 +139,23 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {toggles.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <span style={label}>בפוסט הזה</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {toggles.map(([k, l]) => {
+                  const on = brand[k] !== false;
+                  return (
+                    <button key={k} type="button" role="switch" aria-checked={on} onClick={() => flip(k)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: `1px solid ${on ? 'var(--pc)' : 'var(--line-2)'}`, borderRadius: 'var(--r-full)', background: on ? 'var(--pc-tint)' : 'var(--surface)', color: on ? 'var(--pc-deep)' : 'var(--ink-3)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 }}>
+                      <Icon name={on ? 'check' : 'x'} size={12} /> {l}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>בלי לוגו, השם שלך נכנס במקומו. נשמר עם העיצוב הזה בלבד.</p>
             </div>
           )}
 

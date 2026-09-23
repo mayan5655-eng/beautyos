@@ -89,6 +89,15 @@ assert.equal(strip({ business_phone: '052-1234567', branding: { instagram: 'http
 assert.equal(strip({ business_phone: '052-1234567', branding: {} }), '052-1234567');
 assert.equal(strip({ branding: { instagram: '@maya.skin' } }), '@maya.skin');
 assert.equal(strip({ branding: { instagram: 'not a handle!' } }), '', 'garbage is not a handle');
+// Per-design brand toggles: hide the phone, the handle or the logo on this design only.
+const both = { business_phone: '052-1234567', branding: { instagram: 'maya.skin', logo_url: 'https://cdn/logo.png' } };
+const withBrand = (brand: Record<string, boolean>) => fillTemplate(getTemplate('offer-feed', 2)!, { settings: both, brand });
+assert.equal(withBrand({ phone: false }).values.contact, '@maya.skin');
+assert.equal(withBrand({ instagram: false }).values.contact, '052-1234567');
+assert.equal(withBrand({ phone: false, instagram: false }).values.contact, '');
+assert.equal(withBrand({ logo: false }).logoUrl, null, 'logo off -> the layer falls back to her name');
+assert.equal(withBrand({}).logoUrl, 'https://cdn/logo.png', 'absent = on');
+assert.deepEqual(sanitizeOverrides({ brand: { logo: false, phone: 'no', instagram: true, other: false } }), { brand: { logo: false, instagram: true } });
 assert.equal(colorsFor('#4A2E5A').contrast, '#FFFFFF', 'white text on plum');
 assert.equal(colorsFor('not a colour').primary, '#5B3E67', 'malformed -> default');
 
