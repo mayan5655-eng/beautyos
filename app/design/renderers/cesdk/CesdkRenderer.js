@@ -198,7 +198,13 @@ export default class CesdkRenderer {
   async image(b) {
     const e = this.engine.block;
     const id = e.create('graphic');
-    e.setShape(id, e.createShape('rect'));
+    if (b.radius === 999) e.setShape(id, e.createShape('ellipse'));
+    else {
+      const shape = e.createShape('rect');
+      e.setShape(id, shape);
+      const top = b.shape === 'arch' ? b.w / 2 : b.radius, bottom = b.shape === 'arch' ? 0 : b.radius;
+      try { e.setFloat(shape, 'shape/rect/cornerRadiusTL', top); e.setFloat(shape, 'shape/rect/cornerRadiusTR', top); e.setFloat(shape, 'shape/rect/cornerRadiusBL', bottom); e.setFloat(shape, 'shape/rect/cornerRadiusBR', bottom); } catch { /* ignore */ }
+    }
     const src = b.ref ? await resolveImageRef(b.ref) : null;
     if (src) {
       const fill = e.createFill('image');
@@ -271,7 +277,7 @@ export default class CesdkRenderer {
     e.setFloat(id, 'text/lineHeight', b.lineHeight);
     try { e.setFloat(id, 'text/letterSpacing', b.letterSpacing || 0); } catch { /* ignore */ }
     e.setEnum(id, 'text/horizontalAlignment', b.align === 'left' ? 'Left' : b.align === 'center' ? 'Center' : 'Right');
-    try { e.setEnum(id, 'text/verticalAlignment', 'Center'); } catch { /* ignore */ }
+    try { e.setEnum(id, 'text/verticalAlignment', b.valign === 'top' ? 'Top' : b.valign === 'bottom' ? 'Bottom' : 'Center'); } catch { /* ignore */ }
     e.setFont(id, typefaceFor(b.fontFile).fonts[0].uri, typefaceFor(b.fontFile));
     e.setTextColor(id, hexToRgba(b.color));
     try { e.setBool(id, 'text/clipLinesOutsideOfFrame', true); } catch { /* ignore */ }

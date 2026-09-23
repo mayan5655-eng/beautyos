@@ -17,8 +17,8 @@ export type FontFiles = { display: string; body: string; accent: string };
 export type SceneBlock =
   | { kind: 'rect'; id: string; x: number; y: number; w: number; h: number; shape: 'rect' | 'ellipse'; color: string; opacity: number; radius: number; gradientTo: string | null; gradientAngle: number }
   | { kind: 'texture'; id: string; x: number; y: number; w: number; h: number; opacity: number; blend: 'soft-light' | 'multiply' }
-  | { kind: 'image'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fit: 'cover' | 'contain'; focusX: number; focusY: number; radius: number; overlayColor: string | null; overlayOpacity: number; overlayDirection: 'top' | 'bottom' | 'flat' | 'rise' }
-  | { kind: 'text'; id: string; x: number; y: number; w: number; h: number; bind: string; text: string; fontFile: string; sizePx: number; weight: number; color: string; align: 'right' | 'center' | 'left'; maxLines: number; lineHeight: number; letterSpacing: number; pillColor: string | null; pillRadius: number; pillPadding: number; editable: boolean }
+  | { kind: 'image'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fit: 'cover' | 'contain'; focusX: number; focusY: number; radius: number; shape: 'rect' | 'arch'; overlayColor: string | null; overlayOpacity: number; overlayDirection: 'top' | 'bottom' | 'flat' | 'rise' }
+  | { kind: 'text'; id: string; x: number; y: number; w: number; h: number; bind: string; text: string; fontFile: string; sizePx: number; weight: number; color: string; align: 'right' | 'center' | 'left'; valign: 'top' | 'center' | 'bottom'; maxLines: number; lineHeight: number; letterSpacing: number; pillColor: string | null; pillRadius: number; pillPadding: number; editable: boolean }
   | { kind: 'logo'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fallbackText: string | null; fontFile: string; color: string }
   | { kind: 'rating'; id: string; x: number; y: number; w: number; h: number; count: number; total: number; color: string; align: 'right' | 'left' }
   | { kind: 'deco'; id: string; x: number; y: number; w: number; h: number; asset: string; ref: string; color: string; opacity: number; flip: boolean };
@@ -50,7 +50,7 @@ export function buildSceneSpec(template: Template, fill: Fill, overrides: Overri
       blocks.push({ kind: 'texture', id: l.id, ...box, opacity: l.opacity, blend: l.blend || 'soft-light' });
     } else if (l.type === 'image') {
       blocks.push({
-        kind: 'image', id: l.id, ...box, ref: fill.images?.[l.slot] || null, fit: l.fit, focusX: l.focus?.x ?? 0.5, focusY: l.focus?.y ?? 0.5, radius: l.radius || 0,
+        kind: 'image', id: l.id, ...box, ref: fill.images?.[l.slot] || null, fit: l.fit, focusX: l.focus?.x ?? 0.5, focusY: l.focus?.y ?? 0.5, radius: l.radius || 0, shape: l.shape || 'rect',
         overlayColor: l.overlay ? colors[l.overlay.color] : null, overlayOpacity: l.overlay?.opacity ?? 0, overlayDirection: l.overlay?.direction || 'flat',
       });
     } else if (l.type === 'rating') {
@@ -66,7 +66,7 @@ export function buildSceneSpec(template: Template, fill: Fill, overrides: Overri
       if (!text) continue;
       blocks.push({
         kind: 'text', id: l.id, ...box, bind: l.bind, text, fontFile: l.font === 'display' ? fonts.display : l.font === 'accent' ? fonts.accent : fonts.body, sizePx: l.size, weight: l.weight || 600, color: colors[l.color],
-        align: l.align, maxLines: l.maxLines || 0, lineHeight: l.lineHeight || 1.2, letterSpacing: l.letterSpacing || 0,
+        align: l.align, valign: l.valign || 'center', maxLines: l.maxLines || 0, lineHeight: l.lineHeight || 1.2, letterSpacing: l.letterSpacing || 0,
         pillColor: l.background ? colors[l.background.color] : null, pillRadius: l.background?.radius || 0, pillPadding: l.background?.padding || 0,
         editable: l.editable !== false,
       });

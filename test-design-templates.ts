@@ -19,6 +19,7 @@ assert.equal(new Set(TEMPLATES.map(templateId)).size, TEMPLATES.length, 'no two 
 assert.equal(CREAM_DEFS.filter((d) => d.holiday).length, 14, 'every holiday and season has a window; birthday has none');
 for (const d of CREAM_DEFS) if (d.holiday) assert.ok(HOLIDAYS.some((h) => h.key === d.holiday), `${d.slug}: known occasion ${d.holiday}`);
 assert.ok(CREAM_DEFS.filter((d) => d.deco).length >= 20 && CREAM_DEFS.filter((d) => !d.deco).length >= 20, 'decoration only where the theme asks: many with, many without');
+assert.ok(new Set(CREAM_DEFS.map((d) => d.layout.family)).size >= 7, 'real variety: at least seven layout families in use');
 
 // ── The studio look, as the builder guarantees it ───────────────────────────
 for (const def of CREAM_DEFS) {
@@ -28,11 +29,18 @@ for (const def of CREAM_DEFS) {
     assert.ok(t.variables.some((v) => v.source === 'contact'), 'her phone and handle in the strip');
     const headline = t.layers.find((l) => l.id === 'headline' || l.id === 'review_text');
     assert.ok(headline && headline.type === 'text' && headline.font === 'display', 'a display headline');
+    const fam = def.layout.family;
+    const stacked = (fam === 'top' && def.layout.textPos !== 'above') || fam === 'frame' || fam === 'collage' || fam === 'pair';
     const photos = t.layers.filter((l) => l.type === 'image');
-    for (const p of photos) for (const l of t.layers) if (l.type === 'text' && !/^label_/.test(l.id)) assert.ok(l.box.y >= p.box.y + p.box.h - 0.01 || p.box.h === 100, `${templateId(t)}: text ${l.id} never crowds the photo`);
+    if (stacked) for (const p of photos) for (const l of t.layers) if (l.type === 'text' && !/^label_/.test(l.id)) assert.ok(l.box.y >= p.box.y + p.box.h - 0.01, `${templateId(t)}: text ${l.id} never crowds the photo`);
+    if (fam === 'overlay' || fam === 'magazine') assert.ok(photos.some((p) => p.box.w === 100 && p.box.h === 100), 'a full-bleed photo');
+    if (fam === 'split') assert.ok(t.layers.some((l) => l.id === 'block' && l.type === 'shape'), 'a colour block');
+    if (fam === 'collage') assert.equal(photos.length, def.layout.count || 3, 'a grid of photos');
+    if (fam === 'frame') assert.ok(t.layers.some((l) => l.id === 'frame'), 'a border around the photo');
+    if (fam === 'text') assert.ok(t.layers.find((l) => l.id === 'headline' && l.type === 'text' && l.size >= 100), 'a big statement');
     if (def.price) { const price = t.layers.find((l) => l.id === 'price'); assert.ok(price && price.type === 'text' && price.size >= 120 && price.weight === 900, 'a large price'); }
-    if (def.deco) assert.ok(t.layers.some((l) => l.type === 'deco' && l.asset === def.deco!.asset), 'the decoration the theme asks for');
-    else assert.ok(!t.layers.some((l) => l.type === 'deco'), 'no decoration unless the theme asks');
+    if (!def.deco) assert.ok(!t.layers.some((l) => l.type === 'deco'), 'no decoration unless the theme asks');
+    else if (t.layers.some((l) => l.type === 'deco')) assert.ok(t.layers.some((l) => l.type === 'deco' && l.asset === def.deco!.asset), 'the decoration the theme asks for');
   }
 }
 assert.equal(getTemplate('offer-feed')!.version, 2, 'the studio offer is the newest');

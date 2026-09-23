@@ -71,6 +71,8 @@ export type TextLayer = {
   weight?: 400 | 500 | 600 | 700 | 800 | 900;
   color: ColorRole;
   align: 'right' | 'center' | 'left';
+  /** Where the text sits inside a box taller than it; centre by default. */
+  valign?: 'top' | 'center' | 'bottom';
   /** Wrap at most this many lines; the renderer shrinks the text to fit. */
   maxLines?: number;
   lineHeight?: number;
@@ -88,7 +90,10 @@ export type ImageLayer = {
   slot: string;
   box: Box;
   fit: 'cover' | 'contain';
+  /** Corner radius in px at canvas scale; 999 = a circle (ellipse of the box). */
   radius?: number;
+  /** arch = rounded at the top only (half the width), square at the bottom. */
+  shape?: 'rect' | 'arch';
   /** Focal point (0..1) the cover crop keeps. */
   focus?: { x: number; y: number };
   /**

@@ -128,6 +128,7 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
   }
 
   const images: Record<string, string | null> = {};
+  let galleryIdx = 0, clinicIdx = 0;
   for (const slot of template.slots) {
     const picked = clean(input.images?.[slot.key]);
     let url: string | null = picked || null;
@@ -137,8 +138,8 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
       const clinic = Array.isArray(branding.clinic_photos) ? (branding.clinic_photos as unknown[]).map(clean).filter(Boolean) : [];
       if (slot.sources.includes('portrait') && clean(branding.portrait_url)) url = clean(branding.portrait_url);
       else if (slot.sources.includes('hero') && clean(branding.hero_image_url)) url = clean(branding.hero_image_url);
-      else if (slot.sources.includes('gallery') && gallery[0]) url = gallery[0];
-      else if (slot.sources.includes('clinic') && clinic[0]) url = clinic[0];
+      else if (slot.sources.includes('gallery') && gallery[galleryIdx]) url = gallery[galleryIdx++];
+      else if (slot.sources.includes('clinic') && clinic[clinicIdx]) url = clinic[clinicIdx++];
     }
     // Client photos are never auto-filled: consent is a choice she makes.
     if (slot.consent && !picked) url = null;

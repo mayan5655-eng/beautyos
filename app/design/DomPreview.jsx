@@ -29,7 +29,7 @@ const STAR = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5
 // Shrinks the text until it fits its box, to half the base size at most.
 // Works on the element's style directly: measuring and shrinking is a
 // layout concern, not state, and it must finish before paint.
-function AutoFitText({ content, basePx, lineHeight, maxLines, align, weight, font, color, pill, pillColor, letterSpacing }) {
+function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, weight, font, color, pill, pillColor, letterSpacing }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -45,7 +45,7 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, weight, fon
 
   const justify = align === 'center' ? 'center' : align === 'left' ? 'flex-start' : 'flex-end';
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: justify, direction: 'rtl' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: valign === 'top' ? 'flex-start' : valign === 'bottom' ? 'flex-end' : 'center', justifyContent: justify, direction: 'rtl' }}>
       <div
         ref={ref}
         style={{
@@ -118,7 +118,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
                 : rgba(colors[l.overlay.color], l.overlay.opacity)
             : null;
           return (
-            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})` }}>
+            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : l.shape === 'arch' ? `${(l.box.w / 100) * width / 2}px ${(l.box.w / 100) * width / 2}px 0 0` : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})` }}>
               {src && (
                 // eslint-disable-next-line @next/next/no-img-element -- her own pictures at their own size, captured by the exporter
                 <img src={src} alt="" crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: l.fit, objectPosition: `${focus.x * 100}% ${focus.y * 100}%`, display: 'block' }} />
@@ -149,7 +149,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
           return (
             <div key={l.id} style={box}>
               <AutoFitText
-                content={str} basePx={l.size * k} lineHeight={l.lineHeight} maxLines={l.maxLines} align={l.align} weight={l.weight} letterSpacing={l.letterSpacing}
+                content={str} basePx={l.size * k} lineHeight={l.lineHeight} maxLines={l.maxLines} align={l.align} valign={l.valign} weight={l.weight} letterSpacing={l.letterSpacing}
                 font={fill.fonts[l.font]} color={colors[l.color]}
                 pill={l.background || null} pillColor={l.background ? colors[l.background.color] : undefined}
               />
