@@ -8,17 +8,10 @@
 // Versions are immutable by test: templates.lock.json holds a hash of every
 // (key, version) and test-design-templates.ts fails when a hash moves.
 //
-// Two generations live here: the six hand-written v1 templates of the first
-// stage, and the studio look built from short definitions by cream.ts
-// (feed 4:5 and story 9:16 of each). New keys go in cream/*.ts.
+// Every template is built from a short definition by cream.ts (feed 4:5 and
+// story 9:16 of each, in a layout family). New keys go in cream/*.ts.
 
 import type { Template, Category, TemplateGroup } from '../contract.ts';
-import { offerFeedV1 } from './offer-feed.v1.ts';
-import { beforeAfterFeedV1 } from './before-after-feed.v1.ts';
-import { tipFeedV1 } from './tip-feed.v1.ts';
-import { reviewFeedV1 } from './review-feed.v1.ts';
-import { newTreatmentFeedV1 } from './new-treatment-feed.v1.ts';
-import { seasonalFeedV1 } from './seasonal-feed.v1.ts';
 import { creamTemplates, type CreamDef } from './cream.ts';
 import { EVERGREEN } from './cream/evergreen.ts';
 import { HOLIDAYS } from './cream/holidays.ts';
@@ -27,12 +20,6 @@ import { CLOSERS } from './cream/closers.ts';
 export const CREAM_DEFS: CreamDef[] = [...EVERGREEN, ...HOLIDAYS, ...CLOSERS];
 
 export const TEMPLATES: Template[] = [
-  offerFeedV1,
-  beforeAfterFeedV1,
-  tipFeedV1,
-  reviewFeedV1,
-  newTreatmentFeedV1,
-  seasonalFeedV1,
   ...CREAM_DEFS.flatMap(creamTemplates),
 ];
 
@@ -65,8 +52,7 @@ export function storySibling(feedKey: string): Template | null {
 /**
  * Newest templates with a card in the gallery: the studio generation only
  * (a template with a group), one card per key, stories folded into their
- * feed sibling. The first-stage v1 templates stay in TEMPLATES so saved
- * designs reopen, but they are no longer offered.
+ * feed sibling.
  */
 export function galleryTemplates(category?: Category | null, group?: TemplateGroup | null): Template[] {
   const latest = latestTemplates(category).filter((t) => t.group && (!group || t.group === group));

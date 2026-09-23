@@ -1078,18 +1078,6 @@ export default function BeautyOS() {
   // {title, messageTemplate, candidates:[{name,phone,claimUrl}], greenApiConnected, autoSend}
   const [composeSend,     setComposeSend]     = useState(null);
   const [composeDone,     setComposeDone]     = useState({});   // phone -> true after tap
-  // AI content generator (posts)
-  const [postGoal,       setPostGoal]       = useState("");
-  // Optional free text sent as CampaignInput.additionalContext.
-  const [postExtra,      setPostExtra]      = useState("");
-  // Treatments withheld from the copy as not-advertisable (botox, fillers,
-  // plasma...). Surfaced so a menu item quietly missing from every campaign
-  // has a visible reason rather than looking like the AI forgot it.
-  const [postRestricted, setPostRestricted] = useState(0);
-  const [postVariations, setPostVariations] = useState(null);
-  const [postStrategy,   setPostStrategy]   = useState(null);
-  const [postLoading,    setPostLoading]    = useState(false);
-  const [postError,      setPostError]      = useState(null);
   const [groups,         setGroups]         = useState(null);
   const [groupsLoading,  setGroupsLoading]  = useState(false);
   const [groupsError,    setGroupsError]    = useState(null);
@@ -1098,7 +1086,6 @@ export default function BeautyOS() {
   // "you have none" are different sentences, and null alone renders as a
   // spinner that never stops.
   const [campaignsError, setCampaignsError] = useState("");
-  const [savingCampaign, setSavingCampaign] = useState(false);
   // AI business advisor chat
   const [advisorMessages, setAdvisorMessages] = useState(null); // null = not loaded yet
   const [advisorInput,    setAdvisorInput]    = useState("");
@@ -1127,7 +1114,7 @@ export default function BeautyOS() {
   const [voiceCall,      setVoiceCall]     = useState(null); // { matches:[], selected: client|null }
   const [voiceReceipt,   setVoiceReceipt]  = useState(null); // { clientName, amount, payment }
   const recognitionRef = useRef(null);
-  const [aiPostsView,    setAiPostsView]    = useState("create"); // create | saved | reels | shootlist
+  const [aiPostsView,    setAiPostsView]    = useState("studio"); // studio | saved | reels | shootlist
   // The planning agent's output: {week_note, ideas:[...]} from /api/marketing/shooting-list
   const [shootList,      setShootList]      = useState(null);
   const [shootLoading,   setShootLoading]   = useState(false);
@@ -1163,9 +1150,6 @@ export default function BeautyOS() {
   const [protocolsLoading,  setProtocolsLoading]   = useState(false);
   const [communityLoading,  setCommunityLoading]   = useState(false);
   const [showPostModal,     setShowPostModal]      = useState(false);
-  const [designPost,        setDesignPost]         = useState(null);
-  const [designing,         setDesigning]          = useState(false);
-  const [designBg,          setDesignBg]           = useState(null);
   const [newPost,           setNewPost]            = useState({title:"",body:"",post_type:"update",cta_label:"",image_url:""});
   const [postImageUploading, setPostImageUploading] = useState(false);
   const [savingPost,        setSavingPost]         = useState(false);
@@ -6038,47 +6022,6 @@ export default function BeautyOS() {
   };
 
   // === AI MARKETING: full flow (strategy -> posts with images, + groups) ===
-  const generatePosts = async () => {
-    if (!postGoal.trim()) { toast("נא לכתוב מה תרצי לפרסם", "error"); return; }
-    if (postLoading) return;
-    setPostLoading(true); setPostError(null); setPostVariations(null); setPostStrategy(null);
-    try {
-      // Step 1: strategy
-      const sRes = await fetch("/api/marketing/strategy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal: postGoal.trim(), additionalContext: postExtra.trim() || undefined }),
-      });
-      const sData = await sRes.json();
-      if (!sRes.ok || !sData.strategy) {
-        setPostError(sData.error || "יצירת האסטרטגיה נכשלה");
-        setPostLoading(false);
-        return;
-      }
-      setPostStrategy(sData.strategy);
-
-      // Step 2: post variations (with Unsplash images) based on that strategy
-      const vRes = await fetch("/api/marketing/variations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ strategy: sData.strategy, count: 5 }),
-      });
-      const vData = await vRes.json();
-      // Length-checked, not just truthy: [] is truthy, so an empty result used
-      // to render as a blank screen with no error at all.
-      if (vRes.ok && Array.isArray(vData.variations) && vData.variations.length > 0) {
-        setPostVariations(vData.variations);
-        setPostRestricted(vData.restrictedServiceCount || 0);
-      } else {
-        setPostError(vData.error || "יצירת הפוסטים נכשלה");
-      }
-    } catch (err) {
-      setPostError(err.message);
-    } finally {
-      setPostLoading(false);
-    }
-  };
-
   const generateShootingList = async () => {
     if (shootLoading) return;
     setShootLoading(true); setShootError(null);
@@ -6337,111 +6280,6 @@ export default function BeautyOS() {
 
   // Open Facebook's share dialog. We also copy the post text to the clipboard
   // so she can paste it straight into the Facebook composer.
-  const shareToFacebook = async (v) => {
-    const text = `${v.body}\n\n${v.callToAction}\n\n${(v.hashtags || []).join(" ")}`;
-    let copied = true;
-    try { await navigator.clipboard.writeText(text); } catch { copied = false; }
-    // Share HER booking page, from whatever origin the app is served on - not
-    // a hardcoded vendor URL, which sent every post to our deploy rather than
-    // her business. No `quote` parameter: Facebook dropped it years ago, so
-    // the clipboard copy above is the only way the text reaches the composer.
-    const origin = (typeof window !== "undefined" && window.location.origin) || "";
-    const pageUrl = `${origin}/book?t=${encodeURIComponent(settings.tenant_id || "")}`;
-    const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(pageUrl);
-    window.open(shareUrl, "_blank", "width=640,height=640");
-    toast(copied
-      ? "הטקסט הועתק — הדביקי אותו בחלון של פייסבוק"
-      : "פייסבוק נפתח, אבל ההעתקה נחסמה — סמני את הטקסט והעתיקי ידנית",
-      copied ? undefined : "error");
-  };
-
-  // Download the post image as a 1080x1080 square (Facebook/Instagram ready)
-  const downloadImage = async (url, idx) => {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const bitmap = await createImageBitmap(blob);
-      const SIZE = 1080;
-      const canvas = document.createElement("canvas");
-      canvas.width = SIZE; canvas.height = SIZE;
-      const ctx = canvas.getContext("2d");
-      // Cover-crop the source into a centered square
-      const scale = Math.max(SIZE / bitmap.width, SIZE / bitmap.height);
-      const w = bitmap.width * scale;
-      const h = bitmap.height * scale;
-      ctx.drawImage(bitmap, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
-      canvas.toBlob((out) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(out);
-        link.download = `beautyos-post-${idx || 1}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-        toast("התמונה הורדה בפורמט פוסט (1080x1080)");
-      }, "image/jpeg", 0.92);
-    } catch {
-      window.open(url, "_blank");
-      toast("התמונה נפתחה בחלון חדש — לחצי שמירה");
-    }
-  };
-
-  // Render the styled post template (DOM node #post-design) to a 1080x1080 PNG
-  const downloadPostImage = async () => {
-    const node = document.getElementById("post-design");
-    if (!node) { toast("התבנית לא נמצאה", "error"); return; }
-    setDesigning(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(node, { backgroundColor: null, scale: 2, useCORS: true });
-      canvas.toBlob((out) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(out);
-        link.download = "beautyos-design-" + Date.now() + ".png";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-        toast("התמונה המעוצבת הורדה");
-      }, "image/png");
-    } catch (e) {
-      toast("שגיאה ביצירת התמונה", "error");
-    } finally { setDesigning(false); }
-  };
-
-  // Save the current generated campaign + posts to the database
-  const saveCampaign = async () => {
-    if (guardWrite()) return;
-    if (!postVariations || postVariations.length === 0) return;
-    if (savingCampaign) return;
-    setSavingCampaign(true);
-    try {
-      const res = await fetch("/api/marketing/save-campaign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: postGoal.trim().slice(0, 40),
-          goal: postGoal.trim(),
-          strategy: postStrategy,
-          variations: postVariations,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast("✦ הקמפיין נשמר");
-        loadSavedCampaigns();
-      } else {
-        toast(data.error || "השמירה נכשלה", "error");
-      }
-    } catch (err) {
-      toast(err.message, "error");
-    } finally {
-      setSavingCampaign(false);
-    }
-  };
-
-  // The WhatsApp message log. /api/messages derives the tenant from the session
-  // cookie, so no tenant id is sent or needed - she can only ever read her own.
   const loadWaMessages = async () => {
     setWaLogLoading(true); setWaLogError("");
     try {
@@ -8911,7 +8749,6 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
  <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)",flexWrap:"wrap",justifyContent:"center"}}>
  <button onClick={()=>setAiPostsView("studio")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="studio"?pcGrad:"transparent",color:aiPostsView==="studio"?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600}}>סטודיו</button>
- <button onClick={()=>setAiPostsView("create")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="create"?pcGrad:"transparent",color:aiPostsView==="create"?"var(--pc-contrast)":"var(--ink-2)"}}>יצירת פוסטים</button>
  <button onClick={()=>{setAiPostsView("saved");loadSavedCampaigns();}} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="saved"?pcGrad:"transparent",color:aiPostsView==="saved"?"var(--pc-contrast)":"var(--ink-2)"}}>הקמפיינים שלי{savedCampaigns&&savedCampaigns.length>0?` (${savedCampaigns.length})`:""}</button>
  <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="film" size={14}/> רילסים</button>
  <button onClick={()=>setAiPostsView("shootlist")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="shootlist"?pcGrad:"transparent",color:aiPostsView==="shootlist"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="clipboard" size={14}/> מה לצלם השבוע</button>
@@ -8920,110 +8757,7 @@ ${c.claimUrl}`)}`;
 
  {aiPostsView==="studio"&&<DesignStudio settings={settings} readOnly={readOnly} toast={toast}/>}
 
- {aiPostsView==="create"&&(<>
- <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600,marginBottom:8}}>מה תרצי לפרסם?</p>
- <textarea value={postGoal} onChange={e=>setPostGoal(e.target.value)} rows={3}
- placeholder="לדוגמה: מבצע על טיפולי פנים לחודש הקרוב / להחזיר לקוחות שלא הגיעו מזמן"
- style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"12px 14px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
- {/* additionalContext. The strategy endpoint has always accepted it and the
-     UI never sent it, so the line interpolated to an empty string. Wired
-     rather than removed: unlike serviceType/targetAudience it says something
-     the goal does not — a season, a new device, a quiet week. */}
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>משהו נוסף שכדאי שה-AI יידע? <span style={{fontWeight:400}}>(לא חובה)</span></p>
- <textarea value={postExtra} onChange={e=>setPostExtra(e.target.value)} rows={2}
- placeholder="לדוגמה: נכנסה מכשיר חדש / שבוע חלש בדצמבר / רוצה למשוך דווקא כלות"
- style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"12px 14px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:12}}/>
- <button onClick={generatePosts} disabled={postLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>
- {postLoading?<Spinner inline label="יוצרת פוסטים"/>:"✦ צרי לי 5 פוסטים"}
- </button>
- </div>
-
- {postError&&(
- <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-md)",padding:"12px 16px",marginBottom:16}}>
- <p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600}}>{postError}</p>
- </div>
- )}
-
- {postLoading&&(
- <div style={{textAlign:"center",padding:"30px 0"}}>
- <p style={{fontSize:"var(--t-md)",color:pc,fontWeight:500}}>ה-AI בונה אסטרטגיה וכותב 5 וריאציות... רגע אחד ✦</p>
- </div>
- )}
-
- {postRestricted>0&&!postLoading&&(
- <div style={{background:"var(--surface-2)",border:"1px dashed var(--line-2)",borderRadius:"var(--r-md)",padding:"12px 16px",marginBottom:16}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",lineHeight:1.6}}>
- <strong>{postRestricted===1?"טיפול אחד לא נכלל":`${postRestricted} טיפולים לא נכללו`}</strong> בפוסטים.
- בוטוקס, פילרים, הזרקות ופלזמה הם פעולות רפואיות, ופרסום שלהן בשם קוסמטיקאית אסור בישראל — לכן הם לא נכנסים לתוכן שנוצר כאן.
- </p>
- </div>
- )}
-
- {postStrategy&&!postLoading&&(
- <div style={{background:pcTint,borderRadius:"var(--r-lg)",padding:"18px 22px",marginBottom:18}}>
- <p style={{fontSize:"var(--t-xs)",color:pc,fontWeight:700,marginBottom:6}}>האסטרטגיה של ה-AI</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,marginBottom:8}}>{postStrategy.strategy}</p>
- {postStrategy.keyPoints&&postStrategy.keyPoints.length>0&&(
- <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
- {postStrategy.keyPoints.map((kp,i)=>(
- <span key={i} style={{fontSize:"var(--t-sm)",background:"rgba(255,255,255,0.7)",color:pc,padding:"3px 10px",borderRadius:"var(--r-lg)",fontWeight:500}}>{kp}</span>
- ))}
- </div>
- )}
- </div>
- )}
-
- {postVariations&&postVariations.length>0&&postVariations.map((v,i)=>(
- <div key={i} className="glass-card card-flush" style={{marginBottom:14}}>
- {v.image&&v.image.url&&(
- <div style={{position:"relative"}}>
- <img alt="" src={v.image.url} style={{width:"100%",height:200,objectFit:"cover",objectPosition:"center",display:"block"}}/>
- {v.image.photographerName&&(
- <span style={{position:"absolute",bottom:6,left:6,background:"rgba(0,0,0,0.45)",color:"var(--surface)",fontSize:"var(--t-xs)",padding:"2px 7px",borderRadius:"var(--r-sm)"}}>
- {/* Unsplash terms require the photographer name to link to their profile.
-     This is the pre-save preview, so the field is the in-memory camelCase
-     photographerUrl rather than the persisted image_credit_url column. */}
- צילום: {v.image.photographerUrl?<a href={v.image.photographerUrl} target="_blank" rel="noopener noreferrer" style={{color:"var(--surface)",textDecoration:"underline"}}>{v.image.photographerName}</a>:v.image.photographerName}
- </span>
- )}
- </div>
- )}
- <div style={{padding:"20px 22px"}}>
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
- <div style={{display:"flex",alignItems:"center",gap:8}}>
- <span className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:pc}}>{i+1}</span>
- <span style={{fontSize:"var(--t-sm)",background:"var(--pc-tint)",color:pc,padding:"3px 10px",borderRadius:"var(--r-lg)",fontWeight:600}}>{({emotional:"רגשי",educational:"חינוכי",urgency:"דחיפות",social_proof:"המלצות",engaging_question:"שאלה מעוררת"})[v.variationType]||v.variationType}</span>
- </div>
- <button onClick={()=>copyPost(v)} className="primary-btn" style={{padding:"6px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>העתיקי</button>
- </div>
- {v.title&&<p className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)",marginBottom:6}}>{v.title}</p>}
- <p style={{fontSize:"var(--t-md)",color:"var(--ink)",lineHeight:1.65,whiteSpace:"pre-wrap",marginBottom:10}}>{v.body}</p>
- {v.callToAction&&<p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600,marginBottom:8}}>{v.callToAction}</p>}
- {v.hashtags&&v.hashtags.length>0&&(
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{v.hashtags.join(" ")}</p>
- )}
- <div style={{display:"flex",gap:6,marginTop:12,flexWrap:"wrap"}}>
- <button onClick={()=>shareToFacebook(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"#1877F2",color:"#fff",border:"none",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>שיתוף לפייסבוק</button>
- <button onClick={()=>copyPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:"var(--surface)",color:pc,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>העתקת טקסט</button>
- <button onClick={()=>setDesignPost(v)} style={{flex:"1 1 auto",padding:"8px 12px",background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="palette" size={14}/> עצבי כתמונה</button>
- {v.image&&v.image.url&&<button onClick={()=>downloadImage(v.image.url,v.variationNumber)} style={{flex:"1 1 auto",padding:"8px 12px",background:"var(--surface)",color:pc,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הורדת תמונה</button>}
- </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>לאינסטגרם: הורידי את התמונה והדביקי את הטקסט</p>
- </div>
- </div>
- ))}
-
- {postVariations&&postVariations.length===0&&!postError&&(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",padding:"20px 0"}}>לא נוצרו פוסטים. נסי שוב עם תיאור אחר.</p>
- )}
-
- {postVariations&&postVariations.length>0&&(
- <button onClick={saveCampaign} disabled={savingCampaign} className="primary-btn" style={{width:"100%",padding:"12px 0",background:"var(--surface)",color:pc,border:`1.5px solid ${pc}`,fontSize:"var(--t-md)",marginBottom:8}}>
- {savingCampaign?<Spinner inline label="שומרת"/>:"✦ שמרי את הקמפיין הזה"}
- </button>
- )}
-
+ {aiPostsView==="saved"&&(<>
  <div className="glass-card" style={{padding:"22px 24px",marginTop:24}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6,flexWrap:"wrap",gap:8}}>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קבוצות פייסבוק לפרסום</h3>
@@ -10585,36 +10319,6 @@ ${c.claimUrl}`)}`;
  </div>
  </div>
  </div>
-      )}
-
-      {/* POST DESIGN MODAL */}
-      {designPost&&(
-          <Sheet open onClose={()=>setDesignPost(null)} width={420} zIndex={1100} ariaLabel="עיצוב פוסט">
-            {/* Scroll wrapper: contains the fixed 380px export canvas on <380px phones
-                without resizing #post-design (html2canvas captures it at its rendered
-                size, so its dimensions must stay fixed to keep the exported PNG square). */}
-            <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-            <div id="post-design" style={{width:380,height:380,marginLeft:"auto",marginRight:"auto",background:designBg?"#000":pcGrad,borderRadius:0,padding:34,display:"flex",flexDirection:"column",justifyContent:"center",position:"relative",overflow:"hidden"}}>
-              {designBg&&<img alt="" src={designBg} crossOrigin="anonymous" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}}/>}
-              {designBg&&<div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(0,0,0,0.25),rgba(0,0,0,0.55))"}}/>}
-              <div style={{position:"absolute",top:18,right:22,fontSize:"var(--t-xs)",color:"rgba(255,255,255,0.85)",fontWeight:600,letterSpacing:"1px"}}>{settings.business_name||""}</div>
-              {designPost.title&&<div className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:700,color:"var(--surface)",lineHeight:1.25,marginBottom:14,textShadow:"0 1px 6px rgba(0,0,0,0.18)"}}>{designPost.title}</div>}
-              <div style={{fontSize:"var(--t-md)",color:"var(--surface)",lineHeight:1.6,whiteSpace:"pre-wrap",textShadow:"0 1px 4px rgba(0,0,0,0.15)",maxHeight:170,overflow:"hidden"}}>{designPost.body}</div>
-              {designPost.callToAction&&<div style={{marginTop:16,display:"inline-block",alignSelf:"flex-start",background:"var(--surface)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:700,padding:"8px 18px",borderRadius:"var(--r-xl)"}}>{designPost.callToAction}</div>}
-            </div>
-            </div>
-            <div style={{display:"flex",gap:8,marginTop:10,maxWidth:380,marginLeft:"auto",marginRight:"auto"}}>
-              <label style={{flex:1,padding:"10px 0",background:"rgba(255,255,255,0.92)",color:"var(--ink)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
-                <Icon name="camera" size={14}/> העלאת תמונת רקע
-                <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files&&e.target.files[0];if(f){const r=new FileReader();r.onload=()=>setDesignBg(r.result);r.readAsDataURL(f);}}}/>
-              </label>
-              {designBg&&<button onClick={()=>setDesignBg(null)} style={{flex:"0 0 auto",padding:"10px 14px",background:"rgba(255,255,255,0.92)",color:"var(--danger)",border:"none",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>הסרה</button>}
-            </div>
-            <div style={{display:"flex",gap:8,marginTop:8,maxWidth:380,marginLeft:"auto",marginRight:"auto"}}>
-              <button onClick={()=>{setDesignPost(null);setDesignBg(null);}} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"none",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סגירה</button>
-              <button onClick={downloadPostImage} disabled={designing} style={{flex:2,padding:"12px 0",background:"var(--ink)",color:"var(--surface)",border:"none",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:designing?0.6:1}}>{designing?<Spinner inline label="מייצר"/>:<><Icon name="download" size={14}/> הורדת תמונה</>}</button>
-            </div>
-          </Sheet>
       )}
 
       {/* PROTOCOL MODAL */}

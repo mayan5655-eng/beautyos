@@ -20,7 +20,6 @@
 //   style-src    'unsafe-inline' because the app is inline-styled end to end;
 //                fonts.googleapis.com for the @import in three style blocks.
 //   font-src     fonts.gstatic.com for those, data: for next/font inlining.
-//   img-src      https: broadly - Unsplash, Supabase Storage public URLs and
 //                signed URLs, Facebook profile pictures - plus blob: and data:
 //                for canvases and previews. Images are the low-risk class.
 //   media-src    blob: for the reel studio's player.

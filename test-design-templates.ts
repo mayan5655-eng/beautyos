@@ -14,7 +14,7 @@ import { applyOverrides, sanitizeOverrides, sanitizeValues, sanitizeImages } fro
 assert.equal(CREAM_DEFS.length, 50, 'the launch library: 20 evergreen, 15 holidays and seasons, 15 closers');
 assert.deepEqual(CREAM_DEFS.reduce((acc, d) => ({ ...acc, [d.group]: (acc[d.group] || 0) + 1 }), {} as Record<string, number>), { evergreen: 20, seasonal: 15, closer: 15 });
 const built = CREAM_DEFS.reduce((n, d) => n + (d.formats || ['feed45', 'story']).length, 0);
-assert.equal(TEMPLATES.length, 6 + built, 'six hand-written v1 templates, and every format of every studio definition');
+assert.equal(TEMPLATES.length, built, 'every format of every studio definition, nothing else');
 assert.equal(new Set(TEMPLATES.map(templateId)).size, TEMPLATES.length, 'no two templates share key@version');
 assert.equal(CREAM_DEFS.filter((d) => d.holiday).length, 14, 'every holiday and season has a window; birthday has none');
 for (const d of CREAM_DEFS) if (d.holiday) assert.ok(HOLIDAYS.some((h) => h.key === d.holiday), `${d.slug}: known occasion ${d.holiday}`);
@@ -43,19 +43,18 @@ for (const def of CREAM_DEFS) {
     else if (t.layers.some((l) => l.type === 'deco')) assert.ok(t.layers.some((l) => l.type === 'deco' && l.asset === def.deco!.asset), 'the decoration the theme asks for');
   }
 }
-assert.equal(getTemplate('offer-feed')!.version, 2, 'the studio offer is the newest');
+assert.equal(getTemplate('offer-feed')!.version, 2);
 assert.equal(getTemplate('offer-story')!.format, 'story');
 assert.equal(getTemplate('rosh-hashana-feed')!.holiday, 'rosh_hashana');
 assert.equal(getTemplate('gift-card-story')!.layers.find((l) => l.id === 'photo')!.type, 'image');
 assert.ok(getTemplate('review-feed', 2)!.layers.some((l) => l.type === 'rating'), 'stars are shapes, not glyphs');
 assert.equal(storySibling('offer-feed')!.key, 'offer-story');
-assert.equal(storySibling('new-treatment-feed'), null, 'a v1 template has no story');
+assert.equal(storySibling('glow-story-story'), null, 'a story-only key has no story sibling of its own');
 assert.ok(!galleryTemplates().some((t) => /-story$/.test(t.key) && t.key !== 'glow-story-story'), 'the gallery folds stories into their feed card; the story-only one stands alone');
 assert.equal(galleryTemplates().length, 50, 'one card per definition');
 assert.ok(galleryTemplates().every((t) => t.group), 'the v1 generation is not offered any more');
 assert.equal(galleryTemplates(null, 'seasonal').length, 15);
 assert.equal(galleryTemplates('offer', 'closer').length, 3, 'duo, gift card, referral');
-assert.ok(latestTemplates().some((t) => t.key === 'new-treatment-feed'), 'but a v1 template still resolves for saved designs');
 for (const t of TEMPLATES) {
   assert.deepEqual(validateTemplate(t), [], `${templateId(t)} is valid`);
   assert.deepEqual(JSON.parse(JSON.stringify(t)), t, `${templateId(t)} is plain JSON`);
@@ -64,7 +63,7 @@ for (const t of TEMPLATES) {
   assert.ok(t.layers.some((l) => l.type === 'text' && /cta/.test(l.bind)), `${t.key} has a CTA`);
 }
 assert.equal(getTemplate('offer-feed')?.version, 2, 'latest wins when no version is asked for');
-assert.equal(getTemplate('offer-feed', 1)?.version, 1);
+assert.equal(getTemplate('offer-feed', 1), null, 'the first generation is gone');
 assert.equal(getTemplate('offer-feed', 99), null);
 assert.equal(galleryTemplates('offer').length, 6, 'offer, package, new client, duo, gift card, referral');
 
@@ -84,14 +83,14 @@ assert.notEqual(gold.surface.toUpperCase(), '#FFFFFF', 'never white');
 assert.match(gold.blush, /^#[0-9A-Fa-f]{6}$/); assert.match(gold.sand, /^#[0-9A-Fa-f]{6}$/);
 assert.notEqual(colorsFor('#4A2E5A').blush, gold.blush, 'the blush takes her hue');
 // The strip's contact line: phone and handle, whichever she has, from any way she typed the handle.
-const strip = (settings: Record<string, unknown>) => fillTemplate(getTemplate('offer-feed', 2)!, { settings }).values.contact;
+const strip = (settings: Record<string, unknown>) => fillTemplate(getTemplate('offer-feed')!, { settings }).values.contact;
 assert.equal(strip({ business_phone: '052-1234567', branding: { instagram: 'https://www.instagram.com/maya.skin/' } }), '052-1234567   ·   @maya.skin');
 assert.equal(strip({ business_phone: '052-1234567', branding: {} }), '052-1234567');
 assert.equal(strip({ branding: { instagram: '@maya.skin' } }), '@maya.skin');
 assert.equal(strip({ branding: { instagram: 'not a handle!' } }), '', 'garbage is not a handle');
 // Per-design brand toggles: hide the phone, the handle or the logo on this design only.
 const both = { business_phone: '052-1234567', branding: { instagram: 'maya.skin', logo_url: 'https://cdn/logo.png' } };
-const withBrand = (brand: Record<string, boolean>) => fillTemplate(getTemplate('offer-feed', 2)!, { settings: both, brand });
+const withBrand = (brand: Record<string, boolean>) => fillTemplate(getTemplate('offer-feed')!, { settings: both, brand });
 assert.equal(withBrand({ phone: false }).values.contact, '@maya.skin');
 assert.equal(withBrand({ instagram: false }).values.contact, '052-1234567');
 assert.equal(withBrand({ phone: false, instagram: false }).values.contact, '');
@@ -101,14 +100,14 @@ assert.deepEqual(sanitizeOverrides({ brand: { logo: false, phone: 'no', instagra
 assert.equal(colorsFor('#4A2E5A').contrast, '#FFFFFF', 'white text on plum');
 assert.equal(colorsFor('not a colour').primary, '#5B3E67', 'malformed -> default');
 
-const bare = fillTemplate(getTemplate('offer-feed', 1)!, { settings: { business_name: 'הקליניקה של מאיה', primary_color: '#C9A24B', branding: {} } });
+const bare = fillTemplate(getTemplate('offer-feed')!, { settings: { business_name: 'הקליניקה של מאיה', primary_color: '#C9A24B', branding: {} } });
 assert.equal(bare.values.business_name, 'הקליניקה של מאיה');
 assert.equal(bare.values.headline, 'טיפול פנים קלאסי', 'default headline when nothing typed');
 assert.equal(bare.images.photo, null, 'no picture -> null, the renderer draws a plate');
 assert.deepEqual(bare.missing, ['slot:photo'], 'the required picture is reported missing');
 assert.equal(bare.logoUrl, null);
 
-const full = fillTemplate(getTemplate('offer-feed', 1)!, {
+const full = fillTemplate(getTemplate('offer-feed')!, {
   settings: { business_name: 'x', primary_color: '#C9A24B', branding: { logo_url: 'https://cdn/logo.png', gallery: ['https://cdn/g1.jpg', 'https://cdn/g2.jpg'] } },
   inputs: { headline: '  טיפול פנים קלאסי  ', price: '₪249' },
 });
@@ -117,11 +116,11 @@ assert.equal(full.logoUrl, 'https://cdn/logo.png');
 assert.deepEqual(full.missing, []);
 assert.equal(full.values.headline, 'טיפול פנים קלאסי', 'typed values are trimmed');
 
-const longName = fillTemplate(getTemplate('offer-feed', 1)!, { settings: { business_name: 'א'.repeat(80), primary_color: null, branding: {} } });
+const longName = fillTemplate(getTemplate('offer-feed')!, { settings: { business_name: 'א'.repeat(80), primary_color: null, branding: {} } });
 assert.equal(longName.values.business_name.length, 40, 'capped at the template maxLength');
 
 // Client photos never auto-fill, even when something is in the gallery.
-const ba = fillTemplate(getTemplate('before-after-feed', 1)!, { settings: { branding: { gallery: ['https://cdn/g1.jpg'] } } });
+const ba = fillTemplate(getTemplate('before-after-feed')!, { settings: { branding: { gallery: ['https://cdn/g1.jpg'] } } });
 assert.equal(ba.images.before, null);
 assert.deepEqual(ba.missing, ['slot:before', 'slot:after']);
 
@@ -132,9 +131,8 @@ assert.equal(rv.values.stars, '★★★★☆');
 assert.equal(rv.values.review_name, 'דנה');
 
 // The tip needs nothing at all.
-const tip = fillTemplate(getTemplate('tip-feed', 1)!, { settings: { therapist_name: 'מאיה', branding: {} } });
-assert.deepEqual(tip.missing, []);
-assert.equal(tip.values.therapist_title, 'קוסמטיקאית', 'default title');
+const quiet = fillTemplate(getTemplate('yom-kippur-feed')!, { settings: { therapist_name: 'מאיה', branding: {} } });
+assert.deepEqual(quiet.missing, [], 'a text-first template with no photo needs nothing');
 
 // ── Her edits: sanitised and merged over the template ───────────────────────
 const ov = sanitizeOverrides({
@@ -143,20 +141,20 @@ const ov = sanitizeOverrides({
   order: ['cta', 'headline', 'cta', 42],
 });
 assert.deepEqual(ov, { layers: { headline: { box: { x: 5, y: 60, w: 90, h: 10 }, size: 90, color: 'primary', hidden: false } }, colors: { primary: '#112233' }, order: ['cta', 'headline'] });
-const layers = applyOverrides(getTemplate('offer-feed', 1)!, sanitizeOverrides({ ...ov, layers: { ...ov.layers, subline: { hidden: true } } }));
+const layers = applyOverrides(getTemplate('offer-feed')!, sanitizeOverrides({ ...ov, layers: { ...ov.layers, subline: { hidden: true } } }));
 assert.ok(!layers.some((l) => l.id === 'subline'), 'hidden layer is gone');
 assert.equal(layers[0].id, 'cta', 'her order wins');
 const h = layers.find((l) => l.id === 'headline');
 assert.ok(h && h.type === 'text' && h.size === 90 && h.box.y === 60);
-assert.equal(getTemplate('offer-feed', 1)!.layers.find((l) => l.id === 'headline')!.box.y, 62, 'the template itself is untouched');
+assert.notEqual(getTemplate('offer-feed')!.layers.find((l) => l.id === 'headline')!.box.y, 60, 'the template itself is untouched');
 
-assert.deepEqual(sanitizeValues(getTemplate('offer-feed', 1)!, { headline: ' x\u0000y ', unknown: 'z', price: 1 }), { headline: 'xy' });
-assert.deepEqual(sanitizeImages(getTemplate('offer-feed', 1)!, { photo: 'https://cdn/a.jpg', other: 'https://x' }), { photo: 'https://cdn/a.jpg' });
-assert.deepEqual(sanitizeImages(getTemplate('offer-feed', 1)!, { photo: 'javascript:alert(1)' }), {});
-assert.deepEqual(sanitizeImages(getTemplate('offer-feed', 1)!, { photo: null }), { photo: null });
+assert.deepEqual(sanitizeValues(getTemplate('offer-feed')!, { headline: ' x\u0000y ', unknown: 'z', price: 1 }), { headline: 'xy' });
+assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: 'https://cdn/a.jpg', other: 'https://x' }), { photo: 'https://cdn/a.jpg' });
+assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: 'javascript:alert(1)' }), {});
+assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: null }), { photo: null });
 // Client photos travel as private references, resolved to signed URLs only at view time.
 const ref = 'private:8d4c2b3a-1111-4222-8333-444455556666/clients/abc/before_1.jpg';
-assert.deepEqual(sanitizeImages(getTemplate('before-after-feed', 1)!, { before: ref, after: 'private:../etc/passwd' }), { before: ref });
+assert.deepEqual(sanitizeImages(getTemplate('before-after-feed')!, { before: ref, after: 'private:../etc/passwd' }), { before: ref });
 assert.deepEqual(sanitizeOverrides({ consent: { before: true, after: 'yes', 'bad id!': true } }), { consent: { before: true } });
 
 console.log('design templates: ok');

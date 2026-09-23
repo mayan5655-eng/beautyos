@@ -35,8 +35,6 @@
 //   voice-intent              0.002     600     $1.20      a few a day
 //   score-lead                0.005    1000     $5.00      one per new lead
 //   leads/map-headers         0.012     100     $1.20      one per import
-//   marketing/strategy        0.045     150     $6.75      ~20 campaigns
-//   marketing/variations      0.045     200     $9.00
 //   marketing/groups          0.045     150     $6.75
 //   marketing/reel            0.17       80    $13.60      ~10 reels
 //
@@ -66,8 +64,6 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   'voice-intent': 600,
   'score-lead': 1000,
   'leads/map-headers': 100,
-  'marketing/strategy': 150,
-  'marketing/variations': 200,
   'marketing/groups': 150,
   'marketing/reel': 80,
   // Creatives (OpenAI images, ~13 cents each at high quality). The test
