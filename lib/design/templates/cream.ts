@@ -175,7 +175,8 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
   // The page: cream by default; blush or her accent for a mostly-colour template.
   if (page !== 'surface') layers.push({ id: 'page', type: 'shape', box: { x: 0, y: 0, w: 100, h: 100 }, color: page });
   const fullPhoto = L.family === 'overlay' || L.family === 'magazine';
-  if (!fullPhoto && page === 'surface' && L.family !== 'split' && L.family !== 'text') {
+  const colourBlock = L.family === 'split' || (L.family === 'text' && (L.block || 'blush') !== 'surface');
+  if (!fullPhoto && page === 'surface' && !colourBlock) {
     layers.push({ id: 'wash_blush', type: 'shape', shape: 'ellipse', box: { x: -22, y: story ? 58 : 52, w: 62, h: 34 }, color: 'blush', opacity: 0.85 });
     layers.push({ id: 'wash_sand', type: 'shape', shape: 'ellipse', box: { x: 58, y: 82, w: 64, h: 30 }, color: 'sand', opacity: 0.6 });
   }

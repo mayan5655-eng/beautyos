@@ -94,6 +94,63 @@ Category totals for the gallery chips: offer 8, before_after 1, review 1,
 treatment 19, tip 8, seasonal 15, announce 3 (template 50 is story-only, so
 the feed count is 49 and the story count is 50).
 
+## Layout families
+
+Each definition names a family; the builder does the geometry for both formats. Spread: top 12, pair 1, text-first 6, split 7, frame 6, magazine 4, overlay 10, collage 4.
+
+| # | key | name | family (variant) | page |
+|---|---|---|---|---|
+| 1 | `offer` | מבצע | top | cream |
+| 2 | `before-after` | לפני / אחרי | pair | cream |
+| 3 | `review` | לקוחה מספרת | top | cream |
+| 4 | `tip` | טיפ לעור | text-first (block blush, photo circle) | cream |
+| 5 | `package` | חבילת טיפולים | split (side bottom, block primary) | cream |
+| 6 | `acne` | טיפול באקנה | frame | cream |
+| 7 | `pigmentation` | פיגמנטציה | top (textPos above) | cream |
+| 8 | `anti-aging` | אנטי אייג'ינג | magazine (band blush, bandPos low) | cream |
+| 9 | `peel` | פילינג | top (shape arch) | cream |
+| 10 | `laser` | לייזר | split (side right, block blush) | cream |
+| 11 | `new-dates` | נפתחו תאריכים | text-first (block primary, photo none) | cream |
+| 12 | `products` | מוצרים | frame | cream |
+| 13 | `routine` | שגרת טיפוח | top | cream |
+| 14 | `self-care` | זמן לעצמך | overlay (headline bottom) | cream |
+| 15 | `new-client` | מבצע ללקוחה חדשה | split (side right, block primary) | cream |
+| 16 | `slot-opened` | התפנה תור | overlay (headline top) | cream |
+| 17 | `facial` | טיפול פנים | collage (count 3) | cream |
+| 18 | `pampering` | פינוק | overlay (headline bottom) | cream |
+| 19 | `glow` | זוהר | top (shape circle) | cream |
+| 20 | `pro-peel` | פילינג מקצועי | split (side left, block deep) | cream |
+| 21 | `rosh-hashana` | ראש השנה | top | cream |
+| 22 | `yom-kippur` | יום כיפור | text-first (block surface, photo none) | cream |
+| 23 | `sukkot` | סוכות | frame | cream |
+| 24 | `hanukkah` | חנוכה | magazine (band primary) | cream |
+| 25 | `tu-bishvat` | ט"ו בשבט | top (shape circle) | cream |
+| 26 | `purim` | פורים | split (side bottom, block primary) | cream |
+| 27 | `pesach` | פסח | collage (count 2) | cream |
+| 28 | `independence` | יום העצמאות | overlay (headline top) | cream |
+| 29 | `shavuot` | שבועות | frame (shape circle) | cream |
+| 30 | `womens-day` | יום האישה | top (shape arch) | cream |
+| 31 | `summer` | קיץ | overlay (headline bottom) | cream |
+| 32 | `autumn` | סתיו | magazine (band blush) | cream |
+| 33 | `winter` | חורף | overlay (headline bottom) | cream |
+| 34 | `spring` | אביב | collage (count 3) | cream |
+| 35 | `birthday` | יום הולדת | text-first (block blush, photo circle) | cream |
+| 36 | `duo` | מבצע לשתיים | collage (count 2) | cream |
+| 37 | `bridal` | כלות | overlay (headline bottom) | cream |
+| 38 | `night` | טיפול לילה | overlay (headline top) | cream |
+| 39 | `gift-card` | שובר מתנה | overlay (headline bottom) | cream |
+| 40 | `massage` | עיסוי פנים | top (shape circle) | cream |
+| 41 | `dermapen` | דרמפן | frame | cream |
+| 42 | `serums` | סרומים | split (side right, block blush) | cream |
+| 43 | `faq` | שאלה ותשובה | text-first (block surface, photo none) | cream |
+| 44 | `info` | כדאי לדעת | top | cream |
+| 45 | `myths` | מיתוס או אמת | split (side bottom, block blush) | cream |
+| 46 | `natural-look` | מראה טבעי | top (shape arch) | cream |
+| 47 | `skin-health` | בריאות העור | magazine (band primary, bandPos low) | cream |
+| 48 | `thank-you` | תודה | frame | cream |
+| 49 | `referral` | חברה מביאה חברה | text-first (block primary, photo circle) | cream |
+| 50 | `glow-story` | זוהר (סטורי) | overlay (headline bottom) | cream |
+
 ## Generated from schema vs. her design work
 
 **All 50 are generated from the schema** - a definition of ~15 lines each,
