@@ -11,7 +11,12 @@
 // exporter, which does not know the clamp, drew the lines the box then
 // could not hold.
 
-export type Measure = (px: number) => { width: number; height: number };
+/**
+ * What the content measures at a size. `contentHeight` is the height of the
+ * text itself, when `height` also counts something around it (a pill's
+ * padding): lines are counted from the content, the box is judged on the whole.
+ */
+export type Measure = (px: number) => { width: number; height: number; contentHeight?: number };
 
 export type FitInput = {
   basePx: number;
@@ -40,7 +45,7 @@ export function fitText(input: FitInput): FitResult {
   let px = basePx;
   for (let guard = 0; guard < 40; guard++) {
     const m = measure(px);
-    const lines = lineCount(m.height, px, lineHeight);
+    const lines = lineCount(m.contentHeight ?? m.height, px, lineHeight);
     // One pixel of slack: sub-pixel line boxes must not count as overflow.
     const fits = m.height <= boxHeight + 1 && m.width <= boxWidth + 1 && (!maxLines || lines <= maxLines);
     if (fits) return { px, lines, fits: true };
@@ -48,5 +53,6 @@ export function fitText(input: FitInput): FitResult {
     if (next < floor) return { px, lines, fits: false };
     px = next;
   }
-  return { px, lines: lineCount(measure(px).height, px, lineHeight), fits: false };
+  const last = measure(px);
+  return { px, lines: lineCount(last.contentHeight ?? last.height, px, lineHeight), fits: false };
 }

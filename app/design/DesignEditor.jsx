@@ -8,13 +8,14 @@
 // export captures a full-size copy of it mounted off-screen. Moving and
 // resizing things is the editor layer (stage 3) and is not here.
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import ImagePicker from './ImagePicker';
 import { fillTemplate } from '@/lib/design/mapBranding';
-import { captureElementPng, downloadBlob, uploadExport } from './exportPng';
+import { downloadBlob, uploadExport } from './exportPng';
+import { renderTemplateBlob } from './canvasRender';
 import Sheet from '../Sheet';
 import CesdkEditor from './CesdkEditor';
 import { EDITOR_AVAILABLE } from './renderers';
@@ -50,7 +51,6 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   const [exporting, setExporting] = useState(false);
   const [pickSlot, setPickSlot] = useState(null);
   const [error, setError] = useState('');
-  const exportRef = useRef(null);
 
   // State starts from the row; the parent remounts this editor (key=design.id)
   // when another design opens, so no effect has to reset anything.
@@ -79,9 +79,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   const exportPng = async () => {
     setExporting(true); setError('');
     try {
-      const el = exportRef.current;
-      if (!el) throw new Error('התצוגה לא מוכנה');
-      const blob = await captureElementPng(el);
+      const blob = await renderTemplateBlob(template, fill, overrides);
       downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`);
       if (!readOnly && settings?.tenant_id) {
         try { const path = await uploadExport(blob, settings.tenant_id, design.id); await patch({ export_path: path }); } catch { /* the download already happened */ }
@@ -212,11 +210,6 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
           </div>
           {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
         </div>
-      </div>
-
-      {/* Full-size copy for the exporter, parked off-screen. */}
-      <div aria-hidden style={{ position: 'fixed', left: -20000, top: 0, pointerEvents: 'none' }}>
-        <div ref={exportRef}><DomPreview template={template} fill={fill} overrides={overrides} width={1080} /></div>
       </div>
 
       {EDITOR_AVAILABLE && (

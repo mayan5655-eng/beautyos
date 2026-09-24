@@ -4,36 +4,29 @@
 //
 // The composited reel recorder. A reel is a sequence of story frames; this
 // turns a filled reel into a video file in her browser, with no server video
-// stack, the way ReelStudio did - canvas + MediaRecorder - but drawing the
-// frames the studio draws:
+// stack - canvas + MediaRecorder - drawing the frames the studio draws:
 //
-//   per scene, once:   the frame's non-photo layers are rasterised from the
-//                      same DOM renderer the studio uses (fonts, Hebrew,
-//                      strip, deco, safe contrast), split into what sits
-//                      UNDER the photos and what sits OVER them
-//   per video frame:   background, the under-raster, the photo layers drawn
+//   per scene, once:   the frame's non-photo layers are drawn straight onto
+//                      canvases by canvasRender (the same drawer the PNG
+//                      export uses: wrapped, fitted, never clipped text,
+//                      Hebrew in order, the strip, the decoration), split
+//                      into what sits UNDER the photos and what sits OVER them
+//   per video frame:   background, the under canvas, the photo layers drawn
 //                      live with a slow Ken Burns zoom and their wash, then
-//                      the over-raster; scenes cut, crossfade or slide
+//                      the over canvas; scenes cut, crossfade or slide
 //
 // Music is optional and hers (an audio file), mixed into the recording.
 
 import { useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
-import DomPreview from './DomPreview';
 import { CANVAS } from '@/lib/design/contract';
-import { captureElementPng, downloadBlob } from './exportPng';
+import { downloadBlob } from './exportPng';
 import { resolveImageRef } from './images';
+import { renderLayersCanvas, drawImageLayer, boxPx, loadImage } from './canvasRender';
 
 const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30;
 const TRANSITION_MS = 500;
-
-const hexToRgb = (hex) => {
-  const h = String(hex || '').replace('#', '');
-  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
-  return Number.isNaN(n) ? { r: 0, g: 0, b: 0 } : { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-};
-const rgba = (hex, a) => { const { r, g, b } = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
 
 const pickMime = () => {
   for (const c of ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
@@ -41,17 +34,6 @@ const pickMime = () => {
   }
   return 'video/webm';
 };
-
-const loadImage = (src) => new Promise((resolve) => {
-  if (!src) { resolve(null); return; }
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => resolve(img);
-  img.onerror = () => resolve(null);
-  img.src = src;
-});
-
-const blobToImage = async (blob) => { const url = URL.createObjectURL(blob); const img = await loadImage(url); return img; };
 
 /** Which of a frame's layers are photos, and the split around them. */
 function splitLayers(layers) {
@@ -63,36 +45,6 @@ function splitLayers(layers) {
     over: (l, i) => i > last && l.type !== 'image',
     photos: layers.filter((l) => l.type === 'image'),
   };
-}
-
-/** Clip the context to a photo layer's shape, in px. */
-function clipShape(ctx, box, l) {
-  const { x, y, w, h } = box;
-  ctx.beginPath();
-  if (l.radius === 999) ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
-  else if (l.shape === 'arch') { const r = w / 2; ctx.moveTo(x, y + h); ctx.lineTo(x, y + r); ctx.arc(x + r, y + r, r, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); }
-  else { const r = l.radius || 0; ctx.roundRect(x, y, w, h, r); }
-  ctx.clip();
-}
-
-/** Draw an image covering the box, keeping the focal point, zoomed by k. */
-function drawCover(ctx, img, box, focus, k) {
-  const scale = Math.max(box.w / img.width, box.h / img.height) * k;
-  const dw = img.width * scale, dh = img.height * scale;
-  const fx = focus?.x ?? 0.5, fy = focus?.y ?? 0.5;
-  const dx = box.x - (dw - box.w) * fx, dy = box.y - (dh - box.h) * fy;
-  ctx.drawImage(img, dx, dy, dw, dh);
-}
-
-function drawWash(ctx, box, overlay, colors) {
-  const c = colors[overlay.color]; const a = overlay.opacity;
-  let g;
-  if (overlay.direction === 'bottom') { g = ctx.createLinearGradient(0, box.y + box.h, 0, box.y); g.addColorStop(0, rgba(c, a)); g.addColorStop(0.4, rgba(c, a * 0.6)); g.addColorStop(0.75, rgba(c, 0)); }
-  else if (overlay.direction === 'top') { g = ctx.createLinearGradient(0, box.y, 0, box.y + box.h); g.addColorStop(0, rgba(c, a)); g.addColorStop(0.7, rgba(c, 0)); }
-  else if (overlay.direction === 'rise') { g = ctx.createLinearGradient(0, box.y + box.h, 0, box.y); g.addColorStop(0, rgba(c, a)); g.addColorStop(0.38, rgba(c, a)); g.addColorStop(0.55, rgba(c, a * 0.55)); g.addColorStop(0.8, rgba(c, 0)); }
-  else g = rgba(c, a);
-  ctx.fillStyle = g;
-  ctx.fillRect(box.x, box.y, box.w, box.h);
 }
 
 /**
@@ -110,7 +62,6 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
   const [error, setError] = useState('');
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
-  const rasterRef = useRef(null);
 
   const missing = fills.flatMap((f, i) => f.missing.map((m) => `${reel.scenes[i].label}: ${m.startsWith('slot:') ? 'תמונה' : m}`));
 
@@ -119,22 +70,19 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
     setBusy(true); setError(''); setVideo(null); setProgress(0);
     let audioCtx = null;
     try {
-      // 1. Rasterise every scene's under/over layers from the hidden DOM frames, load its photos.
+      // 1. Draw every scene's under/over layers onto canvases, and load its photos.
       setStatus('מציירת את הסצנות');
-      const host = rasterRef.current;
       const scenes = [];
       for (let i = 0; i < reel.scenes.length; i++) {
         const frame = reel.scenes[i].frame;
-        const { photos } = splitLayers(frame.layers);
-        const underEl = host.querySelector(`[data-scene="${i}"][data-part="under"]`);
-        const overEl = host.querySelector(`[data-scene="${i}"][data-part="over"]`);
-        const under = underEl && underEl.childElementCount ? await blobToImage(await captureElementPng(underEl)) : null;
-        const over = overEl ? await blobToImage(await captureElementPng(overEl)) : null;
+        const { photos, under: underFilter, over: overFilter } = splitLayers(frame.layers);
+        const under = frame.layers.some((l, k, all) => underFilter(l, k, all)) ? await renderLayersCanvas(frame, fills[i], underFilter) : null;
+        const over = frame.layers.some((l, k, all) => overFilter(l, k, all)) ? await renderLayersCanvas(frame, fills[i], overFilter) : null;
         const imgs = [];
         for (const l of photos) {
           const ref = fills[i].images?.[l.slot];
           const src = ref ? await resolveImageRef(ref) : null;
-          imgs.push({ layer: l, img: await loadImage(src), box: { x: (l.box.x / 100) * W, y: (l.box.y / 100) * H, w: (l.box.w / 100) * W, h: (l.box.h / 100) * H } });
+          imgs.push({ layer: l, img: await loadImage(src), box: boxPx(l, W, H) });
         }
         scenes.push({ under, over, imgs, colors: fills[i].colors, motion: reel.scenes[i].motion, transition: reel.scenes[i].transition, ms: reel.scenes[i].seconds * 1000 });
         setProgress(Math.round(((i + 1) / reel.scenes.length) * 20));
@@ -145,14 +93,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
         ctx.clearRect(0, 0, W, H);
         ctx.fillStyle = s.colors.surface; ctx.fillRect(0, 0, W, H);
         if (s.under) ctx.drawImage(s.under, 0, 0, W, H);
-        for (const p of s.imgs) {
-          ctx.save();
-          clipShape(ctx, p.box, p.layer);
-          if (p.img) drawCover(ctx, p.img, p.box, p.layer.focus, s.motion === 'kenburns' ? 1 + 0.08 * t : 1);
-          else { const g = ctx.createLinearGradient(p.box.x, p.box.y, p.box.x + p.box.w, p.box.y + p.box.h); g.addColorStop(0, s.colors.blush); g.addColorStop(1, s.colors.sand); ctx.fillStyle = g; ctx.fillRect(p.box.x, p.box.y, p.box.w, p.box.h); }
-          if (p.layer.overlay) drawWash(ctx, p.box, p.layer.overlay, s.colors);
-          ctx.restore();
-        }
+        for (const p of s.imgs) drawImageLayer(ctx, p.layer, p.box, p.img, s.colors, s.motion === 'kenburns' ? 1 + 0.08 * t : 1);
         if (s.over) ctx.drawImage(s.over, 0, 0, W, H);
       };
 
@@ -253,21 +194,10 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
         </div>
       )}
 
-      {/* The recorder's canvas and the frames it rasterises, off-screen. */}
+      {/* The recorder's canvas, off-screen. */}
       <div aria-hidden style={{ position: 'fixed', left: -30000, top: 0, pointerEvents: 'none' }}>
         <canvas ref={canvasRef} width={W} height={H} />
         <audio ref={audioRef} />
-        <div ref={rasterRef}>
-          {reel.scenes.map((s, i) => {
-            const { under, over } = splitLayers(s.frame.layers);
-            return (
-              <div key={s.id}>
-                <div data-scene={i} data-part="under"><DomPreview template={s.frame} fill={fills[i]} width={W} transparent layerFilter={under} /></div>
-                <div data-scene={i} data-part="over"><DomPreview template={s.frame} fill={fills[i]} width={W} transparent layerFilter={over} /></div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

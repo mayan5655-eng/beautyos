@@ -2,28 +2,13 @@
 
 // app/design/exportPng.js
 //
-// The PNG export for the DOM renderer: capture a full-size DomPreview
-// (1080 wide, mounted off-screen by the caller) with html2canvas, the same
-// library the post designer already uses. Returns a Blob; the caller
-// downloads it and, when the design is saved, uploads it as export_path.
+// The export helpers. The PNG itself is drawn by canvasRender (no DOM
+// rasterising: html2canvas laid text out on its own and dropped wrapped
+// lines, scrambled letter-spaced Hebrew and could not draw a CSS mask). The
+// caller downloads the Blob and, when the design is saved, uploads it.
 
 import { supabase } from '../supabase';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
-import { REFIT_EVENT } from './DomPreview';
-
-const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
-
-export async function captureElementPng(el) {
-  if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
-  // Every text refits against the loaded fonts, then layout settles, then we capture.
-  window.dispatchEvent(new Event(REFIT_EVENT));
-  await frame(); await frame();
-  await new Promise((r) => setTimeout(r, 60));
-  const html2canvas = (await import('html2canvas')).default;
-  const canvas = await html2canvas(el, { scale: 1, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('הייצוא נכשל'))), 'image/png'));
-}
-
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

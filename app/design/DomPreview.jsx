@@ -14,6 +14,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { CANVAS, ratingCount } from '@/lib/design/contract';
 import { fitText } from '@/lib/design/fitText';
+import { textDirection } from '@/lib/design/canvasText';
 import { applyOverrides, isPrivateRef } from '@/lib/design/design';
 import { useResolvedImages } from './images';
 
@@ -27,14 +28,15 @@ const pct = (n) => `${n}%`;
 // A five-point star in a 24-unit box.
 const STAR = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z';
 
-/** Dispatch this before capturing a preview: every text refits against the fonts that are actually loaded. */
-export const REFIT_EVENT = 'design:refit';
-
 // Shrinks the text until it fits its box and its line budget, to half the
 // base size at most (lib/design/fitText). Works on the element's style
 // directly: measuring and shrinking is a layout concern, not state, and it
-// must finish before paint. Refits when the fonts arrive and on REFIT_EVENT,
-// so an export never captures a fit that was measured with a fallback font.
+// must finish before paint. Refits when the fonts arrive, so a fit measured
+// with a fallback font is corrected.
+//
+// The container is right-to-left, so a flex row STARTS at the right edge:
+// 'right' is flex-start and 'left' is flex-end. Text with no Hebrew in it
+// (a phone, a handle) is set left-to-right so it reads in order.
 function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, weight, font, color, pill, pillColor, letterSpacing }) {
   const ref = useRef(null);
   const boxRef = useRef(null);
@@ -44,20 +46,24 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
     const lh = lineHeight || 1.2;
     const { px } = fitText({
       basePx, lineHeight: lh, maxLines: maxLines || 0, boxWidth: box.clientWidth, boxHeight: box.clientHeight,
-      measure: (size) => { el.style.fontSize = `${size}px`; return { width: el.scrollWidth, height: el.scrollHeight }; },
+      measure: (size) => {
+        el.style.fontSize = `${size}px`;
+        // A pill has padding: it counts toward the box, but not toward the number of lines.
+        const cs = getComputedStyle(el);
+        const padV = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        return { width: el.scrollWidth, height: el.scrollHeight, contentHeight: el.scrollHeight - padV };
+      },
     });
     el.style.fontSize = `${px}px`;
   };
   useLayoutEffect(fit, [content, basePx, maxLines, font, weight, lineHeight]);
   useEffect(() => {
     let alive = true;
-    const refit = () => { if (alive) fit(); };
-    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(refit);
-    window.addEventListener(REFIT_EVENT, refit);
-    return () => { alive = false; window.removeEventListener(REFIT_EVENT, refit); };
+    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(() => { if (alive) fit(); });
+    return () => { alive = false; };
   });
 
-  const justify = align === 'center' ? 'center' : align === 'left' ? 'flex-start' : 'flex-end';
+  const justify = align === 'center' ? 'center' : align === 'left' ? 'flex-end' : 'flex-start';
   return (
     <div ref={boxRef} style={{ width: '100%', height: '100%', display: 'flex', alignItems: valign === 'top' ? 'flex-start' : valign === 'bottom' ? 'flex-end' : 'center', justifyContent: justify, direction: 'rtl', overflow: 'hidden' }}>
       <div
@@ -65,7 +71,7 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
         style={{
           maxWidth: '100%',
           fontFamily: font, fontSize: `${basePx}px`, fontWeight: weight || 600, lineHeight: lineHeight || 1.2, letterSpacing: letterSpacing ? `${letterSpacing}em` : undefined,
-          color, textAlign: align, whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word', display: 'block',
+          color, textAlign: align, direction: textDirection(String(content || '')), whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word', display: 'block',
           ...(pill ? { background: pillColor, borderRadius: `${pill.radius * (basePx / 40)}px`, padding: `${pill.padding * 0.6 * (basePx / 40)}px ${pill.padding * (basePx / 40)}px` } : {}),
         }}
       >
@@ -100,7 +106,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         if (l.type === 'rating') {
           const n = ratingCount(fill.values?.[l.bind]);
           return (
-            <div key={l.id} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: l.align === 'left' ? 'flex-start' : 'flex-end', gap: '3%', direction: 'rtl' }}>
+            <div key={l.id} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: l.align === 'left' ? 'flex-end' : 'flex-start', gap: '3%', direction: 'rtl' }}>
               {[0, 1, 2, 3, 4].map((i) => (
                 <svg key={i} viewBox="0 0 24 24" style={{ height: '100%', width: 'auto', flexShrink: 0 }}>
                   <path d={STAR} fill={i < n ? colors[l.color] : 'none'} stroke={colors[l.color]} strokeWidth="1.6" strokeLinejoin="round" />
@@ -143,7 +149,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         if (l.type === 'logo') {
           if (fill.logoUrl) {
             return (
-              <div key={l.id} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <div key={l.id} style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- her logo file */}
                 <img src={fill.logoUrl} alt="" crossOrigin="anonymous" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
               </div>

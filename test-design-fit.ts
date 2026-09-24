@@ -45,4 +45,16 @@ assert.ok(hopeless.px >= 46);
 assert.ok(fitText({ ...box, measure: () => ({ width: 952.4, height: 298.6 }) }).fits, 'a pixel of slack');
 assert.equal(lineCount(195, 92, 1.06), 2);
 
+// A button pill: its padding counts toward the box but must not count as a second line.
+// (Regression: a one-line pill read as two lines and shrank to half size in the live preview.)
+{
+  const padV = 21.8;
+  const pill = fitText({ basePx: 28, lineHeight: 1.2, maxLines: 1, boxWidth: 440, boxHeight: 64, measure: (px) => ({ width: 10 * px * 0.5 + 36, height: px * 1.2 + padV, contentHeight: px * 1.2 }) });
+  assert.equal(pill.px, 28, 'a one-line pill keeps its size');
+  assert.equal(pill.lines, 1);
+  // Without the content height the same measurement reads as two lines - the bug.
+  const wrong = fitText({ basePx: 28, lineHeight: 1.2, maxLines: 1, boxWidth: 440, boxHeight: 64, measure: (px) => ({ width: 10 * px * 0.5 + 36, height: px * 1.2 + padV }) });
+  assert.ok(wrong.px < 28, 'which is what the old measure did');
+}
+
 console.log('design fit: ok');
