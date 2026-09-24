@@ -114,9 +114,9 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
   const headlineWeight = def.headlineWeight || 700;
   const page = def.page || 'surface';
 
-  // Type sizes per format.
+  // Type sizes per format. headlineH holds every allowed line at full size plus slack, so a full headline never shrinks.
   const T = story
-    ? { kicker: 26, headline: 92, headlineLines: 3, headlineH: 290, headlineOneH: 110, subline: 34, price: 140, priceH: 170, cta: 30, quoteText: 44, quoteLines: 5, quoteH: 300, bullet: 32, bulletH: 54, statement: 120, statementLines: 4 }
+    ? { kicker: 26, headline: 92, headlineLines: 3, headlineH: 298, headlineOneH: 110, subline: 34, price: 140, priceH: 170, cta: 30, quoteText: 44, quoteLines: 5, quoteH: 300, bullet: 32, bulletH: 54, statement: 120, statementLines: 4 }
     : { kicker: 24, headline: 84, headlineLines: 2, headlineH: 190, headlineOneH: 100, subline: 32, price: 128, priceH: 150, cta: 28, quoteText: 40, quoteLines: 4, quoteH: 216, bullet: 30, bulletH: 48, statement: 104, statementLines: 4 };
 
   // ── Variables ──────────────────────────────────────────────────────────────

@@ -11,8 +11,9 @@
 // Text shrinks to fit its box (AutoFitText), the way a template engine's
 // auto-size would, so a long business name does not spill out of a pill.
 
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { CANVAS, ratingCount } from '@/lib/design/contract';
+import { fitText } from '@/lib/design/fitText';
 import { applyOverrides, isPrivateRef } from '@/lib/design/design';
 import { useResolvedImages } from './images';
 
@@ -26,33 +27,45 @@ const pct = (n) => `${n}%`;
 // A five-point star in a 24-unit box.
 const STAR = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z';
 
-// Shrinks the text until it fits its box, to half the base size at most.
-// Works on the element's style directly: measuring and shrinking is a
-// layout concern, not state, and it must finish before paint.
+/** Dispatch this before capturing a preview: every text refits against the fonts that are actually loaded. */
+export const REFIT_EVENT = 'design:refit';
+
+// Shrinks the text until it fits its box and its line budget, to half the
+// base size at most (lib/design/fitText). Works on the element's style
+// directly: measuring and shrinking is a layout concern, not state, and it
+// must finish before paint. Refits when the fonts arrive and on REFIT_EVENT,
+// so an export never captures a fit that was measured with a fallback font.
 function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, weight, font, color, pill, pillColor, letterSpacing }) {
   const ref = useRef(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let px = basePx;
+  const boxRef = useRef(null);
+  const fit = () => {
+    const el = ref.current, box = boxRef.current;
+    if (!el || !box) return;
+    const lh = lineHeight || 1.2;
+    const { px } = fitText({
+      basePx, lineHeight: lh, maxLines: maxLines || 0, boxWidth: box.clientWidth, boxHeight: box.clientHeight,
+      measure: (size) => { el.style.fontSize = `${size}px`; return { width: el.scrollWidth, height: el.scrollHeight }; },
+    });
     el.style.fontSize = `${px}px`;
-    let guard = 0;
-    while (guard++ < 24 && px > basePx * 0.5 && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
-      px *= 0.93;
-      el.style.fontSize = `${px}px`;
-    }
-  }, [content, basePx, maxLines, font, weight]);
+  };
+  useLayoutEffect(fit, [content, basePx, maxLines, font, weight, lineHeight]);
+  useEffect(() => {
+    let alive = true;
+    const refit = () => { if (alive) fit(); };
+    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(refit);
+    window.addEventListener(REFIT_EVENT, refit);
+    return () => { alive = false; window.removeEventListener(REFIT_EVENT, refit); };
+  });
 
   const justify = align === 'center' ? 'center' : align === 'left' ? 'flex-start' : 'flex-end';
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: valign === 'top' ? 'flex-start' : valign === 'bottom' ? 'flex-end' : 'center', justifyContent: justify, direction: 'rtl' }}>
+    <div ref={boxRef} style={{ width: '100%', height: '100%', display: 'flex', alignItems: valign === 'top' ? 'flex-start' : valign === 'bottom' ? 'flex-end' : 'center', justifyContent: justify, direction: 'rtl', overflow: 'hidden' }}>
       <div
         ref={ref}
         style={{
-          maxWidth: '100%', maxHeight: '100%', overflow: 'hidden',
+          maxWidth: '100%',
           fontFamily: font, fontSize: `${basePx}px`, fontWeight: weight || 600, lineHeight: lineHeight || 1.2, letterSpacing: letterSpacing ? `${letterSpacing}em` : undefined,
-          color, textAlign: align, whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word',
-          display: maxLines && maxLines > 1 ? '-webkit-box' : 'block', WebkitLineClamp: maxLines && maxLines > 1 ? maxLines : undefined, WebkitBoxOrient: 'vertical',
+          color, textAlign: align, whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word', display: 'block',
           ...(pill ? { background: pillColor, borderRadius: `${pill.radius * (basePx / 40)}px`, padding: `${pill.padding * 0.6 * (basePx / 40)}px ${pill.padding * (basePx / 40)}px` } : {}),
         }}
       >

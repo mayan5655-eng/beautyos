@@ -29,6 +29,10 @@ for (const def of CREAM_DEFS) {
     assert.ok(t.variables.some((v) => v.source === 'contact'), 'her phone and handle in the strip');
     const headline = t.layers.find((l) => l.id === 'headline' || l.id === 'review_text');
     assert.ok(headline && headline.type === 'text' && headline.font === 'display', 'a display headline');
+    if (headline && headline.type === 'text' && headline.id === 'headline' && (headline.maxLines || 0) > 1) {
+      const boxPx = (headline.box.h / 100) * CANVAS[t.format].h;
+      assert.ok(boxPx + 1 >= (headline.maxLines || 1) * headline.size * (headline.lineHeight || 1.2), `${templateId(t)}: the headline box holds every line it allows`);
+    }
     const fam = def.layout.family;
     const stacked = (fam === 'top' && def.layout.textPos !== 'above') || fam === 'frame' || fam === 'collage' || fam === 'pair';
     const photos = t.layers.filter((l) => l.type === 'image');

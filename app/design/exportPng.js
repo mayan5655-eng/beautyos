@@ -9,11 +9,16 @@
 
 import { supabase } from '../supabase';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
+import { REFIT_EVENT } from './DomPreview';
+
+const frame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 export async function captureElementPng(el) {
   if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready;
-  // Let the auto-fit pass settle after fonts arrive.
-  await new Promise((r) => setTimeout(r, 120));
+  // Every text refits against the loaded fonts, then layout settles, then we capture.
+  window.dispatchEvent(new Event(REFIT_EVENT));
+  await frame(); await frame();
+  await new Promise((r) => setTimeout(r, 60));
   const html2canvas = (await import('html2canvas')).default;
   const canvas = await html2canvas(el, { scale: 1, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('הייצוא נכשל'))), 'image/png'));
