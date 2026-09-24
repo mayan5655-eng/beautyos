@@ -21,6 +21,7 @@ import { trackedCreate } from './usage.ts';
 import { GROUNDING_RULES, buildBusinessContext, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import { composeImagePrompt, type ImageFormat, type NegativeSpace } from './imagePrompt.ts';
 import type { Template } from '../design/contract.ts';
+import { limitText } from '../design/limitText.ts';
 
 export const DIRECTOR_MODEL = 'claude-sonnet-5';
 export const DIRECTOR_CALL_SITE = 'creatives/direct';
@@ -108,7 +109,7 @@ export function parseDirectorOutput(template: Template, text: string): DirectorO
     const def = allowed.get(k);
     if (!def) continue;
     let s = clean(v);
-    if (def.maxLength && s.length > def.maxLength) s = s.slice(0, def.maxLength).trim();
+    s = limitText(s, def.maxLength);
     if (s) values[k] = s;
   }
 

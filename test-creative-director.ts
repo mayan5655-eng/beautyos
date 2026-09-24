@@ -32,7 +32,7 @@ const good = JSON.stringify({
 });
 const out = parseDirectorOutput(t, '```json\n' + good + '\n```');
 assert.deepEqual(Object.keys(out.values).sort(), ['cta', 'headline', 'price', 'subline']);
-assert.equal(out.values.subline.length, 60, 'capped at the template maxLength');
+assert.equal(out.values.subline.length, 60, 'capped at the template maxLength (an unbroken run has no word to cut at)');
 assert.deepEqual(out.copy.hashtags, ['#עור', '#זוהר']);
 assert.equal(out.directions.length, 3, 'at most three, empty ones skipped');
 assert.equal(out.directions[0].negativeSpace, 'top');

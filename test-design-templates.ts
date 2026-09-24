@@ -121,7 +121,18 @@ assert.deepEqual(full.missing, []);
 assert.equal(full.values.headline, 'טיפול פנים קלאסי', 'typed values are trimmed');
 
 const longName = fillTemplate(getTemplate('offer-feed')!, { settings: { business_name: 'א'.repeat(80), primary_color: null, branding: {} } });
-assert.equal(longName.values.business_name.length, 40, 'capped at the template maxLength');
+assert.equal(longName.values.business_name.length, 40, 'an unbroken run is cut at the template maxLength');
+
+// A caption over its limit is never cut mid-word: it is cut at the last whole word that fits.
+const headlineDef = getTemplate('offer-feed')!.variables.find((v) => v.key === 'headline')!;
+const words = 'העור עובד בזמן שאת ישנה סרום לילה ומסכה מזינה לכל סוג עור שלך בקליניקה שלנו עם טיפול פנים מפנק';
+assert.ok(words.length > headlineDef.maxLength!);
+const cutHeadline = sanitizeValues(getTemplate('offer-feed')!, { headline: words }).headline;
+assert.ok(cutHeadline.length <= headlineDef.maxLength!, 'within the limit');
+assert.ok(words.startsWith(cutHeadline) && words[cutHeadline.length] === ' ', 'ends on a whole word');
+const okHeadline = words.slice(0, headlineDef.maxLength!).trim();
+assert.equal(sanitizeValues(getTemplate('offer-feed')!, { headline: okHeadline }).headline, okHeadline, 'within the limit: untouched');
+assert.equal(fillTemplate(getTemplate('offer-feed')!, { settings: { branding: {} }, inputs: { headline: words } }).values.headline, cutHeadline, 'render and save agree');
 
 // Client photos never auto-fill, even when something is in the gallery.
 const ba = fillTemplate(getTemplate('before-after-feed')!, { settings: { branding: { gallery: ['https://cdn/g1.jpg'] } } });

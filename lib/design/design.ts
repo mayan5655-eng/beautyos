@@ -12,6 +12,7 @@
 //   brand:  { logo?, phone?, instagram? } // false hides that part of the strip on THIS design
 // }
 
+import { limitText } from './limitText.ts';
 import { COLOR_ROLES, type ColorRole, type Layer, type SlotDef, type Template, type VariableDef } from './contract.ts';
 
 /** What the sanitisers need from a template or a reel: the fields she can fill. */
@@ -126,14 +127,14 @@ export function sanitizeOverrides(raw: unknown): Overrides {
   return out;
 }
 
-/** Text values, trimmed and capped by the template's own maxLength. */
+/** Text values, trimmed and limited by the template's maxLength (lib/design/limitText: whole words). */
 export function sanitizeValues(template: FillSurface, raw: unknown): Record<string, string> {
   const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const out: Record<string, string> = {};
   for (const v of template.variables) {
     if (typeof o[v.key] !== 'string') continue;
     let s = (o[v.key] as string).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
-    if (v.maxLength && s.length > v.maxLength) s = s.slice(0, v.maxLength).trim();
+    s = limitText(s, v.maxLength);
     out[v.key] = s;
   }
   return out;

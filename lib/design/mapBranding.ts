@@ -15,6 +15,7 @@
 import { buildAccentTokens, contrastOn, hexToRgb } from '../theme.ts';
 import type { ColorRole, Template, VariableDef } from './contract.ts';
 import type { BrandToggles } from './design.ts';
+import { limitText } from './limitText.ts';
 
 export type BrandingInput = {
   settings?: { business_name?: string | null; therapist_name?: string | null; business_phone?: string | null; primary_color?: string | null; branding?: unknown } | null;
@@ -125,7 +126,7 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
   for (const v of template.variables) {
     const typed = clean(input.inputs?.[v.key]);
     let val = typed || sourceValue(v, input, branding) || clean(v.default);
-    if (v.maxLength && val.length > v.maxLength) val = val.slice(0, v.maxLength).trim();
+    val = limitText(val, v.maxLength);
     values[v.key] = val;
     if (v.required && !val) missing.push(v.key);
   }
