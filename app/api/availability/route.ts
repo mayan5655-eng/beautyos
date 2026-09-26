@@ -38,6 +38,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
+import { resolveLunch, lunchBusy } from '@/lib/lunchBreak';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -108,7 +109,17 @@ export async function GET(request: Request) {
       );
     }
 
-    return Response.json({ success: true, busy: data || [] });
+    // Her protected break, as busy time. Same shape as an appointment, so the page
+    // needs nothing new and a visitor learns only that the time is not available.
+    // A failed settings read leaves the break out rather than failing the page:
+    // /api/book-appointment enforces it independently.
+    let lunch: ReturnType<typeof lunchBusy> = [];
+    try {
+      const { data: st } = await supabase.from('settings').select('branding').eq('tenant_id', tenantId).maybeSingle();
+      lunch = lunchBusy(resolveLunch(st?.branding), today, HORIZON_DAYS);
+    } catch { /* enforced again at booking time */ }
+
+    return Response.json({ success: true, busy: [...(data || []), ...lunch] });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[availability] threw:', message);

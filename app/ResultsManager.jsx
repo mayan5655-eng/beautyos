@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { PUBLIC_BUCKET } from "@/lib/clientImages";
 import { consentComplete, publishBlockers } from "@/lib/results";
+import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
 
 // ============================================================
 // SETTINGS -> BRANDING -> TREATMENT RESULTS
@@ -52,7 +53,7 @@ export default function ResultsManager({ tenantId, services }) {
       // 42P01 / PGRST205: the migration has not been run yet.
       setLoadError(/does not exist|schema cache|42P01|PGRST205/i.test(`${error.code} ${error.message}`)
         ? "הטבלה של התוצאות עדיין לא נוצרה במסד הנתונים (add_treatment_results.sql). עד שתורץ אי אפשר לשמור תוצאות."
-        : "לא הצלחנו לטעון את התוצאות. נסי לרענן.");
+        : "לא הצלחנו לטעון את התוצאות עכשיו, והן שמורות. נסי לרענן.");
       return;
     }
     setLoadError("");
@@ -76,13 +77,13 @@ export default function ResultsManager({ tenantId, services }) {
     if (!file) return;
     if (!/^image\//.test(file.type || "")) { setMsg("קובץ תמונה בלבד"); return; }
     if (file.size > 3 * 1024 * 1024) { setMsg("התמונה גדולה מדי (עד 3MB)"); return; }
-    if (!tenantId) { setMsg("לא זוהה עסק — נסי לצאת ולהיכנס שוב"); return; }
+    if (!tenantId) { setMsg(STUCK_HE); return; }
     setMsg(""); setBusy("up:" + side);
     try {
       const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
       const path = `${tenantId}/results/${side}_${Date.now()}.jpg`;
       const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg" });
-      if (error) { setMsg("ההעלאה נכשלה. נסי שוב."); return; }
+      if (error) { setMsg("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע."); return; }
       const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
       if (url) setPhoto(side, url);
     } finally { setBusy(""); }
@@ -118,7 +119,7 @@ export default function ResultsManager({ tenantId, services }) {
         ? supabase.from("treatment_results").update(payload).eq("id", draft.id)
         : supabase.from("treatment_results").insert({ ...payload, tenant_id: tenantId });
       const { error } = await q;
-      if (error) { setMsg("השמירה נכשלה: " + (error.message || "שגיאה")); return; }
+      if (error) { setMsg(SAVE_FAILED_HE); return; }
       setDraft(null);
       await load();
     } finally { setBusy(""); }
@@ -128,13 +129,13 @@ export default function ResultsManager({ tenantId, services }) {
     setMsg(""); setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").update({ published: !r.published }).eq("id", r.id);
-      if (error) setMsg("לא ניתן לפרסם בלי אישור הלקוחה. פתחי את התוצאה והשלימי את האישור.");
+      if (error) setMsg("אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה.");
       await load();
     } finally { setBusy(""); }
   };
 
   const remove = async (r) => {
-    if (!window.confirm("למחוק את התוצאה הזו ואת רישום האישור שלה?")) return;
+    if (!window.confirm("למחוק את התוצאה הזו ואת רישום ההסכמה שלה?")) return;
     setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").delete().eq("id", r.id);
@@ -181,7 +182,7 @@ export default function ResultsManager({ tenantId, services }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600, margin: 0 }}>{r.service_name || "ללא טיפול"}</p>
                 <p style={{ ...hint, color: r.published ? "var(--pc-deep)" : "var(--ink-3)" }}>
-                  {r.published ? "מפורסם" : r.consent_confirmed ? "טיוטה" : "טיוטה, חסר אישור"}
+                  {r.published ? "מפורסם" : r.consent_confirmed ? "טיוטה" : "טיוטה, חסרה הסכמה"}
                   {r.sessions ? ` · ${r.sessions} טיפולים` : ""}
                 </p>
               </div>
@@ -229,21 +230,21 @@ export default function ResultsManager({ tenantId, services }) {
           {/* CONSENT - its own box, because it is a different kind of field: it
               is a record, it is never shown on the page, and it gates publishing. */}
           <div style={{ padding: 12, border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", background: "var(--surface)", display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>אישור הלקוחה לפרסום</p>
-            <p style={hint}>הרישום נשמר אצלך בלבד ולא מוצג בדף. בלי הרישום המלא אי אפשר לפרסם.</p>
+            <p style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>הסכמת הלקוחה</p>
+            <p style={hint}>מה שנרשם כאן נשמר אצלך בלבד ולא מופיע בדף. ברגע שהכול מלא אפשר לפרסם.</p>
             <div>
-              <p style={lbl}>שם הלקוחה שנתנה את האישור</p>
+              <p style={lbl}>מי הסכימה</p>
               <input value={draft.consentName} onChange={(e) => set({ consentName: e.target.value, consentConfirmed: false, published: false })} style={inp} />
             </div>
             <div>
-              <p style={lbl}>מתי היא נתנה את האישור</p>
+              <p style={lbl}>מתי היא הסכימה</p>
               <input type="date" value={draft.consentGivenOn} max={today()} onChange={(e) => set({ consentGivenOn: e.target.value })} style={{ ...inp, maxWidth: 190, direction: "ltr" }} />
             </div>
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
               <input type="checkbox" checked={draft.consentConfirmed} onChange={(e) => set({ consentConfirmed: e.target.checked })}
                 style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: "var(--pc)" }} />
               <span style={{ fontSize: "var(--t-sm)", color: "var(--ink)", lineHeight: 1.6 }}>
-                אני מאשרת שקיבלתי מהלקוחה הסכמה לפרסם את התמונות האלה בדף העסק שלי.
+                הלקוחה ידעה והסכימה שאפרסם את התמונות האלה בדף העסק שלי.
               </span>
             </label>
           </div>

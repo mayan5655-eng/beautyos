@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
+import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
 
 
 
@@ -199,6 +200,17 @@ export async function POST(request) {
           { status: 409 }
         );
       }
+    }
+
+    // 0b2. HER BREAK IS HERS. A protected window she set once (lib/lunchBreak) that
+    //      self-booking cannot take. Enforced here and not only by the busy slots the
+    //      page shows, for the same reason as the hours check above. The message does
+    //      not say why: a visitor does not need to know it is lunch.
+    if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration)) {
+      return Response.json(
+        { success: false, error: "השעה הזו לא זמינה, נא לבחור שעה אחרת" },
+        { status: 409 }
+      );
     }
 
     // 0. Reject double-booking: if a non-cancelled appointment already overlaps

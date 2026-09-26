@@ -35,7 +35,7 @@ export function trialUrgentTitleHe(days: number): string {
     : `תקופת ההתנסות מסתיימת בעוד ${daysHe(days)}`
 }
 
-export const TRIAL_URGENT_BODY_HE = 'אפשר להמשיך לעבוד בלי הפסקה. כתבי לי ונסגור את זה בקלות.'
+export const TRIAL_URGENT_BODY_HE = 'אפשר להמשיך לעבוד בלי הפסקה. כתבי לי ונסגור את זה בקלות. כל מה שיצרת נשאר שלך, גם אם תרצי לעצור.'
 
 /**
  * The blocked notice. `paused` gets deliberately softer wording: a paused

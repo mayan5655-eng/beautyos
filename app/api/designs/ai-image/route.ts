@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   if (tenantLimited) return tenantLimited;
 
   const cap = await getCallCapStatus(tenantId, CALL_SITE);
-  if (cap.exceeded) return NextResponse.json({ success: false, error: `הגעת לתקרת תמונות ה-AI החודשית (${cap.used}/${cap.cap}).` }, { status: 429 });
+  if (cap.exceeded) return NextResponse.json({ success: false, error: `סיימת את תמונות ה-AI של החודש (${cap.used} מתוך ${cap.cap}). הן מתחדשות בתחילת החודש הבא, ובינתיים אפשר לבחור תמונה מהגלריה.` }, { status: 429 });
 
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) || {}; } catch { /* empty */ }

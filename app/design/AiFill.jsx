@@ -53,7 +53,10 @@ export default function AiFill({ template, designId, imageSlot, readOnly, onValu
       setTakes((t) => ({ ...t, [i]: { count: variation + 1, lastUrl: data.url } }));
       if (typeof data.costUsd === 'number') setSpent((s) => s + data.costUsd);
       onImage?.(imageSlot.key, data.url);
-      toast?.(variation ? 'וריאציה חדשה נכנסה לעיצוב' : 'התמונה נכנסה לעיצוב');
+      // Warn well before the wall, once it is close, so a limit is never a surprise.
+      const left = Number.isFinite(data.capLimit) && Number.isFinite(data.capUsed) ? data.capLimit - data.capUsed : null;
+      const note = left === null || left > 5 ? '' : left <= 0 ? ' זו הייתה התמונה האחרונה החודש, והן מתחדשות בתחילת החודש הבא.' : left === 1 ? ' נשארה לך עוד תמונה אחת החודש.' : ' נשארו לך עוד ' + left + ' תמונות החודש.';
+      toast?.((variation ? 'וריאציה חדשה נכנסה לעיצוב.' : 'התמונה נכנסה לעיצוב.') + note);
     } catch (e) { setError(String(e.message || e)); } finally { setImgBusy(-1); }
   };
 

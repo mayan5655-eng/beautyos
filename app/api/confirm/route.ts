@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
+import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const { data: appt, error: fetchError } = await supabase
       .from('appointments')
-      .select('confirmation_status, tenant_id')
+      .select('confirmation_status, tenant_id, name, service, date, start_minute, hour, duration')
       .eq('id', appointmentId)
       .single();
 
@@ -113,6 +114,12 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('confirm: update failed', error.message);
       return NextResponse.json({ error: 'לא הצלחנו לעדכן את התור' }, { status: 500 });
+    }
+
+    // Tell her, the way a person would: who, which slot, that it is free again,
+    // and who is waiting. Best-effort; never turns a done cancellation into an error.
+    if (newStatus === 'cancelled') {
+      await notifyOwnerOfCancellation({ supabase, tenantId: appt.tenant_id, appt });
     }
 
     return okResponse(action, false, brand);

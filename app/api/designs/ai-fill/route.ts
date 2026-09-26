@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, ...out });
   } catch (e) {
     if (e instanceof AiCapExceededError) {
-      return NextResponse.json({ success: false, error: `הגעת לתקרת מילויי ה-AI החודשית (${e.used}/${e.cap}).` }, { status: 429 });
+      return NextResponse.json({ success: false, error: `סיימת את מילויי ה-AI של החודש (${e.used} מתוך ${e.cap}). הם מתחדשים בתחילת החודש הבא, ובינתיים אפשר למלא את הטקסטים ידנית.` }, { status: 429 });
     }
     console.error('[designs/ai-fill] failed:', e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, error: 'ה-AI לא הצליח למלא את התבנית הפעם. נסי שוב, או מלאי ידנית.' }, { status: 502 });

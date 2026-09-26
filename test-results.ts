@@ -12,8 +12,8 @@ assert.equal(consentComplete(null), false);
 
 // The button says WHY it is disabled.
 assert.deepEqual(publishBlockers({ afterUrl: 'u', serviceName: 'אקנה', ...ok }), []);
-assert.deepEqual(publishBlockers({}), ['תמונת אחרי', 'הטיפול', 'שם הלקוחה', 'תאריך האישור', 'אישור שקיבלת הסכמה']);
-assert.deepEqual(publishBlockers({ afterUrl: 'u', serviceName: 'x', consentName: 'ד', consentGivenOn: '2026-01-01' }), ['אישור שקיבלת הסכמה']);
+assert.deepEqual(publishBlockers({}), ['תמונת אחרי', 'הטיפול', 'שם הלקוחה', 'מתי הסכימה', 'הסכמת הלקוחה']);
+assert.deepEqual(publishBlockers({ afterUrl: 'u', serviceName: 'x', consentName: 'ד', consentGivenOn: '2026-01-01' }), ['הסכמת הלקוחה']);
 
 // Public rows: an after photo is the minimum; a before is optional.
 const rows = cleanPublicResults([

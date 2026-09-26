@@ -33,6 +33,10 @@ import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceD
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { DEFAULT_HOW_I_WORK, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
+import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
+import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
+import { buildNextClientBrief, untilHe } from "@/lib/nextClient";
 import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 import ResultsManager from "./ResultsManager";
 import { quietStatus } from "@/lib/quiet";
@@ -962,6 +966,10 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
+  // Re-render once a minute so the clock-driven cards on the dashboard (the next
+  // client, the end-of-day list) appear and change on their own.
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => { const t = setInterval(() => setMinuteTick((n) => n + 1), 60000); return () => clearInterval(t); }, []);
   const [settings,     setSettings]     = useState({business_name:"",therapist_name:"",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
 
   // === UI STATES ===
@@ -1471,7 +1479,8 @@ export default function BeautyOS() {
       toast("השעה הזו כבר תפוסה. נא לבחור שעה אחרת.", "error");
       return;
     }
-    toast(`שגיאה: ${message || "פעולה נכשלה"}`, "error");
+    console.error("[BeautyOS] db error:", code, message);
+    toast(STUCK_HE, "error");
   }, [toast, isConnectionError]);
 
   const handleLogout = useCallback(() => {
@@ -2936,7 +2945,7 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const want = String(slugDraft || "").trim();
     const tid = settings?.tenant_id;
-    if (!tid) { toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    if (!tid) { toast(STUCK_HE,"error"); return; }
     const bad = slugError(want);
     if (!want) { toast("נא להזין כתובת","error"); return; }
     if (bad) { setSlugNote(bad); return; }
@@ -3250,7 +3259,7 @@ export default function BeautyOS() {
       setPendingQuestion(null);
       setQuestionStats((prev) => prev ? { ...prev, [saidYes ? "yes" : "no"]: prev[saidYes ? "yes" : "no"] + 1 } : prev);
     } catch (e) {
-      toast("משהו השתבש, נסי שוב", "error");
+      toast(STUCK_HE, "error");
     } finally {
       setBusyKey("ownerQuestion", false);
     }
@@ -3490,13 +3499,13 @@ export default function BeautyOS() {
       if(editingClient){
         const {data,error}=await supabase.from("clients").update(newClient).eq("id",editingClient.id).select();
         if(error){handleDbError(error, "update client"); return;}
-        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>prev.map(c=>c.id===editingClient.id?data[0]:c));setSelectedClient(data[0]);
         toast("הלקוחה עודכנה");
       }else{
         const {data,error}=await supabase.from("clients").insert([newClient]).select();
         if(error){handleDbError(error, "create client"); return;}
-        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>[...prev,data[0]]);
         toast("הלקוחה נוספה");
       }
@@ -3876,13 +3885,13 @@ export default function BeautyOS() {
       if(editingLead){
         const {data,error}=await supabase.from("leads").update(newLead).eq("id",editingLead.id).select();
         if(error){handleDbError(error, "update lead"); return;}
-        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
         toast("הליד עודכן");
       }else{
         const {data,error}=await supabase.from("leads").insert([newLead]).select();
         if(error){handleDbError(error, "create lead"); return;}
-        if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+        if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>[...prev,data[0]]);
         toast("הליד נוסף");
       }
@@ -3929,7 +3938,7 @@ export default function BeautyOS() {
       if(error){ applyStatus(prevStatus); handleDbError(error, "update lead status"); return; }
       // Zero rows back is not success. It means RLS refused the write, which
       // used to leave the old code showing nothing at all.
-      if(!data||!data[0]){ applyStatus(prevStatus); toast("עדכון הסטטוס נכשל","error"); return; }
+      if(!data||!data[0]){ applyStatus(prevStatus); toast("לא הצלחנו לעדכן את הסטטוס, והוא חזר למה שהיה. נסי שוב בעוד רגע.","error"); return; }
       const row = data[0];
       setLeads(prev => prev.map(l => l.id === lead.id ? row : l));
       setSelectedLead(prev => prev && prev.id === lead.id ? row : prev);
@@ -4044,7 +4053,7 @@ export default function BeautyOS() {
         console.log(`[convert-lead] TENANT FILTER: tenant_id = ${tid ?? "(omitted — DB default)"} | lead ${lead.id}`);
         const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
-        if(!cd||!cd[0]){toast("ההמרה נכשלה","error");return;}
+        if(!cd||!cd[0]){toast(couldNotHe("להמיר את זה"),"error");return;}
         const {data:ld, error:le}=await supabase.from("leads").update({status:"closed",converted_at:new Date().toISOString(),client_id:cd[0].id}).eq("id",lead.id).select();
         if(le){handleDbError(le, "convert lead -> update lead"); return;}
         setClients(prev=>[...prev,cd[0]]);
@@ -4083,7 +4092,7 @@ export default function BeautyOS() {
     try {
       const {data,error}=await supabase.from("leads").update({reminder_date:date}).eq("id",lead.id).select();
       if(error){ applyDate(prevDate); handleDbError(error, "set reminder"); return; }
-      if(!data||!data[0]){ applyDate(prevDate); toast("שמירת התזכורת נכשלה","error"); return; }
+      if(!data||!data[0]){ applyDate(prevDate); toast(couldNotHe("לשמור את התזכורת"),"error"); return; }
       const row = data[0];
       setLeads(prev => prev.map(l => l.id === lead.id ? row : l));
       setSelectedLead(prev => prev && prev.id === lead.id ? row : prev);
@@ -4100,7 +4109,7 @@ export default function BeautyOS() {
     setUploading(true);
     try {
       const tid=settings?.tenant_id;
-      if(!tid){toast("לא זוהה עסק — לא ניתן להעלות","error");return;}
+      if(!tid){toast(STUCK_HE,"error");return;}
       // Tenant-scoped, private path. We store the PATH (not a URL); display
       // resolves a signed URL on demand via <SignedImage>.
       const fileName=clientImagePath(tid,client.id,`${Date.now()}_${file.name}`);
@@ -4181,7 +4190,7 @@ export default function BeautyOS() {
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
     if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
     const tid = settings?.tenant_id;
-    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading(key);
     try {
       const preset = key === "logo_url" ? IMAGE_PRESETS.logo
@@ -4218,7 +4227,7 @@ export default function BeautyOS() {
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
     if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
     const tid = settings?.tenant_id;
-    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("clinic");
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "clinic");
@@ -4237,7 +4246,7 @@ export default function BeautyOS() {
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
     if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
     const tid = settings?.tenant_id;
-    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("svc:"+serviceId);
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "service");
@@ -4252,7 +4261,7 @@ export default function BeautyOS() {
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
     if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
     const tid = settings?.tenant_id;
-    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("gallery");
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "gallery");
@@ -4267,7 +4276,7 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
-    if(!data||!data[0]){toast("יצירת הטופס נכשלה","error");return;}
+    if(!data||!data[0]){toast(couldNotHe("ליצור את הטופס"),"error");return;}
     setForms(prev=>[...prev,data[0]]);
     const link=`${origin}/form?id=${data[0].id}`;
     try {
@@ -4368,7 +4377,7 @@ export default function BeautyOS() {
           toast("אין חיבור לאינטרנט. ההגדרות לא נשמרו, והפרטים עדיין כאן. נסי שוב כשהחיבור יחזור.", "error");
           return;
         }
-        toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב", "error");
+        toast(STUCK_HE, "error");
         return;
       }
 
@@ -4684,7 +4693,7 @@ export default function BeautyOS() {
         }
       }
       if(error){handleDbError(error, "save receipt"); return;}
-      if(!data||!data[0]){toast("יצירת הקבלה נכשלה","error");return;}
+      if(!data||!data[0]){toast(couldNotHe("להפיק את הקבלה"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
 
       // The deduction, AFTER the receipt, ordered by which failure is
@@ -4905,7 +4914,7 @@ export default function BeautyOS() {
       };
       const { data, error } = await supabase.from("appointments").insert([appt]).select();
       if (error) { handleDbError(error, "rebook appointment"); return; }
-      if (!data || !data[0]) { toast("קביעת התור נכשלה", "error"); return; }
+      if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return; }
       setAppointments((prev) => [...prev, data[0]]);
       setRebookDone({ receiptId: showReceipt.id, appt: data[0] });
       setRebookPick(null);
@@ -5638,7 +5647,7 @@ export default function BeautyOS() {
       // happen, because the draw is on the screen it vanished from.
       const {data,error}=await supabase.from("packages").insert([{ ...packageRow, active: true, ...tenantField }]).select();
       if(error){handleDbError(error, "save package"); return;}
-      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
       const pkg = data[0];
       setPackages(prev=>[...prev,pkg]);
 
@@ -5752,7 +5761,7 @@ export default function BeautyOS() {
       // without it could vanish from the list on the next reload.
       const {data,error}=await supabase.from("waitlist").insert([{ ...newWaitlist, status: "waiting", ...(wlTid ? { tenant_id: wlTid } : {}) }]).select();
       if(error){handleDbError(error, "save waitlist"); return;}
-      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
       setWaitlist(prev=>[...prev,data[0]]);setShowWaitlistModal(false);toast("נוספה לרשימת המתנה");
     } finally {
       setBusyKey("saveWaitlist", false);
@@ -5767,7 +5776,7 @@ export default function BeautyOS() {
     try {
       const {data,error}=await supabase.from("treatment_protocols").insert([newProtocol]).select();
       if(error){handleDbError(error, "save protocol"); return;}
-      if(!data||!data[0]){toast("השמירה נכשלה","error");return;}
+      if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
       setProtocols(prev=>[data[0],...prev]);setShowProtocolModal(false);setNewProtocol(emptyProtocol);toast("הפרוטוקול נשמר");
     } finally {
       setBusyKey("saveProtocol", false);
@@ -7492,6 +7501,53 @@ ${c.claimUrl}`)}`;
                   {renderSetupBody()}
  </div>
                 )}
+
+                {/* ── THE NEXT CLIENT (only in the 45 minutes before she arrives) ── */}
+                {(()=>{
+                  const brief=buildNextClientBrief({appointments:clientAppts,clients,now,startMinute,endMinute});
+                  if(!brief) return null;
+                  const {appt,client,minutesUntil,lastVisit,allergies,note,isNew}=brief;
+                  return(
+ <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,margin:"0 0 2px"}}>{untilHe(minutesUntil)}</p>
+ <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>{appt.name}{appt.service?" · "+appt.service:""}</p>
+ <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {isNew&&<p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",margin:0}}>ביקור ראשון שלה אצלך.</p>}
+                        {lastVisit&&<p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",margin:0}}>פעם שעברה{lastVisit.service?": "+lastVisit.service:""}, {lastVisit.ago}.</p>}
+                        {allergies&&<p style={{fontSize:"var(--t-md)",color:"var(--ink)",margin:0,background:"rgba(240,180,41,0.16)",borderRadius:"var(--r-xs)",padding:"4px 10px",alignSelf:"flex-start"}}>אלרגיות: {allergies}</p>}
+                        {note&&<p style={{fontSize:"var(--t-md)",color:"var(--ink)",margin:0}}>{note}</p>}
+                        {client&&!allergies&&!note&&!isNew&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",margin:0}}>אין הערות עליה. אפשר להוסיף בכרטיס שלה.</p>}
+ </div>
+ </div>
+                  );
+                })()}
+
+                {/* ── BEFORE YOU GO HOME: at most three lines, or the sentence that lets her go ── */}
+                {(()=>{
+                  const nowMin=now.getHours()*60+now.getMinutes();
+                  const todayLive=todayAppts.filter(a=>a.confirmation_status!=="cancelled");
+                  const allEnded=todayLive.length>0&&todayLive.every(a=>{const e=endMinute(a);return e!==null&&e<=nowMin;});
+                  // The evening, or the moment the last client has left.
+                  if(!(now.getHours()>=17||allEnded)) return null;
+                  const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
+                  return(
+ <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 20px"}}>
+ <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>לפני שהולכים הביתה</p>
+                      {allClear?(
+ <p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",margin:0}}>{ALL_CLEAR_HE}</p>
+                      ):(
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                          {items.map(it=>(
+ <div key={it.key} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+ <p style={{fontSize:"var(--t-md)",color:"var(--ink)",margin:0,flex:"1 1 220px"}}>{it.text}</p>
+                              {it.appt&&<button onClick={()=>handleOpenCashier(it.appt)} className="primary-btn" style={{padding:"7px 14px",fontSize:"var(--t-sm)"}}>לפתוח קבלה</button>}
+ </div>
+                          ))}
+ </div>
+                      )}
+ </div>
+                  );
+                })()}
 
                 {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:18,flexWrap:"wrap",alignItems:"flex-start"}}>
@@ -9558,7 +9614,7 @@ ${c.claimUrl}`)}`;
  <select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
- <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
+ <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="משהו שכדאי לזכור עליה. למשל: מתחתנת בנובמבר, לא אוהבת ריח חזק" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4}}>סטטוס</p><div style={{display:"flex",gap:4}}>{Object.entries(STATUS_LABELS).map(([key,label])=><button key={key} onClick={()=>setNewClient({...newClient,status:key})} style={{flex:1,padding:"7px 2px",border:"1px solid",borderColor:newClient.status===key?pc:"var(--line)",borderRadius:"var(--r-sm)",background:newClient.status===key?STATUS_COLORS[key]:pcTint,color:newClient.status===key?"var(--surface)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>)}</div></div>
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
@@ -10951,6 +11007,51 @@ ${c.claimUrl}`)}`;
  </div>
    );
  })}
+ {(()=>{
+   // A break clients cannot book into. Stored in branding.lunch_break and saved
+   // with the rest of the settings (lib/lunchBreak); she can still book into it herself.
+   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+   const lb=(b.lunch_break&&typeof b.lunch_break==="object")?b.lunch_break:{};
+   const on=lb.on===true;
+   const startMin=Number.isInteger(lb.start_minute)?lb.start_minute:LUNCH_DEFAULT.start_minute;
+   const mins=Number.isFinite(Number(lb.minutes))?Number(lb.minutes):LUNCH_DEFAULT.minutes;
+   const setLb=(patch)=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};const cur=(pb.lunch_break&&typeof pb.lunch_break==="object")?pb.lunch_break:{};return {...prev,branding:{...pb,lunch_break:{on:cur.on===true,start_minute:Number.isInteger(cur.start_minute)?cur.start_minute:LUNCH_DEFAULT.start_minute,minutes:Number.isFinite(Number(cur.minutes))?Number(cur.minutes):LUNCH_DEFAULT.minutes,...patch}}};});
+   const starts=[];for(let m=10*60;m<=16*60;m+=30)starts.push(m);
+   const hhmm=(m)=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+   return(
+ <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)"}}>
+ <div style={{display:"flex",alignItems:"center",gap:10}}>
+ <div style={{flex:1}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>הפסקה שלי</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>לקוחות שקובעות דרך הדף לא יוכלו לקחת אותה, גם כשהיומן נראה פנוי. את עדיין יכולה.</p>
+ </div>
+ <Toggle on={on} onChange={()=>setLb({on:!on})} pc={pc} />
+ </div>
+ {on&&(
+ <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
+ <select aria-label="תחילת ההפסקה" value={startMin} onChange={e=>setLb({start_minute:Number(e.target.value)})} style={hourSelectStyle}>{starts.map(m=><option key={m} value={m}>{hhmm(m)}</option>)}</select>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>למשך</span>
+ <select aria-label="אורך ההפסקה" value={mins} onChange={e=>setLb({minutes:Number(e.target.value)})} style={hourSelectStyle}>{[15,30,45,60,90].map(m=><option key={m} value={m}>{m} דקות</option>)}</select>
+ </div>
+ )}
+ </div>
+   );
+ })()}
+ {(()=>{
+   // A message to HER the evening before: how many clients tomorrow, who is first,
+   // who has not confirmed. Off unless she turns it on (branding.evening_summary).
+   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+   const on=b.evening_summary===true;
+   return(
+ <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
+ <div style={{flex:1}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב בוואטסאפ</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>הודעה אלייך בערב: כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
+ </div>
+ <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} />
+ </div>
+   );
+ })()}
  </div>
                 );
               })()}

@@ -9,6 +9,10 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/send-owner-evening",
+      "schedule": "0 17 * * *"
+    },
+    {
       "path": "/api/invariants",
       "schedule": "0 1 * * *"
     }

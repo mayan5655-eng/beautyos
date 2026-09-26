@@ -11,6 +11,7 @@ import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
+import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
 
 // ============================================================
@@ -490,10 +491,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       const result = await res.json();
       // Prefer the server's specific message (e.g. "slot taken") when provided,
       // otherwise fall back to the generic error.
-      if (!result.success) { setErrorMsg(result.error || "אירעה שגיאה. נסי שוב."); setSubmitting(false); return; }
+      if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setStep(4);
     } catch (err) {
-      setErrorMsg("אירעה שגיאה. נסי שוב.");
+      setErrorMsg(CLIENT_STUCK_HE);
     } finally {
       setSubmitting(false);
     }

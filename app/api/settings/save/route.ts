@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (error) {
       console.error('[settings/save] update failed:', error.code, error.message);
-      return NextResponse.json({ success: false, error: 'השמירה נכשלה' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'לא הצלחנו לשמור את ההגדרות. מה ששמור כבר לא נפגע. נסי שוב בעוד רגע.' }, { status: 500 });
     }
     return NextResponse.json({ success: true, settings: data });
   }
