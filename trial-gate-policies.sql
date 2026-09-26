@@ -79,6 +79,8 @@ declare
     'advisor_messages', 'campaigns', 'campaign_posts', 'community_posts',
     -- The design studio (supabase/migrations/add_designs.sql).
     'designs',
+    -- Client result photos + consent records (supabase/migrations/add_treatment_results.sql).
+    'treatment_results',
     -- Messaging and automation state.
     'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages'
     -- NOTE: 'settings' is intentionally absent. See the header for why.
@@ -159,8 +161,8 @@ select tablename, policyname, permissive, roles, cmd
    and policyname like '%\_require\_active\_%'
  order by tablename, cmd;
 
--- 6b. EXPECT policy_count = 63 and tables_gated = 21 (three policies each on
---     twenty-one tables). A lower number means a table was skipped: scroll back to
+-- 6b. EXPECT policy_count = 66 and tables_gated = 22 (three policies each on
+--     twenty-two tables). A lower number means a table was skipped: scroll back to
 --     the NOTICE output from section 1 to see which, and treat it as a gap.
 select count(*) as policy_count, count(distinct tablename) as tables_gated
   from pg_policies

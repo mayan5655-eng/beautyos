@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK, DEFAULT_HERO_HEADLINE, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { defaultImageUrl, serviceImage } from "@/lib/defaultImages";
+import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
@@ -125,6 +126,30 @@ function BeforeAfterSlider({ before, after }) {
   );
 }
 
+// One published result: a slider when there is a before, a single "after" when there
+// is not, then her line and the session count.
+function ResultCard({ result }) {
+  return (
+    <div>
+      {result.before ? (
+        <BeforeAfterSlider before={result.before} after={result.after} />
+      ) : (
+        <div style={{ position: "relative", aspectRatio: "3 / 4", borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid " + HAIR }}>
+          <Photo src={result.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+          <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
+        </div>
+      )}
+      {(result.caption || result.sessions) && (
+        <p style={{ margin: "8px 0 0", fontSize: "var(--t-sm)", color: "var(--ink-2, #6B6275)", lineHeight: 1.5, textAlign: "center" }}>
+          {result.caption}
+          {result.caption && result.sessions ? " · " : ""}
+          {result.sessions ? result.sessions + " טיפולים" : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * The whole client-facing page: her shop window and the four-step booking flow.
  *
@@ -155,6 +180,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Reviews written by clients. null until the read resolves, so "none yet" and
   // "not loaded" stay apart.
   const [dbReviews, setDbReviews] = useState(null);
+  // Client result photos she has published WITH a consent record (the database
+  // serves nothing else). Empty when none, or when the read fails: a result is
+  // never worth blocking the page for.
+  const [results, setResults] = useState([]);
   const [showAllHours, setShowAllHours] = useState(false);
 
   // === BOOKING FLOW STATE ===
@@ -204,7 +233,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const loadData = async (t, prefillServiceName) => {
     try {
       // Every query is scoped to this tenant only.
-      const [row, sv, ap, rv] = await Promise.all([
+      const [row, sv, ap, rv, rs] = await Promise.all([
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
         fetchPublicSettings(supabase, t),
@@ -226,7 +255,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         // is enforced once, in the database, rather than remembered by every
         // caller.
         supabase.rpc("get_public_reviews", { p_tenant_id: t }),
+        supabase.rpc("get_public_results", { p_tenant_id: t }),
       ]);
+      setResults(rs?.error ? [] : cleanPublicResults(rs?.data));
 
       // A failed read leaves this null, which falls back to the hand-typed
       // array below rather than showing a business with no reviews at all.
@@ -478,7 +509,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const aboutSignoff = brand?.aboutSignoff || "";
   const aboutText = brand?.businessDescription || "ברוכה הבאה! כאן תמצאי טיפולים המותאמים אישית לעור שלך, באווירה רגועה ונעימה.";
   const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : DEFAULT_VALUE_PROPS;
-  const beforeAfter = brand?.beforeAfter || [];
+  const resultGroups = groupResults(results, services);
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
@@ -515,6 +546,11 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
   const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
 
+
+  const goToResults = (key) => {
+    const el = typeof document !== "undefined" ? document.getElementById("bk-results-" + key) : null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const goToServices = () => {
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
@@ -671,6 +707,24 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
                         {sv.description && <p style={{ ...T_META, color: faint, margin: 0, lineHeight: 1.5 }}>{sv.description}</p>}
                         <p style={{ ...T_META, color: faint, margin: 0 }}>{sv.duration || 60} דק׳ · ₪{sv.price}</p>
+                        {(() => {
+                          const mine = resultsForService(results, sv);
+                          const key = groupKeyForService(resultGroups, sv);
+                          if (!mine.length || !key) return null;
+                          return (
+                            <button onClick={() => goToResults(key)} className="bk-btn" aria-label={"תוצאות של " + sv.name}
+                              style={{ background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                              <span style={{ display: "flex" }}>
+                                {mine.slice(0, 3).map((r, k) => (
+                                  <span key={r.id || k} style={{ width: 30, height: 30, marginInlineStart: k ? -8 : 0, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--brand-surface, #FAF6FC)", display: "block" }}>
+                                    <Photo src={r.after} style={{ width: "100%", height: "100%" }} />
+                                  </span>
+                                ))}
+                              </span>
+                              <span style={{ fontSize: "var(--t-sm)", color: deep, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>תוצאות ({mine.length})</span>
+                            </button>
+                          );
+                        })()}
                         {canBook && (
                           <button onClick={() => { setSelectedService(sv); setSelectedDate(null); setSelectedStart(null); setStep(2); }} className="bk-btn"
                             style={{ marginTop: "auto", height: 42, borderRadius: "var(--r-full)", background: "var(--pc-tint)", color: deep, fontSize: "var(--t-md)", fontWeight: 600, border: "1px solid var(--pc-soft)" }}>
@@ -685,12 +739,21 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             </div>
           )}
 
-          {/* BEFORE / AFTER - only pairs she published, never a stand-in. */}
-          {beforeAfter.length > 0 && (
-            <div style={{ ...section, marginTop: 34 }}>
-              <SectionTitle>לפני ואחרי</SectionTitle>
-              <div style={{ display: "grid", gridTemplateColumns: beforeAfter.length === 1 ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-                {beforeAfter.map((pair, i) => <BeforeAfterSlider key={i} before={pair.before} after={pair.after} />)}
+          {/* RESULTS - client photos, grouped by treatment. Only rows with a consent
+              record reach this page (get_public_results); a result with no "before"
+              is shown as a single "after". */}
+          {resultGroups.length > 0 && (
+            <div id="bk-results" style={{ ...section, marginTop: 34 }}>
+              <SectionTitle>תוצאות</SectionTitle>
+              <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+                {resultGroups.map((g) => (
+                  <div key={g.key} id={"bk-results-" + g.key} style={{ scrollMarginTop: 14 }}>
+                    <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: "0 0 10px", textAlign: "center" }}>{g.name}</p>
+                    <div style={{ display: "grid", gridTemplateColumns: g.items.length === 1 ? "minmax(0, 260px)" : "repeat(2, minmax(0, 1fr))", justifyContent: "center", gap: 12 }}>
+                      {g.items.map((r) => <ResultCard key={r.id} result={r} />)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

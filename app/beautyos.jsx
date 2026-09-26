@@ -34,6 +34,7 @@ import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { DEFAULT_HOW_I_WORK, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
+import ResultsManager from "./ResultsManager";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
@@ -4242,23 +4243,6 @@ export default function BeautyOS() {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "service");
       if(up.error){ handleDbError(up.error, "upload service photo"); return; }
       if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const m=(b.service_images&&typeof b.service_images==="object"&&!Array.isArray(b.service_images))?b.service_images:{}; return {...prev, branding:{...b, service_images:{...m,[serviceId]:up.url}}}; });
-      toast("התמונה נוספה — לחצי שמירה");
-    } finally { setBrandUploading(""); }
-  };
-
-  // One side of one before/after pair (branding.before_after: [{before, after}]).
-  // A pair with only one side is kept while she works and simply not published.
-  const uploadBeforeAfter = async (idx, side, file) => {
-    if(!file) return;
-    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
-    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
-    const tid = settings?.tenant_id;
-    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
-    setBrandUploading("ba:"+idx+side);
-    try {
-      const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "ba_"+side);
-      if(up.error){ handleDbError(up.error, "upload before/after"); return; }
-      if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const arr=Array.isArray(b.before_after)?[...b.before_after]:[]; while(arr.length<=idx) arr.push({before:"",after:""}); arr[idx]={...arr[idx],[side]:up.url}; return {...prev, branding:{...b, before_after:arr}}; });
       toast("התמונה נוספה — לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
@@ -10512,25 +10496,7 @@ ${c.claimUrl}`)}`;
                     })}
  </div>
  </div>
- <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> לפני ואחרי</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>זוגות תמונות עם מחוון להזזה בדף שלך. אין כאן ברירת מחדל, כי תוצאה שלא הייתה לא מוצגת. העלי רק תמונות שהלקוחה אישרה לפרסום. עד 6 זוגות; זוג עם צד אחד בלבד לא מוצג.</p>
- <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                    {(Array.isArray(brand.before_after)?brand.before_after:[]).map((pair,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface-2)"}}>
-                        {["before","after"].map(side=>(
- <label key={side} style={{flex:1,textAlign:"center",cursor:"pointer",fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>
-                            {pair?.[side]?<img src={pair[side]} alt="" style={{width:"100%",aspectRatio:"3 / 4",objectFit:"cover",borderRadius:"var(--r-xs)",display:"block",marginBottom:4}}/>:<span style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",aspectRatio:"3 / 4",border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-xs)",marginBottom:4,color:pcDeep,fontWeight:600}}>{brandUploading==="ba:"+i+side?<Spinner inline label="מעלה"/>:"+"}</span>}
-                            {side==="before"?"לפני":"אחרי"}
- <input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{uploadBeforeAfter(i,side,e.target.files?.[0]);e.target.value="";}}/>
- </label>
-                        ))}
- <button onClick={()=>setBrand("before_after",(Array.isArray(brand.before_after)?brand.before_after:[]).filter((_,j)=>j!==i))} aria-label="הסרת הזוג" style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-lg)",cursor:"pointer",padding:"0 6px"}}>×</button>
- </div>
-                    ))}
- </div>
- {(Array.isArray(brand.before_after)?brand.before_after:[]).length<6&&<button onClick={()=>setBrand("before_after",[...(Array.isArray(brand.before_after)?brand.before_after:[]),{before:"",after:""}])} style={{display:"block",width:"100%",marginTop:8,border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-sm)",padding:"12px",textAlign:"center",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,background:"var(--surface-2)",fontFamily:"inherit"}}>+ הוספת זוג לפני ואחרי</button>}
- </div>
+ <ResultsManager tenantId={settings?.tenant_id} services={activeServices}/>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהקליניקה</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בדף ההזמנות.</p>
