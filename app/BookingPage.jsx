@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
@@ -51,6 +51,8 @@ function socialHref(base, val) {
 }
 
 const HAIR = "rgba(74,46,90,0.14)";
+// Results visible per treatment group before "עוד N".
+const RESULTS_PER_GROUP = 4;
 
 // A picture that never leaves a hole: missing or broken (a default not yet
 // shipped, a deleted upload) falls back to a soft tint instead of an icon.
@@ -126,26 +128,74 @@ function BeforeAfterSlider({ before, after }) {
   );
 }
 
-// One published result: a slider when there is a before, a single "after" when there
-// is not, then her line and the session count.
-function ResultCard({ result }) {
+// A result at two-up size: the "after" photo only, so the grid stays light and
+// readable. Caption, session count and the before/after slider live in the
+// full-size view (ResultLightbox); a small pill says there is a "before".
+function ResultThumb({ result, onOpen, label }) {
   return (
-    <div>
-      {result.before ? (
-        <BeforeAfterSlider before={result.before} after={result.after} />
-      ) : (
-        <div style={{ position: "relative", aspectRatio: "3 / 4", borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid " + HAIR }}>
-          <Photo src={result.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-          <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
+    <button onClick={onOpen} aria-label={label} className="bk-btn"
+      style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: "1 / 1", borderRadius: "var(--r-sm)", overflow: "hidden", border: "1px solid " + HAIR, background: "none" }}>
+      <Photo src={result.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      {result.before && (
+        <span aria-hidden="true" style={{ position: "absolute", bottom: 6, insetInlineEnd: 6, padding: "1px 8px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: "var(--t-xs)", fontWeight: 600 }}>לפני · אחרי</span>
+      )}
+    </button>
+  );
+}
+
+// One result, full-size, where the before/after slider has room to be used.
+// Esc, the backdrop and the close button all close it; the page behind does not
+// scroll while it is open.
+function ResultLightbox({ items, index, title, onClose, onStep }) {
+  const closeRef = useRef(null);
+  const r = items[index];
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    // Mount only: onClose just clears state, so the first render's copy is always right,
+    // and re-running this on every step would re-steal focus and re-lock the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!r) return null;
+  const arrow = { background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--t-xl)", color: "var(--ink, #2A2233)", padding: "4px 14px" };
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(20,15,25,0.84)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FEFAF7)", borderRadius: "var(--r-lg)", padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+          <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #2A2233)" }}>{title}</p>
+          <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
         </div>
-      )}
-      {(result.caption || result.sessions) && (
-        <p style={{ margin: "8px 0 0", fontSize: "var(--t-sm)", color: "var(--ink-2, #6B6275)", lineHeight: 1.5, textAlign: "center" }}>
-          {result.caption}
-          {result.caption && result.sessions ? " · " : ""}
-          {result.sessions ? result.sessions + " טיפולים" : ""}
-        </p>
-      )}
+        <div style={{ width: "min(100%, calc(66vh * 0.75))", margin: "0 auto" }}>
+          {r.before ? (
+            <BeforeAfterSlider key={r.id} before={r.before} after={r.after} />
+          ) : (
+            <div style={{ position: "relative", aspectRatio: "3 / 4", borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid " + HAIR }}>
+              <Photo src={r.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+              <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
+            </div>
+          )}
+        </div>
+        {(r.caption || r.sessions) && (
+          <p style={{ margin: "12px 0 0", fontSize: "var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.6, textAlign: "center" }}>
+            {r.caption}
+            {r.caption && r.sessions ? " · " : ""}
+            {r.sessions ? r.sessions + " טיפולים" : ""}
+          </p>
+        )}
+        {items.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 }}>
+            <button onClick={() => onStep(-1)} aria-label="הקודמת" style={arrow}>›</button>
+            <span style={{ fontSize: "var(--t-sm)", color: "var(--brand-muted, #98879B)" }}>{index + 1} / {items.length}</span>
+            <button onClick={() => onStep(1)} aria-label="הבאה" style={arrow}>‹</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -184,6 +234,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // serves nothing else). Empty when none, or when the read fails: a result is
   // never worth blocking the page for.
   const [results, setResults] = useState([]);
+  // Which treatment groups are expanded past the first four, and which result is
+  // open full-size ({ key, index } into that group), if any.
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [openResult, setOpenResult] = useState(null);
   const [showAllHours, setShowAllHours] = useState(false);
 
   // === BOOKING FLOW STATE ===
@@ -740,20 +794,34 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           )}
 
           {/* RESULTS - client photos, grouped by treatment. Only rows with a consent
-              record reach this page (get_public_results); a result with no "before"
-              is shown as a single "after". */}
+              record reach this page (get_public_results). Two per row, four per
+              group until she asks for more; tapping one opens it full-size. */}
           {resultGroups.length > 0 && (
             <div id="bk-results" style={{ ...section, marginTop: 34 }}>
               <SectionTitle>תוצאות</SectionTitle>
-              <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
-                {resultGroups.map((g) => (
-                  <div key={g.key} id={"bk-results-" + g.key} style={{ scrollMarginTop: 14 }}>
-                    <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: "0 0 10px", textAlign: "center" }}>{g.name}</p>
-                    <div style={{ display: "grid", gridTemplateColumns: g.items.length === 1 ? "minmax(0, 260px)" : "repeat(2, minmax(0, 1fr))", justifyContent: "center", gap: 12 }}>
-                      {g.items.map((r) => <ResultCard key={r.id} result={r} />)}
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {resultGroups.map((g) => {
+                  const open = !!expandedGroups[g.key];
+                  const visible = open ? g.items : g.items.slice(0, RESULTS_PER_GROUP);
+                  const hidden = g.items.length - RESULTS_PER_GROUP;
+                  return (
+                    <div key={g.key} id={"bk-results-" + g.key} style={{ scrollMarginTop: 14 }}>
+                      <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: "0 0 10px", textAlign: "center" }}>{g.name}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, maxWidth: 340, margin: "0 auto" }}>
+                        {visible.map((r, i) => (
+                          <ResultThumb key={r.id} result={r} label={"תוצאה " + (i + 1) + " מתוך " + g.items.length + ": " + g.name}
+                            onOpen={() => setOpenResult({ key: g.key, index: i })} />
+                        ))}
+                      </div>
+                      {hidden > 0 && (
+                        <button onClick={() => setExpandedGroups((m) => ({ ...m, [g.key]: !open }))} className="bk-btn"
+                          style={{ display: "block", margin: "12px auto 0", padding: "8px 20px", borderRadius: "var(--r-full)", background: "var(--pc-tint)", color: deep, border: "1px solid var(--pc-soft)", fontSize: "var(--t-md)", fontWeight: 600 }}>
+                          {open ? "הצג פחות" : "עוד " + hidden}
+                        </button>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -984,6 +1052,16 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           )}
         </div>
       )}
+
+      {openResult && (() => {
+        const g = resultGroups.find((x) => x.key === openResult.key);
+        if (!g) return null;
+        return (
+          <ResultLightbox items={g.items} index={Math.min(openResult.index, g.items.length - 1)} title={g.name}
+            onClose={() => setOpenResult(null)}
+            onStep={(d) => setOpenResult((o) => (o ? { ...o, index: (o.index + d + g.items.length) % g.items.length } : o))} />
+        );
+      })()}
 
       {/* ============ STEPS 2–4 — BOOKING FLOW ============ */}
       {step >= 2 && (
