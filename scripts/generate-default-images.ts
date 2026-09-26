@@ -9,7 +9,7 @@
 //   ... generate-default-images.ts --force        # regenerate ones that exist
 //
 // Needs OPENAI_API_KEY (lib/ai/openaiImages is the only OpenAI caller, so this
-// goes through it). One image each, 'high' quality: 14 images. Look at every
+// goes through it). One image each, 'high' quality: 15 images. Look at every
 // result before committing - a generated picture is only a default if it is
 // one she would be happy to have on her page.
 //
@@ -39,7 +39,8 @@ const SPECS: Spec[] = [
   { key: 'plasma-pen', format: 'square', subject: 'Macro of a slim pen-shaped precision device held close to the delicate skin above an eyelid, the eye closed, extreme detail, no smoke.' },
   { key: 'led', format: 'square', subject: 'A woman lying under a LED light-therapy mask glowing soft red and a little blue, relaxed, seen from the side.' },
   { key: 'deep-cleansing', format: 'square', subject: 'Gloved hands giving a deep facial cleansing with a warm damp towel and a soft cleansing brush, gentle steam, calm.' },
-  { key: 'equipment', format: 'square', subject: 'A clean, modern aesthetic treatment device on a small trolley in a bright treatment room, screen dark, no visible brand or text.' },
+  { key: 'equipment', format: 'square', subject: 'A professional aesthetic treatment device with a handpiece resting in its holder, standing on a clean pale surface in a bright treatment room; soft window light, a sprig of green in the background, screen dark. The equipment itself is the subject. No people, no hands, no faces, no visible brand or text.' },
+  { key: 'brows', format: 'square', subject: 'Close, tightly cropped view of well-shaped natural eyebrows being shaped: a gloved hand holding a fine brow brush or slim tweezers at the brow, the crop ends above the cheekbone so no full face is visible, soft even light, natural skin texture.' },
   { key: 'neutral', format: 'square', subject: 'Still life: folded white towels, a sprig of eucalyptus, a small ceramic bowl of cream on a pale linen surface, no people.' },
   { key: 'hero', format: 'story', subject: 'A bright, airy, empty cosmetic treatment room: a white treatment bed with a folded towel, a leafy plant, warm natural window light, a calm cream and sage interior. Leave the upper half of the frame uncluttered. No people.' },
   { key: 'about', format: 'feed45', subject: 'A soft-focus corner of a calm clinic: an armchair by a window, a green plant, a small table with a tea cup and folded linen, golden natural light. No people.' },
