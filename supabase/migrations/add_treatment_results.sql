@@ -4,8 +4,9 @@
 -- is optional), a short line, optionally how many sessions - and, for every
 -- one of them, the CONSENT RECORD of the client whose face or body it is.
 --
--- ── STATUS: NOT APPLIED ─────────────────────────────────────────────────────
--- Run by hand in the Supabase SQL Editor. `npm run migrations:status` verifies.
+-- ── STATUS: APPLIED to production (reported and verified by the owner, 2026-09-27) ──
+-- Run by hand in the Supabase SQL Editor, together with trial-gate-policies.sql
+-- (which now lists treatment_results). `npm run migrations:status` verifies.
 -- Where this header and the script disagree, the script is right.
 --
 -- ── Why a table, and not branding.results ───────────────────────────────────
