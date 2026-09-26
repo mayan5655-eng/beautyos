@@ -4,7 +4,8 @@ import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
-import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK } from "@/lib/branding";
+import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK, DEFAULT_HERO_HEADLINE, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { defaultImageUrl, serviceImage } from "@/lib/defaultImages";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
@@ -48,6 +49,82 @@ function socialHref(base, val) {
   return base + v.replace(/^@/, "");
 }
 
+const HAIR = "rgba(74,46,90,0.14)";
+
+// A picture that never leaves a hole: missing or broken (a default not yet
+// shipped, a deleted upload) falls back to a soft tint instead of an icon.
+function Photo({ src, style, eager = false }) {
+  const [badSrc, setBadSrc] = useState(null);
+  const bad = badSrc === src;
+  if (!src || bad) {
+    return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #F1E7F0) 0%, var(--brand-cream, #FEFAF7) 100%)" }} />;
+  }
+  return <img src={src} alt="" loading={eager ? "eager" : "lazy"} onError={() => setBadSrc(src)} style={{ ...style, objectFit: "cover", objectPosition: "center", display: "block" }} />;
+}
+
+// Small botanical mark + rules either side: the section beat, used on every
+// section title so the ornament stays a rhythm, not decoration everywhere.
+function SectionTitle({ children }) {
+  return (
+    <div style={{ textAlign: "center", marginBottom: 16 }}>
+      <svg width="30" height="20" viewBox="0 0 30 20" fill="none" stroke="var(--pc)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block", margin: "0 auto 4px" }}>
+        <path d="M15 18C11 15 10 9 15 2c5 7 4 13 0 16z" />
+        <path d="M14 18C9 18 4 14 3 9c5 0 9 3 11 9z" />
+        <path d="M16 18c5 0 10-4 11-9-5 0-9 3-11 9z" />
+      </svg>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span aria-hidden="true" style={{ flex: 1, height: 1, background: HAIR }} />
+        <h2 className="serif" style={{ margin: 0, fontSize: "var(--t-xl)", fontWeight: 600, color: "var(--ink, #2A2233)", lineHeight: 1.3 }}>{children}</h2>
+        <span aria-hidden="true" style={{ flex: 1, height: 1, background: HAIR }} />
+      </div>
+    </div>
+  );
+}
+
+const VALUE_ICON_PATHS = [
+  <path key="h" d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z" />,
+  <g key="f"><path d="M12 21c-4 0-8-3-8-9 4 0 7 2 8 5 1-3 4-5 8-5 0 6-4 9-8 9z" /><path d="M12 17c-2-3-2-8 0-13 2 5 2 10 0 13z" /></g>,
+  <g key="l"><path d="M5 21C5 11 10 5 21 3c0 10-5 17-14 17" /><path d="M5 21C9 14 13 10 17 8" /></g>,
+  <path key="s" d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8 5.8 21.3l2.4-7.4L2 9.4h7.6z" />,
+];
+function ValueIcon({ i }) {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {VALUE_ICON_PATHS[i % VALUE_ICON_PATHS.length]}
+    </svg>
+  );
+}
+
+// One before/after pair. Drag anywhere on it (pointer events, so touch and
+// mouse both work; vertical scrolling stays with the page) or use the arrow
+// keys on the hidden range input.
+function BeforeAfterSlider({ before, after }) {
+  const [pos, setPos] = useState(50);
+  const move = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (!r.width) return;
+    setPos(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
+  };
+  return (
+    <div dir="ltr"
+      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); move(e); }}
+      onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) move(e); }}
+      style={{ position: "relative", aspectRatio: "3 / 4", borderRadius: "var(--r-md)", overflow: "hidden", touchAction: "pan-y", userSelect: "none", border: "1px solid " + HAIR }}>
+      <Photo src={after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      <div style={{ position: "absolute", inset: 0, clipPath: "inset(0 " + (100 - pos) + "% 0 0)" }}>
+        <Photo src={before} style={{ width: "100%", height: "100%" }} />
+      </div>
+      <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: pos + "%", width: 2, marginLeft: -1, background: "#fff", boxShadow: "var(--shadow-sm)" }}>
+        <span style={{ position: "absolute", top: "50%", left: "50%", width: 30, height: 30, marginTop: -15, marginLeft: -15, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--t-sm)", color: "#555" }}>‹›</span>
+      </div>
+      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, left: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>לפני</span>
+      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
+      <input type="range" min="0" max="100" value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label="השוואת לפני ואחרי"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, pointerEvents: "none", margin: 0 }} />
+    </div>
+  );
+}
+
 /**
  * The whole client-facing page: her shop window and the four-step booking flow.
  *
@@ -79,7 +156,6 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // "not loaded" stay apart.
   const [dbReviews, setDbReviews] = useState(null);
   const [showAllHours, setShowAllHours] = useState(false);
-  const [tab, setTab] = useState("book");
 
   // === BOOKING FLOW STATE ===
   const [step, setStep] = useState(1); // 1=business card + service, 2=date+time, 3=details, 4=done
@@ -377,7 +453,6 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // prompt to go and fill it in.
   const bizName = brand?.businessName || settings?.business_name || "העסק שלי";
   // Her line, under her name. Optional - most clinics never set one.
-  const tagline = brand?.welcomeHeadline || "";
   const personName = brand?.therapistName || settings?.therapist_name || "";
   const personTitle = brand?.therapistTitle || "";
   const person = [personName, personTitle].filter(Boolean).join(" · ");
@@ -391,6 +466,19 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const hasServices = services.length > 0;
   const hasOpenDays = availableDays.length > 0;
   const canBook = hasServices && hasOpenDays;
+  // The sticky bar exists whenever there is something to tap: WhatsApp if she has a
+  // number, otherwise the online flow (which needs a bookable service and day).
+  const barShown = !!wa || canBook;
+  const waHref = wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent("היי, אשמח לקבוע תור") : "";
+  // Public-page copy: hers when set, otherwise a default that claims nothing.
+  const heroHeadline = brand?.welcomeHeadline || DEFAULT_HERO_HEADLINE;
+  const heroLines = heroHeadline.split(/\n|(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+  const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || DEFAULT_HERO_BENEFITS;
+  const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
+  const aboutSignoff = brand?.aboutSignoff || "";
+  const aboutText = brand?.businessDescription || "ברוכה הבאה! כאן תמצאי טיפולים המותאמים אישית לעור שלך, באווירה רגועה ונעימה.";
+  const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : DEFAULT_VALUE_PROPS;
+  const beforeAfter = brand?.beforeAfter || [];
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
   const gallery = brand?.gallery || [];
@@ -427,32 +515,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
   const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
 
-  // THREE PANES, not one long scroll: what the business is, booking a time,
-  // and what is on offer. Three purposes rather than three slices of one list -
-  // which is why this is worth a tab bar when service CATEGORIES were not. A
-  // client who came to book taps once instead of scrolling past a gallery.
-  //
-  // Booking is first and default because it is the action. The hero above the
-  // bar already does the introducing.
-  //
-  // THE TABS ONLY EXIST IF THERE IS SOMETHING BEHIND THEM. Three tabs, two of
-  // them empty, is worse than the single page this replaces - so with nothing
-  // to say beyond the treatments, the bar does not render and every section
-  // falls back into one sequence exactly as before. WhatsApp alone does not
-  // count as an "about": a tab holding one green pill is not a tab.
-  const hasAbout = !!(brand?.businessDescription || gallery.length || reviews.length || addr || socials.length);
-  const hasOffers = recentPosts.length > 0;
-  const showTabs = hasAbout || hasOffers;
-  const inTab = (t) => !showTabs || tab === t;
-  const TABS = [
-    { key: "book", label: "הזמנת תור" },
-    hasAbout && { key: "about", label: "אודות" },
-    hasOffers && { key: "offers", label: "מבצעים" },
-  ].filter(Boolean);
 
   const goToServices = () => {
-    // From another pane the services are not on screen to scroll to.
-    if (tab !== "book") { setTab("book"); return; }
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -469,7 +533,6 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // display / body / meta. Nothing between them, because a size that is nearly
   // another size is just noise. Hebrew carries more leading than Latin at the
   // same size, so body runs at 1.7.
-  const T_DISPLAY = { fontSize:"var(--t-hero)", fontWeight: 600, lineHeight: 1.15, letterSpacing: 0 };
   const T_BODY    = { fontSize:"var(--t-lg)", fontWeight: 400, lineHeight: 1.7 };
   const T_META    = { fontSize:"var(--t-md)", fontWeight: 400, lineHeight: 1.5 };
 
@@ -491,6 +554,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
+        .script { font-family: var(--font-script), 'Amatic SC', cursive; font-weight: 700; }
         .bk-stack { width: 100%; display: flex; flex-direction: column; align-items: center; }
         .bk-stack { animation: fadein .2s ease-out both; }
         @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
@@ -506,97 +570,65 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         .gal-item:hover { transform: scale(1.04); box-shadow: 0 12px 26px -14px rgba(70,50,60,0.45); }
       `}</style>
 
-      {/* ============ STEP 1 — BUSINESS CARD ============ */}
+      {/* ============ STEP 1 - THE PUBLIC PAGE ============
+          One continuous page, top to bottom: hero, treatments, results, about,
+          what she stands for, then the practical sections. Every section has a
+          default or hides itself, so a clinic with nothing uploaded still reads
+          as finished. */}
       {step === 1 && (
-        <div className="bk-stack" style={{ paddingBottom: canBook ? "calc(104px + env(safe-area-inset-bottom, 0px))" : 0 }}>
+        <div className="bk-stack" style={{ paddingBottom: barShown ? "calc(112px + env(safe-area-inset-bottom, 0px))" : 0 }}>
 
-          {/* HERO
-              A beauty business is sold on a face and a room, and the page had
-              nowhere to put either: hero_image_url rendered 220px tall behind a
-              scrim, with a logo medallion punched through it - a photograph
-              treated as texture. A portrait gets the top of the screen and no
-              wash over it.
+          {/* HERO - the photograph is the page; everything is written ON it.
+              Her hero photo, else the shipped default. The veil is light and
+              opaque enough that dark type reads on any photo she picks. */}
+          <div style={{ position: "relative", width: "100%", maxWidth: 540, minHeight: "min(80vh, 660px)", overflow: "hidden", display: "flex" }}>
+            <Photo src={brand?.heroImageUrl || defaultImageUrl("hero")} eager
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+            <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
+            <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              {brand?.logoUrl ? (
+                <img src={brand.logoUrl} alt={bizName}
+                  style={{ maxHeight: 84, maxWidth: "min(70%, 260px)", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
+              ) : (
+                <p className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 600, color: ink, letterSpacing: 1, margin: 0 }}>{bizName}</p>
+              )}
+              {brand?.logoTagline && <p style={{ ...T_META, color: ink, opacity: 0.8, margin: "6px 0 0" }}>{brand.logoTagline}</p>}
 
-              min(62vh, 620px): tall enough to be the page rather than a banner,
-              short enough that the name is still on the first screen. The crop
-              sits at 32% from the top because that is where a face is when
-              someone frames themselves; centre gives you a chin.
-
-              hero_image_url still works for anyone who set one, so nothing she
-              uploaded before disappears. */}
-          {brand?.portraitUrl ? (
-            /* The two-line lockup lives ON the portrait: the name and the
-               person are on the same screen as the face, not a scroll below
-               it. The scrim rises from the page's own cream so the text sits
-               on the photograph without the photograph going grey. */
-            <div style={{ position: "relative", width: "100%", maxWidth: 540, height: "min(62vh, 620px)", overflow: "hidden" }}>
-              <img src={brand.portraitUrl} alt={bizName}
-                style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 32%", display: "block" }} />
-              <div aria-hidden="true" style={{ position: "absolute", insetInline: 0, bottom: 0, height: "46%", background: "linear-gradient(to top, var(--brand-cream, #FEFAF7) 8%, rgba(254,250,247,0.72) 42%, transparent 100%)" }} />
-              <div style={{ position: "absolute", insetInline: 0, bottom: 14, textAlign: "center", padding: "0 20px" }}>
-                <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: 4 }}>{bizName}</h1>
-                {(person || tagline) && (
-                  <p style={{ ...T_BODY, fontWeight: person ? 600 : 400, color: person ? ink : muted, margin: 0 }}>{person || tagline}</p>
+              <div style={{ marginTop: "auto", paddingTop: 36, width: "100%" }}>
+                <h1 className="serif" style={{ margin: 0, fontSize: "var(--t-hero)", fontWeight: 700, lineHeight: 1.12, color: ink }}>
+                  {heroLines.map((ln, i) => (
+                    <span key={i} style={{ display: "block", color: i === 0 ? ink : deep }}>{ln}</span>
+                  ))}
+                </h1>
+                <p style={{ ...T_BODY, color: ink, margin: "14px auto 0", maxWidth: 360 }}>{heroBenefits}</p>
+                {(canBook || wa) && (
+                  canBook ? (
+                    <button onClick={goToServices} className="bk-btn"
+                      style={{ marginTop: 20, minWidth: 220, height: 52, padding: "0 30px", borderRadius: "var(--r-full)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-accent)" }}>
+                      {brand?.ctaLabel || "קביעת תור"}
+                    </button>
+                  ) : (
+                    <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
+                      style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20, minWidth: 220, height: 52, padding: "0 30px", borderRadius: "var(--r-full)", background: pc, color: "var(--pc-contrast, #FFFFFF)", textDecoration: "none", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-accent)" }}>
+                      <Icon name="whatsapp" size={16} /> {brand?.ctaLabel || "קביעת תור"}
+                    </a>
+                  )
                 )}
               </div>
-            </div>
-          ) : brand?.heroImageUrl ? (
-            <div style={{ position: "relative", width: "100%", maxWidth: 540, height: 220, overflow: "hidden", borderRadius: "0 0 28px 28px" }}>
-              <img src={brand.heroImageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(251,247,244,0.28) 0%, rgba(251,247,244,0.00) 38%, transparent 68%)" }} />
-            </div>
-          ) : null}
 
-          {/* HEADER (logo overlaps cover) */}
-          {/* With a portrait, the lockup already carried the name (and the
-              person, when set) - repeating them here would read the page its
-              own headline twice. The header keeps only what the hero did not
-              say. Without a portrait it remains the full introduction. */}
-          <div style={{ ...section, marginTop: brand?.portraitUrl ? 20 : brand?.heroImageUrl ? 28 : 44, textAlign: "center" }}>
-            {/* A logo is never cropped: contain inside a capped box, natural
-                aspect - a wide logo takes width, a square one takes height.
-                With a portrait the portrait is the hero and the logo stays
-                supporting (60px). WITHOUT one, the logo IS the hero: up to
-                110px tall and most of the column, centred above the name. */}
-            {brand?.logoUrl && (
-              <img src={brand.logoUrl} alt={bizName}
-                style={brand?.portraitUrl || brand?.heroImageUrl
-                  ? { maxHeight: 60, maxWidth: 200, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 16px", display: "block" }
-                  : { maxHeight: 110, maxWidth: "min(72%, 280px)", width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 20px", display: "block" }} />
-            )}
-            {!brand?.portraitUrl && (
-              <h1 className="serif" style={{ ...T_DISPLAY, color: ink, marginBottom: person || tagline ? 8 : 12 }}>{bizName}</h1>
-            )}
-            {!brand?.portraitUrl && person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, marginBottom: 8 }}>{person}</p>}
-            {/* Three levels, in the order a stranger needs them: who this is,
-                what they say about themselves, then the longer sentence. The
-                tagline takes the accent colour so it reads as hers and not as a
-                subtitle the page generated. */}
-            {tagline && (!brand?.portraitUrl || person) && <p style={{ ...T_BODY, color: muted, marginBottom: 10, maxWidth: 400, marginInline: "auto" }}>{tagline}</p>}
-            {brand?.welcomeMessage && <p style={{ ...T_BODY, color: muted, marginBottom: 14, maxWidth: 400, marginInline: "auto" }}>{brand.welcomeMessage}</p>}
-            <p style={{ ...T_META, color: faint }}>
-              {todayHours ? `היום ${String(todayHours.open).padStart(2, "0")}:00–${String(todayHours.close).padStart(2, "0")}:00` : "סגור היום"}
-              {addr ? ` · ${addr}` : ""}
+              {/* The one handwritten line up here. Sparingly: it is an accent. */}
+              <p aria-hidden="true" className="script" style={{ position: "absolute", right: 16, top: "38%", width: 96, margin: 0, fontSize: "var(--t-2xl)", lineHeight: 1.05, color: deep, transform: "rotate(-7deg)", textAlign: "center" }}>{scriptAccent}</p>
+            </div>
+          </div>
+
+          <div style={{ ...section, marginTop: 14, marginBottom: 22, textAlign: "center" }}>
+            {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, margin: "0 0 4px" }}>{person}</p>}
+            <p style={{ ...T_META, color: faint, margin: 0 }}>
+              {todayHours ? "היום " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : "סגור היום"}
+              {addr ? " · " + addr : ""}
             </p>
           </div>
 
-          {showTabs && (
-            <div style={{ ...section, marginBottom: 24 }}>
-              <div style={{ display: "flex", gap: 24, borderBottom: `1px solid ${hair}` }}>
-                {TABS.map((t) => (
-                  <button key={t.key} onClick={() => setTab(t.key)} className="bk-btn"
-                    style={{ background: "none", padding: "0 0 12px", ...T_BODY,
-                      fontWeight: tab === t.key ? 600 : 400,
-                      color: tab === t.key ? ink : muted,
-                      borderBottom: `2px solid ${tab === t.key ? pc : "transparent"}`, marginBottom: -1 }}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {inTab("book") && (<>
           {/* Nothing bookable yet.
               This is what a visitor used to get instead: the services section
               and the booking button were BOTH hidden behind services.length > 0,
@@ -625,42 +657,70 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             </div>
           )}
 
-          {/* SERVICES (the booking entry point) */}
+          {/* TREATMENTS - a photo, a name, a line, its own button. */}
           {services.length > 0 && (
             <div id="bk-services" style={{ ...section, scrollMarginTop: 14 }}>
-              <div style={cardBox}>
-                {eyebrow("השירותים שלנו")}
-                <div>
-                  {services.map((s, i) => (
-                    <div key={i} className="bk-chip" onClick={() => { setSelectedService(s); setSelectedDate(null); setSelectedStart(null); setStep(2); }}
-                      style={{ padding: "16px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}`, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ ...T_BODY, fontWeight: 600, color: ink }}>{s.name}</p>
-                        {s.description && (
-                          <p style={{ ...T_META, color: faint, marginTop: 2, lineHeight: 1.5 }}>{s.description}</p>
+              <SectionTitle>הטיפולים שלי</SectionTitle>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                {services.map((sv, i) => {
+                  const img = serviceImage(sv, brand?.serviceImages);
+                  return (
+                    <div key={sv.id || i} style={{ background: "var(--brand-surface, #FAF6FC)", border: "1px solid " + HAIR, borderRadius: "var(--r-md)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
+                      <Photo src={img.url} style={{ width: "100%", aspectRatio: "4 / 3" }} />
+                      <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1, textAlign: "center" }}>
+                        <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
+                        {sv.description && <p style={{ ...T_META, color: faint, margin: 0, lineHeight: 1.5 }}>{sv.description}</p>}
+                        <p style={{ ...T_META, color: faint, margin: 0 }}>{sv.duration || 60} דק׳ · ₪{sv.price}</p>
+                        {canBook && (
+                          <button onClick={() => { setSelectedService(sv); setSelectedDate(null); setSelectedStart(null); setStep(2); }} className="bk-btn"
+                            style={{ marginTop: "auto", height: 42, borderRadius: "var(--r-full)", background: "var(--pc-tint)", color: deep, fontSize: "var(--t-md)", fontWeight: 600, border: "1px solid var(--pc-soft)" }}>
+                            {brand?.ctaLabel || "קביעת תור"}
+                          </button>
                         )}
-                        <p style={{ ...T_META, color: faint, marginTop: 2 }}>{s.duration || 60} דקות</p>
                       </div>
-                      <p style={{ ...T_BODY, color: ink, whiteSpace: "nowrap" }}>₪{s.price}</p>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          </>)}
+          {/* BEFORE / AFTER - only pairs she published, never a stand-in. */}
+          {beforeAfter.length > 0 && (
+            <div style={{ ...section, marginTop: 34 }}>
+              <SectionTitle>לפני ואחרי</SectionTitle>
+              <div style={{ display: "grid", gridTemplateColumns: beforeAfter.length === 1 ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                {beforeAfter.map((pair, i) => <BeforeAfterSlider key={i} before={pair.before} after={pair.after} />)}
+              </div>
+            </div>
+          )}
 
-          {inTab("about") && (<>
-          {/* ABOUT */}
-          {brand?.businessDescription && (
-            <div style={{ ...section }}>
+          {/* ABOUT - her portrait on one side, her words on the other. */}
+          <div style={{ ...section, marginTop: 34 }}>
+            <SectionTitle>אודותיי</SectionTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)", gap: 16, alignItems: "center" }}>
               <div>
-                {eyebrow("אודות")}
-                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.85, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>
+                {personName && <p className="serif" style={{ ...T_BODY, fontWeight: 700, color: ink, margin: "0 0 8px" }}>נעים מאוד, אני {personName},</p>}
+                <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.85, margin: 0, whiteSpace: "pre-line" }}>{aboutText}</p>
+                {aboutSignoff && <p className="script" style={{ margin: "12px 0 0", fontSize: "var(--t-3xl)", lineHeight: 1.1, color: deep }}>{aboutSignoff}</p>}
               </div>
+              <Photo src={brand?.portraitUrl || defaultImageUrl("about")} style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
             </div>
-          )}
+          </div>
+
+          {/* WHAT SHE STANDS FOR - four short lines, four icons. */}
+          <div style={{ ...section, marginTop: 34 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+              {valueProps.map((v, i) => (
+                <div key={i} style={{ textAlign: "center" }}>
+                  <div style={{ width: 58, height: 58, borderRadius: "50%", border: "1px solid " + HAIR, background: "var(--brand-surface, #FAF6FC)", margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center", color: pc }}>
+                    <ValueIcon i={i} />
+                  </div>
+                  <p style={{ fontSize: "var(--t-sm)", color: ink, lineHeight: 1.4, margin: 0 }}>{v}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* HOW I WORK - her 4 steps, the trust section. Seeded with a
               default any cosmetician could stand behind until she writes her
@@ -793,9 +853,6 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             </div>
           )}
 
-          </>)}
-
-          {inTab("offers") && (<>
           {/* ANNOUNCEMENTS (her client feed — read-only, hidden when empty).
               Placed right before the booking CTA so her latest offer/update is
               the last thing a client sees before booking. */}
@@ -840,22 +897,28 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             </div>
           )}
 
-          </>)}
-
-          {/* The sticky CTA is rendered outside this stack, below. */}
         </div>
       )}
 
-      {step === 1 && canBook && (
+      {/* STICKY BOOKING BAR. WhatsApp when she has a number - the fastest way to
+          reach a person; otherwise the online flow. */}
+      {step === 1 && barShown && (
         <div style={{ position: "fixed", insetInline: 0, bottom: 0, zIndex: 60,
           padding: "14px 20px calc(14px + env(safe-area-inset-bottom, 0px))",
           background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FEFAF7) 38%)" }}>
-          <button onClick={goToServices} className="bk-btn"
-            style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 52, borderRadius:"var(--r-md)",
-              background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600 }}>
-            {brand?.ctaLabel || "קביעת תור"}
-          </button>
-          <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 8 }}>אישור מיידי בוואטסאפ</p>
+          {wa ? (
+            <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)", textDecoration: "none",
+                background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-lg)" }}>
+              <Icon name="whatsapp" size={18} /> לקביעת תור בוואטסאפ
+            </a>
+          ) : (
+            <button onClick={goToServices} className="bk-btn"
+              style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)",
+                background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-lg)" }}>
+              {brand?.ctaLabel || "קביעת תור"}
+            </button>
+          )}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre } from "next/font/google";
+import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre, Amatic_SC } from "next/font/google";
 import "./globals.css";
 import PWARegister from "./pwa-register";
 import IOSInstallBanner from "./ios-install-banner";
@@ -38,6 +38,15 @@ const frankRuhl = Frank_Ruhl_Libre({
   variable: "--font-frank",
   subsets: ["hebrew", "latin"],
   weight: ["400", "500", "600", "700", "900"],
+});
+
+// Handwritten Hebrew accent for the public page (a script line in the hero and
+// a sign-off in the about section). preload off: only that page uses it.
+const script = Amatic_SC({
+  variable: "--font-script",
+  subsets: ["hebrew", "latin"],
+  weight: ["400", "700"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -190,6 +199,7 @@ export default function RootLayout({
         inter.variable,
         assistant.variable,
         frankRuhl.variable,
+        script.variable,
         "h-full antialiased",
       ].join(" ")}
     >

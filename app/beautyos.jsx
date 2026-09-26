@@ -32,7 +32,8 @@ import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidO
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
-import { DEFAULT_HOW_I_WORK } from "@/lib/branding";
+import { DEFAULT_HOW_I_WORK, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
@@ -4223,6 +4224,41 @@ export default function BeautyOS() {
       if(up.error){ handleDbError(up.error, "upload clinic photo"); return; }
       const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות קליניקה","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
+      toast("התמונה נוספה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
+  };
+
+  // Her own photo for one treatment card on the public page. Stored in
+  // branding.service_images keyed by service id, so no migration and no column:
+  // a service without an entry wears the default for its name.
+  const uploadServicePhoto = async (serviceId, file) => {
+    if(!file || !serviceId) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading("svc:"+serviceId);
+    try {
+      const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "service");
+      if(up.error){ handleDbError(up.error, "upload service photo"); return; }
+      if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const m=(b.service_images&&typeof b.service_images==="object"&&!Array.isArray(b.service_images))?b.service_images:{}; return {...prev, branding:{...b, service_images:{...m,[serviceId]:up.url}}}; });
+      toast("התמונה נוספה — לחצי שמירה");
+    } finally { setBrandUploading(""); }
+  };
+
+  // One side of one before/after pair (branding.before_after: [{before, after}]).
+  // A pair with only one side is kept while she works and simply not published.
+  const uploadBeforeAfter = async (idx, side, file) => {
+    if(!file) return;
+    if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
+    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    const tid = settings?.tenant_id;
+    if(!tid){ toast("לא זוהה עסק — נסי לצאת ולהיכנס שוב","error"); return; }
+    setBrandUploading("ba:"+idx+side);
+    try {
+      const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "ba_"+side);
+      if(up.error){ handleDbError(up.error, "upload before/after"); return; }
+      if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const arr=Array.isArray(b.before_after)?[...b.before_after]:[]; while(arr.length<=idx) arr.push({before:"",after:""}); arr[idx]={...arr[idx],[side]:up.url}; return {...prev, branding:{...b, before_after:arr}}; });
       toast("התמונה נוספה — לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
@@ -10397,7 +10433,7 @@ ${c.claimUrl}`)}`;
                     )}
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>הדבר הראשון שלקוחה רואה בדף ההזמנות, וגם התמונה שמופיעה כששולחים את הקישור בוואטסאפ. תמונה אחת שלך עושה את רוב ההבדל.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;אודותיי&quot; בדף ההזמנות, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, מוצגת תמונת ברירת מחדל.</p>
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
  <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
@@ -10409,13 +10445,40 @@ ${c.claimUrl}`)}`;
      replace the business name in the page's <h1>, so a clinic that filled it
      in got a shop window that never said whose shop it was. The page shows
      both now, and the label says which is which before she types. */}
- <div><p style={lbl}>כותרת מתחת לשם העסק</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך מתחיל כאן" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצגת בדף ההזמנות מתחת לשם העסק, לא במקומו.</p></div>
- <div><p style={lbl}>משפט פתיחה קצר</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>כותרת ראשית בראש הדף</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך. הטיפול המדויק בשבילך." style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטקסט הגדול על התמונה הראשית. כל משפט (עד נקודה) יורד לשורה חדשה, ומהמשפט השני הצבע הוא צבע המותג.</p></div>
+ <div><p style={lbl}>משפט פתיחה קצר (מוצג אם לא מילאת שורת יתרונות)</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>לפני שמגיעים (חניה, קומה, אינטרקום)</p><input value={brand.arrival_note||""} onChange={e=>setBrand("arrival_note",e.target.value)} placeholder="למשל: חניה חופשית ברחוב, קומה 2" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>נשלח ללקוחה באישור התור. מונע את השיחה של &quot;איפה בדיוק?&quot; חמש דקות לפני.</p></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת רקע (אופציונלי)</p>{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת פתיחה (רקע הדף הראשי)</p>{!brand.hero_image_url&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>כרגע מוצגת תמונת ברירת מחדל. העלי תמונה של הקליניקה או של טיפול והיא תחליף אותה.</p>}{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
+ <div>
+ <p style={lbl}>איך אני עובדת (עד 4 שלבים)</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצג בדף ההזמנות. שורה לכל שלב. אם תרוקני את כולן, הקטע יוסתר.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[0,1,2,3].map(i=>{
+                      const steps=Array.isArray(brand.how_i_work)?brand.how_i_work:DEFAULT_HOW_I_WORK;
+                      return <input key={i} value={steps[i]||""} onChange={e=>{ const next=[0,1,2,3].map(j=>steps[j]||""); next[i]=e.target.value; setBrand("how_i_work",next); }} placeholder={`שלב ${i+1}`} style={inp}/>;
+                    })}
+ </div>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:10}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:0}}>טקסטים בדף הראשי</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כל שדה ריק מקבל טקסט ברירת מחדל, כך שהדף נראה שלם גם בלי למלא כלום.</p>
+ <div><p style={lbl}>שורה מתחת ללוגו</p><input value={brand.logo_tagline||""} onChange={e=>setBrand("logo_tagline",e.target.value)} placeholder="למשל: קוסמטיקה מתקדמת לעור בריא ויפה" style={inp}/></div>
+ <div><p style={lbl}>שורת יתרונות (מתחת לכותרת)</p><input value={brand.hero_benefits||""} onChange={e=>setBrand("hero_benefits",e.target.value)} placeholder="למשל: אבחון מקצועי · טיפול אישי · תוצאה שרואים" style={inp}/></div>
+ <div><p style={lbl}>משפט בכתב יד (בתמונה הראשית)</p><input value={brand.script_accent||""} onChange={e=>setBrand("script_accent",e.target.value)} placeholder="למשל: טיפוח שמתחיל באהבה עצמית" style={inp}/></div>
+ <div><p style={lbl}>חתימה בסוף &quot;אודותיי&quot; (בכתב יד)</p><input value={brand.about_signoff||""} onChange={e=>setBrand("about_signoff",e.target.value)} placeholder="למשל: מחכה לפגוש אותך" style={inp}/></div>
+ <div>
+ <p style={lbl}>ארבעת הערכים שלך (שורה מתחת לכל סמל)</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[0,1,2,3].map(i=>{
+                      const vals=Array.isArray(brand.value_props)?brand.value_props:DEFAULT_VALUE_PROPS;
+                      return <input key={i} value={vals[i]||""} onChange={e=>{ const next=[0,1,2,3].map(j=>vals[j]||""); next[i]=e.target.value; setBrand("value_props",next); }} placeholder={DEFAULT_VALUE_PROPS[i]} style={inp}/>;
+                    })}
+ </div>
+ </div>
+ </div>
  {/* Feeds the marketing AI only — these three are the fields loadBusinessProfile
      renders into every prompt as קהל יעד / סגנון מותג / יתרונות תחרותיים.
      They had no input anywhere, so they were always undefined and the
@@ -10428,6 +10491,58 @@ ${c.claimUrl}`)}`;
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
  <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד הקליניקה\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
  </div>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות הטיפולים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>כל טיפול מוצג בדף עם תמונה. כל עוד לא העלית תמונה משלך מוצגת תמונת ברירת מחדל, והיא מסומנת כאן. התמונה שלך תמיד מחליפה אותה.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {activeServices.map(sv=>{
+                      const img=serviceImage(sv,brand.service_images);
+                      return (
+ <div key={sv.id||sv.name} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface-2)"}}>
+ <img src={img.url} alt="" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:52,height:52,borderRadius:"var(--r-xs)",objectFit:"cover",flexShrink:0,background:"var(--line)"}}/>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:"var(--t-md)",color:"var(--ink)",fontWeight:600,margin:0}}>{sv.name}</p>
+ <p style={{fontSize:"var(--t-xs)",color:img.isDefault?"var(--ink-3)":pcDeep,margin:0}}>{img.isDefault?"תמונת ברירת מחדל":"התמונה שלך"}</p>
+ </div>
+ <label style={upBtn}>{brandUploading==="svc:"+sv.id?<Spinner inline label="מעלה"/>:(img.isDefault?"העלאה":"החלפה")}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{uploadServicePhoto(sv.id,e.target.files?.[0]);e.target.value="";}}/></label>
+                        {!img.isDefault&&<button onClick={()=>setBrand("service_images",Object.fromEntries(Object.entries(brand.service_images||{}).filter(([k])=>k!==sv.id)))} style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-xs)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>חזרה לברירת מחדל</button>}
+ </div>
+                      );
+                    })}
+ </div>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> לפני ואחרי</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>זוגות תמונות עם מחוון להזזה בדף שלך. אין כאן ברירת מחדל, כי תוצאה שלא הייתה לא מוצגת. העלי רק תמונות שהלקוחה אישרה לפרסום. עד 6 זוגות; זוג עם צד אחד בלבד לא מוצג.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {(Array.isArray(brand.before_after)?brand.before_after:[]).map((pair,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface-2)"}}>
+                        {["before","after"].map(side=>(
+ <label key={side} style={{flex:1,textAlign:"center",cursor:"pointer",fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>
+                            {pair?.[side]?<img src={pair[side]} alt="" style={{width:"100%",aspectRatio:"3 / 4",objectFit:"cover",borderRadius:"var(--r-xs)",display:"block",marginBottom:4}}/>:<span style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",aspectRatio:"3 / 4",border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-xs)",marginBottom:4,color:pcDeep,fontWeight:600}}>{brandUploading==="ba:"+i+side?<Spinner inline label="מעלה"/>:"+"}</span>}
+                            {side==="before"?"לפני":"אחרי"}
+ <input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{uploadBeforeAfter(i,side,e.target.files?.[0]);e.target.value="";}}/>
+ </label>
+                        ))}
+ <button onClick={()=>setBrand("before_after",(Array.isArray(brand.before_after)?brand.before_after:[]).filter((_,j)=>j!==i))} aria-label="הסרת הזוג" style={{background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-lg)",cursor:"pointer",padding:"0 6px"}}>×</button>
+ </div>
+                    ))}
+ </div>
+ {(Array.isArray(brand.before_after)?brand.before_after:[]).length<6&&<button onClick={()=>setBrand("before_after",[...(Array.isArray(brand.before_after)?brand.before_after:[]),{before:"",after:""}])} style={{display:"block",width:"100%",marginTop:8,border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-sm)",padding:"12px",textAlign:"center",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,background:"var(--surface-2)",fontFamily:"inherit"}}>+ הוספת זוג לפני ואחרי</button>}
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהקליניקה</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בדף ההזמנות.</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
+                    {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).map((g,i)=>(
+ <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
+ <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <button onClick={()=>setBrand("clinic_photos",(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).filter((_,j)=>j!==i))} aria-label="הסרת תמונה" style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"var(--surface)",border:"none",fontSize:"var(--t-sm)",cursor:"pointer",lineHeight:1}}>×</button>
+ </div>
+                    ))}
+ </div>
+ {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).length<3&&<label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-sm)",padding:"12px",textAlign:"center",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading==="clinic"?<Spinner inline label="מעלה"/>:"+ הוספת תמונת אווירה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{uploadClinicPhoto(e.target.files?.[0]);e.target.value="";}}/></label>}
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> גלריית תמונות</p>
