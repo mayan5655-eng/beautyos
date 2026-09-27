@@ -42,7 +42,7 @@ export default function PrivacyPage() {
         <Section heHeading="איזה מידע אנחנו אוספים" enHeading="Information We Collect">
           <He>
             <strong>ממך, בעלת העסק:</strong> פרטי התחברות (אימייל), פרטי העסק (שם,
-            טלפון, כתובת, מיתוג), ונתוני פעילות עסקית — יומן תורים, קבלות, הכנסות,
+            טלפון, כתובת, מיתוג), ונתוני פעילות עסקית — יומן תורים, תשלומים, הכנסות,
             חבילות טיפולים.
           </He>
           <He>
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           <En>
             From you, the business owner: login details (email), business details
             (name, phone, address, branding), and business activity data —
-            appointments, receipts, revenue, treatment packages. About your clients,
+            appointments, payments, revenue, treatment packages. About your clients,
             as you enter it or as they fill it in: name, phone, email, birthday,
             skin type, allergies, medical conditions and health declarations,
             treatment notes, treatment photos you upload, appointment and payment
@@ -129,14 +129,15 @@ export default function PrivacyPage() {
             כל עסק במערכת מבודד: את רואה רק את הלקוחות, התורים והלידים של העסק שלך,
             והבידוד נאכף ברמת בסיס הנתונים. אנו נעזרים בספקי משנה לתפעול: אחסון
             ובסיס נתונים (Supabase), אירוח (Vercel), שליחת הודעות WhatsApp
-            (Green API), קבלת לידים (Meta) ועיבוד AI (Anthropic). כל ספק מקבל רק את
+            (Green API), הפקת קבלות וחשבוניות (Morning, רק כשהעסק מחבר את חשבון
+            המורנינג שלו והמסמכים מונפקים בחשבון שלו), קבלת לידים (Meta) ועיבוד AI (Anthropic). כל ספק מקבל רק את
             המידע הדרוש לתפקידו. מעבר לכך נשתף מידע רק על פי דרישת חוק.
           </He>
           <En>
             Every business in the system is isolated: you see only your own clients,
             appointments and leads, enforced at the database level. We use
             sub-processors for operations: storage and database (Supabase), hosting
-            (Vercel), WhatsApp messaging (Green API), lead delivery (Meta) and AI
+            (Vercel), WhatsApp messaging (Green API), receipt and invoice issuing (Morning, only when the business connects its own Morning account; documents are issued in that account), lead delivery (Meta) and AI
             processing (Anthropic). Each provider receives only what its role
             requires. Beyond that, we share data only when required by law.
           </En>

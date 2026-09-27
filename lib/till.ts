@@ -38,7 +38,15 @@ export type ReceiptLike = {
   appointment_id?: unknown;
 };
 
-export type VoidLike = { receipt_id?: unknown; reason?: string | null; created_at?: string | null };
+export type VoidLike = { receipt_id?: unknown; reason?: string | null; created_at?: string | null; credit_status?: string | null };
+
+/**
+ * A void of a payment that has a provider document is only COMPLETE once the credit
+ * document (מסמך זיכוי) exists. Until then the payment still stands legally, so it still
+ * counts in her totals. Voids with no credit_status (every void from before legal receipts,
+ * and every void of a payment with no provider document) are complete on their own.
+ */
+const AWAITING_CREDIT = new Set(['pending_request', 'pending', 'failed', 'unknown']);
 
 export const SPLIT_METHOD = 'מפוצל';
 
@@ -93,7 +101,11 @@ export function discountAmount(subtotal: number, mode: 'ils' | 'pct', value: num
 /** The set of voided receipt ids. */
 export function voidedIds(voids: VoidLike[] | null | undefined): Set<string> {
   const out = new Set<string>();
-  for (const v of voids || []) if (v && v.receipt_id != null) out.add(String(v.receipt_id));
+  for (const v of voids || []) {
+    if (!v || v.receipt_id == null) continue;
+    if (AWAITING_CREDIT.has(String(v.credit_status || ''))) continue; // still counts until the credit document exists
+    out.add(String(v.receipt_id));
+  }
   return out;
 }
 

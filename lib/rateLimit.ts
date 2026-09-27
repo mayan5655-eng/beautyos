@@ -271,6 +271,17 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) =>
       `העסק הגיע למכסת התמונות לעשר הדקות האלה. אפשר לנסות שוב ${m}.`,
   },
+  // Legal receipts (app/api/legal-receipts/*): connect, issue, credit. Each issue is a call to the
+  // provider's API in HER account; a till never issues more than a few a minute.
+  'legal-receipts': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
 } as const;
 
 export type PolicyName = keyof typeof RATE_POLICIES;

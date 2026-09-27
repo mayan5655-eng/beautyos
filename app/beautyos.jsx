@@ -28,7 +28,8 @@ import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, SPLIT_METHOD } from "@/lib/till";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, SPLIT_METHOD } from "@/lib/till";
+import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
@@ -111,7 +112,7 @@ const VOICE_COMMANDS = [
   { intent: "revenue_summary",     icon: "₪",  label: "סיכום הכנסות",    example: "כמה הכנסתי החודש?" },
   { intent: "cancel_appointment",  icon: "✕",  label: "ביטול תור",       example: "בטלי את התור של דנה מחר" },
   { intent: "call_client",         icon: "✆",  label: "חיוג ללקוחה",     example: "תתקשרי לרונית" },
-  { intent: "create_receipt",      icon: "🧾", label: "הוצאת קבלה",      example: "תוציאי קבלה לרונית על 200 שקל" },
+  { intent: "create_receipt",      icon: "🧾", label: "רישום תשלום",      example: "תרשמי תשלום של 200 שקל לרונית" },
 ];
 
 // Section metadata for the global top-bar search dropdown — render order,
@@ -122,7 +123,7 @@ const SEARCH_GROUPS = [
   { type: "appt",    label: "תורים",   icon: "◴" },
   { type: "lead",    label: "לידים",   icon: "✦" },
   { type: "service", label: "שירותים", icon: "✂" },
-  { type: "receipt", label: "קבלות",   icon: "🧾" },
+  { type: "receipt", label: PAYMENT_NOTICES_HE,   icon: "🧾" },
 ];
 
 // Compact "what can I say?" list for the Beauty Voice modal. Uses runtime CSS
@@ -208,7 +209,7 @@ const HELP_SECTIONS = [
     "- **פרטים** — סיכום לקריאה: יום הולדת, סוג עור, אלרגיות (צהוב), מידע רפואי (כחול), הערות. לעריכה — הכפתור ✎ למעלה",
     "- **היסטוריה** — כל התורים מהחדש לישן, עם טיפול, תאריך ומחיר. לכל שורה כפתור **שלחי תזכורת**",
     "- **סריקות עור** — כל הסריקות שנשמרו, עם ציון צבעוני. לחיצה פותחת את הדוח המלא מחדש",
-    "- **קבלות** — כל התשלומים, לחיצה פותחת את הקבלה",
+    "- **אישורי תשלום** — כל התשלומים, לחיצה פותחת את האישור. אם חיברת חשבון מורנינג, מופיעה כאן גם הקבלה או החשבונית שהונפקה.",
     "- **חבילות** — חבילות פעילות עם פס התקדמות, וכפתור **✓ השתמשי** שמנצל טיפול",
     "- **טפסים** — שליחת טופס לחתימה דיגיטלית לפי סוג טיפול (פלזמה, לייזר, פילינג ועוד). מתחת רואים מה נחתם ✓ ומה ממתין ⏳",
     "- **לפני/אחרי** — העלאת זוג תמונות עם שם טיפול והערה",
@@ -246,7 +247,7 @@ const HELP_SECTIONS = [
     "כל קמפיין ששמרת, עם הפוסטים שלו. אפשר להעתיק או למחוק.",
   ]},
   { key:"advisor", icon:"robot", title:"יועץ AI", body:[
-    "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך — התורים, הקבלות, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
+    "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך — התורים, התשלומים, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
     "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
     "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת — אפשר לחזור אליה בכל זמן.",
   ]},
@@ -1131,6 +1132,18 @@ export default function BeautyOS() {
   // WhatsApp tab sub-views: the send tools, or the log of what was already sent.
   const [waView,         setWaView]         = useState("send"); // send | log
   const [waMessages,     setWaMessages]     = useState(null);   // null = not loaded yet
+  // Her connection to a registered receipt provider (Morning), or null until loaded.
+  // Optional: with no connection the till works exactly as it always has.
+  const [legalAccount, setLegalAccount] = useState(null);
+  const [legalKeyId, setLegalKeyId] = useState("");
+  const [legalSecret, setLegalSecret] = useState("");
+  const [legalMsg, setLegalMsg] = useState("");
+  useEffect(() => {
+    if (!settings?.tenant_id) return;
+    let alive = true;
+    fetch("/api/legal-receipts/account").then((r) => r.json()).then((d) => { if (alive && d && d.success) setLegalAccount(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [settings?.tenant_id]);
   const [waLogLoading,   setWaLogLoading]   = useState(false);
   const [waLogError,     setWaLogError]     = useState("");
   const [activeTab,         setActiveTab]          = useState("dashboard");
@@ -2584,7 +2597,7 @@ export default function BeautyOS() {
       activeServices.filter(s=>has(s.name))
         .slice(0,5).map(s=>({type:"service",label:s.name,sub:`₪${s.price}`+(s.duration?` · ${s.duration}′`:""),obj:s})),
       receipts.filter(r=>has(r.client_name)||has(r.service)||has(r.amount))
-        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"קבלה",sub:`₪${r.amount} · ${(r.created_at||"").slice(0,10)}`,obj:r})),
+        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${(r.created_at||"").slice(0,10)}`,obj:r})),
     ];
     return groups.flat().slice(0,15);
   })();
@@ -4505,7 +4518,7 @@ export default function BeautyOS() {
       // Every count is tenant-filtered as well as name-filtered.
       const checks = [
         ["appointments", "service",          "תורים"],
-        ["receipts",     "service",          "קבלות"],
+        ["receipts",     "service",          "תשלומים"],
         ["packages",     "service",          "חבילות"],
         ["leads",        "service_interest", "לידים"],
       ];
@@ -4595,6 +4608,97 @@ export default function BeautyOS() {
     );
   };
 
+  // A void counts as complete (leaves the totals) only once its credit document exists.
+  const isVoidComplete = (r) => !!r && voidedIds(receiptVoids).has(String(r.id));
+
+  // Ask her provider to issue the legal document for a payment. The payment is ALREADY
+  // recorded: this never blocks or undoes it, and any failure leaves a visible state.
+  // Returns the server's answer, or null when there is nothing to do.
+  const applyReceiptPatch = (id, patch) => {
+    setReceipts(prev => prev.map(r => String(r.id) === String(id) ? { ...r, ...patch } : r));
+    setShowReceipt(prev => prev && String(prev.id) === String(id) ? { ...prev, ...patch } : prev);
+  };
+  const issueLegalDocument = async (rec, { confirmUnknown = false } = {}) => {
+    if (!legalAccount?.connected || !rec?.id || !needsLegalDoc(rec)) return null;
+    applyReceiptPatch(rec.id, { legal_status: "pending" });
+    try {
+      const res = await fetch("/api/legal-receipts/issue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receiptId: rec.id, confirmUnknown }) });
+      const d = await res.json().catch(() => null);
+      if (!d) throw new Error("no answer");
+      if (d.receipt) applyReceiptPatch(rec.id, d.receipt);
+      else applyReceiptPatch(rec.id, { legal_status: d.status && d.status !== "none" ? d.status : (rec.legal_status || "none") });
+      if (d.status === "issued" && !d.already) toast(docLabelHe({ legal_status: "issued", legal_doc_type: d.receipt?.legal_doc_type }) + (d.number ? " מספר " + d.number : "") + " הונפקה ✦");
+      else if (d.error) toast(d.error + " התשלום נשמר.", "error");
+      else if (d.skipped === "migration_missing") toast("צריך להריץ את המיגרציה של מסמכי המס (add_legal_receipts.sql).", "error");
+      return d;
+    } catch {
+      // The browser did not hear back, but the server may have called the provider. Say so; the record shows the truth on reload.
+      toast("לא קיבלנו תשובה. התשלום נשמר; מצב המסמך יתעדכן בעוד רגע.", "error");
+      return null;
+    }
+  };
+  const retryLegal = (rec) => {
+    if (isBusy("legalIssue")) return;
+    const go = async (confirmUnknown) => {
+      setBusyKey("legalIssue", true);
+      try { await issueLegalDocument(rec, { confirmUnknown }); } finally { setBusyKey("legalIssue", false); }
+    };
+    if (rec.legal_status === "unknown") {
+      askConfirm({
+        title: "לבדוק לפני שמנסים שוב",
+        message: "לא בטוחות אם המסמך הונפק. פתחי את חשבון מורנינג ובדקי שאין שם מסמך לתשלום הזה. אם אין, אפשר לנסות שוב. אם יש, אל תנסי שוב, כדי שלא יונפקו שני מסמכים.",
+        confirmText: "בדקתי, אין מסמך",
+        onConfirm: () => go(true),
+      });
+      return;
+    }
+    go(false);
+  };
+  // The credit document for a void of a payment that has a provider document.
+  const requestCredit = async (vd, { confirmUnknown = false } = {}) => {
+    try {
+      const res = await fetch("/api/legal-receipts/credit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voidId: vd.id, confirmUnknown }) });
+      const d = await res.json().catch(() => null);
+      if (!d) throw new Error("no answer");
+      if (d.void) setReceiptVoids(prev => prev.map(v => String(v.id) === String(vd.id) ? { ...v, ...d.void } : v));
+      return d;
+    } catch { return null; }
+  };
+  const retryCredit = (vd) => {
+    if (isBusy("legalCredit")) return;
+    const go = async (confirmUnknown) => {
+      setBusyKey("legalCredit", true);
+      try {
+        const d = await requestCredit(vd, { confirmUnknown });
+        if (d && d.status === "issued") toast("מסמך הזיכוי הונפק ✦");
+        else toast((d && d.error) || "לא הצלחנו להנפיק את מסמך הזיכוי. התשלום ממשיך להיספר.", "error");
+      } finally { setBusyKey("legalCredit", false); }
+    };
+    if (vd.credit_status === "unknown") {
+      askConfirm({
+        title: "לבדוק לפני שמנסים שוב",
+        message: "לא בטוחות אם מסמך הזיכוי הונפק. בדקי בחשבון מורנינג שאין שם מסמך זיכוי לתשלום הזה. אם אין, אפשר לנסות שוב.",
+        confirmText: "בדקתי, אין מסמך",
+        onConfirm: () => go(true),
+      });
+      return;
+    }
+    go(false);
+  };
+  // What follows a recorded payment. With a connected account the legal document comes FIRST
+  // (in the background) so the message to the client can carry its link; without one, exactly as before.
+  const afterPaymentRecorded = (rec, { autoSend }) => {
+    (async () => {
+      let cur = rec;
+      const d = await issueLegalDocument(rec);
+      if (d && d.receipt) cur = { ...rec, ...d.receipt };
+      if (autoSend) {
+        const ok = await sendReceiptToClient(cur, { silent: true }).catch(() => false);
+        if (!ok) toast("התשלום נרשם, אך השליחה האוטומטית נכשלה — שלחי ידנית מהאישור", "error");
+      }
+    })();
+  };
+
   // Void: a row in receipt_voids naming the receipt and why. The receipt row
   // is not touched. The reason is required by the schema as well as the form.
   const handleVoidReceipt = async (receipt) => {
@@ -4605,23 +4709,33 @@ export default function BeautyOS() {
     try {
       const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
       const tid = rpcTenant || settings?.tenant_id || null;
+      // A payment that HAS a provider document is only truly cancelled by a credit document.
+      // The request is recorded now, so it survives a dropped connection; the server turns it into the document.
+      const legal = receipt.legal_status === "issued" && !!receipt.legal_doc_id;
       const { data, error } = await supabase.from("receipt_voids").insert([{
         receipt_id: receipt.id,
         reason: voidReason.trim(),
+        ...(legal ? { credit_status: "pending_request" } : {}),
         ...(tid ? { tenant_id: tid } : {}),
       }]).select();
       if (error) {
         // 42P01: the table is not there yet. Say so rather than "error".
         if (error.code === "42P01" || /receipt_voids/.test(String(error.message||""))) {
-          toast("ביטול קבלות עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error");
+          toast("ביטול תשלומים עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error");
           return;
         }
-        if (error.code === "23505") { toast("הקבלה כבר מבוטלת", "error"); return; }
+        if (error.code === "23505") { toast("התשלום כבר מבוטל", "error"); return; }
         handleDbError(error, "void receipt"); return;
       }
       if (data && data[0]) setReceiptVoids(prev => [...prev, data[0]]);
       setVoidOpen(false); setVoidReason("");
-      toast("הקבלה בוטלה — המקור נשמר, והסכום ירד מהסיכומים");
+      if (legal && data && data[0]) {
+        const d = await requestCredit(data[0]);
+        if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים ✦");
+        else toast(((d && d.error) || "מסמך הזיכוי עוד לא הונפק") + " התשלום ממשיך להיספר עד שהוא יונפק.", "error");
+      } else {
+        toast("התשלום בוטל — המקור נשמר, והסכום ירד מהסיכומים");
+      }
     } finally { setBusyKey("voidReceipt", false); }
   };
 
@@ -4689,11 +4803,11 @@ export default function BeautyOS() {
         if (useSplit) legacy.payment_method = splitResolved[0].method;
         ({data,error}=await supabase.from("receipts").insert([legacy]).select());
         if (!error && (useSplit || tip > 0 || cashierDiscountMode==="pct")) {
-          toast("הקבלה נשמרה, אבל פיצול, טיפ ואחוז הנחה עדיין לא נתמכים בבסיס הנתונים — יש להריץ את המיגרציה.", "error");
+          toast("אישור התשלום נשמר, אבל פיצול, טיפ ואחוז הנחה עדיין לא נתמכים בבסיס הנתונים — יש להריץ את המיגרציה.", "error");
         }
       }
       if(error){handleDbError(error, "save receipt"); return;}
-      if(!data||!data[0]){toast(couldNotHe("להפיק את הקבלה"),"error");return;}
+      if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
 
       // The deduction, AFTER the receipt, ordered by which failure is
@@ -4710,20 +4824,16 @@ export default function BeautyOS() {
           reason: "ניכוי בקופה",
         });
         if (!fresh) {
-          toast(`הקבלה נוצרה, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
+          toast(`התשלום נרשם, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
         }
       }
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
       // failure. Uses the same sendReceiptToClient the manual button uses.
-      if((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone){
-        sendReceiptToClient(data[0],{silent:true})
-          .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
-          .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
-      }
+      afterPaymentRecorded(data[0], { autoSend: !!((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone) });
       setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);
-      toast(`קבלה נוצרה — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}`);
+      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`);
     } finally {
       setBusyKey("saveReceipt", false);
     }
@@ -5098,7 +5208,7 @@ export default function BeautyOS() {
       const {data,error} = await supabase.from("receipts").insert([receipt]).select();
       if (error) { handleDbError(error, "create receipt (voice)"); return; }
       closeVoice();
-      toast("הקבלה הופקה ✦");
+      toast("התשלום נרשם ✦");
       // Open the receipt modal so the voice receipt gets the same actions
       // (print / manual "send to client") as a regular receipt.
       if (data) {
@@ -5107,11 +5217,7 @@ export default function BeautyOS() {
         // Auto-send to the client on WhatsApp when enabled (same helper as the
         // manual button). Fire-and-forget — never blocks or breaks creation.
         const cl = clients.find(c=>String(c.id)===String(data[0].client_id));
-        if ((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cl?.phone) {
-          sendReceiptToClient(data[0],{silent:true})
-            .then(ok=>{ if(!ok) toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"); })
-            .catch(()=>toast("הקבלה נוצרה, אך השליחה האוטומטית נכשלה — שלחי ידנית מהקבלה","error"));
-        }
+        afterPaymentRecorded(data[0], { autoSend: !!((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cl?.phone) });
       }
     } finally {
       setBusyKey("voiceReceipt", false);
@@ -5136,6 +5242,7 @@ export default function BeautyOS() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenantId: settings.tenant_id,
+          receipt_id: receipt.id,
           client_name: receipt.client_name,
           client_phone: phone,
           amount: receipt.amount,
@@ -5147,13 +5254,13 @@ export default function BeautyOS() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
-        if (!silent) toast("שליחת הקבלה נכשלה — אפשר לשלוח בקישור הישיר למטה", "error");
+        if (!silent) toast("שליחת האישור נכשלה — אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
-      if (!silent) toast("הקבלה נשלחה ללקוחה ב-WhatsApp ✦");
+      if (!silent) toast("נשלח ללקוחה ב-WhatsApp ✦");
       return true;
     } catch {
-      if (!silent) toast("שליחת הקבלה נכשלה", "error");
+      if (!silent) toast("שליחת האישור נכשלה", "error");
       return false;
     }
   };
@@ -5165,6 +5272,9 @@ export default function BeautyOS() {
   // standalone document has no such ancestors, so the full receipt always prints.
   const printReceipt = (receipt) => {
     if (!receipt) return;
+    // A legal document is the provider's PDF, in her account, under her number. We never
+    // print our own layout as if it were one.
+    if (receipt.legal_status === "issued" && receipt.legal_doc_url) { window.open(receipt.legal_doc_url, "_blank", "noopener"); return; }
     const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const rows = [
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
@@ -5179,7 +5289,7 @@ export default function BeautyOS() {
     const vd = voidOf(receipt, receiptVoids);
     if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(String(vd.created_at || "").slice(0, 10))]);
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
-    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>קבלה</title>
+    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${esc(docLabelHe(receipt))}</title>
 <style>
   @page{size:A4;margin:18mm}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -5202,12 +5312,13 @@ export default function BeautyOS() {
   <div class="wrap">
     <div class="head">
       <div class="biz">${esc(settings.business_name || "העסק")}</div>
-      <div class="sub">קבלה</div>
+      <div class="sub">${esc(docLabelHe(receipt))}</div>
       ${settings.business_phone ? `<div class="sub">${esc(settings.business_phone)}</div>` : ""}
     </div>
     <div class="body">${rowsHtml}</div>
     <div class="total"><span class="lbl">סה״כ:</span><span class="amt">₪${esc(receipt.amount)}</span></div>
     <div class="foot">תודה ונתראה בקרוב ✦</div>
+    <div class="foot">אישור תשלום בלבד. אינו קבלה או חשבונית מס.</div>
   </div>
   <script>window.onafterprint=function(){window.close()}<\/script>
 </body></html>`;
@@ -5277,10 +5388,11 @@ export default function BeautyOS() {
   const receiptShareText = (receipt) => {
     const businessName = settings.business_name || "העסק";
     return `שלום ${receipt.client_name || "לקוחה"}! ✦\n` +
-      `קבלה מ${businessName}\n\n` +
+      `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
       `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
       `📅 תאריך: ${(receipt.created_at || "").slice(0, 10)}\n\n` +
+      (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
   };
 
@@ -5673,11 +5785,12 @@ export default function BeautyOS() {
           // Loud, and actionable. The package IS saved; what is missing is the
           // money, and she is the only one who can put it in.
           console.error("[packages] receipt insert failed", recErr);
-          toast("החבילה נשמרה, אך הקבלה לא נוצרה. נא לרשום תשלום של ₪" + price + " בקופה.", "error");
+          toast("החבילה נשמרה, אך התשלום לא נרשם. נא לרשום תשלום של ₪" + price + " בקופה.", "error");
           setShowPackageModal(false);
           return;
         }
         setReceipts(prev=>[...prev, rec[0]]);
+        afterPaymentRecorded(rec[0], { autoSend: false });
       }
 
       setShowPackageModal(false);
@@ -6257,7 +6370,7 @@ export default function BeautyOS() {
   // written by the gap-fill and lead-template send paths.
   const WA_TYPE_LABELS = {
     reminder:"תזכורת", confirmation:"אישור הגעה", booking_confirm:"אישור תור",
-    owner_alert:"התראת תור", reminder_failure:"דוח תזכורות", receipt:"קבלה", skin_report:"דוח עור",
+    owner_alert:"התראת תור", reminder_failure:"דוח תזכורות", receipt:PAYMENT_NOTICE_HE, skin_report:"דוח עור",
     skin_lead_alert:"ליד מהסורק", slot_offer:"הצעת תור", lead_bulk:"הודעה ללידים",
     general:"כללי",
   };
@@ -7127,7 +7240,7 @@ ${c.claimUrl}`)}`;
               const ready=voiceReceipt.clientName.trim()&&Number(voiceReceipt.amount)>0;
               return (
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}". בדקי ואשרי הוצאת קבלה:</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}". בדקי ואשרי רישום תשלום:</p>
 
  <div style={{marginBottom:10}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לקוחה</p>
@@ -8236,7 +8349,7 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה וקבלות</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה ותשלומים</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תשלומים</h2>
  <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
@@ -8312,7 +8425,7 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
  <div style={{display:"flex",alignItems:"center",gap:10}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>🧾</span>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>קבלות</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>אישורי תשלום</h3>
  </div>
  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {["all",...PAYMENT_METHODS.map(p=>p.key)].map(m=>(
@@ -8325,16 +8438,16 @@ ${c.claimUrl}`)}`;
               {filteredReceipts.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"46px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-lg)",marginTop:6}}>
  <div style={{width:60,height:60,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>🧾</div>
- <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>{receiptFilter!=="all"?"אין קבלות בסינון הזה":"עוד אין קבלות"}</p>
+ <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>{receiptFilter!=="all"?"אין תשלומים בסינון הזה":"עוד אין תשלומים"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{receiptFilter!=="all"?"נסי לשנות את אופן התשלום בסינון.":"כל תשלום שתגבי יופיע כאן. אפשר לפתוח תשלום חדש עכשיו."}</p>
  {receiptFilter==="all"&&<button className="empty-cta primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>}
  </div>
               ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
                 const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
                 const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
-                const voided=!!voidOf(r,receiptVoids);
+                const voided=voidedIds(receiptVoids).has(String(r.id));
                 return(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}${voided?" (מבוטלת)":""}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:`1px solid ${voided?"rgba(224,91,111,0.45)":"var(--line)"}`,borderRadius:"var(--r-md)",marginBottom:6,cursor:"pointer",opacity:voided?0.7:1}} className="client-row">
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}${voided?" (מבוטלת)":""}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:`1px solid ${voided?"rgba(224,91,111,0.45)":"var(--line)"}`,borderRadius:"var(--r-md)",marginBottom:6,cursor:"pointer",opacity:voided?0.7:1}} className="client-row">
  <div style={{width:36,height:36,borderRadius:"var(--r-sm)",background:`linear-gradient(135deg,${lighten(pmColor,0.35)},${pmColor})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",color:"var(--surface)",flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
                       {pm?.icon||"₪"}
  </div>
@@ -8342,7 +8455,8 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
  </div>
- {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטלת</span>}
+ {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
+ {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
  <p className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
  </div>
                 );
@@ -9774,7 +9888,7 @@ ${c.claimUrl}`)}`;
  </div>
  <button onClick={()=>setDrawFromPackage(v=>!v)} style={{background:drawFromPackage?pcGrad:"var(--surface)",color:drawFromPackage?"var(--pc-contrast)":pcDeep,border:drawFromPackage?"none":"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"7px 14px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{drawFromPackage?"✓ מנוכה":"לחייב מהחבילה"}</button>
  </div>
-                {drawFromPackage&&<p style={{fontSize:"var(--t-xs)",color:pcDeep,marginTop:6,lineHeight:1.5}}>טיפול אחד ינוכה מהחבילה עם שמירת הקבלה.</p>}
+                {drawFromPackage&&<p style={{fontSize:"var(--t-xs)",color:pcDeep,marginTop:6,lineHeight:1.5}}>טיפול אחד ינוכה מהחבילה עם רישום התשלום.</p>}
  </div>
             )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
@@ -9813,7 +9927,7 @@ ${c.claimUrl}`)}`;
                   className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:"var(--t-sm)"}}>שלחי בקשת תשלום</a>
  </div>
             )}
- <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לקבלה" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
+ <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
@@ -9823,18 +9937,18 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setShowCashier(false)} className="primary-btn" style={{flex:1,padding:"12px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומר"/>:"צרי קבלה ידנית ✓"}</button>
+ <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומר"/>:"רשמי תשלום ✓"}</button>
  </div>
  </Sheet>
       )}
 
       {/* RECEIPT MODAL */}
       {showReceipt&&(
- <Sheet open onClose={()=>setShowReceipt(null)} width={360} zIndex={1100} flush className="pop-in" ariaLabel="קבלה">
+ <Sheet open onClose={()=>setShowReceipt(null)} width={360} zIndex={1100} flush className="pop-in" ariaLabel={docLabelHe(showReceipt)}>
  <div className="receipt-print" style={{padding:24}}>
  <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
  <p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>קבלה</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>{docLabelHe(showReceipt)}{showReceipt.legal_status==="issued"&&showReceipt.legal_doc_number?" מספר "+showReceipt.legal_doc_number:""}</p>
                 {settings.business_phone&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{settings.business_phone}</p>}
  </div>
  <div style={{fontSize:"var(--t-xs)",color:"var(--ink)",lineHeight:1.9}}>
@@ -9849,15 +9963,31 @@ ${c.claimUrl}`)}`;
                 {Number(showReceipt.tip)>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>טיפ:</span><span>₪{showReceipt.tip}</span></div>}
                 {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>הערה:</span><span>{showReceipt.note}</span></div>}
  </div>
+ {(()=>{
+   const st=legalStateHe(showReceipt);
+   if(!st) return legalAccount?.connected?null:<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"12px 0 0"}}>אישור תשלום בלבד. אינו קבלה או חשבונית מס.</p>;
+   const issued=showReceipt.legal_status==="issued";
+   return(
+ <div style={{margin:"12px 0 0",padding:"10px 12px",borderRadius:"var(--r-sm)",background:issued?"rgba(70,179,123,0.08)":"var(--surface-2)",border:"1px solid "+(issued?"var(--success)":"var(--line-2)")}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:issued?"var(--success)":"var(--ink)",margin:0}}>{issued?"✓ ":""}{st}</p>
+                    {showReceipt.legal_error&&!issued&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",lineHeight:1.5,margin:"4px 0 0"}}>{showReceipt.legal_error}</p>}
+                    {issued&&showReceipt.legal_doc_url&&<a href={showReceipt.legal_doc_url} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:6,fontSize:"var(--t-xs)",color:pcDeep,fontWeight:600}}>צפייה במסמך (PDF)</a>}
+                    {["failed","unknown","pending"].includes(showReceipt.legal_status)&&<button onClick={()=>retryLegal(showReceipt)} disabled={isBusy("legalIssue")} className="primary-btn" style={{marginTop:8,padding:"8px 14px",fontSize:"var(--t-xs)"}}>{isBusy("legalIssue")?<Spinner inline label="מנסה"/>:showReceipt.legal_status==="unknown"?"בדקתי, המסמך לא הונפק. ניסיון חוזר":"ניסיון חוזר להנפקה"}</button>}
+ </div>
+   );
+ })()}
  <div style={{borderTop:"2px dashed var(--line-2)",marginTop:14,paddingTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink-2)"}}>סה״כ:</span>
- <span className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:700,color:voidOf(showReceipt,receiptVoids)?"var(--ink-3)":pc,textDecoration:voidOf(showReceipt,receiptVoids)?"line-through":"none"}}>₪{showReceipt.amount}</span>
+ <span className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:700,color:isVoidComplete(showReceipt)?"var(--ink-3)":pc,textDecoration:isVoidComplete(showReceipt)?"line-through":"none"}}>₪{showReceipt.amount}</span>
  </div>
               {(()=>{const vd=voidOf(showReceipt,receiptVoids);return vd?(
  <div style={{marginTop:12,padding:"10px 12px",borderRadius:"var(--r-sm)",background:"rgba(224,91,111,0.08)",border:"1px solid var(--danger)"}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)"}}>קבלה מבוטלת</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)"}}>{isVoidComplete(showReceipt)?"התשלום בוטל":"ביטול התשלום בתהליך"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2,lineHeight:1.5}}>{vd.reason}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>{String(vd.created_at||"").slice(0,10)} · המקור נשמר כפי שהיה ואינו נספר בסיכומים</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>{String(vd.created_at||"").slice(0,10)} · {vd.credit_status==="issued"?creditStateHe(vd):(vd.credit_status&&vd.credit_status!=="none")?(creditStateHe(vd)||"ממתין למסמך זיכוי")+". התשלום ממשיך להיספר עד שהמסמך יונפק.":"המקור נשמר כפי שהיה ואינו נספר בסיכומים"}</p>
+ {vd.credit_error&&vd.credit_status!=="issued"&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",marginTop:4,lineHeight:1.5}}>{vd.credit_error}</p>}
+ {["failed","unknown","pending_request"].includes(vd.credit_status)&&<button onClick={()=>retryCredit(vd)} disabled={isBusy("legalCredit")} className="primary-btn" style={{marginTop:8,padding:"8px 14px",fontSize:"var(--t-xs)",background:"var(--surface)",color:"var(--danger)",border:"1px solid var(--danger)"}}>{isBusy("legalCredit")?<Spinner inline label="מנסה"/>:"ניסיון חוזר להנפקת זיכוי"}</button>}
+ {vd.credit_status==="issued"&&vd.credit_doc_url&&<a href={vd.credit_doc_url} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:6,fontSize:"var(--t-xs)",color:pcDeep,fontWeight:600}}>צפייה במסמך הזיכוי</a>}
  </div>
               ):null;})()}
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
@@ -9931,15 +10061,15 @@ ${c.claimUrl}`)}`;
               {!voidOf(showReceipt,receiptVoids)&&(
  <div style={{margin:"0 24px 18px"}}>
                   {!voidOpen?(
- <button onClick={()=>{setVoidOpen(true);setVoidReason("");}} style={{background:"none",border:"none",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"6px 0",minHeight:36}}>ביטול קבלה</button>
+ <button onClick={()=>{setVoidOpen(true);setVoidReason("");}} style={{background:"none",border:"none",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"6px 0",minHeight:36}}>ביטול התשלום</button>
                   ):(
  <div style={{padding:"12px",borderRadius:"var(--r-sm)",background:"rgba(224,91,111,0.06)",border:"1px solid var(--danger)"}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>למה הקבלה מבוטלת?</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הקבלה המקורית תישאר כפי שהיא, מסומנת כמבוטלת, ולא תיספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו.</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>למה התשלום מבוטל?</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>{showReceipt.legal_status==="issued"?"בחשבון מורנינג שלך יונפק מסמך זיכוי שמבטל את המסמך המקורי. עד שהוא יונפק, התשלום ימשיך להיספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו.":"האישור המקורי יישאר כפי שהוא, מסומן כמבוטל, ולא ייספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו."}</p>
  <textarea value={voidReason} onChange={e=>setVoidReason(e.target.value)} rows={2} placeholder="למשל: סכום שגוי, נרשם ללקוחה הלא נכונה" aria-label="סיבת הביטול" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"none",marginBottom:8}}/>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setVoidOpen(false)} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>חזרה</button>
- <button onClick={()=>handleVoidReceipt(showReceipt)} disabled={!voidReason.trim()||isBusy("voidReceipt")} className="primary-btn" style={{flex:2,padding:"10px 0",background:voidReason.trim()?"var(--danger)":"var(--line-2)",color:"var(--surface)",fontSize:"var(--t-sm)"}}>{isBusy("voidReceipt")?<Spinner inline label="מבטלת"/>:"בטלי את הקבלה"}</button>
+ <button onClick={()=>handleVoidReceipt(showReceipt)} disabled={!voidReason.trim()||isBusy("voidReceipt")} className="primary-btn" style={{flex:2,padding:"10px 0",background:voidReason.trim()?"var(--danger)":"var(--line-2)",color:"var(--surface)",fontSize:"var(--t-sm)"}}>{isBusy("voidReceipt")?<Spinner inline label="מבטלת"/>:"בטלי את התשלום"}</button>
  </div>
  </div>
                   )}
@@ -10078,7 +10208,7 @@ ${c.claimUrl}`)}`;
  <button key={m.key} onClick={()=>setNewPackage({...newPackage,payment_method:m.key})} style={{flex:1,minWidth:70,padding:"8px 0",borderRadius:"var(--r-sm)",border:"1px solid",borderColor:newPackage.payment_method===m.key?"transparent":"var(--line-2)",background:newPackage.payment_method===m.key?pcGrad:"var(--surface)",color:newPackage.payment_method===m.key?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{m.key}</button>
                       ))}
  </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>תיווצר קבלה על סכום החבילה, והיא תיכנס להכנסות.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>יירשם תשלום על סכום החבילה, והיא תיכנס להכנסות.</p>
  </div>
                   )}
  </div>
@@ -10817,7 +10947,7 @@ ${c.claimUrl}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת וואטסאפ אמיתית ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל." />
- <AutoToggleRow pc={pc} label="שליחת קבלה אוטומטית ללקוחה בוואטסאפ" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — הקבלה נשלחת אוטומטית ללקוחה מיד לאחר יצירתה (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית." />
+ <AutoToggleRow pc={pc} label="שליחת אישור תשלום אוטומטית ללקוחה בוואטסאפ" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור נשלח אוטומטית ללקוחה מיד לאחר הרישום (ועם קישור לקבלה, אם חיברת מורנינג) (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית." />
  </div>
  </div>
                 );
@@ -11059,6 +11189,35 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המספר הזה ישמש לבקשות תשלום ב-ביט שנשלחות ללקוחות </p>
+ <div style={{marginTop:6,padding:"14px",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>קבלות וחשבוניות חוקיות (מורנינג)</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>קבלה וחשבונית מס חייבות לצאת מתוכנה רשומה ברשות המסים, ולכן אנחנו לא מפיקות אותן בעצמנו. חברי את חשבון מורנינג שלך והמסמכים יונפקו שם, בחשבון שלך ובמספר העסק שלך. עד שתחברי, התשלומים נרשמים כאישורי תשלום, שהם לא קבלה.</p>
+                    {legalAccount?.environment==="sandbox"&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:0}}>מצב בדיקות: החיבור עדיין מקבל רק חשבון בדיקות של מורנינג, ולא חשבון אמיתי.</p>}
+                    {legalAccount?.migrationMissing&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>צריך להריץ את המיגרציה add_legal_receipts.sql לפני החיבור.</p>}
+                    {legalAccount?.connected?(
+ <div style={{display:"flex",flexDirection:"column",gap:6}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--success)",fontWeight:700,margin:0}}>✓ מחוברת{legalAccount.businessName?" לחשבון: "+legalAccount.businessName:""}</p>
+                        {legalAccount.needsReconnect&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>{legalAccount.lastError||"החיבור לא תקין. חברי מחדש."}</p>}
+ <button onClick={async()=>{ setLegalMsg(""); try{ const r=await fetch("/api/legal-receipts/account",{method:"DELETE"}); if(r.ok){ setLegalAccount(a=>({...(a||{}),connected:false,businessName:"",needsReconnect:false})); toast("החיבור למורנינג נותק. המסמכים שכבר הונפקו נשארים בחשבון שלך."); } else setLegalMsg(STUCK_HE); }catch{ setLegalMsg(STUCK_HE); } }} style={{alignSelf:"flex-start",background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-xs)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:0}}>ניתוק החשבון</button>
+ </div>
+                    ):(
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>מפתח נוצר במורנינג: הגדרות, כלים למפתחים, מפתחות API. נדרש מסלול שכולל API (Best ומעלה).</p>
+ <input value={legalKeyId} onChange={e=>setLegalKeyId(e.target.value)} placeholder="מזהה המפתח (API key id)" autoComplete="off" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface)"}}/>
+ <input value={legalSecret} onChange={e=>setLegalSecret(e.target.value)} type="password" placeholder="הסוד (API secret)" autoComplete="off" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:"var(--surface)"}}/>
+ <button disabled={isBusy("legalConnect")||!legalKeyId.trim()||!legalSecret.trim()} onClick={async()=>{
+                          setLegalMsg(""); setBusyKey("legalConnect",true);
+                          try{
+                            const r=await fetch("/api/legal-receipts/account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({keyId:legalKeyId,secret:legalSecret})});
+                            const d=await r.json().catch(()=>null);
+                            if(r.ok&&d&&d.success){ setLegalAccount(a=>({...(a||{}),connected:true,provider:"morning",businessName:d.businessName||"",environment:d.environment,needsReconnect:false})); setLegalKeyId(""); setLegalSecret(""); toast("החשבון חובר. מעכשיו כל תשלום יונפק כמסמך במורנינג ✦"); }
+                            else setLegalMsg((d&&d.error)||STUCK_HE);
+                          }catch{ setLegalMsg(STUCK_HE); } finally { setBusyKey("legalConnect",false); }
+                        }} className="primary-btn" style={{padding:"10px 16px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("legalConnect")?<Spinner inline label="מתחברת"/>:"חיבור החשבון"}</button>
+ </div>
+                    )}
+                    {legalMsg&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>{legalMsg}</p>}
+ </div>
  </div>
               )}
  </div>
@@ -11132,7 +11291,7 @@ ${c.claimUrl}`)}`;
                 })()}
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`קבלות (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
+                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
@@ -11196,9 +11355,9 @@ ${c.claimUrl}`)}`;
                     ))
                   )}
                   {clientTab==="receipts"&&(
-                    cReceipts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין קבלות</p>
+                    cReceipts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין תשלומים</p>
                     :cReceipts.map(r=>(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת קבלה — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
  <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>

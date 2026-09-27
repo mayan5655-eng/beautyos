@@ -17,6 +17,7 @@ import { createClient as createServerClient } from "../../../lib/supabase/server
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { greet, lines, hebrewDate } from "../../../lib/messages.js";
+import { docNameHe, PAYMENT_NOTICE_HE } from "../../../lib/legalReceipts/policy.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -46,7 +47,7 @@ export async function POST(request) {
     const guard = await requireActiveTenant(session);
     if (!guard.ok) return guard.response;
 
-    const { client_name, client_phone, amount, payment_method, date, tip, payments_text } =
+    const { client_name, client_phone, amount, payment_method, date, tip, payments_text, receipt_id } =
       await request.json().catch(() => ({}));
 
     // Only send when there is a phone number.
@@ -72,14 +73,37 @@ export async function POST(request) {
     const businessName =
       (settingsRows && settingsRows[0]?.business_name) || "העסק";
 
+    // WHAT THIS IS. A payment record is an "אישור תשלום" (payment confirmation), never a "קבלה":
+    // a receipt is a tax document that only a registered provider may issue. When the payment
+    // has a provider document (she connected Morning), the message says what it is and links
+    // the provider's PDF. Read from the database by the receipt id, never from the request:
+    // the request could name any link.
+    let legal = null;
+    if (receipt_id) {
+      const { data: rec } = await supabase
+        .from("receipts")
+        .select("legal_status, legal_doc_type, legal_doc_number, legal_doc_url")
+        .eq("id", receipt_id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (rec && rec.legal_status === "issued" && rec.legal_doc_url) legal = rec;
+    }
+    const title = legal
+      ? `${docNameHe(legal.legal_doc_type)}${legal.legal_doc_number ? " מספר " + legal.legal_doc_number : ""} מ${businessName}`
+      : `${PAYMENT_NOTICE_HE} מ${businessName}`;
+
     const msg = lines(
       greet(client_name),
-      `קבלה מ${businessName}`,
+      title,
       "",
       `סכום: ₪${amount}`,
       `תשלום: ${payment_method || "מזומן"}${payments_text ? ` (${String(payments_text).slice(0, 120)})` : ""}`,
       Number(tip) > 0 ? `טיפ: ₪${Number(tip)}` : null,
       date ? hebrewDate(date) : null,
+      "",
+      legal ? "המסמך:" : null,
+      legal ? legal.legal_doc_url : null,
+      legal ? "" : "(אישור תשלום, לא מסמך מס)",
       "",
       "תודה, ונתראה בקרוב."
     );

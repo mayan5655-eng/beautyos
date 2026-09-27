@@ -31,6 +31,22 @@ eq(isSplit({ amount: 1, payments: [{ method: 'a', amount: 0.5 }, { method: 'b', 
 eq(paidWith({ amount: 1, payments: [{ method: 'ביט', amount: 0.5 }, { method: 'מזומן', amount: 0.5 }] }, 'ביט'), true, 'a split receipt was paid with each of its methods');
 eq(paidWith({ amount: 1, payment_method: 'מזומן' }, 'ביט'), false, 'and not with others');
 
+// ── a void of a payment with a legal document counts only once the credit exists ──
+{
+  const rs = [{ id: 'a', amount: 100 }, { id: 'b', amount: 50 }, { id: 'c', amount: 30 }, { id: 'd', amount: 20 }];
+  const vs = [
+    { receipt_id: 'a' },                                        // an old void, no credit_status: complete
+    { receipt_id: 'b', credit_status: 'issued' },               // credited: complete
+    { receipt_id: 'c', credit_status: 'pending_request' },      // credit requested, not yet issued: STILL COUNTS
+    { receipt_id: 'd', credit_status: 'unknown' },              // unsure whether it was issued: STILL COUNTS
+  ];
+  eq(liveReceipts(rs, vs).map((r) => r.id), ['c', 'd'], 'only completed voids leave the totals');
+  eq(totalsOf(liveReceipts(rs, vs)).total, 50, 'revenue = what still legally stands');
+  eq(voidOf(rs[2], vs)?.credit_status, 'pending_request', 'but the void is still findable, so the receipt can show why');
+  eq(liveReceipts(rs, [{ receipt_id: 'c', credit_status: 'failed' }]).length, 4, 'a failed credit has not voided anything');
+  eq(liveReceipts(rs, [{ receipt_id: 'c', credit_status: 'none' }]).length, 3, "'none' (an internal void) is complete");
+}
+
 // ── split validation ───────────────────────────────────────────────────────
 eq(validateSplit([{ method: 'ביט', amount: 120 }, { method: 'מזומן', amount: 80 }], 200).ok, true, 'a split that adds up');
 eq(validateSplit([{ method: 'ביט', amount: 120 }, { method: 'מזומן', amount: 70 }], 200).ok, false, 'a split that does not add up');
