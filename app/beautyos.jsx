@@ -7267,7 +7267,7 @@ ${c.claimUrl}`)}`;
 
  <div style={{display:"flex",gap:8}}>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)"}}>ביטול</button>
- <button onClick={handleVoiceReceipt} disabled={!ready||isBusy("voiceReceipt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("voiceReceipt")?<Spinner inline label="מפיקה"/>:"✦ אישור והפקת קבלה"}</button>
+ <button onClick={handleVoiceReceipt} disabled={!ready||isBusy("voiceReceipt")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("voiceReceipt")?<Spinner inline label="רושמת"/>:"✦ אישור ורישום תשלום"}</button>
  </div>
  </div>
               );
@@ -7653,7 +7653,7 @@ ${c.claimUrl}`)}`;
                           {items.map(it=>(
  <div key={it.key} style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
  <p style={{fontSize:"var(--t-md)",color:"var(--ink)",margin:0,flex:"1 1 220px"}}>{it.text}</p>
-                              {it.appt&&<button onClick={()=>handleOpenCashier(it.appt)} className="primary-btn" style={{padding:"7px 14px",fontSize:"var(--t-sm)"}}>לפתוח קבלה</button>}
+                              {it.appt&&<button onClick={()=>handleOpenCashier(it.appt)} className="primary-btn" style={{padding:"7px 14px",fontSize:"var(--t-sm)"}}>לרשום תשלום</button>}
  </div>
                           ))}
  </div>

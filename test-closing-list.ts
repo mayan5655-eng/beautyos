@@ -21,7 +21,7 @@ assert.equal(ALL_CLEAR_HE, 'אין כלום שמחכה לך. אפשר ללכת �
 // Ended today, no receipt: one line, with the appointment to open the till on.
 r = buildClosingList({ appointments: [A({ id: '1', name: 'דנה' }), A({ id: '2', name: 'לאה', start_minute: 12 * 60 })], receipts: [], now, endMinute: end });
 assert.equal(r.items[0].key, 'no-receipt-today');
-assert.equal(r.items[0].text, 'היום עוד אין קבלה על: דנה ולאה.');
+assert.equal(r.items[0].text, 'היום עוד אין תשלום רשום על: דנה ולאה.');
 assert.equal(r.items[0].appt?.id, '1');
 
 // Not ended yet, cancelled, free, and already-paid visits are not on the list.
