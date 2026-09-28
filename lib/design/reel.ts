@@ -17,6 +17,7 @@
 import type { Category, Format, ImageSource, SlotDef, Template, TemplateGroup, VariableDef } from './contract.ts';
 import { validateTemplate } from './contract.ts';
 import { fillTemplate, type BrandingInput, type Fill } from './mapBranding.ts';
+import { FIELD_KEYS, type FieldKey } from '../businessFields.ts';
 
 export type Transition = 'cut' | 'fade' | 'slide';
 export type Motion = 'kenburns' | 'none';
@@ -53,6 +54,9 @@ export type ReelTemplate = {
   variables: VariableDef[];
   /** The union of every scene's slots, namespaced sN_. */
   slots: SlotDef[];
+  /** Which business field(s) this reel is for — see contract.ts's Template.fields
+   *  for the full reasoning; reels follow the identical rule. */
+  fields: FieldKey[];
 };
 
 export const reelId = (r: Pick<ReelTemplate, 'key' | 'version'>) => `${r.key}@${r.version}`;
@@ -74,13 +78,16 @@ export function reelSurface(scenes: ReelScene[]): { variables: VariableDef[]; sl
 }
 
 /** A reel from its scenes: the surface is derived, never hand-written. */
-export function makeReel(def: { key: string; version: number; category: Category; group: TemplateGroup; name: string; description: string; needs?: string[]; holiday?: string; musicVibe?: string; scenes: ReelScene[] }): ReelTemplate {
+export function makeReel(def: { key: string; version: number; category: Category; group: TemplateGroup; name: string; description: string; needs?: string[]; holiday?: string; musicVibe?: string; scenes: ReelScene[]; fields?: FieldKey[] }): ReelTemplate {
   const { variables, slots } = reelSurface(def.scenes);
   const r: ReelTemplate = {
     key: def.key, version: def.version, category: def.category, group: def.group, name: def.name, description: def.description,
     format: 'reel', scenes: def.scenes,
     needs: def.needs || (slots.some((s) => s.consent) ? ['תמונות של לקוחה שאישרה פרסום'] : [`${slots.filter((s) => s.required).length} תמונות (מהגלריה או AI)`]),
     variables, slots,
+    // Same default as Template.fields (contract.ts / cream.ts): omitted reads
+    // as cosmetics, so the launch reel set needed no edit for this to land.
+    fields: def.fields && def.fields.length ? def.fields : ['cosmetics'],
   };
   if (def.holiday) r.holiday = def.holiday;
   if (def.musicVibe) r.musicVibe = def.musicVibe;
@@ -94,6 +101,8 @@ export function validateReel(r: ReelTemplate): string[] {
   if (!Number.isInteger(r.version) || r.version < 1) errors.push('version must be a positive integer');
   if (r.format !== 'reel') errors.push('format must be reel');
   if (r.scenes.length < 2 || r.scenes.length > 6) errors.push('a reel has 2 to 6 scenes');
+  if (!r.fields || !r.fields.length) errors.push('fields must be a non-empty array');
+  else for (const f of r.fields) if (!(FIELD_KEYS as string[]).includes(f)) errors.push(`unknown field ${f}`);
   const total = r.scenes.reduce((n, s) => n + s.seconds, 0);
   if (total > 30) errors.push(`too long: ${total}s (max 30)`);
   const ids = new Set<string>();

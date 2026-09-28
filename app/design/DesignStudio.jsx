@@ -27,6 +27,7 @@ import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/de
 import { CATEGORY_LABELS, GROUP_LABELS } from '@/lib/design/contract';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
+import { businessFieldsOf } from '@/lib/businessFields';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -40,13 +41,16 @@ async function fetchDesigns() {
   return res.ok && data?.success ? data.designs : [];
 }
 
-/** The seasonal templates whose window is open today: one card each, newest feed version. */
-function openOccasions() {
+/** The seasonal templates whose window is open today: one card each, newest
+ *  feed version, restricted to her own field(s) so a dual-field tenant does
+ *  not see the same occasion twice and a single-field one never sees the
+ *  other field's card at all. */
+function openOccasions(fields) {
   let upcoming = [];
   try { upcoming = upcomingHolidays(); } catch { return []; }
   const out = [];
   for (const u of upcoming) {
-    const t = TEMPLATES.filter((x) => x.holiday === u.holiday.key && x.format === 'feed45').sort((a, b) => b.version - a.version)[0];
+    const t = TEMPLATES.filter((x) => x.holiday === u.holiday.key && x.format === 'feed45' && x.fields.some((f) => fields.includes(f))).sort((a, b) => b.version - a.version)[0];
     if (t) out.push({ upcoming: u, template: t });
   }
   return out;
@@ -69,16 +73,17 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     return () => { alive = false; };
   }, []);
 
-  const occasions = useMemo(() => openOccasions(), []);
+  const fields = useMemo(() => businessFieldsOf(settings), [settings]);
+  const occasions = useMemo(() => openOccasions(fields), [fields]);
   // Per group: its cards, the seasonal ones whose window is open lifted to the front with their days left.
   const sections = useMemo(() => {
     const open = new Map(occasions.map((o) => [o.template.key, o.upcoming]));
     return GROUPS.filter((g) => !group || g === group).map((g) => {
-      const list = galleryTemplates(null, g);
+      const list = galleryTemplates(null, g, fields);
       const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : 0);
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
-  }, [group, occasions]);
+  }, [group, occasions, fields]);
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
@@ -266,11 +271,11 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         {(!group || group === REEL_GROUP) && (
           <div style={{ marginBottom: 22 }}>
             <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels().length}</span>
+              רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels(null, null, fields).length}</span>
             </p>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
-              {latestReels().map(reelCard)}
+              {latestReels(null, null, fields).map(reelCard)}
             </div>
           </div>
         )}

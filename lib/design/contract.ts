@@ -184,7 +184,7 @@ export function ratingCount(value: string | null | undefined): number {
 /** Where a variable's value comes from before she types anything. */
 export type VariableSource =
   | 'business_name' | 'therapist_name' | 'therapist_title' | 'booking_url'
-  | 'phone' | 'instagram' | 'contact'
+  | 'phone' | 'instagram' | 'contact' | 'whatsapp_url'
   | 'review_text' | 'review_name' | 'review_rating' | 'static' | 'user';
 
 export type VariableDef = {

@@ -7,14 +7,21 @@ import { validateReel, reelId, fillReel, reelSurface, isReel } from './lib/desig
 import { TEMPLATES } from './lib/design/templates/index.ts';
 import { sanitizeValues, sanitizeImages, sanitizeCopy } from './lib/design/design.ts';
 
-assert.equal(REELS.length, 8, 'the launch set');
+assert.equal(REELS.length, 16, 'the cosmetics launch set (8) plus a comparable nails set (8) — see lib/design/reels/nails.ts');
 const keys = REELS.map((r) => r.key);
-assert.deepEqual(keys, ['reveal-reel', 'steps-reel', 'countdown-reel', 'holiday-reel', 'testimonial-reel', 'product-reel', 'day-reel', 'tip-reel']);
+assert.deepEqual(keys, [
+  'reveal-reel', 'steps-reel', 'countdown-reel', 'holiday-reel', 'testimonial-reel', 'product-reel', 'day-reel', 'tip-reel',
+  'nail-reveal-reel', 'nail-process-reel', 'nail-menu-scroll-reel', 'nail-before-after-wipe-reel', 'nail-colour-swatch-reel', 'nail-closeup-reel', 'nail-testimonial-reel', 'nail-countdown-reel',
+]);
 for (const r of REELS) {
   assert.deepEqual(validateReel(r), [], `${reelId(r)} is valid`);
   assert.deepEqual(JSON.parse(JSON.stringify(r)), r, `${reelId(r)} is plain JSON`);
-  assert.ok(r.scenes.length >= 3 && r.scenes.length <= 5, '3 to 5 scenes');
-  assert.ok(r.scenes.reduce((n, s) => n + s.seconds, 0) <= 20, 'at most twenty seconds');
+  // 2 to 6: validateReel's own real constraint. The original 8-reel launch
+  // set happened to land in 3-5 (nothing shorter or longer was needed yet);
+  // nail-closeup-reel is a deliberate 2 — wide, then close, nothing more —
+  // which is a real, valid reel, not an edge case to special-case around.
+  assert.ok(r.scenes.length >= 2 && r.scenes.length <= 6, '2 to 6 scenes');
+  assert.ok(r.scenes.reduce((n, s) => n + s.seconds, 0) <= 30, 'at most thirty seconds (validateReel\'s own cap)');
   for (const s of r.scenes) {
     assert.equal(s.frame.format, 'story');
     assert.ok(s.frame.layers.some((l) => l.id === 'strip') && s.frame.layers.some((l) => l.id === 'logo'), 'every scene carries her strip');
@@ -25,8 +32,16 @@ for (const r of REELS) {
 assert.ok(new Set(REELS.flatMap((r) => r.scenes.map((s) => JSON.stringify(s.frame.layers.map((l) => l.id))))).size >= 8, 'scenes are not one layout');
 assert.equal(isReel(getReel('tip-reel')), true);
 assert.equal(getReel('tip-reel', 99), null);
-assert.equal(latestReels('tip').length, 1);
-assert.equal(latestReels(null, 'evergreen').length, 5);
+assert.equal(latestReels('tip').length, 2, 'cosmetics tip-reel + nails colour-swatch-reel, both category tip');
+assert.equal(latestReels(null, 'evergreen').length, 12, 'cosmetics 5 + nails 7 (only nail-countdown-reel is a closer)');
+
+// ── business_fields: every reel is tagged, latestReels filters by it ───────
+assert.deepEqual(getReel('reveal-reel')!.fields, ['cosmetics'], 'untouched: makeReel\'s default for a def with no fields set');
+assert.deepEqual(getReel('nail-reveal-reel')!.fields, ['nails']);
+assert.equal(latestReels(null, null, ['nails']).length, 8);
+assert.equal(latestReels(null, null, ['cosmetics']).length, 8);
+assert.equal(latestReels(null, null, ['cosmetics', 'nails']).length, 16, 'both fields: everything, same as no filter at all');
+assert.equal(latestReels(null, null).length, 16, 'omitted: every field, same as before this parameter existed');
 
 // Immutability: the same lock file as the statics.
 const deep = (v: unknown): unknown => (Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, deep((v as Record<string, unknown>)[k])])) : v);

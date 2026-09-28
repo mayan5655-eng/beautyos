@@ -32,6 +32,8 @@ import { latestReels, getReel } from '@/lib/design/reels';
 import { sanitizeImages } from '@/lib/design/design';
 import { candidateTemplates, aiSlotOf, planPost, generationAllowance, GENERATE_IMAGE_CALL_SITE } from '@/lib/ai/postGenerator';
 import type { Fillable } from '@/lib/design/reel';
+import { businessFieldsOf } from '@/lib/businessFields';
+import { isMissingColumnError } from '@/lib/pgError';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -55,12 +57,17 @@ async function context(request: NextRequest): Promise<Ctx | Response> {
   if (!tenantId) return NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 400 });
   const tenantLimited = checkTenantLimit(tenantId, 'creatives');
   if (tenantLimited) return tenantLimited;
-  // The cap column arrives with add_ai_generation_cap.sql; before it is applied, the select falls back.
+  // The cap column arrives with add_ai_generation_cap.sql; business_fields
+  // with add_business_fields.sql. Both applied by hand, possibly not yet run
+  // — degrade rather than fail the whole route over either missing column.
   let settings: Record<string, unknown> | null = null;
-  const withCap = await supabase.from('settings').select('business_name, business_phone, primary_color, branding, ai_generation_cap').eq('tenant_id', tenantId).maybeSingle();
-  if (withCap.error) {
-    const { data } = await supabase.from('settings').select('business_name, business_phone, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
-    settings = data as Record<string, unknown> | null;
+  const withCap = await supabase.from('settings').select('business_name, business_phone, primary_color, branding, ai_generation_cap, business_fields').eq('tenant_id', tenantId).maybeSingle();
+  if (withCap.error && isMissingColumnError(withCap.error)) {
+    const retry = await supabase.from('settings').select('business_name, business_phone, primary_color, branding, ai_generation_cap').eq('tenant_id', tenantId).maybeSingle();
+    if (retry.error && isMissingColumnError(retry.error)) {
+      const { data } = await supabase.from('settings').select('business_name, business_phone, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
+      settings = data as Record<string, unknown> | null;
+    } else settings = retry.data as Record<string, unknown> | null;
   } else settings = withCap.data as Record<string, unknown> | null;
   return { tenantId, settings };
 }
@@ -91,7 +98,8 @@ export async function POST(request: NextRequest) {
 
   const branding = (settings?.branding && typeof settings.branding === 'object' ? settings.branding : {}) as Record<string, unknown>;
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
-  const pool: Fillable[] = format === 'reel' ? latestReels() : latestTemplates();
+  const fields = businessFieldsOf(settings);
+  const pool: Fillable[] = format === 'reel' ? latestReels(null, null, fields) : latestTemplates(null, fields);
   const candidates = candidateTemplates(pool, format, hasReviews);
   if (!candidates.length) return NextResponse.json({ success: false, error: 'אין תבניות מתאימות לפורמט הזה עדיין' }, { status: 400 });
 
