@@ -26,7 +26,7 @@ const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px sol
 // change it with the existing format buttons before generating. 'carousel'
 // has no real multi-slide mechanism yet (see lib/ai/topicBank.ts's
 // SHAPE_META comment and WORK_PLAN.md); it starts as an ordinary feed post.
-const FORMAT_FOR_CHANNEL = { post_story: 'feed45', carousel: 'feed45', reel_post: 'reel' };
+export const FORMAT_FOR_CHANNEL = { post_story: 'feed45', carousel: 'feed45', reel_post: 'reel' };
 
 async function fetchAllowance() {
   const res = await fetch('/api/designs/generate');

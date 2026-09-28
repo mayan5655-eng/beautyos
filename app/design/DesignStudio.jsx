@@ -18,7 +18,7 @@ import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
-import Generate from './Generate';
+import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
 import Archive from './Archive';
 import { latestReels, getReel } from '@/lib/design/reels';
@@ -28,6 +28,8 @@ import { CATEGORY_LABELS, GROUP_LABELS } from '@/lib/design/contract';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
 import { businessFieldsOf } from '@/lib/businessFields';
+import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
+import { designIdeaSuggestion } from '@/lib/design/suggestions';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -84,6 +86,48 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
   }, [group, occasions, fields]);
+  // Design ideas: the topic bank's visual seed, browsable, not a ready-drawn
+  // template like the sections above - a card here has no image until she
+  // asks the AI card to write it. The seasonal production nudge (nails-only,
+  // window-gated - see designIdeaSuggestion's own doc) points at an already-
+  // drawn template instead, so it's created directly, the same tap as any
+  // suggestion card, not handed to Generate.
+  const [ideaQuery, setIdeaQuery] = useState('');
+  const ideaTopics = useMemo(() => {
+    const q = ideaQuery.trim();
+    const all = topicsForField(fields);
+    return q ? all.filter((t) => t.name.includes(q)) : all;
+  }, [fields, ideaQuery]);
+  const seasonalIdea = useMemo(() => designIdeaSuggestion({ fields }), [fields]);
+  // "כמו בפעם הקודמת": her most recently CREATED design (not most recently
+  // updated - the designs list itself is updated_at-sorted, which would
+  // surface an old one she just re-opened rather than the last thing she
+  // actually made), archived ones excluded. One tap re-runs the exact same
+  // template or reel through `create`, which refills from her current
+  // settings/services/branding - never the frozen values of the old row.
+  const lastDesign = useMemo(() => {
+    const candidates = (designs || []).filter((d) => d.template_key && d.status !== 'archived');
+    if (!candidates.length) return null;
+    return [...candidates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  }, [designs]);
+  const repeatLast = () => {
+    if (!lastDesign) return;
+    const t = lastDesign.format === 'reel'
+      ? getReel(lastDesign.template_key, lastDesign.template_version)
+      : getTemplate(lastDesign.template_key, lastDesign.template_version);
+    if (t) create(t);
+  };
+  // Hands a topic + shape off to the AI card exactly like WeekView's filming
+  // idea does (onReel below): stuff `preset`, remount Generate with it, jump
+  // to the week view where that card lives, and say where it landed.
+  const sendIdeaToGenerate = (topic, shapeKey) => {
+    const brief = buildTopicBrief(topic, shapeKey);
+    const format = FORMAT_FOR_CHANNEL[SHAPE_META[shapeKey].channel] || 'feed45';
+    setPreset({ brief, format });
+    setPresetKey((k) => k + 1);
+    setView('week');
+    toast?.('הרעיון נכנס לכרטיס ה-AI למטה');
+  };
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
@@ -228,11 +272,20 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
         {viewChip('week', 'השבוע')}
         {viewChip('templates', 'תבניות')}
+        {viewChip('ideas', 'רעיונות', ideaTopics.length)}
         {viewChip('mine', 'שלי', (designs || []).length)}
       </div>
 
       {view === 'week' && (
         <>
+          {lastDesign && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
+              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', flex: 1, minWidth: 160 }}><Icon name="refresh" size={13} /> כמו בפעם הקודמת: <b style={{ color: 'var(--ink)' }}>{lastDesign.name || 'העיצוב האחרון שלך'}</b></p>
+              <button disabled={creating || readOnly} onClick={repeatLast} style={{ ...ghost, flex: '0 0 auto', padding: '9px 18px' }}>
+                {creating === lastDesign.template_key ? <Spinner inline label="" /> : 'לחזור על זה, עם הנתונים של היום'}
+              </button>
+            </div>
+          )}
           <WeekView settings={settings} appointments={appointments} services={services} designs={designs || []} readOnly={readOnly} creating={creating} toast={toast}
             onCreate={(t, values) => create(t, values)}
             onReel={(brief) => { setPreset({ brief, format: 'reel' }); setPresetKey((k) => k + 1); toast?.('הרעיון נכנס לכרטיס ה-AI למטה'); }} />
@@ -290,6 +343,43 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
           </div>
         ))}
         {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10 }}>{error}</p>}
+      </div>}
+
+      {view === 'ideas' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+        <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>רעיונות, לא פוסטים מוכנים</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כיוון אמיתי לכל נושא — בחרי זווית וה-AI כותב פוסט טרי סביבו בכרטיס ה-AI. שונה מהתבניות למעלה: שם אין תמונה מוכנה לבחור, כאן יש כיוון לצלם וליצור.</p>
+
+        {seasonalIdea && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '14px 16px', marginBottom: 18, background: 'var(--pc-tint)', border: `1px solid var(--pc)`, borderRadius: 'var(--r-md)' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <p style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--pc-deep)', marginBottom: 3 }}><Icon name="sparkle" size={12} /> רעיון לצילום, לא לפרסום מיידי</p>
+              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600 }}>{seasonalIdea.reason}</p>
+            </div>
+            <button disabled={creating || readOnly} onClick={() => { const t = getTemplate(seasonalIdea.templateKey); if (t) create(t); }} className="primary-btn" style={{ padding: '9px 16px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', flexShrink: 0 }}>
+              {creating === seasonalIdea.templateKey ? <Spinner inline label="" /> : 'ליצור כרטיס לעונה'}
+            </button>
+          </div>
+        )}
+
+        <input value={ideaQuery} onChange={(e) => setIdeaQuery(e.target.value)} placeholder="חיפוש נושא..." style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)', outline: 'none', marginBottom: 12 }} dir="rtl" />
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+          {ideaTopics.map((t) => (
+            <div key={t.id} style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px', background: 'var(--surface)' }}>
+              <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{t.name}</p>
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 9 }}>{t.visualSeed}</p>
+              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                {Object.entries(SHAPE_META).map(([key, meta]) => (
+                  <button key={key} title={meta.goal} disabled={readOnly} onClick={() => sendIdeaToGenerate(t, key)}
+                    style={{ fontSize: 'var(--t-xs)', padding: '4px 9px', borderRadius: 'var(--r-full)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', cursor: readOnly ? 'default' : 'pointer', fontFamily: 'inherit', opacity: readOnly ? 0.5 : 1 }}>
+                    {meta.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {ideaTopics.length === 0 && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>לא נמצאו נושאים תואמים.</p>}
+        </div>
       </div>}
 
       {view === 'mine' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
