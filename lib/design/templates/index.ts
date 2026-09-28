@@ -12,12 +12,15 @@
 // story 9:16 of each, in a layout family). New keys go in cream/*.ts.
 
 import type { Template, Category, TemplateGroup } from '../contract.ts';
+import type { FieldKey } from '../../businessFields.ts';
 import { creamTemplates, type CreamDef } from './cream.ts';
 import { EVERGREEN } from './cream/evergreen.ts';
 import { HOLIDAYS } from './cream/holidays.ts';
 import { CLOSERS } from './cream/closers.ts';
+import { NAILS } from './cream/nails.ts';
+import { UNIVERSAL } from './cream/universal.ts';
 
-export const CREAM_DEFS: CreamDef[] = [...EVERGREEN, ...HOLIDAYS, ...CLOSERS];
+export const CREAM_DEFS: CreamDef[] = [...EVERGREEN, ...HOLIDAYS, ...CLOSERS, ...NAILS, ...UNIVERSAL];
 
 export const TEMPLATES: Template[] = [
   ...CREAM_DEFS.flatMap(creamTemplates),
@@ -53,9 +56,16 @@ export function storySibling(feedKey: string): Template | null {
  * Newest templates with a card in the gallery: the studio generation only
  * (a template with a group), one card per key, stories folded into their
  * feed sibling.
+ *
+ * `fields`, when given, keeps only templates sharing at least one field with
+ * it — a tenant's own business_fields (lib/businessFields.ts's
+ * businessFieldsOf). Omitted shows every field, same as before this
+ * parameter existed: nothing that already calls this without it changes
+ * behaviour.
  */
-export function galleryTemplates(category?: Category | null, group?: TemplateGroup | null): Template[] {
+export function galleryTemplates(category?: Category | null, group?: TemplateGroup | null, fields?: FieldKey[] | null): Template[] {
   const latest = latestTemplates(category).filter((t) => t.group && (!group || t.group === group));
-  const feedKeys = new Set(latest.map((t) => t.key));
-  return latest.filter((t) => !(/-story$/.test(t.key) && feedKeys.has(feedKeyOf(t.key))));
+  const inFields = fields && fields.length ? latest.filter((t) => t.fields.some((f) => fields.includes(f))) : latest;
+  const feedKeys = new Set(inFields.map((t) => t.key));
+  return inFields.filter((t) => !(/-story$/.test(t.key) && feedKeys.has(feedKeyOf(t.key))));
 }

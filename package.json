@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/check-template-clean.mjs && next build",
+    "build": "npm test && node scripts/check-template-clean.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "check:template": "node scripts/check-template-clean.mjs",
@@ -12,6 +12,19 @@
     "migrations:status": "node --env-file=.env.local scripts/migration-status.mjs",
     "check:hooks": "node scripts/check-hook-deps-order.mjs"
   },
+  "//build": [
+    "npm test runs FIRST, before next build even starts. A test file that",
+    "fails to load, or a broken assertion, used to reach production silently:",
+    "next build compiles TypeScript, which has never once meant the code",
+    "works, and Vercel's deploy runs this exact script with no separate gate",
+    "on the test suite. That gap cost a real outage - every deploy failing",
+    "silently for hours because a test file broke the build and nobody was",
+    "watching a check that ran nowhere near the deploy path. Now the test",
+    "suite IS the deploy path: a red suite means npm run build exits non-zero",
+    "before next build is ever invoked, on a local machine, in CI",
+    "(.github/workflows/ci.yml runs the same three steps again for a fast,",
+    "separately-attributed failure on a push or PR), and on Vercel."
+  ],
   "//check:template": [
     "Runs BEFORE next build, on the same command Vercel runs, so it gates the",
     "real deploy path rather than a local habit. It fails the build if",

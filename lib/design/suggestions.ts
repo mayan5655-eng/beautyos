@@ -14,6 +14,7 @@
 // studio draws it with her branding and opens it as a design on tap.
 
 import { upcomingHolidays, holidayPrompt, type Upcoming } from './holidays.ts';
+import { DEFAULT_BUSINESS_FIELDS, isFieldKey, type FieldKey } from '../businessFields.ts';
 
 export type Suggestion = {
   key: string;
@@ -29,7 +30,10 @@ export type SuggestionInput = {
   today?: Date;
   /** Appointments in the coming days: only the date matters. */
   appointments?: { date?: string | null; status?: string | null }[] | null;
-  services?: { name?: string | null }[] | null;
+  /** field, when present, is service_prices.field — which seed menu this
+   *  service came from. Absent (a legacy or hand-typed row) is treated as
+   *  cosmetics, same as everywhere else field is read defensively. */
+  services?: { name?: string | null; field?: string | null }[] | null;
   /** Her saved designs: what she already posted about. */
   designs?: { template_key?: string | null; values?: Record<string, unknown> | null; created_at?: string | null }[] | null;
   reviews?: unknown[] | null;
@@ -37,11 +41,30 @@ export type SuggestionInput = {
   workingDays?: number[] | null;
   /** Which holiday templates exist, by occasion key -> template key. */
   holidayTemplates?: Record<string, string> | null;
+  /** Her business_fields (lib/businessFields.ts). Omitted or empty defaults
+   *  to cosmetics, matching businessFieldsOf's own fallback — every caller
+   *  from before this existed keeps producing exactly the suggestions it
+   *  always did. */
+  fields?: FieldKey[] | null;
 };
 
 const DAY = 86_400_000;
 const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const TIP_ROTATION = ['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'];
+
+/** One rotation per field — the week's tip cycles through it, that field's
+ *  own template keys only. nails has one entry today; a rotation of one
+ *  repeats weekly rather than crashing, which is the honest state of the
+ *  content, not a bug — see lib/design/templates/cream/nails.ts. */
+const TIP_ROTATION_BY_FIELD: Record<FieldKey, string[]> = {
+  cosmetics: ['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'],
+  nails: ['nail-tip-feed'],
+};
+
+/** Where "you've never posted about X" points, per field. */
+const UNPOSTED_FALLBACK_BY_FIELD: Record<FieldKey, { templateKey: string; kicker: string }> = {
+  cosmetics: { templateKey: 'facial-feed', kicker: 'טיפול' },
+  nails: { templateKey: 'nail-art-showcase-feed', kicker: 'טיפול' },
+};
 
 const isoDay = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const clean = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
@@ -98,11 +121,32 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
     out.push({ key: `quiet:${quiet.date}`, reason: `יום ${quiet.weekday} נראה שקט ביומן. פוסט "התפנה תור"?`, templateKey: 'slot-opened-feed', values: { subline: `יום ${quiet.weekday}, ${Number(d)}.${Number(m)}` } });
   }
   const service = unpostedService(input);
-  if (service) out.push({ key: `service:${service}`, reason: `עוד לא פרסמת על ${service}.`, templateKey: 'facial-feed', values: { headline: service, kicker: 'טיפול' } });
+  if (service) {
+    // Which field the returned NAME belongs to, looked up rather than
+    // carried by unpostedService itself — its return type (string | null)
+    // is unchanged, since callers and tests already depend on that.
+    const match = (input.services || []).find((s) => clean(s?.name) === service);
+    const field = isFieldKey(match?.field) ? match!.field! : 'cosmetics';
+    const fallback = UNPOSTED_FALLBACK_BY_FIELD[field] || UNPOSTED_FALLBACK_BY_FIELD.cosmetics;
+    out.push({ key: `service:${service}`, reason: `עוד לא פרסמת על ${service}.`, templateKey: fallback.templateKey, values: { headline: service, kicker: fallback.kicker } });
+  }
   const reviews = input.reviews || [];
   const recentReview = (input.designs || []).some((d) => d.template_key?.startsWith('review-') && d.created_at && today.getTime() - new Date(d.created_at).getTime() < 30 * DAY);
   if (reviews.length && !recentReview) out.push({ key: 'review', reason: 'יש לך ביקורת שמורה שעוד לא הפכה לפוסט.', templateKey: 'review-feed', values: {} });
   const week = Math.floor(today.getTime() / (7 * DAY));
-  out.push({ key: 'tip', reason: 'הטיפ של השבוע, מוכן לפרסום.', templateKey: TIP_ROTATION[week % TIP_ROTATION.length], values: {} });
+  const fields = input.fields && input.fields.length ? input.fields : DEFAULT_BUSINESS_FIELDS;
+  // The first field keeps the plain 'tip' key exactly as before — every
+  // existing caller passes no `fields` at all and gets identical output,
+  // byte for byte. A second active field (a dual-field tenant) adds its own
+  // tip under a field-qualified key rather than crowding the first one out.
+  fields.forEach((f, i) => {
+    const rotation = TIP_ROTATION_BY_FIELD[f] || TIP_ROTATION_BY_FIELD.cosmetics;
+    out.push({
+      key: i === 0 ? 'tip' : `tip:${f}`,
+      reason: 'הטיפ של השבוע, מוכן לפרסום.',
+      templateKey: rotation[week % rotation.length],
+      values: {},
+    });
+  });
   return out.slice(0, max);
 }

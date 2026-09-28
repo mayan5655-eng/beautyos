@@ -7,9 +7,11 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
 import ServiceTemplatePicker from "../ServiceTemplatePicker";
+import FieldPicker from "../FieldPicker";
 import { lighten } from "@/lib/theme";
 import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
+import type { FieldKey } from "@/lib/businessFields";
 
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
@@ -23,12 +25,17 @@ type OnboardingData = {
   primary_color: string;
   working_hours_start: number;
   working_hours_end: number;
+  /** Which field(s) she practices in. Empty until she picks — no field is
+   *  pre-checked, on purpose: defaulting to cosmetics would put a nails
+   *  technician's own onboarding through a facial-treatment menu. See
+   *  lib/businessFields.ts. */
+  business_fields: FieldKey[];
 };
 
 // The step names, matching the headings shown in each step body. The list IS
 // the step count — `next` and the footer both cap on its length, so adding a
 // step here and a `step === n` block below is the whole change.
-const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "השירותים שלך", "ייבוא נתונים"];
+const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "התחום והשירותים", "ייבוא נתונים"];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -56,6 +63,7 @@ export default function OnboardingPage() {
     primary_color: "#4A2E5A",
     working_hours_start: 8,
     working_hours_end: 19,
+    business_fields: [],
   });
 
   // === Auth + onboarding-status check ===
@@ -151,6 +159,12 @@ export default function OnboardingPage() {
         therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
         primary_color: data.primary_color,
+        // Written as-is, even empty: if she skipped the field picker,
+        // businessFieldsOf() (lib/businessFields.ts) is what every reader
+        // goes through, and it falls back to cosmetics on an empty array —
+        // the same "don't fake a value, let the reader default it" shape
+        // business_name uses above.
+        business_fields: data.business_fields,
         // working_hours_start/end are NOT set here. They come from
         // buildSeedSettings above, derived from the same per-day map as
         // business_hours and working_days, so the four scheduling columns
@@ -337,17 +351,38 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <>
-              <h1 style={titleStyle}>✦ השירותים שלך</h1>
+              <h1 style={titleStyle}>✦ התחום שלך והשירותים</h1>
               <p style={subtitleStyle}>
-                סימני את הטיפולים שאת מבצעת — רק אותם נוסיף. המחירים הם הצעה לפי המקובל בשוק
-                ואפשר לשנות כל אחד מהם כאן, או אחר כך בהגדרות. אפשר גם לדלג ולבנות את המחירון מאפס.
+                באיזה תחום את עובדת? אפשר לסמן יותר מאחד — מכאן והלאה נראה לך רק טיפולים רלוונטיים.
               </p>
-              <ServiceTemplatePicker
-                value={pickedServices}
-                onChange={setPickedServices}
-                accent={pc}
-                accentTint={pcTint}
-              />
+              <div style={{ marginBottom: 18 }}>
+                <FieldPicker
+                  value={data.business_fields}
+                  onChange={(fields) => setData({ ...data, business_fields: fields })}
+                  accent={pc}
+                  accentTint={pcTint}
+                />
+              </div>
+
+              {data.business_fields.length === 0 ? (
+                <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+                  בחרי תחום למעלה כדי לראות טיפולים מוצעים — או דלגי, ובני את המחירון מאפס בהגדרות ← שירותים.
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", marginBottom: 12, lineHeight: 1.6 }}>
+                    סימני את הטיפולים שאת מבצעת — רק אותם נוסיף. המחירים הם הצעה לפי המקובל בשוק
+                    ואפשר לשנות כל אחד מהם כאן, או אחר כך בהגדרות.
+                  </p>
+                  <ServiceTemplatePicker
+                    value={pickedServices}
+                    onChange={setPickedServices}
+                    fields={data.business_fields}
+                    accent={pc}
+                    accentTint={pcTint}
+                  />
+                </>
+              )}
               <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "12px 15px", marginTop: 12 }}>
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0

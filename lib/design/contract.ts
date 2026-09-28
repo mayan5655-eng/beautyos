@@ -15,6 +15,8 @@
 //   - every layer binds to a declared variable or slot, and every box lies
 //     inside the canvas
 
+import { FIELD_KEYS, type FieldKey } from '../businessFields.ts';
+
 export type Format = 'feed45' | 'story' | 'square';
 export type Category = 'offer' | 'before_after' | 'tip' | 'review' | 'treatment' | 'seasonal' | 'announce';
 
@@ -226,6 +228,18 @@ export type Template = {
   holiday?: string;
   /** Gallery group; a template without one sits with the evergreens. */
   group?: TemplateGroup;
+  /**
+   * Which business field(s) this template is FOR — non-empty, e.g.
+   * ['cosmetics'], ['nails'], or ['cosmetics','nails'] for one that is
+   * honestly the same in either world (its copy never names a body part or
+   * a technique). The gallery shows a template when it shares at least one
+   * field with the tenant's own (lib/businessFields.ts's businessFieldsOf).
+   * Dual-tagging is the exception: a shared IDEA across fields (a before/
+   * after, a review) is almost always two separate single-field templates
+   * with field-correct copy, not one template with words vague enough to
+   * fit both — see lib/design/templates/cream/nails.ts and cream/universal.ts.
+   */
+  fields: FieldKey[];
 };
 
 export const templateId = (t: Pick<Template, 'key' | 'version'>) => `${t.key}@${t.version}`;
@@ -244,6 +258,8 @@ export function validateTemplate(t: Template): string[] {
   if (!CANVAS[t.format]) errors.push(`unknown format ${t.format}`);
   if (!CATEGORY_LABELS[t.category]) errors.push(`unknown category ${t.category}`);
   if (!t.name) errors.push('name is required');
+  if (!t.fields || !t.fields.length) errors.push('fields must be a non-empty array');
+  else for (const f of t.fields) if (!(FIELD_KEYS as string[]).includes(f)) errors.push(`unknown field ${f}`);
   const vars = new Set<string>();
   for (const v of t.variables) {
     if (vars.has(v.key)) errors.push(`duplicate variable ${v.key}`);
