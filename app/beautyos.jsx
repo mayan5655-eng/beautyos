@@ -46,7 +46,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
-import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf } from "@/lib/businessFields";
@@ -10873,6 +10873,16 @@ ${c.claimUrl}`)}`;
                         setAutos({...autos, screens:{...screens, [id]: !on}});
                       }} />;
                     })}
+                    {/* Not a nav tab (see lib/featureFlags.ts's skinScanVisible), same
+                        flags bag, same toggle row, own key so it doesn't collide with
+                        an actual tab id. */}
+                    {(()=>{
+                      const on = skinScanVisible(editSettings);
+                      return <AutoToggleRow pc={pc} label={SKIN_SCAN_LABEL} on={on} onChange={()=>{
+                        const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
+                        setAutos({...autos, screens:{...screens, skin_scan: !on}});
+                      }} />;
+                    })()}
  </div>
  {botOn&&(
  <div>
@@ -11287,10 +11297,17 @@ ${c.claimUrl}`)}`;
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
  <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
+     nails-only tenant (skinScanVisible derives that from business_fields
+     when she hasn't explicitly toggled it in Settings); existing scan
+     history below is untouched either way — this only hides the action to
+     take a NEW scan, never past data. */}
+ {skinScanVisible(settings)&&(
  <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
  {scanLoading?<Spinner inline label="סורקת"/>:"✦ סריקת עור AI"}
  <input type="file" accept="image/*" capture="user" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
  </label>
+ )}
  </div>
 
                 {(()=>{
@@ -11314,7 +11331,7 @@ ${c.claimUrl}`)}`;
                 })()}
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].map(t=>(
+                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>

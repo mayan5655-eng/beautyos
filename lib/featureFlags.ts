@@ -1,6 +1,7 @@
 // lib/featureFlags.ts
 //
 // Per-tenant visibility for features that exist but are not ready to be seen.
+import { businessFieldsOf } from './businessFields.ts';
 //
 // The tabs below are stubs: `treatment_protocols` and `community` each have
 // exactly one write path. They look finished in the nav and feel abandoned on
@@ -67,6 +68,12 @@ export const SWITCHABLE_LABELS: Record<(typeof SWITCHABLE_TABS)[number], string>
 /** Tabs that must never be hidden by this mechanism. Guarded, not documented. */
 export const NEVER_HIDDEN = ['campaigns', 'insights'] as const;
 
+/**
+ * A label for the one non-tab flag below, for the same Settings toggle row
+ * component the tab flags use (see SWITCHABLE_LABELS).
+ */
+export const SKIN_SCAN_LABEL = 'סריקת עור AI בכרטיס לקוחה';
+
 type Flags = Record<string, unknown>;
 
 type SettingsLike = {
@@ -112,6 +119,28 @@ export function isTabVisible(settings: SettingsLike, tabId: string): boolean {
 /** Filter a list of tab ids. Order is preserved. */
 export function visibleTabIds(settings: SettingsLike, ids: readonly string[]): string[] {
   return ids.filter((id) => isTabVisible(settings, id));
+}
+
+/**
+ * Should the skin-scan button show on a client card?
+ *
+ * Not a nav tab - it's a button on every client card (app/beautyos.jsx),
+ * not a place in SWITCHABLE_TABS, which the nav filters are keyed off. Same
+ * rule as a switchable tab, stored in the same flags bag, under its own key
+ * since it isn't one of them: an explicit stored value, set from Settings in
+ * either direction, always wins. With no explicit value, the default is
+ * derived from business_fields - facial skin analysis is cosmetics work, so
+ * a nails-only tenant (no 'cosmetics' in her fields) gets it off by default;
+ * a cosmetics tenant, or one active in both fields, gets it on, unchanged
+ * from before business_fields existed. Switching fields later never
+ * overrides a choice she already made in Settings.
+ */
+export function skinScanVisible(
+  settings: (SettingsLike & { business_fields?: unknown }) | null | undefined
+): boolean {
+  const flags = tenantFlags(settings);
+  if (typeof flags.skin_scan === 'boolean') return flags.skin_scan;
+  return businessFieldsOf(settings).includes('cosmetics');
 }
 
 /**

@@ -22,6 +22,13 @@ assert.equal(resolveBranding({ primary_color: 'gold' }).primary, DEFAULT_PRIMARY
 assert.equal(resolveBranding(null).primary, DEFAULT_PRIMARY, 'only a missing row falls back');
 assert.equal(readableTextOn('#C9A24B'), '#2A2233');
 
+// business_fields passthrough (lib/businessFields.ts's businessFieldsOf) —
+// the public page needs this to pick the right hero/about default photo.
+assert.deepEqual(resolveBranding({ business_fields: ['nails'] }).fields, ['nails']);
+assert.deepEqual(resolveBranding({ business_fields: ['cosmetics', 'nails'] }).fields, ['cosmetics', 'nails']);
+assert.deepEqual(resolveBranding(null).fields, ['cosmetics'], 'missing row: the same safe default as everywhere else');
+assert.deepEqual(resolveBranding({}).fields, ['cosmetics'], 'no business_fields column back yet: cosmetics, not an empty/broken page');
+
 // The CSS-variable side agrees with the resolver.
 assert.equal(contrastOn('#C9A24B'), '#2A2233');
 assert.equal(buildAccentTokens('#C9A24B')['--pc'], '#C9A24B');

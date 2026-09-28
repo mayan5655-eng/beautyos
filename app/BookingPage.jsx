@@ -5,7 +5,7 @@ import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK, DEFAULT_HERO_HEADLINE, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
-import { defaultImageUrl, serviceImage } from "@/lib/defaultImages";
+import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
@@ -673,7 +673,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               Her hero photo, else the shipped default. The veil is light and
               opaque enough that dark type reads on any photo she picks. */}
           <div style={{ position: "relative", width: "100%", maxWidth: 540, minHeight: "min(80vh, 660px)", overflow: "hidden", display: "flex" }}>
-            <Photo src={brand?.heroImageUrl || defaultImageUrl("hero")} eager
+            <Photo src={brand?.heroImageUrl || defaultImageUrl(defaultHeroKey(brand?.fields))} eager
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
             <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
@@ -836,7 +836,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.85, margin: 0, whiteSpace: "pre-line" }}>{aboutText}</p>
                 {aboutSignoff && <p className="script" style={{ margin: "12px 0 0", fontSize: "var(--t-3xl)", lineHeight: 1.1, color: deep }}>{aboutSignoff}</p>}
               </div>
-              <Photo src={brand?.portraitUrl || defaultImageUrl("about")} style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
+              <Photo src={brand?.portraitUrl || defaultImageUrl(defaultAboutKey(brand?.fields))} style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
             </div>
           </div>
 

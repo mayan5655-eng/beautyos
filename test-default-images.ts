@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { defaultKeyForService, serviceImage, defaultImageUrl } from './lib/defaultImages.js';
+import fs from 'node:fs';
+import { defaultKeyForService, serviceImage, defaultImageUrl, defaultHeroKey, defaultAboutKey, DEFAULT_IMAGE_KEYS } from './lib/defaultImages.js';
 
 const k = defaultKeyForService;
 assert.equal(k('טיפולי פנים'), 'facial-classic');
@@ -52,5 +53,19 @@ assert.equal(k('עיסוי שוודי'), 'neutral', 'unmatched with no field fal
 const nailsSvc = { id: 'n1', name: 'פדיקור ספא', field: 'nails' };
 assert.deepEqual(serviceImage(nailsSvc, {}), { url: defaultImageUrl('nails-pedicure'), isDefault: true });
 assert.deepEqual(serviceImage(nailsSvc, { n1: 'https://cdn/hers.jpg' }), { url: 'https://cdn/hers.jpg', isDefault: false }, 'hers wins here too');
+
+// ── The public page's one hero/about photo: whole-tenant, not per-service ──
+assert.equal(defaultHeroKey(['nails']), 'nails-hero', 'nails-only gets the nails hero');
+assert.equal(defaultAboutKey(['nails']), 'nails-about');
+assert.equal(defaultHeroKey(['cosmetics']), 'hero');
+assert.equal(defaultHeroKey(['cosmetics', 'nails']), 'hero', 'both fields: cosmetics wins the one shared photo, same precedent as FIELD_GUESS_ORDER');
+assert.equal(defaultHeroKey([]), 'hero', 'no fields at all: the safe default');
+assert.equal(defaultHeroKey(undefined), 'hero');
+
+// Every key this module claims to have a picture for actually has one on
+// disk, committed - a key with no file would 404 silently on the public page.
+for (const key of DEFAULT_IMAGE_KEYS) {
+  assert.ok(fs.existsSync(`public/defaults/${key}.jpg`), `public/defaults/${key}.jpg exists`);
+}
 
 console.log('default images: ok');

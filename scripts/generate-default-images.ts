@@ -54,6 +54,8 @@ const SPECS: Spec[] = [
   { key: 'nails-pedicure', format: 'square', subject: 'A woman’s bare feet resting on a folded white towel at the edge of a pedicure basin with warm water and a few rose petals, calm spa atmosphere, no face visible.' },
   { key: 'nails-nail-art', format: 'square', subject: 'Extreme macro of a manicurist’s hand painting a delicate fine-line design onto a nail with a thin brush, soft-focus background, precise and artistic, no face visible.' },
   { key: 'nails-neutral', format: 'square', subject: 'Still life: a few nail polish bottles in soft neutral tones, a nail file and a cuticle stick on a pale linen surface, no people.' },
+  { key: 'nails-hero', format: 'story', subject: 'A bright, airy, empty nail studio: a manicure table with a small lamp, a neat row of polish bottles, a comfortable client chair, warm natural window light, the same calm cream and sage interior as the cosmetics hero. Leave the upper half of the frame uncluttered. No people.' },
+  { key: 'nails-about', format: 'feed45', subject: 'A soft-focus corner of a calm nail studio: a manicure table with a folded hand towel and a small dish of cuticle oil, a few polish bottles softly out of focus, golden natural light. No people.' },
 ];
 
 const args = process.argv.slice(2);
