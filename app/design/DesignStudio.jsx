@@ -74,27 +74,31 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   }, []);
 
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
-  // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found.
-  useMemo(() => {
-    console.warn("[FIELD-DEBUG] 2/3 businessFieldsOf(settings) ->", JSON.stringify(fields),
-      "| settings.business_fields was:", JSON.stringify(settings?.business_fields));
-    return null;
-  }, [fields, settings]);
   const occasions = useMemo(() => openOccasions(fields), [fields]);
   // Per group: its cards, the seasonal ones whose window is open lifted to the front with their days left.
   const sections = useMemo(() => {
     const open = new Map(occasions.map((o) => [o.template.key, o.upcoming]));
-    const result = GROUPS.filter((g) => !group || g === group).map((g) => {
+    return GROUPS.filter((g) => !group || g === group).map((g) => {
       const list = galleryTemplates(null, g, fields);
       const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : 0);
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
-    // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found.
-    console.warn("[FIELD-DEBUG] 3/3 gallery filter saw fields:", JSON.stringify(fields),
-      "| section counts:", result.map((s) => `${s.group}:${s.templates.length}`).join(", "),
-      "| reels seen:", latestReels(null, null, fields).length);
-    return result;
   }, [group, occasions, fields]);
+  // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found. The
+  // three values along the read path, for the on-screen box below: what
+  // arrived on the settings prop, what businessFieldsOf resolved it to, and
+  // what the gallery/reel filter actually used (always the same `fields` by
+  // construction — kept as three separate reads so a screenshot proves it,
+  // rather than assumes it).
+  const fieldDebug = {
+    arrived: Object.prototype.hasOwnProperty.call(settings || {}, 'business_fields')
+      ? JSON.stringify(settings.business_fields)
+      : '(no business_fields key on settings)',
+    resolved: JSON.stringify(fields),
+    filterUsed: JSON.stringify(fields) + ' — ' +
+      sections.map((s) => `${s.group}:${s.templates.length}`).join(', ') +
+      `, reels:${latestReels(null, null, fields).length}`,
+  };
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
@@ -272,6 +276,13 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       )}
 
       {view === 'templates' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+        {/* TEMP DIAGNOSTIC BOX — remove once the business_fields gallery bug is found. */}
+        <div style={{ background: '#fff3cd', border: '2px solid #e0a800', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8, direction: 'ltr', textAlign: 'left', color: '#5c4400' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>FIELD-DEBUG (temporary)</div>
+          <div>1/3 arrived on settings: {fieldDebug.arrived}</div>
+          <div>2/3 businessFieldsOf(settings): {fieldDebug.resolved}</div>
+          <div>3/3 filter used: {fieldDebug.filterUsed}</div>
+        </div>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>תבניות מוכנות, כבר בצבעים שלך</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>

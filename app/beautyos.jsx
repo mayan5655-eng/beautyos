@@ -2268,11 +2268,6 @@ export default function BeautyOS() {
           setLoadError({ tables: ["settings"], message: "הגדרות העסק לא נטענו", code: "tenant-mismatch" });
           return;
         }
-        // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found.
-        console.warn("[FIELD-DEBUG] 1/3 settings query: has business_fields key?",
-          Object.prototype.hasOwnProperty.call(myRow, "business_fields"),
-          "| raw value:", JSON.stringify(myRow.business_fields),
-          "| all keys:", Object.keys(myRow).sort().join(","));
         setSettings(myRow);
         // Tag every later error report with the business it happened in. This
         // is what turns the six-character code a beta user reads out into
