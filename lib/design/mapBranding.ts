@@ -16,6 +16,7 @@ import { buildAccentTokens, contrastOn, hexToRgb } from '../theme.ts';
 import type { ColorRole, Template, VariableDef } from './contract.ts';
 import type { BrandToggles } from './design.ts';
 import { limitText } from './limitText.ts';
+import { waLink } from '../whatsappLink.ts';
 
 export type BrandingInput = {
   settings?: { business_name?: string | null; therapist_name?: string | null; business_phone?: string | null; primary_color?: string | null; branding?: unknown } | null;
@@ -105,6 +106,10 @@ function sourceValue(v: VariableDef, input: BrandingInput, branding: Record<stri
     case 'booking_url': return clean(input.bookingUrl);
     case 'phone': return input.brand?.phone === false ? '' : clean(s.business_phone);
     case 'instagram': return input.brand?.instagram === false ? '' : instagramHandle(branding.instagram);
+    // A real wa.me link, not just the printed number — for a template whose
+    // CTA is "כתבי לי בוואטסאפ" rather than "לקביעת תור". Same off-switch as
+    // phone: hiding her number on this design hides the link derived from it too.
+    case 'whatsapp_url': return input.brand?.phone === false ? '' : (waLink(s.business_phone) || '');
     // The strip at the bottom of every design: phone and handle, whichever she has and shows on this design.
     case 'contact': return [input.brand?.phone === false ? '' : clean(s.business_phone), input.brand?.instagram === false ? '' : instagramHandle(branding.instagram)].filter(Boolean).join('   ·   ');
     case 'review_text': return review ? clean(review.text) : '';
