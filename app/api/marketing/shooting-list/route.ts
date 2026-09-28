@@ -20,7 +20,7 @@ import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
-import { GROUNDING_RULES } from '@/lib/ai/marketingAI'
+import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -85,7 +85,7 @@ export async function POST(_request: NextRequest) {
 
     const contextLines = [
       `שם: ${businessName}`,
-      profile.therapist_name ? `שם הקוסמטיקאית: ${profile.therapist_name}` : null,
+      profile.therapist_name ? `שם ה${personaLabel(profile.fields)}: ${profile.therapist_name}` : null,
       profile.business_description ? `על העסק: ${profile.business_description}` : null,
       profile.city ? `עיר: ${profile.city}` : null,
       profile.target_audience ? `קהל יעד: ${profile.target_audience}` : null,
@@ -100,7 +100,7 @@ export async function POST(_request: NextRequest) {
 
     const todayLine = `${DAYS_HE[today.getDay()]}, ${fmt(today)}`
 
-    const prompt = `את במאית תוכן לעסקי יופי בישראל. קוסמטיקאית שלא אוהבת להצטלם ולא יודעת מה לצלם צריכה רשימת צילומים לשבוע - רעיונות שהיא יכולה לבצע לבד, בקליניקה, ב-10 דקות כל אחד, עם טלפון.
+    const prompt = `את במאית תוכן לעסקי יופי בישראל. ${personaLabel(profile.fields)} שלא אוהבת להצטלם ולא יודעת מה לצלם צריכה רשימת צילומים לשבוע - רעיונות שהיא יכולה לבצע לבד, בקליניקה, ב-10 דקות כל אחד, עם טלפון.
 
 == פרטי העסק ==
 ${contextLines}
@@ -160,7 +160,18 @@ ${GROUNDING_RULES}
       return NextResponse.json({ error: 'יצירת הרשימה נכשלה, נסי שוב' }, { status: 422 })
     }
 
-    return NextResponse.json({ success: true, list })
+    // Flat, not { list: {...} }: app/design/WeekView.jsx's loadShoot() checks
+    // Array.isArray(data?.ideas) on the response ROOT and stores the whole
+    // body as { week_note, ideas } (its own useState comment says so). Nested
+    // under `list` as this used to return, that check always failed - every
+    // click threw "לא הצלחנו להכין רשימה" after a successful, billed AI call.
+    // Picked explicitly rather than `...list`: it is Claude's raw JSON, and a
+    // stray "success" key in there must never override this route's own.
+    return NextResponse.json({
+      success: true,
+      week_note: typeof list.week_note === 'string' ? list.week_note : '',
+      ideas: list.ideas,
+    })
   } catch (error: unknown) {
     console.error('Error in /api/marketing/shooting-list:', error)
     const msg = error instanceof Error ? error.message : 'יצירת הרשימה נכשלה'
