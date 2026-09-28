@@ -49,7 +49,7 @@ import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import FieldPicker from "./FieldPicker";
-import { businessFieldsOf } from "@/lib/businessFields";
+import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -4580,7 +4580,14 @@ export default function BeautyOS() {
     const name = newService.name.trim();
     const clash = (editServices || []).some(s => !s._deleted && (s.name || "").trim() === name);
     if (clash) { toast("כבר יש שירות בשם הזה", "error"); return; }
-    setEditServices(prev => [...(prev || []), { ...newService, name, _new: true }]);
+    // A hand-typed service has no seed group to inherit `field` from (see
+    // lib/defaultImages.js's header on why that matters). If she picked one
+    // in the selector, keep it; otherwise default to her one active field —
+    // with two active fields there is no safe guess, so it stays unset and
+    // she can fix it in the row afterwards.
+    const oneField = businessFieldsOf(settings).length === 1 ? businessFieldsOf(settings)[0] : null;
+    const field = newService.field || oneField;
+    setEditServices(prev => [...(prev || []), { ...newService, name, field, _new: true }]);
     setNewService({ name: "", price: 0, duration: 60, color: DEFAULT_SERVICE_COLOR, active: true });
     setShowNewService(false);
   };
@@ -11049,6 +11056,15 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",alignItems:"center",gap:6}}>
  <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>patchDraftService(idx,{price:Number(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
  <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>patchDraftService(idx,{duration:Number(e.target.value)})} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ {/* Which business field this service belongs to — the only place in the
+     product that sets or fixes it after creation. Drives the default photo
+     (lib/defaultImages.js) and whether it appears in a field-filtered view.
+     Every service gets this, not only a multi-field tenant's: a hand-typed
+     or hand-edited row on ANY tenant never got a field written otherwise. */}
+ <select value={svc.field||""} aria-label="תחום השירות" onChange={e=>patchDraftService(idx,{field:e.target.value||null})} style={{flexShrink:0,maxWidth:88,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 4px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface)",color:svc.field?"var(--ink)":"var(--ink-3)"}}>
+ <option value="">לא מסומן</option>
+                    {BUSINESS_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label.split(" ")[0]}</option>)}
+ </select>
  <div style={{flex:1,minWidth:0}}/>
  {/* Archive / restore. The treatment stays in every past appointment and
      receipt either way — those store its name, not a reference to this row.
@@ -11093,6 +11109,13 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 10px",background:"var(--pc-tint)",borderRadius:"var(--r-sm)",marginTop:6}}>
  <input value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})} placeholder="שם שירות" style={{flex:1,minWidth:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 8px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface)"}}/>
  <input type="number" value={newService.price} onChange={e=>setNewService({...newService,price:Number(e.target.value)})} placeholder="₪" style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ {/* Defaults to her one active field so the common case (single-field
+     tenant) needs no extra tap; two active fields leave it unset here and
+     handleAddService falls back to null rather than guessing. */}
+ <select value={newService.field??(businessFieldsOf(settings).length===1?businessFieldsOf(settings)[0]:"")} aria-label="תחום השירות" onChange={e=>setNewService({...newService,field:e.target.value||null})} style={{flexShrink:0,maxWidth:80,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 4px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface)"}}>
+ <option value="">לא מסומן</option>
+                    {BUSINESS_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label.split(" ")[0]}</option>)}
+ </select>
  <button onClick={handleAddService} className="icon-btn sm" style={{}} title="הוספה לרשימה — נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
  </div>
                   ):!showTemplatePicker&&(

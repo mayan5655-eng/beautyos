@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { defaultKeyForService, serviceImage, defaultImageUrl, defaultHeroKey, defaultAboutKey, DEFAULT_IMAGE_KEYS } from './lib/defaultImages.js';
+import { defaultKeyForService, serviceImage, defaultImageUrl, defaultHeroKey, defaultAboutKey, guessFieldFromName, DEFAULT_IMAGE_KEYS } from './lib/defaultImages.js';
 
 const k = defaultKeyForService;
 assert.equal(k('טיפולי פנים'), 'facial-classic');
@@ -67,5 +67,18 @@ assert.equal(defaultHeroKey(undefined), 'hero');
 for (const key of DEFAULT_IMAGE_KEYS) {
   assert.ok(fs.existsSync(`public/defaults/${key}.jpg`), `public/defaults/${key}.jpg exists`);
 }
+
+// ── guessFieldFromName: scripts/backfill-service-fields.mjs's classifier ───
+// The full real catalogues from lib/tenantTemplate.ts, both directions.
+for (const name of ['טיפול פנים קלאסי', 'ניקוי עמוק', 'טיפול באקנה', 'הסרת שיער בלייזר', 'עיצוב גבות', 'פלזמה', 'אנטי אייג\'ינג']) {
+  assert.equal(guessFieldFromName(name), 'cosmetics', `"${name}" -> cosmetics`);
+}
+for (const name of ['מניקור ג\'ל', 'פדיקור רגליים מלא', 'בניית ציפורניים', 'נייל ארט', 'הסרת לק ג\'ל', 'פראפין']) {
+  assert.equal(guessFieldFromName(name), 'nails', `"${name}" -> nails`);
+}
+// Names matching neither vocabulary: null, never a guess.
+assert.equal(guessFieldFromName('עיסוי שוודי'), null, 'a generic name is left for a person, not guessed at');
+assert.equal(guessFieldFromName(''), null);
+assert.equal(guessFieldFromName(null), null);
 
 console.log('default images: ok');
