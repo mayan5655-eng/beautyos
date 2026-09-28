@@ -10,6 +10,18 @@
 #
 # So: on every push and every pull request, the suite runs and the types are
 # checked, and a failure is loud and attached to the commit that caused it.
+#
+# That still left one gap: this workflow is CI, not the deploy path. Vercel's
+# own build runs `npm run build` directly, on push to main, with no dependency
+# on this file passing — a red run here was a red badge, not a blocked
+# deploy. It stayed a gap until a broken test file passed CI-that-nobody-
+# gated and then built and deployed anyway, silently, for hours. Fixed at the
+# source, not by trying to police Vercel from outside it: `npm run build`
+# itself now runs `npm test` first (see package.json's "//build"), so the
+# deploy command Vercel actually calls fails outright on a red suite. The
+# "Tests" and "Build" steps below both run the suite as a result — a few
+# extra seconds of CI time for a clearer, separately-attributed failure
+# message than the Build step catching it alone.
 
 name: CI
 
