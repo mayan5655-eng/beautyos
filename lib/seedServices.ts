@@ -15,6 +15,7 @@
 // module and the write module stay cleanly separated.
 
 import { serviceColorAt } from './serviceColors.ts';
+import { isMissingColumnError } from './pgError.ts';
 
 export type PickedService = {
   name: string;
@@ -23,6 +24,12 @@ export type PickedService = {
   /** One-liner for the booking page; carried from the template so a new menu
    *  arrives described without typing. */
   description?: string;
+  /** Which field's seed menu this pick came from ('cosmetics' | 'nails'),
+   *  stamped by ServiceTemplatePicker from the group it was ticked in.
+   *  Absent for anything not picked from the field-keyed seed menu — the
+   *  column stays null, and default-image lookup falls back to guessing
+   *  from the name for those rows, same as it always has. */
+  field?: string;
 };
 
 /** A service_prices row, loosely typed — this project has no generated DB types. */
@@ -103,6 +110,7 @@ export async function insertPickedServices(
       price: Number.isFinite(Number(p.price)) ? Number(p.price) : 0,
       duration: Number(p.duration) > 0 ? Number(p.duration) : 60,
       description: String(p.description || '').trim() || null,
+      field: String(p.field || '').trim() || null,
       color: serviceColorAt(colorAt++),
       active: true,
       ...tenantField,
@@ -113,7 +121,17 @@ export async function insertPickedServices(
     return { inserted: [], skipped, error: null };
   }
 
-  const { data, error } = await supabase.from('service_prices').insert(rows).select();
+  let { data, error } = await supabase.from('service_prices').insert(rows).select();
+  // Degrade rather than break (see lib/pgError.ts): service_prices.field is
+  // added by supabase/migrations/add_business_fields.sql, applied by hand and
+  // possibly not yet run on this environment. Losing the field tag on a
+  // handful of rows is a shrug; losing the whole seeded menu on a brand-new
+  // signup is not.
+  if (error && isMissingColumnError(error)) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
+    const stripped = rows.map(({ field, ...rest }) => rest);
+    ({ data, error } = await supabase.from('service_prices').insert(stripped).select());
+  }
   if (error) {
     return { inserted: [], skipped, error };
   }

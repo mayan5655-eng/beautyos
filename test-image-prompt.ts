@@ -2,7 +2,7 @@
 // asked for with no typography, the negative space follows the choice, and
 // an offer's digits never reach the model.
 import assert from 'node:assert/strict';
-import { composeImagePrompt, FORMAT_SIZES, HARD_CONSTRAINTS, MAX_PROMPT_CHARS, stripDigits } from './lib/ai/imagePrompt.ts';
+import { composeImagePrompt, campaignPhotoStyle, FORMAT_SIZES, HARD_CONSTRAINTS, MAX_PROMPT_CHARS, stripDigits } from './lib/ai/imagePrompt.ts';
 import { IMAGE_QUALITIES, DEFAULT_IMAGE_MODEL } from './lib/ai/openaiImages.ts';
 import { MODEL_RATES, computeCost } from './lib/ai/usage.ts';
 import { MONTHLY_CALL_CAPS } from './lib/ai/callCaps.ts';
@@ -38,6 +38,22 @@ assert.ok(/#C9A24B/.test(v) && /luxury/.test(v) && /red lipstick/.test(v) && /Va
 // A runaway spec is cut, but never the constraints.
 const long = composeImagePrompt({ request: 'א'.repeat(6000) });
 assert.ok(long.length <= MAX_PROMPT_CHARS && long.endsWith(HARD_CONSTRAINTS));
+
+// ── business_fields: the opening line's subject ─────────────────────────────
+// Unset (or cosmetics) is the EXACT original sentence, unchanged — every
+// image prompt generated before business_fields existed used this line
+// unconditionally, so this is what byte-identical output for a cosmetics
+// tenant depends on.
+assert.equal(
+  campaignPhotoStyle(),
+  'Professional beauty campaign photograph for an Israeli cosmetics clinic, editorial quality, natural realistic skin texture, soft flattering light, shallow depth of field.'
+);
+assert.equal(campaignPhotoStyle(['cosmetics']), campaignPhotoStyle());
+assert.ok(/nail studio/.test(campaignPhotoStyle(['nails'])) && /hand and nail detail/.test(campaignPhotoStyle(['nails'])));
+assert.ok(/cosmetic and nail treatments/.test(campaignPhotoStyle(['cosmetics', 'nails'])));
+assert.ok(!/skin texture/.test(campaignPhotoStyle(['nails'])), 'a nails-only prompt never asks for skin texture');
+const nailsPrompt = composeImagePrompt({ request: 'x', fields: ['nails'] });
+assert.ok(/nail studio/.test(nailsPrompt) && nailsPrompt.endsWith(HARD_CONSTRAINTS));
 
 // Money: the default model is priced, so cost never lands as null.
 assert.equal(DEFAULT_IMAGE_MODEL, 'gpt-image-2.5-sunburst');

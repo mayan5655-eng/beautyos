@@ -16,6 +16,8 @@
 // the same words every time (HARD_CONSTRAINTS), and the offer text is used
 // for mood only, with its digits removed, so "249 ₪" never becomes pixels.
 
+import type { FieldKey } from '../businessFields.ts';
+
 export type ImageFormat = 'feed45' | 'square' | 'story';
 
 /** Where the design layer will put the typography, so the picture leaves room. */
@@ -56,6 +58,10 @@ export type ImagePromptSpec = {
    * successive takes diverge instead of repeating.
    */
   variation?: { index: number; hint?: string | null } | null;
+  /** Her business_fields (lib/businessFields.ts). Decides the opening line's
+   *  subject — see campaignPhotoStyle. Unset reads as cosmetics, the exact
+   *  text every image prompt used unconditionally before this existed. */
+  fields?: FieldKey[] | null;
 };
 
 /** Sizes the model accepts (custom WIDTHxHEIGHT: multiples of 16, ratio 1:3..3:1). */
@@ -84,6 +90,29 @@ const NEGATIVE_SPACE_TEXT: Record<NegativeSpace, string> = {
 
 const clean = (v: unknown): string => String(v ?? '').replace(/\s+/g, ' ').trim();
 
+/**
+ * The opening line's subject: what kind of business, what kind of "editorial
+ * quality" detail (skin, or hand-and-nail). This is the single highest-impact
+ * hardcoded line an image prompt carried before business_fields existed —
+ * unconditionally "Israeli cosmetics clinic... skin texture" on EVERY
+ * generated image regardless of template. The cosmetics case below is that
+ * exact original sentence, unchanged, so a profile with no fields set (or
+ * only 'cosmetics') produces byte-identical output to before.
+ */
+export function campaignPhotoStyle(fields?: FieldKey[] | null): string {
+  const has = (f: FieldKey) => !!fields && fields.includes(f);
+  if (has('nails') && !has('cosmetics')) {
+    return 'Professional beauty campaign photograph for an Israeli nail studio, ' +
+      'editorial quality, natural realistic hand and nail detail, soft flattering light, shallow depth of field.';
+  }
+  if (has('nails') && has('cosmetics')) {
+    return 'Professional beauty campaign photograph for an Israeli beauty studio offering cosmetic and nail treatments, ' +
+      'editorial quality, natural realistic skin and nail detail, soft flattering light, shallow depth of field.';
+  }
+  return 'Professional beauty campaign photograph for an Israeli cosmetics clinic, ' +
+    'editorial quality, natural realistic skin texture, soft flattering light, shallow depth of field.';
+}
+
 /** "249 ₪ במבצע" -> "₪ במבצע": the mood of an offer without anything the model could letter. */
 export function stripDigits(v: unknown): string {
   return clean(v).replace(/[0-9٠-٩]+([.,][0-9]+)?/g, '').replace(/\s{2,}/g, ' ').trim();
@@ -95,10 +124,7 @@ export function composeImagePrompt(spec: ImagePromptSpec): string {
   const parts: string[] = [];
 
   // Stage 1 body: a professional beauty campaign photograph of her request.
-  parts.push(
-    'Professional beauty campaign photograph for an Israeli cosmetics clinic, ' +
-    'editorial quality, natural realistic skin texture, soft flattering light, shallow depth of field.'
-  );
+  parts.push(campaignPhotoStyle(spec.fields));
   const subject = clean(spec.request);
   if (subject) parts.push(`Subject: ${subject}.`);
   if (clean(spec.service)) parts.push(`Treatment in focus: ${clean(spec.service)}.`);

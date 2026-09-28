@@ -33,6 +33,7 @@
 // like any hand-written template and goes through the same lock file.
 
 import { CANVAS, type Category, type ColorRole, type DecoAsset, type Layer, type SlotDef, type Template, type TemplateGroup, type VariableDef } from '../contract.ts';
+import type { FieldKey } from '../../businessFields.ts';
 
 export type PhotoShape = 'rect' | 'circle' | 'arch';
 export type Block = 'primary' | 'blush' | 'sand' | 'deep';
@@ -77,6 +78,13 @@ export type CreamDef = {
   deco?: { asset: DecoAsset; color?: ColorRole; opacity?: number; flip?: boolean } | null;
   /** Emphasis of the headline: 700 by default, 900 shouts. */
   headlineWeight?: 700 | 900;
+  /** Which business field(s) this is for. Omitted = ['cosmetics'], since
+   *  every definition before business_fields shipped was cosmetics — that
+   *  default is what lets the 50-template launch library go untouched
+   *  rather than needing 'cosmetics' stamped onto each of the 50 files by
+   *  hand. A new definition (nails, universal, or a future field) sets this
+   *  explicitly. See contract.ts's Template.fields. */
+  fields?: FieldKey[];
 };
 
 type Px = { x: number; y: number; w: number; h: number };
@@ -377,6 +385,7 @@ export function creamTemplate(def: CreamDef, format: 'feed45' | 'story'): Templa
     variables,
     slots,
     layers,
+    fields: def.fields && def.fields.length ? def.fields : ['cosmetics'],
   };
   if (def.holiday) t.holiday = def.holiday;
   t.group = def.group;

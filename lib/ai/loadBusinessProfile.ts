@@ -18,8 +18,14 @@ import {
   usableTherapistName,
   parseClinicAddress,
 } from './profileHygiene.ts'
-import { APP_URL } from '@/lib/appUrl'
-import { ACTIVE_OR_NULL } from '@/lib/serviceActive'
+// Relative, not '@/lib/...': that alias is TypeScript/Next.js-only
+// (tsconfig `paths`), which plain `node --experimental-strip-types` cannot
+// resolve — the reason this file had no test of its own before
+// test-load-business-profile.ts. Relative resolves identically under both.
+import { APP_URL } from '../appUrl.ts'
+import { ACTIVE_OR_NULL } from '../serviceActive.js'
+import { businessFieldsOf } from '../businessFields.ts'
+import { isMissingColumnError } from '../pgError.ts'
 
 // The server Supabase client (no generated DB types, so rows come back loosely typed).
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
@@ -55,7 +61,7 @@ export async function loadBusinessProfile(
   const [settingsRes, servicesRes] = await Promise.all([
     supabase
       .from('settings')
-      .select('business_name, therapist_name, primary_color, branding')
+      .select('business_name, therapist_name, primary_color, branding, business_fields')
       .eq('tenant_id', tenantId)
       .limit(1),
     supabase
@@ -65,8 +71,17 @@ export async function loadBusinessProfile(
       .or(ACTIVE_OR_NULL),
   ])
 
+  // business_fields is added by supabase/migrations/add_business_fields.sql,
+  // applied by hand and possibly not yet run. Naming an unknown column in an
+  // explicit select fails the WHOLE row, not just that field — degrade by
+  // dropping it and retrying, rather than losing business_name, branding and
+  // every other real profile field over one missing column.
+  const settingsData = settingsRes.error && isMissingColumnError(settingsRes.error)
+    ? (await supabase.from('settings').select('business_name, therapist_name, primary_color, branding').eq('tenant_id', tenantId).limit(1)).data
+    : settingsRes.data
+
   const row: Record<string, any> =
-    settingsRes.data && settingsRes.data[0] ? settingsRes.data[0] : {}
+    settingsData && settingsData[0] ? settingsData[0] : {}
   const brand: Record<string, any> =
     row.branding && typeof row.branding === 'object' ? row.branding : {}
   const services: Array<Record<string, any>> = servicesRes.data || []
@@ -148,5 +163,6 @@ export async function loadBusinessProfile(
     target_audience: clean(brand.target_audience),
     brand_tone: clean(brand.brand_tone),
     unique_selling_points: toList(brand.unique_selling_points),
+    fields: businessFieldsOf(row),
   }
 }

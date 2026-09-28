@@ -24,6 +24,8 @@ import { getCallCapStatus } from '@/lib/ai/callCaps';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { composeImagePrompt, FORMAT_SIZES, type ImageFormat, type NegativeSpace } from '@/lib/ai/imagePrompt';
 import { generateImage, IMAGE_QUALITIES, OpenAIImageError, type ImageQuality } from '@/lib/ai/openaiImages';
+import { businessFieldsOf, isFieldKey, type FieldKey } from '@/lib/businessFields';
+import { isMissingColumnError } from '@/lib/pgError';
 
 export const runtime = 'nodejs';
 // A high-quality image can take up to two minutes at the model's own admission.
@@ -77,12 +79,22 @@ export async function POST(request: NextRequest) {
   const negativeSpace = (['top', 'bottom', 'none'] as NegativeSpace[]).includes(body.negativeSpace as NegativeSpace) ? (body.negativeSpace as NegativeSpace) : 'bottom';
 
   // A first taste of the brand kit: her accent colour, from her own settings.
-  const { data: st } = await supabase
+  let stRes = await supabase
     .from('settings')
-    .select('business_name, primary_color, branding')
+    .select('business_name, primary_color, branding, business_fields')
     .eq('tenant_id', tenantId)
     .maybeSingle();
+  // business_fields is added by supabase/migrations/add_business_fields.sql,
+  // applied by hand and possibly not yet run.
+  if (stRes.error && isMissingColumnError(stRes.error)) {
+    stRes = await supabase.from('settings').select('business_name, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
+  }
+  const st = stRes.data;
   const branding = (st?.branding && typeof st.branding === 'object' ? st.branding : {}) as Record<string, unknown>;
+  // A QA surface: let the tester try a field this tenant may not actually
+  // have picked, e.g. previewing the nails prompt from a cosmetics account.
+  const bodyFields = Array.isArray(body.fields) ? (body.fields as unknown[]).filter(isFieldKey) as FieldKey[] : null;
+  const fields = bodyFields && bodyFields.length ? bodyFields : businessFieldsOf(st);
 
   const prompt = composeImagePrompt({
     request: subject,
@@ -102,6 +114,7 @@ export async function POST(request: NextRequest) {
     },
     format,
     variation: typeof body.variation === 'number' && body.variation > 0 ? { index: body.variation } : null,
+    fields,
   });
 
   let image;

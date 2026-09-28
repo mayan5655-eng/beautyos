@@ -21,6 +21,8 @@ import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { generateImage, OpenAIImageError } from '@/lib/ai/openaiImages';
 import { imagePromptForDirection, type Direction } from '@/lib/ai/creativeDirector';
 import type { ImageFormat } from '@/lib/ai/imagePrompt';
+import { businessFieldsOf } from '@/lib/businessFields';
+import { isMissingColumnError } from '@/lib/pgError';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -67,7 +69,14 @@ export async function POST(request: NextRequest) {
   if (!design) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
   const format: ImageFormat = design.format === 'story' ? 'story' : design.format === 'square' ? 'square' : 'feed45';
 
-  const { data: st } = await supabase.from('settings').select('business_name, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
+  let stRes = await supabase.from('settings').select('business_name, primary_color, branding, business_fields').eq('tenant_id', tenantId).maybeSingle();
+  // business_fields is added by supabase/migrations/add_business_fields.sql,
+  // applied by hand and possibly not yet run — degrade rather than fail the
+  // whole picture over one missing column.
+  if (stRes.error && isMissingColumnError(stRes.error)) {
+    stRes = await supabase.from('settings').select('business_name, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
+  }
+  const st = stRes.data;
   const branding = (st?.branding && typeof st.branding === 'object' ? st.branding : {}) as Record<string, unknown>;
   const values = (design.values && typeof design.values === 'object' ? design.values : {}) as Record<string, unknown>;
 
@@ -81,6 +90,7 @@ export async function POST(request: NextRequest) {
     visualStyle: typeof branding.brand_tone === 'string' ? branding.brand_tone : null,
     format,
     variation,
+    fields: businessFieldsOf(st),
   });
 
   let image;

@@ -26,4 +26,31 @@ assert.deepEqual(serviceImage(svc, {}), { url: defaultImageUrl('acne'), isDefaul
 assert.deepEqual(serviceImage(svc, { s1: 'https://cdn/mine.jpg' }), { url: 'https://cdn/mine.jpg', isDefault: false }, 'hers always wins');
 assert.equal(serviceImage(svc, { s1: '   ' }).isDefault, true, 'blank is not a photo');
 assert.equal(serviceImage(svc, null).isDefault, true);
+
+// ── Field-aware (business_fields) ───────────────────────────────────────────
+assert.equal(k('בניית ציפורניים', 'nails'), 'nails-extensions');
+assert.equal(k('מילוי', 'nails'), 'nails-extensions');
+assert.equal(k('פדיקור רגליים מלא', 'nails'), 'nails-pedicure');
+assert.equal(k('פדיקור לק ג\'ל', 'nails'), 'nails-pedicure', 'פדיקור must win over the broader לק pattern below it');
+assert.equal(k('שיוף ולק לרגליים', 'nails'), 'nails-pedicure');
+assert.equal(k('נייל ארט (לציפורן)', 'nails'), 'nails-nail-art');
+assert.equal(k('מניקור (שיוף, הסרת עור, לק)', 'nails'), 'nails-manicure');
+assert.equal(k('שיוף ולק לידיים', 'nails'), 'nails-manicure');
+assert.equal(k('הסרת לק ג\'ל', 'nails'), 'nails-manicure');
+assert.equal(k('תיקון ציפורן שבורה', 'nails'), 'nails-manicure', 'no foot-specific keyword in the name, so it falls to the generic nails picture — same limitation waxing already has in the cosmetics table');
+assert.equal(k('עיסוי גב', 'nails'), 'nails-neutral', 'a name matching nothing in the nails table at all falls back to the NAILS neutral, not the cosmetics one');
+// A known field never crosses over into the other field's vocabulary, even
+// when a name would otherwise match there.
+assert.equal(k('טיפול פנים קלאסי', 'nails'), 'nails-neutral');
+assert.equal(k('מניקור ג\'ל', 'cosmetics'), 'neutral');
+// No field at all (a legacy row, or a hand-typed service): guess across
+// every field, cosmetics first.
+assert.equal(k('טיפול באקנה'), 'acne');
+assert.equal(k('בניית ציפורניים'), 'nails-extensions');
+assert.equal(k('עיסוי שוודי'), 'neutral', 'unmatched with no field falls back to the generic neutral');
+
+const nailsSvc = { id: 'n1', name: 'פדיקור ספא', field: 'nails' };
+assert.deepEqual(serviceImage(nailsSvc, {}), { url: defaultImageUrl('nails-pedicure'), isDefault: true });
+assert.deepEqual(serviceImage(nailsSvc, { n1: 'https://cdn/hers.jpg' }), { url: 'https://cdn/hers.jpg', isDefault: false }, 'hers wins here too');
+
 console.log('default images: ok');

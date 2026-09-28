@@ -43,8 +43,11 @@
 //
 // ── WHAT IS DELIBERATELY ABSENT ──────────────────────────────────────────────
 //
-// Checked against information_schema, the settings table has 26 columns. This
-// module writes 14 of them and the onboarding form writes 5 more. The 7 it
+// Checked against information_schema, the settings table has 27 columns (26
+// plus business_fields, added by supabase/migrations/add_business_fields.sql).
+// This module writes 14 of them and the onboarding form writes 6 more —
+// business_name, therapist_name, business_phone, primary_color and
+// business_fields, directly in app/onboarding/page.tsx's finish(). The 7 it
 // never touches are exactly the identity-bearing ones:
 //
 //   business_phone              her Bit/Paybox number
@@ -60,6 +63,12 @@
 //                               her socials and her own welcome copy
 //   id                          generated
 //
+// business_fields is NOT in that list, on purpose: unlike those seven it
+// carries no one tenant's identity, contact details or credentials — it is a
+// pick from a fixed, shared enum (lib/businessFields.ts), the same tier as
+// the group keys and labels below. scripts/check-template-clean.mjs's
+// forbidden-key list agrees; it was not added there.
+//
 // These are not omitted by a filter — they are simply not keys in any object
 // below, and scripts/check-template-clean.mjs fails the build if one appears.
 //
@@ -69,6 +78,7 @@
 // is nothing to seed.
 
 import { legacyHoursFromMap } from './businessHours.ts';
+import { BUSINESS_FIELDS, type FieldKey } from './businessFields.ts';
 
 // ── SERVICE MENU ─────────────────────────────────────────────────────────────
 //
@@ -101,9 +111,20 @@ export type ServiceTemplateItem = {
    *  durations — the hand-add form in Settings collects no duration at all and
    *  silently defaults every treatment to 60. */
   duration: number;
-  /** Suggested range, inclusive, in shekels. */
+  /** Suggested range, inclusive, in shekels — the budget and premium ends.
+   *  Shown beside the item as the market range; never inserted by itself. */
   priceMin: number;
   priceMax: number;
+  /** The middle tier, when the three were priced separately rather than
+   *  taken as a range's midpoint (the nails menu; see suggestedPrice below).
+   *  Absent on an item priced as a plain range (the cosmetics menu), where
+   *  the midpoint of priceMin/priceMax IS the suggestion. */
+  priceMid?: number;
+  /** A reminder, never a gate: shown next to the item in the picker for a
+   *  treatment that needs its own licence or certification beyond the base
+   *  one (e.g. medical pedicure). She knows what she is certified for —
+   *  ticking the box is never blocked by this, and nothing checks it. */
+  licenceNote?: string;
 };
 
 export type ServiceTemplateGroup = {
@@ -113,9 +134,21 @@ export type ServiceTemplateGroup = {
   items: ServiceTemplateItem[];
 };
 
-export const SERVICE_TEMPLATE_GROUPS: ServiceTemplateGroup[] = [
-  {
-    key: 'face',
+// ── PER-FIELD SEED MENUS ─────────────────────────────────────────────────────
+//
+// She picks a field (or several) in onboarding step 4, before this picker
+// ever renders — see FieldPicker / app/onboarding/page.tsx. The menu below is
+// keyed by field so a nails technician is never shown a facial-treatment menu
+// and vice versa, and a tenant who does both sees the union, grouped so she
+// can tell which world each group came from.
+//
+// A NEW FIELD IS: one entry in lib/businessFields.ts, one key below, and its
+// own default images (lib/defaultImages.js) and template pack
+// (lib/design/templates/cream/). Nothing else in this file changes shape.
+export const SERVICE_TEMPLATE_GROUPS_BY_FIELD: Record<FieldKey, ServiceTemplateGroup[]> = {
+  cosmetics: [
+    {
+      key: 'face',
     label: 'פנים',
     items: [
       { name: 'ניקוי פנים עמוק', description: 'ניקוי יסודי של הנקבוביות, אדים והוצאת שחורים — העור נושם מחדש', duration: 75, priceMin: 250, priceMax: 350 },
@@ -164,21 +197,98 @@ export const SERVICE_TEMPLATE_GROUPS: ServiceTemplateGroup[] = [
       { name: 'איפור ערב', description: 'איפור מלא לאירוע — מותאם לסגנון ולתאורה', duration: 60, priceMin: 250, priceMax: 400 },
       { name: 'איפור כלה', description: 'איפור כלה כולל ניסיון מוקדם — מחזיק מהבוקר עד הריקוד האחרון', duration: 120, priceMin: 800, priceMax: 1500 },
     ],
-  },
-];
+    },
+  ],
 
-/** Flat view, for dedupe checks and counting. */
-export const SERVICE_TEMPLATE_ITEMS: ServiceTemplateItem[] =
-  SERVICE_TEMPLATE_GROUPS.flatMap((g) => g.items);
+  // Corrected by Maayan 2026-09-28, real Israeli pricing at three tiers —
+  // budget / mid / premium. Mid is what suggestedPrice() inserts; budget and
+  // premium are priceMin/priceMax, the market-range hint shown beside the
+  // item (same UI as the cosmetics menu, which only ever had a range). Still
+  // generic market numbers, never one real tenant's price list — same rule
+  // as the cosmetics menu above. Grouped so the group keys double as the
+  // default-image categories (hands / gel / nail art / pedicure) — see
+  // lib/defaultImages.js once that pass lands.
+  nails: [
+    {
+      key: 'manicure',
+      label: 'מניקור',
+      items: [
+        { name: 'שיוף ולק לידיים', description: 'עיצוב וליטוש ציפורניים עם לק רגיל — רענון מהיר לידיים', duration: 30, priceMin: 80, priceMid: 120, priceMax: 179 },
+        { name: 'מניקור (שיוף, הסרת עור, לק)', description: 'טיפוח מלא: שיוף, הסרת עור מת ולק — הבסיס לידיים מטופחות', duration: 45, priceMin: 120, priceMid: 170, priceMax: 225 },
+        { name: 'מניקור ג׳ל', description: 'מניקור מלא עם לק ג׳ל עמיד שלא מתקלף — מחזיק כשלושה שבועות', duration: 60, priceMin: 150, priceMid: 200, priceMax: 255 },
+        { name: 'שיוף ולק ג׳ל (ללא הסרה)', description: 'לק ג׳ל טרי על ציפורניים נקיות, בלי הסרת לק קודם', duration: 45, priceMin: 130, priceMid: 160, priceMax: 199 },
+        { name: 'שיוף ולק ג׳ל כולל הסרה', description: 'הסרת לק ג׳ל קודם ולק ג׳ל חדש — הכל בטיפול אחד', duration: 60, priceMin: 150, priceMid: 180, priceMax: 210 },
+        { name: 'מניקור ספא', description: 'טיפול ידיים מפנק: פילינג, מסכה ועיסוי לצד המניקור', duration: 75, priceMin: 180, priceMid: 230, priceMax: 290 },
+        { name: 'פראפין לידיים', description: 'טבילה בפראפין חם להזנה ולחות עמוקה לידיים', duration: 20, priceMin: 60, priceMid: 90, priceMax: 120 },
+        { name: 'הסרת לק ג׳ל', description: 'הסרה מקצועית שלא פוגעת בציפורן הטבעית', duration: 20, priceMin: 40, priceMid: 60, priceMax: 80 },
+      ],
+    },
+    {
+      key: 'extensions',
+      label: 'תוספות ובנייה',
+      items: [
+        { name: 'בניית ציפורניים', description: 'בניית ציפורניים אחידה וחזקה, באורך ובצורה שתבחרי', duration: 120, priceMin: 220, priceMid: 300, priceMax: 420 },
+        { name: 'מילוי', description: 'חידוש התוספות הקיימות והתאמה לצמיחה — מומלץ כל 3–4 שבועות', duration: 90, priceMin: 160, priceMid: 220, priceMax: 300 },
+      ],
+    },
+    {
+      key: 'pedicure',
+      label: 'פדיקור',
+      items: [
+        { name: 'פדיקור רגליים מלא', description: 'טיפוח מלא לכפות הרגליים: שיוף, הסרת עור וציפורניים מסודרות', duration: 60, priceMin: 140, priceMid: 190, priceMax: 260 },
+        { name: 'פדיקור לק ג׳ל', description: 'לק ג׳ל עמיד לרגליים — מושלם לקיץ ולסנדלים', duration: 75, priceMin: 170, priceMid: 220, priceMax: 300 },
+        { name: 'שיוף ולק לרגליים', description: 'עיצוב וליטוש ציפורני הרגליים עם לק רגיל — רענון מהיר', duration: 30, priceMin: 80, priceMid: 110, priceMax: 160 },
+        { name: 'פדיקור ספא', description: 'טיפול רגליים מפנק: פילינג, מסכה ועיסוי ממושך', duration: 90, priceMin: 200, priceMid: 260, priceMax: 340 },
+        { name: 'תיקון ציפורן שבורה', description: 'תיקון מהיר לציפורן רגל שנשברה בין טיפולים', duration: 20, priceMin: 40, priceMid: 60, priceMax: 90 },
+        { name: 'פדיקור רפואי', description: 'טיפול פדיקור מקצועי לרגליים הדורשות תשומת לב מיוחדת — יבלות, עור מעובה או ציפורניים קשות', duration: 60, priceMin: 150, priceMid: 200, priceMax: 280, licenceNote: 'דורש הסמכה בפדיקור רפואי' },
+      ],
+    },
+    {
+      key: 'nail_art',
+      label: 'עיצוב ואמנות ציפורניים',
+      items: [
+        { name: 'נייל ארט (לציפורן)', description: 'עיצוב, גליטר או אבנים על ציפורן בודדת — תוספת לכל טיפול', duration: 10, priceMin: 15, priceMid: 25, priceMax: 40 },
+      ],
+    },
+  ],
+};
+
+/** Field-ordered groups for the fields she's picked, matching BUSINESS_FIELDS
+ *  display order regardless of the order `fields` was passed in. Unknown
+ *  keys are simply skipped rather than thrown on, since a stored value can
+ *  outlive this list (see businessFieldsOf's own defensive read). */
+export function serviceTemplateGroupsFor(fields: FieldKey[]): { field: FieldKey; groups: ServiceTemplateGroup[] }[] {
+  const wanted = new Set(fields);
+  return BUSINESS_FIELDS.filter((f) => wanted.has(f.key)).map((f) => ({
+    field: f.key,
+    groups: SERVICE_TEMPLATE_GROUPS_BY_FIELD[f.key] ?? [],
+  }));
+}
+
+/** Cosmetics only, flattened — kept for any caller that predates the
+ *  multi-field menu and has not been updated to pass a field list. */
+export const SERVICE_TEMPLATE_GROUPS: ServiceTemplateGroup[] = SERVICE_TEMPLATE_GROUPS_BY_FIELD.cosmetics;
+
+/** Flat view of every field's items, for dedupe checks and counting. */
+export const SERVICE_TEMPLATE_ITEMS: ServiceTemplateItem[] = Object.values(
+  SERVICE_TEMPLATE_GROUPS_BY_FIELD
+).flatMap((groups) => groups.flatMap((g) => g.items));
 
 /**
  * The number pre-filled into the price field when she picks a treatment.
  *
- * Midpoint of the range, rounded to the nearest ₪10 so it reads as a round
- * suggested price rather than a computed one. A range starting at 0 (the free
- * consultation) keeps its midpoint rather than being forced upward.
+ * priceMid wins when the item has one: it was priced as its own tier (budget
+ * / mid / premium), not derived, so it is used exactly as given — no
+ * rounding, since e.g. nail art's ₪25 is a deliberate number, not a midpoint
+ * that happened to land there.
+ *
+ * Otherwise, the midpoint of priceMin/priceMax, rounded to the nearest ₪10 so
+ * it reads as a round suggested price rather than a computed one. A range
+ * starting at 0 (the free consultation) keeps its midpoint rather than being
+ * forced upward.
  */
 export function suggestedPrice(item: ServiceTemplateItem): number {
+  if (typeof item.priceMid === 'number') return item.priceMid;
   return Math.round((item.priceMin + item.priceMax) / 2 / 10) * 10;
 }
 
@@ -311,6 +421,19 @@ export const FAQ_SKELETON: Array<{ q: string; a: string }> = [
  * column added next year is not seeded until someone adds it here on purpose.
  * The failure mode of forgetting is "a new tenant does not get the new default",
  * which is harmless. The failure mode of a blocklist is the opposite.
+ *
+ * app/api/settings/save also imports this list for a second purpose: on an
+ * insert that fails because the database does not yet have one of these
+ * columns (a migration applied by hand, per the standing rule in
+ * supabase/migrations/pending/README.md, can lag the code), it retries with
+ * every key here stripped. business_fields is included for exactly that
+ * reason even though buildSeedSettings() below never emits it — it is
+ * written directly by app/onboarding/page.tsx's finish(), the same as
+ * business_name, but unlike business_name its column is new
+ * (supabase/migrations/add_business_fields.sql) and can be missing on an
+ * environment where that file has not been run yet. Without it here, a
+ * missing column would fail the whole signup insert a second time, on the
+ * exact field this list exists to protect against.
  */
 export const SEEDED_SETTINGS_KEYS = [
   'business_hours',
@@ -319,6 +442,7 @@ export const SEEDED_SETTINGS_KEYS = [
   'working_hours_end',
   'automations',
   'faq',
+  'business_fields',
   ...Object.keys(DEFAULT_AUTOMATION_FLAGS),
 ];
 

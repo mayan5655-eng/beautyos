@@ -44,6 +44,10 @@ export const SETTINGS_EDITABLE_COLUMNS = [
   'primary_color',
   'branding',
   'review_url',
+  // Which field(s) she practices in — cosmetics, nails, or both. Drives the
+  // seed service menu, default images and the marketing template gallery.
+  // See lib/businessFields.ts.
+  'business_fields',
   // Hours: the per-day map and the legacy trio derived from it
   'business_hours',
   'working_days',

@@ -18,10 +18,11 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
-import { GROUNDING_RULES, buildBusinessContext, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
+import { GROUNDING_RULES, buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import { composeImagePrompt, type ImageFormat, type NegativeSpace } from './imagePrompt.ts';
 import type { Template } from '../design/contract.ts';
 import { limitText } from '../design/limitText.ts';
+import type { FieldKey } from '../businessFields.ts';
 
 export const DIRECTOR_MODEL = 'claude-sonnet-5';
 export const DIRECTOR_CALL_SITE = 'creatives/direct';
@@ -58,7 +59,7 @@ export function buildDirectorPrompt(profile: BusinessProfile, template: Template
   const vars = fillableVariables(template)
     .map((v) => `  "${v.key}": "${v.label}${v.kind === 'price' ? ' (מחיר, למשל ₪249)' : v.kind === 'cta' ? ' (קריאה לפעולה קצרה)' : ''}${v.maxLength ? `, עד ${v.maxLength} תווים` : ''}"`)
     .join(',\n');
-  return `את קריאייטיב דיירקטורית ומנהלת קמפיינים בכירה לעסקי יופי בישראל. קוסמטיקאית כתבה בקשה קצרה, ואת בונה ממנה פוסט שלם: הטקסטים שנכנסים לתבנית עיצוב, הטקסט לפוסט עצמו, ושלושה כיוונים ויזואליים לצלמת.
+  return `את קריאייטיב דיירקטורית ומנהלת קמפיינים בכירה לעסקי יופי בישראל. ${personaLabel(profile.fields)} כתבה בקשה קצרה, ואת בונה ממנה פוסט שלם: הטקסטים שנכנסים לתבנית עיצוב, הטקסט לפוסט עצמו, ושלושה כיוונים ויזואליים לצלמת.
 
 == פרטי העסק ==
 ${buildBusinessContext(profile)}
@@ -157,7 +158,7 @@ export async function directFill(profile: BusinessProfile, template: Template, b
 /** The image model's prompt for one direction, through the typography ban. */
 export function imagePromptForDirection(
   direction: Direction,
-  ctx: { request: string; service?: string | null; offer?: string | null; businessName?: string | null; primaryColor?: string | null; secondaryColor?: string | null; visualStyle?: string | null; format: ImageFormat; variation?: number },
+  ctx: { request: string; service?: string | null; offer?: string | null; businessName?: string | null; primaryColor?: string | null; secondaryColor?: string | null; visualStyle?: string | null; format: ImageFormat; variation?: number; fields?: FieldKey[] | null },
 ): string {
   return composeImagePrompt({
     request: direction.imageSubject,
@@ -173,5 +174,6 @@ export function imagePromptForDirection(
     direction: { name: direction.name, concept: direction.concept, composition: direction.composition, negativeSpace: direction.negativeSpace, palette: direction.palette },
     format: ctx.format,
     variation: ctx.variation && ctx.variation > 0 ? { index: ctx.variation } : null,
+    fields: ctx.fields ?? null,
   });
 }

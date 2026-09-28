@@ -48,6 +48,8 @@ import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
+import FieldPicker from "./FieldPicker";
+import { businessFieldsOf } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 
 // Renders a private client image from storage. `value` may be a bare storage
@@ -4321,7 +4323,7 @@ export default function BeautyOS() {
   // whole row: the old per-row save passed `svc` straight to .update(), which
   // meant it also sent id, tenant_id and created_at back to the server on
   // every keystroke-driven save.
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "color", "active"];
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active"];
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
     if (!draft) return { changed: 0, errors: [] };
@@ -4346,7 +4348,15 @@ export default function BeautyOS() {
       if (!s.id) {
         const row = { tenant_id: tid, active: s.active !== false };
         for (const k of SERVICE_FIELDS) if (k !== "active") row[k] = s[k];
-        const { data, error } = await supabase.from("service_prices").insert([row]).select();
+        let { data, error } = await supabase.from("service_prices").insert([row]).select();
+        // field is added by supabase/migrations/add_business_fields.sql,
+        // applied by hand and possibly not yet run — degrade rather than
+        // break a plain service save for every tenant over one new column.
+        if (error && isMissingColumnError(error)) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
+          const { field, ...reduced } = row;
+          ({ data, error } = await supabase.from("service_prices").insert([reduced]).select());
+        }
         if (error || !data || !data[0]) { errors.push(`הוספת ${s.name}`); continue; }
         changed++;
         continue;
@@ -4362,8 +4372,14 @@ export default function BeautyOS() {
         if (a !== b) patch[k] = a;
       }
       if (Object.keys(patch).length === 0) continue;
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("service_prices").update(patch).eq("id", s.id).select();
+      if (error && isMissingColumnError(error) && "field" in patch) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
+        const { field, ...reduced } = patch;
+        ({ data, error } = await supabase
+          .from("service_prices").update(reduced).eq("id", s.id).select());
+      }
       if (error || !data || !data[0]) { errors.push(`עדכון ${s.name}`); continue; }
       changed++;
     }
@@ -4593,6 +4609,7 @@ export default function BeautyOS() {
         name,
         price: pick.price,
         duration: pick.duration,
+        field: pick.field || null,
         color: pick.color || DEFAULT_SERVICE_COLOR,
         active: true,
         _new: true,
@@ -10443,6 +10460,11 @@ ${c.claimUrl}`)}`;
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. זה סיכום לנוחותך, לא דוח להגשה.</p></div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>תחומי עיסוק</p>
+ <FieldPicker value={businessFieldsOf(editSettings)} onChange={fields=>setEditSettings({...editSettings,business_fields:fields})} accent={pc} accentTint={pcTint} />
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>קובע אילו טיפולים מוצעים לך ברשימה המוכנה, ואילו תמונות ברירת מחדל ותבניות שיווק מוצגות. כיבוי תחום לא מוחק שירותים או עיצובים שכבר יצרת בו.</p>
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  {/* The scanner link, as she should share it: signed (?t=…&s=…) so the page
      loads HER colour and details and the scan is attributed to her. Shown in
@@ -11044,6 +11066,7 @@ ${c.claimUrl}`)}`;
  <ServiceTemplatePicker
    value={templatePicks}
    onChange={setTemplatePicks}
+   fields={businessFieldsOf(settings)}
    existingNames={(editServices||[]).filter(s=>!s._deleted).map(s=>s.name)}
    accent={pc}
    accentTint={pcTint}

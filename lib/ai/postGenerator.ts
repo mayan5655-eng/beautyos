@@ -16,7 +16,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
 import { getCallCapStatus, type CapStatus } from './callCaps.ts';
-import { buildBusinessContext, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
+import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import type { Template } from '../design/contract.ts';
 import type { Fillable } from '../design/reel.ts';
 import { sanitizeValues } from '../design/design.ts';
@@ -67,7 +67,7 @@ export function buildGeneratePrompt(profile: BusinessProfile, brief: string, can
     return `- key "${t.key}": ${t.name}. ${desc}${holiday ? ` (חג: ${holiday})` : ''}. שדות: ${vars}.${slot ? ` תמונת AI: ${slot.aiHint || 'תמונה אחת מתאימה'}` : ' בלי תמונת AI.'}`;
   }).join('\n');
 
-  return `את קריאייטיב דיירקטורית לעסקי יופי בישראל. קוסמטיקאית כתבה בקשה קצרה לפוסט, ואת בונה ממנה ${OPTIONS_PER_GENERATION} אפשרויות שונות זו מזו - כל אחת תבנית מהקטלוג, הטקסטים שנכנסים לשדות שלה, ותיאור התמונה שתצולם עבורה. היא תבחר אחת ותערוך.
+  return `את קריאייטיב דיירקטורית לעסקי יופי בישראל. ${personaLabel(profile.fields)} כתבה בקשה קצרה לפוסט, ואת בונה ממנה ${OPTIONS_PER_GENERATION} אפשרויות שונות זו מזו - כל אחת תבנית מהקטלוג, הטקסטים שנכנסים לשדות שלה, ותיאור התמונה שתצולם עבורה. היא תבחר אחת ותערוך.
 
 == העסק ==
 ${buildBusinessContext(profile)}

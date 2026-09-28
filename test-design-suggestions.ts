@@ -37,5 +37,25 @@ for (const x of s) assert.ok(getTemplate(x.templateKey), `${x.templateKey} exist
 const bare = suggestPosts({ today: day('2026-11-02') });
 assert.equal(bare.length, 1);
 assert.equal(bare[0].key, 'tip');
+assert.ok(['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'].includes(bare[0].templateKey), 'default fields (none passed) is cosmetics, unchanged from before business_fields existed');
+
+// ── business_fields: unposted-service and the weekly tip, per field ────────
+const nailsBare = suggestPosts({ today: day('2026-11-02'), fields: ['nails'] });
+assert.equal(nailsBare.length, 1);
+assert.equal(nailsBare[0].key, 'tip', 'a single field still keys the plain "tip", not "tip:nails"');
+assert.equal(nailsBare[0].templateKey, 'nail-tip-feed');
+
+const dual = suggestPosts({ today: day('2026-11-02'), fields: ['cosmetics', 'nails'] });
+assert.ok(dual.some((x) => x.key === 'tip' && ['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'].includes(x.templateKey)), 'the first field keeps the plain key');
+assert.ok(dual.some((x) => x.key === 'tip:nails' && x.templateKey === 'nail-tip-feed'), 'a second active field adds its own, field-qualified');
+
+// A never-posted nails service points at the nails fallback template, not the cosmetics one.
+const nailsService = suggestPosts({
+  today, appointments: [], services: [{ name: 'מניקור ג׳ל', field: 'nails' }], designs: [], fields: ['nails'],
+});
+assert.ok(nailsService.some((x) => x.key === 'service:מניקור ג׳ל' && x.templateKey === 'nail-art-showcase-feed' && x.values.headline === 'מניקור ג׳ל'));
+// A service with no field at all still falls back to the cosmetics template, same as always.
+assert.equal(unpostedService({ services: [{ name: 'עיצוב גבות' }], designs: [] }), 'עיצוב גבות');
+for (const x of [...nailsBare, ...dual, ...nailsService]) assert.ok(getTemplate(x.templateKey), `${x.templateKey} exists`);
 
 console.log('design suggestions: ok');

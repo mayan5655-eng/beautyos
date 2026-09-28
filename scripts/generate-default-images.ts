@@ -9,9 +9,10 @@
 //   ... generate-default-images.ts --force        # regenerate ones that exist
 //
 // Needs OPENAI_API_KEY (lib/ai/openaiImages is the only OpenAI caller, so this
-// goes through it). One image each, 'high' quality: 15 images. Look at every
-// result before committing - a generated picture is only a default if it is
-// one she would be happy to have on her page.
+// goes through it). One image each, 'high' quality: 20 images (15 cosmetics,
+// 5 nails — see lib/businessFields.ts). Look at every result before
+// committing - a generated picture is only a default if it is one she would
+// be happy to have on her page.
 //
 // Deliberately NOT here: before/after. A stand-in "result" would be an
 // invented result, so that section shows only pairs she uploads herself.
@@ -44,6 +45,15 @@ const SPECS: Spec[] = [
   { key: 'neutral', format: 'square', subject: 'Still life: folded white towels, a sprig of eucalyptus, a small ceramic bowl of cream on a pale linen surface, no people.' },
   { key: 'hero', format: 'story', subject: 'A bright, airy, empty cosmetic treatment room: a white treatment bed with a folded towel, a leafy plant, warm natural window light, a calm cream and sage interior. Leave the upper half of the frame uncluttered. No people.' },
   { key: 'about', format: 'feed45', subject: 'A soft-focus corner of a calm clinic: an armchair by a window, a green plant, a small table with a tea cup and folded linen, golden natural light. No people.' },
+  // Nails (lib/businessFields.ts). Same STYLE, same four groups the seed
+  // menu and lib/defaultImages.js use: extensions/building, pedicure,
+  // nail art, manicure — plus a nails-specific neutral still life, since a
+  // cosmetics still life is the wrong ambience for a nails business.
+  { key: 'nails-manicure', format: 'square', subject: 'Close-up of a manicurist’s gloved hands gently filing a client’s nails at a clean manicure table, a small dish of cuticle oil nearby, calm and precise, no face visible.' },
+  { key: 'nails-extensions', format: 'square', subject: 'Macro of a hand under a small UV/LED lamp curing a fresh coat of gel polish, a gloved technician’s hand holding a thin brush near the nail, a soft glow from the lamp, clean nail tips visible.' },
+  { key: 'nails-pedicure', format: 'square', subject: 'A woman’s bare feet resting on a folded white towel at the edge of a pedicure basin with warm water and a few rose petals, calm spa atmosphere, no face visible.' },
+  { key: 'nails-nail-art', format: 'square', subject: 'Extreme macro of a manicurist’s hand painting a delicate fine-line design onto a nail with a thin brush, soft-focus background, precise and artistic, no face visible.' },
+  { key: 'nails-neutral', format: 'square', subject: 'Still life: a few nail polish bottles in soft neutral tones, a nail file and a cuticle stick on a pale linen surface, no people.' },
 ];
 
 const args = process.argv.slice(2);

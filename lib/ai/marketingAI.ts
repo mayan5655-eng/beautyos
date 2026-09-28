@@ -5,6 +5,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from './usage.ts'
 import { cityHashtag } from './profileHygiene.ts'
+import type { FieldKey } from '../businessFields.ts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
@@ -36,6 +37,24 @@ export interface BusinessProfile {
   welcome_message?: string | null       // her brand tone toward clients
   brand_colors?: string | null          // "ראשי #.., משני #.."
   has_logo?: boolean | null
+  /** Her business_fields (lib/businessFields.ts). Unset or empty reads as
+   *  cosmetics everywhere this is used — see personaLabel below — which is
+   *  what every profile before this existed effectively was. */
+  fields?: FieldKey[] | null
+}
+
+/**
+ * The practitioner noun a prompt addresses or describes her as. This is
+ * voice, not a content restriction: GROUNDING_RULES rule 6 (never advertise
+ * Botox/fillers/etc.) stays unconditional regardless of field, because it
+ * costs a nails-only business nothing to be told that and it is a safety net
+ * worth keeping on for everyone rather than one more thing to gate correctly.
+ */
+export function personaLabel(fields?: FieldKey[] | null): string {
+  const has = (f: FieldKey) => !!fields && fields.includes(f)
+  if (has('cosmetics') && has('nails')) return 'קוסמטיקאית ומעצבת ציפורניים'
+  if (has('nails') && !has('cosmetics')) return 'מעצבת ציפורניים'
+  return 'קוסמטיקאית' // cosmetics, or fields unset — the long-standing default
 }
 
 // A suggested Facebook group
@@ -55,7 +74,7 @@ export function buildBusinessContext(profile: BusinessProfile): string {
     parts.push(`שם העסק: ${profile.business_name}`)
   }
   if (profile.therapist_name) {
-    parts.push(`שם הקוסמטיקאית: ${profile.therapist_name}`)
+    parts.push(`שם ה${personaLabel(profile.fields)}: ${profile.therapist_name}`)
   }
   if (profile.business_description) {
     parts.push(`תיאור העסק: ${profile.business_description}`)
@@ -101,7 +120,7 @@ export function buildBusinessContext(profile: BusinessProfile): string {
   }
 
   if (parts.length === 0) {
-    return 'אין מידע על העסק - יש לתת המלצות כלליות לקוסמטיקאית בישראל.'
+    return `אין מידע על העסק - יש לתת המלצות כלליות ל${personaLabel(profile.fields)} בישראל.`
   }
 
   return parts.join('\n')
@@ -151,13 +170,13 @@ export async function suggestFacebookGroups(
 ): Promise<GroupSuggestion[]> {
   const businessContext = buildBusinessContext(profile)
 
-  const prompt = `את מומחית לשיווק מקומי בפייסבוק בישראל. עליך להמליץ על קבוצות פייסבוק רלוונטיות לפרסום עבור הקוסמטיקאית הבאה.
+  const prompt = `את מומחית לשיווק מקומי בפייסבוק בישראל. עליך להמליץ על קבוצות פייסבוק רלוונטיות לפרסום עבור ה${personaLabel(profile.fields)} הבאה.
 
 == פרטי העסק ==
 ${businessContext}
 
 == המשימה ==
-הצעי ${count} שמות של קבוצות פייסבוק שהקוסמטיקאית כדאי שתחפש ותצטרף אליהן.
+הצעי ${count} שמות של קבוצות פייסבוק ש${personaLabel(profile.fields)} כדאי שתחפש ותצטרף אליהן.
 
 חשבי על קטגוריות מגוונות:
 - קבוצות לפי אזור גיאוגרפי (תושבי העיר, פורומים מקומיים)

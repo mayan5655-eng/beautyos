@@ -33,35 +33,53 @@
  * Type sizes here start at 12.5px on purpose. The app has a known legibility
  * problem (hundreds of sub-11px nodes) and this screen is read by someone
  * deciding what her business sells; it is not the place to add more 9px text.
+ *
+ * FIELD-AWARE since business_fields shipped: `fields` decides which of
+ * lib/tenantTemplate's per-field menus render. One field renders exactly as
+ * before — no field-level heading, just her groups. More than one field adds
+ * a small heading per field (lib/businessFields.ts's label) above its groups,
+ * so a dual-field tenant can tell which world each group came from without
+ * the picker turning into a maze. Nothing is selected when the list opens
+ * here either, same rule as before, now per field.
  */
 
 import { useMemo, useState } from 'react';
 import {
-  SERVICE_TEMPLATE_GROUPS,
+  serviceTemplateGroupsFor,
   suggestedPrice,
   priceRangeLabel,
   type ServiceTemplateItem,
 } from '@/lib/tenantTemplate';
+import { BUSINESS_FIELDS, type FieldKey } from '@/lib/businessFields';
 import type { PickedService } from '@/lib/seedServices';
 
 export default function ServiceTemplatePicker({
   value,
   onChange,
+  fields,
   existingNames = [],
   accent = 'var(--pc)',
   accentTint = 'var(--pc-tint)',
 }: {
   value: PickedService[];
   onChange: (next: PickedService[]) => void;
+  /** Which field(s)' menus to show — the picks from onboarding step 4 or
+   *  Settings → כללי. Empty shows nothing (see the caller's own empty-state
+   *  copy for what to say instead of rendering a blank box). */
+  fields: FieldKey[];
   /** Already on her price list — shown, but not selectable twice. */
   existingNames?: string[];
   accent?: string;
   accentTint?: string;
 }) {
-  // Only the first group starts open. Thirty rows at once is a wall; four
-  // headings with one open is a list.
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    [SERVICE_TEMPLATE_GROUPS[0].key]: true,
+  const fieldGroups = useMemo(() => serviceTemplateGroupsFor(fields), [fields]);
+  const showFieldHeadings = fieldGroups.length > 1;
+
+  // Only the very first group across every field starts open. Thirty rows at
+  // once is a wall; a handful of headings with one open is a list.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const firstKey = fieldGroups[0]?.groups[0]?.key;
+    return firstKey ? { [firstKey]: true } : {};
   });
 
   const existing = useMemo(
@@ -77,14 +95,14 @@ export default function ServiceTemplatePicker({
   const toggleGroup = (key: string) =>
     setOpenGroups((g) => ({ ...g, [key]: !g[key] }));
 
-  const toggleItem = (item: ServiceTemplateItem) => {
+  const toggleItem = (item: ServiceTemplateItem, field: FieldKey) => {
     if (existing.has(item.name)) return;
     if (byName.has(item.name)) {
       onChange(value.filter((p) => p.name !== item.name));
     } else {
       onChange([
         ...value,
-        { name: item.name, price: suggestedPrice(item), duration: item.duration, description: item.description },
+        { name: item.name, price: suggestedPrice(item), duration: item.duration, description: item.description, field },
       ]);
     }
   };
@@ -98,9 +116,20 @@ export default function ServiceTemplatePicker({
     onChange(value.map((p) => (p.name === name ? { ...p, [field]: n } : p)));
   };
 
+  if (fieldGroups.length === 0) {
+    return null;
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {SERVICE_TEMPLATE_GROUPS.map((group) => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {fieldGroups.map(({ field, groups }) => (
+        <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {showFieldHeadings && (
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: accent, margin: 0 }}>
+              {BUSINESS_FIELDS.find((f) => f.key === field)?.label ?? field}
+            </p>
+          )}
+          {groups.map((group) => {
         const open = !!openGroups[group.key];
         const chosenHere = group.items.filter((i) => byName.has(i.name)).length;
         return (
@@ -168,7 +197,7 @@ export default function ServiceTemplatePicker({
                     >
                       <button
                         type="button"
-                        onClick={() => toggleItem(item)}
+                        onClick={() => toggleItem(item, field)}
                         disabled={already}
                         aria-pressed={isPicked}
                         style={{
@@ -226,6 +255,16 @@ export default function ServiceTemplatePicker({
                               ? 'כבר ברשימה שלך'
                               : `${item.duration} דקות · מקובל בשוק: ${priceRangeLabel(item)}`}
                           </span>
+                          {/* A reminder, never a gate — she knows what she's
+                              certified for. Shown regardless of pick state,
+                              same as the duration/price line above it. */}
+                          {item.licenceNote && (
+                            <span
+                              style={{ display: 'block', fontSize:"var(--t-sm)", color: 'var(--warning)', marginTop: 2, fontWeight: 600 }}
+                            >
+                              ⚠️ {item.licenceNote}
+                            </span>
+                          )}
                         </span>
                       </button>
 
@@ -274,7 +313,9 @@ export default function ServiceTemplatePicker({
             )}
           </div>
         );
-      })}
+          })}
+        </div>
+      ))}
     </div>
   );
 }

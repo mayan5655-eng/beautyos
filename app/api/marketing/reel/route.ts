@@ -1,5 +1,6 @@
 // app/api/marketing/reel/route.ts
-// Generates a COMPLETE reel campaign package for a cosmetician:
+// Generates a COMPLETE reel campaign package for a cosmetician, a nails
+// technician, or both (personaLabel, from her business_fields):
 // spoken script (scene by scene), filming instructions, cover title,
 // post caption, hashtags, and a recommended music vibe.
 //
@@ -12,7 +13,7 @@ import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
-import { GROUNDING_RULES } from '@/lib/ai/marketingAI'
+import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     const contextLines = [
       `שם: ${businessName}`,
-      profile.therapist_name ? `שם הקוסמטיקאית: ${profile.therapist_name}` : null,
+      profile.therapist_name ? `שם ה${personaLabel(profile.fields)}: ${profile.therapist_name}` : null,
       profile.business_description ? `על העסק: ${profile.business_description}` : null,
       city ? `עיר: ${city}` : null,
       profile.target_audience ? `קהל יעד: ${profile.target_audience}` : null,
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join('\n')
 
-    const prompt = `את במאית תוכן ומומחית רילסים לעסקי יופי בישראל. קוסמטיקאית רוצה ליצור רילס מקצועי לאינסטגרם/טיקטוק.
+    const prompt = `את במאית תוכן ומומחית רילסים לעסקי יופי בישראל. ${personaLabel(profile.fields)} רוצה ליצור רילס מקצועי לאינסטגרם/טיקטוק.
 
 == פרטי העסק ==
 ${contextLines}
@@ -122,7 +123,7 @@ ${duration} שניות${vibe ? `\n\n== ווייב מבוקש ==\n${vibe}` : ''}
 ${GROUNDING_RULES}
 
 == המשימה ==
-בני חבילת רילס שלמה שהקוסמטיקאית תוכל להפיק לבד עם הטלפון ו-CapCut.
+בני חבילת רילס שלמה ש${personaLabel(profile.fields)} תוכל להפיק לבד עם הטלפון ו-CapCut.
 דברי בעברית טבעית וחמה. היי מעשית וספציפית.
 
 חשבי על:

@@ -11,8 +11,8 @@ import { fillTemplate, colorsFor } from './lib/design/mapBranding.ts';
 import { applyOverrides, sanitizeOverrides, sanitizeValues, sanitizeImages } from './lib/design/design.ts';
 
 // ── Library shape ────────────────────────────────────────────────────────────
-assert.equal(CREAM_DEFS.length, 50, 'the launch library: 20 evergreen, 15 holidays and seasons, 15 closers');
-assert.deepEqual(CREAM_DEFS.reduce((acc, d) => ({ ...acc, [d.group]: (acc[d.group] || 0) + 1 }), {} as Record<string, number>), { evergreen: 20, seasonal: 15, closer: 15 });
+assert.equal(CREAM_DEFS.length, 58, 'the launch library (50: 20 evergreen, 15 holidays and seasons, 15 closers) plus business_fields: 6 nails, 2 dual-field universal');
+assert.deepEqual(CREAM_DEFS.reduce((acc, d) => ({ ...acc, [d.group]: (acc[d.group] || 0) + 1 }), {} as Record<string, number>), { evergreen: 28, seasonal: 15, closer: 15 });
 const built = CREAM_DEFS.reduce((n, d) => n + (d.formats || ['feed45', 'story']).length, 0);
 assert.equal(TEMPLATES.length, built, 'every format of every studio definition, nothing else');
 assert.equal(new Set(TEMPLATES.map(templateId)).size, TEMPLATES.length, 'no two templates share key@version');
@@ -55,10 +55,19 @@ assert.ok(getTemplate('review-feed', 2)!.layers.some((l) => l.type === 'rating')
 assert.equal(storySibling('offer-feed')!.key, 'offer-story');
 assert.equal(storySibling('glow-story-story'), null, 'a story-only key has no story sibling of its own');
 assert.ok(!galleryTemplates().some((t) => /-story$/.test(t.key) && t.key !== 'glow-story-story'), 'the gallery folds stories into their feed card; the story-only one stands alone');
-assert.equal(galleryTemplates().length, 50, 'one card per definition');
+assert.equal(galleryTemplates().length, 58, 'one card per definition');
 assert.ok(galleryTemplates().every((t) => t.group), 'the v1 generation is not offered any more');
 assert.equal(galleryTemplates(null, 'seasonal').length, 15);
 assert.equal(galleryTemplates('offer', 'closer').length, 3, 'duo, gift card, referral');
+
+// ── business_fields: every template is tagged, the gallery filters by it ───
+assert.deepEqual(getTemplate('offer-feed')!.fields, ['cosmetics'], 'untouched: the compiler default for a def with no fields set');
+assert.deepEqual(getTemplate('nail-before-after-feed')!.fields, ['nails']);
+assert.deepEqual(getTemplate('limited-offer-feed')!.fields, ['cosmetics', 'nails']);
+assert.equal(galleryTemplates(null, null, ['nails']).length, 8, 'the 6 nails templates plus the 2 dual-field ones');
+assert.equal(galleryTemplates(null, null, ['cosmetics']).length, 52, 'the original 50 plus the 2 dual-field ones');
+assert.equal(galleryTemplates(null, null, ['cosmetics', 'nails']).length, 58, 'both fields: everything, same as no filter at all');
+assert.equal(galleryTemplates(null, null).length, 58, 'omitted: every field, same as before this parameter existed');
 for (const t of TEMPLATES) {
   assert.deepEqual(validateTemplate(t), [], `${templateId(t)} is valid`);
   assert.deepEqual(JSON.parse(JSON.stringify(t)), t, `${templateId(t)} is plain JSON`);
@@ -69,7 +78,7 @@ for (const t of TEMPLATES) {
 assert.equal(getTemplate('offer-feed')?.version, 2, 'latest wins when no version is asked for');
 assert.equal(getTemplate('offer-feed', 1), null, 'the first generation is gone');
 assert.equal(getTemplate('offer-feed', 99), null);
-assert.equal(galleryTemplates('offer').length, 6, 'offer, package, new client, duo, gift card, referral');
+assert.equal(galleryTemplates('offer').length, 8, 'offer, package, new client, duo, gift card, referral, plus nail-gel-offer and the dual-field limited-offer');
 
 // ── Immutability: hashes match the lock file ────────────────────────────────
 const deep = (v: unknown): unknown => (Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, deep((v as Record<string, unknown>)[k])])) : v);

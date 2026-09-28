@@ -97,8 +97,9 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
   let plan;
+  let profile;
   try {
-    const profile = await loadBusinessProfile(supabase, tenantId);
+    profile = await loadBusinessProfile(supabase, tenantId);
     plan = await planPost(profile, brief, candidates, tenantId);
   } catch (e) {
     if (e instanceof AiCapExceededError) return NextResponse.json({ success: false, error: `ניצלת את ${e.cap} היצירות של החודש. התבניות פתוחות תמיד.`, used: e.used, cap: e.cap }, { status: 429 });
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
         brandKit: { businessName: (settings?.business_name as string) || null, primaryColor: (settings?.primary_color as string) || null, secondaryColor: typeof branding.secondary_color === 'string' ? branding.secondary_color : null, visualStyle: typeof branding.brand_tone === 'string' ? branding.brand_tone : null, avoid: DIRECTOR_AVOID },
         direction: { concept: slot.aiHint || null, negativeSpace: 'bottom', palette: null },
         format: imageFormat,
+        fields: profile?.fields ?? null,
       });
       const image = await generateImage({ prompt, format: imageFormat, tenantId, callSite: GENERATE_IMAGE_CALL_SITE });
       const path = `${tenantId}/designs/gen_${stamp}_${i}.png`;
