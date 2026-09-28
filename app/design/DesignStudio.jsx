@@ -74,15 +74,26 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   }, []);
 
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
+  // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found.
+  useMemo(() => {
+    console.warn("[FIELD-DEBUG] 2/3 businessFieldsOf(settings) ->", JSON.stringify(fields),
+      "| settings.business_fields was:", JSON.stringify(settings?.business_fields));
+    return null;
+  }, [fields, settings]);
   const occasions = useMemo(() => openOccasions(fields), [fields]);
   // Per group: its cards, the seasonal ones whose window is open lifted to the front with their days left.
   const sections = useMemo(() => {
     const open = new Map(occasions.map((o) => [o.template.key, o.upcoming]));
-    return GROUPS.filter((g) => !group || g === group).map((g) => {
+    const result = GROUPS.filter((g) => !group || g === group).map((g) => {
       const list = galleryTemplates(null, g, fields);
       const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : 0);
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
+    // TEMP DIAGNOSTIC — remove once the business_fields gallery bug is found.
+    console.warn("[FIELD-DEBUG] 3/3 gallery filter saw fields:", JSON.stringify(fields),
+      "| section counts:", result.map((s) => `${s.group}:${s.templates.length}`).join(", "),
+      "| reels seen:", latestReels(null, null, fields).length);
+    return result;
   }, [group, occasions, fields]);
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const hasReviews = Array.isArray(branding.reviews) && branding.reviews.length > 0;
