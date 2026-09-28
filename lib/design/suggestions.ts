@@ -57,14 +57,43 @@ const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמיש�
  *  content, not a bug — see lib/design/templates/cream/nails.ts. */
 const TIP_ROTATION_BY_FIELD: Record<FieldKey, string[]> = {
   cosmetics: ['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'],
-  nails: ['nail-tip-feed'],
+  nails: ['nail-tip-gel-last-feed', 'nail-tip-dont-feed', 'nail-faq-feed', 'nail-myths-feed'],
 };
 
 /** Where "you've never posted about X" points, per field. */
 const UNPOSTED_FALLBACK_BY_FIELD: Record<FieldKey, { templateKey: string; kicker: string }> = {
   cosmetics: { templateKey: 'facial-feed', kicker: 'טיפול' },
-  nails: { templateKey: 'nail-art-showcase-feed', kicker: 'טיפול' },
+  nails: { templateKey: 'nail-design-showcase-feed', kicker: 'עיצוב' },
 };
+
+/** Nails-only: which season's palette template a design-idea nudge points
+ *  at, and the prompt that goes with it. Cosmetics has no equivalent — a
+ *  facial has no seasonal colour palette to shoot ahead of a season the way
+ *  a nail set does. Distinct from the ordinary occasion suggestion below:
+ *  that one invites her to POST an already-drawn seasonal card; this one
+ *  invites her to go SHOOT a fresh set for the look, matching the brief's
+ *  own example ("חורף: גוונים עמוקים, תרצי סט לצלם?"). Both can legitimately
+ *  appear the same week. */
+const SEASON_DESIGN_IDEA: Partial<Record<string, { templateKey: string; prompt: string }>> = {
+  summer: { templateKey: 'nail-summer-palette-feed', prompt: 'גוונים בהירים ונועזים — תרצי סט לצלם?' },
+  winter: { templateKey: 'nail-winter-palette-feed', prompt: 'גוונים עמוקים — תרצי סט לצלם?' },
+  spring: { templateKey: 'nail-spring-palette-feed', prompt: 'פסטלים עדינים — תרצי סט לצלם?' },
+  autumn: { templateKey: 'nail-autumn-palette-feed', prompt: 'טרקוטה וחום חם — תרצי סט לצלם?' },
+};
+
+/** A seasonal design-idea nudge, when nails is active and a season window is
+ *  open — a production prompt, not a posting one. Exported separately (and
+ *  folded into suggestPosts below) so a caller that only wants design ideas,
+ *  not the full weekly list, can ask for just this. */
+export function designIdeaSuggestion(input: SuggestionInput): Suggestion | null {
+  const fields = input.fields && input.fields.length ? input.fields : DEFAULT_BUSINESS_FIELDS;
+  if (!fields.includes('nails')) return null;
+  const today = input.today || new Date();
+  const season = upcomingHolidays(today).find((u) => SEASON_DESIGN_IDEA[u.holiday.key]);
+  if (!season) return null;
+  const idea = SEASON_DESIGN_IDEA[season.holiday.key]!;
+  return { key: `design-idea:${season.holiday.key}`, reason: `${season.holiday.name}: ${idea.prompt}`, templateKey: idea.templateKey, values: {}, upcoming: season };
+}
 
 const isoDay = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const clean = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
@@ -115,6 +144,8 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
     if (!templateKey) continue;
     out.push({ key: `occasion:${u.holiday.key}`, reason: holidayPrompt(u), templateKey, values: {}, upcoming: u });
   }
+  const idea = designIdeaSuggestion(input);
+  if (idea) out.push(idea);
   const quiet = quietDay(input);
   if (quiet) {
     const [, m, d] = quiet.date.split('-');

@@ -16,24 +16,32 @@ import DomPreview from './DomPreview';
 import { getTemplate, TEMPLATES } from '@/lib/design/templates';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { suggestPosts } from '@/lib/design/suggestions';
+import { businessFieldsOf } from '@/lib/businessFields';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px' };
 const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 };
 
-/** occasion key -> the newest feed template that carries it. */
-function holidayTemplates() {
+/** occasion key -> the newest feed template that carries it, restricted to
+ *  her own field(s) — otherwise a nails tenant could get pointed at the
+ *  cosmetics version of the same occasion, or vice versa. */
+function holidayTemplates(fields) {
   const out = {};
-  for (const t of TEMPLATES) if (t.holiday && t.format === 'feed45' && (!out[t.holiday] || t.version > getTemplate(out[t.holiday]).version)) out[t.holiday] = t.key;
+  for (const t of TEMPLATES) {
+    if (!t.holiday || t.format !== 'feed45') continue;
+    if (!t.fields.some((f) => fields.includes(f))) continue;
+    if (!out[t.holiday] || t.version > getTemplate(out[t.holiday]).version) out[t.holiday] = t.key;
+  }
   return out;
 }
 
 export default function WeekView({ settings, appointments, services, designs, readOnly, creating, onCreate, onReel, toast }) {
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
+  const fields = useMemo(() => businessFieldsOf(settings), [settings]);
   const suggestions = useMemo(() => {
     try {
-      return suggestPosts({ appointments, services, designs, reviews: Array.isArray(branding.reviews) ? branding.reviews : [], holidayTemplates: holidayTemplates() });
+      return suggestPosts({ appointments, services, designs, reviews: Array.isArray(branding.reviews) ? branding.reviews : [], holidayTemplates: holidayTemplates(fields), fields });
     } catch { return []; }
-  }, [appointments, services, designs, branding.reviews]);
+  }, [appointments, services, designs, branding.reviews, fields]);
 
   const [shoot, setShoot] = useState(null); // { week_note, ideas }
   const [shootBusy, setShootBusy] = useState(false);

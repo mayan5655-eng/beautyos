@@ -40,20 +40,25 @@ assert.equal(bare[0].key, 'tip');
 assert.ok(['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'].includes(bare[0].templateKey), 'default fields (none passed) is cosmetics, unchanged from before business_fields existed');
 
 // ── business_fields: unposted-service and the weekly tip, per field ────────
+const NAILS_TIP_KEYS = ['nail-tip-gel-last-feed', 'nail-tip-dont-feed', 'nail-faq-feed', 'nail-myths-feed'];
+// 2.11.2026 sits inside autumn's window (lib/design/holidays.ts's span), so a
+// nails-active call also gets the seasonal design-idea nudge alongside the
+// plain tip — both are real, independent suggestions, not a conflict.
 const nailsBare = suggestPosts({ today: day('2026-11-02'), fields: ['nails'] });
-assert.equal(nailsBare.length, 1);
-assert.equal(nailsBare[0].key, 'tip', 'a single field still keys the plain "tip", not "tip:nails"');
-assert.equal(nailsBare[0].templateKey, 'nail-tip-feed');
+assert.equal(nailsBare.length, 2);
+assert.ok(nailsBare.some((x) => x.key === 'tip' && NAILS_TIP_KEYS.includes(x.templateKey)), 'a single field still keys the plain "tip", not "tip:nails"');
+assert.ok(nailsBare.some((x) => x.key === 'design-idea:autumn' && x.templateKey === 'nail-autumn-palette-feed'), 'the seasonal design-idea nudge (see designIdeaSuggestion), distinct from a plain occasion post');
 
 const dual = suggestPosts({ today: day('2026-11-02'), fields: ['cosmetics', 'nails'] });
 assert.ok(dual.some((x) => x.key === 'tip' && ['tip-feed', 'routine-feed', 'info-feed', 'myths-feed', 'faq-feed', 'skin-health-feed'].includes(x.templateKey)), 'the first field keeps the plain key');
-assert.ok(dual.some((x) => x.key === 'tip:nails' && x.templateKey === 'nail-tip-feed'), 'a second active field adds its own, field-qualified');
+assert.ok(dual.some((x) => x.key === 'tip:nails' && NAILS_TIP_KEYS.includes(x.templateKey)), 'a second active field adds its own, field-qualified');
+assert.ok(dual.some((x) => x.key === 'design-idea:autumn'), 'the design-idea nudge fires once regardless of how many fields are active (it is nails-specific, not per-field)');
 
 // A never-posted nails service points at the nails fallback template, not the cosmetics one.
 const nailsService = suggestPosts({
   today, appointments: [], services: [{ name: 'מניקור ג׳ל', field: 'nails' }], designs: [], fields: ['nails'],
 });
-assert.ok(nailsService.some((x) => x.key === 'service:מניקור ג׳ל' && x.templateKey === 'nail-art-showcase-feed' && x.values.headline === 'מניקור ג׳ל'));
+assert.ok(nailsService.some((x) => x.key === 'service:מניקור ג׳ל' && x.templateKey === 'nail-design-showcase-feed' && x.values.headline === 'מניקור ג׳ל'));
 // A service with no field at all still falls back to the cosmetics template, same as always.
 assert.equal(unpostedService({ services: [{ name: 'עיצוב גבות' }], designs: [] }), 'עיצוב גבות');
 for (const x of [...nailsBare, ...dual, ...nailsService]) assert.ok(getTemplate(x.templateKey), `${x.templateKey} exists`);

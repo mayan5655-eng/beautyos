@@ -17,10 +17,16 @@ import { creamTemplates, type CreamDef } from './cream.ts';
 import { EVERGREEN } from './cream/evergreen.ts';
 import { HOLIDAYS } from './cream/holidays.ts';
 import { CLOSERS } from './cream/closers.ts';
-import { NAILS } from './cream/nails.ts';
+import { NAILS_EVERGREEN } from './cream/nails-evergreen.ts';
+import { NAILS_SEASONAL } from './cream/nails-seasonal.ts';
+import { NAILS_CLOSERS } from './cream/nails-closers.ts';
 import { UNIVERSAL } from './cream/universal.ts';
 
-export const CREAM_DEFS: CreamDef[] = [...EVERGREEN, ...HOLIDAYS, ...CLOSERS, ...NAILS, ...UNIVERSAL];
+export const CREAM_DEFS: CreamDef[] = [
+  ...EVERGREEN, ...HOLIDAYS, ...CLOSERS,
+  ...NAILS_EVERGREEN, ...NAILS_SEASONAL, ...NAILS_CLOSERS,
+  ...UNIVERSAL,
+];
 
 export const TEMPLATES: Template[] = [
   ...CREAM_DEFS.flatMap(creamTemplates),
@@ -34,14 +40,20 @@ export function getTemplate(key: string, version?: number | null): Template | nu
   return same.find((t) => t.version === version) || null;
 }
 
-/** The newest version of every key, for the gallery. */
-export function latestTemplates(category?: Category | null): Template[] {
+/** The newest version of every key, for the gallery. `fields`, when given,
+ *  keeps only templates sharing at least one field with it (a tenant's own
+ *  business_fields, lib/businessFields.ts's businessFieldsOf). Omitted shows
+ *  every field, unchanged from before this parameter existed. */
+export function latestTemplates(category?: Category | null, fields?: FieldKey[] | null): Template[] {
   const byKey = new Map<string, Template>();
   for (const t of TEMPLATES) {
     const cur = byKey.get(t.key);
     if (!cur || t.version > cur.version) byKey.set(t.key, t);
   }
-  return [...byKey.values()].filter((t) => !category || t.category === category);
+  return [...byKey.values()].filter((t) =>
+    (!category || t.category === category) &&
+    (!fields || !fields.length || t.fields.some((f) => fields.includes(f)))
+  );
 }
 
 /** 'offer-story' -> 'offer-feed': the 4:5 sibling the gallery shows as the card. */
@@ -64,8 +76,7 @@ export function storySibling(feedKey: string): Template | null {
  * behaviour.
  */
 export function galleryTemplates(category?: Category | null, group?: TemplateGroup | null, fields?: FieldKey[] | null): Template[] {
-  const latest = latestTemplates(category).filter((t) => t.group && (!group || t.group === group));
-  const inFields = fields && fields.length ? latest.filter((t) => t.fields.some((f) => fields.includes(f))) : latest;
-  const feedKeys = new Set(inFields.map((t) => t.key));
-  return inFields.filter((t) => !(/-story$/.test(t.key) && feedKeys.has(feedKeyOf(t.key))));
+  const latest = latestTemplates(category, fields).filter((t) => t.group && (!group || t.group === group));
+  const feedKeys = new Set(latest.map((t) => t.key));
+  return latest.filter((t) => !(/-story$/.test(t.key) && feedKeys.has(feedKeyOf(t.key))));
 }
