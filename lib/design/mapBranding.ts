@@ -17,6 +17,7 @@ import type { ColorRole, Template, VariableDef } from './contract.ts';
 import type { BrandToggles } from './design.ts';
 import { limitText } from './limitText.ts';
 import { waLink } from '../whatsappLink.ts';
+import { templateSeedImageUrl } from './templateSeedImages.ts';
 
 export type BrandingInput = {
   settings?: { business_name?: string | null; therapist_name?: string | null; business_phone?: string | null; primary_color?: string | null; branding?: unknown } | null;
@@ -35,6 +36,18 @@ export type BrandingInput = {
 export type Fill = {
   values: Record<string, string>;
   images: Record<string, string | null>;
+  /**
+   * The generated placeholder for a slot with nothing of her own in it -
+   * DomPreview's own last resort, never `images` itself. Deliberately kept
+   * separate rather than folded into `images`: a slot she hasn't filled is
+   * still `missing` and still blocks creation exactly as before (see
+   * templateSeedImageUrl's own header on why a stand-in photo must never
+   * silently satisfy a required slot on a design she might actually publish).
+   * This exists purely so the free gallery PREVIEW looks like its own
+   * template instead of an empty colour plate before she has content of
+   * her own - a consent-gated slot never gets one, whatever the template.
+   */
+  seedImages: Record<string, string | null>;
   colors: Record<ColorRole, string>;
   fonts: { display: string; body: string; accent: string };
   logoUrl: string | null;
@@ -137,6 +150,7 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
   }
 
   const images: Record<string, string | null> = {};
+  const seedImages: Record<string, string | null> = {};
   let galleryIdx = 0, clinicIdx = 0;
   for (const slot of template.slots) {
     const picked = clean(input.images?.[slot.key]);
@@ -153,12 +167,17 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
     // Client photos are never auto-filled: consent is a choice she makes.
     if (slot.consent && !picked) url = null;
     images[slot.key] = url;
+    // The seed placeholder: only when the slot is genuinely still empty and
+    // isn't consent-gated. It never affects `missing` - see the Fill type's
+    // own doc on why a stand-in must never silently satisfy a required slot.
+    seedImages[slot.key] = !url && !slot.consent ? templateSeedImageUrl(template.key) : null;
     if (slot.required && !url) missing.push(`slot:${slot.key}`);
   }
 
   return {
     values,
     images,
+    seedImages,
     colors,
     fonts: FONTS,
     // Logo off on this design: the logo layer falls back to her name, so the strip stays balanced.

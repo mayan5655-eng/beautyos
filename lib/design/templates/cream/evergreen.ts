@@ -151,7 +151,7 @@ export const products: CreamDef = {
   versions: { feed: 1, story: 1 },
   needs: ['תמונת מוצר'],
   layout: { family: 'frame' },
-  photoSlot: { label: 'תמונת מוצר', sources: ['upload', 'gallery', 'previous'] },
+  photoSlot: { label: 'תמונת מוצר', sources: ['upload', 'gallery', 'previous'], aiHint: `three unbranded skincare bottles of different heights on a pale shelf, ${CLINIC_LIGHT}, minimal styling, no labels` },
   kicker: { default: 'המדף שלי' },
   headline: { default: 'הסרום שאני ממליצה', maxLength: 40 },
   subline: { default: 'ויטמין C ליום, רטינול ללילה' },

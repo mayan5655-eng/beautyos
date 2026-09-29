@@ -160,6 +160,7 @@ export const designMenuGrid: CreamDef = {
   description: 'שלוש תמונות עיצוב בגריד, "בחרי את שלך" — כמו תפריט.',
   versions: { feed: 1, story: 1 },
   layout: { family: 'collage', count: 3 },
+  photoSlot: { aiHint: `a flatlay of three different nail-art styles side by side for comparison, ${STUDIO_LIGHT}, organised and inviting` },
   kicker: { default: 'בחרי את שלך' },
   headline: { default: '3 עיצובים מהשבוע האחרון', maxLength: 40 },
   cta: { default: 'תגידי לי מה מדבר אלייך' },

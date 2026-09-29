@@ -125,7 +125,10 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         }
         if (l.type === 'image') {
           const ref = fill.images?.[l.slot];
-          const src = isPrivateRef(ref) ? resolved[ref] : ref;
+          // Her own photo (however it resolves) always wins; the generated
+          // seed placeholder (lib/design/templateSeedImages.ts) is always a
+          // plain public path, never a private ref, so it needs no resolving.
+          const src = ref ? (isPrivateRef(ref) ? resolved[ref] : ref) : fill.seedImages?.[l.slot] || undefined;
           const focus = l.focus || { x: 0.5, y: 0.5 };
           const overlay = l.overlay
             ? l.overlay.direction === 'bottom'

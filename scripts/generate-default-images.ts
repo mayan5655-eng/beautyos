@@ -22,10 +22,11 @@ import path from 'node:path';
 import { generateImage } from '../lib/ai/openaiImages.ts';
 import { HARD_CONSTRAINTS, type ImageFormat } from '../lib/ai/imagePrompt.ts';
 
-const STYLE =
-  'Editorial beauty-clinic photography, soft natural window light, a calm palette of cream, warm white and muted sage green, ' +
-  'shallow depth of field, realistic skin and materials, high-end but warm, not stock-photo glossy. ' +
-  'Any person is an anonymous adult model and must look natural and unretouched. ';
+// Shared with scripts/generate-template-seed-images.ts, from its own module
+// rather than an import of this file: this file's generation loop runs at
+// the top level with no guard, so importing anything FROM it would also run
+// the whole thing (and require OPENAI_API_KEY) as a side effect.
+import { STYLE } from './imageStyle.ts';
 
 type Spec = { key: string; format: ImageFormat; subject: string };
 

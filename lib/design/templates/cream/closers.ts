@@ -7,7 +7,7 @@
 import type { CreamDef } from '../cream.ts';
 
 const CLINIC_LIGHT = 'soft window light, warm neutral tones, a calm treatment room';
-const PRODUCT_SLOT: CreamDef['photoSlot'] = { label: 'תמונת מוצר', sources: ['upload', 'gallery', 'previous'] };
+const PRODUCT_SLOT: CreamDef['photoSlot'] = { label: 'תמונת מוצר', sources: ['upload', 'gallery', 'previous'], aiHint: `a row of three amber glass serum droppers on a pale marble surface, ${CLINIC_LIGHT}, elegant` };
 
 export const duo: CreamDef = {
   slug: 'duo', name: 'מבצע לשתיים', category: 'offer', group: 'closer',

@@ -134,7 +134,8 @@ const bare = fillTemplate(getTemplate('offer-feed')!, { settings: { business_nam
 assert.equal(bare.values.business_name, 'הקליניקה של מאיה');
 assert.equal(bare.values.headline, 'טיפול פנים קלאסי', 'default headline when nothing typed');
 assert.equal(bare.images.photo, null, 'no picture -> null, the renderer draws a plate');
-assert.deepEqual(bare.missing, ['slot:photo'], 'the required picture is reported missing');
+assert.equal(bare.seedImages.photo, '/defaults/seed/offer.jpg', "no picture -> the generated seed image, DomPreview's own last resort");
+assert.deepEqual(bare.missing, ['slot:photo'], 'a seed image never satisfies a required slot - still reported missing, still blocks creation exactly as before this existed');
 assert.equal(bare.logoUrl, null);
 
 const full = fillTemplate(getTemplate('offer-feed')!, {
@@ -142,6 +143,7 @@ const full = fillTemplate(getTemplate('offer-feed')!, {
   inputs: { headline: '  טיפול פנים קלאסי  ', price: '₪249' },
 });
 assert.equal(full.images.photo, 'https://cdn/g1.jpg', 'first gallery photo fills the slot');
+assert.equal(full.seedImages.photo, null, 'her own photo filled it - no seed needed');
 assert.equal(full.logoUrl, 'https://cdn/logo.png');
 assert.deepEqual(full.missing, []);
 assert.equal(full.values.headline, 'טיפול פנים קלאסי', 'typed values are trimmed');
@@ -163,6 +165,7 @@ assert.equal(fillTemplate(getTemplate('offer-feed')!, { settings: { branding: {}
 // Client photos never auto-fill, even when something is in the gallery.
 const ba = fillTemplate(getTemplate('before-after-feed')!, { settings: { branding: { gallery: ['https://cdn/g1.jpg'] } } });
 assert.equal(ba.images.before, null);
+assert.equal(ba.seedImages.before, null, 'a consent-gated slot never gets a seed placeholder either - a stand-in "before" photo would be exactly the invented result this project has already refused once');
 assert.deepEqual(ba.missing, ['slot:before', 'slot:after']);
 
 // A review flows from her saved reviews.
@@ -197,5 +200,19 @@ assert.deepEqual(sanitizeImages(getTemplate('offer-feed')!, { photo: null }), { 
 const ref = 'private:8d4c2b3a-1111-4222-8333-444455556666/clients/abc/before_1.jpg';
 assert.deepEqual(sanitizeImages(getTemplate('before-after-feed')!, { before: ref, after: 'private:../etc/passwd' }), { before: ref });
 assert.deepEqual(sanitizeOverrides({ consent: { before: true, after: 'yes', 'bad id!': true } }), { consent: { before: true } });
+
+// ── Seed images: every non-consent photo slot has an aiHint, and the file
+// scripts/generate-template-seed-images.ts made from it is actually
+// committed - a stem with no file would 404 silently in DomPreview. ─────────
+const seedFeed = TEMPLATES.filter((t) => t.format !== 'story');
+const seedWithPhoto = seedFeed.filter((t) => t.slots.some((s) => !s.consent));
+assert.equal(seedWithPhoto.length, 87, 'every template with a real photo slot needs a seed image - if this number moved, scripts/generate-template-seed-images.ts needs a run for whatever changed');
+const seedStems = new Set<string>();
+for (const t of seedWithPhoto) {
+  const hint = t.slots.find((s) => !s.consent)?.aiHint;
+  assert.ok(hint, `${t.key}: a photo slot needs an aiHint before scripts/generate-template-seed-images.ts can make it a seed image`);
+  seedStems.add(t.key.replace(/-(feed|story)$/, ''));
+}
+for (const stem of seedStems) assert.ok(fs.existsSync(`public/defaults/seed/${stem}.jpg`), `public/defaults/seed/${stem}.jpg exists`);
 
 console.log('design templates: ok');
