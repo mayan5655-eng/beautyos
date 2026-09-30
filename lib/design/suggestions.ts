@@ -14,7 +14,7 @@
 // studio draws it with her branding and opens it as a design on tap.
 
 import { upcomingHolidays, holidayPrompt, type Upcoming } from './holidays.ts';
-import { DEFAULT_BUSINESS_FIELDS, isFieldKey, type FieldKey } from '../businessFields.ts';
+import { DEFAULT_BUSINESS_FIELDS, isFieldKey, pickByFields, type FieldKey } from '../businessFields.ts';
 
 export type Suggestion = {
   key: string;
@@ -65,6 +65,18 @@ const UNPOSTED_FALLBACK_BY_FIELD: Record<FieldKey, { templateKey: string; kicker
   cosmetics: { templateKey: 'facial-feed', kicker: 'טיפול' },
   nails: { templateKey: 'nail-design-showcase-feed', kicker: 'עיצוב' },
 };
+
+/** The quiet-day "a slot opened" post, per field. No genuinely dual-field
+ *  version exists (see cream/universal.ts's own note on why that category is
+ *  small and deliberate) - a dual-field tenant gets the cosmetics one, same
+ *  "cosmetics is the fallback when ambiguous" precedent as everywhere else
+ *  (pickByFields, defaultKeyForService's FIELD_GUESS_ORDER). */
+const QUIET_DAY_TEMPLATE_BY_FIELD = { cosmetics: 'slot-opened-feed', nails: 'nail-last-minute-feed' };
+
+/** The saved-review post, per field - unlike quiet-day, a real dual-field
+ *  template exists (cream/universal.ts's clientReview, written field-neutral
+ *  from the start), so `both` gets that instead of falling back to cosmetics. */
+const REVIEW_TEMPLATE_BY_FIELD = { cosmetics: 'review-feed', nails: 'nail-review-feed', both: 'client-review-feed' };
 
 /** Nails-only: which season's palette template a design-idea nudge points
  *  at, and the prompt that goes with it. Cosmetics has no equivalent — a
@@ -138,6 +150,7 @@ export function unpostedService(input: SuggestionInput): string | null {
 export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
   const today = input.today || new Date();
   const out: Suggestion[] = [];
+  const fields = input.fields && input.fields.length ? input.fields : DEFAULT_BUSINESS_FIELDS;
   const templates = input.holidayTemplates || {};
   for (const u of upcomingHolidays(today)) {
     const templateKey = templates[u.holiday.key];
@@ -149,7 +162,8 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
   const quiet = quietDay(input);
   if (quiet) {
     const [, m, d] = quiet.date.split('-');
-    out.push({ key: `quiet:${quiet.date}`, reason: `יום ${quiet.weekday} נראה שקט ביומן. פוסט "התפנה תור"?`, templateKey: 'slot-opened-feed', values: { subline: `יום ${quiet.weekday}, ${Number(d)}.${Number(m)}` } });
+    const quietTemplateKey = pickByFields(fields, QUIET_DAY_TEMPLATE_BY_FIELD);
+    out.push({ key: `quiet:${quiet.date}`, reason: `יום ${quiet.weekday} נראה שקט ביומן. פוסט "התפנה תור"?`, templateKey: quietTemplateKey, values: { subline: `יום ${quiet.weekday}, ${Number(d)}.${Number(m)}` } });
   }
   const service = unpostedService(input);
   if (service) {
@@ -162,10 +176,16 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
     out.push({ key: `service:${service}`, reason: `עוד לא פרסמת על ${service}.`, templateKey: fallback.templateKey, values: { headline: service, kicker: fallback.kicker } });
   }
   const reviews = input.reviews || [];
-  const recentReview = (input.designs || []).some((d) => d.template_key?.startsWith('review-') && d.created_at && today.getTime() - new Date(d.created_at).getTime() < 30 * DAY);
-  if (reviews.length && !recentReview) out.push({ key: 'review', reason: 'יש לך ביקורת שמורה שעוד לא הפכה לפוסט.', templateKey: 'review-feed', values: {} });
+  // Every field's review template shares the 'review' stem in its slug
+  // (review, nail-review, client-review - see REVIEW_TEMPLATE_BY_FIELD), so
+  // a post made under ANY of them counts as "already posted a review
+  // recently", not only the cosmetics one - otherwise a nails or dual-field
+  // tenant would never clear this 30-day suppression and get nudged every
+  // week regardless of what she just posted.
+  const reviewStems = Object.values(REVIEW_TEMPLATE_BY_FIELD).map((k) => k.replace(/-feed$/, ''));
+  const recentReview = (input.designs || []).some((d) => reviewStems.some((stem) => d.template_key?.startsWith(stem)) && d.created_at && today.getTime() - new Date(d.created_at).getTime() < 30 * DAY);
+  if (reviews.length && !recentReview) out.push({ key: 'review', reason: 'יש לך ביקורת שמורה שעוד לא הפכה לפוסט.', templateKey: pickByFields(fields, REVIEW_TEMPLATE_BY_FIELD), values: {} });
   const week = Math.floor(today.getTime() / (7 * DAY));
-  const fields = input.fields && input.fields.length ? input.fields : DEFAULT_BUSINESS_FIELDS;
   // The first field keeps the plain 'tip' key exactly as before — every
   // existing caller passes no `fields` at all and gets identical output,
   // byte for byte. A second active field (a dual-field tenant) adds its own

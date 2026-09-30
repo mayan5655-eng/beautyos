@@ -33,7 +33,7 @@ import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, credit
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
-import { DEFAULT_HOW_I_WORK, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
 import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
 import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
@@ -10644,7 +10644,7 @@ ${c.claimUrl}`)}`;
      replace the business name in the page's <h1>, so a clinic that filled it
      in got a shop window that never said whose shop it was. The page shows
      both now, and the label says which is which before she types. */}
- <div><p style={lbl}>כותרת ראשית בראש הדף</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder="למשל: העור שלך. הטיפול המדויק בשבילך." style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטקסט הגדול על התמונה הראשית. כל משפט (עד נקודה) יורד לשורה חדשה, ומהמשפט השני הצבע הוא צבע המותג.</p></div>
+ <div><p style={lbl}>כותרת ראשית בראש הדף</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder={`למשל: ${defaultHeroHeadline(businessFieldsOf(editSettings)).replace(/\n/," ")}`} style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטקסט הגדול על התמונה הראשית. כל משפט (עד נקודה) יורד לשורה חדשה, ומהמשפט השני הצבע הוא צבע המותג.</p></div>
  <div><p style={lbl}>משפט פתיחה קצר (מוצג אם לא מילאת שורת יתרונות)</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>לפני שמגיעים (חניה, קומה, אינטרקום)</p><input value={brand.arrival_note||""} onChange={e=>setBrand("arrival_note",e.target.value)} placeholder="למשל: חניה חופשית ברחוב, קומה 2" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>נשלח ללקוחה באישור התור. מונע את השיחה של &quot;איפה בדיוק?&quot; חמש דקות לפני.</p></div>
  <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
@@ -10656,7 +10656,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצג בדף ההזמנות. שורה לכל שלב. אם תרוקני את כולן, הקטע יוסתר.</p>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                     {[0,1,2,3].map(i=>{
-                      const steps=Array.isArray(brand.how_i_work)?brand.how_i_work:DEFAULT_HOW_I_WORK;
+                      const steps=Array.isArray(brand.how_i_work)?brand.how_i_work:defaultHowIWork(businessFieldsOf(editSettings));
                       return <input key={i} value={steps[i]||""} onChange={e=>{ const next=[0,1,2,3].map(j=>steps[j]||""); next[i]=e.target.value; setBrand("how_i_work",next); }} placeholder={`שלב ${i+1}`} style={inp}/>;
                     })}
  </div>

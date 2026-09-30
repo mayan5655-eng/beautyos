@@ -4,7 +4,7 @@ import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
-import { fetchPublicSettings, resolveBranding, DEFAULT_HOW_I_WORK, DEFAULT_HERO_HEADLINE, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
@@ -556,13 +556,17 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // number, otherwise the online flow (which needs a bookable service and day).
   const barShown = !!wa || canBook;
   const waHref = wa ? "https://wa.me/" + wa + "?text=" + encodeURIComponent("היי, אשמח לקבוע תור") : "";
-  // Public-page copy: hers when set, otherwise a default that claims nothing.
-  const heroHeadline = brand?.welcomeHeadline || DEFAULT_HERO_HEADLINE;
+  // Public-page copy: hers when set, otherwise a default that claims nothing
+  // - and, since business_fields shipped, a default that names the right
+  // body part. brand.fields is real (lib/branding.js's resolveBranding sets
+  // it from businessFieldsOf), same source defaultHeroKey/defaultAboutKey
+  // already use a few lines below for the photos.
+  const heroHeadline = brand?.welcomeHeadline || defaultHeroHeadline(brand?.fields);
   const heroLines = heroHeadline.split(/\n|(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
   const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || DEFAULT_HERO_BENEFITS;
   const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
   const aboutSignoff = brand?.aboutSignoff || "";
-  const aboutText = brand?.businessDescription || "ברוכה הבאה! כאן תמצאי טיפולים המותאמים אישית לעור שלך, באווירה רגועה ונעימה.";
+  const aboutText = brand?.businessDescription || defaultAboutText(brand?.fields);
   const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : DEFAULT_VALUE_PROPS;
   const resultGroups = groupResults(results, services);
   const addr = brand?.address || "";
@@ -571,7 +575,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const clinicPhotos = brand?.clinicPhotos || [];
   // null = she never touched it -> the seeded default; [] = explicitly cleared.
   const howIWork = brand?.howIWork === null || brand?.howIWork === undefined
-    ? DEFAULT_HOW_I_WORK
+    ? defaultHowIWork(brand?.fields)
     : brand.howIWork;
   // REAL REVIEWS WIN. dbReviews comes from clients who were actually here;
   // brand.reviews is the array she types herself in the branding tab. The old

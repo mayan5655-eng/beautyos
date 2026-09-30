@@ -72,3 +72,32 @@ export function fieldLabel(key: FieldKey): string {
 export function fieldsIntersect(fields: FieldKey[], targets: FieldKey[]): boolean {
   return fields.some((f) => targets.includes(f));
 }
+
+/** A value per field, plus an optional genuinely-dual-field one. `both` is
+ *  for content that CAN speak to both worlds at once — copy, mostly, unlike
+ *  a single photo or template key, which can't represent two fields in one
+ *  file (see lib/defaultImages.js's own note on that). Leave `both` out and
+ *  a dual-field tenant gets `cosmetics`, the same "cosmetics is the fallback
+ *  when ambiguous" precedent as DEFAULT_BUSINESS_FIELDS and
+ *  defaultKeyForService's FIELD_GUESS_ORDER. */
+export type FieldVariants<T> = { cosmetics: T; nails: T; both?: T };
+
+/**
+ * Picks the variant that matches a tenant's active field(s) — the one place
+ * this decision is made, so a default caption, template key or prompt line
+ * can't quietly go back to being the same for every tenant. Nails-only picks
+ * `nails`; active in both picks `both` when the caller supplied one, else
+ * falls back to `cosmetics`; anything else (cosmetics-only, empty, missing,
+ * malformed) picks `cosmetics`, matching businessFieldsOf's own fallback.
+ */
+export function pickByFields<T>(
+  fields: FieldKey[] | null | undefined,
+  variants: FieldVariants<T>
+): T {
+  const active = businessFieldsOf({ business_fields: fields });
+  const hasNails = active.includes('nails');
+  const hasCosmetics = active.includes('cosmetics');
+  if (hasNails && hasCosmetics && variants.both !== undefined) return variants.both;
+  if (hasNails && !hasCosmetics) return variants.nails;
+  return variants.cosmetics;
+}

@@ -63,4 +63,41 @@ assert.ok(nailsService.some((x) => x.key === 'service:מניקור ג׳ל' && x.
 assert.equal(unpostedService({ services: [{ name: 'עיצוב גבות' }], designs: [] }), 'עיצוב גבות');
 for (const x of [...nailsBare, ...dual, ...nailsService]) assert.ok(getTemplate(x.templateKey), `${x.templateKey} exists`);
 
+// ── business_fields: quiet-day and review must never point outside her
+// field(s) — both used to hardcode a cosmetics template regardless of what
+// suggestPosts was actually told. The real assertion is not "some specific
+// key" but "the resolved template is TAGGED for the field she's active in" —
+// that's what would fail again if either ever went back to being hardcoded.
+for (const f of ['cosmetics', 'nails'] as const) {
+  const forField = suggestPosts({
+    today, appointments: busy.map((date) => ({ date })), reviews: [{ name: 'דנה' }], designs: [], fields: [f],
+  });
+  const quietPost = forField.find((x) => x.key.startsWith('quiet:'));
+  assert.ok(quietPost, `${f}: a quiet-day post is suggested`);
+  assert.ok(getTemplate(quietPost!.templateKey)!.fields.includes(f), `${f}: quiet-day template ${quietPost!.templateKey} must carry the ${f} field`);
+  const reviewPost = forField.find((x) => x.key === 'review');
+  assert.ok(reviewPost, `${f}: a review post is suggested`);
+  assert.ok(getTemplate(reviewPost!.templateKey)!.fields.includes(f), `${f}: review template ${reviewPost!.templateKey} must carry the ${f} field`);
+}
+// A dual-field tenant's review points at the template written to speak to
+// both, not a fallback that only happens to work for one side.
+const dualPosts = suggestPosts({
+  today, appointments: busy.map((date) => ({ date })), reviews: [{ name: 'דנה' }], designs: [], fields: ['cosmetics', 'nails'],
+});
+assert.equal(dualPosts.find((x) => x.key === 'review')?.templateKey, 'client-review-feed', 'a dual-field tenant gets the genuinely dual-field review template');
+// No dual-field "slot opened" template exists yet, so a dual tenant gets the
+// cosmetics-first fallback — same documented precedent as everywhere else
+// something is ambiguous (businessFieldsOf, defaultKeyForService). If a
+// dual-field version ever ships, this line is the one to update.
+assert.equal(dualPosts.find((x) => x.key.startsWith('quiet:'))?.templateKey, 'slot-opened-feed');
+
+// A review posted under ANY field's template (not only the cosmetics one)
+// counts toward the 30-day "already posted a review" suppression.
+const afterNailsReview = suggestPosts({
+  today, appointments: busy.map((date) => ({ date })), reviews: [{ name: 'דנה' }],
+  designs: [{ template_key: 'nail-review-feed', created_at: new Date(today.getTime() - 86_400_000).toISOString() }],
+  fields: ['nails'],
+});
+assert.ok(!afterNailsReview.some((x) => x.key === 'review'), 'a nail-review post yesterday suppresses the nudge, not only a review-feed one');
+
 console.log('design suggestions: ok');
