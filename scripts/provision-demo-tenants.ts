@@ -52,12 +52,42 @@ async function findOrCreateAuthUser(email: string): Promise<string> {
     email,
     email_confirm: true,
     // Never used to log in - entry is always via magic link
-    // (app/demo/[field]/route.ts). Random so it is provably not guessable.
-    password: `demo-${crypto.randomUUID()}-${crypto.randomUUID()}`,
+    // (app/demo/[field]/route.ts). Random so it is provably not guessable;
+    // a single UUID keeps it well under Supabase's 72-character password cap.
+    password: `demo-${crypto.randomUUID()}`,
   });
   if (createErr || !created.user) throw new Error(`createUser failed for ${email}: ${createErr?.message}`);
   console.log(`  auth user created: ${email} (${created.user.id})`);
   return created.user.id;
+}
+
+/**
+ * auth.admin.createUser fires the SAME handle_new_user trigger a real signup
+ * does - confirmed by hand: creating the demo auth user auto-created its OWN
+ * "העסק של ..." tenant + tenant_members row, and since get_user_tenant_id()
+ * orders by created_at asc and picks the first, that auto-created (empty,
+ * non-demo) tenant is what a demo session actually resolved to, not the
+ * seeded one. This removes any OTHER membership for this user before the
+ * real one is written, so only the intended demo tenant remains. Only ever
+ * deletes a tenant that is (a) not one of our two fixed demo ids and (b) not
+ * flagged is_demo - the auto-created junk tenant, never a real one.
+ */
+async function removeAutoCreatedMemberships(userId: string, keepTenantId: string) {
+  const { data: rows, error } = await db.from('tenant_members').select('id, tenant_id').eq('user_id', userId);
+  if (error) throw new Error(`tenant_members read failed: ${error.message}`);
+  const stray = (rows || []).filter((r: { tenant_id: string }) => r.tenant_id !== keepTenantId);
+  for (const row of stray as { id: string; tenant_id: string }[]) {
+    const { error: delMemberErr } = await db.from('tenant_members').delete().eq('id', row.id);
+    if (delMemberErr) throw new Error(`stray tenant_members delete failed: ${delMemberErr.message}`);
+    const isKnownDemoId = Object.values(DEMO_TENANT_IDS).includes(row.tenant_id);
+    if (isKnownDemoId) continue; // never touch the other field's own demo tenant
+    const { data: t } = await db.from('tenants').select('id, is_demo').eq('id', row.tenant_id).maybeSingle();
+    if (t && !t.is_demo) {
+      await db.from('settings').delete().eq('tenant_id', row.tenant_id);
+      await db.from('tenants').delete().eq('id', row.tenant_id);
+      console.log(`  removed auto-created tenant from signup trigger: ${row.tenant_id}`);
+    }
+  }
 }
 
 async function provisionOne(field: DemoField) {
@@ -66,9 +96,10 @@ async function provisionOne(field: DemoField) {
   const email = DEMO_AUTH_EMAILS[field];
 
   const userId = await findOrCreateAuthUser(email);
+  await removeAutoCreatedMemberships(userId, tenantId);
 
   const { error: tenantErr } = await db.from('tenants').upsert(
-    { id: tenantId, name: BUSINESS_NAME[field], is_demo: true, plan_status: 'active' },
+    { id: tenantId, name: BUSINESS_NAME[field], is_demo: true, plan_status: 'active', slug: `demo-${field}`, owner_id: userId },
     { onConflict: 'id' }
   );
   if (tenantErr) throw new Error(`tenants upsert failed: ${tenantErr.message}`);
