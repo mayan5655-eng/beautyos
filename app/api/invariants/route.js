@@ -15,6 +15,7 @@ import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { runInvariants, formatInvariantReport } from "../../../lib/invariants.js";
 import { staleSupportMessages, formatStaleSupportLine } from "../../../lib/supportInbox.ts";
+import { checkInstanceState } from "../../../lib/greenApi/health.ts";
 
 export const maxDuration = 120;
 
@@ -51,7 +52,24 @@ async function run() {
     if (staleSupport.error) console.error("[invariants] stale-support check failed:", staleSupport.error);
     const staleSupportLine = formatStaleSupportLine(staleSupport);
 
-    const report = [formatInvariantReport({ failures, errors }), staleSupportLine].filter(Boolean).join("\n\n");
+    // GreenAPI itself, not our own database: found 2026-10-01 by hand that
+    // "sent" in whatsapp_messages can be true while the WhatsApp session is
+    // logged out, because GreenAPI's own API accepts the call regardless.
+    // console.error (not .log) on purpose - this line must survive in Vercel's
+    // logs even if the WhatsApp alert below is the one message that can't
+    // arrive, since a down WhatsApp session is exactly what would swallow it.
+    // The admin panel (app/dashboard/admin/AdminClient.tsx) is the real,
+    // WhatsApp-independent surface for this; this is the best-effort second one.
+    const greenApiState = await checkInstanceState();
+    const greenApiDown = !greenApiState.ok || !greenApiState.authorized;
+    if (greenApiDown) {
+      console.error("[invariants] GreenAPI session is not authorized:", JSON.stringify(greenApiState));
+    }
+    const greenApiLine = greenApiDown
+      ? `וואטסאפ לא מחובר: ${greenApiState.ok ? `stateInstance="${greenApiState.stateInstance}"` : greenApiState.error} - שום הודעה אוטומטית לא מגיעה. בדקי ב-dashboard/admin או בקונסולת GreenAPI.`
+      : "";
+
+    const report = [formatInvariantReport({ failures, errors }), staleSupportLine, greenApiLine].filter(Boolean).join("\n\n");
     let notified = false;
 
     if (report) {

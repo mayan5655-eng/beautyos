@@ -20,6 +20,7 @@
 import { notFound } from 'next/navigation'
 import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
+import { checkInstanceState } from '@/lib/greenApi/health'
 import AdminClient, { type AdminTenantRow } from './AdminClient'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
@@ -92,11 +93,22 @@ export default async function AdminPage() {
     // Non-fatal: the panel simply will not badge her own row.
   }
 
+  // Checked live, every load, not cached: this asks GreenAPI itself whether
+  // the shared WhatsApp session is actually logged in. Found 2026-10-01 by
+  // hand, the hard way - instance 7107629829 read notAuthorized while 12
+  // consecutive nightly alerts sat logged "sent" and none arrived, because
+  // GreenAPI's /sendMessage returns 200 regardless of whether anything is on
+  // the other end. This is the loud, WhatsApp-independent way to catch that
+  // going forward: a WhatsApp alert about WhatsApp being down is exactly the
+  // message that wouldn't arrive either.
+  const greenApiState = await checkInstanceState()
+
   return (
     <AdminClient
       initialTenants={rows}
       ownTenantId={ownTenantId}
       metricsAvailable={!rich.error}
+      greenApiState={greenApiState}
     />
   )
 }

@@ -6400,6 +6400,22 @@ export default function BeautyOS() {
     general:"כללי",
   };
 
+  // What "status" has always meant versus what actually happened: "sent"
+  // (lib/whatsapp.js) only ever meant GreenAPI's API accepted the call - its
+  // server returns 200 even when the WhatsApp session behind it is logged
+  // out, so this is NOT proof of arrival. delivery_status is the honest
+  // answer, written only when GreenAPI's own outgoingMessageStatus webhook
+  // confirms it (app/api/whatsapp-webhook/route.js) - null means exactly
+  // "handed off, nothing has confirmed it arrived yet", not "delivered".
+  // See supabase/migrations/pending/whatsapp-delivery-status.sql.
+  function waDeliveryLabel(m){
+    if(m.status!=="sent") return {text:"✕ נכשל",color:"var(--danger)"};
+    if(m.delivery_status==="read") return {text:"✓✓ נקראה",color:"var(--success)"};
+    if(m.delivery_status==="delivered") return {text:"✓✓ הגיעה",color:"var(--success)"};
+    if(m.delivery_status==="undelivered") return {text:"⚠ לא הגיעה",color:"var(--danger)"};
+    return {text:"✓ נמסרה לוואטסאפ · אין אישור הגעה",color:"var(--ink-3)"};
+  }
+
 
   if(loading) return (
     <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",padding:"22px 18px",fontFamily:"'Heebo',sans-serif"}}>
@@ -8695,7 +8711,7 @@ ${c.claimUrl}`)}`;
  <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{m.recipient_name||"—"}</td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-xs)",color:"var(--ink-2)",whiteSpace:"nowrap"}}>{m.recipient_phone}</td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-sm)"}}><span className="pill" style={{background:"var(--pc-tint)",color:pc,padding:"3px 9px",fontWeight:600}}>{WA_TYPE_LABELS[m.message_type]||m.message_type}</span></td>
- <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",fontWeight:700,whiteSpace:"nowrap",color:m.status==="sent"?"var(--success)":"var(--danger)"}}>{m.status==="sent"?"✓ נשלח":"✕ נכשל"}</td>
+ <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",fontWeight:700,whiteSpace:"nowrap",color:waDeliveryLabel(m).color}}>{waDeliveryLabel(m).text}</td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-xs)",color:"var(--ink-2)",maxWidth:300}}>{m.message_body}</td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?new Date(m.created_at).toLocaleString("he-IL"):""}</td>
  </tr>

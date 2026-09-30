@@ -24,6 +24,7 @@ import { buildSystemPrompt } from "@/lib/botPrompt";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { hit } from "@/lib/rateLimit";
 import { isAuthorizedWebhook, webhookUnauthorized } from "../../../lib/webhookAuth";
+import { mapGreenApiDeliveryStatus } from "../../../lib/greenApi/deliveryStatus.ts";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -42,6 +43,42 @@ function extractText(messageData) {
   if (t === "extendedTextMessage" || t === "quotedMessage")
     return messageData.extendedTextMessageData?.text || "";
   return "";
+}
+
+// Records what GreenAPI's outgoingMessageStatus webhook actually says about
+// a message already logged "sent" - the piece that used to be discarded by
+// the typeWebhook filter below, which is exactly why "sent" never meant
+// "arrived" (see supabase/migrations/pending/whatsapp-delivery-status.sql).
+// Looked up by green_api_id (GreenAPI's idMessage), which is globally unique
+// per their own docs - not tenant-scoped, on purpose: this is GreenAPI
+// telling us about ITS OWN message id, so the id is the only key needed.
+async function recordDeliveryStatus(body) {
+  const idMessage = body.idMessage;
+  if (!idMessage) return;
+  const mapped = mapGreenApiDeliveryStatus(body.status);
+  if (!mapped) {
+    console.log(`[whatsapp-webhook] outgoingMessageStatus ${idMessage}: status "${body.status}" not recorded`);
+    return;
+  }
+  const patch = { delivery_status: mapped };
+  if (mapped === "delivered") patch.delivered_at = new Date().toISOString();
+  if (mapped === "read") patch.read_at = new Date().toISOString();
+  if (mapped === "undelivered") patch.undelivered_at = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("whatsapp_messages")
+    .update(patch)
+    .eq("green_api_id", idMessage)
+    .select("id");
+  if (error) {
+    const missingColumn = /delivery_status|delivered_at|read_at|undelivered_at/i.test(error.message);
+    console.error(`[whatsapp-webhook] delivery status update failed for ${idMessage}:`, error.message,
+      missingColumn ? "- whatsapp-delivery-status.sql may not be applied yet" : "");
+    return;
+  }
+  if (!data || data.length === 0) {
+    console.warn(`[whatsapp-webhook] outgoingMessageStatus for unknown idMessage ${idMessage} (status=${mapped})`);
+  }
 }
 
 // Convert a GreenAPI chatId back to an Israeli phone number
@@ -136,6 +173,13 @@ export async function POST(request) {
   }
   try {
     const body = await request.json();
+
+    // The delivery/read-receipt callback - see recordDeliveryStatus's own
+    // header on why this used to be silently discarded by the check below.
+    if (body.typeWebhook === "outgoingMessageStatus") {
+      await recordDeliveryStatus(body);
+      return Response.json({ ok: true });
+    }
 
     if (body.typeWebhook !== "incomingMessageReceived") {
       return Response.json({ ok: true, ignored: body.typeWebhook });

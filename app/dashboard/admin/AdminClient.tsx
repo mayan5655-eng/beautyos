@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import { planState, type PlanStatus } from '@/lib/planState'
 import { daysHe } from '@/lib/planCopy'
 import { ConfirmDialog } from '../../MiniToast'
+import type { InstanceState } from '@/lib/greenApi/health'
 
 export interface AdminTenantRow {
   id: string
@@ -106,6 +107,7 @@ export default function AdminClient({
   initialTenants,
   ownTenantId,
   metricsAvailable,
+  greenApiState,
 }: {
   initialTenants: AdminTenantRow[]
   ownTenantId: string | null
@@ -113,6 +115,10 @@ export default function AdminClient({
    *  page.tsx's fallback) - the extra columns are hidden rather than shown
    *  full of dashes, so the panel reads as "not built yet" and not "broken". */
   metricsAvailable: boolean
+  /** Checked live on every load - see page.tsx's own comment on why this
+   *  can't be a WhatsApp alert: a message about WhatsApp being down is
+   *  exactly the message that wouldn't arrive either. */
+  greenApiState: InstanceState
 }) {
   const [tenants, setTenants] = useState<AdminTenantRow[]>(initialTenants)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -215,8 +221,34 @@ export default function AdminClient({
     cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   }
 
+  // Loud on purpose, and first on the page: this is checked live against
+  // GreenAPI itself (not our own database) every time this page loads. A
+  // false here means every automated WhatsApp in the product - reminders,
+  // confirmations, receipts, review requests, the nightly ops alert, all of
+  // it - is being silently swallowed, because GreenAPI's /sendMessage
+  // returns 200 regardless of whether the session behind it is logged in.
+  const greenApiDown = !greenApiState.ok || !greenApiState.authorized
+
   return (
     <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif", color: ink }}>
+      {greenApiDown && (
+        <div style={{
+          padding: '16px 20px', borderRadius:"var(--r-md)", background: '#FAEDEB',
+          border: '2px solid #9A5148', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 12,
+        }}>
+          <span style={{ fontSize:"var(--t-2xl)", flexShrink: 0 }}>⚠</span>
+          <div>
+            <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: '#9A5148', marginBottom: 4 }}>
+              וואטסאפ לא מחובר - שום הודעה אוטומטית לא יוצאת בפועל
+            </p>
+            <p style={{ fontSize:"var(--t-sm)", color: '#9A5148', lineHeight: 1.6 }}>
+              {greenApiState.ok
+                ? `GreenAPI מחזירה stateInstance = "${greenApiState.stateInstance}" (לא authorized). תזכורות, אישורי תור, קבלות, בקשות ביקורת וההתראה היומית - כולן "נשלחות" בלוג אבל לא מגיעות, עד שהחיבור יתחדש בקונסולת GreenAPI.`
+                : `הבדיקה עצמה נכשלה: ${greenApiState.error}`}
+            </p>
+          </div>
+        </div>
+      )}
       <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
