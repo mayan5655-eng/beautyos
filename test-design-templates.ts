@@ -143,7 +143,7 @@ const full = fillTemplate(getTemplate('offer-feed')!, {
   inputs: { headline: '  טיפול פנים קלאסי  ', price: '₪249' },
 });
 assert.equal(full.images.photo, 'https://cdn/g1.jpg', 'first gallery photo fills the slot');
-assert.equal(full.seedImages.photo, null, 'her own photo filled it - no seed needed');
+assert.equal(full.seedImages.photo, '/defaults/seed/offer.jpg', 'the seed is there regardless - DomPreview picks which one to draw, not this map');
 assert.equal(full.logoUrl, 'https://cdn/logo.png');
 assert.deepEqual(full.missing, []);
 assert.equal(full.values.headline, 'טיפול פנים קלאסי', 'typed values are trimmed');

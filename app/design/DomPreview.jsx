@@ -82,12 +82,18 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
 }
 
 /**
- * @param template  a Template from lib/design/templates
- * @param fill      { values, images, colors, fonts, logoUrl } from mapBranding.fillTemplate
- * @param overrides her overrides (lib/design/design.ts)
- * @param width     rendered width in px (the canvas scales to it)
+ * @param template   a Template from lib/design/templates
+ * @param fill       { values, images, seedImages, colors, fonts, logoUrl } from mapBranding.fillTemplate
+ * @param overrides  her overrides (lib/design/design.ts)
+ * @param width      rendered width in px (the canvas scales to it)
+ * @param preferSeed browsing, not creating: show the template's own seed
+ *                   photo ahead of her real one, so a gallery card or the
+ *                   zoom preview reads as its own template instead of
+ *                   whichever gallery photo she happens to have. Once she
+ *                   creates from it, callers drop this and her photo leads,
+ *                   same as always - see mapBranding.ts's Fill.seedImages doc.
  */
-export default function DomPreview({ template, fill, overrides = null, width = 300, id, style, layerFilter = null, transparent = false }) {
+export default function DomPreview({ template, fill, overrides = null, width = 300, id, style, layerFilter = null, transparent = false, preferSeed = false }) {
   const canvas = CANVAS[template.format] || CANVAS.feed45;
   const k = width / canvas.w;
   const height = Math.round(canvas.h * k);
@@ -125,10 +131,13 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         }
         if (l.type === 'image') {
           const ref = fill.images?.[l.slot];
-          // Her own photo (however it resolves) always wins; the generated
-          // seed placeholder (lib/design/templateSeedImages.ts) is always a
-          // plain public path, never a private ref, so it needs no resolving.
-          const src = ref ? (isPrivateRef(ref) ? resolved[ref] : ref) : fill.seedImages?.[l.slot] || undefined;
+          // The generated seed (lib/design/templateSeedImages.ts) is always
+          // a plain public path, never a private ref, so it needs no
+          // resolving. Which one leads is the caller's call (preferSeed);
+          // either way, whichever isn't showing is still the fallback.
+          const own = ref ? (isPrivateRef(ref) ? resolved[ref] : ref) : undefined;
+          const seed = fill.seedImages?.[l.slot] || undefined;
+          const src = preferSeed ? (seed || own) : (own || seed);
           const focus = l.focus || { x: 0.5, y: 0.5 };
           const overlay = l.overlay
             ? l.overlay.direction === 'bottom'

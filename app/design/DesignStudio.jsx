@@ -190,14 +190,14 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
           <div style={{ width: 'min(100%, 400px)' }}>
             <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', aspectRatio: '4 / 5' }}>
-              <DomPreview template={preview} fill={fill} width={400} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+              <DomPreview template={preview} fill={fill} width={400} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} preferSeed />
             </div>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, textAlign: 'center' }}>פוסט 4:5</p>
           </div>
           {story && (
             <div style={{ width: 'min(100%, 300px)' }}>
               <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', aspectRatio: '9 / 16' }}>
-                <DomPreview template={story} fill={fillTemplate(story, { settings })} width={300} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} />
+                <DomPreview template={story} fill={fillTemplate(story, { settings })} width={300} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} preferSeed />
               </div>
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, textAlign: 'center' }}>סטורי 9:16</p>
             </div>
@@ -222,7 +222,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
         {upcoming && <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'var(--pc)', color: 'var(--pc-contrast)', fontSize: 'var(--t-xs)', fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--r-full)' }}>{upcoming.daysLeft <= 0 ? 'עכשיו' : upcoming.daysLeft === 1 ? 'מחר' : `בעוד ${upcoming.daysLeft} ימים`}</span>}
         <button onClick={() => setPreview(t)} title="לתצוגה גדולה" style={{ padding: 0, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden', boxShadow: 'var(--shadow-xs)', aspectRatio: storyOnly ? '9 / 16' : '4 / 5', background: 'var(--surface-2)', cursor: 'zoom-in', display: 'block', width: '100%' }}>
-          <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: storyOnly ? '9 / 16' : '4 / 5' }} />
+          <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: storyOnly ? '9 / 16' : '4 / 5' }} preferSeed />
         </button>
         <div>
           <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</p>
@@ -248,7 +248,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <div style={{ display: 'flex', gap: 4 }}>
           {r.scenes.slice(0, 3).map((s, i) => (
             <div key={s.id} style={{ flex: 1, borderRadius: 'var(--r-xs)', overflow: 'hidden', border: '1px solid var(--line)', aspectRatio: '9 / 16', background: 'var(--surface-2)' }}>
-              <DomPreview template={s.frame} fill={f.scenes[i]} width={48} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} />
+              <DomPreview template={s.frame} fill={f.scenes[i]} width={48} style={{ width: '100%', height: 'auto', aspectRatio: '9 / 16' }} preferSeed />
             </div>
           ))}
         </div>

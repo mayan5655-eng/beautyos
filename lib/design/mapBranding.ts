@@ -37,15 +37,20 @@ export type Fill = {
   values: Record<string, string>;
   images: Record<string, string | null>;
   /**
-   * The generated placeholder for a slot with nothing of her own in it -
-   * DomPreview's own last resort, never `images` itself. Deliberately kept
-   * separate rather than folded into `images`: a slot she hasn't filled is
-   * still `missing` and still blocks creation exactly as before (see
-   * templateSeedImageUrl's own header on why a stand-in photo must never
-   * silently satisfy a required slot on a design she might actually publish).
-   * This exists purely so the free gallery PREVIEW looks like its own
-   * template instead of an empty colour plate before she has content of
-   * her own - a consent-gated slot never gets one, whatever the template.
+   * The template's own generated photo for this slot, whenever the slot
+   * isn't consent-gated - set regardless of whether `images` also has a
+   * real photo in it, never folded into `images` itself. DomPreview decides
+   * which one to draw: browsing a template (a gallery card, the zoom
+   * preview) passes `preferSeed` so the card shows what the TEMPLATE is
+   * about, not a real photo recycled from her (see DomPreview.jsx's own
+   * header on why - a tenant with even one gallery photo would otherwise
+   * see that same photo on every template, which is the exact bug this
+   * field was built to fix and gallery-precedence silently reintroduced).
+   * Once she actually creates from it, DomPreview drops `preferSeed` and
+   * her own photo (still resolved into `images` below, unaffected by any
+   * of this) takes over exactly as before. `missing` is untouched too - a
+   * seed image never satisfies a required slot on a design she might
+   * actually publish (see templateSeedImageUrl's own header).
    */
   seedImages: Record<string, string | null>;
   colors: Record<ColorRole, string>;
@@ -167,10 +172,10 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
     // Client photos are never auto-filled: consent is a choice she makes.
     if (slot.consent && !picked) url = null;
     images[slot.key] = url;
-    // The seed placeholder: only when the slot is genuinely still empty and
-    // isn't consent-gated. It never affects `missing` - see the Fill type's
-    // own doc on why a stand-in must never silently satisfy a required slot.
-    seedImages[slot.key] = !url && !slot.consent ? templateSeedImageUrl(template.key) : null;
+    // The template's own seed photo, whenever the slot allows one at all -
+    // independent of whether `url` also has her real photo. See the Fill
+    // type's own doc: DomPreview picks between the two, this map doesn't.
+    seedImages[slot.key] = !slot.consent ? templateSeedImageUrl(template.key) : null;
     if (slot.required && !url) missing.push(`slot:${slot.key}`);
   }
 

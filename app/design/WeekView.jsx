@@ -83,7 +83,7 @@ export default function WeekView({ settings, appointments, services, designs, re
               <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
                 {s.upcoming && <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'var(--pc)', color: 'var(--pc-contrast)', fontSize: 'var(--t-xs)', fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--r-full)' }}>{s.upcoming.daysLeft <= 0 ? 'עכשיו' : s.upcoming.daysLeft === 1 ? 'מחר' : `בעוד ${s.upcoming.daysLeft} ימים`}</span>}
                 <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: '1px solid var(--line)', boxShadow: 'var(--shadow-xs)', aspectRatio: '4 / 5', background: 'var(--surface-2)' }}>
-                  <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} />
+                  <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: '4 / 5' }} preferSeed />
                 </div>
                 <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.45 }}>{s.reason}</p>
                 <button onClick={() => onCreate(t, s.values)} disabled={blocked || readOnly || creating === t.key} className="primary-btn" style={{ padding: '9px 0', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: blocked || readOnly ? 0.5 : 1 }}>
