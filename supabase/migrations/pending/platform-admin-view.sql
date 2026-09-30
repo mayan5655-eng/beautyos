@@ -1,4 +1,8 @@
--- STATUS: UNKNOWN - verification query in README.md.
+-- STATUS: NOT YET APPLIED (revised 2026-09-30 - setup_score rewritten to
+-- match the real checklist, ai_cost_usd_30d / whatsapp_sent_30d /
+-- whatsapp_failed_30d added; the prior "UNKNOWN" status described an earlier
+-- version of this function and does not carry over). Verification query in
+-- README.md.
 -- The folder name is not a status. See README.md in this directory.
 
 -- platform-admin-view.sql
@@ -43,7 +47,17 @@ returns table (
   client_count       bigint,
   appointment_count  bigint,
   last_activity_at   timestamptz,
-  setup_score        integer
+  setup_score        integer,
+  setup_total        integer,
+  -- Money, only where it is genuinely the platform's: every Claude call and
+  -- every OpenAI image generation is billed to us and already metered into
+  -- ai_usage (lib/ai/usage.ts). WhatsApp is deliberately NOT a cost column -
+  -- each tenant provisions and pays for her OWN GreenAPI instance, so "what
+  -- WhatsApp costs me" is not a real number on our side. What IS ours to
+  -- watch is whether her sends are actually landing, hence counts, not cost.
+  ai_cost_usd_30d       numeric,
+  whatsapp_sent_30d     bigint,
+  whatsapp_failed_30d   bigint
 )
 language sql
 stable
@@ -82,28 +96,70 @@ as $$
       (select max(c.created_at) from public.clients c      where c.tenant_id = t.id),
       (select max(r.created_at) from public.receipts r     where r.tenant_id = t.id)
     ) at time zone 'UTC') as last_activity_at,
-    -- Setup progress, mirroring the seven-step checklist in app/beautyos.jsx so
-    -- the panel can show who is stuck BEFORE she gives up. Counted here rather
-    -- than shipped as raw settings, so no settings column leaves the database.
+    -- Setup progress, mirroring the ACTUAL setupSteps array in app/beautyos.jsx
+    -- (search "const setupSteps =") so the panel can show who is stuck BEFORE
+    -- she gives up. Counted here rather than shipped as raw settings, so no
+    -- settings column leaves the database.
+    --
+    -- Revised 2026-09-30: the previous version scored 5 checks against a
+    -- comment claiming "seven-step checklist" - the real checklist in the app
+    -- has SIX steps today (a WhatsApp/green_api step existed once, per that
+    -- file's own trailing comment "Was: settings.green_api_token, which the
+    -- browser no longer receives", and was removed - the SQL still had it).
+    -- This version has one CASE per real step, in the app's own order, so a
+    -- future edit to setupSteps is a diff here too, not a silent drift:
+    --   1. details  - business_name (real, not the placeholder) + phone
+    --   2. services - at least one service_prices row
+    --   3. hours    - business_hours (a non-empty object) or the two column pair
+    --   4. branding - logo + accent colour + (a headline or a welcome message)
+    --   5. gallery  - at least one gallery photo
+    --   6. social   - whatsapp number, instagram, facebook, tiktok or website
     (
       select
         (case when coalesce(nullif(btrim(s.business_name), ''), '') <> ''
                and coalesce(nullif(btrim(s.business_name), ''), '') <> 'העסק שלי'
                and coalesce(nullif(btrim(s.business_phone), ''), '') <> '' then 1 else 0 end)
       + (case when exists (select 1 from public.service_prices sp where sp.tenant_id = t.id) then 1 else 0 end)
-      + (case when s.working_hours_start is not null and s.working_hours_end is not null then 1 else 0 end)
-      + (case when coalesce(nullif(btrim(s.primary_color), ''), '') <> '' then 1 else 0 end)
-      -- green_api_token_encrypted, NOT green_api_token: the plaintext column is
-      -- removed by drop-green-api-token-plaintext.sql, and this function would
-      -- fail to create against a column that no longer exists. Presence is all
-      -- the score needs - it never reads the value, and could not decrypt it
-      -- anyway, since the key lives in the app environment.
-      + (case when coalesce(nullif(btrim(s.green_api_instance), ''), '') <> ''
-               and coalesce(nullif(btrim(s.green_api_token_encrypted), ''), '') <> '' then 1 else 0 end)
+      + (case when (s.business_hours is not null
+                    and jsonb_typeof(s.business_hours) = 'object'
+                    and s.business_hours <> '{}'::jsonb)
+               or (s.working_hours_start is not null and s.working_hours_end is not null)
+              then 1 else 0 end)
+      + (case when coalesce(nullif(btrim(s.branding->>'logo_url'), ''), '') <> ''
+               and coalesce(nullif(btrim(s.primary_color), ''), '') <> ''
+               and (coalesce(nullif(btrim(s.branding->>'welcome_headline'), ''), '') <> ''
+                    or coalesce(nullif(btrim(s.branding->>'welcome_message'), ''), '') <> '')
+              then 1 else 0 end)
+      -- <> '[]'::jsonb rather than jsonb_array_length(...) > 0: the latter
+      -- THROWS on a non-array value, and CASE/AND do not guarantee Postgres
+      -- evaluates jsonb_typeof first - the same reasoning as the business_hours
+      -- check above using <> '{}'::jsonb instead of a key-count function.
+      + (case when jsonb_typeof(s.branding->'gallery') = 'array'
+               and s.branding->'gallery' <> '[]'::jsonb
+              then 1 else 0 end)
+      + (case when coalesce(nullif(btrim(s.branding->>'whatsapp_number'), ''), '') <> ''
+               or coalesce(nullif(btrim(s.branding->>'instagram'), ''), '') <> ''
+               or coalesce(nullif(btrim(s.branding->>'facebook'), ''), '') <> ''
+               or coalesce(nullif(btrim(s.branding->>'tiktok'), ''), '') <> ''
+               or coalesce(nullif(btrim(s.branding->>'website'), ''), '') <> ''
+              then 1 else 0 end)
       from public.settings s
      where s.tenant_id = t.id
      limit 1
-    ) as setup_score
+    ) as setup_score,
+    6 as setup_total,
+    (select coalesce(round(sum(u.cost_usd)::numeric, 4), 0)
+       from public.ai_usage u
+      where u.tenant_id = t.id and u.created_at > now() - interval '30 days'
+    ) as ai_cost_usd_30d,
+    (select count(*) from public.whatsapp_messages w
+      where w.tenant_id = t.id and w.status = 'sent'
+        and w.created_at > now() - interval '30 days'
+    ) as whatsapp_sent_30d,
+    (select count(*) from public.whatsapp_messages w
+      where w.tenant_id = t.id and w.status = 'failed'
+        and w.created_at > now() - interval '30 days'
+    ) as whatsapp_failed_30d
   from public.tenants t
   order by t.created_at desc;
 $$;
@@ -162,3 +218,15 @@ commit;
 --               (select count(*) from pg_policies
 --                 where schemaname='public' and tablename='admin_audit_log') as policy_count
 --          from pg_class c where c.oid = 'public.admin_audit_log'::regclass;
+--
+--   e) setup_score is between 0 and setup_total for every tenant, never
+--      negative and never over. MUST RETURN ZERO ROWS.
+--        select id, setup_score, setup_total from public.platform_tenant_metrics()
+--         where setup_score < 0 or setup_score > setup_total;
+--
+--   f) Spot-check one tenant you know the real setup state of by hand against
+--      setup_score, and compare ai_cost_usd_30d against a manual sum:
+--        select id, name, setup_score, setup_total, ai_cost_usd_30d,
+--               whatsapp_sent_30d, whatsapp_failed_30d
+--          from public.platform_tenant_metrics()
+--         where id = '<a tenant id you know>';

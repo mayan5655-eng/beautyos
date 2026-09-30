@@ -31,9 +31,9 @@ about all of them. The table below can.
 | `tenant-resolution-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass. DO NOT DELETE.** | holds the only capture of the live `get_user_tenant_id()` as of 2026-07-30 |
 | `encrypt-green-api-token-rollback.sql` | 🔒 **ROLLBACK ARTEFACT — never run in a normal pass** | — |
 | `appointment-cancel-audit.sql` | ❓ **UNKNOWN** | `app/beautyos.jsx` `softCancelAppointment` — already retries without the columns, so a cancel works either way |
-| `support-messages.sql` | ❓ **UNKNOWN** | `app/api/support/route.ts` — already detects the missing table and says so |
+| `support-messages.sql` | ❓ **UNKNOWN** | `app/api/support/route.ts` (write) and, new as of 2026-09-30, `app/dashboard/admin/support/page.tsx` (read — the inbox) and `app/api/invariants/route.js` (the nightly stale-message alert, via `lib/supportInbox.ts`) — all three already detect the missing table and degrade rather than break |
 | `auto-reminders-log-index.sql` | ❓ **UNKNOWN** | performance only; nothing breaks without it |
-| `platform-admin-view.sql` | ❓ **UNKNOWN** | creates `platform_tenant_metrics`; **no code currently calls it** |
+| `platform-admin-view.sql` | 🔧 **REVISED, NOT YET APPLIED** (2026-09-30 — `setup_score` rewritten to match the real 6-step `setupSteps` in `app/beautyos.jsx`, was scored against a stale "seven-step" comment; added `ai_cost_usd_30d`, `whatsapp_sent_30d`, `whatsapp_failed_30d`) | creates `platform_tenant_metrics`; `app/dashboard/admin/page.tsx` now calls it, with a fallback to the plain `tenants` select if the function is missing |
 | `revoke-anon-grants.sql` | ✅ **APPLIED** (verified 2026-09-02) — `anon` now holds exactly two privileges in all of `public`, both SELECT: `service_prices` and `tenants`. That is the file’s own VERIFY (b) result. | hardening; step 3 of the sequence in `get-public-tenant-by-slug.sql` |
 
 Related, and **not** in this folder: `add_appointment_no_overlap.sql` (in

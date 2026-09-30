@@ -21,6 +21,20 @@ export interface AdminTenantRow {
   trial_ends_at: string | null
   plan_price: number | string | null
   signup_source: string | null
+  // Everything below only exists when platform_tenant_metrics() is live
+  // (supabase/migrations/pending/platform-admin-view.sql). Optional so the
+  // plain-tenants fallback in page.tsx still satisfies this type without
+  // a second interface, and the UI treats an absent field as "unknown", not
+  // as zero - a tenant who genuinely has never spent a cent must read the
+  // same as one this panel simply cannot see the number for yet.
+  client_count?: number | null
+  appointment_count?: number | null
+  last_activity_at?: string | null
+  setup_score?: number | null
+  setup_total?: number | null
+  ai_cost_usd_30d?: number | string | null
+  whatsapp_sent_30d?: number | null
+  whatsapp_failed_30d?: number | null
 }
 
 type Action = 'extend' | 'activate' | 'pause'
@@ -61,12 +75,44 @@ function fmtPrice(value: number | string | null): string {
   return Number.isFinite(n) ? `₪${n.toLocaleString('he-IL')}` : '—'
 }
 
+function fmtUsd(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—'
+}
+
+function fmtCount(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : value.toLocaleString('he-IL')
+}
+
+/** Days since a timestamp, for "how long has it been quiet" colouring. null
+ *  when there is nothing to measure yet (a genuinely absent value, not zero). */
+function daysSince(value: string | null | undefined): number | null {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000)
+}
+
+function fmtActivity(value: string | null | undefined): string {
+  const days = daysSince(value)
+  if (days === null) return '—'
+  if (days <= 0) return 'היום'
+  if (days === 1) return 'אתמול'
+  return `לפני ${days} ימים`
+}
+
 export default function AdminClient({
   initialTenants,
   ownTenantId,
+  metricsAvailable,
 }: {
   initialTenants: AdminTenantRow[]
   ownTenantId: string | null
+  /** False when platform_tenant_metrics() has not been applied yet (see
+   *  page.tsx's fallback) - the extra columns are hidden rather than shown
+   *  full of dashes, so the panel reads as "not built yet" and not "broken". */
+  metricsAvailable: boolean
 }) {
   const [tenants, setTenants] = useState<AdminTenantRow[]>(initialTenants)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -171,15 +217,32 @@ export default function AdminClient({
 
   return (
     <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif", color: ink }}>
-      <div style={{ marginBottom: 22 }}>
-        <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
-          ניהול מנויים
-        </h1>
-        <p style={{ fontSize:"var(--t-md)", color: ink2, marginTop: 6, lineHeight: 1.6 }}>
-          כל העסקים במערכת, מצב המנוי שלהם והפעולות הזמינות. שינוי כאן משפיע מיד על
-          מה שהעסק יכול לעשות. שום פעולה כאן לא מוחקת נתונים.
-        </p>
+      <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
+            ניהול מנויים
+          </h1>
+          <p style={{ fontSize:"var(--t-md)", color: ink2, marginTop: 6, lineHeight: 1.6 }}>
+            כל העסקים במערכת, מצב המנוי שלהם והפעולות הזמינות. שינוי כאן משפיע מיד על
+            מה שהעסק יכול לעשות. שום פעולה כאן לא מוחקת נתונים.
+          </p>
+        </div>
+        <a href="/dashboard/admin/support" style={{
+          fontSize:"var(--t-sm)", fontWeight: 600, color: ink, background: surface,
+          border: `1px solid ${line}`, borderRadius:"var(--r-full)", padding: '9px 16px',
+          textDecoration: 'none', whiteSpace: 'nowrap',
+        }}>פניות תמיכה ←</a>
       </div>
+
+      {!metricsAvailable && (
+        <div style={{
+          padding: '11px 15px', borderRadius:"var(--r-sm)", background: '#FBF3E2',
+          border: '1px solid #EADFC4', color: '#8A6A2F', fontSize:"var(--t-sm)", marginBottom: 16, lineHeight: 1.6,
+        }}>
+          נתוני שימוש (לקוחות, תורים, פעילות אחרונה, הגדרה, עלות AI, וואטסאפ) עדיין לא זמינים -
+          המיגרציה platform-admin-view.sql לא הורצה עדיין. ניהול המנויים למטה עובד כרגיל.
+        </div>
+      )}
 
       {/* Summary */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -225,7 +288,7 @@ export default function AdminClient({
           overflowX: 'auto', background: surface, borderRadius:"var(--r-lg)",
           border: `1px solid ${line}`,
         }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: metricsAvailable ? 1300 : 900 }}>
             <thead>
               <tr style={{ background: cream }}>
                 <th style={th}>עסק</th>
@@ -235,6 +298,14 @@ export default function AdminClient({
                 <th style={th}>סיום התנסות</th>
                 <th style={th}>מחיר</th>
                 <th style={th}>מקור</th>
+                {metricsAvailable && (<>
+                  <th style={th}>לקוחות</th>
+                  <th style={th}>תורים</th>
+                  <th style={th}>פעילות אחרונה</th>
+                  <th style={th}>הגדרה</th>
+                  <th style={th} title="עלות Claude ותמונות AI, 30 יום אחרונים">AI (30 יום)</th>
+                  <th style={th} title="הודעות וואטסאפ שנשלחו/נכשלו, 30 יום אחרונים">וואטסאפ (30 יום)</th>
+                </>)}
                 <th style={th}>פעולות</th>
               </tr>
             </thead>
@@ -269,6 +340,31 @@ export default function AdminClient({
                     <td style={{ ...td, color: ink2 }}>{fmtDate(tenant.trial_ends_at)}</td>
                     <td style={td}>{fmtPrice(tenant.plan_price)}</td>
                     <td style={{ ...td, color: ink2, fontSize:"var(--t-sm)" }}>{tenant.signup_source || '—'}</td>
+                    {metricsAvailable && (<>
+                      <td style={td}>{fmtCount(tenant.client_count)}</td>
+                      <td style={td}>{fmtCount(tenant.appointment_count)}</td>
+                      <td style={{ ...td, color: (daysSince(tenant.last_activity_at) ?? 0) > 14 ? '#9A5148' : ink2 }}>
+                        {fmtActivity(tenant.last_activity_at)}
+                      </td>
+                      <td style={td}>
+                        {tenant.setup_score == null || tenant.setup_total == null ? '—' : (
+                          <span style={{ color: tenant.setup_score < tenant.setup_total ? '#8A6A2F' : '#4E7A55', fontWeight: 600 }}>
+                            {tenant.setup_score}/{tenant.setup_total}
+                          </span>
+                        )}
+                      </td>
+                      <td style={td}>{fmtUsd(tenant.ai_cost_usd_30d)}</td>
+                      <td style={td}>
+                        {tenant.whatsapp_sent_30d == null && tenant.whatsapp_failed_30d == null ? '—' : (
+                          <>
+                            {fmtCount(tenant.whatsapp_sent_30d)}
+                            {!!tenant.whatsapp_failed_30d && (
+                              <span style={{ color: '#9A5148', fontWeight: 600 }}> · {tenant.whatsapp_failed_30d} נכשלו</span>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </>)}
                     <td style={td}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                         {EXTEND_PRESETS.map((d) => (

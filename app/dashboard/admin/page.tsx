@@ -27,17 +27,59 @@ import AdminClient, { type AdminTenantRow } from './AdminClient'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+// Trial-start/end are still read straight off `tenants` even in the rich
+// path below: platform_tenant_metrics() returns trial_ends_at but not
+// trial_started_at (the panel's extend action never needed it as a metric,
+// only as an input), so that one column still comes from the plain table.
+const TENANT_FALLBACK_FIELDS =
+  'id, name, plan_status, trial_started_at, trial_ends_at, plan_price, signup_source'
+
 export default async function AdminPage() {
   const admin = await requirePlatformAdmin()
   if (!admin.ok) notFound()
 
   const db = createAdminClient()
 
-  // Explicit column list rather than select('*'): this row is privileged and
-  // crosses to the browser, so nothing travels that the panel does not display.
-  const { data, error } = await db
-    .from('tenants')
-    .select('id, name, plan_status, trial_started_at, trial_ends_at, plan_price, signup_source')
+  // The rich path: platform_tenant_metrics() (supabase/migrations/pending/
+  // platform-admin-view.sql), metadata-only by construction - client and
+  // appointment COUNTS come out, never a client row. Degrades to the plain
+  // tenants select if the function has not been applied yet (the standing
+  // rule in that migration's own README: code that depends on a new database
+  // object must degrade rather than break), so this page never goes down
+  // over a migration nobody has run by hand yet.
+  const rich = await db.rpc('platform_tenant_metrics')
+
+  let rows: AdminTenantRow[]
+  const trialStartById = new Map<string, string | null>()
+
+  if (!rich.error && rich.data) {
+    // trial_started_at only lives on `tenants`, so one lightweight extra read
+    // to fill it in - never a client-bearing table, never select('*').
+    const started = await db.from('tenants').select('id, trial_started_at')
+    for (const row of started.data || []) {
+      trialStartById.set((row as { id: string }).id, (row as { trial_started_at: string | null }).trial_started_at)
+    }
+    rows = (rich.data as AdminTenantRow[]).map((r) => ({
+      ...r,
+      trial_started_at: trialStartById.get(r.id) ?? null,
+    }))
+  } else {
+    if (rich.error) {
+      console.error('[admin] platform_tenant_metrics unavailable, falling back to plain tenants read:', rich.error.message)
+    }
+    const { data, error } = await db.from('tenants').select(TENANT_FALLBACK_FIELDS)
+    if (error) {
+      return (
+        <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif" }}>
+          <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, marginBottom: 12 }}>ניהול מנויים</h1>
+          <p style={{ color: '#B4453C', fontSize:"var(--t-md)" }}>
+            שגיאה בטעינת רשימת העסקים: {error.message}
+          </p>
+        </div>
+      )
+    }
+    rows = (data || []) as AdminTenantRow[]
+  }
 
   // Which tenant is the admin's own, so the UI can flag it before she pauses
   // herself by accident. Read on the SESSION client, not the service-role one.
@@ -50,21 +92,11 @@ export default async function AdminPage() {
     // Non-fatal: the panel simply will not badge her own row.
   }
 
-  if (error) {
-    return (
-      <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif" }}>
-        <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, marginBottom: 12 }}>ניהול מנויים</h1>
-        <p style={{ color: '#B4453C', fontSize:"var(--t-md)" }}>
-          שגיאה בטעינת רשימת העסקים: {error.message}
-        </p>
-      </div>
-    )
-  }
-
   return (
     <AdminClient
-      initialTenants={(data || []) as AdminTenantRow[]}
+      initialTenants={rows}
       ownTenantId={ownTenantId}
+      metricsAvailable={!rich.error}
     />
   )
 }

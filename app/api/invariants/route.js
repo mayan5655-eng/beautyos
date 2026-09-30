@@ -14,6 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { runInvariants, formatInvariantReport } from "../../../lib/invariants.js";
+import { staleSupportMessages, formatStaleSupportLine } from "../../../lib/supportInbox.ts";
 
 export const maxDuration = 120;
 
@@ -43,7 +44,14 @@ async function run() {
     // the WhatsApp is the interrupt, and the two should not be the same thing.
     console.log("[invariants]", JSON.stringify({ failures: failures.length, errors: errors.length, results }));
 
-    const report = formatInvariantReport({ failures, errors });
+    // Not a data-integrity invariant (see lib/supportInbox.ts's own header on
+    // why it lives separately) - folded into the SAME nightly message rather
+    // than a second alert channel, so there is one thing to watch, not two.
+    const staleSupport = await staleSupportMessages(admin, 2);
+    if (staleSupport.error) console.error("[invariants] stale-support check failed:", staleSupport.error);
+    const staleSupportLine = formatStaleSupportLine(staleSupport);
+
+    const report = [formatInvariantReport({ failures, errors }), staleSupportLine].filter(Boolean).join("\n\n");
     let notified = false;
 
     if (report) {
@@ -63,11 +71,12 @@ async function run() {
 
     return Response.json({
       success: true,
-      healthy: failures.length === 0 && errors.length === 0,
+      healthy: failures.length === 0 && errors.length === 0 && !staleSupport.count,
       notified,
       failures,
       errors,
       results,
+      staleSupportMessages: staleSupport.count,
     });
   } catch (err) {
     console.error("[invariants] threw:", err?.message || String(err));
