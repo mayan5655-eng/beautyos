@@ -32,6 +32,8 @@ import { isMissingColumnError } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
+import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
+import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
@@ -1890,6 +1892,19 @@ export default function BeautyOS() {
   // does. An option label she read once while scrolling is not enough to stop
   // her booking 20:00 believing she is open then.
   const apptSelectedOutside = !!apptDayHours && apptSlotOptions.length>0 && apptOutsideHours(apptEffectiveStart);
+  // Is the picked time within TIGHT_GAP_MINUTES of the appointment right
+  // before or after it? Reuses apptBusy (already excludes cancelled rows and
+  // the appointment being edited), so this is the exact same neighbourhood
+  // the clash check already looked at - just a softer question than "taken".
+  // "before"/"after" rather than a bool because the sentence needs to say
+  // which side is tight.
+  const apptGapWarning = (!apptSelectedTaken && apptBusy.length) ? (() => {
+    for (const [bs, be] of apptBusy) {
+      if (apptEffectiveStart - be >= 0 && apptEffectiveStart - be < TIGHT_GAP_MINUTES) return "before";
+      if (bs - apptEndMin >= 0 && bs - apptEndMin < TIGHT_GAP_MINUTES) return "after";
+    }
+    return null;
+  })() : null;
   // When the picked day changes and the current hour falls outside that day's
   // range, snap to the first open hour so a stale start can't be saved.
   // Duration is a dependency for the same reason: lengthening the treatment
@@ -2667,7 +2682,17 @@ export default function BeautyOS() {
       laid.push({ appt, s, e, lane });
     }
     const lanes = laid.reduce((m, x) => Math.max(m, x.lane + 1), 1);
-    return { laid, lanes };
+    // Tight-turnover warning: which of today's appointments start with less
+    // than TIGHT_GAP_MINUTES after the previous real occupant ends. Cancelled
+    // and no-show rows free their slot the same way the clash check does -
+    // nothing to reset a station for. Computed here, once, so both calendars
+    // (the week grid and the mobile agenda) read the same answer.
+    const tightGapIds = tightGapAppointmentIds(
+      list
+        .filter(a => a.confirmation_status !== "cancelled" && a.confirmation_status !== NO_SHOW)
+        .map(a => { const s = startMinute(a); return { id: a.id, start: s, end: Math.max(endMinute(a) ?? s + 30, s + 30), kind: a.kind }; })
+    );
+    return { laid, lanes, tightGapIds };
   };
 
   // Booking from a click on empty space, to the nearest half hour. The old grid
@@ -3398,6 +3423,35 @@ export default function BeautyOS() {
         }});
       },
     });
+  };
+
+  // Real start/finish: see supabase/migrations/pending/
+  // appointment-actual-duration.sql. Two separate writes rather than one
+  // "log the duration afterward" field, because a treatment that is open
+  // right now (started, not yet finished) is itself worth knowing, and
+  // "finished" is the moment the one sentence that matters - booked vs.
+  // actual - is still true, not something to reconstruct from a report.
+  const handleStartTreatment = async (appt) => {
+    if (guardWrite()) return;
+    const { data, error } = await supabase.from("appointments").update({ actual_start_at: new Date().toISOString() }).eq("id", appt.id).select();
+    if (error) {
+      if (isMissingColumnError(error)) { toast("מעקב זמן טיפול עדיין לא זמין — המיגרציה appointment-actual-duration.sql לא רצה.", "error"); return; }
+      handleDbError(error, "start treatment"); return;
+    }
+    if (data && data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? data[0] : a));
+  };
+
+  const handleFinishTreatment = async (appt) => {
+    if (guardWrite()) return;
+    const { data, error } = await supabase.from("appointments").update({ actual_end_at: new Date().toISOString() }).eq("id", appt.id).select();
+    if (error) {
+      if (isMissingColumnError(error)) { toast("מעקב זמן טיפול עדיין לא זמין — המיגרציה appointment-actual-duration.sql לא רצה.", "error"); return; }
+      handleDbError(error, "finish treatment"); return;
+    }
+    const updated = data && data[0];
+    if (updated) setAppointments(prev => prev.map(a => a.id === appt.id ? updated : a));
+    const outcome = updated ? durationOutcome(updated.actual_start_at, updated.actual_end_at, Number(updated.duration) || 0) : null;
+    toast(outcome ? durationOutcomeHe(outcome) : "התור סומן כהושלם");
   };
 
   const handleDelete = (appt) => {
@@ -8069,7 +8123,7 @@ ${c.claimUrl}`)}`;
  </div>
 
                     {weekDates.map((date,di)=>{
-                      const {laid,lanes}=dayLanes(date);
+                      const {laid,lanes,tightGapIds}=dayLanes(date);
                       const dh=dayHoursFrom(settings,date.getDay());
                       return(
  <div key={di}
@@ -8101,10 +8155,12 @@ ${c.claimUrl}`)}`;
                             // being absent.
                             const compact=h<46;
                             const cancelled=appt.confirmation_status==="cancelled";
+                            const tightGap=tightGapIds.has(appt.id);
                             return(
- <div key={appt.id} className="appt-card" title={`${appt.name}${entrySubtitle(appt)?" · "+entrySubtitle(appt):""} · ${isAllDay(appt)?"כל היום":`${fmtTime(s)}–${fmtTime(e)}`}`}
+ <div key={appt.id} className="appt-card" title={`${appt.name}${entrySubtitle(appt)?" · "+entrySubtitle(appt):""} · ${isAllDay(appt)?"כל היום":`${fmtTime(s)}–${fmtTime(e)}`}${tightGap?" · אין רווח מהתור הקודם":""}`}
                                 onClick={ev=>{ev.stopPropagation();handleApptClick(appt);}}
                                 style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:"var(--r-xs)",padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)"}}>
+                                {tightGap&&<span aria-hidden style={{position:"absolute",top:2,insetInlineEnd:2,fontSize:10,lineHeight:1,filter:"drop-shadow(0 1px 1px rgba(0,0,0,0.5))"}}>⏱</span>}
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
                                 {!compact&&(<>
  <p style={{fontSize:"var(--t-xs)",color:"rgba(255,255,255,0.92)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entrySubtitle(appt)}</p>
@@ -8152,7 +8208,7 @@ ${c.claimUrl}`)}`;
                     // reason; this was the last consumer of the hour-cell assumption.
                     //
                     // Same contract as the week axis: if it exists, it is on screen.
-                    const laid = dayLanes(calDay).laid;
+                    const { laid, tightGapIds } = dayLanes(calDay);
                     // Free hours to offer: the day's own open range, minus any hour an
                     // appointment COVERS - not merely starts in. A 90-minute treatment at
                     // 10:00 used to leave a bookable "+ פנוי" at 11:00 that only failed at
@@ -8183,10 +8239,31 @@ ${c.claimUrl}`)}`;
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":appt.confirmation_status===NO_SHOW?" · לא הגיעה":""}</p>
  <p style={{fontSize:"var(--t-sm)",color:"rgba(255,255,255,0.92)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
+                                {/* Real vs. booked, once both ends of the treatment were logged -
+                                    the same comparison the "finish" toast said, left visible on
+                                    the card instead of gone the moment the toast fades. */}
+                                {appt.actual_start_at&&appt.actual_end_at&&(()=>{
+                                  const o=durationOutcome(appt.actual_start_at,appt.actual_end_at,Number(appt.duration)||0);
+                                  if(!o) return null;
+                                  const sign=o.driftMinutes>4?` (+${o.driftMinutes})`:o.driftMinutes<-4?` (${o.driftMinutes})`:"";
+                                  return <p style={{fontSize:"var(--t-xs)",color:"rgba(255,255,255,0.85)",marginTop:2}}>בפועל: {o.actualMinutes} דק׳{sign}</p>;
+                                })()}
+                                {/* No time to reset the station: this appointment starts less than
+                                    TIGHT_GAP_MINUTES after the previous one ends. */}
+                                {!isPersonal(appt)&&tightGapIds.has(appt.id)&&(
+ <p style={{fontSize:"var(--t-xs)",fontWeight:700,color:"#5A3A10",background:"rgba(255,255,255,0.55)",borderRadius:"var(--r-xs)",padding:"2px 6px",display:"inline-block",marginTop:4}}>⏱ אין רווח מהתור הקודם</p>
+                                )}
  <div style={{display:"flex",gap:8,marginTop:10}}>
                                   {!isPersonal(appt)&&appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
                                   {!isPersonal(appt)&&hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
                                   {!isPersonal(appt)&&<button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>}
+                                  {/* Real start/finish: only a real, non-cancelled visit, only on or
+                                      before today - logging a future appointment's actual time makes
+                                      no sense. One slot, two states: not started yet offers "started",
+                                      started-but-not-finished offers "finished". */}
+                                  {!isPersonal(appt)&&appt.confirmation_status!=="cancelled"&&appt.confirmation_status!==NO_SHOW&&appt.date<=today&&!appt.actual_end_at&&(
+ <button aria-label={appt.actual_start_at?"סיימתי":"התחלתי"} title={appt.actual_start_at?"סיימתי":"התחלתי"} onClick={e=>{e.stopPropagation();appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt);}} style={{...agBtn,fontSize:"var(--t-xs)",fontWeight:700,width:"auto",padding:"0 10px"}}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+                                  )}
                                   {/* No-show: only a client visit, only on or after its day. */}
                                   {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button aria-label="לא הגיעה" title="לא הגיעה" onClick={e=>{e.stopPropagation();markNoShow(appt);}} style={{...agBtn,fontSize:"var(--t-xs)",fontWeight:700,width:"auto",padding:"0 10px"}}>לא הגיעה</button>}
  <button aria-label={isPersonal(appt)?"מחיקת האירוע":"מחיקה"} onClick={e=>{e.stopPropagation();if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
@@ -9486,7 +9563,23 @@ ${c.claimUrl}`)}`;
  </div>
  <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:""});setApptClientQuery("");}} className="icon-btn sm" style={{}} title="בחירת לקוחה אחרת" aria-label="בחירת לקוחה אחרת">✕</button>
  </div>
-              ) : (
+              ) : null}
+              {/* Her own notes on THIS client, surfaced the moment the
+                  appointment opens - not one tap further behind "כרטיס
+                  לקוחה". Allergy, preferred shape, "quiet today" - things she
+                  used to hold in memory for every client, now in front of
+                  her without asking for it. */}
+              {newAppt.clientId&&(()=>{
+                const c=clients.find(cl=>String(cl.id)===String(newAppt.clientId));
+                if(!c?.notes?.trim()) return null;
+                return (
+ <div style={{padding:"9px 12px",borderRadius:"var(--r-sm)",background:"var(--surface-2)",border:"1px solid var(--line-2)"}}>
+ <p style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--ink-3)",marginBottom:3}}>הערות על הלקוחה</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{c.notes}</p>
+ </div>
+                );
+              })()}
+              {!newAppt.name && (
  <div>
  <input value={apptClientQuery} onChange={e=>setApptClientQuery(e.target.value)} placeholder="שם הלקוחה או טלפון" aria-label="חיפוש לקוחה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"10px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
                 {apptClientQuery.trim()&&(
@@ -9549,6 +9642,14 @@ ${c.claimUrl}`)}`;
  </p>
               )}
               {apptSelectedTaken&&<p style={{fontSize:"var(--t-sm)",color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:"var(--r-sm)",padding:"7px 0",margin:"1px 0",boxShadow:"var(--shadow-sm)"}}>השעה תפוסה — בחרי שעה אחרת</p>}
+              {/* Allowed by the database (back-to-back is not a clash), still
+                  worth saying: a turnover under TIGHT_GAP_MINUTES is a real
+                  cost she pays later, not now while she's picking the time. */}
+              {apptGapWarning&&(
+ <p style={{fontSize:"var(--t-sm)",color:"#8A5D06",fontWeight:700,background:"rgba(242,184,75,0.14)",border:"1px solid var(--warning)",borderRadius:"var(--r-sm)",padding:"7px 10px",textAlign:"center",margin:"1px 0"}}>
+                  ⏱ פחות מ-{TIGHT_GAP_MINUTES} דקות {apptGapWarning==="before"?"מהתור הקודם":"עד התור הבא"} — אין זמן להתאוורר בין הטיפולים
+ </p>
+              )}
 
               {/* Price and note. Behind a disclosure because the price comes
                   from the treatment and is almost never overridden, and the
@@ -9594,6 +9695,15 @@ ${c.claimUrl}`)}`;
  <button onClick={closeApptModal} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)",opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?<Spinner inline label="שומרת"/>:!apptDayHours?"סגור ביום זה":apptSelectedTaken?"⛔ השעה תפוסה":editingAppointmentId?"עדכון ✓":(apptRepeat.on&&apptRepeat.count>1)?`קביעת ${apptRepeat.count} תורים ✓`:"שמירה ✓"}</button>
  </div>
+              {/* Edit mode, past or today: the same real start/finish the
+                  agenda card offers, for the appointment she has open here. */}
+              {editingAppointmentId&&(()=>{
+                const cur=appointments.find(a=>a.id===editingAppointmentId);
+                if(!cur||isPersonal(cur)||cur.confirmation_status==="cancelled"||cur.confirmation_status===NO_SHOW||cur.date>today||cur.actual_end_at) return null;
+                return (
+ <button onClick={()=>{cur.actual_start_at?handleFinishTreatment(cur):handleStartTreatment(cur);}} style={{width:"100%",marginTop:8,background:"none",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>{cur.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+                );
+              })()}
               {/* Edit mode, past or today: mark the client as not having come.
                   The same action the agenda card offers, for the appointment
                   she has open in front of her. */}

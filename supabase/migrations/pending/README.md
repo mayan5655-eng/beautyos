@@ -35,6 +35,8 @@ about all of them. The table below can.
 | `auto-reminders-log-index.sql` | ❓ **UNKNOWN** | performance only; nothing breaks without it |
 | `platform-admin-view.sql` | 🔧 **APPLIED once (confirmed 2026-09-30), REVISED AGAIN the same day** for the demo-tenants feature — excludes `is_demo` tenants. NEEDS RE-RUNNING, and only after `demo-tenants.sql` (adds the column this version reads) | creates `platform_tenant_metrics`; `app/dashboard/admin/page.tsx` calls it, with a fallback to the plain `tenants` select if the function is missing |
 | `demo-tenants.sql` | 🆕 **NOT YET APPLIED** (2026-09-30) — adds `tenants.is_demo`. Must run BEFORE `scripts/provision-demo-tenants.ts` and before re-running `platform-admin-view.sql` | `scripts/provision-demo-tenants.ts`, `app/api/demo/reset/route.ts`, the revised `platform-admin-view.sql` |
+| `whatsapp-delivery-status.sql` | 🆕 **NOT YET APPLIED** (2026-10-01) — adds `whatsapp_messages.delivery_status`/`delivered_at`/`read_at`/`undelivered_at` | `app/api/whatsapp-webhook/route.js` (writes on `outgoingMessageStatus`), `app/beautyos.jsx` (`waDeliveryLabel`, the message log) |
+| `appointment-actual-duration.sql` | 🆕 **NOT YET APPLIED** (2026-10-01) — adds `appointments.actual_start_at`/`actual_end_at` | `app/beautyos.jsx` (start/finish buttons, `lib/durationDrift.ts`) |
 | `revoke-anon-grants.sql` | ✅ **APPLIED** (verified 2026-09-02) — `anon` now holds exactly two privileges in all of `public`, both SELECT: `service_prices` and `tenants`. That is the file’s own VERIFY (b) result. | hardening; step 3 of the sequence in `get-public-tenant-by-slug.sql` |
 
 Related, and **not** in this folder: `add_appointment_no_overlap.sql` (in
