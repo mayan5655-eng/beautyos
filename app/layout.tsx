@@ -1,51 +1,90 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Heebo, Inter, Assistant, Frank_Ruhl_Libre, Amatic_SC } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import PWARegister from "./pwa-register";
 import IOSInstallBanner from "./ios-install-banner";
 import InstallPromptBanner from "./install-prompt-banner";
 
+// ── Self-hosted, not next/font/google ───────────────────────────────────────
+//
+// A Vercel deploy died here: Turbopack (Next 16.2.4) failed to resolve
+// next/font/google's internal font-fetch module after restoring a build
+// cache from a previous deployment - 18 errors, one per Assistant
+// weight/subset combination, all the same "Module not found:
+// @vercel/turbopack-next/internal/font/google/font". A Google Fonts fetch at
+// build time was a single point of failure the deploy pipeline had no
+// business depending on - if it breaks again, for any reason, on any
+// weight, it takes the whole build down with it, silently, the way this one
+// did (production kept serving the OLD commit; nothing here even hinted a
+// deploy had failed until it was reported by hand).
+//
+// Files: /fonts/*.woff2 (repo root, sibling to app/), fetched once from
+// Google's own font source repo (github.com/google/fonts, same files their
+// CDN subsets FROM - full Hebrew+Latin coverage, nothing lost) and converted
+// locally. Five of six are the ORIGINAL VARIABLE font - one file covers every
+// weight the app uses via a weight RANGE, same as next/font/google produced
+// under the hood; only Amatic SC ships as static weights (400/700), because
+// that is what Google's own source repo has for it. Same CSS variable names
+// as before (--font-cormorant, --font-heebo, --font-inter, --font-assistant,
+// --font-frank, --font-script), so nothing downstream (lib/design/mapBranding.ts's
+// FONTS map, every literal var(--font-*) reference) needed to change.
+//
+// Re-fetching later (a font family added, or Google revises one): re-run the
+// same two steps - GitHub's raw TTF for the family, then a WOFF2 convert
+// (wawoff2, `npm install --no-save wawoff2` - not a project dependency,
+// nothing to keep installed for this) - no browser, no next/font/google,
+// nothing that can silently fail a deploy.
+
 // Elegant Latin serif for display headings (Latin glyphs only).
-const cormorant = Cormorant_Garamond({
+const cormorant = localFont({
+  src: "../fonts/CormorantGaramond.woff2",
   variable: "--font-cormorant",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "400 700",
+  display: "swap",
 });
 
 // Legacy Hebrew sans — kept so any lingering literal references keep resolving.
-const heebo = Heebo({
+const heebo = localFont({
+  src: "../fonts/Heebo.woff2",
   variable: "--font-heebo",
-  subsets: ["hebrew", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: "300 700",
+  display: "swap",
 });
 
 // Premium Latin UI face (numerals, prices, labels, Latin copy).
-const inter = Inter({
+const inter = localFont({
+  src: "../fonts/Inter.woff2",
   variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: "300 800",
+  display: "swap",
 });
 
 // Modern Hebrew UI face — the workhorse for body/RTL copy.
-const assistant = Assistant({
+const assistant = localFont({
+  src: "../fonts/Assistant.woff2",
   variable: "--font-assistant",
-  subsets: ["hebrew", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: "300 800",
+  display: "swap",
 });
 
 // Elegant Hebrew display serif for headings — feminine, high-end, real Hebrew.
-const frankRuhl = Frank_Ruhl_Libre({
+const frankRuhl = localFont({
+  src: "../fonts/FrankRuhlLibre.woff2",
   variable: "--font-frank",
-  subsets: ["hebrew", "latin"],
-  weight: ["400", "500", "600", "700", "900"],
+  weight: "400 900",
+  display: "swap",
 });
 
 // Handwritten Hebrew accent for the public page (a script line in the hero and
 // a sign-off in the about section). preload off: only that page uses it.
-const script = Amatic_SC({
+// Static weights, not variable - Google's own source repo has none for this one.
+const script = localFont({
+  src: [
+    { path: "../fonts/AmaticSC-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/AmaticSC-Bold.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-script",
-  subsets: ["hebrew", "latin"],
-  weight: ["400", "700"],
+  display: "swap",
   preload: false,
 });
 
