@@ -16,6 +16,18 @@ import { businessFieldsOf } from './businessFields.ts';
 // offering, sale plus receipt, draw, counter - and unhidden. `community`
 // stays hidden until there is more than one cosmetician to talk to.
 //
+// `protocols`, re-confirmed still a stub on 2026-09-30 (the field-separation
+// audit): CREATE and LIST only (app/beautyos.jsx's handleSaveProtocol /
+// loadProtocols) - no edit, no delete, and no connection to anything else in
+// the product (not a client card, not a service, not a design template).
+// Deliberately NOT made field-derived like skin_scan below, even though
+// treatment protocols are conceptually cosmetics-only content: turning an
+// empty, dead-end screen ON by default for every cosmetics/dual tenant is
+// worse than leaving it an opt-in stub for everyone. Before this is worth
+// unhiding, or made field-derived, it needs: an edit path, a delete path,
+// and a real connection to something - a client card or a service - the
+// same bar `packages` cleared above.
+//
 // HIDDEN, NOT DELETED. Every tab's state, loader, render block and table is
 // untouched; only the two nav lists are filtered. Flipping one flag brings a
 // tab back with its data intact, which is the whole point of doing it this way
