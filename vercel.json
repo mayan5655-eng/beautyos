@@ -19,6 +19,10 @@
     {
       "path": "/api/invariants",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/demo/reset",
+      "schedule": "0 2 * * *"
     }
   ]
 }

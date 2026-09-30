@@ -16,7 +16,7 @@ import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { getCallCapStatus } from '@/lib/ai/callCaps';
+import { getCallCapStatus, DemoBlockedError } from '@/lib/ai/callCaps';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { generateImage, OpenAIImageError } from '@/lib/ai/openaiImages';
 import { imagePromptForDirection, type Direction } from '@/lib/ai/creativeDirector';
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
   try {
     image = await generateImage({ prompt, format, tenantId, callSite: CALL_SITE });
   } catch (e) {
+    if (e instanceof DemoBlockedError) return NextResponse.json({ success: false, error: e.message }, { status: 403 });
     const status = e instanceof OpenAIImageError ? e.status : 500;
     console.error('[designs/ai-image] failed:', e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, error: 'יצירת התמונה נכשלה הפעם. אפשר לנסות שוב או לבחור תמונה מהגלריה.' }, { status: status >= 400 && status < 600 ? status : 500 });

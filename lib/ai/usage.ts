@@ -27,7 +27,8 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
-import { getCallCapStatus, AiCapExceededError } from './callCaps.ts';
+import { getCallCapStatus, AiCapExceededError, DemoBlockedError } from './callCaps.ts';
+import { isDemoTenantId } from '../demoTenants.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 
 /** How far to trust the tenant id on a usage row. */
@@ -198,6 +199,14 @@ export async function trackedCreate(
   params: Anthropic.MessageCreateParamsNonStreaming,
   { tenantId = null, callSite, attribution = 'verified', db = null }: TrackOptions
 ): Promise<Anthropic.Message> {
+  // Checked before the cap and before the call: a demo tenant (lib/demoTenants.ts)
+  // must never spend real money, full stop, regardless of what the cap math
+  // below would have allowed.
+  if (isDemoTenantId(tenantId)) {
+    console.log(`[ai-usage] BLOCKED ${callSite} for demo tenant ${tenantId}`);
+    throw new DemoBlockedError(callSite);
+  }
+
   // Ceiling check BEFORE the call, so a refusal costs nothing. Fails open on
   // a read failure - see lib/ai/callCaps.ts for why a spend control fails open
   // where a security boundary would fail closed.

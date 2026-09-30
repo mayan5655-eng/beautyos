@@ -154,7 +154,7 @@ export async function POST(request) {
     });
 
     if (!result.ok) {
-      return Response.json({ success: false, error: "WhatsApp send failed" }, { status: 502 });
+      return Response.json({ success: false, error: result.demoBlocked ? result.error : "WhatsApp send failed" }, { status: result.demoBlocked ? 403 : 502 });
     }
 
     return Response.json({ success: true });

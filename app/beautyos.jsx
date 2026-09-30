@@ -15,6 +15,7 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
+import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
@@ -7520,6 +7521,15 @@ ${c.claimUrl}`)}`;
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
  <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
+          {/* Persistent, not per-screen, same placement logic as TrialBanner
+              above it: a demo session (lib/demoTenants.ts) is never her own
+              account, and every screen should keep saying so. */}
+          {isDemoTenantId(settings?.tenant_id) && (
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",padding:"10px 16px",marginBottom:14,borderRadius:"var(--r-md)",background:"var(--pc-tint)",border:`1px solid ${pc}`}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,margin:0}}>✦ זו תצוגת דמו - נתונים לדוגמה, לא עסק אמיתי</p>
+ <a href="/signup" style={{flexShrink:0,padding:"8px 16px",borderRadius:"var(--r-full)",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,textDecoration:"none"}}>התחילי בחינם</a>
+ </div>
+          )}
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>

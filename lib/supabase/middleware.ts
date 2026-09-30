@@ -17,6 +17,7 @@ const PUBLIC_PREFIXES = [
   '/skin-scan',
   '/form',
   '/confirm',
+  '/demo', // the public demo chooser AND /demo/cosmetics, /demo/nails (lib/demoTenants.ts) - two path segments, so the single-top-level-segment rule below does not already cover it
   '/api',
   '/cesdk-poc', // cesdk-poc: the caption font under public/cesdk-poc; delete with app/cesdk-poc
   '/design-fonts', // the design studio's fonts (public/design-fonts), fetched by the renderer without a session

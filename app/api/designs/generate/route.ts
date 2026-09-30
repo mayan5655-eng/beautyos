@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile';
-import { AiCapExceededError } from '@/lib/ai/callCaps';
+import { AiCapExceededError, DemoBlockedError } from '@/lib/ai/callCaps';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { generateImage } from '@/lib/ai/openaiImages';
 import { composeImagePrompt, type ImageFormat } from '@/lib/ai/imagePrompt';
@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
     profile = await loadBusinessProfile(supabase, tenantId);
     plan = await planPost(profile, brief, candidates, tenantId);
   } catch (e) {
+    if (e instanceof DemoBlockedError) return NextResponse.json({ success: false, error: e.message }, { status: 403 });
     if (e instanceof AiCapExceededError) return NextResponse.json({ success: false, error: `ניצלת את ${e.cap} היצירות של החודש. התבניות פתוחות תמיד.`, used: e.used, cap: e.cap }, { status: 429 });
     console.error('[designs/generate] plan failed:', e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, error: 'ה-AI לא הצליח לבנות את הפוסט הפעם. נסי לנסח אחרת, או בחרי תבנית מהגלריה.' }, { status: 502 });

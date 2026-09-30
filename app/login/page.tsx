@@ -209,12 +209,19 @@ export default function LoginPage() {
           </div>
 
           {mode === 'login' && (
-            <p style={{ marginTop: 16, textAlign: 'center', fontSize:"var(--t-md)", color: MUTED }}>
-              אין לך חשבון?{' '}
-              <a href="/signup" className="auth-link" style={{ color: ACCENT, fontWeight: 700, textDecoration: 'none' }}>
-                הירשמי
-              </a>
-            </p>
+            <>
+              <p style={{ marginTop: 16, textAlign: 'center', fontSize:"var(--t-md)", color: MUTED }}>
+                אין לך חשבון?{' '}
+                <a href="/signup" className="auth-link" style={{ color: ACCENT, fontWeight: 700, textDecoration: 'none' }}>
+                  הירשמי
+                </a>
+              </p>
+              <p style={{ marginTop: 8, textAlign: 'center', fontSize:"var(--t-sm)", color: MUTED }}>
+                <a href="/demo" className="auth-link" style={{ color: MUTED, textDecoration: 'underline' }}>
+                  רוצה לראות קודם? נסי דמו
+                </a>
+              </p>
+            </>
           )}
         </div>
       </div>

@@ -12,6 +12,7 @@ import { greet, lines, hebrewDate, timeRange, hhmm } from "../../../lib/messages
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 import { reportReminderFailures, STATUS_FAILED, STATUS_NO_PHONE } from "../../../lib/reminders/failureReport.js";
+import { isDemoTenantId } from "../../../lib/demoTenants.ts";
 
 // Vercel's default function timeout is short (10-15s depending on plan) and was
 // never declared here. This job sends serially to every tenant's appointments
@@ -95,6 +96,11 @@ export async function POST(request) {
     if (error) {
       return Response.json({ success: false, error: error.message }, { status: 500 });
     }
+
+    // sendWhatsApp already refuses a demo tenant, but filtering here too means
+    // this run's own failure report (below) never counts a demo tenant's
+    // seeded appointment as a real reminder that failed to send.
+    appointments = (appointments || []).filter((a) => !isDemoTenantId(a.tenant_id));
 
     if (!appointments || appointments.length === 0) {
       return Response.json({ success: true, sent: 0, message: "אין תורים מחר" });

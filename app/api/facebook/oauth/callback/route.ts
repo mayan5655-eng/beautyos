@@ -7,6 +7,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { FacebookClient } from '../../../../../lib/facebook/client';
 import { encryptToken } from '../../../../../lib/facebook/encryption';
 import { APP_URL } from '../../../../../lib/appUrl';
+import { isDemoTenantId } from '../../../../../lib/demoTenants';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -99,6 +100,14 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantId = tenantData;
+
+    // A demo tenant (lib/demoTenants.ts) has no real Facebook page to connect,
+    // and must never subscribe a real page's lead-ad webhook to this account.
+    // Checked before the token exchange even starts - there is nothing
+    // legitimate this flow can do for a demo tenant.
+    if (isDemoTenantId(tenantId)) {
+      return NextResponse.redirect(`${appUrl}/dashboard?fb_error=demo_blocked`);
+    }
 
     const tokenResponse = await FacebookClient.exchangeCodeForToken(
       code,

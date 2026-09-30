@@ -1,8 +1,8 @@
--- STATUS: NOT YET APPLIED (revised 2026-09-30 - setup_score rewritten to
--- match the real checklist, ai_cost_usd_30d / whatsapp_sent_30d /
--- whatsapp_failed_30d added; the prior "UNKNOWN" status described an earlier
--- version of this function and does not carry over). Verification query in
--- README.md.
+-- STATUS: APPLIED once already (setup_score + ai/whatsapp columns), then
+-- REVISED AGAIN 2026-09-30 for the demo-tenants feature - excludes is_demo
+-- tenants. NEEDS RE-RUNNING, and only after demo-tenants.sql (this version
+-- reads tenants.is_demo, which that migration adds). create-or-replace is
+-- idempotent, so re-running is safe.
 -- The folder name is not a status. See README.md in this directory.
 
 -- platform-admin-view.sql
@@ -161,6 +161,11 @@ as $$
         and w.created_at > now() - interval '30 days'
     ) as whatsapp_failed_30d
   from public.tenants t
+  -- The two public demo tenants (lib/demoTenants.ts, demo-tenants.sql) are
+  -- not customers - excluded so they never clutter this list or its counts.
+  -- Requires demo-tenants.sql to have run FIRST (it adds is_demo); run this
+  -- file again after that one.
+  where t.is_demo is not true
   order by t.created_at desc;
 $$;
 

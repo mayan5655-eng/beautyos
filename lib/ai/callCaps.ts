@@ -98,6 +98,30 @@ export class AiCapExceededError extends Error {
   }
 }
 
+/**
+ * Raised by trackedCreate and generateImage for a demo tenant (lib/demoTenants.ts),
+ * checked BEFORE the cap or the API call - a demo account must never spend real
+ * money, and that has to be true regardless of whatever cap math runs after it.
+ * Same shape as AiCapExceededError on purpose, so a caller catching one already
+ * knows the pattern for the other: check `error.name`, show a specific message,
+ * never let it read as a generic failure.
+ */
+export class DemoBlockedError extends Error {
+  readonly callSite: string;
+  constructor(callSite: string) {
+    // The message IS the user-facing string, deliberately - every route that
+    // calls trackedCreate/generateImage already catches its own errors with
+    // `catch (err) { return NextResponse.json({ error: err.message }, ...) }`
+    // and every caller already does `toast(data.error)`. Making the message
+    // itself be the exact demo-preview copy means the right toast shows up
+    // everywhere for free, with no per-route edit - see app/api/advisor's
+    // handleAsk for the pattern this relies on.
+    super('זו תצוגה - במערכת שלך זה באמת יישלח');
+    this.name = 'DemoBlockedError';
+    this.callSite = callSite;
+  }
+}
+
 /** Per-call-site override, e.g. AI_CAP_MARKETING_REEL=200. */
 function capFor(callSite: string): number | null {
   const envKey = 'AI_CAP_' + callSite.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
