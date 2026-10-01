@@ -4,6 +4,7 @@ import "./globals.css";
 import PWARegister from "./pwa-register";
 import IOSInstallBanner from "./ios-install-banner";
 import InstallPromptBanner from "./install-prompt-banner";
+import { APP_URL } from "@/lib/appUrl";
 
 // ── Self-hosted, not next/font/google ───────────────────────────────────────
 //
@@ -89,10 +90,29 @@ const script = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: "Kalmea — Beauty Business OS",
   description: "Beauty Business OS",
   applicationName: "Kalmea",
   manifest: "/manifest.json",
+  // No openGraph/twitter existed here before this rebrand - a share of the
+  // bare root domain (not a tenant's /<slug> page, which has its own real
+  // metadata in app/[slug]/page.tsx) previously had no preview image at all.
+  openGraph: {
+    type: "website",
+    title: "Kalmea — Beauty Business OS",
+    description: "Beauty Business OS",
+    url: APP_URL,
+    locale: "he_IL",
+    siteName: "Kalmea",
+    images: [{ url: "/og-1200x630.png", width: 1200, height: 630, alt: "Kalmea" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kalmea — Beauty Business OS",
+    description: "Beauty Business OS",
+    images: ["/og-1200x630.png"],
+  },
   appleWebApp: {
     capable: true,
     title: "Kalmea",
@@ -135,6 +155,9 @@ export const metadata: Metadata = {
     ],
   },
   icons: {
+    // app/favicon.ico covers the .ico convention automatically; this adds a
+    // PNG favicon for the browsers that prefer one, sized the usual 32x32.
+    icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
     apple: "/icons/apple-touch-icon.png",
   },
 

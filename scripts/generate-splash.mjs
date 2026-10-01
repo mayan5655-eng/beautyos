@@ -29,7 +29,7 @@ import sharp from 'sharp';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const LOGO = 'public/bloomos-logo-full.png';   // 760x394 lockup
+const LOGO = 'public/kalmea-wordmark.png';   // 1470x430 lockup
 const OUT_DIR = 'public/splash';
 /** Matches manifest.json background_color, so the launch image and the
  *  install's background are the same colour and there is no flash between. */

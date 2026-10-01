@@ -48,12 +48,17 @@ export const FLORAL_BLUSH = '#FADDCF'
 export const FLORAL_LILAC = '#BB84A7'
 
 // ---- Logo assets ----
-// Full lockup: florals + wordmark + tagline. For centred brand moments.
-export const LOGO_FULL = '/bloomos-logo-full.png'
-export const LOGO_FULL_W = 760
-export const LOGO_FULL_H = 394
-// Compact lockup: florals + wordmark, no tagline. For the nav sidebar.
-export const LOGO_COMPACT = '/bloomos-logo-compact.png'
+// One image, every lockup: the flower + "kalmea" wordmark, transparent, for
+// light backgrounds. Kalmea's set has no separate tagline/no-tagline pair the
+// old BloomOS lockup had, so FULL and COMPACT are the same file - two names
+// kept because call sites render them at different fixed widths (the header
+// at 196px, /login and friends at their own layout width) and distinguishing
+// "the hero lockup" from "the nav lockup" in the code is still worth it even
+// though the asset itself is shared.
+export const LOGO_FULL = '/kalmea-wordmark.png'
+export const LOGO_FULL_W = 1470
+export const LOGO_FULL_H = 430
+export const LOGO_COMPACT = '/kalmea-wordmark.png'
 
 // The page wash used on every branded screen. A true ombré: cream at the top,
 // warming through a blush mid-tone, settling into the lavender edge - the same
