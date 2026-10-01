@@ -62,7 +62,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
     // WhatsApp message searchable later. She sees the short code; support gets
     // everything.
     const payload = [
-      `BloomOS error ${shortCode}`,
+      `Kalmea error ${shortCode}`,
       `id: ${fullId}`,
       `url: ${typeof window !== 'undefined' ? window.location.pathname : ''}`,
       `time: ${new Date().toISOString()}`,

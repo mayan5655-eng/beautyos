@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { supabase } from '../supabase'
 import BrandBackdrop from '../BrandBackdrop'
 
-// Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
+// Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
 // tenant until after signup, so every value reads --brand-*, never --pc-*.
 // Shared with /login and /reset-password via lib/brand.ts.
 import {
@@ -93,7 +93,7 @@ export default function SignupPage() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
             src={LOGO_FULL}
-            alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
+            alt="קלמיה — המערכת שמצמיחה את הקליניקה שלך"
             width={LOGO_FULL_W}
             height={LOGO_FULL_H}
             priority
@@ -205,7 +205,7 @@ function Field({
   )
 }
 
-// === Styles (premium BloomOS aesthetic — matches /book + /skin-scan) ===
+// === Styles (premium Kalmea aesthetic — matches /book + /skin-scan) ===
 const pageStyle: React.CSSProperties = {
   position: 'relative',
   zIndex: 0,

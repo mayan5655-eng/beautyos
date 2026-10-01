@@ -3,7 +3,7 @@
 // app/demo/[field]/route.ts, which mints the real session.
 
 export const metadata = {
-  title: 'נסי את BloomOS - דמו',
+  title: 'נסי את קלמיה - דמו',
 };
 
 export default function DemoChooserPage() {

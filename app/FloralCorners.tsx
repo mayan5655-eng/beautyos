@@ -120,7 +120,7 @@ export default function FloralCorners({
   /**
    * Drop the pieces that sit in the top band of the screen. Used by the app
    * shell so no background blossom lands behind the header, where it would
-   * compete with the flowers in the BloomOS logo itself.
+   * compete with the flowers in the Kalmea logo itself.
    */
   skipTop?: boolean;
   /**
@@ -133,14 +133,14 @@ export default function FloralCorners({
    *         never blocks clicks and never obscures active UI.
    */
   zIndex?: number;
-  /** Brand blush/petal color. Defaults to the BloomOS blush when omitted. */
+  /** Brand blush/petal color. Defaults to the Kalmea blush when omitted. */
   blush?: string;
-  /** Brand gold/accent color. Defaults to the BloomOS gold when omitted. */
+  /** Brand gold/accent color. Defaults to the Kalmea gold when omitted. */
   gold?: string;
   /** Extra overall fade for the whole decorative layer (0..1). */
   opacity?: number;
 }) {
-  // Tint to the brand color when provided; otherwise keep the exact BloomOS
+  // Tint to the brand color when provided; otherwise keep the exact Kalmea
   // blush + gold so existing callers (login/signup) stay pixel-identical.
   const blushBase = blush || BLUSH;
   const goldBase = gold || GOLD;

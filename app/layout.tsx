@@ -89,13 +89,13 @@ const script = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "BloomOS — Beauty Business OS",
+  title: "Kalmea — Beauty Business OS",
   description: "Beauty Business OS",
-  applicationName: "BloomOS",
+  applicationName: "Kalmea",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "BloomOS",
+    title: "Kalmea",
     // "default" is an opaque light bar sitting ABOVE the app, which is the
     // other half of why an install does not look fullscreen.
     // "black-translucent" hands the status bar area to our own content, so the

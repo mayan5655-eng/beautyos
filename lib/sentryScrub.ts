@@ -4,7 +4,7 @@
 // application. Shared by the browser, Node and Edge Sentry inits so the three
 // can never drift apart.
 //
-// Why this file exists at all: BloomOS is a clinic CRM. A request body on this
+// Why this file exists at all: Kalmea is a clinic CRM. A request body on this
 // product is a client's full name, her Israeli mobile number, sometimes a skin
 // report - and on the settings route, a tenant's Green API token. Sentry's
 // default posture is already conservative once `sendDefaultPii: false` is set

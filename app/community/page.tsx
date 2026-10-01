@@ -104,7 +104,7 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)", marginTop: 30 }}>BloomOS 💜</p>
+        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)", marginTop: 30 }}>Kalmea 💜</p>
       </div>
     </div>
   );

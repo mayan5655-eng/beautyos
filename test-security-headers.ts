@@ -62,7 +62,7 @@ eq(dev.includes('upgrade-insecure-requests'), false, 'dev: no upgrade on http://
   eq(junk.includes('https://*.supabase.co'), true, 'junk URL ignored');
 }
 // A custom Supabase domain is honoured.
-eq(directive(buildCsp({ env: { NEXT_PUBLIC_SUPABASE_URL: 'https://db.bloomos.co.il/' } }), 'connect-src')?.includes('https://db.bloomos.co.il'), true, 'custom domain origin, no trailing slash');
+eq(directive(buildCsp({ env: { NEXT_PUBLIC_SUPABASE_URL: 'https://db.kalmea.co.il/' } }), 'connect-src')?.includes('https://db.kalmea.co.il'), true, 'custom domain origin, no trailing slash');
 
 // ── The full header set ────────────────────────────────────────────────────
 {

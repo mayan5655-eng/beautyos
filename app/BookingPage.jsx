@@ -17,7 +17,7 @@ import { accentStyle } from "@/lib/theme";
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
 // An elegant Google-Business-Profile-style mini-site for each clinic,
-// with her BloomOS branding, that opens straight into the booking flow.
+// with her Kalmea branding, that opens straight into the booking flow.
 //
 // MULTI-TENANT: this is a public page (no login), so the tenant is
 // identified from the ?t=<tenantId> URL param. Every data query below
@@ -1247,7 +1247,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         {addr && step === 1 && (
           <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
-        <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "1px" }}>מופעל ע"י BloomOS ✦</p>
+        <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "1px" }}>מופעל ע"י קלמיה ✦</p>
       </div>
     </div>
   );

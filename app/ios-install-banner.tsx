@@ -7,7 +7,7 @@ const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
 /**
  * A small dismissible hint shown to iPhone/iPad users on Safari, telling them
- * how to install BloomOS to the home screen (iOS has no automatic install
+ * how to install Kalmea to the home screen (iOS has no automatic install
  * prompt). It only appears when:
  *   - the device is iOS,
  *   - the browser is Safari (Add to Home Screen lives in its share sheet),
@@ -59,7 +59,7 @@ export default function IOSInstallBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
-      title="התקיני את BloomOS למסך הבית"
+      title="התקיני את קלמיה למסך הבית"
       icon={
         /* iOS share glyph */
         <svg

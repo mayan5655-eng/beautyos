@@ -23,7 +23,7 @@ export default function GlobalError({
   return (
     <html lang="he" dir="rtl">
       <body>
-        <title>שגיאה — BloomOS</title>
+        <title>שגיאה — Kalmea</title>
         <ErrorScreen error={error} retry={unstable_retry} />
       </body>
     </html>

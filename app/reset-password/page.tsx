@@ -16,7 +16,7 @@ import BrandBackdrop from '../BrandBackdrop'
 
 const MIN_PASSWORD_LENGTH = 8
 
-// Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
+// Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
 // tenant on a reset link, so every value reads --brand-*, never --pc-*.
 // Shared with /login and /signup via lib/brand.ts.
 import {
@@ -230,7 +230,7 @@ export default function ResetPasswordPage() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
             src={LOGO_FULL}
-            alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
+            alt="קלמיה — המערכת שמצמיחה את הקליניקה שלך"
             width={LOGO_FULL_W}
             height={LOGO_FULL_H}
             priority

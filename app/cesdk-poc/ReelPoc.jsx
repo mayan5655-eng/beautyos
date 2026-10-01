@@ -112,7 +112,7 @@ export default function ReelPoc({ settings }) {
         <button onClick={render} disabled={busy || picked.length === 0} className="primary-btn" style={{ padding: '11px 22px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: busy || picked.length === 0 ? 0.6 : 1 }}>
           {state === 'loading' ? 'טוענת את המנוע…' : state === 'rendering' ? `מייצאת… ${progress}%` : 'צרי סרטון (POC)'}
         </button>
-        {videoUrl && <a href={videoUrl} download="bloomos-reel-poc.mp4" style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--pc-deep)' }}>הורדת ה-MP4</a>}
+        {videoUrl && <a href={videoUrl} download="kalmea-reel-poc.mp4" style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--pc-deep)' }}>הורדת ה-MP4</a>}
       </div>
       {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 10, lineHeight: 1.5 }}>{error}</p>}
       {videoUrl && (

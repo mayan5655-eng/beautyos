@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ============================================================
-   BloomOS Design System — premium tokens
+   Kalmea Design System — premium tokens
    A fixed lavender/plum luxury palette + neutral ink scale,
    an 8px spacing rhythm, layered soft shadows and elegant
    gradients. Tenant brand color still themes accents at
@@ -90,22 +90,25 @@
   /* ============================================================
      THEME TOKENS — two tiers, deliberately separate.
 
-     --brand-*  BloomOS identity. FIXED. Owns the logo, /login, /signup,
+     --brand-*  Kalmea identity. FIXED. Owns the logo, /login, /signup,
                 /reset-password, marketing and emails. A tenant can never
                 recolour these.
      --pc-*     Tenant accent. SWITCHABLE from settings.primary_color.
                 Owns everything inside her app and her client-facing pages.
 
      Rule of thumb: if a client reads it as HER business it is --pc-*;
-     if they read it as BloomOS it is --brand-*.
+     if they read it as Kalmea it is --brand-*.
 
      Everything below is additive. Values alias the existing palette, so
      declaring them changes nothing until a screen opts in.
      ============================================================ */
 
-  /* — BloomOS brand (fixed) —
-     Sampled from the BloomOS logo: a deep-purple "Bloom" wordmark, a
-     purple-to-pink "OS", and watercolor florals in lilac, rose and blush. */
+  /* — Kalmea brand (fixed) —
+     STALE as of the Kalmea rename: still the old BloomOS purple/lilac
+     palette sampled from the retired logo ("Bloom" wordmark, "OS" gradient).
+     Stage 2 of the rebrand replaces these values with Kalmea's actual
+     palette (deep green / petal pink / sage / paper) - do not take the
+     color names or hexes below as current until that lands. */
   --brand-accent: #4A2E5A;           /* deep purple — the "Bloom" wordmark */
   --brand-deep: #301848;             /* darkest purple — headings */
   --brand-rose: #D28697;             /* pink — "OS" gradient start */
@@ -127,7 +130,7 @@
   /* — Runtime tenant accent —
      Declared here so every page renders correctly with zero JS. The full
      family is overwritten at runtime from settings.primary_color; these
-     defaults match the BloomOS brand accent so an unthemed page still
+     defaults match the Kalmea brand accent so an unthemed page still
      looks intentional. Derivation ratios (kept in sync with lib/theme):
        --pc-2      lighten 22%     --pc-tint    lighten 90%
        --pc-deep   darken  16%     --pc-tint-2  lighten 82%

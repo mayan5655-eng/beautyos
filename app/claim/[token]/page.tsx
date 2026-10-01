@@ -1,7 +1,7 @@
 // app/claim/[token]/page.tsx
 // Public, no-auth page a client opens from a WhatsApp gap-fill link. It reads
 // the offer via the service-role route (/api/claim), shows the freed slot, and
-// lets the first valid click claim it. RTL Hebrew, mobile-first, BloomOS look.
+// lets the first valid click claim it. RTL Hebrew, mobile-first, Kalmea look.
 
 "use client";
 
@@ -11,7 +11,7 @@ import Spinner from "../../Spinner";
 import { useParams } from "next/navigation";
 
 // Client-facing page: a client opens this from HER cosmetician's WhatsApp, so
-// it takes the ACCENT tier (--pc-*), not the BloomOS brand tier. When the
+// it takes the ACCENT tier (--pc-*), not the Kalmea brand tier. When the
 // tenant's colour is applied the whole page follows it.
 import { PC, PC_DEEP, PC_TINT, PC_SOFT, CREAM, SURFACE, MUTED } from '@/lib/brand';
 import { accentStyle } from '@/lib/theme';

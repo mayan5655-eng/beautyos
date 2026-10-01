@@ -247,7 +247,7 @@ export default function OnboardingPage() {
         {/* Brand mark */}
         <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div style={{ marginBottom: 4, color: "var(--pc)" }}><Icon name="gem" size={26}/></div>
-          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>BLOOMOS</p>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>KALMEA</p>
         </div>
 
         {/* Progress — written, not graphic. Step names with arrows between

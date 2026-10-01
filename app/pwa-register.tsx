@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * Registers the service worker that makes BloomOS installable to the home
+ * Registers the service worker that makes Kalmea installable to the home
  * screen. The worker itself does no caching (see public/sw.js) — this is purely
  * for installability, so a live app never serves stale bookings.
  *

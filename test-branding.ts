@@ -1,5 +1,5 @@
 // Her colour is hers. The resolver used to replace a "not safe for white
-// text" primary with the BloomOS default, which erased a gold brand
+// text" primary with the Kalmea default, which erased a gold brand
 // (#C9A24B) on every public page. Text on the accent is chosen by contrast
 // instead; the colour itself is never swapped.
 import assert from 'node:assert/strict';

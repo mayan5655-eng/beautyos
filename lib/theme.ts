@@ -11,7 +11,7 @@
 
 export type Rgb = { r: number; g: number; b: number };
 
-// BloomOS brand accent, used when a tenant has not chosen a colour.
+// Kalmea brand accent, used when a tenant has not chosen a colour.
 export const DEFAULT_ACCENT = '#5B3E67';
 
 // Brand ink - the dark text colour, and one of the two candidates for

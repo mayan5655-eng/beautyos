@@ -1529,7 +1529,7 @@ export default function BeautyOS() {
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
   const lastMonthYear = thisMonth===0?thisYear-1:thisYear;
-  // Brand accent. Default is the BloomOS deep-plum (#5B3E67) so the whole app
+  // Brand accent. Default is the Kalmea deep-plum (#5B3E67) so the whole app
   // wears the premium lavender/plum palette out of the box; a tenant may still
   // pick her own color in Settings (hybrid theming) and everything re-tints.
   const pc = (settings&&settings.primary_color)||"#5B3E67";
@@ -5752,7 +5752,7 @@ export default function BeautyOS() {
     if (!scanQr) return;
     const a = document.createElement("a");
     a.href = scanQr;
-    a.download = `${(settings.business_name || "bloomos").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`;
+    a.download = `${(settings.business_name || "kalmea").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`;
     a.click();
   };
 
@@ -6636,7 +6636,7 @@ export default function BeautyOS() {
   return (
  <div dir="rtl" style={{position:"relative",zIndex:0,fontFamily:"var(--sans)",background:BRAND_WASH,minHeight:"100dvh",display:"flex",flexDirection:"column",color:"var(--ink)"}}>
                 {/* skipTop: no background blossom lands behind the header, so
-                    the flowers in the BloomOS logo are the only ones there and
+                    the flowers in the Kalmea logo are the only ones there and
                     nothing competes with them. */}
                 {/* The same two-hue palette /login uses - peach blush plus
                     lilac - rather than one tint of the tenant accent. Two
@@ -7397,7 +7397,7 @@ ${c.claimUrl}`)}`;
  <header className="app-header" style={{background:"var(--pc-chrome)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",overflow:"visible"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
  <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט"><Icon name="menu" size={20}/></button>
-                {/* Compact BloomOS lockup: florals + wordmark, no tagline.
+                {/* Compact Kalmea lockup: florals + wordmark, no tagline.
                     Brand tier, so it never takes the tenant accent. Intrinsic
                     520x177 with the height capped, so the ratio holds. */}
                 {/* Matches the /login treatment exactly: width-driven sizing so
@@ -7406,7 +7406,7 @@ ${c.claimUrl}`)}`;
                     sitting flush against the menu button. No wrapper box, no
                     background, no overflow - the petals reach the edge of the
                     artwork and must never be cropped. */}
- <img className="hdr-logo" src={LOGO_COMPACT} alt="BloomOS" width={520} height={177}
+ <img className="hdr-logo" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
@@ -11059,7 +11059,7 @@ ${c.claimUrl}`)}`;
      cosmetician's personal WhatsApp number was RESTRICTED for being
      connected to the API. No tenant should carry that risk, so the product
      no longer invites it. Utility messages (reminders, confirmations) go
-     out from the central BloomOS number; marketing is sent by her, from
+     out from the central Kalmea number; marketing is sent by her, from
      her own WhatsApp, via the compose window's wa.me links. */}
  {/* Lead-intake API key: lets an external landing page or site form post
      leads straight into her list. The key is shown ONCE at generation; the
@@ -11102,7 +11102,7 @@ ${c.claimUrl}`)}`;
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות ואישורי תורים נשלחים אוטומטית מהמספר המרכזי של BloomOS, עם שם העסק שלך בגוף ההודעה. הודעות שיווקיות (הצעות תור, מבצעים, "חזרנו") נשלחות תמיד מהוואטסאפ האישי שלך — המערכת מכינה את ההודעה ואת פותחת ושולחת. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות ואישורי תורים נשלחים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה. הודעות שיווקיות (הצעות תור, מבצעים, "חזרנו") נשלחות תמיד מהוואטסאפ האישי שלך — המערכת מכינה את ההודעה ואת פותחת ושולחת. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>

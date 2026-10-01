@@ -13,7 +13,7 @@
 //   2. the same heading in a serif (Frank Ruhl Libre) - is the font there?
 //   3. mixed Hebrew + numbers: price, duration, weekday + time (bidi order)
 //   4. a wrapped right-aligned paragraph - line order and ragged edge side
-//   5. Hebrew with Latin inside it (BloomOS) and mirrored parentheses
+//   5. Hebrew with Latin inside it (Kalmea) and mirrored parentheses
 //   6. a caption pill, right-aligned at the bottom, as reels captions would be
 //   7. the same caption on a 3 s clip, appearing at 1 s
 //
@@ -61,7 +61,7 @@ const image = {
     label('l4', '4 · פסקה גלישה, מיושרת לימין', '46%'),
     heb('paragraph', 'הסריקה נועדה להתרשמות ראשונית בלבד ואינה מהווה אבחון רפואי. תוצאות מדויקות יותר מתקבלות בפגישה בקליניקה, אחרי בדיקה אישית.', '49%', { weight: 400, size: '3.6 vmin', height: '16%' }),
     label('l5', '5 · לטינית בתוך עברית וסוגריים', '66%'),
-    heb('latin-inside', 'מופעל ע"י BloomOS (בקליניקה שלך) — 100% טבעי!', '69%', { weight: 600, size: '4.2 vmin' }),
+    heb('latin-inside', 'מופעל ע"י Kalmea (בקליניקה שלך) — 100% טבעי!', '69%', { weight: 600, size: '4.2 vmin' }),
     label('l6', '6 · כתובית עם רקע, מיושרת לימין למטה', '80%'),
     heb('caption', 'שלב 1: ניקוי עמוק · 15 דק׳', '86%', { size: '4 vmin', color: '#FFFFFF', bg: '#C9A24B', height: '7%', extra: { width: null } }),
   ],

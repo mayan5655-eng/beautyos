@@ -1,5 +1,5 @@
 // lib/brand.ts
-// BloomOS brand surface, in one place.
+// Kalmea brand surface, in one place.
 //
 // The tokens themselves live in app/globals.css; these are the strings pages
 // use in inline styles, so no page has to remember the fallback hex. Before
@@ -7,10 +7,10 @@
 // identical copy - three chances to drift.
 //
 // BRAND vs ACCENT, the rule that decides which set to use:
-//   --brand-*  BloomOS identity. FIXED. Logo, pre-auth pages, marketing.
+//   --brand-*  Kalmea identity. FIXED. Logo, pre-auth pages, marketing.
 //   --pc-*     Tenant accent. SWITCHABLE from settings.primary_color.
 // If a client reads it as HER business it is --pc-*; if they read it as
-// BloomOS it is --brand-*.
+// Kalmea it is --brand-*.
 
 // ---- Brand tier (fixed) ----
 export const ACCENT = 'var(--brand-accent, #4A2E5A)'

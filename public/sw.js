@@ -1,4 +1,4 @@
-// BloomOS service worker — installability only, NO caching.
+// Kalmea service worker — installability only, NO caching.
 //
 // This is a live app with real bookings, so the worker must never serve stale
 // data. It deliberately implements a pure network pass-through: its only job is

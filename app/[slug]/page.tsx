@@ -67,10 +67,10 @@ async function resolveTenant(slug: string): Promise<{ id: string; name: string }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const tenant = await resolveTenant(slug);
-  if (!tenant) return { title: 'BloomOS' };
+  if (!tenant) return { title: 'Kalmea' };
 
   const brand = resolveBranding(await fetchPublicSettings(publicClient(), tenant.id));
-  const title = brand.businessName || tenant.name || 'BloomOS';
+  const title = brand.businessName || tenant.name || 'Kalmea';
   const description =
     brand.welcomeMessage ||
     brand.businessDescription ||

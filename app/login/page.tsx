@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { supabase } from '../supabase'
 import BrandBackdrop from '../BrandBackdrop'
 
-// Pre-auth page: carries the BLOOMOS BRAND, never a tenant accent. There is no
+// Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
 // tenant until after login, so every value reads --brand-*, never --pc-*.
 // The tokens, the wash and the logo all come from lib/brand.ts so this page and
 // its siblings cannot drift apart.
@@ -134,7 +134,7 @@ export default function LoginPage() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
             src={LOGO_FULL}
-            alt="BloomOS — המערכת שמצמיחה את הקליניקה שלך"
+            alt="קלמיה — המערכת שמצמיחה את הקליניקה שלך"
             width={LOGO_FULL_W}
             height={LOGO_FULL_H}
             priority

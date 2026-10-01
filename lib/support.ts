@@ -41,7 +41,7 @@ export const SUPPORT_TEAM_HE = process.env.NEXT_PUBLIC_SUPPORT_NAME || 'צוות
 /**
  * Prefilled Hebrew opener, so she never has to work out how to explain herself.
  */
-export const SUPPORT_WHATSAPP_MESSAGE = 'היי, אני רוצה להמשיך עם BloomOS'
+export const SUPPORT_WHATSAPP_MESSAGE = 'היי, אני רוצה להמשיך עם קלמיה'
 
 /**
  * A wa.me link that opens the chat with the message already typed, or null when

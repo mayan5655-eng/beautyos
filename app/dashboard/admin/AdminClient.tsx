@@ -47,7 +47,7 @@ const STATUS_HE: Record<PlanStatus, string> = {
   paused: 'בהשהיה',
 }
 
-// Muted, BloomOS-ish palette. Expired and paused read as calm states, not
+// Muted, Kalmea-ish palette. Expired and paused read as calm states, not
 // alarms: an expired tenant is a conversation to have, not a fire.
 const STATUS_COLOR: Record<PlanStatus, { fg: string; bg: string; border: string }> = {
   trial: { fg: '#8A6A2F', bg: '#FBF3E2', border: '#EADFC4' },

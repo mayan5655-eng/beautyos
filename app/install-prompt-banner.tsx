@@ -49,7 +49,7 @@ function remember() {
  * and Android users were getting that. This closes the gap.
  *
  * Not gated to Android on purpose: the event fires on desktop Chrome and Edge
- * too, where installing BloomOS is just as welcome, and letting the browser
+ * too, where installing Kalmea is just as welcome, and letting the browser
  * decide installability is also what makes this testable in DevTools without a
  * phone. iOS Safari never fires it, so the two banners can't collide.
  *
@@ -135,7 +135,7 @@ export default function InstallPromptBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
-      title="התקיני את BloomOS למסך הבית"
+      title="התקיני את קלמיה למסך הבית"
       icon={
         /* phone with a download arrow */
         <svg

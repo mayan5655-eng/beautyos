@@ -20,7 +20,7 @@ import { accentStyle } from "@/lib/theme";
 // The clinic's accent family, as CSS variables. accentStyle() sets --pc,
 // --pc-deep, --pc-soft, --pc-contrast … on the page root from her
 // primary_color, and everything below reads the variables - so no chrome on
-// this page can stay the BloomOS purple once her branding has loaded.
+// this page can stay the Kalmea purple once her branding has loaded.
 const ACCENT = "var(--pc)";
 const DEEP = "var(--pc-deep)";
 const ON_ACCENT = "var(--pc-contrast, #FFFFFF)";
@@ -94,7 +94,7 @@ export default function SkinScanPage() {
   }, []);
 
   // Load the clinic's branding (public-safe fields only). Strictly tenant-scoped;
-  // missing/invalid tenant or error -> neutral BloomOS defaults (never another clinic).
+  // missing/invalid tenant or error -> neutral Kalmea defaults (never another clinic).
   useEffect(() => {
     if (!tenantId) return;
     let alive = true;
@@ -526,7 +526,7 @@ export default function SkinScanPage() {
 
       </div>
 
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6 }}>מופעל ע"י BloomOS</div>
+      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6 }}>מופעל ע"י קלמיה</div>
     </div>
   );
 }

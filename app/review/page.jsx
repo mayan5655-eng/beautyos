@@ -80,7 +80,7 @@ export default function ReviewPage() {
   const ink = "var(--ink, #2A2233)";
   const muted = "var(--brand-muted, #98879B)";
   // Her accent, set as CSS variables on the wrapper once /api/reviews has
-  // answered; until then the default family. --brand-accent is the BloomOS
+  // answered; until then the default family. --brand-accent is the Kalmea
   // wordmark purple and has no business on a client's review page.
   const pc = "var(--pc)";
   const wrap = {

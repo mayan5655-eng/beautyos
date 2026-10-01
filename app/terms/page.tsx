@@ -6,12 +6,12 @@
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 
-// Legal pages are BloomOS documents, not a tenant's: brand tier, never --pc-*.
+// Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: "תנאי שימוש · BloomOS",
-  description: "תנאי השימוש של BloomOS — Beauty Business OS",
+  title: "תנאי שימוש · Kalmea",
+  description: "תנאי השימוש של Kalmea — Beauty Business OS",
 };
 
 const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
@@ -21,15 +21,15 @@ export default function TermsPage() {
     <main dir="rtl" style={pageStyle}>
       <article style={cardStyle}>
         <header style={{ marginBottom: 10 }}>
-          <p style={brandStyle}>BloomOS</p>
+          <p style={brandStyle}>Kalmea</p>
           <h1 style={titleStyle}>תנאי שימוש</h1>
           <p style={enSubtitleStyle} dir="ltr">Terms of Service</p>
         </header>
 
         <Section heHeading="כללי" enHeading="General">
-          <He>השימוש ב-BloomOS כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
+          <He>השימוש ב-קלמיה כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
           <En>
-            Use of BloomOS is subject to these terms. Using the Service constitutes
+            Use of Kalmea is subject to these terms. Using the Service constitutes
             agreement to them.
           </En>
         </Section>

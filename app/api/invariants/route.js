@@ -76,7 +76,7 @@ async function run() {
       const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
       if (to) {
         try {
-          await sendWhatsApp(to, `בדיקת נתונים יומית\n\n${report}`, { name: "BloomOS", type: "invariants" });
+          await sendWhatsApp(to, `בדיקת נתונים יומית\n\n${report}`, { name: "Kalmea", type: "invariants" });
           notified = true;
         } catch (waErr) {
           // A failed notification must not fail the check. The finding is in
