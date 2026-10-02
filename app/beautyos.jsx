@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
+import { daysSinceLastVisit, isActiveClient, isColdClient } from "@/lib/clientActivity";
 import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
@@ -2533,7 +2534,10 @@ export default function BeautyOS() {
   }, [appointments]);
 
   const getLastApptDate = (cid) => lastApptDateByClient.get(String(cid));
-  const getDaysSince   = (cid) => {const d=getLastApptDate(cid);if(!d)return 999;return Math.floor((now-new Date(d))/(1000*60*60*24));};
+  // lib/clientActivity.ts owns the null-vs-sentinel rule and is unit-tested
+  // directly - see that file's own comment for why a client with no
+  // appointment yet must read as null, never as a huge day-count.
+  const getDaysSince   = (cid) => daysSinceLastVisit(getLastApptDate(cid), now);
   // Same shape as the last-visit index above. topClients sorts every client
   // with a comparator that called this, and a comparator runs O(n log n) times
   // - so a full scan of receipts per comparison, then again in the filter.
@@ -2552,8 +2556,12 @@ export default function BeautyOS() {
   const getClientReceipts = (cid) => receipts.filter(r=>String(r.client_id)===String(cid));
   const getClientPackages = (cid) => packages.filter(p=>String(p.client_id)===String(cid)&&p.active);
 
-  const activeClients = useMemo(() => clients.filter(c=>getDaysSince(c.id)<=60), [clients, appointments, today]);
-  const coldClients   = useMemo(() => clients.filter(c=>getDaysSince(c.id)>60), [clients, appointments, today]);
+  // "New" (no appointment yet) is its own state - never active (she hasn't
+  // actually been seen), never cold (she isn't overdue for anything; there
+  // was never a first visit to lapse from). This is what keeps her out of
+  // the needs-attention queue's win-back nudges. See lib/clientActivity.ts.
+  const activeClients = useMemo(() => clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
+  const coldClients   = useMemo(() => clients.filter(c=>isColdClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, receipts]);
 
   // Per-service breakdown.
@@ -2698,7 +2706,7 @@ export default function BeautyOS() {
 
   const filteredClients = useMemo(() => clients.filter(c=>{
     const matchSearch=matchesQuery(searchQuery,{text:[c.name],phones:[c.phone]});
-    const matchStatus=filterStatus==="all"||c.status===filterStatus||(filterStatus==="cold"&&getDaysSince(c.id)>60)||(filterStatus==="active"&&getDaysSince(c.id)<=60);
+    const matchStatus=filterStatus==="all"||c.status===filterStatus||(filterStatus==="cold"&&isColdClient(getLastApptDate(c.id),now))||(filterStatus==="active"&&isActiveClient(getLastApptDate(c.id),now));
     const matchSkin=filterSkin==="all"||c.skinType===filterSkin;
     return matchSearch&&matchStatus&&matchSkin;
   }), [clients, appointments, searchQuery, filterStatus, filterSkin, today]);
@@ -4980,6 +4988,21 @@ export default function BeautyOS() {
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
     setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setShowCashier(true);
+  };
+
+  // Opens the new-appointment modal pre-filled with her first active service.
+  // Component-scoped on purpose: it used to be declared inside a closure that
+  // only exists while the DASHBOARD tab renders, so the Calendar tab's own
+  // empty-state button - which referenced the same bare name - threw
+  // ReferenceError the instant appointments.length was 0, i.e. on every
+  // single new signup's first visit to her calendar. Invisible on any tenant
+  // that already has a booking, which is exactly why it reached production.
+  const openNewAppt = () => {
+    const svc = activeServices[0];
+    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});
+    setApptNote("");
+    setShowModal(true);
+    setShowMobileSidebar(false);
   };
 
   const handleSaveReceipt = async () => {
@@ -8005,7 +8028,8 @@ ${c.claimUrl}`)}`;
                 : `${hour<12?"בוקר רגוע":hour<17?"צהריים רגועים":hour<21?"ערב רגוע":"לילה רגוע"} ☕ — יום טוב לפנות ללקוחות ותיקות`;
               const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
               // Revenue stats + chart moved to the "תובנות" (insights) tab.
-              const openNewAppt=()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);};
+              // openNewAppt is now component-scoped, above (lifted out of
+              // this closure - see its own comment for why).
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
@@ -9022,8 +9046,8 @@ ${c.claimUrl}`)}`;
               if(!c.phone)return false;
               if(waBroadcastAudience==="all")return true;
               if(waBroadcastAudience==="vip")return c.status==="VIP";
-              if(waBroadcastAudience==="active")return getDaysSince(c.id)<=60;
-              if(waBroadcastAudience==="cold")return getDaysSince(c.id)>60;
+              if(waBroadcastAudience==="active")return isActiveClient(getLastApptDate(c.id),now);
+              if(waBroadcastAudience==="cold")return isColdClient(getLastApptDate(c.id),now);
               return true;
             });
 
