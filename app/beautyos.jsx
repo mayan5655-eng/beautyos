@@ -7668,7 +7668,7 @@ ${c.claimUrl}`)}`;
  </button>
  </aside>
 
- <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBEDE9":undefined}}>
+ <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBF8F1":undefined}}>
           <ChromeFlowerBg/>
           {/* Trial notice. Sits OUTSIDE the keyed tab wrapper on purpose: it is a
               property of the account, not of a screen, so it stays put and does
@@ -7743,7 +7743,7 @@ ${c.claimUrl}`)}`;
  <p style={{position:"relative",fontFamily:"var(--font-hand),cursive",fontSize:21,color:"#C07A72",marginBottom:4}}>שאלה אחת</p>
  <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
  <div style={{position:"relative",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
- <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#E9A9A1",color:"#1F3A30",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
+ <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#1F3A30",color:"#FBF8F1",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
  <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"#8CA096",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
  <div style={{flex:1}}/>
  {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"#8CA096"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
