@@ -8141,7 +8141,7 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div className={calView==="week"?undefined:"desktop-only"}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[6])}</h2>
+ <h2 style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[6])}</h2>
  </div>
  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
  {/* Mobile-only day/week toggle. Hidden on desktop, so desktop always shows the week grid. */}
@@ -8190,7 +8190,7 @@ ${c.claimUrl}`)}`;
  <div key={i} onClick={()=>{setCalDay(d);setCalView("day");}} title={`יום ${DAYS_HE[d.getDay()]}`}
                           style={{padding:"7px 2px",textAlign:"center",cursor:"pointer",borderRight:i<6?"1px solid var(--line)":"none",background:isToday?"var(--pc-tint)":undefined,boxShadow:isToday?`inset 0 -2px 0 ${pc}`:undefined}}>
  <p style={{fontSize:"var(--t-sm)",color:isToday?pcDeep:"var(--ink-3)",fontWeight:isToday?700:600}}>{DAYS_HE[d.getDay()]}</p>
- <p className="serif" style={{fontSize:"var(--t-lg)",fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.25}}>{d.getDate()}</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-lg)",fontWeight:700,color:isToday?pc:"var(--ink)",lineHeight:1.25}}>{d.getDate()}</p>
                           {isClosed&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:700}}>סגור</p>}
                           {hasCancel&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600}}>ביטול</p>}
                           {/* Booking without hunting for empty space, and the
@@ -8214,7 +8214,7 @@ ${c.claimUrl}`)}`;
                         const m=weekAxis.lo+r*30;
                         if(m%60!==0) return null;
                         return(
- <div key={r} style={{position:"absolute",top:r*WK_ROW_H-1,insetInlineStart:0,insetInlineEnd:2,textAlign:"center",fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600}}>{fmtTime(m)}</div>
+ <div key={r} style={{position:"absolute",top:r*WK_ROW_H-1,insetInlineStart:0,insetInlineEnd:2,textAlign:"center",fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600}}>{fmtTime(m)}</div>
                         );
                       })}
  </div>
@@ -8285,7 +8285,7 @@ ${c.claimUrl}`)}`;
  <button aria-label="יום קודם" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()-1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>←</button>
  <div style={{textAlign:"center",flex:1}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}>יום {DAYS_HE[calDay.getDay()]}</p>
- <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:700,color:isTodaySel?pc:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(calDay)}{isTodaySel?" · היום":""}</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-xl)",fontWeight:700,color:isTodaySel?pc:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(calDay)}{isTodaySel?" · היום":""}</p>
  </div>
  <button aria-label="יום הבא" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()+1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>→</button>
  </div>
@@ -8331,7 +8331,7 @@ ${c.claimUrl}`)}`;
                         const hasPhone=appt&&(clients.find(c=>String(c.id)===String(appt.client_id))?.phone||appt.client_phone);
                         return(
  <div key={row.key} style={{display:"flex",alignItems:"stretch",gap:10}}>
- <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink-3)"}}>{appt&&isAllDay(appt)?"—":fmtTime(row.min)}</div>
+ <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink-3)"}}>{appt&&isAllDay(appt)?"—":fmtTime(row.min)}</div>
                             {appt?(
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":appt.confirmation_status===NO_SHOW?" · לא הגיעה":""}</p>
@@ -8594,19 +8594,19 @@ ${c.claimUrl}`)}`;
               {[["היום",todayTotals],["החודש",monthTotals]].map(([label,t])=>{
                 const rows=bucketByMethod(t, PAYMENT_METHODS.map(m=>m.key));
                 return (
- <div key={label} className="glass-card" style={{padding:"16px 18px"}}>
+ <div key={label} className="glass-card card-boxed" style={{padding:"16px 18px"}}>
  <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}>{label} · {t.count===0?"אין תשלומים":t.count===1?"תשלום אחד":`${t.count} תשלומים`}</p>
- <p className="serif" style={{fontSize:"var(--t-hero)",fontWeight:600,color:pc,lineHeight:1.1,marginTop:4}}>₪{t.total.toLocaleString()}</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-hero)",fontWeight:600,color:pc,lineHeight:1.1,marginTop:4}}>₪{t.total.toLocaleString()}</p>
  </div>
-                    {t.tips>0&&<div style={{textAlign:"left"}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}>+ טיפים</p><p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink-2)"}}>₪{t.tips.toLocaleString()}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>סה״כ בקופה ₪{t.collected.toLocaleString()}</p></div>}
+                    {t.tips>0&&<div style={{textAlign:"left"}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}>+ טיפים</p><p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink-2)"}}>₪{t.tips.toLocaleString()}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>סה״כ בקופה ₪{t.collected.toLocaleString()}</p></div>}
  </div>
  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px",marginTop:12,paddingTop:10,borderTop:"1px solid var(--line)"}}>
                     {rows.map(r=>{const pm=PAYMENT_METHODS.find(p=>p.key===r.method);const zero=r.total===0;return(
  <div key={r.method} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:28,opacity:zero?0.45:1}}>
  <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span style={{width:8,height:8,borderRadius:"50%",background:pm?.color||"var(--ink-3)",flexShrink:0}}/>{r.method}</span>
- <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:700,color:zero?"var(--ink-3)":"var(--ink)"}}>₪{r.total.toLocaleString()}</span>
+ <span style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-md)",fontWeight:700,color:zero?"var(--ink-3)":"var(--ink)"}}>₪{r.total.toLocaleString()}</span>
  </div>
                     );})}
  </div>
@@ -8616,7 +8616,7 @@ ${c.claimUrl}`)}`;
  </div>
 
             {todayAppts.length>0&&(
- <div className="glass-card" style={{padding:"18px 20px",marginBottom:16}}>
+ <div className="glass-card card-boxed" style={{padding:"18px 20px",marginBottom:16}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>⚡</span>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים היום — תשלום מהיר</h3>
@@ -8645,7 +8645,7 @@ ${c.claimUrl}`)}`;
  </div>
             )}
 
- <div className="glass-card" style={{padding:"18px 20px"}}>
+ <div className="glass-card card-boxed" style={{padding:"18px 20px"}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
  <div style={{display:"flex",alignItems:"center",gap:10}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>🧾</span>
@@ -8681,7 +8681,7 @@ ${c.claimUrl}`)}`;
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
- <p className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-lg)",fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
  </div>
                 );
               })}
