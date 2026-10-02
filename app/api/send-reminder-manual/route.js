@@ -153,6 +153,13 @@ export async function POST(request) {
       tenantId,
     });
 
+    // queued (manual mode, or the central number fell back) is not a
+    // failure: this is a single, user-initiated send, so instead of making
+    // her go find it in a queue later, hand the caller the wa.me link to
+    // open immediately - the one tap replaces the automatic send right now.
+    if (result.queued) {
+      return Response.json({ success: true, queued: true, waLink: result.waLink });
+    }
     if (!result.ok) {
       return Response.json({ success: false, error: result.demoBlocked ? result.error : "WhatsApp send failed" }, { status: result.demoBlocked ? 403 : 502 });
     }

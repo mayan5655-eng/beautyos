@@ -241,16 +241,17 @@ export default function AdminClient({
           <span style={{ fontSize:"var(--t-2xl)", flexShrink: 0 }}>⚠</span>
           <div>
             <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: '#9A5148', marginBottom: 4 }}>
-              וואטסאפ לא מחובר - שום הודעה אוטומטית לא יוצאת בפועל
+              וואטסאפ לא מחובר - כבי את מתג השליחה האוטומטית למטה עד שהחיבור יתחדש
             </p>
             <p style={{ fontSize:"var(--t-sm)", color: '#9A5148', lineHeight: 1.6 }}>
               {greenApiState.ok
-                ? `GreenAPI מחזירה stateInstance = "${greenApiState.stateInstance}" (לא authorized). תזכורות, אישורי תור, קבלות, בקשות ביקורת וההתראה היומית - כולן "נשלחות" בלוג אבל לא מגיעות, עד שהחיבור יתחדש בקונסולת GreenAPI.`
+                ? `GreenAPI מחזירה stateInstance = "${greenApiState.stateInstance}" (לא authorized). כל שליחה שנכשלת ברמת הרשת נופלת אוטומטית לתור הידני של העסק - אבל GreenAPI עצמה מחזירה 200 גם כשהחיבור לא authorized, בלי לדעת שההודעה לא תגיע. זו בדיוק הסיבה לכבות את המתג עכשיו, לא לסמוך על הנפילה האוטומטית.`
                 : `הבדיקה עצמה נכשלה: ${greenApiState.error}`}
             </p>
           </div>
         </div>
       )}
+      <WhatsAppModeToggle greenApiDown={greenApiDown} />
       <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
@@ -475,6 +476,92 @@ export default function AdminClient({
         onConfirm={doRun}
         onCancel={() => setPending(null)}
       />
+    </div>
+  )
+}
+
+// ── WhatsApp mode: the live kill switch ──────────────────────────────────────
+// Utility types (reminder, booking_confirm, receipt, skin_report) are the
+// ONLY ones this ever touches - outreach (win-back, gap-fill offers, lead
+// bulk-sends) has no automatic path at all, by design, with no flag that
+// changes that. Off by default: every utility send queues for her to tap
+// from wa.me until this is switched on, and any live send that fails falls
+// back to that same queue rather than vanishing.
+function WhatsAppModeToggle({ greenApiDown }: { greenApiDown: boolean }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  useMemo(() => {
+    fetch('/api/admin/whatsapp-mode')
+      .then((r) => r.json())
+      .then((d) => { setEnabled(!!d.enabled); if (d.error) setErr(d.error) })
+      .catch(() => setErr('לא הצלחנו לטעון את מצב השליחה האוטומטית.'))
+      .finally(() => setLoading(false))
+    // Intentionally once: this is a page load, not a live subscription - a
+    // second admin flipping it elsewhere is rare enough that a refresh is
+    // the right fix, not a poller.
+  }, [])
+
+  async function flip() {
+    if (enabled === null || saving) return
+    const next = !enabled
+    setSaving(true)
+    setErr('')
+    try {
+      const res = await fetch('/api/admin/whatsapp-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErr(data?.error || 'העדכון נכשל'); return }
+      setEnabled(!!data.enabled)
+    } catch {
+      setErr('העדכון נכשל. בדקי את החיבור ונסי שוב.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{
+      padding: '16px 20px', borderRadius: 'var(--r-md)', border: `1px solid ${line}`,
+      background: surface, marginBottom: 20, display: 'flex', alignItems: 'center',
+      justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+    }}>
+      <div>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: ink, marginBottom: 3 }}>
+          שליחה אוטומטית של הודעות שירות (תזכורות, אישורי תור, קבלות, דוח סורק עור)
+        </p>
+        <p style={{ fontSize: 'var(--t-sm)', color: ink2, lineHeight: 1.6 }}>
+          {loading
+            ? 'טוענת...'
+            : enabled
+              ? 'פעיל - הודעות אלה יוצאות מהמספר המרכזי. כל שליחה שנכשלת נופלת אוטומטית לתור השליחה הידנית של העסק, ולא נעלמת.'
+              : 'כבוי (ברירת המחדל) - כל ההודעות האלה ממתינות בתור השליחה הידנית של כל עסק, בלי יוצא מהכלל.'}
+          {' '}שיווק, חזרה ללקוחות ישנות והצעת תור שהתפנה הם תמיד ידניים - המתג הזה לא נוגע בהם.
+        </p>
+        {!loading && enabled && greenApiDown && (
+          <p style={{ fontSize: 'var(--t-sm)', color: '#9A5148', fontWeight: 700, marginTop: 6 }}>
+            שימי לב: GreenAPI לא מחוברת כרגע. שליחות ייפלו לתור הידני אוטומטית, אבל שווה לכבות את המתג עד שהחיבור יתחדש.
+          </p>
+        )}
+        {err && <p style={{ fontSize: 'var(--t-sm)', color: '#9A5148', marginTop: 6 }}>{err}</p>}
+      </div>
+      <button
+        onClick={flip}
+        disabled={loading || saving || enabled === null}
+        style={{
+          flexShrink: 0, padding: '10px 20px', borderRadius: 'var(--r-full)', border: 'none',
+          background: enabled ? '#9A5148' : '#4E7A55', color: '#fff', fontWeight: 700,
+          fontSize: 'var(--t-sm)', cursor: loading || saving ? 'default' : 'pointer',
+          opacity: loading || saving ? 0.6 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
+        }}
+      >
+        {saving ? '...' : enabled ? 'כיבוי' : 'הפעלה'}
+      </button>
     </div>
   )
 }

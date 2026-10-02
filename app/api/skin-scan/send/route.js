@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
+import { notifyOwner } from "../../../../lib/ownerNotify.js";
 import { upsertScanLead } from "../../../../lib/leads";
 import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
 
@@ -89,17 +90,19 @@ export async function POST(request) {
     const tenantLimited = checkTenantLimit(tenantId, "skin-scan-send");
     if (tenantLimited) return tenantLimited;
 
-    // Business name + owner phone for THIS tenant (per-tenant, from settings).
+    // Business name for THIS tenant (per-tenant, from settings).
     const { data: settingsRows } = await supabase
       .from("settings")
-      .select("business_name, business_phone")
+      .select("business_name")
       .eq("tenant_id", tenantId)
       .limit(1);
     const settingsRow = settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
     const businessName = settingsRow?.business_name || "";
-    const ownerPhone = settingsRow?.business_phone || "";
 
-    // 1. Send the full report to the CLIENT
+    // 1. The full report to the CLIENT. "skin_report" is a utility type - she
+    //    asked for this and is waiting for it - so it sends automatically
+    //    once the admin toggle is on, and falls back to the owner's manual
+    //    queue (not lost) if the central number can't deliver it right now.
     const clientMsg = buildClientMessage(report, businessName);
     const clientResult = await sendWhatsApp(clientPhone, clientMsg, {
       name: clientName || "לקוחה",
@@ -107,33 +110,32 @@ export async function POST(request) {
       tenantId,
     });
 
-    // 2. Send a hot-lead notification to the OWNER (only if she set a phone)
-    if (ownerPhone) {
-      const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
-      await sendWhatsApp(ownerPhone, ownerMsg, {
-        name: "בעלת העסק",
-        type: "skin_lead_alert",
-        tenantId,
-      });
-    }
+    // 2. Hot-lead ping to the OWNER: in-app + push, not WhatsApp - same
+    //    reasoning as bookingNotify/cancelNotify. No longer needs a phone.
+    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
+    await notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg });
 
     // 3. Save/refresh the lead as a first-class "סורק העור" row (top-level
     //    phone/source/status/service_interest, deduped by tenant_id+phone).
-    //    Best-effort — a lead failure never blocks the WhatsApp send.
+    //    Best-effort — a lead failure never blocks anything above.
     try {
       await upsertScanLead(supabase, { tenantId, name: clientName, phone: clientPhone, report });
     } catch (leadErr) {
       console.error("Lead save (non-fatal):", leadErr.message);
     }
 
-    if (!clientResult.ok) {
+    // invalidPhone is a real failure (nothing to send, nothing to queue).
+    // queued (manual mode, or the live send fell back) is NOT a failure - the
+    // report is waiting in her WhatsApp queue, not lost - so the public page
+    // must not tell its visitor "it didn't send".
+    if (!clientResult.ok && clientResult.invalidPhone) {
       return Response.json(
         { success: false, error: "הדוח לא נשלח. בדקי שמספר הטלפון תקין." },
         { status: 502 }
       );
     }
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, queued: !!clientResult.queued });
   } catch (err) {
     console.error("skin-scan/send error:", err);
     return Response.json({ success: false, error: err.message }, { status: 500 });

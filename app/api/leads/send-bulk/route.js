@@ -106,11 +106,19 @@ export async function POST(request) {
     //    got the same "לקוחה יקרה". A message she typed with no placeholders
     //    passes through renderLeadTemplate unchanged, so a literal message and
     //    a template take the same path and there is nothing to distinguish.
-    let sent = 0;
+    // Lead outreach is never automatic (lib/whatsapp.js's UTILITY_TYPES does
+    // not include "lead_bulk", by design - this is exactly the kind of
+    // message the open-launch WhatsApp decision calls "outreach"). Every
+    // call below comes back `queued`, with a wa.me link already composed
+    // from the per-recipient rendered text; she taps each one herself. The
+    // contact trail stamps on queue, not on a confirmed tap - the same trust
+    // level the gap-fill/comeback "prepare" flows already use for the same
+    // reason: there is no delivery receipt for a tap WhatsApp makes no
+    // promise to report back on.
+    let queued_count = 0;
     let failed = 0;
     let skipped_no_phone = 0;
     const results = [];
-    // Leads we actually reached, for the contact trail written after the loop.
     const contacted = [];
 
     for (const lead of leads || []) {
@@ -127,8 +135,14 @@ export async function POST(request) {
         tenantId,
       });
 
-      if (res.ok) {
-        sent++;
+      if (res.queued && res.waLink) {
+        queued_count++;
+        contacted.push(lead);
+        results.push({ name: lead.name || null, status: "ממתין לשליחה ידנית", waLink: res.waLink });
+      } else if (res.ok) {
+        // Not reachable today (lead_bulk is never a utility type), kept so a
+        // future type reclassification doesn't silently miscount.
+        queued_count++;
         contacted.push(lead);
         results.push({ name: lead.name || null, status: "נשלח" });
       } else {
@@ -170,7 +184,7 @@ export async function POST(request) {
 
     return Response.json({
       success: true,
-      sent,
+      queued: queued_count,
       failed,
       skipped_no_phone,
       results,

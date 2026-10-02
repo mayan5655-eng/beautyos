@@ -111,3 +111,15 @@ export function toWhatsAppNumber(raw: string | null | undefined): string | null 
   if (out.length < 7 || out.length > 15) return null;
   return out;
 }
+
+/**
+ * A wa.me compose link: tapping it opens WhatsApp with the message already
+ * typed, from whoever's phone taps it - no API, no instance, no ban risk.
+ * Null when the phone cannot be resolved to a number at all (same rule as
+ * toWhatsAppNumber - a link with no valid destination is worse than no link).
+ */
+export function waLink(phone: string | null | undefined, message: string): string | null {
+  const digits = toWhatsAppNumber(phone);
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+}

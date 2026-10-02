@@ -11,7 +11,9 @@ import { startMinute } from "../../../lib/apptTime";
 import { greet, lines, hebrewDate, timeRange, hhmm } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
-import { reportReminderFailures, STATUS_FAILED, STATUS_NO_PHONE } from "../../../lib/reminders/failureReport.js";
+// reportReminderFailures is retired (see below) but the two status labels are
+// still shared with that module so a future rename stays a one-place change.
+import { STATUS_FAILED, STATUS_NO_PHONE } from "../../../lib/reminders/failureReport.js";
 import { isDemoTenantId } from "../../../lib/demoTenants.ts";
 
 // Vercel's default function timeout is short (10-15s depending on plan) and was
@@ -205,28 +207,18 @@ export async function POST(request) {
         tenantId: appt.tenant_id,
       });
 
-      results.push(row(appt, res.ok ? "נשלח" : STATUS_FAILED));
+      results.push(row(appt, res.ok ? "נשלח" : res.queued ? "ממתין לשליחה ידנית" : STATUS_FAILED));
     }
 
-    // The push half of the send log. A failed reminder used to sit in the
-    // WhatsApp log waiting to be noticed; now it is reported to her tonight,
-    // and to the operator when any tenant had one. Silence means all sent.
-    // Caught twice over - inside, per send, and here, whole - because the
-    // reminders have already gone out and a report that threw would hide the
-    // results behind a 500.
-    let report = null;
-    try {
-      report = await reportReminderFailures({
-        results,
-        date: tomorrow,
-        settingsByTenant,
-        send: sendWhatsApp,
-        operatorPhone: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP,
-      });
-      console.log("[send-reminders] failure report:", JSON.stringify(report));
-    } catch (reportErr) {
-      console.error("[send-reminders] failure report threw:", reportErr?.message || String(reportErr));
-    }
+    // reportReminderFailures (lib/reminders/failureReport.js) retired, not
+    // called: a reminder that doesn't send now falls back into the same
+    // manual WhatsApp queue she already opens the app to work through, so a
+    // separate WhatsApp telling her "some reminders failed" would be one
+    // more automated message that itself could fail silently. The queue IS
+    // the report. The module is left in place, unused, in case a future
+    // failure mode needs resurrecting it - see lib/whatsapp.js's own
+    // "keep GreenAPI code behind a flag" rule for why nothing here is deleted.
+    const report = null;
 
     return Response.json({ success: true, date: tomorrow, results, report });
   } catch (err) {

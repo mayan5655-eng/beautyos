@@ -67,16 +67,23 @@ export default function TermsPage() {
 
         <Section heHeading="הודעות ולידים" enHeading="Messaging and Leads">
           <He>
-            המערכת שולחת הודעות WhatsApp בשמך (תזכורות, אישורים, הודעות ללידים).
-            את אחראית לתוכן ההודעות ולעמידה בדיני הספאם והפרטיות, כולל כיבוד בקשות
+            המערכת שולחת הודעות שירות מסוימות (תזכורות, אישורי תור, אישורי תשלום)
+            ב-WhatsApp בשמך באופן אוטומטי כשהחיבור המרכזי פעיל. הודעות שיווק
+            ומעקב (הצעות תור, חזרה ללקוחות, הודעות לפניות) מוכנות על ידי המערכת
+            ונשלחות בלחיצה שלך מהוואטסאפ האישי שלך — לא אוטומטית. בכל מקרה, את
+            אחראית לתוכן ההודעות ולעמידה בדיני הספאם והפרטיות, כולל כיבוד בקשות
             הסרה. חיבור דף פייסבוק וקליטת לידים כפופים גם לתנאי Meta.
           </He>
           <En>
-            The system sends WhatsApp messages on your behalf (reminders,
-            confirmations, lead follow-ups). You are responsible for their content
-            and for compliance with spam and privacy laws, including honoring
-            opt-out requests. Connecting a Facebook page and receiving leads is
-            additionally subject to Meta&apos;s terms.
+            The system automatically sends certain service messages (reminders,
+            booking confirmations, payment confirmations) via WhatsApp on your
+            behalf when the central connection is active. Marketing and
+            follow-up messages (open-slot offers, win-back messages, lead
+            replies) are prepared by the system and sent with a tap from your
+            own WhatsApp — not automatically. Either way, you are responsible
+            for their content and for compliance with spam and privacy laws,
+            including honoring opt-out requests. Connecting a Facebook page
+            and receiving leads is additionally subject to Meta&apos;s terms.
           </En>
         </Section>
 

@@ -337,7 +337,12 @@ export async function POST(request) {
       const res = await sendWhatsApp(cand.phone, message, {
         name: cand.name, type: "slot_offer", tenantId,
       });
-      if (res.ok) sent++; else failed++;
+      // "slot_offer" is outreach, never a utility type, so this is always
+      // `queued` today - counted as a success here (the offer is real, the
+      // claim link is live, it is waiting in her WhatsApp queue), not a
+      // failure. Kept distinct from `sent` so a future utility reclassing
+      // isn't needed to tell the two apart later.
+      if (res.ok || res.queued) sent++; else failed++;
     }
 
     return Response.json({ success: true, sent, failed, candidates: candidates.length });

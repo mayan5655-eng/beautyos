@@ -502,6 +502,107 @@ async function fetchConfirmLinks(apptId) {
   }
 }
 
+// Browser push opt-in for owner_notifications (new booking / cancellation /
+// hot skin-scan lead) - lib/ownerNotify.js sends to every subscription stored
+// here. A plain function component (not a hook mid-render) so it can sit
+// inside Settings' JSX without its own effect tangling with the parent's.
+function PushSubscribeButton({ pc, pcGrad }) {
+  const [state, setState] = useState("idle"); // idle | checking | on | off | unsupported | error
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        if (!cancelled) setState("unsupported");
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (!cancelled) setState(sub ? "on" : "off");
+      } catch {
+        if (!cancelled) setState("off");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const urlBase64ToUint8Array = (base64) => {
+    const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+    const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(b64);
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  };
+
+  const subscribe = async () => {
+    setState("checking"); setErr("");
+    try {
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) { setErr("התראות דפדפן עדיין לא מוגדרות במערכת."); setState("off"); return; }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setErr("ההרשאה לא אושרה בדפדפן."); setState("off"); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      });
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+      if (!res.ok) { setErr("השמירה בשרת נכשלה."); setState("off"); return; }
+      setState("on");
+    } catch (e) {
+      setErr(e?.message || "ההפעלה נכשלה.");
+      setState("off");
+    }
+  };
+
+  const unsubscribe = async () => {
+    setState("checking");
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setState("off");
+    } catch {
+      setState("on");
+    }
+  };
+
+  if (state === "unsupported") {
+    return <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>הדפדפן הזה לא תומך בהתראות דחיפה.</p>;
+  }
+  return (
+    <div>
+      <button
+        onClick={state === "on" ? unsubscribe : subscribe}
+        disabled={state === "checking" || state === "idle"}
+        style={{
+          background: state === "on" ? "var(--surface)" : pcGrad,
+          color: state === "on" ? "var(--ink-2)" : "var(--pc-contrast)",
+          border: state === "on" ? "1px solid var(--line-2)" : "none",
+          borderRadius: "var(--r-sm)", padding: "9px 16px", fontSize: "var(--t-sm)", fontWeight: 600,
+          cursor: state === "checking" ? "default" : "pointer", fontFamily: "inherit",
+          opacity: state === "checking" ? 0.6 : 1,
+        }}
+      >
+        {state === "checking" ? "רגע..." : state === "on" ? "כיבוי התראות" : "הפעלת התראות"}
+      </button>
+      {err && <p style={{ fontSize: "var(--t-xs)", color: "var(--danger)", marginTop: 6 }}>{err}</p>}
+    </div>
+  );
+}
+
 // `time` is an ALREADY-FORMATTED "14:30", not an hour number. It used to take
 // appt.hour and interpolate it raw, which sent a client "בשעה 14" - the bare
 // integer, wrong for every half-hour appointment and badly formatted even for
@@ -968,6 +1069,13 @@ export default function BeautyOS() {
   // row itself is never altered; every total reads `liveRcpts`, which drops
   // the voided ones, and the lists show the original with a badge.
   const [receiptVoids, setReceiptVoids] = useState([]);
+  // Manual WhatsApp queue + owner notifications (whatsapp-manual-mode.sql).
+  // Non-core reads, same as receiptVoids above: the migration is handed over
+  // by hand, so a missing table must never block the app from loading.
+  const [whatsappPending, setWhatsappPending] = useState([]);
+  const [ownerNotifs, setOwnerNotifs] = useState([]);
+  const [showWaQueue, setShowWaQueue] = useState(false);
+  const [waQueueDone, setWaQueueDone] = useState({}); // {[row.id]: true} - optimistic, mirrors composeDone
   const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
   const [expenses,     setExpenses]     = useState([]);
   const [services,     setServices]     = useState([]);
@@ -2215,11 +2323,17 @@ export default function BeautyOS() {
         // environment where that migration has not been run yet. The row is one
         // row on a tiny table, and RLS already scopes it to her own tenant.
         ["tenants",        supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle()],
+        // Manual WhatsApp queue: not core, same reasoning as receipt_voids -
+        // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
+        // newest-first: a queue is something she works through, not an
+        // archive, and this card groups/caps display further on its own.
+        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*").eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
+        ["owner_notifs",     supabase.from("owner_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(50)],
       ];
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
       READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
-      const [a,c,f,l,sv,st,r,rv,pk,wl,ex,tn] = settled;
+      const [a,c,f,l,sv,st,r,rv,pk,wl,ex,tn,wap,onf] = settled;
 
       // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
       // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
@@ -2239,7 +2353,7 @@ export default function BeautyOS() {
       // unblocked - because this is the BILLING row, and a transient error
       // there must never lock her out of her own calendar. Failing open on
       // billing and failing loud on data is the intended asymmetry.
-      const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants" && n !== "receipt_voids");
+      const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants" && n !== "receipt_voids" && n !== "whatsapp_pending" && n !== "owner_notifs");
       const failedReads = CORE_READS.filter((n) => res[n]?.error);
       if (failedReads.length > 0) {
         const first = res[failedReads[0]].error;
@@ -2311,6 +2425,12 @@ export default function BeautyOS() {
       // A failed voids read (table not migrated yet) is an empty set, logged.
       if (rv?.error) console.warn("[BeautyOS] receipt_voids not readable yet:", rv.error.code || "", rv.error.message || "");
       setReceiptVoids(rv?.error ? [] : (rv?.data || []));
+      // Same "missing table is an empty queue, not an error" rule, for the
+      // two whatsapp-manual-mode.sql tables.
+      if (wap?.error) console.warn("[BeautyOS] whatsapp_messages (pending_manual) not readable yet:", wap.error.code || "", wap.error.message || "");
+      setWhatsappPending(wap?.error ? [] : (wap?.data || []));
+      if (onf?.error) console.warn("[BeautyOS] owner_notifications not readable yet:", onf.error.code || "", onf.error.message || "");
+      setOwnerNotifs(onf?.error ? [] : (onf?.data || []));
       setExpenses(ex?.data || []);
       setPackages(pk.data || []);
       setWaitlist(wl.data || []);
@@ -3371,7 +3491,7 @@ export default function BeautyOS() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.success && data.sent > 0) toast(`נשלחה הצעה למילוי התור ל-${data.sent} לקוחות ✦`);
+      if (data.success && data.sent > 0) toast(`הצעה למילוי התור מוכנה ל-${data.sent} לקוחות — אפשר לשלוח מהתור הממתין בלוח הבקרה ✦`);
     } catch { /* non-fatal: the cancellation already succeeded */ }
   };
 
@@ -4098,11 +4218,11 @@ export default function BeautyOS() {
       if(!res.ok||!data.success){
         setBulkError(data.error||"שליחה נכשלה"); setBulkStep("confirm"); return;
       }
-      setBulkResult({sent:data.sent??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0});
+      setBulkResult({queued:data.queued??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0,results:data.results||[]});
       // Single-lead send: reflect the contact trail immediately in the row and
       // the open drawer instead of waiting for the next load. Group sends are
       // left to the next refresh - the API reports results by name, not id.
-      if(bulkLeadIds&&bulkLeadIds.length===1&&(data.sent??0)>0){
+      if(bulkLeadIds&&bulkLeadIds.length===1&&(data.queued??0)>0){
         const nowIso=new Date().toISOString();
         const id=bulkLeadIds[0];
         const stamp=(l)=>({...l,last_contacted_at:nowIso,first_contacted_at:l.first_contacted_at||nowIso,contact_attempts:(Number(l.contact_attempts)||0)+1});
@@ -5352,14 +5472,22 @@ export default function BeautyOS() {
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (data.queued && data.waLink) {
+        // Manual mode (or the central number fell back): still a success,
+        // just not automatic. The silent auto-send path leaves it in her
+        // WhatsApp queue rather than popping a tab she didn't ask for right
+        // now; a direct button tap opens it immediately.
+        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); window.open(data.waLink, "_blank", "noopener"); }
+        return true;
+      }
       if (!res.ok || !data.success) {
-        if (!silent) toast("שליחת האישור נכשלה — אפשר לשלוח בקישור הישיר למטה", "error");
+        if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית — אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
       if (!silent) toast("נשלח ללקוחה ב-WhatsApp ✦");
       return true;
     } catch {
-      if (!silent) toast("שליחת האישור נכשלה", "error");
+      if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית", "error");
       return false;
     }
   };
@@ -5465,14 +5593,24 @@ export default function BeautyOS() {
         body: JSON.stringify({ tenantId: settings.tenant_id, appointmentId: appt.id }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
-      // Fallback: open WhatsApp with the reminder pre-filled.
-      toast("השליחה נכשלה — נפתחת שליחה ידנית", "error");
+      if (res.ok && data.success && !data.queued) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
+      if (res.ok && data.queued && data.waLink) {
+        // Manual mode (or the central number fell back): this is still
+        // success, just not automatic - the honest copy says so, and opens
+        // the one tap that replaces it, with the exact message already
+        // composed server-side.
+        toast("מוכן לשליחה — נפתח וואטסאפ");
+        window.open(data.waLink, "_blank", "noopener");
+        return;
+      }
+      // A real failure (e.g. an unusable phone) - fall back to building the
+      // link client-side so the send still has a path.
+      toast("לא הצלחנו להכין שליחה אוטומטית — נפתחת שליחה ידנית", "error");
       const text = await reminderText(appt);
       const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
     } catch {
-      toast("השליחה נכשלה — נפתחת שליחה ידנית", "error");
+      toast("לא הצלחנו להכין שליחה אוטומטית — נפתחת שליחה ידנית", "error");
       const text = await reminderText(appt);
       const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
@@ -7191,6 +7329,43 @@ ${c.claimUrl}`)}`;
         );
       })()}
 
+      {/* MANUAL WHATSAPP QUEUE — every utility send that's manual-mode or fell
+          back, plus every outreach send (slot_offer, comeback, lead_bulk,
+          auto_winback/review/birthday/package_done), all landing in the same
+          whatsapp_messages row shape (status:'pending_manual') via the one
+          sendWhatsApp() chokepoint. "סימון כנשלח" is optimistic and persisted
+          (unlike composeDone above, which never writes anything) - there is
+          no delivery receipt for a tap WhatsApp doesn't report back on, so
+          trusting her tap is the whole mechanism, same as every prepare flow. */}
+      {showWaQueue&&(
+ <Sheet open onClose={()=>setShowWaQueue(false)} width={440} zIndex={4000} title="הודעות מוכנות לשליחה">
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:14}}>כל הודעה כאן יצאה מהתור ולא מהוואטסאפ המרכזי — לחיצה פותחת את השיחה עם הטקסט מוכן, ואת רק שולחת.</p>
+          {whatsappPending.length===0?(
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"20px 0"}}>התור ריק — הכל נשלח.</p>
+          ):(whatsappPending.map((m,i)=>{
+            const link=waMsg(m.recipient_phone,m.message_body);
+            const done=!!waQueueDone[m.id];
+            return(
+ <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.recipient_name||"(ללא שם)"}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.message_body}</p>
+ </div>
+                {link?(
+ <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(()=>{});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נשלח":"שליחה"}</a>
+                ):(
+ <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>מספר לא תקין</span>
+                )}
+ </div>
+            );
+          }))}
+ <div style={{display:"flex",gap:8,marginTop:14}}>
+ <div style={{flex:1}}/>
+ <button onClick={()=>{setShowWaQueue(false);setWhatsappPending(prev=>prev.filter(m=>!waQueueDone[m.id]));}} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"9px 18px",fontSize:"var(--t-sm)"}}>סיימתי</button>
+ </div>
+ </Sheet>
+      )}
+
       {/* CONFIRM DIALOG */}
       {confirmDialog&&(
  <Sheet open onClose={()=>setConfirmDialog(null)} width={340} zIndex={4000} className="pop-in" title={confirmDialog.title}>
@@ -7991,6 +8166,21 @@ ${c.claimUrl}`)}`;
                           q.push({key:`failed-auto:${failedAuto[0].created_at}`,icon:"⚠",accent:"var(--danger)",source:"וואטסאפ",what:"הודעות אוטומטיות שלא נשלחו",who:failedAuto.length===1?"הודעה אחת ב-24 השעות האחרונות":`${failedAuto.length} הודעות ב-24 השעות האחרונות`,why:shown?`אל: ${shown}`:"",primaryLabel:"פתחי את יומן ההודעות",run:()=>{setWaView("log");setActiveTab("whatsapp");}});
                         }
                       }
+                      // ── Manual WhatsApp queue ───────────────────────────
+                      // Everything the open-launch WhatsApp redesign queues
+                      // instead of auto-sending (utility types when the admin
+                      // toggle is off or the central number fell back, plus
+                      // every outreach type always): one grouped item, not
+                      // one row per message, same "batch where it makes
+                      // sense" rule as the cold-clients cap above. Opens
+                      // showWaQueue, a dedicated sheet (near the composeSend
+                      // sheet) listing each with its own wa.me tap.
+                      if(whatsappPending.length>0)q.push({key:"wa-pending",icon:"✆",accent:"var(--success)",source:"וואטסאפ",what:"הודעות מוכנות לשליחה",who:whatsappPending.length===1?"הודעה אחת":`${whatsappPending.length} הודעות`,why:"כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך",primaryLabel:"פתיחת הרשימה",run:()=>setShowWaQueue(true)});
+                      // ── Owner notifications (new booking / cancellation /
+                      // hot skin-scan lead) ── replaces WhatsApp-to-herself;
+                      // capped at 3 + a rest-line, same shape as cold clients.
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:"סימון כנקרא",run:()=>{supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));}}));
+                      if(ownerNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${ownerNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
@@ -10114,11 +10304,23 @@ ${c.claimUrl}`)}`;
 
             {bulkStep==="result"&&bulkResult&&(<>
  <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
- <div style={{flex:1,minWidth:88,background:"rgba(70,179,123,0.12)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:"var(--success)"}}>{bulkResult.sent}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>נשלחו</p></div>
+ <div style={{flex:1,minWidth:88,background:"var(--pc-tint)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:pcDeep}}>{bulkResult.queued}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>מוכנות לשליחה</p></div>
  <div style={{flex:1,minWidth:88,background:"rgba(224,91,111,0.10)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:"var(--danger)"}}>{bulkResult.failed}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>נכשלו</p></div>
  <div style={{flex:1,minWidth:88,background:"var(--surface-2)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:"var(--ink-2)"}}>{bulkResult.skipped_no_phone}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>דילוג (אין טלפון)</p></div>
  </div>
- <button onClick={closeBulk} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>סגירה</button>
+              {/* Each message is a tap from her own phone, not a send she just
+                  watched happen - this is the list of taps, not a log. */}
+              {bulkResult.results?.some(r=>r.waLink) && (
+ <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16,maxHeight:260,overflowY:"auto"}}>
+                  {bulkResult.results.filter(r=>r.waLink).map((r,i)=>(
+ <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"8px 11px",background:"var(--surface-2)",borderRadius:"var(--r-sm)"}}>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name||"(ללא שם)"}</span>
+ <a href={r.waLink} target="_blank" rel="noreferrer" style={{flexShrink:0,background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"6px 14px",fontSize:"var(--t-xs)",fontWeight:700,textDecoration:"none"}}>שליחה</a>
+ </div>
+                  ))}
+ </div>
+              )}
+ <button onClick={closeBulk} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>סיימתי</button>
             </>)}
  </Sheet>
         );
@@ -10742,6 +10944,11 @@ ${c.claimUrl}`)}`;
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. זה סיכום לנוחותך, לא דוח להגשה.</p></div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4,fontWeight:700}}>התראות דפדפן</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>תור חדש וביטול תור מגיעים לכאן במקום בוואטסאפ — הפעילי כדי לקבל אותם גם כשהאפליקציה סגורה.</p>
+ <PushSubscribeButton pc={pc} pcGrad={pcGrad} />
+ </div>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>תחומי עיסוק</p>
  <FieldPicker value={businessFieldsOf(editSettings)} onChange={fields=>setEditSettings({...editSettings,business_fields:fields})} accent={pc} accentTint={pcTint} />
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>קובע אילו טיפולים מוצעים לך ברשימה המוכנה, ואילו תמונות ברירת מחדל ותבניות שיווק מוצגות. כיבוי תחום לא מוחק שירותים או עיצובים שכבר יצרת בו.</p>
@@ -11128,10 +11335,10 @@ ${c.claimUrl}`)}`;
 
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
- <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="שליחת תזכורת אוטומטית בוואטסאפ ללקוחות שיש להן תור מחר." />
- <AutoToggleRow pc={pc} label="בקשת ביקורת (יומיים אחרי טיפול)" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="בקשה אוטומטית להשאיר ביקורת, נשלחת כיומיים לאחר הביקור." />
- <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות (90+ יום)" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום." />
- <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="תזכורת אוטומטית ללקוחה שסיימה חבילת טיפולים, לקביעת המשך." />
+ <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="נשלחת אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל; אחרת מוכנה בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="בקשת ביקורת (יומיים אחרי טיפול)" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
+ <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות (90+ יום)" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, בתור השליחה הידנית שלך." />
  </div>
 
  {/* The inbound bot answers messages that arrive on a GreenAPI instance
@@ -11241,7 +11448,7 @@ ${c.claimUrl}`)}`;
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות ואישורי תורים נשלחים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה. הודעות שיווקיות (הצעות תור, מבצעים, "חזרנו") נשלחות תמיד מהוואטסאפ האישי שלך — המערכת מכינה את ההודעה ואת פותחת ושולחת. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה, רק כשהחיבור המרכזי פעיל ותקין — כל הודעה שלא יצאה ממתינה בתור השליחה הידנית שלך, ולא נעלמת. הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין — את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
@@ -11260,8 +11467,8 @@ ${c.claimUrl}`)}`;
 
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
- <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, נשלחת אוטומטית הודעת וואטסאפ אמיתית ללקוחות מתאימים עם קישור לתפוס את התור שהתפנה; הראשונה שתלחץ תופסת. כבוי כברירת מחדל." />
- <AutoToggleRow pc={pc} label="שליחת אישור תשלום אוטומטית ללקוחה בוואטסאפ" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור נשלח אוטומטית ללקוחה מיד לאחר הרישום (ועם קישור לקבלה, אם חיברת מורנינג) (רק אם יש לה מספר טלפון). כשכבוי — נשלחת רק בלחיצה ידנית." />
+ <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
+ <AutoToggleRow pc={pc} label="הכנת אישור תשלום ללקוחה מיד לאחר הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
  </div>
                 );
@@ -11506,8 +11713,8 @@ ${c.claimUrl}`)}`;
    return(
  <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
  <div style={{flex:1}}>
- <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב בוואטסאפ</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>הודעה אלייך בערב: כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
+ <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אלייך בערב (באפליקציה, ובדפדפן אם הפעלת התראות למטה): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
  <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} />
  </div>

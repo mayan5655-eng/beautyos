@@ -4,14 +4,15 @@
 //
 // Opt-in: branding.evening_summary === true. A daily message nobody asked for is
 // the opposite of calm, so the default is off and the toggle sits in Settings,
-// hours tab. It goes only to her own number, from the same platform number as
-// every other owner alert, and is skipped when she has paused automations.
+// hours tab. In-app notification + browser push (lib/ownerNotify.js), not
+// WhatsApp - she's not a client, same reasoning as the new-booking and
+// cancellation alerts. Skipped when she has paused automations.
 //
 // Never on Friday or Saturday evening (lib/eveningSummary.isQuietEvening).
 // Cron time is UTC: 17:00 UTC is 20:00 in summer and 19:00 in winter in Israel.
 
 import { createClient } from "@supabase/supabase-js";
-import { sendWhatsApp } from "../../../lib/whatsapp";
+import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { startMinute, endMinute } from "../../../lib/apptTime";
 import { isPersonal } from "../../../lib/calendarKind";
@@ -47,7 +48,7 @@ export async function POST(request) {
     const wanted = (settingsRows || []).filter((r) => {
       const b = r.branding && typeof r.branding === "object" ? r.branding : {};
       const paused = r.automations && typeof r.automations === "object" && r.automations.paused === true;
-      return b.evening_summary === true && !paused && String(r.business_phone || "").trim();
+      return b.evening_summary === true && !paused;
     });
     if (!wanted.length) return Response.json({ success: true, sent: 0, message: "אף אחת לא הפעילה" });
 
@@ -64,7 +65,7 @@ export async function POST(request) {
       const msg = buildEveningSummary({ date, appointments: mine, startMinute, endMinute });
       if (!msg) continue; // an empty day is not worth a message
       try {
-        await sendWhatsApp(r.business_phone, msg, { name: "בעלת העסק", type: "owner_alert", tenantId: r.tenant_id });
+        await notifyOwner({ tenantId: r.tenant_id, kind: "evening_summary", title: "מחר ב-10 שניות", body: msg });
         sent++;
       } catch (e) {
         console.error("[owner-evening] send failed for", r.tenant_id, e?.message || String(e));
