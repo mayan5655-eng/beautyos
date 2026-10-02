@@ -6719,7 +6719,7 @@ export default function BeautyOS() {
         .primary-btn:active:not(:disabled){transform:scale(0.97)}
         .primary-btn:disabled{opacity:0.5;cursor:default}
         /* Reusable premium primitives for the redesign */
-        .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-md);position:relative;overflow:hidden}
+        .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;box-shadow:0 1px 2px rgba(31,58,48,.05), 0 8px 20px rgba(31,58,48,.06);position:relative;overflow:hidden}
         .pill{display:inline-flex;align-items:center;gap:6px;border-radius:var(--r-full);font-weight:600;font-size:11px;letter-spacing:-0.01em}
         .quick-action{transition:transform 0.16s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s,border-color 0.2s}
         .quick-action:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--pc)!important}
@@ -7629,6 +7629,24 @@ ${c.claimUrl}`)}`;
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
+            {/* REVENUE HERO - visual pass (2026-10), היום first. The number
+                itself is not new data: todayTotals is the exact computation
+                the Insights tab's own "היום" card already uses (lib/till's
+                totalsOf(receiptsOnDay(...))), just led with here instead of
+                buried under the greeting. Frank Ruhl Libre explicitly, not
+                className="serif"'s stack - Cormorant Garamond (first in that
+                stack) covers Latin digits itself, so a Hebrew-fallback alone
+                would not reliably reach Frank Ruhl for a number. */}
+ <div className="glass-card" style={{padding:"17px 20px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-3)",letterSpacing:"0.01em"}}>הכנסות היום</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:40,fontWeight:900,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.1,margin:"2px 0 0"}}>₪{todayTotals.total.toLocaleString()}</p>
+              {todayTotals.byMethod.length>0&&(
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>
+                  {todayTotals.byMethod.map(m=>`${m.method} ₪${m.total.toLocaleString()}`).join(" · ")}
+                  {todayTotals.tips>0&&` · טיפים ₪${todayTotals.tips.toLocaleString()}`}
+ </p>
+              )}
+ </div>
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
@@ -7644,7 +7662,7 @@ ${c.claimUrl}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"16px 18px",marginBottom:14,border:`1.5px solid ${pc}`,background:pcTint}}>
+ <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"17px 18px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:`1.5px solid ${pc}`,background:pcTint}}>
                   {/* The one card on this screen that gets a flower hint of
                       its own, so it reads as the special one - the page
                       background flower (ChromeFlowerBg) sits in the opposite
@@ -7798,13 +7816,13 @@ ${c.claimUrl}`)}`;
                 })()}
 
                 {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
- <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:18,flexWrap:"wrap",alignItems:"flex-start"}}>
+ <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"24px 26px",flex:"2 1 380px",minWidth:0}}>
- <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"17px 18px",flex:"2 1 380px",minWidth:0}}>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>◴</span>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
+ <h3 style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:21,fontWeight:700,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
                       {todayAppts.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:"var(--t-xs)"}}>{todayAppts.length}</span>}
  </div>
                     {todayEntries.length===0?(
@@ -7817,25 +7835,23 @@ ${c.claimUrl}`)}`;
                       ):todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
                         // "ממתין" on her own time would be a lie about a
                         // confirmation nobody is waiting for.
-                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)",bg:"var(--surface-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)",bg:"rgba(70,179,123,0.12)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)",bg:"rgba(224,91,111,0.12)"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה",c:"var(--danger)",bg:"rgba(224,91,111,0.08)"}:{l:"ממתין",c:pc,bg:"var(--pc-tint)"};
+                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה",c:"var(--danger)"}:{l:"ממתין",c:pc};
+                        // Quiet rows (visual pass, 2026-10): dot, time, name,
+                        // one grey sub-line - no box, no status pill. The dot
+                        // alone carries confirmed/pending/personal (expected,
+                        // common states); cancelled/no-show fold into the
+                        // sub-line too, since a red dot alone doesn't say
+                        // WHICH of two different bad outcomes happened.
+                        const needsLabel=a.confirmation_status==="cancelled"||a.confirmation_status===NO_SHOW;
+                        const sub=needsLabel?`${entrySubtitle(a)} · ${st.l}`:entrySubtitle(a);
                         return(
- <div key={a.id} className="appt-card" style={{display:"flex",alignItems:"center",gap:13,padding:"11px 12px",borderRadius:"var(--r-md)",marginBottom:6,background:"var(--surface-2)",border:"1px solid var(--line)"}}>
- <span style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:52,flexShrink:0,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"5px 0"}}>
-                          {/* One line, not two. This used to render {a.hour}
-                              in the serif face with a separate ":00" beneath
-                              it, which composed to "14" + ":00". fmtApptTime
-                              now returns the whole "14:30", so the second span
-                              was appending a stray ":00" under every time on
-                              the dashboard - reading "14:30" above ":00".
-                              A leftover of the minutes migration, found while
-                              auditing type sizes on this screen. */}
- <span className="serif" style={{fontSize:isAllDay(a)?"var(--t-sm)":"var(--t-lg)",fontWeight:700,color:pc,lineHeight:1.1}}>{entryTime(a)}</span>
- </span>
+ <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 2px",opacity:a.confirmation_status==="cancelled"?0.55:1}}>
+ <span aria-hidden style={{width:8,height:8,borderRadius:"50%",background:st.c,flexShrink:0}}/>
+ <span style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:isAllDay(a)?"var(--t-sm)":17,fontWeight:700,color:"var(--ink)",lineHeight:1.1,flexShrink:0,minWidth:44}}>{entryTime(a)}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:1}}>{entrySubtitle(a)}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:1}}>{sub}</p>
  </div>
- <span className="pill" style={{padding:"5px 12px",background:st.bg,color:st.c}}>{st.l}</span>
  </div>
                         );
                       })}
