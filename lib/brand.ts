@@ -64,6 +64,20 @@ export const LOGO_FULL_W = 1470
 export const LOGO_FULL_H = 430
 export const LOGO_COMPACT = '/kalmea-wordmark.png'
 
+// ---- Flower marks (Stage 3) ----
+// Solid silhouette, one flat color, transparent ground: small decorative
+// marks where an icon is needed but a photographic flower would be too much
+// detail at 14-24px (the hairline rule on /login, a "powered by" glyph, a
+// page-level ✦ with no real tenant to color it). Pink by default - the
+// flower's own color in the full wordmark - with green/white siblings for
+// whichever background it lands on.
+export const FLOWER_MARK = '/flower-pink-solid.png'
+export const FLOWER_MARK_GREEN = '/flower-green-solid.png'
+export const FLOWER_MARK_WHITE = '/flower-white-solid.png'
+// Full-color, full-detail - a background flourish at low opacity, not an
+// icon. For empty states: behind/around the message, never competing with it.
+export const FLOWER_WATERMARK = '/flower-watermark.png'
+
 // The page wash used on every branded screen. A true ombré: paper at the top,
 // warming through a pale-petal mid-tone, settling into the pale-petal edge.
 // Identical everywhere, so screens never drift to a paler or flatter version

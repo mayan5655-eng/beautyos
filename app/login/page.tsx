@@ -12,9 +12,9 @@ import BrandBackdrop from '../BrandBackdrop'
 // The tokens, the wash and the logo all come from lib/brand.ts so this page and
 // its siblings cannot drift apart.
 import {
-  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
+  ACCENT, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
-  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
 } from '@/lib/brand'
 
 const inputStyle: React.CSSProperties = {
@@ -156,11 +156,11 @@ export default function LoginPage() {
             <p style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
               {mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}
             </p>
-            {/* Hairline rule with a small rose glyph, echoing the lotus mark
-                above the wordmark in the logo. */}
+            {/* Hairline rule with the actual flower mark, echoing the logo's
+                own flower now that there is one to echo. */}
             <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
               <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-              <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
+              <img src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />
               <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
             </div>
           </div>

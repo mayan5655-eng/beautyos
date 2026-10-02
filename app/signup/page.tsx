@@ -11,9 +11,9 @@ import BrandBackdrop from '../BrandBackdrop'
 // tenant until after signup, so every value reads --brand-*, never --pc-*.
 // Shared with /login and /reset-password via lib/brand.ts.
 import {
-  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, GRAD,
+  ACCENT, CREAM, SURFACE, MUTED, DEEP, GRAD,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
-  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
 } from '@/lib/brand'
 
 export default function SignupPage() {
@@ -107,11 +107,11 @@ export default function SignupPage() {
           <p style={welcomeSubtitleStyle}>
             פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד.
           </p>
-          {/* Hairline with a rose glyph, echoing the lotus mark in the logo.
-              Matches the same divider on /login. */}
+          {/* Hairline with the actual flower mark, echoing the logo's own
+              flower. Matches the same divider on /login. */}
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-            <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
+            <img src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>

@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from "react";
 import Spinner from "../Spinner";
 import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
 import { accentStyle } from "@/lib/theme";
+import { FLOWER_MARK } from "@/lib/brand";
 
 export default function ReviewPage() {
   const [state, setState] = useState("loading"); // loading | form | sent | already | error
@@ -92,13 +93,15 @@ export default function ReviewPage() {
   };
 
   if (state === "loading") {
-    return <div dir="rtl" style={wrap}><p style={{ fontSize:"var(--t-hero)", color: muted }}>✦</p></div>;
+    return <div dir="rtl" style={wrap}><img src={FLOWER_MARK} alt="" width={36} height={36} /></div>;
   }
 
   if (state === "error") {
+    // No signature has verified yet at this point, so there is no "her" to
+    // color this with - Kalmea chrome, not tenant content.
     return (
       <div dir="rtl" style={wrap}>
-        <p style={{ fontSize:"var(--t-hero)", color: muted, marginBottom: 14 }}>✦</p>
+        <img src={FLOWER_MARK} alt="" width={36} height={36} style={{ marginBottom: 14 }} />
         <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 10 }}>{errorMsg}</h1>
         <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, maxWidth: 340 }}>
           אפשר לבקש קישור חדש מהעסק.

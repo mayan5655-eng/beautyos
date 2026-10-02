@@ -6,6 +6,7 @@ import { supabase } from "../supabase";
 import { fetchPublicBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
 import { accentStyle } from "@/lib/theme";
+import { FLOWER_MARK } from "@/lib/brand";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -526,7 +527,9 @@ export default function SkinScanPage() {
 
       </div>
 
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6 }}>מופעל ע"י קלמיה</div>
+      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        מופעל ע"י קלמיה <img src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
+      </div>
     </div>
   );
 }

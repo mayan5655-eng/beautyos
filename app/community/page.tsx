@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { accentStyle } from "@/lib/theme";
+import { FLOWER_MARK, FLOWER_WATERMARK } from "@/lib/brand";
 
 type Post = {
   id: string;
@@ -69,12 +70,19 @@ export default function CommunityPage() {
           </p>
         </div>
 
-        {loading && <p style={{ textAlign: "center", color: "rgba(233,169,161,0.14)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
-        {error && !loading && <p style={{ textAlign: "center", color: "rgba(233,169,161,0.14)", fontSize:"var(--t-md)" }}>{error}</p>}
+        {/* These three were rgba(233,169,161,0.14) - 14% alpha, a hairline-
+            border value someone reused for plain text, which made the
+            loading/error caption and the post date nearly invisible. Not
+            part of the rebrand; fixed while already here for the flower
+            watermark below, since there is no point decorating text nobody
+            could read in the first place. */}
+        {loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
+        {error && !loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}>{error}</p>}
 
         {!loading && !error && posts.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)" }}>
-            <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים. 💜</p>
+          <div style={{ position: "relative", textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", overflow: "hidden" }}>
+            <img aria-hidden src={FLOWER_WATERMARK} alt="" style={{ position: "absolute", top: "50%", left: "50%", width: 220, height: 220, objectFit: "contain", transform: "translate(-50%, -50%)", opacity: 0.1, pointerEvents: "none" }} />
+            <p style={{ position: "relative", fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים.</p>
           </div>
         )}
 
@@ -89,7 +97,7 @@ export default function CommunityPage() {
                   <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FDFBF9)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius:"var(--r-lg)" }}>
                     {typeLabel(p.post_type)}
                   </span>
-                  <span style={{ fontSize:"var(--t-sm)", color: "rgba(233,169,161,0.14)" }}>
+                  <span style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)" }}>
                     {new Date(p.created_at).toLocaleDateString("he-IL")}
                   </span>
                 </div>
@@ -109,7 +117,9 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(233,169,161,0.14)", marginTop: 30 }}>Kalmea 💜</p>
+        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 30, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          Kalmea <img src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
+        </p>
       </div>
     </div>
   );

@@ -20,9 +20,9 @@ const MIN_PASSWORD_LENGTH = 8
 // tenant on a reset link, so every value reads --brand-*, never --pc-*.
 // Shared with /login and /signup via lib/brand.ts.
 import {
-  ACCENT, ROSE, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
+  ACCENT, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
-  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H,
+  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
 } from '@/lib/brand'
 
 const inputStyle: React.CSSProperties = {
@@ -251,7 +251,7 @@ export default function ResetPasswordPage() {
           </p>
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-            <span style={{ color: ROSE, fontSize:"var(--t-sm)", lineHeight: 1 }}>✦</span>
+            <img src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>

@@ -25,6 +25,7 @@
 
 import { useEffect, useState } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { FLOWER_WATERMARK } from '@/lib/brand';
 
 export type ErrorScreenProps = {
   error: Error & { digest?: string };
@@ -86,13 +87,14 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: '#FCF8FB',
+        background: '#FDFBF9',
         fontFamily: "var(--sans, 'Assistant', system-ui, -apple-system, sans-serif)",
         color: '#2A2233',
       }}
     >
       <div
         style={{
+          position: 'relative',
           width: '100%',
           maxWidth: 440,
           background: '#FFFFFF',
@@ -101,11 +103,31 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
           boxShadow:"var(--shadow-lg)",
           padding: '32px 26px',
           textAlign: 'center',
+          overflow: 'hidden',
         }}
       >
+        {/* A faint flower, not a second icon: the warning circle below still
+            carries the actual "something broke" meaning, this is just enough
+            Kalmea in the corner that the card doesn't read as generic. */}
+        <img
+          aria-hidden
+          src={FLOWER_WATERMARK}
+          alt=""
+          style={{
+            position: 'absolute',
+            top: -30,
+            insetInlineEnd: -30,
+            width: 140,
+            height: 140,
+            objectFit: 'contain',
+            opacity: 0.08,
+            pointerEvents: 'none',
+          }}
+        />
         <div
           aria-hidden
           style={{
+            position: 'relative',
             width: 62,
             height: 62,
             margin: '0 auto 18px',

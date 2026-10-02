@@ -2,6 +2,8 @@
 // The public demo chooser: /demo. Picking a field redirects into
 // app/demo/[field]/route.ts, which mints the real session.
 
+import { FLOWER_MARK } from '@/lib/brand';
+
 export const metadata = {
   title: 'נסי את קלמיה - דמו',
 };
@@ -17,7 +19,7 @@ export default function DemoChooserPage() {
         background: 'var(--brand-cream, #FDFBF9)',
       }}
     >
-      <p style={{ fontSize: 40, color: 'var(--brand-muted, #7D8D87)' }}>✦</p>
+      <img src={FLOWER_MARK} alt="" width={44} height={44} />
       <h1 style={{ fontSize: 30, fontWeight: 600, color: 'var(--ink, #2A2233)', margin: 0 }}>
         רוצה לראות איך זה עובד?
       </h1>

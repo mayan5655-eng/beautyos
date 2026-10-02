@@ -22,6 +22,8 @@
 // emoji: they render in colour on iOS against a monochrome design, which is the
 // bug this codebase has now hit five times.
 
+import { FLOWER_WATERMARK } from "@/lib/brand";
+
 const STROKE = {
   fill: "none",
   stroke: "currentColor",
@@ -53,16 +55,43 @@ export default function EmptyState({
   return (
     <div
       style={{
+        position: "relative",
         textAlign: "center",
         padding: compact ? "20px 14px" : "34px 18px",
         background: accentTint,
         borderRadius:"var(--r-md)",
         margin: compact ? "6px 0" : "10px 0",
+        overflow: "hidden",
       }}
     >
+      {/* A faint flower in the corner, not a second icon - the glyph below
+          still carries the actual meaning (empty calendar vs. empty cash
+          drawer vs. empty leads list), this is just enough Kalmea presence
+          that "nothing here yet" doesn't read as generic. Skipped in
+          compact mode: too small a card for a watermark to read as anything
+          but clutter. */}
+      {!compact && (
+        <img
+          aria-hidden
+          src={FLOWER_WATERMARK}
+          alt=""
+          style={{
+            position: "absolute",
+            zIndex: 0,
+            bottom: -26,
+            insetInlineStart: -26,
+            width: 110,
+            height: 110,
+            objectFit: "contain",
+            opacity: 0.1,
+            pointerEvents: "none",
+          }}
+        />
+      )}
       <div
         aria-hidden="true"
         style={{
+          position: "relative",
           width: compact ? 40 : 52,
           height: compact ? 40 : 52,
           margin: "0 auto 12px",
@@ -79,12 +108,13 @@ export default function EmptyState({
         </svg>
       </div>
 
-      <p style={{ fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
+      <p style={{ position: "relative", fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
         {title}
       </p>
       {body && (
         <p
           style={{
+            position: "relative",
             fontSize: compact ? "var(--t-xs)" : "var(--t-sm)",
             color: "var(--ink-2)",
             lineHeight: 1.65,
@@ -99,6 +129,7 @@ export default function EmptyState({
       {actions.length > 0 && (
         <div
           style={{
+            position: "relative",
             display: "flex",
             gap: 8,
             justifyContent: "center",
