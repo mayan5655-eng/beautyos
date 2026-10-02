@@ -6720,6 +6720,17 @@ export default function BeautyOS() {
         .primary-btn:disabled{opacity:0.5;cursor:default}
         /* Reusable premium primitives for the redesign */
         .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;box-shadow:0 1px 2px rgba(31,58,48,.05), 0 8px 20px rgba(31,58,48,.06);position:relative;overflow:hidden}
+        /* .card-boxed, translucent variant: the petal-pink page under היום's
+           cards (app-main's background) should read through them, not sit
+           behind an opaque block. This is the DESKTOP/default rule - the
+           mobile media query has its own copy further down, because that's
+           where the full-bleed/glass override (also !important) would
+           otherwise win back the solid version. Two classes beats the base
+           .glass-card rule's one, so this needs no !important here. */
+        .glass-card.card-boxed{background:rgba(255,255,255,0.62);
+          -webkit-backdrop-filter:blur(14px) saturate(1.1);backdrop-filter:blur(14px) saturate(1.1);
+          border:1px solid rgba(255,255,255,0.7);
+          box-shadow:0 1px 2px rgba(31,58,48,.03),0 8px 24px rgba(31,58,48,.05)}
         .pill{display:inline-flex;align-items:center;gap:6px;border-radius:var(--r-full);font-weight:600;font-size:11px;letter-spacing:-0.01em}
         .quick-action{transition:transform 0.16s cubic-bezier(.2,.7,.3,1),box-shadow 0.2s,border-color 0.2s}
         .quick-action:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--pc)!important}
@@ -6917,16 +6928,21 @@ export default function BeautyOS() {
              for target-today.html's cards specifically (היום tab only - hero,
              question, setup-checklist, today, needs-attention, next-client,
              closing-list). That mockup is itself a 430px mobile view calling
-             for a plain white 19px-radius card with its own shadow, which is
-             the opposite of full-bleed/translucent - so these two rules can't
-             both win on the same element. Two classes beats one rule's
-             specificity regardless of source order, so this sits anywhere
-             relative to the rules below and still wins; .glass-card elsewhere
-             (cashier, leads, settings, ...) is untouched. */
-          .glass-card.card-boxed{border-radius:19px!important;border:none!important;
-            background:#fff!important;-webkit-backdrop-filter:none!important;
-            backdrop-filter:none!important;
-            box-shadow:0 1px 2px rgba(31,58,48,.05),0 8px 20px rgba(31,58,48,.06)!important}
+             for a 19px-radius card with its own shadow, which is the opposite
+             of full-bleed - so these two rules can't both win on the same
+             element. Two classes beats one rule's specificity regardless of
+             source order, so this sits anywhere relative to the rules below
+             and still wins; .glass-card elsewhere (cashier, leads, settings,
+             ...) is untouched.
+             Translucent, not solid #fff: the petal-pink page background
+             should read through the cards, so this is the SAME rule as the
+             non-media .glass-card.card-boxed above - repeated here, with
+             !important, only because it still has to beat the full-bleed
+             rule's own !important a few lines down at this width. */
+          .glass-card.card-boxed{border-radius:19px!important;border:1px solid rgba(255,255,255,0.7)!important;
+            background:rgba(255,255,255,0.62)!important;-webkit-backdrop-filter:blur(14px) saturate(1.1)!important;
+            backdrop-filter:blur(14px) saturate(1.1)!important;
+            box-shadow:0 1px 2px rgba(31,58,48,.03),0 8px 24px rgba(31,58,48,.05)!important}
           /* The question card's own rose hairline (its only card with a border)
              needs one more class: inline style's border is itself overridden by
              the full-bleed rule's border-left/border-right:0 above, and
