@@ -7108,7 +7108,17 @@ export default function BeautyOS() {
             const c=colors[t.type]||colors.success;
             return(
  <div key={t.id} className="toast" role={t.type==="error"?"alert":"status"} onClick={()=>{if(t.type==="error")setToasts(prev=>prev.filter(x=>x.id!==t.id));}} style={{background:c.bg,color:c.fg,padding:"10px 18px",borderRadius:"var(--r-xl)",fontSize:"var(--t-sm)",fontWeight:600,boxShadow:"var(--shadow-lg)",maxWidth:"90vw",direction:"rtl",pointerEvents:"auto",display:"flex",alignItems:"center",gap:8,cursor:t.type==="error"?"pointer":"default",userSelect:t.type==="error"?"text":undefined}}>
-                <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(255,255,255,0.22)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xs)",flexShrink:0}}>{c.icon}</span>
+                {/* The flower as the success mark - a receipt issued, an
+                    appointment saved, a post created all land here, since
+                    every one of those already calls the one shared toast
+                    helper with type:"success". Error/info keep the plain
+                    badge: this is a success-only reward, not a mark that
+                    means "done" generically. */}
+                {t.type==="success"?(
+ <img aria-hidden alt="" src={FLOWER_64} style={{width:16,height:16,objectFit:"contain",flexShrink:0}}/>
+                ):(
+ <span style={{width:18,height:18,borderRadius:"50%",background:"rgba(255,255,255,0.22)",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xs)",flexShrink:0}}>{c.icon}</span>
+                )}
                 {/* unicodeBidi plaintext: error toasts mix Hebrew with English/
                     JSON reasons, and under forced RTL the bidi algorithm
                     scrambles the ordering ("למה העברית הפוך"). Each line
@@ -11536,7 +11546,7 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{display:"flex",gap:6,padding:"14px 24px"}}>
  <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>סגירה</button>
- <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")||!settingsDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:settingsDirty?pcGrad:"var(--line-2)",color:settingsDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:settingsDirty?"pointer":"default"}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:settingsDirty?"שמירה ✓":"אין שינויים"}</button>
+ <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")||!settingsDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:settingsDirty?pcGrad:"var(--line-2)",color:settingsDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:settingsDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:settingsDirty?(<><img aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
  </div>
  </div>
  </Sheet>
