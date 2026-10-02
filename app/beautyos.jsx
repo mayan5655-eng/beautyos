@@ -7637,7 +7637,7 @@ ${c.claimUrl}`)}`;
  </button>
  </aside>
 
- <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px"}}>
+ <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBEDE9":undefined}}>
           <ChromeFlowerBg/>
           {/* Trial notice. Sits OUTSIDE the keyed tab wrapper on purpose: it is a
               property of the account, not of a screen, so it stays put and does
@@ -7839,14 +7839,43 @@ ${c.claimUrl}`)}`;
  <img aria-hidden alt="" src={FLOWER_128} style={{width:22,height:22,objectFit:"contain",opacity:0.85}}/>
  <span style={{flex:1,height:1,background:"rgba(192,122,114,.4)"}}/>
  </div>
-                    {todayEntries.length===0?(
+                    {(()=>{
+                      // The mockup's 4th example row ("התפנה / ממתין
+                      // להחלטה שלך") isn't a real appointment - it is THIS
+                      // pending question, shown a second time as a synthetic
+                      // row in its own place on the timeline, not just as the
+                      // card above. Only for a same-day gap_fill (a comeback
+                      // question has no slot to place on the clock), and only
+                      // once the slot-still-free check above has let it
+                      // through to pendingQuestion at all.
+                      const p=pendingQuestion?.payload;
+                      const gapFill=(pendingQuestion&&!businessQuiet.quietNow&&pendingQuestion.kind==="gap_fill"&&p?.date===today)
+                        ?{__gapFill:true,id:`gap-fill-${pendingQuestion.id}`,startMinute:Number(p.startMinute)||0}
+                        :null;
+                      const rows=gapFill?[...todayEntries,gapFill]:todayEntries;
+                      if(rows.length===0) return (
  <div style={{textAlign:"center",padding:"20px 14px"}}>
  <div style={{width:52,height:52,borderRadius:"var(--r-md)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",background:"var(--pc-tint)"}}>☕</div>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
  <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
  <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"10px 20px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-accent)"}}>✦ קביעת תור</button>
  </div>
-                      ):todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
+                      );
+                      return rows.slice().sort((a,b)=>(a.__gapFill?a.startMinute:startMinute(a)??0)-(b.__gapFill?b.startMinute:startMinute(b)??0)).map((a)=>{
+                        if(a.__gapFill){
+                          const hh=String(Math.floor(a.startMinute/60)).padStart(2,"0");
+                          const mm=String(a.startMinute%60).padStart(2,"0");
+                          return(
+ <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 3px"}}>
+ <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"transparent",border:"1px solid #C07A72",flexShrink:0}}/>
+ <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{hh}:{mm}</span>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:15,color:"#C07A72"}}>התפנה</p>
+ <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>ממתין להחלטה שלך</p>
+ </div>
+ </div>
+                          );
+                        }
                         // "ממתין" on her own time would be a lie about a
                         // confirmation nobody is waiting for.
                         const st=isPersonal(a)?{l:"אישי"}:a.confirmation_status==="confirmed"?{l:"אושר"}:a.confirmation_status==="cancelled"?{l:"בוטל"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה"}:{l:"ממתין"};
@@ -7855,11 +7884,9 @@ ${c.claimUrl}`)}`;
                         // pending/personal - the expected, common states); an
                         // open rose-ring dot plus rose name text is the
                         // mockup's "needs your attention" treatment, reused
-                        // here for cancelled/no-show since those are the real
-                        // app's equivalent of "this one is not like the
-                        // others" (the mock's own example of it is the
-                        // pending gap-fill slot, which isn't a row in
-                        // todayEntries at all - it's the question card above).
+                        // here for cancelled/no-show for the same reason -
+                        // these are the real app's equivalent of "this one is
+                        // not like the others".
                         const open=a.confirmation_status==="cancelled"||a.confirmation_status===NO_SHOW;
                         const sub=open?`${entrySubtitle(a)} · ${st.l}`:entrySubtitle(a);
                         return(
@@ -7876,7 +7903,8 @@ ${c.claimUrl}`)}`;
  </div>
  </div>
                         );
-                      })}
+                      });
+                    })()}
  </motion.div>
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
