@@ -320,6 +320,14 @@ export default function OnboardingPage() {
                   style={{ ...inputStyle, direction: "ltr" }}
                 />
               </Field>
+              {/* The one thing every new tenant must be told before her first
+                  payment, not after: "אישור תשלום" (what she issues by default)
+                  is not a legal receipt. The real disclosure text already lives
+                  in Settings → תשלום and on every receipt/WhatsApp message - this
+                  is just the first time she hears it, early enough to matter. */}
+              <div style={{ background: "var(--brand-cream, #FDFBF9)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
+                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
+              </div>
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}

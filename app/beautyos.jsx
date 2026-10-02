@@ -3425,8 +3425,11 @@ export default function BeautyOS() {
         const previousStatus = appt.confirmation_status || "pending";
         const { data, error } = await supabase.from("appointments").update({ confirmation_status: NO_SHOW }).eq("id", appt.id).select();
         if (error) {
-          // 23514: the status check constraint still lists three values.
-          if (error.code === "23514") { toast("סימון 'לא הגיעה' עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error"); return; }
+          // 23514: the status check constraint still lists three values -
+          // add_till_and_calendar_small_things.sql hasn't run on this DB yet.
+          // She never needs to know that; "תקועה?" already sends the screen
+          // name along with her message, which is enough for us to know too.
+          if (error.code === "23514") { console.error("[markNoShow] migration missing: add_till_and_calendar_small_things.sql", error); toast("האפשרות הזו עדיין לא זמינה אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל אותה.", "error"); return; }
           handleDbError(error, "mark no-show"); return;
         }
         if (data && data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? data[0] : a));
@@ -3450,7 +3453,7 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const { data, error } = await supabase.from("appointments").update({ actual_start_at: new Date().toISOString() }).eq("id", appt.id).select();
     if (error) {
-      if (isMissingColumnError(error)) { toast("מעקב זמן טיפול עדיין לא זמין — המיגרציה appointment-actual-duration.sql לא רצה.", "error"); return; }
+      if (isMissingColumnError(error)) { console.error("[handleStartTreatment] migration missing: appointment-actual-duration.sql", error); toast("האפשרות הזו עדיין לא זמינה אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל אותה.", "error"); return; }
       handleDbError(error, "start treatment"); return;
     }
     if (data && data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? data[0] : a));
@@ -3460,7 +3463,7 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const { data, error } = await supabase.from("appointments").update({ actual_end_at: new Date().toISOString() }).eq("id", appt.id).select();
     if (error) {
-      if (isMissingColumnError(error)) { toast("מעקב זמן טיפול עדיין לא זמין — המיגרציה appointment-actual-duration.sql לא רצה.", "error"); return; }
+      if (isMissingColumnError(error)) { console.error("[handleFinishTreatment] migration missing: appointment-actual-duration.sql", error); toast("האפשרות הזו עדיין לא זמינה אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל אותה.", "error"); return; }
       handleDbError(error, "finish treatment"); return;
     }
     const updated = data && data[0];
@@ -4723,7 +4726,7 @@ export default function BeautyOS() {
       else applyReceiptPatch(rec.id, { legal_status: d.status && d.status !== "none" ? d.status : (rec.legal_status || "none") });
       if (d.status === "issued" && !d.already) toast(docLabelHe({ legal_status: "issued", legal_doc_type: d.receipt?.legal_doc_type }) + (d.number ? " מספר " + d.number : "") + " הונפקה ✦");
       else if (d.error) toast(d.error + " התשלום נשמר.", "error");
-      else if (d.skipped === "migration_missing") toast("צריך להריץ את המיגרציה של מסמכי המס (add_legal_receipts.sql).", "error");
+      else if (d.skipped === "migration_missing") { console.error("[legal receipt] migration missing: add_legal_receipts.sql"); toast("הנפקת מסמכי מס עדיין לא זמינה אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל אותה.", "error"); }
       return d;
     } catch {
       // The browser did not hear back, but the server may have called the provider. Say so; the record shows the truth on reload.
@@ -4815,7 +4818,8 @@ export default function BeautyOS() {
       if (error) {
         // 42P01: the table is not there yet. Say so rather than "error".
         if (error.code === "42P01" || /receipt_voids/.test(String(error.message||""))) {
-          toast("ביטול תשלומים עדיין לא זמין — המיגרציה add_till_and_calendar_small_things.sql לא רצה.", "error");
+          console.error("[voidReceipt] migration missing: add_till_and_calendar_small_things.sql", error);
+          toast("האפשרות הזו עדיין לא זמינה אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל אותה.", "error");
           return;
         }
         if (error.code === "23505") { toast("התשלום כבר מבוטל", "error"); return; }
@@ -4897,7 +4901,8 @@ export default function BeautyOS() {
         if (useSplit) legacy.payment_method = splitResolved[0].method;
         ({data,error}=await supabase.from("receipts").insert([legacy]).select());
         if (!error && (useSplit || tip > 0 || cashierDiscountMode==="pct")) {
-          toast("אישור התשלום נשמר, אבל פיצול, טיפ ואחוז הנחה עדיין לא נתמכים בבסיס הנתונים — יש להריץ את המיגרציה.", "error");
+          console.error("[receipt] migration missing: tip/split/discount columns not present");
+          toast("אישור התשלום נשמר, אבל פיצול, טיפ ואחוז הנחה עדיין לא נתמכים אצלך. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל את זה.", "error");
         }
       }
       if(error){handleDbError(error, "save receipt"); return;}
@@ -11519,7 +11524,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>קבלות וחשבוניות חוקיות (מורנינג)</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>קבלה וחשבונית מס חייבות לצאת מתוכנה רשומה ברשות המסים, ולכן אנחנו לא מפיקות אותן בעצמנו. חברי את חשבון מורנינג שלך והמסמכים יונפקו שם, בחשבון שלך ובמספר העסק שלך. עד שתחברי, התשלומים נרשמים כאישורי תשלום, שהם לא קבלה.</p>
                     {legalAccount?.environment==="sandbox"&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:0}}>מצב בדיקות: החיבור עדיין מקבל רק חשבון בדיקות של מורנינג, ולא חשבון אמיתי.</p>}
-                    {legalAccount?.migrationMissing&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>צריך להריץ את המיגרציה add_legal_receipts.sql לפני החיבור.</p>}
+                    {legalAccount?.migrationMissing&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>החיבור עדיין לא זמין אצלך. אפשר לכתוב לנו ב"תקועה?" למטה ונפעיל אותו.</p>}
                     {legalAccount?.connected?(
  <div style={{display:"flex",flexDirection:"column",gap:6}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--success)",fontWeight:700,margin:0}}>✓ מחוברת{legalAccount.businessName?" לחשבון: "+legalAccount.businessName:""}</p>
