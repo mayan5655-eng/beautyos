@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
   try {
     const { data: settingsRow } = await supabase
       .from("settings")
-      .select("business_name, business_phone, therapist_name, branding")
+      .select("business_name, business_phone, therapist_name, branding, automations")
       .eq("tenant_id", claimed.tenant_id)
       .maybeSingle();
     if (booked.id && claimed.phone) {

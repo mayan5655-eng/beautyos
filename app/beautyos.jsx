@@ -5906,6 +5906,18 @@ export default function BeautyOS() {
   }, []);
   useEffect(()=>{ if(showSettings && !scanLink) loadScanLink(); },[showSettings, scanLink, loadScanLink]);
 
+  // Whether the CENTRAL WhatsApp number is on right now (the admin panel's
+  // own toggle, platform-wide) - fetched once per settings-panel open, so
+  // the owner-alert WhatsApp toggle below can say plainly, next to itself,
+  // when turning it on wouldn't send anything yet. null = not loaded yet.
+  const [waCentralConnected, setWaCentralConnected] = useState(null);
+  useEffect(()=>{
+    if(!showSettings) return;
+    let cancelled=false;
+    fetch("/api/whatsapp-central-status").then(r=>r.json()).then(d=>{ if(!cancelled) setWaCentralConnected(!!d.connected); }).catch(()=>{ if(!cancelled) setWaCentralConnected(false); });
+    return ()=>{ cancelled=true; };
+  },[showSettings]);
+
   const downloadScanQr = () => {
     if (!scanQr) return;
     const a = document.createElement("a");
@@ -11371,6 +11383,15 @@ ${c.claimUrl}`)}`;
  }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו." />
  </div>
  {masterPaused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}><Icon name="pause" size={13}/> כל האוטומציות מושהות כרגע.</p>}
+
+ <div>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>התראות אלייך</p>
+ <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
+   const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
+   setEditSettings(prev=>({...prev,automations:{...a,owner_alert_whatsapp:!(a.owner_alert_whatsapp===true)}}));
+ }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר העסק שלך — שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
+          {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — גם אם תפעילי, ההתראה תגיע רק באפליקציה עד שהחיבור יתחדש.</p>}
+ </div>
 
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>

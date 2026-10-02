@@ -108,7 +108,7 @@ export async function POST(request) {
         .limit(1),
       supabase
         .from("settings")
-        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding")
+        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding, automations")
         .eq("tenant_id", activeTenantId)
         .limit(1),
       supabase

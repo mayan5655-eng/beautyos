@@ -91,10 +91,12 @@ export async function POST(request) {
     const tenantLimited = checkTenantLimit(tenantId, "skin-scan-send");
     if (tenantLimited) return tenantLimited;
 
-    // Business name for THIS tenant (per-tenant, from settings).
+    // Business name for THIS tenant (per-tenant, from settings), plus what
+    // notifyOwner needs for its opt-in WhatsApp copy (business_phone,
+    // automations.owner_alert_whatsapp).
     const { data: settingsRows } = await supabase
       .from("settings")
-      .select("business_name")
+      .select("business_name, business_phone, automations")
       .eq("tenant_id", tenantId)
       .limit(1);
     const settingsRow = settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
@@ -118,7 +120,7 @@ export async function POST(request) {
     //    add its latency (or a failure) to what the visitor is waiting on.
     const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
     after(() =>
-      notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg }).catch((e) => {
+      notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg, settingsRow }).catch((e) => {
         console.error("[skin-scan/send] owner notify failed:", e?.message || String(e));
       })
     );

@@ -65,7 +65,7 @@ export async function POST(request) {
       const msg = buildEveningSummary({ date, appointments: mine, startMinute, endMinute });
       if (!msg) continue; // an empty day is not worth a message
       try {
-        await notifyOwner({ tenantId: r.tenant_id, kind: "evening_summary", title: "מחר ב-10 שניות", body: msg });
+        await notifyOwner({ tenantId: r.tenant_id, kind: "evening_summary", title: "מחר ב-10 שניות", body: msg, settingsRow: r });
         sent++;
       } catch (e) {
         console.error("[owner-evening] send failed for", r.tenant_id, e?.message || String(e));
