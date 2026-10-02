@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
@@ -117,9 +117,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Tell her, the way a person would: who, which slot, that it is free again,
-    // and who is waiting. Best-effort; never turns a done cancellation into an error.
+    // and who is waiting. Best-effort; never turns a done cancellation into an
+    // error. Scheduled via after(), not awaited: the cancellation above is
+    // already committed, so nothing past this point may delay or fail the
+    // response the client's browser is waiting on.
     if (newStatus === 'cancelled') {
-      await notifyOwnerOfCancellation({ supabase, tenantId: appt.tenant_id, appt });
+      after(() =>
+        notifyOwnerOfCancellation({ supabase, tenantId: appt.tenant_id, appt }).catch((e) => {
+          console.error('confirm: owner notify failed', e instanceof Error ? e.message : String(e));
+        })
+      );
     }
 
     return okResponse(action, false, brand);

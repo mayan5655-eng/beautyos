@@ -6,6 +6,7 @@
 // looked up per-tenant from settings.
 
 import { createClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
 import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
@@ -354,18 +355,39 @@ export async function POST(request) {
     //      (lib/bookingNotify) - the same messages the gap-fill claim sends,
     //      so the two flows cannot drift. The long rationale for the message
     //      shape lives there.
-    await sendBookingNotifications({
-      settingsRow,
-      tenantId: activeTenantId,
-      appointmentId: appt.id,
-      name,
-      phone,
-      service,
-      date,
-      startMinute: newStart,
-      duration: svcDuration,
-      isReturningClient,
-    });
+    //
+    //      Scheduled with next/server's after(), not awaited, on purpose.
+    //      The appointment above is already committed - this must never be
+    //      able to delay, let alone fail, the response the browser is
+    //      waiting on. It used to be awaited here, which meant a slow
+    //      WhatsApp attempt (or, after the open-launch redesign, the extra
+    //      owner_notifications/push_subscriptions round-trips) sat directly
+    //      in the booking critical path - on a cold start or a real network
+    //      hiccup, long enough to hit a serverless timeout and hand the
+    //      browser a 502/504 for a booking that had already succeeded.
+    //      after() (not a bare un-awaited promise) is what actually keeps
+    //      this running past the response on Vercel - a plain fire-and-
+    //      forget promise can get frozen/dropped the instant the response is
+    //      sent, which would make it a coin flip whether either message ever
+    //      goes out at all. sendBookingNotifications already catches both
+    //      its own halves internally (see that file); this .catch is only
+    //      for a throw that somehow escapes both.
+    after(() =>
+      sendBookingNotifications({
+        settingsRow,
+        tenantId: activeTenantId,
+        appointmentId: appt.id,
+        name,
+        phone,
+        service,
+        date,
+        startMinute: newStart,
+        duration: svcDuration,
+        isReturningClient,
+      }).catch((notifyErr) => {
+        console.error("[book-appointment] notifications failed:", notifyErr?.message || String(notifyErr));
+      })
+    );
 
     return Response.json({ success: true, appointmentId: appt.id });
   } catch (err) {

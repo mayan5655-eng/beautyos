@@ -7,7 +7,7 @@
 // GET  /api/claim?token=...  -> details + this recipient's current outcome
 // POST /api/claim { token }  -> race-safe claim ("first valid click wins")
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
 import { sendBookingNotifications } from "@/lib/bookingNotify";
@@ -178,6 +178,13 @@ export async function POST(request: NextRequest) {
   // address, service, date/time, duration, cancel link - plus the owner
   // alert, marked as a filled gap. One shared template (lib/bookingNotify),
   // deliberately not a third copy. Best-effort: the slot is booked either way.
+  //
+  // The settings read is awaited (it's one fast indexed lookup and the
+  // message needs it), but sendBookingNotifications itself runs in after() -
+  // same reasoning as /api/book-appointment: the slot above is already
+  // claimed/booked, and nothing past this point may delay or fail the
+  // response. A bare un-awaited promise can get frozen the instant the
+  // response is sent on Vercel; after() is what actually keeps it running.
   try {
     const { data: settingsRow } = await supabase
       .from("settings")
@@ -185,18 +192,27 @@ export async function POST(request: NextRequest) {
       .eq("tenant_id", claimed.tenant_id)
       .maybeSingle();
     if (booked.id && claimed.phone) {
-      await sendBookingNotifications({
-        settingsRow,
-        tenantId: claimed.tenant_id,
-        appointmentId: booked.id,
-        name: claimed.client_name || "לקוחה",
-        phone: claimed.phone,
-        service: claimed.service || "תור",
-        date: claimed.slot_date,
-        startMinute: claimedStart,
-        duration: Number(claimed.duration) > 0 ? Number(claimed.duration) : 60,
-        ownerNote: "תור שהתפנה נתפס דרך הצעת וואטסאפ ✦",
-      });
+      // Captured into locals before the closure: TypeScript narrows a
+      // property access (booked.id) only within this block, not inside a
+      // nested function passed to after() - a plain const does narrow there.
+      const bookedId = booked.id;
+      const claimedPhone = claimed.phone;
+      after(() =>
+        sendBookingNotifications({
+          settingsRow,
+          tenantId: claimed.tenant_id,
+          appointmentId: bookedId,
+          name: claimed.client_name || "לקוחה",
+          phone: claimedPhone,
+          service: claimed.service || "תור",
+          date: claimed.slot_date,
+          startMinute: claimedStart,
+          duration: Number(claimed.duration) > 0 ? Number(claimed.duration) : 60,
+          ownerNote: "תור שהתפנה נתפס דרך הצעת וואטסאפ ✦",
+        }).catch((notifyErr) => {
+          console.error("[claim] notifications failed:", notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
+        })
+      );
     }
   } catch (notifyErr) {
     console.error("[claim] notifications failed:", notifyErr instanceof Error ? notifyErr.message : String(notifyErr));

@@ -6,6 +6,7 @@
 // Also saves the lead into the "leads" table (best-effort).
 
 import { createClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { notifyOwner } from "../../../../lib/ownerNotify.js";
 import { upsertScanLead } from "../../../../lib/leads";
@@ -112,8 +113,15 @@ export async function POST(request) {
 
     // 2. Hot-lead ping to the OWNER: in-app + push, not WhatsApp - same
     //    reasoning as bookingNotify/cancelNotify. No longer needs a phone.
+    //    Scheduled via after(), not awaited: unlike the client report above,
+    //    nothing in the response depends on this, so it must not be able to
+    //    add its latency (or a failure) to what the visitor is waiting on.
     const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
-    await notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg });
+    after(() =>
+      notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg }).catch((e) => {
+        console.error("[skin-scan/send] owner notify failed:", e?.message || String(e));
+      })
+    );
 
     // 3. Save/refresh the lead as a first-class "סורק העור" row (top-level
     //    phone/source/status/service_interest, deduped by tenant_id+phone).
