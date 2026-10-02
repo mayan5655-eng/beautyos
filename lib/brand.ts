@@ -13,39 +13,43 @@
 // Kalmea it is --brand-*.
 
 // ---- Brand tier (fixed) ----
-export const ACCENT = 'var(--brand-accent, #4A2E5A)'
-export const DEEP = 'var(--brand-deep, #301848)'
-export const ROSE = 'var(--brand-rose, #D28697)'
-export const LILAC = 'var(--brand-lilac, #BB84A7)'
-export const CREAM = 'var(--brand-cream, #FEFAF7)'
-export const TINT = 'var(--brand-tint, #EDE4F5)'
-export const SURFACE = 'var(--brand-surface, #FAF6FC)'
-export const MUTED = 'var(--brand-muted, #98879B)'
+export const ACCENT = 'var(--brand-accent, #1F3A30)'
+export const DEEP = 'var(--brand-deep, #14261F)'
+export const ROSE = 'var(--brand-rose, #E9A9A1)'
+export const LILAC = 'var(--brand-lilac, #DCE4D5)'
+export const CREAM = 'var(--brand-cream, #FDFBF9)'
+export const TINT = 'var(--brand-tint, #FBEDE9)'
+export const SURFACE = 'var(--brand-surface, #FDFBF9)'
+export const MUTED = 'var(--brand-muted, #7D8D87)'
 export const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
-export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #4A2E5A 0%, #D28697 100%))'
+export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%))'
 
 // ---- Accent tier (switchable per tenant) ----
-// Use these on anything a client reads as HER business.
-export const PC = 'var(--pc, #4A2E5A)'
-export const PC_DEEP = 'var(--pc-deep, #3E2749)'
-export const PC_TINT = 'var(--pc-tint, #EDE7F0)'
-export const PC_SOFT = 'var(--pc-soft, rgba(74,46,90,0.10))'
-export const PC_GRAD = 'var(--pc-grad, linear-gradient(135deg, #6B5279 0%, #3E2749 100%))'
+// Use these on anything a client reads as HER business. Fallbacks match
+// lib/theme.ts's DEFAULT_ACCENT (Kalmea's petal pink) - a brand-new tenant's
+// product default, not a choice she's made, same relationship the old
+// BloomOS-purple fallback had to the old default.
+export const PC = 'var(--pc, #E9A9A1)'
+export const PC_DEEP = 'var(--pc-deep, #C48E87)'
+export const PC_TINT = 'var(--pc-tint, #FDF6F6)'
+export const PC_SOFT = 'var(--pc-soft, rgba(233,169,161,0.10))'
+export const PC_GRAD = 'var(--pc-grad, linear-gradient(135deg, #EEBCB6 0%, #C48E87 100%))'
 // Readable text ON the accent, derived from its luminance in lib/theme.ts.
-export const PC_CONTRAST = 'var(--pc-contrast, #FFFFFF)'
+// Petal pink is pale, so its real contrastOn() result is --ink, not white.
+export const PC_CONTRAST = 'var(--pc-contrast, #2A2233)'
 
 // ---- Alpha shades ----
 // Written literally: inline styles cannot take the alpha channel of a var().
-// Derived from --brand-accent #4A2E5A and --brand-deep #301848.
-export const ACCENT_LINE = 'rgba(74,46,90,0.14)'
-export const ACCENT_LINE_2 = 'rgba(74,46,90,0.18)'
-export const ACCENT_RING = 'rgba(74,46,90,0.16)'
-export const DEEP_SHADOW = 'rgba(48,24,72,0.22)'
+// Derived from --brand-accent #1F3A30 and --brand-deep #14261F.
+export const ACCENT_LINE = 'rgba(31,58,48,0.14)'
+export const ACCENT_LINE_2 = 'rgba(31,58,48,0.18)'
+export const ACCENT_RING = 'rgba(31,58,48,0.16)'
+export const DEEP_SHADOW = 'rgba(20,38,31,0.22)'
 
 // ---- Floral tints ----
-// Passed to FloralCorners so its blossoms match the logo's watercolor.
-export const FLORAL_BLUSH = '#FADDCF'
-export const FLORAL_LILAC = '#BB84A7'
+// Passed to FloralCorners so its blossoms match the new logo's palette.
+export const FLORAL_BLUSH = '#E9A9A1'
+export const FLORAL_LILAC = '#DCE4D5'
 
 // ---- Logo assets ----
 // One image, every lockup: the flower + "kalmea" wordmark, transparent, for
@@ -60,11 +64,11 @@ export const LOGO_FULL_W = 1470
 export const LOGO_FULL_H = 430
 export const LOGO_COMPACT = '/kalmea-wordmark.png'
 
-// The page wash used on every branded screen. A true ombré: cream at the top,
-// warming through a blush mid-tone, settling into the lavender edge - the same
-// three families the logo's watercolor uses. Identical everywhere, so screens
-// never drift to a paler or flatter version of each other.
-const BLUSH_WASH = 'var(--brand-blush, #FADDCF)'
+// The page wash used on every branded screen. A true ombré: paper at the top,
+// warming through a pale-petal mid-tone, settling into the pale-petal edge.
+// Identical everywhere, so screens never drift to a paler or flatter version
+// of each other.
+const BLUSH_WASH = 'var(--brand-blush, #FBEDE9)'
 export const BRAND_WASH =
   `radial-gradient(130% 100% at 50% 18%, ${CREAM} 0%, ${CREAM} 26%, ` +
   `color-mix(in srgb, ${BLUSH_WASH} 38%, ${CREAM}) 58%, ${TINT} 100%)`

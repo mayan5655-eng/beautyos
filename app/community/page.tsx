@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
+import { accentStyle } from "@/lib/theme";
 
 type Post = {
   id: string;
@@ -26,14 +27,14 @@ function typeLabel(t: string | null) {
   return "עדכון";
 }
 function typeColor(t: string | null) {
-  if (t === "offer") return "var(--pc, #4A2E5A)";
+  if (t === "offer") return "var(--pc, #E9A9A1)";
   if (t === "tip") return "var(--success, #46B37B)";
-  return "var(--brand-muted, #98879B)";
+  return "var(--brand-muted, #7D8D87)";
 }
 
 export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [business, setBusiness] = useState<Business>({ name: "", color: "var(--pc, #4A2E5A)", phone: "" });
+  const [business, setBusiness] = useState<Business>({ name: "", color: "var(--pc, #E9A9A1)", phone: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -51,7 +52,11 @@ export default function CommunityPage() {
   }, []);
 
   return (
-    <div dir="rtl" style={{ minHeight: "100dvh", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7),var(--brand-cream, #FEFAF7))", fontFamily: "Arial, sans-serif" }}>
+    // Her clients read this as HER business (Stage 2 of the Kalmea rebrand:
+    // not in the original audit list, found while auditing --pc usage - this
+    // page never actually scoped the accent to the real tenant color before,
+    // it just fell back to whatever the global default happened to be).
+    <div dir="rtl" style={{ ...accentStyle(business.color), minHeight: "100dvh", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9),var(--brand-cream, #FDFBF9))", fontFamily: "Arial, sans-serif" }}>
       <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 14px 48px" }}>
         {/* Header */}
         <div style={{ textAlign: "center", padding: "34px 16px 22px" }}>
@@ -59,32 +64,32 @@ export default function CommunityPage() {
           <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, color: "var(--ink, #2A2233)", margin: 0 }}>
             {business.name ? `הקהילה של ${business.name}` : "מרחב הלקוחות"}
           </h1>
-          <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #98879B)", marginTop: 6 }}>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 6 }}>
             עדכונים, מבצעים וטיפים — במקום אחד
           </p>
         </div>
 
-        {loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
-        {error && !loading && <p style={{ textAlign: "center", color: "rgba(74,46,90,0.14)", fontSize:"var(--t-md)" }}>{error}</p>}
+        {loading && <p style={{ textAlign: "center", color: "rgba(233,169,161,0.14)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
+        {error && !loading && <p style={{ textAlign: "center", color: "rgba(233,169,161,0.14)", fontSize:"var(--t-md)" }}>{error}</p>}
 
         {!loading && !error && posts.length === 0 && (
-          <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)" }}>
-            <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים. 💜</p>
+          <div style={{ textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)" }}>
+            <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים. 💜</p>
           </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {posts.map((p) => (
-            <div key={p.id} style={{ background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-md)", overflow: "hidden", border: "1px solid rgba(74,46,90,0.14)", boxShadow:"var(--shadow-sm)" }}>
+            <div key={p.id} style={{ background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-md)", overflow: "hidden", border: "1px solid rgba(233,169,161,0.14)", boxShadow:"var(--shadow-sm)" }}>
               {p.image_url && (
                 <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 320, objectFit: "cover", objectPosition: "center", display: "block" }} />
               )}
               <div style={{ padding: "15px 17px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-                  <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius:"var(--r-lg)" }}>
+                  <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FDFBF9)", background: typeColor(p.post_type), padding: "3px 10px", borderRadius:"var(--r-lg)" }}>
                     {typeLabel(p.post_type)}
                   </span>
-                  <span style={{ fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)" }}>
+                  <span style={{ fontSize:"var(--t-sm)", color: "rgba(233,169,161,0.14)" }}>
                     {new Date(p.created_at).toLocaleDateString("he-IL")}
                   </span>
                 </div>
@@ -92,7 +97,7 @@ export default function CommunityPage() {
                 {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                 {p.cta_label && business.phone && (
                   <a href={`https://wa.me/972${business.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noreferrer"
-                     style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #4A2E5A),var(--pc-tint, #EDE7F0))", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-lg)", textDecoration: "none" }}>
+                     style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #E9A9A1),var(--pc-tint, #FDF6F6))", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-lg)", textDecoration: "none" }}>
                     {p.cta_label}
                   </a>
                 )}
@@ -104,7 +109,7 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(74,46,90,0.14)", marginTop: 30 }}>Kalmea 💜</p>
+        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "rgba(233,169,161,0.14)", marginTop: 30 }}>Kalmea 💜</p>
       </div>
     </div>
   );

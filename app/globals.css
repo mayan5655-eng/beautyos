@@ -2,40 +2,47 @@
 
 /* ============================================================
    Kalmea Design System — premium tokens
-   A fixed lavender/plum luxury palette + neutral ink scale,
+   A fixed deep-green/petal-pink palette + neutral ink scale,
    an 8px spacing rhythm, layered soft shadows and elegant
    gradients. Tenant brand color still themes accents at
    runtime via --pc (set in beautyos.jsx), so nothing is lost.
    ============================================================ */
 :root {
   /* — Brand palette (fixed base) — */
-  --bg: #FCF8FB;            /* app background — cream lifting toward lavender,
-                               continuous with the /login wash */
-  --primary: #E8C9E9;       /* soft lavender — tints, accents, chart fills */
-  --dark: #5B3E67;          /* deep plum — actions, headings, brand ink */
+  --bg: #FDFBF9;            /* app background — "paper", continuous with the
+                               /login wash */
+  --primary: #DCE4D5;       /* soft sage — tints, accents, chart fills */
+  --dark: #1F3A30;          /* deep green — actions, headings, brand ink */
   --success: #46B37B;
   --warning: #F2B84B;
   --danger: #E05B6F;
 
   /* — Derived brand tones — */
-  --plum-700: #4A3155;
-  --plum-600: #5B3E67;
-  --plum-500: #7A5A88;
-  --plum-400: #A07EAE;
-  --lavender-200: #E8C9E9;
-  --lavender-100: #F1E2F2;
-  --lavender-50:  #F8F0F9;
+  --plum-700: #14261F;
+  --plum-600: #1F3A30;
+  --plum-500: #576B64;
+  --plum-400: #84938D;
+  --lavender-200: #F0C3BD;
+  --lavender-100: #FBEDE9;
+  --lavender-50:  #FDF4F2;
 
   /* — Neutral ink & surfaces —
-     Retuned to sit under the purple/pink logo palette, so the app reads as
-     one product with /login rather than a lavender app behind a cream door.
-     Every shared class (.glass-card, .nav-item, .pill) already resolves to
-     these, so the whole shell follows from here. */
+     Unchanged by the Kalmea rename on purpose: --ink is shared by every
+     page, tenant-facing and chrome alike (a cosmetician's client reads her
+     client's name in the SAME near-black, not a Kalmea-branded one), so it
+     stays a neutral choice rather than following --brand-accent. Every
+     shared class (.glass-card, .nav-item, .pill) already resolves to these,
+     so the whole shell follows from here. */
   --ink: #2A2233;          /* primary text — purple-tinted near-black */
   --ink-2: #6B6275;        /* secondary text */
-  --ink-3: #98879B;        /* tertiary / muted — matches --brand-muted */
+  --ink-3: #98879B;        /* tertiary / muted — shared/neutral; intentionally
+                               no longer matches --brand-muted (that one went
+                               green with Stage 2, this one stays neutral
+                               since tenant pages read it too) */
   --surface: #FFFFFF;
-  --surface-2: #FAF6FC;    /* tinted card / hover — matches --brand-surface */
+  --surface-2: #FAF6FC;    /* tinted card / hover — shared/neutral, same
+                               reason: stays as-is rather than following
+                               --brand-surface onto a Kalmea-only tone */
   --line: #ECE4F0;         /* hairline borders */
   --line-2: #E2D6EA;
 
@@ -63,7 +70,7 @@
   --shadow-md: 0 8px 24px rgba(43, 34, 51, 0.07), 0 2px 6px rgba(43, 34, 51, 0.04);
   --shadow-lg: 0 18px 44px rgba(43, 34, 51, 0.10), 0 6px 14px rgba(43, 34, 51, 0.05);
   --shadow-xl: 0 30px 70px rgba(43, 34, 51, 0.16), 0 10px 24px rgba(43, 34, 51, 0.07);
-  --shadow-glow: 0 14px 40px rgba(74, 46, 90, 0.26);
+  --shadow-glow: 0 14px 40px rgba(31, 58, 48, 0.26);
   /* The accent-tinted lift under primary buttons. One recipe, follows --pc. */
   --shadow-accent: 0 8px 18px var(--pc-shadow);
 
@@ -81,47 +88,57 @@
   --t-hero: 34px;   /* one number on a screen */
 
   /* — Signature gradients — */
-  /* Purple → pink, exactly like the wordmark. No consumers yet. */
-  --grad-brand: linear-gradient(135deg, #4A2E5A 0%, #D28697 100%);
-  --grad-lav:   linear-gradient(135deg, #F1E2F2 0%, #E8C9E9 100%);
-  --grad-hero:  radial-gradient(120% 120% at 100% 0%, #F1E2F2 0%, #F8F5FB 46%, #FBFAFE 100%);
+  /* Green → petal pink, echoing the wordmark's flower. No consumers yet. */
+  --grad-brand: linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%);
+  --grad-lav:   linear-gradient(135deg, #FBEDE9 0%, #F0C3BD 100%);
+  --grad-hero:  radial-gradient(120% 120% at 100% 0%, #FBEDE9 0%, #FDFBF9 46%, #FFFFFF 100%);
   --grad-sheen: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
 
   /* ============================================================
      THEME TOKENS — two tiers, deliberately separate.
 
      --brand-*  Kalmea identity. FIXED. Owns the logo, /login, /signup,
-                /reset-password, marketing and emails. A tenant can never
-                recolour these.
-     --pc-*     Tenant accent. SWITCHABLE from settings.primary_color.
-                Owns everything inside her app and her client-facing pages.
+                /reset-password, onboarding, the whole in-app dashboard shell
+                (nav, tabs, settings, cashier, calendar, admin), marketing and
+                legal pages. A tenant can never recolour these.
+     --pc-*     Tenant accent. SWITCHABLE from settings.primary_color. Owns
+                her genuinely public-facing surfaces: the booking page, the
+                community feed, her design-studio templates/posts/reels, the
+                skin scanner, the review page, the claim page, and the printed
+                receipt her client walks away with.
 
-     Rule of thumb: if a client reads it as HER business it is --pc-*;
-     if they read it as Kalmea it is --brand-*.
+     Rule of thumb: if a CLIENT reads it as HER business, it is --pc-*; if
+     it's the tool SHE uses to run that business, it is --brand-*. (Before
+     Stage 2 of the Kalmea rebrand, --pc-* also drove the whole dashboard
+     shell - the comment above described that older, now-replaced split.)
 
      Everything below is additive. Values alias the existing palette, so
      declaring them changes nothing until a screen opts in.
      ============================================================ */
 
   /* — Kalmea brand (fixed) —
-     STALE as of the Kalmea rename: still the old BloomOS purple/lilac
-     palette sampled from the retired logo ("Bloom" wordmark, "OS" gradient).
-     Stage 2 of the rebrand replaces these values with Kalmea's actual
-     palette (deep green / petal pink / sage / paper) - do not take the
-     color names or hexes below as current until that lands. */
-  --brand-accent: #4A2E5A;           /* deep purple — the "Bloom" wordmark */
-  --brand-deep: #301848;             /* darkest purple — headings */
-  --brand-rose: #D28697;             /* pink — "OS" gradient start */
-  --brand-rose-2: #C07890;           /* deeper pink — "OS" gradient end */
-  --brand-lilac: #BB84A7;            /* lavender/lilac flowers */
-  --brand-cosmos: #D890A8;           /* rose cosmos accent */
-  --brand-tint: #EDE4F5;             /* soft lavender wash */
-  --brand-surface: #FAF6FC;          /* near-white lavender — cards */
-  --brand-blush: #FADDCF;            /* watercolor blush — florals */
-  --brand-cream: #FEFAF7;            /* cream — page background */
-  --brand-muted: #98879B;            /* muted text — taglines */
+     Deep green is the primary/interactive tone (nav, buttons, headings);
+     petal pink is the accent reserved for the two-hue brand gradient and
+     deliberate CTA highlights, not a blanket recolour of every button -
+     see the rebrand commit for which is which. Sage and paper carry the
+     soft backgrounds; there is no multi-hue floral watercolor to sample
+     from anymore (one realistic flower, not a painted bouquet), so the
+     old per-flower shades (lilac/cosmos) collapse onto the nearest of the
+     five named colors instead of getting invented shades of their own. */
+  --brand-accent: #1F3A30;           /* deep green — the primary brand tone */
+  --brand-deep: #14261F;             /* darkest green — headings */
+  --brand-rose: #E9A9A1;             /* petal pink — gradient + CTA accent */
+  --brand-rose-2: #C8918A;           /* deeper petal pink — gradient end */
+  --brand-lilac: #DCE4D5;            /* sage — secondary decorative tone */
+  --brand-cosmos: #E9A9A1;           /* same as --brand-rose; no separate
+                                         cosmos hue without the old florals */
+  --brand-tint: #FBEDE9;             /* pale petal — soft wash */
+  --brand-surface: #FDFBF9;          /* paper — near-white, cards */
+  --brand-blush: #FBEDE9;            /* pale petal — wash florals */
+  --brand-cream: #FDFBF9;            /* paper — page background */
+  --brand-muted: #7D8D87;            /* muted sage-green text — taglines */
   --brand-contrast: #FFFFFF;         /* readable ON --brand-accent */
-  --brand-grad: linear-gradient(135deg, #4A2E5A 0%, #D28697 100%);
+  --brand-grad: linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%);
 
   /* — Brand typography (aliases; the stacks live in --sans / --display) — */
   --brand-font-display: var(--display);
@@ -130,24 +147,30 @@
   /* — Runtime tenant accent —
      Declared here so every page renders correctly with zero JS. The full
      family is overwritten at runtime from settings.primary_color; these
-     defaults match the Kalmea brand accent so an unthemed page still
-     looks intentional. Derivation ratios (kept in sync with lib/theme):
+     defaults match lib/theme.ts's DEFAULT_ACCENT (Kalmea's petal pink) so a
+     brand-new tenant who hasn't picked her own colour yet still looks
+     intentional - this is a product default, not her choice, same as it was
+     when the default was the old BloomOS purple. Derivation ratios (kept in
+     sync with lib/theme):
        --pc-2      lighten 22%     --pc-tint    lighten 90%
        --pc-deep   darken  16%     --pc-tint-2  lighten 82%
        --pc-soft   alpha 0.10      --pc-shadow  alpha 0.28          */
-  --pc: #5B3E67;
-  --pc-2: #7D6489;
-  --pc-deep: #4C3457;
-  --pc-tint: #F1E2F2;
-  --pc-tint-2: #E5D9EA;
-  --pc-soft: rgba(91, 62, 103, 0.10);
+  --pc: #E9A9A1;
+  --pc-2: #EEBCB6;
+  --pc-deep: #C48E87;
+  --pc-tint: #FDF6F6;
+  --pc-tint-2: #FBF0EE;
+  --pc-soft: rgba(233, 169, 161, 0.10);
   /* Faint wash for the header and sidebars - see lib/theme.ts. */
-  --pc-chrome: rgba(91, 62, 103, 0.045);
-  --pc-shadow: rgba(91, 62, 103, 0.28);
-  --pc-grad: linear-gradient(135deg, #7D6489 0%, #4C3457 100%);
+  --pc-chrome: rgba(233, 169, 161, 0.045);
+  --pc-shadow: rgba(233, 169, 161, 0.28);
+  --pc-grad: linear-gradient(135deg, #EEBCB6 0%, #C48E87 100%);
   /* Readable text ON the accent. Computed from the accent's luminance at
-     runtime, so a pale custom colour never yields white-on-pale. */
-  --pc-contrast: #FFFFFF;
+     runtime, so a pale custom colour never yields white-on-pale - which is
+     exactly what the new default petal pink is: pale. Its real contrastOn()
+     result is --ink, not white; unthemed first paint has to match that or
+     it fails its own stated purpose on day one. */
+  --pc-contrast: #2A2233;
 
   /* — Font stacks (via next/font vars, with graceful fallbacks) — */
   --sans: var(--font-inter), var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
@@ -314,22 +337,22 @@ h1, h2, h3 {
   letter-spacing: -0.01em;
 }
 
-/* Refined scrollbars — slim, plum-tinted, unobtrusive */
+/* Refined scrollbars — slim, deep-green-tinted, unobtrusive */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(122, 90, 136, 0.28) transparent;
+  scrollbar-color: rgba(31, 58, 48, 0.28) transparent;
 }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-thumb {
-  background: rgba(122, 90, 136, 0.22);
+  background: rgba(31, 58, 48, 0.22);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: rgba(122, 90, 136, 0.38); background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(31, 58, 48, 0.38); background-clip: padding-box; }
 
 ::selection {
-  background: rgba(232, 201, 233, 0.6);
+  background: rgba(251, 237, 233, 0.6);
   color: var(--plum-700);
 }
 

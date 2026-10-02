@@ -118,7 +118,7 @@ function ConfirmContent() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'var(--brand-cream, #FEFAF7)',
+      backgroundColor: 'var(--brand-cream, #FDFBF9)',
       padding: '20px',
       fontFamily: 'system-ui, -apple-system, sans-serif',
       direction: 'rtl'

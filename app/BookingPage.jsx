@@ -51,7 +51,7 @@ function socialHref(base, val) {
   return base + v.replace(/^@/, "");
 }
 
-const HAIR = "rgba(74,46,90,0.14)";
+const HAIR = "rgba(233,169,161,0.14)";
 // Results visible per treatment group before "עוד N".
 const RESULTS_PER_GROUP = 4;
 
@@ -61,7 +61,7 @@ function Photo({ src, style, eager = false }) {
   const [badSrc, setBadSrc] = useState(null);
   const bad = badSrc === src;
   if (!src || bad) {
-    return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #F1E7F0) 0%, var(--brand-cream, #FEFAF7) 100%)" }} />;
+    return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #FDF6F6) 0%, var(--brand-cream, #FDFBF9) 100%)" }} />;
   }
   return <img src={src} alt="" loading={eager ? "eager" : "lazy"} onError={() => setBadSrc(src)} style={{ ...style, objectFit: "cover", objectPosition: "center", display: "block" }} />;
 }
@@ -167,7 +167,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(20,15,25,0.84)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FEFAF7)", borderRadius: "var(--r-lg)", padding: 14 }}>
+        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FDFBF9)", borderRadius: "var(--r-lg)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
           <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #2A2233)" }}>{title}</p>
           <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
@@ -192,7 +192,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
         {items.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 }}>
             <button onClick={() => onStep(-1)} aria-label="הקודמת" style={arrow}>›</button>
-            <span style={{ fontSize: "var(--t-sm)", color: "var(--brand-muted, #98879B)" }}>{index + 1} / {items.length}</span>
+            <span style={{ fontSize: "var(--t-sm)", color: "var(--brand-muted, #7D8D87)" }}>{index + 1} / {items.length}</span>
             <button onClick={() => onStep(1)} aria-label="הבאה" style={arrow}>‹</button>
           </div>
         )}
@@ -370,7 +370,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // The tenant's accent is set ONCE, as CSS variables on the page root
   // (accentStyle → --pc, --pc-deep, --pc-tint, --pc-soft …). Everything below
   // reads the variables, so no heading can fall back to the default purple.
-  const accent = brand?.primary || settings?.primary_color || "#4A2E5A";
+  const accent = brand?.primary || settings?.primary_color || "#E9A9A1";
   const pc = "var(--pc)";
   const deep = "var(--pc-deep)";
 
@@ -503,7 +503,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FEFAF7)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pc }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FDFBF9)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pc }}>
         ✦ טוען
       </div>
     );
@@ -512,10 +512,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Invalid / missing tenant - show a friendly message instead of the wrong data
   if (tenantError) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)", padding: 24, textAlign: "center" }}>
-        <div style={{ fontSize:"var(--t-hero)", marginBottom: 16, color: "var(--pc, #4A2E5A)" }}>✦</div>
-        <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #98879B)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
-        <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #98879B)", maxWidth: 320, lineHeight: 1.7 }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FDFBF9) 0%, var(--brand-cream, #FDFBF9) 100%)", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize:"var(--t-hero)", marginBottom: 16, color: "var(--pc, #E9A9A1)" }}>✦</div>
+        <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #7D8D87)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
+        <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)", maxWidth: 320, lineHeight: 1.7 }}>
           נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
         </p>
       </div>
@@ -618,12 +618,12 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
 
   // === refined style tokens (premium / luxury visual layer) ===
   const ink = "var(--ink, #2A2233)";
-  const muted = "var(--brand-muted, #98879B)";
-  const faint = "var(--brand-muted, #98879B)";
-  const hair = "rgba(74,46,90,0.14)";
+  const muted = "var(--brand-muted, #7D8D87)";
+  const faint = "var(--brand-muted, #7D8D87)";
+  const hair = "rgba(233,169,161,0.14)";
   // One shape for every "here is why this is empty" line on the page.
-  const noticeBox = { background: "var(--brand-cream, #FEFAF7)", border: `1px solid ${hair}`, borderRadius:"var(--r-sm)", padding: "10px 13px", marginBottom: 12, fontSize:"var(--t-sm)", lineHeight: 1.6, color: ink };
-  const cream = "var(--brand-cream, #FEFAF7)";
+  const noticeBox = { background: "var(--brand-cream, #FDFBF9)", border: `1px solid ${hair}`, borderRadius:"var(--r-sm)", padding: "10px 13px", marginBottom: 12, fontSize:"var(--t-sm)", lineHeight: 1.6, color: ink };
+  const cream = "var(--brand-cream, #FDFBF9)";
   // ── type scale ───────────────────────────────────────────────────────────
   // display / body / meta. Nothing between them, because a size that is nearly
   // another size is just noise. Hebrew carries more leading than Latin at the
@@ -632,7 +632,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   const T_META    = { fontSize:"var(--t-md)", fontWeight: 400, lineHeight: 1.5 };
 
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 34 };
-  const cardBox = { background: "var(--brand-surface, #FAF6FC)", borderRadius:"var(--r-lg)", padding: "26px 24px", boxShadow:"var(--shadow-lg)", border: `1px solid ${hair}` };
+  const cardBox = { background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", padding: "26px 24px", boxShadow:"var(--shadow-lg)", border: `1px solid ${hair}` };
   // The section beat: every section opens the same way - a short accent dash,
   // then the serif title, then 14px of air. One rhythm down the whole page, so
   // the sections read as movements of one piece rather than widgets stacked.
@@ -642,10 +642,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: ink, lineHeight: 1.3 }}>{text}</p>
     </div>
   );
-  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
+  const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
 
   return (
-    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FEFAF7) 0%,var(--brand-cream, #FEFAF7) 55%,var(--brand-cream, #FEFAF7) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9) 0%,var(--brand-cream, #FDFBF9) 55%,var(--brand-cream, #FDFBF9) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
@@ -744,7 +744,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 </p>
                 {wa && (
                   <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
-                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#25D366", color: "var(--brand-surface, #FAF6FC)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
+                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#25D366", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
                     <Icon name="whatsapp" size={15}/> לתיאום תור בוואטסאפ
                   </a>
                 )}
@@ -760,7 +760,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 {services.map((sv, i) => {
                   const img = serviceImage(sv, brand?.serviceImages);
                   return (
-                    <div key={sv.id || i} style={{ background: "var(--brand-surface, #FAF6FC)", border: "1px solid " + HAIR, borderRadius: "var(--r-md)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
+                    <div key={sv.id || i} style={{ background: "var(--brand-surface, #FDFBF9)", border: "1px solid " + HAIR, borderRadius: "var(--r-md)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
                       <Photo src={img.url} style={{ width: "100%", aspectRatio: "4 / 3" }} />
                       <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1, textAlign: "center" }}>
                         <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
@@ -775,7 +775,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                               style={{ background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                               <span style={{ display: "flex" }}>
                                 {mine.slice(0, 3).map((r, k) => (
-                                  <span key={r.id || k} style={{ width: 30, height: 30, marginInlineStart: k ? -8 : 0, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--brand-surface, #FAF6FC)", display: "block" }}>
+                                  <span key={r.id || k} style={{ width: 30, height: 30, marginInlineStart: k ? -8 : 0, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--brand-surface, #FDFBF9)", display: "block" }}>
                                     <Photo src={r.after} style={{ width: "100%", height: "100%" }} />
                                   </span>
                                 ))}
@@ -849,7 +849,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
               {valueProps.map((v, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ width: 58, height: 58, borderRadius: "50%", border: "1px solid " + HAIR, background: "var(--brand-surface, #FAF6FC)", margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center", color: pc }}>
+                  <div style={{ width: 58, height: 58, borderRadius: "50%", border: "1px solid " + HAIR, background: "var(--brand-surface, #FDFBF9)", margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center", color: pc }}>
                     <ValueIcon i={i} />
                   </div>
                   <p style={{ fontSize: "var(--t-sm)", color: ink, lineHeight: 1.4, margin: 0 }}>{v}</p>
@@ -982,7 +982,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                   {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
                   {socials.map((s) => (
-                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FAF6FC)", deep, pc)}>{s.label}</a>
+                    <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
                   ))}
                 </div>
               </div>
@@ -1004,7 +1004,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                       )}
                       <div style={{ padding: "15px 17px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
-                          <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FAF6FC)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
+                          <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--brand-surface, #FDFBF9)", background: postTypeColor(p.post_type), padding: "3px 11px", borderRadius:"var(--r-full)", letterSpacing: "0.4px" }}>
                             {postTypeLabel(p.post_type)}
                           </span>
                           <span style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.3px" }}>
@@ -1041,7 +1041,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       {step === 1 && barShown && (
         <div style={{ position: "fixed", insetInline: 0, bottom: 0, zIndex: 60,
           padding: "14px 20px calc(14px + env(safe-area-inset-bottom, 0px))",
-          background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FEFAF7) 38%)" }}>
+          background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FDFBF9) 38%)" }}>
           {wa ? (
             <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)", textDecoration: "none",
@@ -1111,7 +1111,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
                       <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
-                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FAF6FC)", color: isSel ? "var(--brand-surface, #FAF6FC)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--brand-surface, #FDFBF9)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
                         <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
@@ -1150,7 +1150,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FEFAF7)" : isSel ? pc : "var(--brand-surface, #FAF6FC)", color: taken ? faint : isSel ? "var(--brand-surface, #FAF6FC)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FDFBF9)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--brand-surface, #FDFBF9)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
                           </button>
                         );
@@ -1194,15 +1194,15 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
 
                 <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 10 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FAF6FC)", marginBottom: 14 }} />
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
 
                 {/* CONSENT, before the button. What is stored, what it is
                     used for, where the full policy is - and a tick that the
                     button waits for. Shown here rather than after, because
                     after is too late to be asked. */}
-                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius:"var(--r-md)", border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FAF6FC)", marginBottom: 12, cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius:"var(--r-md)", border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת הפרטים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>
                     אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
@@ -1233,7 +1233,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FAF6FC)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
                 <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>
             )}

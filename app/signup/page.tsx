@@ -316,7 +316,8 @@ const footerStyle: React.CSSProperties = {
 }
 
 const linkStyle: React.CSSProperties = {
-  // Purple, not pink: pink on cream is 2.66:1 and fails AA. Purple is 11.1:1.
+  // Green, not pink: petal pink on paper is 1.9:1 and fails AA badly. Deep
+  // green is 11.9:1. Same reasoning as before the rebrand, new numbers.
   color: ACCENT,
   fontWeight: 700,
   textDecoration: 'none',

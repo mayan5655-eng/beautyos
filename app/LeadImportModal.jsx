@@ -269,7 +269,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
         {analyzing && <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginTop: 12 }}><Spinner inline label="מנתחת את הקובץ"/></p>}
 
         {error && (
-          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)' }}>
+          <div style={{ marginTop: 12, padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FDFBF9)', border: '1px solid var(--line-2)' }}>
             <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>הקובץ לא נותח</p>
             <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6 }}>{error}</p>
           </div>
@@ -328,7 +328,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             </p>
 
             {!phoneMapped && (
-              <div style={{ padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FEFAF7)', border: '1px solid var(--line-2)', marginBottom: 14 }}>
+              <div style={{ padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FDFBF9)', border: '1px solid var(--line-2)', marginBottom: 14 }}>
                 <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6 }}>
                   בלי עמודת טלפון אי אפשר לייבא: כל השורות ידולגו.
                 </p>

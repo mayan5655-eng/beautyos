@@ -78,7 +78,7 @@ export default function ReviewPage() {
   };
 
   const ink = "var(--ink, #2A2233)";
-  const muted = "var(--brand-muted, #98879B)";
+  const muted = "var(--brand-muted, #7D8D87)";
   // Her accent, set as CSS variables on the wrapper once /api/reviews has
   // answered; until then the default family. --brand-accent is the Kalmea
   // wordmark purple and has no business on a client's review page.
@@ -87,7 +87,7 @@ export default function ReviewPage() {
     ...accentStyle(info?.primaryColor || null),
     minHeight: "100dvh", display: "flex", flexDirection: "column",
     alignItems: "center", justifyContent: "center", textAlign: "center",
-    padding: "0 24px", background: "var(--brand-cream, #FEFAF7)",
+    padding: "0 24px", background: "var(--brand-cream, #FDFBF9)",
     fontFamily: "var(--font-assistant), sans-serif",
   };
 

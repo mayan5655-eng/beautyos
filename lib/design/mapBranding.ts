@@ -66,7 +66,7 @@ export const FONTS = {
   accent: "var(--font-heebo), 'Heebo', sans-serif",
 };
 
-const DEFAULT_ACCENT = '#5B3E67';
+const DEFAULT_ACCENT = '#E9A9A1'; // Kalmea's product default (lib/theme.ts's DEFAULT_ACCENT) - a tenant's own pick always wins over this
 const INK = '#2A2233';
 const MUTED = '#7C6F68';
 // The studio look never sits on white: a warm cream, a blush of her hue on

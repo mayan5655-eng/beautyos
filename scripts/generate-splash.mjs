@@ -33,7 +33,7 @@ const LOGO = 'public/kalmea-wordmark.png';   // 1470x430 lockup
 const OUT_DIR = 'public/splash';
 /** Matches manifest.json background_color, so the launch image and the
  *  install's background are the same colour and there is no flash between. */
-const BG = '#F8F5FB';
+const BG = '#FDFBF9';
 /** Logo width as a fraction of the device's SHORT edge. Conservative: the
  *  lockup is wide, and a launch image that fills the screen looks like a
  *  billboard rather than an app opening. */

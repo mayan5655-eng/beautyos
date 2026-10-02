@@ -128,7 +128,7 @@ assert.equal(withBrand({ logo: false }).logoUrl, null, 'logo off -> the layer fa
 assert.equal(withBrand({}).logoUrl, 'https://cdn/logo.png', 'absent = on');
 assert.deepEqual(sanitizeOverrides({ brand: { logo: false, phone: 'no', instagram: true, other: false } }), { brand: { logo: false, instagram: true } });
 assert.equal(colorsFor('#4A2E5A').contrast, '#FFFFFF', 'white text on plum');
-assert.equal(colorsFor('not a colour').primary, '#5B3E67', 'malformed -> default');
+assert.equal(colorsFor('not a colour').primary, '#E9A9A1', 'malformed -> default');
 
 const bare = fillTemplate(getTemplate('offer-feed')!, { settings: { business_name: 'הקליניקה של מאיה', primary_color: '#C9A24B', branding: {} } });
 assert.equal(bare.values.business_name, 'הקליניקה של מאיה');

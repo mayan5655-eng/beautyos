@@ -163,7 +163,7 @@ export default function InstallPromptBanner() {
             border: "none",
             borderRadius:"var(--r-full)",
             padding: "9px 18px",
-            background: "var(--pc, #5B3E67)",
+            background: "var(--pc, #1F3A30)",
             color: "var(--pc-contrast, #FFFFFF)",
             fontSize:"var(--t-md)",
             fontWeight: 600,

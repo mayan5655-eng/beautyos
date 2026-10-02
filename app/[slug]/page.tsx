@@ -120,14 +120,14 @@ export default async function SlugPage({ params }: Props) {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           minHeight: '100dvh', padding: '0 24px', textAlign: 'center',
           fontFamily: 'var(--font-assistant), sans-serif',
-          background: 'var(--brand-cream, #FEFAF7)',
+          background: 'var(--brand-cream, #FDFBF9)',
         }}
       >
-        <p style={{ fontSize:"var(--t-hero)", color: 'var(--brand-muted, #98879B)', marginBottom: 14 }}>✦</p>
+        <p style={{ fontSize:"var(--t-hero)", color: 'var(--brand-muted, #7D8D87)', marginBottom: 14 }}>✦</p>
         <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
           לא מצאנו עסק בכתובת הזו
         </h1>
-        <p style={{ fontSize:"var(--t-lg)", color: 'var(--brand-muted, #98879B)', lineHeight: 1.7, maxWidth: 340 }}>
+        <p style={{ fontSize:"var(--t-lg)", color: 'var(--brand-muted, #7D8D87)', lineHeight: 1.7, maxWidth: 340 }}>
           ייתכן שהקישור השתנה או הוקלד עם שגיאה. כדאי לבקש מהעסק קישור מעודכן.
         </p>
       </div>

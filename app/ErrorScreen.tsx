@@ -110,7 +110,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
             height: 62,
             margin: '0 auto 18px',
             borderRadius: '50%',
-            background: '#F1E2F2',
+            background: '#FBEDE9',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -120,7 +120,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
             <path
               d="M12 8.4v4.4M12 16.2v.01M10.3 3.9 2.9 17.1a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
               fill="none"
-              stroke="#5B3E67"
+              stroke="#1F3A30"
               strokeWidth={1.6}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -149,7 +149,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
         {shortCode && (
           <div
             style={{
-              background: '#FAF6FC',
+              background: '#FDFBF9',
               border: '1px solid #E2D6EA',
               borderRadius:"var(--r-md)",
               padding: '14px 16px',
@@ -165,7 +165,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
                 fontSize:"var(--t-3xl)",
                 fontWeight: 700,
                 letterSpacing: '0.14em',
-                color: '#4C3457',
+                color: '#14261F',
                 direction: 'ltr',
               }}
             >
@@ -178,7 +178,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
                 marginTop: 10,
                 background: 'none',
                 border: 'none',
-                color: '#5B3E67',
+                color: '#1F3A30',
                 fontSize:"var(--t-md)",
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -202,7 +202,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
                 padding: '14px 20px',
                 borderRadius:"var(--r-full)",
                 border: 'none',
-                background: 'linear-gradient(135deg, #7D6489 0%, #4C3457 100%)',
+                background: 'linear-gradient(135deg, #50655E 0%, #1A3128 100%)',
                 color: '#FFFFFF',
                 fontSize:"var(--t-lg)",
                 fontWeight: 600,
@@ -221,7 +221,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
               borderRadius:"var(--r-full)",
               border: '1px solid #E2D6EA',
               background: '#FFFFFF',
-              color: '#5B3E67',
+              color: '#1F3A30',
               fontSize:"var(--t-lg)",
               fontWeight: 600,
               textDecoration: 'none',

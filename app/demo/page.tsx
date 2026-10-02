@@ -14,14 +14,14 @@ export default function DemoChooserPage() {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         minHeight: '100dvh', padding: '0 24px', textAlign: 'center', gap: 18,
         fontFamily: "'Heebo','Assistant',sans-serif",
-        background: 'var(--brand-cream, #FEFAF7)',
+        background: 'var(--brand-cream, #FDFBF9)',
       }}
     >
-      <p style={{ fontSize: 40, color: 'var(--brand-muted, #98879B)' }}>✦</p>
+      <p style={{ fontSize: 40, color: 'var(--brand-muted, #7D8D87)' }}>✦</p>
       <h1 style={{ fontSize: 30, fontWeight: 600, color: 'var(--ink, #2A2233)', margin: 0 }}>
         רוצה לראות איך זה עובד?
       </h1>
-      <p style={{ fontSize: 17, color: 'var(--brand-muted, #98879B)', lineHeight: 1.7, maxWidth: 420, margin: 0 }}>
+      <p style={{ fontSize: 17, color: 'var(--brand-muted, #7D8D87)', lineHeight: 1.7, maxWidth: 420, margin: 0 }}>
         עסק אמיתי, נתונים לדוגמה. אפשר ללחוץ על הכל - שום הודעה לא יוצאת באמת.
       </p>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8 }}>

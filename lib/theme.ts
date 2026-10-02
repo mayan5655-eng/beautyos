@@ -11,8 +11,9 @@
 
 export type Rgb = { r: number; g: number; b: number };
 
-// Kalmea brand accent, used when a tenant has not chosen a colour.
-export const DEFAULT_ACCENT = '#5B3E67';
+// Kalmea's petal pink, used when a tenant has not chosen a colour. A product
+// default, not her choice - she can change it in Settings whenever she likes.
+export const DEFAULT_ACCENT = '#E9A9A1';
 
 // Brand ink - the dark text colour, and one of the two candidates for
 // readable text on an accent. Mirrors --brand-ink / --ink in globals.css.

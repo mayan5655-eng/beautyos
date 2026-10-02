@@ -21,11 +21,12 @@ const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12,
   border: `1px solid ${ACCENT_LINE_2}`,
   borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", boxSizing: 'border-box', background: CREAM,
-  color: 'var(--brand-deep, #301848)', outline: 'none', fontFamily: 'inherit',
+  color: 'var(--brand-deep, #14261F)', outline: 'none', fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
 }
 const textLinkStyle: React.CSSProperties = {
-  // Purple, not pink: pink on cream is 2.66:1 and fails AA. Purple is 11.1:1.
+  // Green, not pink: petal pink on paper is 1.9:1 and fails AA badly. Deep
+  // green is 11.9:1. Same reasoning as before the rebrand, new numbers.
   background: 'none', border: 'none', color: ACCENT, fontSize:"var(--t-md)", cursor: 'pointer',
   textDecoration: 'underline', padding: 0, fontFamily: 'inherit', fontWeight: 600,
 }

@@ -117,7 +117,7 @@ export function ConfirmDialog({
             disabled={busy}
             style={{
               flex: 2, padding: '12px 0', borderRadius:"var(--r-sm)", border: 'none',
-              background: danger ? 'var(--danger, #C2557A)' : 'var(--pc, #4A2E5A)',
+              background: danger ? 'var(--danger, #C2557A)' : 'var(--pc, #1F3A30)',
               color: '#fff', fontSize:"var(--t-md)", fontWeight: 700,
               fontFamily: 'inherit', cursor: busy ? 'default' : 'pointer',
               opacity: busy ? 0.6 : 1,

@@ -12,7 +12,7 @@ import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from 
 import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPreviewLead, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
-import { hexToRgb, lighten, darken, applyAccentTokens } from "@/lib/theme";
+import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
@@ -1529,12 +1529,26 @@ export default function BeautyOS() {
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
   const lastMonthYear = thisMonth===0?thisYear-1:thisYear;
-  // Brand accent. Default is the Kalmea deep-plum (#5B3E67) so the whole app
-  // wears the premium lavender/plum palette out of the box; a tenant may still
-  // pick her own color in Settings (hybrid theming) and everything re-tints.
-  const pc = (settings&&settings.primary_color)||"#5B3E67";
-  // Derived theme shades from the chosen primary color, so the whole app
-  // recolors when the cosmetician picks a color in settings.
+  // Kalmea chrome accent (Stage 2 of the rebrand). Before this, this whole
+  // family (pc/pc2/pcDeep/pcTint/pcGrad...) was derived from
+  // settings.primary_color, and "hybrid theming" meant the ENTIRE dashboard
+  // shell - nav, buttons, calendar highlights, every one of the ~345 uses
+  // below - re-tinted to match whatever color a tenant picked. That mixed two
+  // different things a client could read as branding into one variable: HER
+  // business, and Kalmea the product. The shell is now fixed to Kalmea's
+  // deep green regardless of her choice; her real color still exists, as
+  // herAccent below, for the few things reached from inside this shell that
+  // are genuinely hers (the printed receipt; DesignStudio, which re-applies
+  // it locally further down since it otherwise inherits whatever this
+  // component sets here).
+  const pc = "#1F3A30";
+  // Her actual accent (or the Kalmea product default if she hasn't chosen one
+  // yet) - deliberately NOT what `pc` holds anymore. Read this, never `pc`,
+  // anywhere that renders something a client attributes to her business.
+  const herAccent = (settings&&settings.primary_color)||DEFAULT_ACCENT;
+  // Derived theme shades from the CHROME accent above - the dashboard no
+  // longer recolors when she picks a color in settings; only her own
+  // public-facing surfaces do, via herAccent.
   // hexToRgb / lighten / darken now live in lib/theme.ts so every page can use
   // the same derivation. Same maths, same output - see the imports at the top.
   const pcRgb = hexToRgb(pc);
@@ -5384,7 +5398,7 @@ export default function BeautyOS() {
   .v{font-weight:600}
   .total{border-top:2px dashed #E3DBEC;margin-top:22px;padding-top:22px;display:flex;justify-content:space-between;align-items:center}
   .total .lbl{font-size:22px;font-weight:600;color:#5B5563}
-  .total .amt{font-size:44px;font-weight:700;color:${esc(pc)}}
+  .total .amt{font-size:44px;font-weight:700;color:${esc(herAccent)}}
   .foot{text-align:center;font-size:14px;color:#9A93A4;margin-top:24px}
 </style></head>
 <body onload="window.print()">
@@ -6497,7 +6511,7 @@ export default function BeautyOS() {
   if(loadError) return (
     <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",display:"flex",alignItems:"center",justifyContent:"center",padding:"22px 18px",fontFamily:"'Heebo','Assistant',sans-serif",direction:"rtl"}}>
       <div style={{width:"100%",maxWidth:440,background:"var(--surface,#FFFFFF)",border:"1px solid var(--line,#ECE4F0)",borderRadius:"var(--r-lg)",boxShadow:"var(--shadow-lg)",padding:"32px 26px",textAlign:"center"}}>
-        <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#F1E2F2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)"}}>{loadError.offline ? "📶" : "⚠️"}</div>
+        <div aria-hidden style={{width:60,height:60,margin:"0 auto 18px",borderRadius:"50%",background:"var(--pc-tint,#E9EBEA)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)"}}>{loadError.offline ? "📶" : "⚠️"}</div>
         <h1 style={{fontSize:"var(--t-2xl)",fontWeight:600,margin:"0 0 10px",color:"var(--ink,#2A2233)"}}>
           {loadError.offline ? "אין חיבור לאינטרנט" : "לא הצלחנו לטעון את הנתונים"}
         </h1>
@@ -6514,7 +6528,7 @@ export default function BeautyOS() {
         <button
           type="button"
           onClick={()=>{ setLoadError(null); setLoading(true); loadAll(); }}
-          style={{width:"100%",padding:"14px 20px",borderRadius:"var(--r-full)",border:"none",background:"linear-gradient(135deg,#7D6489 0%,#4C3457 100%)",color:"#FFFFFF",fontSize:"var(--t-lg)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}
+          style={{width:"100%",padding:"14px 20px",borderRadius:"var(--r-full)",border:"none",background:"linear-gradient(135deg,#50655E 0%,#1A3128 100%)",color:"#FFFFFF",fontSize:"var(--t-lg)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:10}}
         >
           נסי שוב
         </button>
@@ -6526,7 +6540,7 @@ export default function BeautyOS() {
           <button
             type="button"
             onClick={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
-            style={{width:"100%",padding:"12px 20px",borderRadius:"var(--r-full)",border:"1px solid var(--line,#E2D6EA)",background:"transparent",color:"var(--ink-2,#5B3E67)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+            style={{width:"100%",padding:"12px 20px",borderRadius:"var(--r-full)",border:"1px solid var(--line,#E2D6EA)",background:"transparent",color:"var(--ink-2,#6B6275)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
           >
             יציאה והתחברות מחדש
           </button>
@@ -7009,7 +7023,7 @@ export default function BeautyOS() {
                   style={{width:"100%",padding:"11px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",fontSize:"var(--t-md)",fontFamily:"inherit",resize:"vertical",lineHeight:1.6,boxSizing:"border-box",background:"var(--surface-2)",color:"var(--ink)"}}
                 />
                 {helpState === "failed" && (
-                  <div style={{marginTop:10,padding:"11px 12px",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FEFAF7)",border:"1px solid var(--line-2)"}}>
+                  <div style={{marginTop:10,padding:"11px 12px",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FDFBF9)",border:"1px solid var(--line-2)"}}>
                     <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)",marginBottom:4}}>ההודעה לא נשלחה</p>
                     <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:9}}>
                       לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן{supportWhatsAppUrl()?", ואפשר לשלוח אותו ישירות בוואטסאפ":" — אפשר לנסות שוב עוד רגע"}.
@@ -8983,7 +8997,18 @@ ${c.claimUrl}`)}`;
  </div>
  </div>
 
- {aiPostsView==="studio"&&<DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services}/>}
+              {/* Her templates, posts and reels are HER content, even though the
+                  studio is reached from inside the Kalmea-chrome dashboard -
+                  Stage 2 of the rebrand fixed `pc`/`pcGrad` above to Kalmea
+                  green, so without this local override DesignStudio would
+                  inherit that instead of her real accent. It has no scoping
+                  of its own (just raw var(--pc) reads), relying entirely on
+                  whatever this div sets. */}
+              {aiPostsView==="studio"&&(
+ <div style={accentStyle(herAccent)}>
+ <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services}/>
+ </div>
+              )}
 
  {aiPostsView==="reels"&&(<>
  <div className="glass-card" style={{padding:"22px 24px",marginBottom:18}}>

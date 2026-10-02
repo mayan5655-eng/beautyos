@@ -60,7 +60,7 @@ export default function OnboardingPage() {
     business_name: "",
     therapist_name: "",
     business_phone: "",
-    primary_color: "#4A2E5A",
+    primary_color: "#E9A9A1", // Kalmea's DEFAULT_ACCENT (lib/theme.ts) - a product default, not her choice yet
     working_hours_start: 8,
     working_hours_end: 19,
     business_fields: [],
@@ -227,7 +227,7 @@ export default function OnboardingPage() {
     );
   }
 
-  const pc = data.primary_color || "#4A2E5A";
+  const pc = data.primary_color || "#E9A9A1";
   // Onboarding runs before the app applies the --pc-* tokens, so derive the
   // tint here rather than relying on a variable that is not set on this route.
   const pcTint = lighten(pc, 0.90);
@@ -239,7 +239,7 @@ export default function OnboardingPage() {
         .step-body { animation: fadeIn 0.28s ease-out; }
         .ob-input:focus { border-color: ${pc} !important; background: var(--surface) !important; }
         .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px ${pc}55; }
-        .ob-btn-secondary:hover { background: var(--brand-cream, #FEFAF7); }
+        .ob-btn-secondary:hover { background: var(--brand-cream, #FDFBF9); }
         .swatch:hover { transform: scale(1.1); }
       `}</style>
 
@@ -321,7 +321,7 @@ export default function OnboardingPage() {
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
-                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FEFAF7)" }} />
+                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FDFBF9)" }} />
                   <input
                     className="ob-input"
                     value={data.primary_color}
@@ -365,7 +365,7 @@ export default function OnboardingPage() {
               </div>
 
               {data.business_fields.length === 0 ? (
-                <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+                <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                   בחרי תחום למעלה כדי לראות טיפולים מוצעים — או דלגי, ובני את המחירון מאפס בהגדרות ← שירותים.
                 </div>
               ) : (
@@ -449,7 +449,7 @@ export default function OnboardingPage() {
                   />
                 </Field>
               </div>
-              <div style={{ background: "var(--brand-cream, #FEFAF7)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                 ✨ כמעט סיימנו — עוד שלב אחד ואנחנו בפנים.
               </div>
             </>
@@ -524,7 +524,7 @@ function Field({ label, children, inline = false }: { label: string; children: R
 // === Styles ===
 const containerStyle: React.CSSProperties = {
   minHeight: "100dvh",
-  background: "linear-gradient(180deg, var(--brand-cream, #FEFAF7) 0%, var(--brand-cream, #FEFAF7) 100%)",
+  background: "linear-gradient(180deg, var(--brand-cream, #FDFBF9) 0%, var(--brand-cream, #FDFBF9) 100%)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -567,7 +567,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   outline: "none",
   direction: "rtl",
-  background: "var(--brand-cream, #FEFAF7)",
+  background: "var(--brand-cream, #FDFBF9)",
   color: "var(--ink)",
   transition: "border-color 0.15s, background 0.15s",
 };
