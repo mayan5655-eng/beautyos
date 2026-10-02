@@ -68,6 +68,16 @@ export const LOGO_FULL = '/kalmea-wordmark.png'
 export const LOGO_FULL_W = 1470
 export const LOGO_FULL_H = 430
 export const LOGO_COMPACT = '/kalmea-wordmark.png'
+// Just the "kalmea" lettering, cropped from LOGO_COMPACT (sharp .extract at
+// x=505, where the flower provably ends - checked pixel by pixel so the crop
+// never bleeds a sliver of petal, then .trim() for the tightest box; 965x430).
+// For the mobile header's compact lockup: the flower mark beside this, not
+// the flower alone - a screen should always say what she's using, and not
+// the full-width lockup either, which doesn't fit next to the menu button,
+// search box and badges below 680px.
+export const LOGO_TEXT = '/kalmea-wordmark-text.png'
+export const LOGO_TEXT_W = 965
+export const LOGO_TEXT_H = 430
 
 // ---- Flower marks ----
 // Solid silhouette, one flat color, transparent ground: small decorative

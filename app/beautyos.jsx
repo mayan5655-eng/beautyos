@@ -13,7 +13,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, ROSE_DIVIDER } from "@/lib/brand";
+import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, ROSE_DIVIDER } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -7421,15 +7421,19 @@ ${c.claimUrl}`)}`;
                     sitting flush against the menu button. No wrapper box, no
                     background, no overflow - the petals reach the edge of the
                     artwork and must never be cropped.
-                    Desktop only: below 680px the full lockup is replaced by
-                    just the flower mark, since there isn't room for the
-                    wordmark next to the menu button, search box and badges. */}
+                    Desktop only: the full lockup doesn't fit below 680px next
+                    to the menu button, search box and badges. A SMALLER
+                    lockup replaces it there (flower + "kalmea" in its own
+                    lettering, cropped from this same artwork - see LOGO_TEXT)
+                    rather than the flower alone: a screen should always say
+                    what she's using, not just show a mark. */}
  <img className="hdr-logo desktop-only" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
- <img className="mobile-only" src={FLOWER_64} alt="Kalmea" width={64} height={64}
-      style={{width:30,height:30,overflow:"visible",flexShrink:0,
-              marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}/>
+ <div className="mobile-only" style={{alignItems:"center",gap:6,flexShrink:0,marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}>
+ <img src={FLOWER_64} alt="" width={64} height={64} style={{width:24,height:24,flexShrink:0,display:"block"}}/>
+ <img src={LOGO_TEXT} alt="Kalmea" width={LOGO_TEXT_W} height={LOGO_TEXT_H} style={{width:"auto",height:22,display:"block"}}/>
+ </div>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
  </div>
