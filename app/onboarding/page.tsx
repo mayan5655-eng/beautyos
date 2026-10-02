@@ -12,6 +12,7 @@ import { lighten } from "@/lib/theme";
 import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
+import ChromeFlowerBg from "../ChromeFlowerBg";
 
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
@@ -234,6 +235,7 @@ export default function OnboardingPage() {
 
   return (
     <div dir="rtl" style={containerStyle}>
+      <ChromeFlowerBg/>
       <style>{`
         @keyframes fadeIn { from {opacity:0;transform:translateY(8px)} to {opacity:1;transform:translateY(0)} }
         .step-body { animation: fadeIn 0.28s ease-out; }

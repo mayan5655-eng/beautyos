@@ -22,7 +22,7 @@
 // emoji: they render in colour on iOS against a monochrome design, which is the
 // bug this codebase has now hit five times.
 
-import { FLOWER_WATERMARK } from "@/lib/brand";
+import { FLOWER_128 } from "@/lib/brand";
 
 const STROKE = {
   fill: "none",
@@ -52,6 +52,13 @@ export default function EmptyState({
   actions = [],
   compact = false,
 }) {
+  // "spark" (the default) and anything not in EMPTY_ICONS have no
+  // meaning-specific glyph to show - that's exactly the flower's spot,
+  // replacing the icon rather than sitting behind it. Every NAMED icon
+  // (calendar, cash, chart, receipt, package, people, home) keeps carrying
+  // its own real meaning and keeps the corner watermark instead; a card
+  // never gets both treatments at once.
+  const hasMeaningfulIcon = icon !== "spark" && !!EMPTY_ICONS[icon];
   return (
     <div
       style={{
@@ -68,12 +75,13 @@ export default function EmptyState({
           still carries the actual meaning (empty calendar vs. empty cash
           drawer vs. empty leads list), this is just enough Kalmea presence
           that "nothing here yet" doesn't read as generic. Skipped in
-          compact mode: too small a card for a watermark to read as anything
-          but clutter. */}
-      {!compact && (
+          compact mode (too small a card for a watermark to read as anything
+          but clutter) and skipped whenever the flower itself is already the
+          icon below, so a card never carries two flowers at once. */}
+      {!compact && hasMeaningfulIcon && (
         <img
           aria-hidden
-          src={FLOWER_WATERMARK}
+          src={FLOWER_128}
           alt=""
           style={{
             position: "absolute",
@@ -88,25 +96,41 @@ export default function EmptyState({
           }}
         />
       )}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "relative",
-          width: compact ? 40 : 52,
-          height: compact ? 40 : 52,
-          margin: "0 auto 12px",
-          borderRadius: "50%",
-          background: "var(--surface)",
-          color: accent,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <svg viewBox="0 0 24 24" width={compact ? 20 : 25} height={compact ? 20 : 25} style={STROKE}>
-          {EMPTY_ICONS[icon] || EMPTY_ICONS.spark}
-        </svg>
-      </div>
+      {hasMeaningfulIcon ? (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "relative",
+            width: compact ? 40 : 52,
+            height: compact ? 40 : 52,
+            margin: "0 auto 12px",
+            borderRadius: "50%",
+            background: "var(--surface)",
+            color: accent,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={compact ? 20 : 25} height={compact ? 20 : 25} style={STROKE}>
+            {EMPTY_ICONS[icon]}
+          </svg>
+        </div>
+      ) : (
+        <img
+          aria-hidden
+          src={FLOWER_128}
+          alt=""
+          style={{
+            position: "relative",
+            width: compact ? 56 : 112,
+            height: compact ? 56 : 112,
+            margin: "0 auto 12px",
+            display: "block",
+            opacity: 0.5,
+          }}
+        />
+      )}
 
       <p style={{ position: "relative", fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
         {title}

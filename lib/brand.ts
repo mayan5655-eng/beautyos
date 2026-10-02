@@ -46,6 +46,11 @@ export const ACCENT_LINE_2 = 'rgba(31,58,48,0.18)'
 export const ACCENT_RING = 'rgba(31,58,48,0.16)'
 export const DEEP_SHADOW = 'rgba(20,38,31,0.22)'
 
+// The rose used specifically for the hairline-flower-hairline divider
+// treatment (botanical interface pass) - a named color of its own rather
+// than reusing --brand-rose/petal pink, since it was specified separately.
+export const ROSE_DIVIDER = '#C07A72'
+
 // ---- Floral tints ----
 // Passed to FloralCorners so its blossoms match the new logo's palette.
 export const FLORAL_BLUSH = '#E9A9A1'
@@ -64,7 +69,7 @@ export const LOGO_FULL_W = 1470
 export const LOGO_FULL_H = 430
 export const LOGO_COMPACT = '/kalmea-wordmark.png'
 
-// ---- Flower marks (Stage 3) ----
+// ---- Flower marks ----
 // Solid silhouette, one flat color, transparent ground: small decorative
 // marks where an icon is needed but a photographic flower would be too much
 // detail at 14-24px (the hairline rule on /login, a "powered by" glyph, a
@@ -74,8 +79,26 @@ export const LOGO_COMPACT = '/kalmea-wordmark.png'
 export const FLOWER_MARK = '/flower-pink-solid.png'
 export const FLOWER_MARK_GREEN = '/flower-green-solid.png'
 export const FLOWER_MARK_WHITE = '/flower-white-solid.png'
-// Full-color, full-detail - a background flourish at low opacity, not an
-// icon. For empty states: behind/around the message, never competing with it.
+
+// Full-color, full-detail renders of the same flower, at the size that
+// actually ships - not one 1235x1233 source scaled down by the browser
+// everywhere it's used. 64/128 didn't exist in brand/ despite being asked
+// for by name; generated from flower-full.png (sharp, resize+contain) since
+// they're pure downsamples of an asset already in hand, not new artwork.
+//   64   - a mark under ~30px (header, dividers)
+//   128  - a mark/watermark around 70-150px (the "one question" card hint,
+//          EmptyState's icon-less flower)
+//   256  - a corner watermark around 150-260px (ChromeFlowerBg)
+//   full - reserved for anything genuinely large (not currently used -
+//          everything real so far fits in 256 or under)
+export const FLOWER_64 = '/flower-64.png'
+export const FLOWER_128 = '/flower-128.png'
+export const FLOWER_256 = '/flower-256.png'
+export const FLOWER_FULL = '/flower-full.png'
+// Same image as FLOWER_256 as of this writing, kept as its own export
+// because it's what Stage 3 already shipped under this name - swap call
+// sites to the sized exports above as they're touched, rather than one
+// mass rename.
 export const FLOWER_WATERMARK = '/flower-watermark.png'
 
 // The page wash used on every branded screen. A true ombré: paper at the top,

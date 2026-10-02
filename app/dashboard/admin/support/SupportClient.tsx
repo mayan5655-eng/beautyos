@@ -8,6 +8,7 @@
 // Hebrew, RTL, no em-dashes, second person feminine, matching the tenants panel.
 
 import { useMemo, useState } from 'react'
+import ChromeFlowerBg from '../../../ChromeFlowerBg'
 
 export interface SupportMessageRow {
   id: string
@@ -86,6 +87,7 @@ export default function SupportClient({ initialMessages }: { initialMessages: Su
 
   return (
     <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif", color: ink }}>
+      <ChromeFlowerBg/>
       <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>

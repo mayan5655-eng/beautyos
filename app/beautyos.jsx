@@ -13,7 +13,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC } from "@/lib/brand";
+import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, ROSE_DIVIDER } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -43,6 +43,7 @@ import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
 import { buildNextClientBrief, untilHe } from "@/lib/nextClient";
 import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 import ResultsManager from "./ResultsManager";
+import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
@@ -7419,10 +7420,16 @@ ${c.claimUrl}`)}`;
                     makes it float there, and its own breathing room rather than
                     sitting flush against the menu button. No wrapper box, no
                     background, no overflow - the petals reach the edge of the
-                    artwork and must never be cropped. */}
- <img className="hdr-logo" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
+                    artwork and must never be cropped.
+                    Desktop only: below 680px the full lockup is replaced by
+                    just the flower mark, since there isn't room for the
+                    wordmark next to the menu button, search box and badges. */}
+ <img className="hdr-logo desktop-only" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
+ <img className="mobile-only" src={FLOWER_64} alt="Kalmea" width={64} height={64}
+      style={{width:30,height:30,overflow:"visible",flexShrink:0,
+              marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}/>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
  </div>
@@ -7600,6 +7607,7 @@ ${c.claimUrl}`)}`;
  </aside>
 
  <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px"}}>
+          <ChromeFlowerBg/>
           {/* Trial notice. Sits OUTSIDE the keyed tab wrapper on purpose: it is a
               property of the account, not of a screen, so it stays put and does
               not replay its entrance animation on every tab change. Renders
@@ -7632,10 +7640,15 @@ ${c.claimUrl}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card" style={{padding:"16px 18px",marginBottom:14,border:`1.5px solid ${pc}`,background:pcTint}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,letterSpacing:"0.03em",marginBottom:5}}>✦ שאלה אחת</p>
- <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>{questionText}</p>
- <div style={{display:"flex",gap:8,alignItems:"center"}}>
+ <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"16px 18px",marginBottom:14,border:`1.5px solid ${pc}`,background:pcTint}}>
+                  {/* The one card on this screen that gets a flower hint of
+                      its own, so it reads as the special one - the page
+                      background flower (ChromeFlowerBg) sits in the opposite
+                      corner, so the two never overlap. */}
+ <img aria-hidden alt="" src={FLOWER_128} style={{position:"absolute",zIndex:0,top:-18,insetInlineStart:-18,width:70,height:70,objectFit:"contain",opacity:0.13,pointerEvents:"none"}}/>
+ <p style={{position:"relative",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,letterSpacing:"0.03em",marginBottom:5}}>✦ שאלה אחת</p>
+ <p style={{position:"relative",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>{questionText}</p>
+ <div style={{position:"relative",display:"flex",gap:8,alignItems:"center"}}>
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"9px 20px",fontSize:"var(--t-sm)",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
  <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",padding:"9px 16px",fontSize:"var(--t-sm)"}}>לא הפעם</button>
  <div style={{flex:1}}/>
@@ -11438,9 +11451,23 @@ ${c.claimUrl}`)}`;
  </div>
               )}
  </div>
- <div style={{display:"flex",gap:6,padding:"14px 24px",borderTop:"1px solid var(--line)"}}>
+ <div>
+                {/* Botanical pass: a hairline-flower-hairline divider instead
+                    of a plain grey rule, ahead of the Close/Save bar. One of
+                    ~20 similar borderTop separators in this panel alone
+                    (mostly field-group breaks a few lines apart) - converting
+                    all of them would stack far more than two flowers on one
+                    screen, so only this single, structurally distinct one
+                    (content vs. the sticky action bar) got the treatment. */}
+ <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 24px"}}>
+ <span style={{flex:1,height:1,background:ROSE_DIVIDER}}/>
+ <img src={FLOWER_64} alt="" width={64} height={64} style={{width:22,height:22,opacity:0.7,display:"block"}}/>
+ <span style={{flex:1,height:1,background:ROSE_DIVIDER}}/>
+ </div>
+ <div style={{display:"flex",gap:6,padding:"14px 24px"}}>
  <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>סגירה</button>
  <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")||!settingsDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:settingsDirty?pcGrad:"var(--line-2)",color:settingsDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:settingsDirty?"pointer":"default"}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:settingsDirty?"שמירה ✓":"אין שינויים"}</button>
+ </div>
  </div>
  </Sheet>
       )}

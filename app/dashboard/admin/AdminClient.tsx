@@ -13,6 +13,7 @@ import { planState, type PlanStatus } from '@/lib/planState'
 import { daysHe } from '@/lib/planCopy'
 import { ConfirmDialog } from '../../MiniToast'
 import type { InstanceState } from '@/lib/greenApi/health'
+import ChromeFlowerBg from '../../ChromeFlowerBg'
 
 export interface AdminTenantRow {
   id: string
@@ -231,6 +232,7 @@ export default function AdminClient({
 
   return (
     <div style={{ direction: 'rtl', fontFamily: "'Heebo','Assistant',sans-serif", color: ink }}>
+      <ChromeFlowerBg/>
       {greenApiDown && (
         <div style={{
           padding: '16px 20px', borderRadius:"var(--r-md)", background: '#FAEDEB',
