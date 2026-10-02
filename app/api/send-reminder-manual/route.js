@@ -21,7 +21,7 @@ import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
-import { greet, lines, hebrewDate, timeRange } from "../../../lib/messages.js";
+import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 
@@ -122,29 +122,40 @@ export async function POST(request) {
     // the dashboard's reminder button always fell through to the wa.me path
     // behind an error toast.
 
-    // Business name from THIS tenant's settings (never trust the client).
+    // Settings from THIS tenant (never trust the client).
     const { data: settingsRows } = await supabase
       .from("settings")
-      .select("business_name")
+      .select("business_name, branding")
       .eq("tenant_id", tenantId)
       .limit(1);
-    const businessName = (settingsRows && settingsRows[0]?.business_name) || "העסק";
+    const settingsRow = settingsRows && settingsRows[0];
+    const businessName = settingsRow?.business_name || "העסק";
+    const brandJson = settingsRow?.branding && typeof settingsRow.branding === "object" ? settingsRow.branding : {};
+    const address = String(brandJson.public_address || brandJson.address || "").trim();
+    const arrivalNote = String(brandJson.arrival_note || "").trim();
+    const durationText = durationHe(appt.duration);
 
-    // Same message as the automatic cron reminder, including confirm/cancel links.
-    // Signed: /api/confirm now requires a token binding the id to the action.
+    // Same message as the automatic cron reminder, including confirm/cancel
+    // links. Signed: /api/confirm now requires a token binding the id to
+    // the action.
     const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id, { date: appt.date });
     // Character-for-character the cron's message. They were two hand-written
     // copies that had already drifted apart in wording; now they drift only if
     // someone edits lib/messages, which changes both.
     const message = lines(
       greet(appt.name),
-      `תזכורת לתור שלך ב${businessName}.`,
+      `תזכורת לתור שלך ב${businessName} מחר.`,
       "",
-      appt.service,
+      durationText ? `${appt.service} · ${durationText}` : appt.service,
       `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,
+      address ? "" : null,
+      address ? `📍 ${address}` : null,
+      address ? mapsLink(address) : null,
+      arrivalNote ? "" : null,
+      arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
-      `לביטול: ${cancelLink}`
+      `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
     );
 
     const result = await sendWhatsApp(phone, message, {

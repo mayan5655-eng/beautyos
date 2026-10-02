@@ -8,7 +8,7 @@ import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
-import { greet, lines, hebrewDate, timeRange, hhmm } from "../../../lib/messages.js";
+import { greet, lines, hebrewDate, timeRange, hhmm, durationHe, mapsLink } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 // reportReminderFailures is retired (see below) but the two status labels are
@@ -181,24 +181,37 @@ export async function POST(request) {
         continue;
       }
 
-      const businessName = settingsByTenant[appt.tenant_id]?.business_name || "העסק";
+      const tenantSettings = settingsByTenant[appt.tenant_id] || {};
+      const businessName = tenantSettings.business_name || "העסק";
+      const brandJson = tenantSettings.branding && typeof tenantSettings.branding === "object" ? tenantSettings.branding : {};
+      const address = String(brandJson.public_address || brandJson.address || "").trim();
+      const arrivalNote = String(brandJson.arrival_note || "").trim();
+      const durationText = durationHe(appt.duration);
       // Signed: /api/confirm now requires a token binding the id to the action.
       // Dated: the links die three days after the appointment, not never.
       const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id, { date: appt.date });
 
       // Same voice as the booking confirmation she already received: the same
-      // greeting, the same mark, the same way of saying a date. She is hearing
-      // from one business, and until now every message sounded like a different
-      // one.
+      // greeting, the same mark, the same way of saying a date, the same
+      // address/arrival-note she already gets once - repeated here because a
+      // reminder is read the morning of, when "where exactly" matters again,
+      // not just at booking time. Confirm before cancel, and the cancel line
+      // softened to invite a reschedule rather than a loss: she'd rather move
+      // the appointment than lose the client.
       const message = lines(
         greet(appt.name),
-        `תזכורת לתור שלך ב${businessName}.`,
+        `תזכורת לתור שלך ב${businessName} מחר.`,
         "",
-        appt.service,
+        durationText ? `${appt.service} · ${durationText}` : appt.service,
         `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,
+        address ? "" : null,
+        address ? `📍 ${address}` : null,
+        address ? mapsLink(address) : null,
+        arrivalNote ? "" : null,
+        arrivalNote || null,
         "",
         `לאישור: ${confirmLink}`,
-        `לביטול: ${cancelLink}`
+        `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
       );
 
       const res = await sendWhatsApp(appt.client_phone, message, {

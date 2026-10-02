@@ -34,7 +34,7 @@ import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, credit
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
-import { greet as msgGreet, lines as msgLines } from "@/lib/messages.js";
+import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
@@ -608,24 +608,33 @@ function PushSubscribeButton({ pc, pcGrad }) {
 // integer, wrong for every half-hour appointment and badly formatted even for
 // whole ones. Callers pass fmtApptTime(appt); the parameter is named for what
 // it is so the next caller cannot make the same substitution.
-function waConfirmLink(phone, name, service, date, time, links) {
+function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
   // The THIRD hand-written copy of "remind her about tomorrow", after the cron
-  // and the manual route. Three wordings, three greeting marks, for one thing.
-  // Same voice as the other two now; it keeps its own date and time arguments
-  // because its callers pass them already formatted.
+  // and the manual route. Same voice as the other two now, including the
+  // address/arrival-note enrichment and the softened, reschedule-inviting
+  // cancel line - it keeps its own date and time arguments because its
+  // callers pass them already formatted.
   const confirmUrl = links.confirmUrl;
   const cancelUrl  = links.cancelUrl;
+  const businessName = (extra.businessName || "").trim();
+  const address = (extra.address || "").trim();
+  const arrivalNote = (extra.arrivalNote || "").trim();
   return waMsg(
     phone,
     msgLines(
       msgGreet(name),
-      "תזכורת לתור מחר.",
+      businessName ? `תזכורת לתור שלך ב${businessName} מחר.` : "תזכורת לתור מחר.",
       "",
       service,
       `${date}, ${time}`,
+      address ? "" : null,
+      address ? `📍 ${address}` : null,
+      address ? msgMapsLink(address) : null,
+      arrivalNote ? "" : null,
+      arrivalNote || null,
       "",
       `לאישור: ${confirmUrl}`,
-      `לביטול: ${cancelUrl}`
+      `אם לא מתאים, אפשר לשנות כאן: ${cancelUrl}`
     )
   );
 }
@@ -3673,7 +3682,12 @@ export default function BeautyOS() {
     const w = window.open("", "_blank");
     const links = await fetchConfirmLinks(appt.id);
     if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return; }
-    const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, fmtApptTime(appt), links);
+    const brandJson = settings.branding && typeof settings.branding === "object" ? settings.branding : {};
+    const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, fmtApptTime(appt), links, {
+      businessName: settings.business_name,
+      address: brandJson.public_address || brandJson.address,
+      arrivalNote: brandJson.arrival_note,
+    });
     if (w) w.location.href = link; else window.open(link, "_blank");
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
     if (error) { handleDbError(error, "mark confirmation_sent"); return; }
@@ -5564,15 +5578,28 @@ export default function BeautyOS() {
   // reminder is never sent carrying links that would be rejected.
   const reminderText = async (appt) => {
     const businessName = settings.business_name || "העסק";
+    const brandJson = settings.branding && typeof settings.branding === "object" ? settings.branding : {};
+    const address = (brandJson.public_address || brandJson.address || "").trim();
+    const arrivalNote = (brandJson.arrival_note || "").trim();
     const links = await fetchConfirmLinks(appt.id);
     if (!links) return null;
     const confirmLink = links.confirmUrl;
     const cancelLink = links.cancelUrl;
-    return `שלום ${appt.name}! 💆‍♀️ תזכורת לתור שלך ב-${businessName}:\n` +
-      `📅 ${appt.date} בשעה ${fmtApptTime(appt)}\n` +
-      `✨ טיפול: ${appt.service}\n\n` +
-      `✅ לאישור התור: ${confirmLink}\n` +
-      `🚫 לביטול התור: ${cancelLink}`;
+    return msgLines(
+      msgGreet(appt.name),
+      `תזכורת לתור שלך ב${businessName} מחר.`,
+      "",
+      appt.service,
+      `${appt.date}, ${fmtApptTime(appt)}`,
+      address ? "" : null,
+      address ? `📍 ${address}` : null,
+      address ? msgMapsLink(address) : null,
+      arrivalNote ? "" : null,
+      arrivalNote || null,
+      "",
+      `לאישור: ${confirmLink}`,
+      `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
+    );
   };
 
   // Send a one-off reminder for a specific appointment through the server
