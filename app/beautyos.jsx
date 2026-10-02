@@ -13,7 +13,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, ROSE_DIVIDER } from "@/lib/brand";
+import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -7629,6 +7629,20 @@ ${c.claimUrl}`)}`;
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
           {activeTab==="dashboard"&&(<>
+            {/* TARGET MOCKUP (design/target-today.html, handed over by the
+                user) is the literal spec for everything from here through
+                the appointment rows below - values copied from its CSS, not
+                re-derived from the earlier prose brief. Where this file and
+                that mockup disagree, the mockup wins. #8CA096/#5C6B63 are
+                its own literal muted-ink values (a slightly green-tinted
+                reading of "muted"), used here as plain literals rather than
+                var(--ink-3)/var(--ink-2) - those shared tokens stay neutral,
+                since tenant-facing pages read them too (Stage 2's rule);
+                this is a Kalmea-chrome-only green reserved for this screen. */}
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+ <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
+ <img aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
+ </div>
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's
@@ -7637,13 +7651,13 @@ ${c.claimUrl}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- <div className="glass-card" style={{padding:"17px 20px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
- <p style={{fontSize:12.5,fontWeight:600,color:"var(--ink-3)",letterSpacing:"0.01em"}}>הכנסות היום</p>
- <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:40,fontWeight:900,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.1,margin:"2px 0 0"}}>₪{todayTotals.total.toLocaleString()}</p>
+ <div className="glass-card" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ <p style={{fontSize:12.5,color:"#8CA096"}}>הכנסות היום</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>
-                  {todayTotals.byMethod.map(m=>`${m.method} ₪${m.total.toLocaleString()}`).join(" · ")}
-                  {todayTotals.tips>0&&` · טיפים ₪${todayTotals.tips.toLocaleString()}`}
+ <p style={{fontSize:13,color:"#8CA096",marginTop:3}}>
+                  {todayTotals.byMethod.map(m=>`${m.method} ${m.total.toLocaleString()}`).join(" · ")}
+                  {todayTotals.tips>0&&` · טיפים ${todayTotals.tips.toLocaleString()}`}
  </p>
               )}
  </div>
@@ -7662,19 +7676,19 @@ ${c.claimUrl}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"17px 18px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:`1.5px solid ${pc}`,background:pcTint}}>
+ <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
                   {/* The one card on this screen that gets a flower hint of
                       its own, so it reads as the special one - the page
                       background flower (ChromeFlowerBg) sits in the opposite
                       corner, so the two never overlap. */}
- <img aria-hidden alt="" src={FLOWER_128} style={{position:"absolute",zIndex:0,top:-18,insetInlineStart:-18,width:70,height:70,objectFit:"contain",opacity:0.13,pointerEvents:"none"}}/>
- <p style={{position:"relative",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,letterSpacing:"0.03em",marginBottom:5}}>✦ שאלה אחת</p>
- <p style={{position:"relative",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:10}}>{questionText}</p>
- <div style={{position:"relative",display:"flex",gap:8,alignItems:"center"}}>
- <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"9px 20px",fontSize:"var(--t-sm)",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
- <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} className="primary-btn" style={{background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",padding:"9px 16px",fontSize:"var(--t-sm)"}}>לא הפעם</button>
+ <img aria-hidden alt="" src={FLOWER_128} style={{position:"absolute",zIndex:0,top:-24,insetInlineStart:-26,width:96,height:96,objectFit:"contain",opacity:0.13,pointerEvents:"none"}}/>
+ <p style={{position:"relative",fontFamily:"var(--font-hand),cursive",fontSize:21,color:"#C07A72",marginBottom:4}}>שאלה אחת</p>
+ <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
+ <div style={{position:"relative",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+ <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#E9A9A1",color:"#1F3A30",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
+ <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"#8CA096",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
  <div style={{flex:1}}/>
- {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
+ {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"#8CA096"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
  </div>
  </div>
               );
@@ -7711,49 +7725,19 @@ ${c.claimUrl}`)}`;
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
-                {/* ── TIER 1a: slim greeting bar + 2 primary inline actions ── */}
- <motion.div className="hero-card" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{duration:0.4,ease:[0.2,0.7,0.3,1]}}
-   style={{maxWidth:1180,margin:"0 auto 22px",background:"var(--grad-hero)",borderRadius:"var(--r-lg)",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"20px 26px",position:"relative",overflow:"hidden"}}>
- <div aria-hidden style={{position:"absolute",top:-80,left:-60,width:240,height:240,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,201,233,0.5), transparent 70%)",pointerEvents:"none"}}/>
- <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",gap:18,flexWrap:"wrap"}}>
-                    {/* flex-basis 220 rather than min-width 220: it still asks
-                        for the same width, but it can now shrink below it. On a
-                        320px phone the card only offers ~272px of content, and
-                        a hard 220px floor plus the action buttons forced a wrap
-                        that left the greeting stranded on its own row. */}
- <div style={{flex:"1 1 220px",minWidth:0}}>
- <div className="pill" style={{background:"rgba(255,255,255,0.7)",color:pcDeep,padding:"5px 12px",border:"1px solid var(--line-2)",boxShadow:"var(--shadow-xs)",marginBottom:10}}>
- <span style={{width:7,height:7,borderRadius:"50%",background:"var(--success)",boxShadow:"var(--shadow-xs)"}}/>
-                      {todayAppts.length>0?`${todayAppts.length} תורים היום · ${weekAppts.length} השבוע`:`יום פנוי · ${weekAppts.length} תורים השבוע`}
- </div>
-                    {/* Two separate causes, both needed:
-                        1. font-size is a clamp, not a fixed 30px with a media
-                           query. One source of truth, and it scales on every
-                           width instead of stepping at 680px.
-                        2. The name span paints its gradient with
-                           background-clip:text, which only paints INSIDE the
-                           element's background box. Italic glyphs on this
-                           display face overhang that box, so their tops and
-                           descenders got no paint and read as cut off. That box
-                           is sized from the font metrics, NOT from line-height,
-                           which is why raising the line-height alone never
-                           fixed it. Vertical padding on the inline span widens
-                           the paint box without affecting layout at all. */}
- <h1 className="serif hero-greeting" style={{fontSize:"clamp(21px, 6.2vw, 30px)",fontWeight:600,color:"var(--ink)",lineHeight:1.4,letterSpacing:"-0.01em",margin:"0 0 2px",overflowWrap:"break-word"}}>{greeting}{settings.therapist_name?.trim()?<>, <span style={{background:pcGrad,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent",fontStyle:"italic",padding:"0.10em 0 0.22em",overflowWrap:"break-word"}}>{settings.therapist_name}</span></>:""}</h1>
- <p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",marginTop:7,fontWeight:400,maxWidth:520,lineHeight:1.5}}>{warmMsg}</p>
- </div>
- <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                    {/* Read-only mode visibly disables these: both open a form that
-                        could only fail. guardWrite() still backstops the handlers. */}
-                    {quickActions.slice(0,2).map((qa,i)=>(
- <motion.button key={i} onClick={qa.onClick} disabled={readOnly} title={readOnly?DISABLED_REASON_HE:undefined} whileHover={readOnly?undefined:{y:-2}} whileTap={readOnly?undefined:{scale:0.98}} className="primary-btn"
-   style={{display:"inline-flex",alignItems:"center",gap:9,padding:"11px 18px",fontSize:"var(--t-sm)",cursor:readOnly?"not-allowed":"pointer",opacity:readOnly?0.5:1,fontFamily:"inherit",background:i===0?pcGrad:"var(--surface)",color:i===0?"var(--pc-contrast)":pcDeep,border:i===0?"none":"1px solid var(--line-2)",boxShadow:i===0?"var(--shadow-accent)":"var(--shadow-xs)"}}>
- <span style={{fontSize:"var(--t-md)"}}>{qa.icon}</span>{qa.label}
- </motion.button>
-                    ))}
- </div>
- </div>
- </motion.div>
+                {/* TIER 1a's old greeting-bar card (pill + name + warm
+                    message + 2 quick-action buttons) is retired as of the
+                    target-today.html visual pass - replaced by the plain
+                    top-bar rendered above (greeting word + flower mark).
+                    quickActions/openNewAppt/warmMsg/bdToday above still
+                    compute (bdToday feeds the birthday item in "דורש תשומת
+                    לב" below; openNewAppt is still used by the empty-today
+                    button; quickActions and warmMsg are now unused - kept
+                    rather than deleted since this whole section, along with
+                    setup-checklist/next-client/closing-list/needs-attention
+                    below, is the open question from the last round: trim to
+                    match the mockup's minimal structure, or keep and restyle?
+                    Not decided yet, so nothing here is deleted outright. */}
 
                 {/* SETUP CHECKLIST — prominent on the dashboard ONLY while incomplete.
                     Once every item is done it disappears from here and lives compactly
@@ -7819,11 +7803,14 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"17px 18px",flex:"2 1 380px",minWidth:0}}>
- <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
- <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>◴</span>
- <h3 style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:21,fontWeight:700,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים להיום</h3>
-                      {todayAppts.length>0&&<span className="pill" style={{marginRight:"auto",background:"var(--pc-tint)",color:pcDeep,padding:"3px 11px",fontSize:"var(--t-xs)"}}>{todayAppts.length}</span>}
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+                    {/* The mockup replaces this card's old icon+heading+count
+                        header with just the divider below - the divider
+                        itself is the "new section" signal, no label needed. */}
+ <div style={{display:"flex",alignItems:"center",gap:9,margin:"0 2px 16px"}}>
+ <span style={{flex:1,height:1,background:"rgba(192,122,114,.4)"}}/>
+ <img aria-hidden alt="" src={FLOWER_128} style={{width:22,height:22,objectFit:"contain",opacity:0.85}}/>
+ <span style={{flex:1,height:1,background:"rgba(192,122,114,.4)"}}/>
  </div>
                     {todayEntries.length===0?(
  <div style={{textAlign:"center",padding:"20px 14px"}}>
@@ -7835,22 +7822,30 @@ ${c.claimUrl}`)}`;
                       ):todayEntries.slice().sort((a,b)=>(startMinute(a)??0)-(startMinute(b)??0)).map((a,i,arr)=>{
                         // "ממתין" on her own time would be a lie about a
                         // confirmation nobody is waiting for.
-                        const st=isPersonal(a)?{l:"אישי",c:"var(--ink-2)"}:a.confirmation_status==="confirmed"?{l:"אושר",c:"var(--success)"}:a.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--danger)"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה",c:"var(--danger)"}:{l:"ממתין",c:pc};
-                        // Quiet rows (visual pass, 2026-10): dot, time, name,
-                        // one grey sub-line - no box, no status pill. The dot
-                        // alone carries confirmed/pending/personal (expected,
-                        // common states); cancelled/no-show fold into the
-                        // sub-line too, since a red dot alone doesn't say
-                        // WHICH of two different bad outcomes happened.
-                        const needsLabel=a.confirmation_status==="cancelled"||a.confirmation_status===NO_SHOW;
-                        const sub=needsLabel?`${entrySubtitle(a)} · ${st.l}`:entrySubtitle(a);
+                        const st=isPersonal(a)?{l:"אישי"}:a.confirmation_status==="confirmed"?{l:"אושר"}:a.confirmation_status==="cancelled"?{l:"בוטל"}:a.confirmation_status===NO_SHOW?{l:"לא הגיעה"}:{l:"ממתין"};
+                        // Quiet rows, matching design/target-today.html's .ap
+                        // exactly: a filled sage dot is the default (confirmed/
+                        // pending/personal - the expected, common states); an
+                        // open rose-ring dot plus rose name text is the
+                        // mockup's "needs your attention" treatment, reused
+                        // here for cancelled/no-show since those are the real
+                        // app's equivalent of "this one is not like the
+                        // others" (the mock's own example of it is the
+                        // pending gap-fill slot, which isn't a row in
+                        // todayEntries at all - it's the question card above).
+                        const open=a.confirmation_status==="cancelled"||a.confirmation_status===NO_SHOW;
+                        const sub=open?`${entrySubtitle(a)} · ${st.l}`:entrySubtitle(a);
                         return(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 2px",opacity:a.confirmation_status==="cancelled"?0.55:1}}>
- <span aria-hidden style={{width:8,height:8,borderRadius:"50%",background:st.c,flexShrink:0}}/>
- <span style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:isAllDay(a)?"var(--t-sm)":17,fontWeight:700,color:"var(--ink)",lineHeight:1.1,flexShrink:0,minWidth:44}}>{entryTime(a)}</span>
+ <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 3px",opacity:a.confirmation_status==="cancelled"?0.55:1}}>
+                            {open?(
+ <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"transparent",border:"1px solid #C07A72",flexShrink:0}}/>
+                            ):(
+ <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"#DCE4D5",flexShrink:0}}/>
+                            )}
+ <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{entryTime(a)}</span>
  <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:1}}>{sub}</p>
+ <p style={{fontSize:15,color:open?"#C07A72":"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
+ <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>{sub}</p>
  </div>
  </div>
                         );

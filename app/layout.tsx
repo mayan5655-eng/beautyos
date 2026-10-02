@@ -89,6 +89,21 @@ const script = localFont({
   preload: false,
 });
 
+// Handwritten Hebrew cursive for the Kalmea chrome's own small flourishes (the
+// "שאלה אחת" card label in the botanical visual pass, design/target-today.html).
+// A different font from --font-script above on purpose - that one is Amatic SC,
+// reserved for the public booking page's accent; this is Gveret Levin, a
+// flowing script, used only inside the dashboard. preload off: one small
+// label, not above-the-fold critical text. Static weight - Google's source
+// repo has only Regular for this family.
+const hand = localFont({
+  src: "../fonts/GveretLevin.woff2",
+  variable: "--font-hand",
+  weight: "400",
+  display: "swap",
+  preload: false,
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: "Kalmea — Beauty Business OS",
@@ -258,6 +273,7 @@ export default function RootLayout({
         assistant.variable,
         frankRuhl.variable,
         script.variable,
+        hand.variable,
         "h-full antialiased",
       ].join(" ")}
     >

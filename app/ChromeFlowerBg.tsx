@@ -21,8 +21,8 @@ export default function ChromeFlowerBg() {
       style={{
         position: "fixed",
         zIndex: 0,
-        bottom: -30,
-        insetInlineStart: -30,
+        bottom: -48,
+        insetInlineStart: -58,
         width: 235,
         height: 235,
         objectFit: "contain",
