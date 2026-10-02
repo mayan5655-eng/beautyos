@@ -84,12 +84,43 @@ export async function POST(request) {
     // crafted POST) could book a service she archived - archived means
     // archived everywhere. The row's own price and duration also override
     // whatever the client sent: the menu is hers, not the caller's.
-    const { data: svcRows, error: svcError } = await supabase
-      .from("service_prices")
-      .select("name, price, duration, color, active")
-      .eq("tenant_id", activeTenantId)
-      .eq("name", service)
-      .limit(1);
+    //
+    // Fired together, not one after another: none of these four reads
+    // depends on another's RESULT, only on activeTenantId/date/service,
+    // which are already known. The original code awaited them one at a
+    // time - service, then settings, then same-day appointments, then the
+    // full client list - which was four sequential Supabase round trips a
+    // booking had to pay for before it could even start validating. Checked
+    // below in the same order and with the same error precedence the
+    // sequential version had, so behaviour is unchanged - only the waiting
+    // is parallel now.
+    const [
+      { data: svcRows, error: svcError },
+      { data: settingsRows },
+      { data: sameDay },
+      { data: existing },
+    ] = await Promise.all([
+      supabase
+        .from("service_prices")
+        .select("name, price, duration, color, active")
+        .eq("tenant_id", activeTenantId)
+        .eq("name", service)
+        .limit(1),
+      supabase
+        .from("settings")
+        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding")
+        .eq("tenant_id", activeTenantId)
+        .limit(1),
+      supabase
+        .from("appointments")
+        .select("start_minute, hour, duration, confirmation_status")
+        .eq("tenant_id", activeTenantId)
+        .eq("date", date),
+      supabase
+        .from("clients")
+        .select("id, phone")
+        .eq("tenant_id", activeTenantId),
+    ]);
     if (svcError) {
       console.error("[book-appointment] service lookup failed:", svcError.message);
       return Response.json(
@@ -168,12 +199,8 @@ export async function POST(request) {
     //     herself, a client-created 03:00 would be indistinguishable from her
     //     own deliberate override.
     //
-    //     Read once, here, and reused for the notification messages below.
-    const { data: settingsRows } = await supabase
-      .from("settings")
-      .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding")
-      .eq("tenant_id", activeTenantId)
-      .limit(1);
+    //     Fetched above, alongside the service row; reused for the
+    //     notification messages below.
     const settingsRow =
       settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
 
@@ -219,11 +246,7 @@ export async function POST(request) {
     //    instead of silently stacking a second appointment on top of it. Mirrors
     //    the in-app overlap guard (cancelled appointments free their slot).
     {
-      const { data: sameDay } = await supabase
-        .from("appointments")
-        .select("start_minute, hour, duration, confirmation_status")
-        .eq("tenant_id", activeTenantId)
-        .eq("date", date);
+      // Fetched above, alongside the service/settings rows.
       // start_minute is the truth; hour*60 is the fallback for rows written
       // before the migration or by an older deployment mid-rollout. Doing this
       // arithmetic by hand here was what let a half-hour booking look free
@@ -263,11 +286,7 @@ export async function POST(request) {
     let clientId = null;
     let isReturningClient = false;
     try {
-      const { data: existing } = await supabase
-        .from("clients")
-        .select("id, phone")
-        .eq("tenant_id", activeTenantId);
-
+      // Fetched above, alongside the service/settings/same-day rows.
       const match = (existing || []).find((c) => {
         const n = normalizeIsraeliMobile(c.phone);
         return n.ok && n.e164 === phoneCheck.e164;

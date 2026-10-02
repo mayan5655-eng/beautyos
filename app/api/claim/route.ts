@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
           date: claimed.slot_date,
           startMinute: claimedStart,
           duration: Number(claimed.duration) > 0 ? Number(claimed.duration) : 60,
-          ownerNote: "תור שהתפנה נתפס דרך הצעת וואטסאפ ✦",
+          source: "gap_fill_claim",
         }).catch((notifyErr) => {
           console.error("[claim] notifications failed:", notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
         })

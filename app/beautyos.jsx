@@ -7345,11 +7345,27 @@ ${c.claimUrl}`)}`;
           ):(whatsappPending.map((m,i)=>{
             const link=waMsg(m.recipient_phone,m.message_body);
             const done=!!waQueueDone[m.id];
+            // The visible age marker: how long this has been waiting for her
+            // tap. Minutes/hours for anything recent, falling back to the
+            // same day-granularity contactAgoHe uses elsewhere once it's
+            // been more than a day - a message that's been sitting that
+            // long needs the same quiet urgency a lapsed-client line gets.
+            const ageHe=(()=>{
+              const ts=new Date(m.created_at).getTime();
+              if(!Number.isFinite(ts))return"";
+              const mins=Math.floor((Date.now()-ts)/60000);
+              if(mins<1)return"ממש עכשיו";
+              if(mins<60)return`לפני ${mins} דק׳`;
+              const hrs=Math.floor(mins/60);
+              if(hrs<24)return`לפני ${hrs} שע׳`;
+              return contactAgoHe(m.created_at);
+            })();
             return(
  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.recipient_name||"(ללא שם)"}</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.message_body}</p>
+ {ageHe&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:2}}>ממתינה · {ageHe}</p>}
  </div>
                 {link?(
  <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(()=>{});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נשלח":"שליחה"}</a>
@@ -8175,11 +8191,34 @@ ${c.claimUrl}`)}`;
                       // sense" rule as the cold-clients cap above. Opens
                       // showWaQueue, a dedicated sheet (near the composeSend
                       // sheet) listing each with its own wa.me tap.
-                      if(whatsappPending.length>0)q.push({key:"wa-pending",icon:"✆",accent:"var(--success)",source:"וואטסאפ",what:"הודעות מוכנות לשליחה",who:whatsappPending.length===1?"הודעה אחת":`${whatsappPending.length} הודעות`,why:"כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך",primaryLabel:"פתיחת הרשימה",run:()=>setShowWaQueue(true)});
+                      if(whatsappPending.length>0){
+                        // The oldest item's wait time, so the grouped line
+                        // itself carries the visible age marker - she
+                        // shouldn't have to open the list to see urgency.
+                        const oldestTs=Math.min(...whatsappPending.map(m=>new Date(m.created_at).getTime()).filter(Number.isFinite));
+                        const oldestMins=Number.isFinite(oldestTs)?Math.floor((Date.now()-oldestTs)/60000):null;
+                        const ageWhy=oldestMins===null?"":oldestMins<60?`הראשונה ממתינה ${oldestMins} דק׳`:oldestMins<24*60?`הראשונה ממתינה ${Math.floor(oldestMins/60)} שע׳`:`הראשונה ממתינה ${contactAgoHe(new Date(oldestTs).toISOString())}`;
+                        q.push({key:"wa-pending",icon:"✆",accent:"var(--success)",source:"וואטסאפ",what:"הודעות מוכנות לשליחה",who:whatsappPending.length===1?"הודעה אחת":`${whatsappPending.length} הודעות`,why:ageWhy||"כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך",primaryLabel:"פתיחת הרשימה",run:()=>setShowWaQueue(true)});
+                      }
                       // ── Owner notifications (new booking / cancellation /
                       // hot skin-scan lead) ── replaces WhatsApp-to-herself;
                       // capped at 3 + a rest-line, same shape as cold clients.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:"סימון כנקרא",run:()=>{supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));}}));
+                      // Tapping opens the appointment itself when there is
+                      // one (new_booking, cancellation both carry
+                      // appointment_id) - looked up in the appointments
+                      // already loaded in memory, no extra query needed.
+                      // Falls back to a plain "mark read" for the two kinds
+                      // with no single appointment (skin_hot_lead,
+                      // evening_summary) or if the row was since deleted.
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                        supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
+                        setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
+                        if(n.appointment_id){
+                          const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
+                          if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
+                          else toast("התור הזה כבר לא קיים");
+                        }
+                      }}));
                       if(ownerNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${ownerNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();

@@ -64,9 +64,14 @@ end $$;
 create table if not exists public.owner_notifications (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.tenants(id) on delete cascade,
-  kind text not null, -- 'new_booking' | 'cancellation' | 'skin_hot_lead'
+  kind text not null, -- 'new_booking' | 'cancellation' | 'skin_hot_lead' | 'evening_summary'
   title text not null,
   body text not null,
+  -- Null for kinds with no single appointment (skin_hot_lead, evening_summary).
+  -- "Tapping it opens that appointment" is the whole point of new_booking and
+  -- cancellation - without this the dashboard has no way to know WHICH day
+  -- to jump to short of parsing the Hebrew body text.
+  appointment_id uuid references public.appointments(id) on delete set null,
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
