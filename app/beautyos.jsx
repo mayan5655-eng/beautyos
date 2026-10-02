@@ -7743,7 +7743,7 @@ ${c.claimUrl}`)}`;
                     Once every item is done it disappears from here and lives compactly
                     inside Settings (+ the always-on header ☑ button / modal). */}
                 {setupDone < setupTotal && (
- <div style={{maxWidth:1180,margin:"0 auto 18px",background:"var(--surface)",border:`1px solid ${pc}`,borderRadius:"var(--r-lg)",padding:"18px 22px",boxShadow:"var(--shadow-md)"}}>
+ <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
  <h3 className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700}}>{setupDone}/{setupTotal}</span>
