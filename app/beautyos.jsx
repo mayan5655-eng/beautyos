@@ -6913,6 +6913,33 @@ export default function BeautyOS() {
           .glass-card{padding:19px 16px!important}
           .card-flush{padding:0!important}
 
+          /* .card-boxed: opt-out of the full-bleed/glass treatment just below,
+             for target-today.html's cards specifically (היום tab only - hero,
+             question, setup-checklist, today, needs-attention, next-client,
+             closing-list). That mockup is itself a 430px mobile view calling
+             for a plain white 19px-radius card with its own shadow, which is
+             the opposite of full-bleed/translucent - so these two rules can't
+             both win on the same element. Two classes beats one rule's
+             specificity regardless of source order, so this sits anywhere
+             relative to the rules below and still wins; .glass-card elsewhere
+             (cashier, leads, settings, ...) is untouched. */
+          .glass-card.card-boxed{border-radius:19px!important;border:none!important;
+            background:#fff!important;-webkit-backdrop-filter:none!important;
+            backdrop-filter:none!important;
+            box-shadow:0 1px 2px rgba(31,58,48,.05),0 8px 20px rgba(31,58,48,.06)!important}
+          /* The question card's own rose hairline (its only card with a border)
+             needs one more class: inline style's border is itself overridden by
+             the full-bleed rule's border-left/border-right:0 above, and
+             .card-boxed just set border:none outright - three classes beats
+             both at equal !important. */
+          .glass-card.card-boxed.card-boxed-rose{border:1px solid rgba(233,169,161,.65)!important}
+          /* Same problem, for the two cards with a one-side accent border
+             instead of a hairline: the base rule's border-right:0 (this is
+             RTL, so border-inline-start physically IS border-right) already
+             wins over .card-boxed's border:none at equal specificity, so this
+             needs the one-louder third class too. */
+          .glass-card.card-boxed.card-boxed-accent{border-inline-start:3px solid ${pc}!important}
+
           /* Full bleed. Once the gutters are gone a card that keeps its rounded
              corners and side borders still reads as a framed panel floating on a
              page - the exact "website in a frame" look this is meant to remove.
@@ -7651,7 +7678,7 @@ ${c.claimUrl}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- <div className="glass-card" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ <div className="glass-card card-boxed" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
  <p style={{fontSize:12.5,color:"#8CA096"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
@@ -7676,7 +7703,7 @@ ${c.claimUrl}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card" style={{position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
+ <div className="glass-card card-boxed card-boxed-rose" style={{position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
                   {/* The one card on this screen that gets a flower hint of
                       its own, so it reads as the special one - the page
                       background flower (ChromeFlowerBg) sits in the opposite
@@ -7743,7 +7770,7 @@ ${c.claimUrl}`)}`;
                     Once every item is done it disappears from here and lives compactly
                     inside Settings (+ the always-on header ☑ button / modal). */}
                 {setupDone < setupTotal && (
- <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
  <h3 className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700}}>{setupDone}/{setupTotal}</span>
@@ -7758,7 +7785,7 @@ ${c.claimUrl}`)}`;
                   if(!brief) return null;
                   const {appt,client,minutesUntil,lastVisit,allergies,note,isNew}=brief;
                   return(
- <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,margin:"0 0 2px"}}>{untilHe(minutesUntil)}</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>{appt.name}{appt.service?" · "+appt.service:""}</p>
  <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -7781,7 +7808,7 @@ ${c.claimUrl}`)}`;
                   if(!(now.getHours()>=17||allEnded)) return null;
                   const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
                   return(
- <div className="glass-card" style={{maxWidth:1180,margin:"0 auto 18px",padding:"16px 20px"}}>
+ <div className="glass-card card-boxed" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>לפני שהולכים הביתה</p>
                       {allClear?(
  <p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",margin:0}}>{ALL_CLEAR_HE}</p>
@@ -7803,7 +7830,7 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
                     {/* The mockup replaces this card's old icon+heading+count
                         header with just the divider below - the divider
                         itself is the "new section" signal, no label needed. */}
@@ -7853,7 +7880,7 @@ ${c.claimUrl}`)}`;
  </motion.div>
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.06,ease:[0.2,0.7,0.3,1]}} className="glass-card" style={{padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
+ <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.06,ease:[0.2,0.7,0.3,1]}} className="glass-card card-boxed" style={{padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"rgba(242,184,75,0.14)",color:"var(--warning)"}}>✷</span>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
