@@ -65,8 +65,13 @@ export default function EmptyState({
   // (calendar, cash, chart, receipt, package, people, home) keeps carrying
   // its own real meaning and keeps the corner watermark instead; a card
   // never gets both treatments at once.
-  const hasMeaningfulIcon = icon !== "spark" && !!EMPTY_ICONS[icon];
-  const isMoment = moment && !hasMeaningfulIcon;
+  //
+  // `moment` overrides this regardless of which icon was passed - "home" is
+  // itself a named EMPTY_ICONS entry, and the dashboard's one true first-run
+  // welcome card uses icon="home", so gating on hasMeaningfulIcon here would
+  // silently cancel `moment` at the one call site it exists for.
+  const hasMeaningfulIcon = !moment && icon !== "spark" && !!EMPTY_ICONS[icon];
+  const isMoment = moment;
   return (
     <div
       style={{
