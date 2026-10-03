@@ -38,6 +38,50 @@ type OnboardingData = {
 // step here and a `step === n` block below is the whole change.
 const STEP_NAMES = ["ברוכה הבאה", "פרטי קשר ועיצוב", "שעות עבודה", "התחום והשירותים", "ייבוא נתונים"];
 
+// Reloading mid-flow used to restart her from step 1, losing everything she'd
+// already typed - nothing touched the database until finish(). Keyed by
+// tenant, not just "the" draft, so two different onboarding attempts on the
+// same browser (e.g. a second signup after abandoning the first) never
+// cross-contaminate. Cleared on a successful finish(), so a completed
+// signup never leaves a stale draft behind for anyone to stumble into.
+const draftKey = (tenantId: string) => `kalmea-onboarding-draft:${tenantId}`;
+
+type OnboardingDraft = {
+  step: number;
+  data: OnboardingData;
+  pickedServices: PickedService[];
+};
+
+function loadDraft(tenantId: string): OnboardingDraft | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(tenantId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as OnboardingDraft;
+  } catch {
+    // Private browsing, blocked storage, or corrupted JSON - a lost draft is
+    // a minor inconvenience (she retypes), not a reason to break onboarding.
+    return null;
+  }
+}
+
+function saveDraft(tenantId: string, draft: OnboardingDraft) {
+  try {
+    window.localStorage.setItem(draftKey(tenantId), JSON.stringify(draft));
+  } catch {
+    // Same as above: storage failing silently is fine, onboarding still works.
+  }
+}
+
+function clearDraft(tenantId: string) {
+  try {
+    window.localStorage.removeItem(draftKey(tenantId));
+  } catch {
+    // Nothing to do if this fails - worst case a stale draft lingers.
+  }
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -106,14 +150,38 @@ export default function OnboardingPage() {
           .limit(1);
         if (existing && existing.length > 0) {
           // Already onboarded: straight to the app, no import detour.
+          // A stale draft from this same tenant (e.g. she finished, then hit
+          // back) is meaningless now - clear it rather than leave it to be
+          // found by a future, unrelated onboarding attempt.
+          clearDraft(rpcTenant);
           router.replace("/");
+          return;
+        }
+
+        // A reload mid-flow: restore exactly what she'd typed, on the step
+        // she was on, instead of restarting her at step 1.
+        const draft = loadDraft(rpcTenant);
+        if (draft) {
+          setData(draft.data);
+          setPickedServices(draft.pickedServices || []);
+          setStep(draft.step || 1);
+          setLoading(false);
           return;
         }
 
         // Pre-fill therapist name from email/metadata if available
         const fullName = user.user_metadata?.full_name as string | undefined;
         const fromEmail = user.email?.split("@")[0] ?? "";
-        setData(d => ({ ...d, therapist_name: fullName || fromEmail }));
+        // Pre-fill business name from signup too (app/signup/page.tsx sends it
+        // as user_metadata.business_name) - she already typed it once there.
+        // Missed before today: therapist_name got this same treatment, business
+        // name didn't, so she was asked for it again a few seconds later.
+        const signupBusinessName = user.user_metadata?.business_name as string | undefined;
+        setData(d => ({
+          ...d,
+          therapist_name: fullName || fromEmail,
+          business_name: signupBusinessName || d.business_name,
+        }));
         setLoading(false);
       } catch (e: unknown) {
         const err = e as { message?: string };
@@ -123,6 +191,15 @@ export default function OnboardingPage() {
     };
     init();
   }, [router]);
+
+  // Writes the draft on every change, once the initial load (including any
+  // restore above) has finished - gated on !loading so this never fires
+  // before restoration and overwrites a just-loaded draft with the blank
+  // default state.
+  useEffect(() => {
+    if (loading || !tenantId) return;
+    saveDraft(tenantId, { step, data, pickedServices });
+  }, [loading, tenantId, step, data, pickedServices]);
 
   // Capped by the step list, not a literal: adding the import step left this at
   // 3 and made the last step unreachable from "הבא".
@@ -211,6 +288,7 @@ export default function OnboardingPage() {
         await supabase.from("tenants").update({ name: data.business_name.trim() }).eq("id", tenantId);
       }
 
+      clearDraft(tenantId);
       router.replace(importKind ? `/?import=1&kind=${importKind}` : "/");
     } catch (e: unknown) {
       const err = e as { message?: string };

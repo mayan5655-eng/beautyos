@@ -8004,7 +8004,14 @@ ${c.claimUrl}`)}`;
  </div>
               );
             })()}
-            {clients.length===0&&appointments.length===0&&leads.length===0&&(
+            {/* "Add your services" is only the right first action when she
+                genuinely has none - the audit found this showing (and
+                claiming the booking page is empty) for a tenant who'd
+                already completed that step, because the condition never
+                checked services at all. Once she has services, the rest of
+                this screen (today's appointments, needs-attention) already
+                carries an empty day fine on its own. */}
+            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
               <EmptyState icon="home" accent={pc} accentTint={pcTint}
                 title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
@@ -8012,6 +8019,16 @@ ${c.claimUrl}`)}`;
                   {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
                   {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
                   {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
+                ]}/>
+            )}
+            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
+              <EmptyState icon="home" accent={pc} accentTint={pcTint}
+                title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
+                body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
+                actions={[
+                  {label:"מטופלת חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                  {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
+                  {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
                 ]}/>
             )}
             {(()=>{
