@@ -51,6 +51,13 @@ export default function EmptyState({
   accentTint = "var(--pc-tint)",
   actions = [],
   compact = false,
+  // Ad-alignment pass, opt-in only (every existing call site is unaffected):
+  // a true first-run "moment" (brand-new tenant, nothing at all yet) gets
+  // the bold photographic flower, the ad's headline typography, and the
+  // solid-green/gold-hairline pill for its primary action, instead of the
+  // quiet tenant-accented treatment every other empty state keeps. Only
+  // meaningful on icon-less cards (spark/home) - see hasMeaningfulIcon.
+  moment = false,
 }) {
   // "spark" (the default) and anything not in EMPTY_ICONS have no
   // meaning-specific glyph to show - that's exactly the flower's spot,
@@ -59,6 +66,7 @@ export default function EmptyState({
   // its own real meaning and keeps the corner watermark instead; a card
   // never gets both treatments at once.
   const hasMeaningfulIcon = icon !== "spark" && !!EMPTY_ICONS[icon];
+  const isMoment = moment && !hasMeaningfulIcon;
   return (
     <div
       style={{
@@ -123,18 +131,30 @@ export default function EmptyState({
           alt=""
           style={{
             position: "relative",
-            width: compact ? 56 : 112,
-            height: compact ? 56 : 112,
+            width: compact ? 56 : isMoment ? 128 : 112,
+            height: compact ? 56 : isMoment ? 128 : 112,
             margin: "0 auto 12px",
             display: "block",
-            opacity: 0.5,
+            // Bolder, photographic presence for a genuine first-run moment -
+            // the ad reference is ~60%; everywhere else keeps the quieter 0.5
+            // this already was.
+            opacity: isMoment ? 0.65 : 0.5,
           }}
         />
       )}
 
-      <p style={{ position: "relative", fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
-        {title}
-      </p>
+      {isMoment ? (
+        // .brand-headline's own var(--t-display) is sized for a full page
+        // hero; this is a card mid-dashboard, so the size is scaled down
+        // here while keeping the class's weight/family/tracking/color.
+        <p className="brand-headline" style={{ position: "relative", fontSize: "var(--t-2xl)", marginBottom: 7 }}>
+          {title}
+        </p>
+      ) : (
+        <p style={{ position: "relative", fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
+          {title}
+        </p>
+      )}
       {body && (
         <p
           style={{
@@ -166,14 +186,20 @@ export default function EmptyState({
               key={a.label}
               type="button"
               onClick={a.onClick}
-              className="empty-cta"
+              // The ad's solid-green/gold-hairline/chevron pill for a real
+              // moment's primary action, in place of the usual tenant-accent
+              // pill - every other empty state (and this card's own
+              // secondary actions) is untouched.
+              className={i === 0 && isMoment ? "brand-pill-btn" : "empty-cta"}
               style={
                 i === 0
-                  ? {
-                      background: accent, color: "var(--surface)", border: "none",
-                      borderRadius:"var(--r-xl)", padding: "11px 20px", fontSize:"var(--t-sm)",
-                      fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                    }
+                  ? isMoment
+                    ? { fontSize: "var(--t-sm)", padding: "11px 20px" }
+                    : {
+                        background: accent, color: "var(--surface)", border: "none",
+                        borderRadius:"var(--r-xl)", padding: "11px 20px", fontSize:"var(--t-sm)",
+                        fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                      }
                   : {
                       background: "var(--surface)", color: "var(--ink-2)",
                       border: "1px solid var(--line-2)", borderRadius:"var(--r-xl)",
@@ -183,6 +209,7 @@ export default function EmptyState({
               }
             >
               {a.label}
+              {i === 0 && isMoment && <span className="chevron" aria-hidden> ←</span>}
             </button>
           ))}
         </div>

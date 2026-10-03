@@ -7741,9 +7741,14 @@ ${c.claimUrl}`)}`;
  <img className="hdr-logo desktop-only" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
- <div className="mobile-only" style={{alignItems:"center",gap:6,flexShrink:0,marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}>
- <img src={FLOWER_64} alt="" width={64} height={64} style={{width:24,height:24,flexShrink:0,display:"block"}}/>
- <img src={LOGO_TEXT} alt="Kalmea" width={LOGO_TEXT_W} height={LOGO_TEXT_H} style={{width:"auto",height:22,display:"block"}}/>
+ <div className="mobile-only" style={{alignItems:"center",gap:7,flexShrink:0,marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}>
+ {/* Ad-aligned pass: she should read "kalmea", not just see a flower - in
+     the ads the wordmark is the biggest thing after the headline, and at
+     the old 22px it read as an afterthought next to the menu/search/badges
+     beside it. Scaled up ~45%; the flower mark grows with it so the two
+     stay in proportion. */}
+ <img src={FLOWER_64} alt="" width={64} height={64} style={{width:30,height:30,flexShrink:0,display:"block"}}/>
+ <img src={LOGO_TEXT} alt="Kalmea" width={LOGO_TEXT_W} height={LOGO_TEXT_H} style={{width:"auto",height:32,display:"block"}}/>
  </div>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
@@ -8012,8 +8017,8 @@ ${c.claimUrl}`)}`;
                 this screen (today's appointments, needs-attention) already
                 carries an empty day fine on its own. */}
             {clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
-              <EmptyState icon="home" accent={pc} accentTint={pcTint}
-                title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
+              <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
+                title={<><span className="brand-rose-word">ברוכה הבאה</span>{settings.therapist_name?", "+settings.therapist_name:""}</>}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
                 actions={[
                   {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
@@ -8022,8 +8027,8 @@ ${c.claimUrl}`)}`;
                 ]}/>
             )}
             {clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
-              <EmptyState icon="home" accent={pc} accentTint={pcTint}
-                title={`ברוכה הבאה${settings.therapist_name?", "+settings.therapist_name:""}`}
+              <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
+                title={<><span className="brand-rose-word">ברוכה הבאה</span>{settings.therapist_name?", "+settings.therapist_name:""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
                   {label:"מטופלת חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},

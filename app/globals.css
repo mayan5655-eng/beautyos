@@ -86,6 +86,7 @@
   --t-2xl:  24px;   /* section headings */
   --t-3xl:  28px;   /* page headings, headline numbers */
   --t-hero: 34px;   /* one number on a screen */
+  --t-display: 40px; /* ad-style moment-screen headline — .brand-headline only */
 
   /* — Signature gradients — */
   /* Green → petal pink, echoing the wordmark's flower. No consumers yet. */
@@ -116,29 +117,53 @@
      declaring them changes nothing until a screen opts in.
      ============================================================ */
 
-  /* — Kalmea brand (fixed) —
-     Deep green is the primary/interactive tone (nav, buttons, headings);
-     petal pink is the accent reserved for the two-hue brand gradient and
-     deliberate CTA highlights, not a blanket recolour of every button -
-     see the rebrand commit for which is which. Sage and paper carry the
-     soft backgrounds; there is no multi-hue floral watercolor to sample
-     from anymore (one realistic flower, not a painted bouquet), so the
-     old per-flower shades (lilac/cosmos) collapse onto the nearest of the
-     five named colors instead of getting invented shades of their own. */
-  --brand-accent: #1F3A30;           /* deep green — the primary brand tone */
-  --brand-deep: #14261F;             /* darkest green — headings */
-  --brand-rose: #E9A9A1;             /* petal pink — gradient + CTA accent */
-  --brand-rose-2: #C8918A;           /* deeper petal pink — gradient end */
-  --brand-lilac: #DCE4D5;            /* sage — secondary decorative tone */
-  --brand-cosmos: #E9A9A1;           /* same as --brand-rose; no separate
-                                         cosmos hue without the old florals */
-  --brand-tint: #FBEDE9;             /* pale petal — soft wash */
-  --brand-surface: #FDFBF9;          /* paper — near-white, cards */
-  --brand-blush: #FBEDE9;            /* pale petal — wash florals */
-  --brand-cream: #FDFBF9;            /* paper — page background */
-  --brand-muted: #7D8D87;            /* muted sage-green text — taglines */
+  /* — Kalmea brand (fixed) — ad-aligned pass.
+     Exact values sampled from the published ads (brand/ads/), not eyeballed.
+     Deep green is TEXT, BUTTONS, PILLS AND SMALL MARKS ONLY — never a large
+     background; cream is the page background everywhere; white is for cards
+     only. There is exactly one dark layout in the ads and the app gets none
+     of it, so --brand-accent/--brand-deep must never back a full screen or
+     a large panel, only text and controls.
+     Two tones are new rather than renamed (--brand-highlight, --brand-sage):
+     the ads use them for "the one highlighted word in a heading" and for
+     secondary marks/chips respectively, a role neither --brand-rose (soft
+     surfaces) nor the old --brand-lilac (pale decorative wash) was playing,
+     so collapsing them onto an existing token would have erased a real
+     distinction instead of just renaming one. */
+  --brand-accent: #183024;           /* deep green — text, buttons, pills, small marks ONLY */
+  --brand-deep: #183024;             /* same deep green; the ads sample one green, not two */
+  --brand-rose: #F0CCC6;             /* petal pink — soft surfaces + accents */
+  --brand-rose-2: #BB9F9A;           /* deeper petal pink — gradient end, derived (darken 22%) */
+  --brand-lilac: #DCE4D5;            /* pale sage wash — soft decorative tone (unrelated to --brand-sage below) */
+  --brand-cosmos: #F0CCC6;           /* same as --brand-rose; no separate cosmos hue */
+  --brand-tint: #F0DDD3;             /* pale petal — soft wash, derived from the new petal pink */
+  --brand-surface: #FFFFFF;          /* white — CARDS ONLY, per the ad palette */
+  --brand-blush: #F0E2D7;            /* pale petal — wash florals, derived (lighter than --brand-tint) */
+  --brand-cream: #F0EADE;            /* cream — PAGE BACKGROUND EVERYWHERE */
+  --brand-muted: #656A56;            /* darkened sage, readable as body text (4.7:1 on cream) — see --brand-sage below for the vivid, large-text-only version */
   --brand-contrast: #FFFFFF;         /* readable ON --brand-accent */
-  --brand-grad: linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%);
+  --brand-grad: linear-gradient(135deg, #183024 0%, #F0CCC6 100%);
+
+  /* Rose — "the one word that matters in a heading", and handwriting
+     accents. #AE6054 is the exact ad value: large/bold text only (3.8:1 on
+     cream, AA-large but not AA-body). --brand-highlight-text is the same
+     hue darkened to 4.5:1+ for any place it carries body-sized copy. */
+  --brand-highlight: #AE6054;
+  --brand-highlight-text: #9E564B;
+
+  /* Sage — secondary marks and chips. #787E66 is the exact ad value: large
+     text / icon-scale marks only (3.5:1 on cream). --brand-sage-text is
+     the same hue darkened to 4.7:1 for body-sized copy — this is a
+     DIFFERENT, more saturated tone than --brand-lilac's pale wash above,
+     not a replacement of it. */
+  --brand-sage: #787E66;
+  --brand-sage-text: #656A56;
+
+  /* Thin gold hairline around the ad's green pill button. Estimated from
+     the ads at low-medium opacity rather than pixel-sampled yet — brand/ads/
+     wasn't available when this shipped; flagged to re-check against the
+     actual file. */
+  --brand-gold-hairline: rgba(201, 162, 75, 0.65);
 
   /* — Brand typography (aliases; the stacks live in --sans / --display) — */
   --brand-font-display: var(--display);
@@ -175,6 +200,12 @@
   /* — Font stacks (via next/font vars, with graceful fallbacks) — */
   --sans: var(--font-inter), var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
   --display: var(--font-cormorant), var(--font-frank), "Frank Ruhl Libre", "Cormorant Garamond", Georgia, serif;
+  /* Ad headlines: Frank Ruhl Libre FIRST, at weight 900 (already loaded —
+     layout.tsx's variable range is "400 900"). Deliberately separate from
+     --display above rather than reordering it, so this only changes the
+     handful of moment-screen headlines that opt into .brand-headline and
+     every existing h1/h2/h3 elsewhere keeps its current voice. */
+  --display-heavy: var(--font-frank), "Frank Ruhl Libre", var(--font-cormorant), Georgia, serif;
 
   /* Tailwind bridge (legacy tokens still referenced elsewhere) */
   --background: var(--bg);
@@ -335,6 +366,68 @@ body {
 h1, h2, h3 {
   font-family: var(--display);
   letter-spacing: -0.01em;
+}
+
+/* ── Ad-aligned "moment" treatment ──────────────────────────────────────────
+   Opt-in only: existing headings/buttons everywhere else are untouched.
+   For the handful of screens the ads are the reference for (login, signup,
+   onboarding, empty states, success confirmations, the public booking
+   header) — never the working screens (calendar, clients, cashier,
+   settings), which stay on their current quiet treatment on purpose. */
+
+/* Bigger and tighter than the normal heading voice, Frank Ruhl Libre at the
+   weight the ads use. Color defaults to the fixed brand green since this is
+   Kalmea-chrome typography, not tenant-accented. */
+.brand-headline {
+  font-family: var(--display-heavy);
+  font-weight: 900;
+  font-size: var(--t-display);
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  color: var(--brand-accent);
+  margin: 0;
+}
+
+/* The one highlighted word/phrase in a .brand-headline, the way the ads pick
+   out a single phrase in rose. Large/bold text only (3.8:1 on cream, AA for
+   large text) — for a highlighted word at body size, use
+   var(--brand-highlight-text) instead, which clears AA body contrast. */
+.brand-rose-word {
+  color: var(--brand-highlight);
+}
+
+/* The ad's green pill: solid fill (never the two-hue gradient), cream text,
+   a thin gold hairline, and a chevron that follows reading direction. Opt-in
+   class, separate from the ubiquitous .primary-btn (which stays on its
+   current tenant-accent treatment on working screens). */
+.brand-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--brand-accent);
+  color: var(--brand-cream);
+  border: 1.5px solid var(--brand-gold-hairline);
+  border-radius: var(--r-full);
+  padding: 13px 26px;
+  font-family: inherit;
+  font-size: var(--t-lg);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.brand-pill-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.brand-pill-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+/* RTL-aware chevron: "forward" reads right-to-left, so it leans the same
+   way the rest of the app's own "הבא ←" convention already does. */
+.brand-pill-btn .chevron {
+  font-size: 0.9em;
+  line-height: 1;
 }
 
 /* Refined scrollbars — slim, deep-green-tinted, unobtrusive */

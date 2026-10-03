@@ -1,28 +1,32 @@
 'use client'
 
 import FloralCorners from './FloralCorners'
+import PhotoFlowerCorners from './PhotoFlowerCorners'
 import { BRAND_WASH, BRAND_WASH_SOFT, FLORAL_BLUSH, FLORAL_LILAC } from '@/lib/brand'
 
 /**
  * BrandBackdrop — the one floral backdrop every branded screen shares.
  *
- * Extracted from /login so pages reuse the exact same wash and the exact same
- * blossoms, rather than each re-implementing a slightly different version.
+ * Extracted from /login so pages reuse the exact same wash, rather than each
+ * re-implementing a slightly different version.
  *
  * Renders two layers behind the content:
  *   1. the cream-to-lavender wash
- *   2. FloralCorners, tinted to the logo's blush and lilac
+ *   2. the blossom layer - which image depends on density, see below
  *
  * The host must be a positioned stacking context (position: relative, zIndex 0)
  * and its own content should sit at zIndex 1 or above.
  *
  * DENSITY — the one thing that varies between screens:
- *   'full'  sparse pages where the florals frame the content and are part of
- *           the welcome: /login, /signup, /reset-password, /book, /claim,
- *           /community, the mini-site.
+ *   'full'  "moment" screens, per the ad-alignment pass: /login, /signup,
+ *           /reset-password, /book, /claim, /community, the mini-site. Two
+ *           photographic cosmos flowers, one per opposite corner,
+ *           overlapping the screen edge at ~60% - PhotoFlowerCorners, not
+ *           the illustrated blossoms below.
  *   'soft'  data-heavy screens - calendar, cashier, leads - where blossoms at
  *           full strength sit behind tables and grids and hurt readability.
- *           Same palette and same flowers, just quiet enough to read through.
+ *           Unchanged by the ad-alignment pass: still FloralCorners, quiet
+ *           illustrated blossoms, same as before.
  *   'none'  wash only, no blossoms at all.
  *
  * Readability wins on the dense screens; that is a deliberate choice, not a
@@ -65,7 +69,10 @@ export default function BrandBackdrop({
           pointerEvents: 'none',
         }}
       />
-      {density !== 'none' && (
+      {density === 'full' && (
+        <PhotoFlowerCorners fixed={fixed} zIndex={zIndex} opacity={0.6} />
+      )}
+      {density === 'soft' && (
         <FloralCorners
           idPrefix={idPrefix}
           fixed={fixed}

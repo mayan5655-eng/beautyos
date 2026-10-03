@@ -11,9 +11,12 @@ import BrandBackdrop from '../BrandBackdrop'
 // tenant until after login, so every value reads --brand-*, never --pc-*.
 // The tokens, the wash and the logo all come from lib/brand.ts so this page and
 // its siblings cannot drift apart.
+// GRAD (the two-hue gradient) is no longer used on this screen's button -
+// the ad's pill is a solid fill - but stays exported from lib/brand for
+// whatever else still wants it.
 import {
-  ACCENT, CREAM, SURFACE, MUTED, DEEP, CONTRAST, GRAD,
-  ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
+  ACCENT, CREAM, SURFACE, MUTED,
+  ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING,
   LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
 } from '@/lib/brand'
 
@@ -38,15 +41,13 @@ function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
     padding: 11, borderRadius:"var(--r-sm)", marginBottom: 16, fontSize:"var(--t-md)", textAlign: 'center',
   }
 }
-function btnStyle(loading: boolean): React.CSSProperties {
+// Ad-aligned pass: the submit button is now .brand-pill-btn (solid green,
+// cream text, gold hairline, chevron - see globals.css) - this just adds the
+// full-width + letter-spacing this screen wants on top of that shared class.
+function btnStyle(): React.CSSProperties {
   return {
-    width: '100%', padding: 15, color: CONTRAST, border: 'none', borderRadius:"var(--r-md)",
-    // Text sits over the purple end of the gradient: 11.5:1.
-    background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
-    fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: '1px', fontFamily: 'inherit',
-    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1,
+    width: '100%', letterSpacing: '1px',
     boxShadow:"var(--shadow-accent)",
-    transition: 'transform 0.15s, box-shadow 0.15s',
   }
 }
 
@@ -125,7 +126,6 @@ export default function LoginPage() {
         @keyframes authIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
         .auth-card { animation: authIn 0.4s ease-out; }
         .auth-input:focus { border-color: ${ACCENT} !important; background: #fff !important; box-shadow: 0 0 0 3px ${ACCENT_RING} !important; }
-        .auth-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 18px 36px -14px ${DEEP_SHADOW}; }
         .auth-link:hover { text-decoration: underline; }
       `}</style>
 
@@ -190,10 +190,10 @@ export default function LoginPage() {
             {error && <div style={noticeStyle('error')}>{error}</div>}
             {resetNotice && <div style={noticeStyle('ok')}>{resetNotice}</div>}
 
-            <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
+            <button type="submit" disabled={loading} className="brand-pill-btn" style={btnStyle()}>
               {mode === 'login'
-                ? (loading ? <Spinner inline label="מתחבר" /> : 'כניסה')
-                : (loading ? <Spinner inline label="שולח" /> : 'שליחת קישור לאיפוס')}
+                ? (loading ? <Spinner inline label="מתחבר" /> : <>כניסה<span className="chevron" aria-hidden> ←</span></>)
+                : (loading ? <Spinner inline label="שולח" /> : <>שליחת קישור לאיפוס<span className="chevron" aria-hidden> ←</span></>)}
             </button>
           </form>
 

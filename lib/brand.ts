@@ -13,16 +13,44 @@
 // Kalmea it is --brand-*.
 
 // ---- Brand tier (fixed) ----
-export const ACCENT = 'var(--brand-accent, #1F3A30)'
-export const DEEP = 'var(--brand-deep, #14261F)'
-export const ROSE = 'var(--brand-rose, #E9A9A1)'
+// Ad-aligned pass: exact values sampled from the published ads (brand/ads/).
+// --accent/--deep is TEXT, BUTTONS, PILLS AND SMALL MARKS ONLY, never a
+// large background — the ads have one dark layout and the app gets none of
+// it. --cream is the page background everywhere; --surface (white) is cards
+// only. See app/globals.css's :root for the full comment.
+export const ACCENT = 'var(--brand-accent, #183024)'
+export const DEEP = 'var(--brand-deep, #183024)'
+export const ROSE = 'var(--brand-rose, #F0CCC6)'
 export const LILAC = 'var(--brand-lilac, #DCE4D5)'
-export const CREAM = 'var(--brand-cream, #FDFBF9)'
-export const TINT = 'var(--brand-tint, #FBEDE9)'
-export const SURFACE = 'var(--brand-surface, #FDFBF9)'
-export const MUTED = 'var(--brand-muted, #7D8D87)'
+export const CREAM = 'var(--brand-cream, #F0EADE)'
+export const TINT = 'var(--brand-tint, #F0DDD3)'
+export const SURFACE = 'var(--brand-surface, #FFFFFF)'
+export const MUTED = 'var(--brand-muted, #656A56)'
 export const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
-export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%))'
+export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #183024 0%, #F0CCC6 100%))'
+
+// Rose — "the one word that matters in a heading", and handwriting accents.
+// HIGHLIGHT is the exact ad value, large/bold text only (3.8:1 on cream).
+// HIGHLIGHT_TEXT is the same hue darkened to clear AA body contrast (4.5:1+).
+export const HIGHLIGHT = 'var(--brand-highlight, #AE6054)'
+export const HIGHLIGHT_TEXT = 'var(--brand-highlight-text, #9E564B)'
+
+// Sage — secondary marks and chips. A different, more saturated tone than
+// LILAC's pale decorative wash above, not a replacement of it. SAGE is the
+// exact ad value (large text / icon-scale only, 3.5:1 on cream); SAGE_TEXT
+// is darkened to clear AA body contrast (4.7:1).
+export const SAGE = 'var(--brand-sage, #787E66)'
+export const SAGE_TEXT = 'var(--brand-sage-text, #656A56)'
+
+// Thin gold hairline around the ad's green pill button. Estimated, not yet
+// pixel-sampled from brand/ads/ (wasn't available when this shipped) —
+// re-check against the actual file when it lands.
+export const GOLD_HAIRLINE = 'var(--brand-gold-hairline, rgba(201,162,75,0.65))'
+
+// Ad headlines: Frank Ruhl Libre 900, bigger and tighter than the normal
+// heading voice. Opt-in (.brand-headline in globals.css) for moment screens
+// only — the normal --display stack is untouched everywhere else.
+export const DISPLAY_HEAVY = 'var(--display-heavy)'
 
 // ---- Accent tier (switchable per tenant) ----
 // Use these on anything a client reads as HER business. Fallbacks match
