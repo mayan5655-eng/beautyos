@@ -111,7 +111,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
       <div style={{ flex: 1, minWidth: 210, display: "flex", gap: 12, alignItems: "flex-start" }}>
         {/* Only on the urgent/blocked card, which has real room for it - the
             gentle one-line notice above stays as bare as it already was. */}
-        <img aria-hidden alt="" src={ICON_FLOWER} style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
+        <img aria-hidden alt="" src={ICON_FLOWER} style={{ width: 48, height: 48, objectFit: "contain", flexShrink: 0 }} />
         <div>
           <p
             className="serif"

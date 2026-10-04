@@ -7261,7 +7261,7 @@ export default function BeautyOS() {
             ) : (
               <>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                  <img aria-hidden alt="" src={ICON_QUESTION} style={{width:34,height:34,objectFit:"contain",flexShrink:0}}/>
+                  <img aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
                   <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
                 </div>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
@@ -7470,7 +7470,7 @@ ${c.claimUrl}`)}`;
  <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="Beauty Voice">
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
- <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>Beauty Voice ✦</h3>
  </div>
  <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:"var(--t-lg)",cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
@@ -7479,7 +7479,7 @@ ${c.claimUrl}`)}`;
             {voiceStatus==="listening"&&(
  <div style={{textAlign:"center",padding:"16px 0"}}>
  <div className="voice-pulse" style={{width:66,height:66,borderRadius:"50%",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:pc}}>
- <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:38,height:38,objectFit:"contain"}}/>
+ <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:48,height:48,objectFit:"contain"}}/>
  </div>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)"}}><Spinner inline label="מקשיבה"/></p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:5,lineHeight:1.5}}>אמרי בקול אחת מהפקודות הבאות:</p>
@@ -8006,7 +8006,7 @@ ${c.claimUrl}`)}`;
                       notice, per the icon set's "beside a section title"
                       role, rather than a background watermark. */}
  <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
- <img aria-hidden alt="" src={ICON_QUESTION} style={{width:34,height:34,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <p style={{fontFamily:"var(--font-hand),cursive",fontSize:21,color:"#C07A72",margin:0}}>שאלה אחת</p>
  </div>
  <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
@@ -8495,7 +8495,7 @@ ${c.claimUrl}`)}`;
             )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:10}}>
- <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
  <h2 style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[6])}</h2>
@@ -8945,7 +8945,7 @@ ${c.claimUrl}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה ותשלומים</p>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
- <img aria-hidden alt="" src={ICON_WALLET} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_WALLET} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
  </div>
  <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
@@ -9115,7 +9115,7 @@ ${c.claimUrl}`)}`;
  {peopleSegments()}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
- <img aria-hidden alt="" src={ICON_ENVELOPE} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_ENVELOPE} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>מרכז הודעות</h2>
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
@@ -9281,7 +9281,7 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>פוסטים, רילסים וקמפיינים</p>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
- <img aria-hidden alt="" src={ICON_FRAME} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_FRAME} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תוכן</h2>
  </div>
 
@@ -9448,7 +9448,7 @@ ${c.claimUrl}`)}`;
 
  {marketingView==="ai"&&(<>
  <div style={{textAlign:"center",marginBottom:18}}>
- <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:36,height:36,objectFit:"contain",marginBottom:4}}/>
+ <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:52,height:52,objectFit:"contain",marginBottom:4}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>תוכן AI</h2>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
  </div>
@@ -9745,7 +9745,7 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:840,marginLeft:"auto",marginRight:"auto",display:"flex",flexDirection:"column",height:"100%"}}>
  <div style={{textAlign:"center",marginBottom:6}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>בינה מלאכותית</p>
- <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:32,height:32,objectFit:"contain",marginBottom:2}}/>
+ <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:48,height:48,objectFit:"contain",marginBottom:2}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>יועץ עסקי AI</h2>
  </div>
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
@@ -9968,7 +9968,7 @@ ${c.claimUrl}`)}`;
 
  <div className="glass-card" style={{padding:18}}>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
- <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:28,height:28,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
  </div>
               {waitlist.filter(w=>w.status==="waiting").length===0?<EmptyState icon="calendar" accent={pc} accentTint={pcTint}
@@ -11408,7 +11408,7 @@ ${c.claimUrl}`)}`;
                     {clientReviewsError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginBottom:8}}>לא הצלחנו לטעון את הביקורות.</p>}
                     {!clientReviewsError&&clientReviews.length===0&&(
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
- <img aria-hidden alt="" src={ICON_HEART} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <img aria-hidden alt="" src={ICON_HEART} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. הן יגיעו מעצמן — הבקשה נשלחת יומיים אחרי כל טיפול.</p>
  </div>
                     )}
@@ -11798,7 +11798,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
- <img aria-hidden alt="" src={ICON_QUESTION} style={{width:40,height:40,objectFit:"contain",marginBottom:8}}/>
+ <img aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",marginBottom:8}}/>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שאלות ותשובות</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
  </div>
