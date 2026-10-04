@@ -16,6 +16,7 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
+import OnboardingTour from "./OnboardingTour";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
@@ -276,6 +277,32 @@ const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
   part.startsWith("**") && part.endsWith("**") ? <b key={i}>{part.slice(2,-2)}</b> : part
 );
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+
+// ── Onboarding walkthrough — six steps, one per screen, in the order a new
+// cosmetician actually meets them, ending on her booking link rather than a
+// seventh "congratulations" step. See app/OnboardingTour.jsx for the
+// component that renders these; the step objects just say WHERE (a
+// selector the component polls for) and WHAT TO SAY. The last step's
+// onNext is special-cased in the component (isLast -> onFinish), which the
+// tour's finish handler below turns into opening the new-appointment modal.
+const TOUR_STEPS = [
+  { id:"dashboard", selector:'button[aria-label="היום"]', icon: ICON_FLOWER,
+    title:"היום שלך", text:"פה תראי את היום שלך במבט אחד: מי מגיעה, כמה נכנס, ומה מחכה." },
+  { id:"calendar", selector:'button[aria-label="יומן"]', icon: ICON_CALENDAR,
+    title:"היומן", text:"הלוח שלך. תורים נקבעים כאן, ואת רואה את כל השבוע בלחיצה." },
+  { id:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
+    title:"הלקוחות שלך", text:"כל לקוחה שלך, עם ההיסטוריה שלה, במקום אחד שתמיד זמין." },
+  { id:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
+    title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן — פשוט ומסודר." },
+  { id:"content", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
+    title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
+  // requiresSettings: the tour's advance handler opens Settings -> כללי
+  // before switching to this step, since the real button lives there.
+  { id:"booking-link", selector:'[data-tour="booking-link"]', icon: ICON_CALENDAR,
+    title:"הקישור שלך להזמנות", requiresSettings:true,
+    text:"זה הקישור שהלקוחות שלך יזמינו דרכו. אפשר לשלוח אותו עכשיו — או פשוט לקבוע את התור הראשון בעצמך.",
+    cta:"קביעת תור ראשון ✦" },
+];
 
 // שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
 const VAT_RATE = 0.18;
@@ -1776,6 +1803,43 @@ export default function BeautyOS() {
       onConfirm: done,
     });
   }, [settingsDirty, askConfirm]);
+
+  // ── Onboarding walkthrough — trigger + persistence. The handlers that
+  // actually advance/skip/finish the tour live further down, right after
+  // openNewAppt is declared (the finish step opens it). This just decides
+  // WHEN to start: once, the first time settings has loaded for a tenant
+  // that hasn't seen it, resuming at whatever step she last reached rather
+  // than always restarting at 0.
+  const [tourStep, setTourStep] = useState(null);
+  const tourTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (tourTriggeredRef.current) return;
+    if (!settings?.tenant_id) return; // settings row not loaded yet
+    tourTriggeredRef.current = true;
+    const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    if (autos.onboarding_tour_seen === true) return;
+    const resumeAt = Number.isInteger(autos.onboarding_tour_step) ? autos.onboarding_tour_step : 0;
+    if (resumeAt >= TOUR_STEPS.length) return;
+    setTourStep(resumeAt);
+  }, [settings?.tenant_id, settings?.automations]);
+
+  // Fire-and-forget: merges into the existing automations bag (the save
+  // route replaces the WHOLE column, not a per-key patch - sending just
+  // {onboarding_tour_seen:true} without the rest of her automations would
+  // silently wipe her quiet hours, reminder toggles, everything else in
+  // there) and updates local state optimistically so skip/finish read back
+  // correctly without waiting on a refetch.
+  const persistTourPatch = useCallback((patch) => {
+    const base = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    const nextAutomations = { ...base, ...patch };
+    setSettings(prev => ({ ...prev, automations: { ...((prev.automations && typeof prev.automations === "object") ? prev.automations : {}), ...patch } }));
+    fetch("/api/settings/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: { automations: nextAutomations } }),
+    }).catch(() => {});
+  }, [settings.automations]);
+
   const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
   const setupSteps = [
     { key:"details",  done: !!(settings.business_name && settings.business_name.trim() && settings.business_name.trim()!=="העסק שלי") && !!(settings.business_phone && String(settings.business_phone).trim()), label:"פרטי העסק", hint:"שם וטלפון ליצירת קשר", onClick:()=>openSetupTab("general") },
@@ -5005,6 +5069,34 @@ export default function BeautyOS() {
     setShowMobileSidebar(false);
   };
 
+  // ── Onboarding walkthrough — advance / skip / finish. State and the
+  // trigger effect live earlier, right after closeSettings.
+  const handleTourNext = useCallback(() => {
+    const next = tourStep + 1;
+    const nextStep = TOUR_STEPS[next];
+    if (!nextStep) return; // the last step's button is onFinish, not onNext
+    if (nextStep.requiresSettings) openSettings("general");
+    setTourStep(next);
+    persistTourPatch({ onboarding_tour_step: next });
+  }, [tourStep, openSettings, persistTourPatch]);
+
+  const handleTourSkip = useCallback(() => {
+    if (showSettings) closeSettings(true);
+    setTourStep(null);
+    persistTourPatch({ onboarding_tour_seen: true });
+  }, [showSettings, closeSettings, persistTourPatch]);
+
+  const handleTourFinish = useCallback(() => {
+    const wasInSettings = showSettings;
+    if (wasInSettings) closeSettings(true);
+    setTourStep(null);
+    persistTourPatch({ onboarding_tour_seen: true });
+    // The one action it ends on, not a congratulation screen. A short delay
+    // when Settings was open lets that sheet's own close finish first, so
+    // the two never visually overlap mid-transition.
+    setTimeout(() => openNewAppt(), wasInSettings ? 220 : 0);
+  }, [showSettings, closeSettings, persistTourPatch, openNewAppt]);
+
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
@@ -7232,6 +7324,18 @@ export default function BeautyOS() {
           #tax-report,#tax-report *{visibility:visible}
           #tax-report{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:720px;box-shadow:none!important;border:none!important;padding:32px 28px}}
       `}</style>
+
+      {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
+      <OnboardingTour
+        steps={TOUR_STEPS}
+        stepIndex={tourStep}
+        onNext={handleTourNext}
+        onSkip={handleTourSkip}
+        onFinish={handleTourFinish}
+        pc={pc}
+        pcDeep={pcDeep}
+        pcGrad={pcGrad}
+      />
 
       {/* -- "תקועה?" -- on every screen, above everything ------------------ */}
       {!showHelp && (
@@ -11178,7 +11282,7 @@ ${c.claimUrl}`)}`;
      </div>
    );
  })()}
- <button onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="calendar" size={14}/> העתקת קישור לקביעת תור</button>
+ <button data-tour="booking-link" onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="calendar" size={14}/> העתקת קישור לקביעת תור</button>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
