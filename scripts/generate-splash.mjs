@@ -29,15 +29,19 @@ import sharp from 'sharp';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const LOGO = 'public/kalmea-wordmark.png';   // 1470x430 lockup
+// Ad-aligned pass: was the bare wordmark lockup; this is wordmark + slogan,
+// same asset /login and /signup use as their header (BANNER_HEADER in
+// lib/brand.ts - this script can't import that ESM TS module directly, so
+// the path/ratio are kept in sync by hand).
+const LOGO = 'public/banner-header.png';   // 1035x580
 const OUT_DIR = 'public/splash';
 /** Matches manifest.json background_color, so the launch image and the
  *  install's background are the same colour and there is no flash between. */
-const BG = '#FDFBF9';
+const BG = '#F0EADE';
 /** Logo width as a fraction of the device's SHORT edge. Conservative: the
- *  lockup is wide, and a launch image that fills the screen looks like a
+ *  banner is wide, and a launch image that fills the screen looks like a
  *  billboard rather than an app opening. */
-const LOGO_FRACTION = 0.55;
+const LOGO_FRACTION = 0.72;
 
 /**
  * One entry per distinct (width, height, ratio) an iPhone can report.

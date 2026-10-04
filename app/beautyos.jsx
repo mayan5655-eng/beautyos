@@ -14,7 +14,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER } from "@/lib/brand";
+import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_CALENDAR, ICON_FLOWER } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -7993,12 +7993,15 @@ ${c.claimUrl}`)}`;
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
  <div className="glass-card card-boxed card-boxed-rose" style={{position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
-                  {/* The one card on this screen that gets a flower hint of
-                      its own, so it reads as the special one - the page
-                      background flower (ChromeFlowerBg) sits in the opposite
-                      corner, so the two never overlap. */}
- <img aria-hidden alt="" src={FLOWER_128} style={{position:"absolute",zIndex:0,top:-24,insetInlineStart:-26,width:96,height:96,objectFit:"contain",opacity:0.13,pointerEvents:"none"}}/>
- <p style={{position:"relative",fontFamily:"var(--font-hand),cursive",fontSize:21,color:"#C07A72",marginBottom:4}}>שאלה אחת</p>
+                  {/* Ad-aligned pass: the new question line-icon is this
+                      card's real header mark now, in place of the old faint
+                      13%-opacity corner flower - large enough to actually
+                      notice, per the icon set's "beside a section title"
+                      role, rather than a background watermark. */}
+ <div style={{position:"relative",display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+ <img aria-hidden alt="" src={ICON_QUESTION} style={{width:34,height:34,objectFit:"contain",flexShrink:0}}/>
+ <p style={{fontFamily:"var(--font-hand),cursive",fontSize:21,color:"#C07A72",margin:0}}>שאלה אחת</p>
+ </div>
  <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
  <div style={{position:"relative",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#1F3A30",color:"#FBF8F1",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>

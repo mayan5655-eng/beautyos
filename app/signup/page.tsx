@@ -13,7 +13,7 @@ import BrandBackdrop from '../BrandBackdrop'
 import {
   ACCENT, CREAM, SURFACE, MUTED, DEEP, GRAD,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
-  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
+  BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, FLOWER_MARK,
 } from '@/lib/brand'
 
 export default function SignupPage() {
@@ -89,13 +89,14 @@ export default function SignupPage() {
       `}</style>
 
       <div className="signup-card" style={cardStyle}>
-        {/* Brand — the logo lockup already carries the wordmark and tagline. */}
+        {/* Brand — the banner already carries the wordmark and slogan, same
+            asset as /login (BANNER_HEADER, see its comment in lib/brand.ts). */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
-            src={LOGO_FULL}
-            alt="קלמיה — המערכת שמצמיחה את הקליניקה שלך"
-            width={LOGO_FULL_W}
-            height={LOGO_FULL_H}
+            src={BANNER_HEADER}
+            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+            width={BANNER_HEADER_W}
+            height={BANNER_HEADER_H}
             priority
             style={logoStyle}
           />
@@ -232,7 +233,7 @@ const cardStyle: React.CSSProperties = {
 }
 
 const logoStyle: React.CSSProperties = {
-  width: 'min(280px, 84%)',
+  width: 'min(380px, 96%)',
   height: 'auto',
   filter: 'drop-shadow(0 10px 22px rgba(48,24,72,0.16))',
 }

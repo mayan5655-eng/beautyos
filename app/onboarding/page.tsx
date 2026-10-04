@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,8 @@ import { lighten } from "@/lib/theme";
 import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
-import ChromeFlowerBg from "../ChromeFlowerBg";
+import BrandBackdrop from "../BrandBackdrop";
+import { BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H } from "@/lib/brand";
 
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
@@ -313,22 +315,34 @@ export default function OnboardingPage() {
 
   return (
     <div dir="rtl" style={containerStyle}>
-      <ChromeFlowerBg/>
+      {/* Ad-aligned pass: onboarding is a "moment" screen, same as /login and
+          /signup - BrandBackdrop's bold corner flowers replace the old
+          single quiet ChromeFlowerBg it shared with the dashboard chrome. */}
+      <BrandBackdrop density="full" idPrefix="onboarding" />
       <style>{`
         @keyframes fadeIn { from {opacity:0;transform:translateY(8px)} to {opacity:1;transform:translateY(0)} }
         .step-body { animation: fadeIn 0.28s ease-out; }
         .ob-input:focus { border-color: ${pc} !important; background: var(--surface) !important; }
         .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px ${pc}55; }
-        .ob-btn-secondary:hover { background: var(--brand-cream, #FDFBF9); }
+        .ob-btn-secondary:hover { background: var(--brand-cream, #F0EADE); }
         .swatch:hover { transform: scale(1.1); }
       `}</style>
 
-      <div style={cardStyle}>
-        {/* Brand mark */}
-        <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ marginBottom: 4, color: "var(--pc)" }}><Icon name="gem" size={26}/></div>
-          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, letterSpacing: 1.5 }}>KALMEA</p>
+      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 460 }}>
+        {/* Same banner as /login and /signup - wordmark + slogan baked into
+            one asset (BANNER_HEADER, see lib/brand.ts), replacing the small
+            gem-icon + "KALMEA" caption this used to be. */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+          <Image
+            src={BANNER_HEADER}
+            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+            width={BANNER_HEADER_W}
+            height={BANNER_HEADER_H}
+            style={{ width: "min(380px, 96%)", height: "auto", filter: "drop-shadow(0 10px 22px rgba(48,24,72,0.16))" }}
+          />
         </div>
+
+      <div style={cardStyle}>
 
         {/* Progress — written, not graphic. Step names with arrows between
             them, the current one in her accent. RTL reads right to left, so
@@ -588,6 +602,7 @@ export default function OnboardingPage() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Tiny footer hint */}
       <p style={{ marginTop: 14, fontSize:"var(--t-sm)", color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}>
@@ -611,8 +626,13 @@ function Field({ label, children, inline = false }: { label: string; children: R
 
 // === Styles ===
 const containerStyle: React.CSSProperties = {
+  position: "relative",
+  zIndex: 0,
+  overflow: "hidden",
   minHeight: "100dvh",
-  background: "linear-gradient(180deg, var(--brand-cream, #FDFBF9) 0%, var(--brand-cream, #FDFBF9) 100%)",
+  // Flat cream now, not a (visually identical) two-stop gradient - the real
+  // wash comes from BrandBackdrop, same as /login and /signup.
+  background: "var(--brand-cream, #F0EADE)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",

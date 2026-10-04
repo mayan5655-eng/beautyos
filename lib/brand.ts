@@ -30,22 +30,25 @@ export const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
 export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #183024 0%, #F0CCC6 100%))'
 
 // Rose — "the one word that matters in a heading", and handwriting accents.
-// HIGHLIGHT is the exact ad value, large/bold text only (3.8:1 on cream).
-// HIGHLIGHT_TEXT is the same hue darkened to clear AA body contrast (4.5:1+).
-export const HIGHLIGHT = 'var(--brand-highlight, #AE6054)'
-export const HIGHLIGHT_TEXT = 'var(--brand-highlight-text, #9E564B)'
+// HIGHLIGHT is pixel-sampled from "פחות דברים לזכור" in ad-checklist.png,
+// large/bold text only (3.6:1 on cream). HIGHLIGHT_TEXT is the same hue
+// darkened to clear AA body contrast (4.5:1+).
+export const HIGHLIGHT = 'var(--brand-highlight, #B26557)'
+export const HIGHLIGHT_TEXT = 'var(--brand-highlight-text, #9D5548)'
 
 // Sage — secondary marks and chips. A different, more saturated tone than
-// LILAC's pale decorative wash above, not a replacement of it. SAGE is the
-// exact ad value (large text / icon-scale only, 3.5:1 on cream); SAGE_TEXT
-// is darkened to clear AA body contrast (4.7:1).
-export const SAGE = 'var(--brand-sage, #787E66)'
-export const SAGE_TEXT = 'var(--brand-sage-text, #656A56)'
+// LILAC's pale decorative wash above, not a replacement of it. SAGE is
+// pixel-sampled from ad-checklist.png's icon-chip circles (large text /
+// icon-scale only, 3.3:1 on cream); SAGE_TEXT is darkened to clear AA body
+// contrast (4.5:1+).
+export const SAGE = 'var(--brand-sage, #7C846B)'
+export const SAGE_TEXT = 'var(--brand-sage-text, #666C58)'
 
-// Thin gold hairline around the ad's green pill button. Estimated, not yet
-// pixel-sampled from brand/ads/ (wasn't available when this shipped) —
-// re-check against the actual file when it lands.
-export const GOLD_HAIRLINE = 'var(--brand-gold-hairline, rgba(201,162,75,0.65))'
+// Thin gold hairline around the ad's green pill button, averaged from the
+// hairline ring in ad-nails.png. Only that ad's button actually has it —
+// ad-free-month.png and ad-checklist.png's buttons are plain solid green —
+// so this is a real but occasional detail, not on every pill in the ads.
+export const GOLD_HAIRLINE = 'var(--brand-gold-hairline, #C2A06B)'
 
 // Ad headlines: Frank Ruhl Libre 900, bigger and tighter than the normal
 // heading voice. Opt-in (.brand-headline in globals.css) for moment screens
@@ -138,6 +141,51 @@ export const FLOWER_FULL = '/flower-full.png'
 // sites to the sized exports above as they're touched, rather than one
 // mass rename.
 export const FLOWER_WATERMARK = '/flower-watermark.png'
+
+// ---- Wide banner ----
+// Full lockup + slogan + "ניהול · שיווק · מכירות" + domain, on its own cream
+// background (opaque, not transparent - it's a complete header strip, not an
+// overlay). 1568x580, flowers dense on both thirds. Kept for anywhere with
+// real width to give it (desktop, wherever it's embedded unscaled).
+export const BANNER_WIDE = '/banner-wide.png'
+export const BANNER_WIDE_W = 1568
+export const BANNER_WIDE_H = 580
+// Center crop of the above (scripts/crop-banner-header.mjs) - wordmark +
+// slogan only, 1035x580. The phone-width version: at full width on a
+// ~380-400px auth card, the full banner's slogan/domain text shrank past
+// comfortable reading and the side flower clusters doubled up with
+// PhotoFlowerCorners on the same screens. This is THE login/signup/
+// onboarding header.
+export const BANNER_HEADER = '/banner-header.png'
+export const BANNER_HEADER_W = 1035
+export const BANNER_HEADER_H = 580
+
+// ---- Line icons ----
+// Deep green outline + a small pink cosmos attached, cropped from
+// brand/icons-set.png's 3x2 grid (scripts/crop-brand-icons.mjs) with the
+// cream background chroma-keyed to transparent. RASTER, not SVG - fine
+// strokes and a small flower that turn to mush below ~28px, so these are
+// for section headers and empty states ONLY: never the bottom nav, an
+// inline button, or a list row (EMPTY_ICONS' stroked-SVG set stays for all
+// of that). Each one also counts as a flower appearance for the
+// "never more than two per screen" rule.
+//   flower      general empty state, trial banner, success confirmations,
+//               anywhere with no more specific meaning
+//   calendar    calendar tab header, an empty day, the waitlist, the
+//               booking-link screen
+//   microphone  voice commands (screen + empty state), Settings' voice
+//               section
+//   question    help/support: "תקועה?", the help sheet, the FAQ, the
+//               "שאלה אחת" card header + its empty state
+//   heart       reviews, the client club, a returning client's card -
+//               anything about loyalty
+//   play        reels/video, the templates gallery's reel tab
+export const ICON_FLOWER = '/brand-icons/icon-flower.png'
+export const ICON_CALENDAR = '/brand-icons/icon-calendar.png'
+export const ICON_MICROPHONE = '/brand-icons/icon-microphone.png'
+export const ICON_QUESTION = '/brand-icons/icon-question.png'
+export const ICON_HEART = '/brand-icons/icon-heart.png'
+export const ICON_PLAY = '/brand-icons/icon-play.png'
 
 // The page wash used on every branded screen. A true ombré: paper at the top,
 // warming through a pale-petal mid-tone, settling into the pale-petal edge.

@@ -145,25 +145,31 @@
   --brand-grad: linear-gradient(135deg, #183024 0%, #F0CCC6 100%);
 
   /* Rose — "the one word that matters in a heading", and handwriting
-     accents. #AE6054 is the exact ad value: large/bold text only (3.8:1 on
-     cream, AA-large but not AA-body). --brand-highlight-text is the same
-     hue darkened to 4.5:1+ for any place it carries body-sized copy. */
-  --brand-highlight: #AE6054;
-  --brand-highlight-text: #9E564B;
+     accents. #B26557 is pixel-sampled from "פחות דברים לזכור" in
+     brand/ads/ad-checklist.png (round 1 shipped an eyeballed #AE6054 before
+     the ads had landed — close, now corrected to the real value):
+     large/bold text only (3.6:1 on cream, AA-large but not AA-body).
+     --brand-highlight-text is the same hue darkened to 4.5:1+ for any place
+     it carries body-sized copy. */
+  --brand-highlight: #B26557;
+  --brand-highlight-text: #9D5548;
 
-  /* Sage — secondary marks and chips. #787E66 is the exact ad value: large
-     text / icon-scale marks only (3.5:1 on cream). --brand-sage-text is
-     the same hue darkened to 4.7:1 for body-sized copy — this is a
-     DIFFERENT, more saturated tone than --brand-lilac's pale wash above,
-     not a replacement of it. */
-  --brand-sage: #787E66;
-  --brand-sage-text: #656A56;
+  /* Sage — secondary marks and chips. #7C846B is pixel-sampled from the
+     icon-chip circles in brand/ads/ad-checklist.png (round 1's #787E66 was
+     an eyeball estimate, now corrected): large text / icon-scale marks
+     only (3.3:1 on cream). --brand-sage-text is the same hue darkened to
+     4.5:1+ for body-sized copy — this is a DIFFERENT, more saturated tone
+     than --brand-lilac's pale wash above, not a replacement of it. */
+  --brand-sage: #7C846B;
+  --brand-sage-text: #666C58;
 
-  /* Thin gold hairline around the ad's green pill button. Estimated from
-     the ads at low-medium opacity rather than pixel-sampled yet — brand/ads/
-     wasn't available when this shipped; flagged to re-check against the
-     actual file. */
-  --brand-gold-hairline: rgba(201, 162, 75, 0.65);
+  /* Thin gold hairline around the ad's green pill button, averaged from the
+     hairline ring in brand/ads/ad-nails.png (round 1's rgba estimate is
+     now corrected to a sampled, solid value). Note: only ad-nails.png's
+     button actually has this hairline — ad-free-month.png and
+     ad-checklist.png's buttons are plain solid green with no border, so
+     this is a real but occasional detail, not on every pill in the ads. */
+  --brand-gold-hairline: #C2A06B;
 
   /* — Brand typography (aliases; the stacks live in --sans / --display) — */
   --brand-font-display: var(--display);

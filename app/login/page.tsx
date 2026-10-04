@@ -17,7 +17,7 @@ import BrandBackdrop from '../BrandBackdrop'
 import {
   ACCENT, CREAM, SURFACE, MUTED,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING,
-  LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
+  BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, FLOWER_MARK,
 } from '@/lib/brand'
 
 const inputStyle: React.CSSProperties = {
@@ -130,17 +130,23 @@ export default function LoginPage() {
       `}</style>
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 400 }}>
-        {/* Sits fully above the card, NOT overlapping it: the lockup ends in
-            the Hebrew tagline, which a negative margin would crop. */}
+        {/* Sits fully above the card, NOT overlapping it: the banner ends in
+            the slogan/domain line, which a negative margin would crop.
+            Ad-aligned pass: this used to be the bare wordmark; the banner
+            carries the wordmark AND the slogan she asked to be the first
+            thing a new cosmetician reads here, baked into one asset so
+            there is no separate text layer to keep in sync with it. See
+            BANNER_HEADER's comment in lib/brand.ts for why it's the cropped
+            center, not the full banner. */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
-            src={LOGO_FULL}
-            alt="קלמיה — המערכת שמצמיחה את הקליניקה שלך"
-            width={LOGO_FULL_W}
-            height={LOGO_FULL_H}
+            src={BANNER_HEADER}
+            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+            width={BANNER_HEADER_W}
+            height={BANNER_HEADER_H}
             priority
             style={{
-              width: 'min(300px, 84%)', height: 'auto',
+              width: 'min(380px, 96%)', height: 'auto',
               filter: 'drop-shadow(0 10px 22px rgba(48,24,72,0.16))',
             }}
           />

@@ -22,7 +22,7 @@
 // emoji: they render in colour on iOS against a monochrome design, which is the
 // bug this codebase has now hit five times.
 
-import { FLOWER_128 } from "@/lib/brand";
+import { ICON_FLOWER } from "@/lib/brand";
 
 const STROKE = {
   fill: "none",
@@ -94,7 +94,7 @@ export default function EmptyState({
       {!compact && hasMeaningfulIcon && (
         <img
           aria-hidden
-          src={FLOWER_128}
+          src={ICON_FLOWER}
           alt=""
           style={{
             position: "absolute",
@@ -132,7 +132,7 @@ export default function EmptyState({
       ) : (
         <img
           aria-hidden
-          src={FLOWER_128}
+          src={ICON_FLOWER}
           alt=""
           style={{
             position: "relative",
