@@ -42,18 +42,30 @@ const end = src.indexOf('// === CALCULATIONS ===', start);
 ok(start > 0 && end > start, 'found loadAll');
 const loadAll = src.slice(start, end);
 
-const iGetUserCall = loadAll.indexOf('supabase.auth.getUser()');
+const iGetUserCall = loadAll.indexOf('supabase.auth.getSession()');
 const iRpcCall = loadAll.indexOf('supabase.rpc("get_user_tenant_id")');
 const iFirstRead = loadAll.indexOf('supabase.from("appointments")');
 const iAwaitAuth = loadAll.indexOf('await authP');
 const iAwaitRpc = loadAll.indexOf('await rpcP');
 const iTenantsRead = loadAll.indexOf('supabase.from("tenants")');
 
-ok(iGetUserCall > 0 && iRpcCall > 0 && iFirstRead > 0 && iAwaitAuth > 0 && iAwaitRpc > 0 && iTenantsRead > 0, 'loadAll has getUser, the tenant rpc, the reads and the awaits on them');
+ok(iGetUserCall > 0 && iRpcCall > 0 && iFirstRead > 0 && iAwaitAuth > 0 && iAwaitRpc > 0 && iTenantsRead > 0, 'loadAll has getSession, the tenant rpc, the reads and the awaits on them');
 ok(iGetUserCall < iAwaitAuth && iRpcCall < iAwaitAuth && iFirstRead < iAwaitAuth,
-  'getUser, the tenant rpc and the core reads are all STARTED before the first await - that is the whole saving');
+  'getSession, the tenant rpc and the core reads are all STARTED before the first await - that is the whole saving');
 ok(iAwaitAuth < iAwaitRpc, 'the auth verdict is read before the rpc verdict, so a logged-out / offline user still short-circuits first');
 ok(iTenantsRead > iAwaitRpc, 'the tenants read still happens AFTER the tenant id is known (it filters on it)');
+
+// The network getUser() must NOT be on the boot path: it holds supabase-js's
+// auth lock for a full round trip and every REST read queues behind it
+// (measured on production: reads started only after /auth/v1/user returned).
+ok(!loadAll.includes('supabase.auth.getUser()'), 'loadAll does not call the network getUser() - it would serialise every read behind it');
+const vStart = src.indexOf('const verifySession = async () => {');
+ok(vStart > 0 && vStart < start, 'verifySession exists, defined before loadAll');
+const verifySrc = src.slice(vStart, start);
+ok(verifySrc.includes('supabase.auth.getUser()'), 'verifySession does the network check');
+ok(verifySrc.includes('isAuthTransportFailure(error)') && verifySrc.includes('router.replace("/login")'), 'verifySession sends her to /login only on a definite no-user, never on a transport failure');
+ok(src.includes('function isAuthTransportFailure(authErr)') && loadAll.includes('isAuthTransportFailure(authErr)'), 'one shared offline-is-not-logged-out predicate, used by the boot check');
+ok(loadAll.includes('verifySession();'), 'loadAll starts verifySession after the core load');
 
 // The decisions that make the early results trustworthy must still sit
 // between the awaits and the first use of any result.
@@ -78,7 +90,7 @@ for (const t of ['forms', 'expenses', 'waitlist']) {
   ok(deferredSrc.includes(`supabase.from("${t}")`), `loadDeferred reads ${t}`);
 }
 ok(/"error"/.test(deferredSrc) && /Sentry\.captureException/.test(deferredSrc), 'a failed deferred read is recorded as "error" and reported to Sentry, never as an empty list');
-ok(/loadDeferred\(\);\s*\n\s*\} catch \(err\)/.test(loadAll) || /setLoadError\(null\);\s*\n\s*loadDeferred\(\)/.test(loadAll), 'loadAll starts loadDeferred once the core load succeeded (so every refresh refreshes them too)');
+ok(loadAll.indexOf('loadDeferred();') > loadAll.indexOf('setLoadError(null);') && loadAll.indexOf('loadDeferred();') > 0, 'loadAll starts loadDeferred once the core load succeeded (so every refresh refreshes them too)');
 ok(/useState\(\{\s*forms:\s*"loading",\s*expenses:\s*"loading",\s*waitlist:\s*"loading"\s*\}\)/.test(src), 'deferred status starts as "loading", not "ok"');
 
 // ---- every consumer is gated ---------------------------------------------------

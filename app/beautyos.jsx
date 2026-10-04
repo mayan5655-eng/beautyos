@@ -1095,6 +1095,23 @@ const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",
 // MAIN COMPONENT
 // ============================================================
 
+// "Could not reach the auth server" is NOT "logged out". Offline, an auth call
+// comes back with a retryable transport error and no user; treating that as
+// logged-out sent her to /login to fail signing in again - the app telling
+// someone with a valid session that she is not signed in. The app is a PWA
+// (public/sw.js), so the shell genuinely loads with no network.
+function isAuthTransportFailure(authErr) {
+  const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+  return (
+    isOffline ||
+    (!!authErr && (
+      authErr.name === "AuthRetryableFetchError" ||
+      !authErr.status ||
+      /fetch|network|load failed|timeout/i.test(String(authErr.message || ""))
+    ))
+  );
+}
+
 export default function BeautyOS() {
   const router = useRouter();
 
@@ -2366,6 +2383,20 @@ export default function BeautyOS() {
     }
   };
 
+  // The network half of "is she really signed in", moved off the boot's
+  // critical path (see authP in loadAll). Same rule as before: a definite
+  // "no user" sends her to /login; "could not reach the auth server" (offline,
+  // timeout) is NOT logged out and changes nothing - the data on screen
+  // already loaded under her session.
+  const verifySession = async () => {
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (data?.user) return;
+      if (isAuthTransportFailure(error)) return;
+      router.replace("/login");
+    } catch { /* unverifiable is not logged out */ }
+  };
+
   const loadAll = async () => {
     try {
       // Get the logged-in user and their tenant, to load the correct settings row.
@@ -2397,7 +2428,17 @@ export default function BeautyOS() {
       // reads come back empty under RLS and are thrown away by the redirect.
       // supabase-js query builders are lazy thenables - nothing is sent until
       // .then() - so each is wrapped in Promise.resolve to actually start it.
-      const authP = Promise.resolve(supabase.auth.getUser());
+      // getSession(), not getUser(): getSession reads the session already in
+      // the browser (and refreshes it only if it has expired), no round trip.
+      // getUser() is a network call that HOLDS supabase-js's auth lock for its
+      // whole duration, and every REST read waits on that lock for its token -
+      // so awaiting it first put a full round trip (+ preflight) in front of
+      // every read, measured on production. The server already ran getUser for
+      // this very navigation (app/dashboard/layout.tsx redirects to /login
+      // without a valid user), so the network check is not repeated on the
+      // critical path; verifySession() below does it right after the core
+      // load, with the same offline-is-not-logged-out rule.
+      const authP = Promise.resolve(supabase.auth.getSession());
       const rpcP = Promise.resolve(supabase.rpc("get_user_tenant_id"));
       const EARLY_READS = [
         ["appointments",   supabase.from("appointments").select("*")],
@@ -2420,15 +2461,9 @@ export default function BeautyOS() {
       ].map(([name, q]) => [name, Promise.resolve(q)]);
 
       const { data: authData, error: authErr } = await authP;
-      const user = authData?.user || null;
+      const user = authData?.session?.user || null;
       const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
-      const authTransportFailure =
-        isOffline ||
-        (!!authErr && (
-          authErr.name === "AuthRetryableFetchError" ||
-          !authErr.status ||
-          /fetch|network|load failed|timeout/i.test(String(authErr.message || ""))
-        ));
+      const authTransportFailure = isAuthTransportFailure(authErr);
       if (authTransportFailure) {
         console.error("[BeautyOS] loadAll: could not verify session", authErr);
         setLoadError({ tables: [], message: authErr?.message || "", code: isOffline ? "offline" : "auth", offline: true });
@@ -2571,6 +2606,7 @@ export default function BeautyOS() {
       // Core load succeeded and is on screen's way; fetch the three lists no
       // first screen needs. Not awaited: nothing waits on them.
       loadDeferred();
+      verifySession();
     } catch (err) {
       // Anything unexpected is ALSO a failed load, not an empty one. This used
       // to call handleDbError alone, which raises a toast and then lets the
