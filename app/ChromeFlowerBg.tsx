@@ -11,10 +11,11 @@
 // the same style object pasted at every call site.
 
 import { FLOWER_256 } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 
 export default function ChromeFlowerBg() {
   return (
-    <img
+    <BrandImage width={235} height={235}
       aria-hidden
       alt=""
       src={FLOWER_256}

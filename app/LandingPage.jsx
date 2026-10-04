@@ -15,6 +15,7 @@ import {
   BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H,
   ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER,
 } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -166,7 +167,7 @@ export default function LandingPage() {
       {/* ── 8. VOICE ──────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px", textAlign: "center" }}>
         <Reveal>
-          <img alt="" src={ICON_MICROPHONE} className="kl-flower-in" style={{ width: 56, height: 56, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
+          <BrandImage width={56} height={56} alt="" src={ICON_MICROPHONE} className="kl-flower-in" style={{ width: 56, height: 56, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
         </Reveal>
         <Reveal delay={60} as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
           פשוט תגידי לה
@@ -206,7 +207,7 @@ export default function LandingPage() {
       {/* ── 10. FINAL CTA ─────────────────────────────────────────────────── */}
       <section style={{ textAlign: "center", padding: "60px 20px 70px" }}>
         <Reveal>
-          <img alt="" src={ICON_FLOWER} className="kl-flower-in" style={{ width: 48, height: 48, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
+          <BrandImage width={48} height={48} alt="" src={ICON_FLOWER} className="kl-flower-in" style={{ width: 48, height: 48, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
         </Reveal>
         <Reveal delay={60} as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
           חודש ראשון חינם

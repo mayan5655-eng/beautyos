@@ -33,7 +33,7 @@ import path from 'node:path';
 // same asset /login and /signup use as their header (BANNER_HEADER in
 // lib/brand.ts - this script can't import that ESM TS module directly, so
 // the path/ratio are kept in sync by hand).
-const LOGO = 'public/banner-header.png';   // 1035x580
+const LOGO = 'public/banner-header.jpg';   // 800x448
 const OUT_DIR = 'public/splash';
 /** Matches manifest.json background_color, so the launch image and the
  *  install's background are the same colour and there is no flash between. */

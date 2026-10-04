@@ -96,8 +96,8 @@ export const FLORAL_LILAC = '#DCE4D5'
 // "the hero lockup" from "the nav lockup" in the code is still worth it even
 // though the asset itself is shared.
 export const LOGO_FULL = '/kalmea-wordmark.png'
-export const LOGO_FULL_W = 1470
-export const LOGO_FULL_H = 430
+export const LOGO_FULL_W = 600
+export const LOGO_FULL_H = 176
 export const LOGO_COMPACT = '/kalmea-wordmark.png'
 // Just the "kalmea" lettering, cropped from LOGO_COMPACT (sharp .extract at
 // x=505, where the flower provably ends - checked pixel by pixel so the crop
@@ -107,8 +107,8 @@ export const LOGO_COMPACT = '/kalmea-wordmark.png'
 // the full-width lockup either, which doesn't fit next to the menu button,
 // search box and badges below 680px.
 export const LOGO_TEXT = '/kalmea-wordmark-text.png'
-export const LOGO_TEXT_W = 965
-export const LOGO_TEXT_H = 430
+export const LOGO_TEXT_W = 480
+export const LOGO_TEXT_H = 214
 
 // ---- Flower marks ----
 // Solid silhouette, one flat color, transparent ground: small decorative
@@ -136,32 +136,32 @@ export const FLOWER_64 = '/flower-64.png'
 export const FLOWER_128 = '/flower-128.png'
 export const FLOWER_256 = '/flower-256.png'
 export const FLOWER_FULL = '/flower-full.png'
-// Same image as FLOWER_256 as of this writing, kept as its own export
+// Same image as FLOWER_256 (the 1.3MB 1235px original was drawn at 140-220px), kept as its own export
 // because it's what Stage 3 already shipped under this name - swap call
 // sites to the sized exports above as they're touched, rather than one
 // mass rename.
-export const FLOWER_WATERMARK = '/flower-watermark.png'
+export const FLOWER_WATERMARK = '/flower-256.png'
 
 // ---- Wide banner ----
 // Full lockup + slogan + "ניהול · שיווק · מכירות" + domain, on its own cream
 // background (opaque, not transparent - it's a complete header strip, not an
-// overlay). 1568x580, flowers dense on both thirds. Kept for anywhere with
+// overlay). 1120x414 (2026-10-04: downsampled from 1568x580, drawn at <=280px), flowers dense on both thirds. Kept for anywhere with
 // real width to give it (desktop, wherever it's embedded unscaled).
-export const BANNER_WIDE = '/banner-wide.png'
-export const BANNER_WIDE_W = 1568
-export const BANNER_WIDE_H = 580
+export const BANNER_WIDE = '/banner-wide.jpg'
+export const BANNER_WIDE_W = 1120
+export const BANNER_WIDE_H = 414
 // Center crop of the above (scripts/crop-banner-header.mjs) - wordmark +
-// slogan only, 1035x580. The phone-width version: at full width on a
+// slogan only, 800x448 (was 1035x580, same crop). The phone-width version: at full width on a
 // ~380-400px auth card, the full banner's slogan/domain text shrank past
 // comfortable reading and the side flower clusters doubled up with
 // PhotoFlowerCorners on the same screens. This is THE login/signup/
 // onboarding header.
-export const BANNER_HEADER = '/banner-header.png'
-export const BANNER_HEADER_W = 1035
-export const BANNER_HEADER_H = 580
+export const BANNER_HEADER = '/banner-header.jpg'
+export const BANNER_HEADER_W = 800
+export const BANNER_HEADER_H = 448
 
 // ---- Line icons ----
-// Deep green outline + a small pink cosmos attached, 512x512 transparent
+// Deep green outline + a small pink cosmos attached, 160x160 transparent
 // PNGs (brand/icons/, copied to public/brand-icons/). The first five
 // (flower/calendar/microphone/question/heart/play) shipped once already as
 // crops from a 3x2 grid (brand/icons-set.png, scripts/crop-brand-icons.mjs)

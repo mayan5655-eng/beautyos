@@ -40,23 +40,30 @@ import { APP_URL } from "@/lib/appUrl";
 const cormorant = localFont({
   src: "../fonts/CormorantGaramond.woff2",
   variable: "--font-cormorant",
-  weight: "400 700",
+  weight: "500 700",
   display: "swap",
 });
 
 // Legacy Hebrew sans — kept so any lingering literal references keep resolving.
+// preload off: privacy/terms/the design studio name it, the dashboard does not,
+// and a preloaded font is fetched on every page whether the page uses it or not.
+//
+// All five files here were cut down by scripts/subset-fonts.mjs (2026-10-04):
+// Latin-only for Inter/Cormorant, Hebrew+Latin for the rest, and the weight
+// ranges below are the ranges the CSS can actually ask for.
 const heebo = localFont({
   src: "../fonts/Heebo.woff2",
   variable: "--font-heebo",
-  weight: "300 700",
+  weight: "400 700",
   display: "swap",
+  preload: false,
 });
 
 // Premium Latin UI face (numerals, prices, labels, Latin copy).
 const inter = localFont({
   src: "../fonts/Inter.woff2",
   variable: "--font-inter",
-  weight: "300 800",
+  weight: "400 800",
   display: "swap",
 });
 
@@ -64,7 +71,7 @@ const inter = localFont({
 const assistant = localFont({
   src: "../fonts/Assistant.woff2",
   variable: "--font-assistant",
-  weight: "300 800",
+  weight: "400 800",
   display: "swap",
 });
 
@@ -72,7 +79,7 @@ const assistant = localFont({
 const frankRuhl = localFont({
   src: "../fonts/FrankRuhlLibre.woff2",
   variable: "--font-frank",
-  weight: "400 900",
+  weight: "500 900",
   display: "swap",
 });
 
@@ -120,13 +127,13 @@ export const metadata: Metadata = {
     url: APP_URL,
     locale: "he_IL",
     siteName: "Kalmea",
-    images: [{ url: "/og-1200x630.png", width: 1200, height: 630, alt: "Kalmea" }],
+    images: [{ url: "/og-1200x630.jpg", width: 1200, height: 630, alt: "Kalmea" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Kalmea — Beauty Business OS",
     description: "Beauty Business OS",
-    images: ["/og-1200x630.png"],
+    images: ["/og-1200x630.jpg"],
   },
   appleWebApp: {
     capable: true,

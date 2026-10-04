@@ -26,6 +26,7 @@
 import { useEffect, useState } from 'react';
 import * as Sentry from '@sentry/nextjs';
 import { FLOWER_WATERMARK } from '@/lib/brand';
+import BrandImage from "@/app/BrandImage";
 
 export type ErrorScreenProps = {
   error: Error & { digest?: string };
@@ -109,7 +110,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
         {/* A faint flower, not a second icon: the warning circle below still
             carries the actual "something broke" meaning, this is just enough
             Kalmea in the corner that the card doesn't read as generic. */}
-        <img
+        <BrandImage width={140} height={140}
           aria-hidden
           src={FLOWER_WATERMARK}
           alt=""

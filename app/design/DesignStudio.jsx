@@ -31,6 +31,7 @@ import { businessFieldsOf } from '@/lib/businessFields';
 import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
 import { designIdeaSuggestion } from '@/lib/design/suggestions';
 import { ICON_PLAY, ICON_FRAME } from '@/lib/brand';
+import BrandImage from "@/app/BrandImage";
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -316,7 +317,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
 
       {view === 'templates' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <img aria-hidden alt="" src={ICON_FRAME} style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />
+          <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_FRAME} style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />
           <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>תבניות מוכנות, כבר בצבעים שלך</p>
         </div>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
@@ -328,7 +329,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         {(!group || group === REEL_GROUP) && (
           <div style={{ marginBottom: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <img aria-hidden alt="" src={ICON_PLAY} style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} />
+              <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_PLAY} style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} />
               <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', margin: 0, display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels(null, null, fields).length}</span>
               </p>

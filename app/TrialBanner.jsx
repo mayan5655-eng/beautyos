@@ -21,6 +21,7 @@
 
 import { supportWhatsAppUrl } from "@/lib/support";
 import { ICON_FLOWER } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 // All Hebrew comes from lib/planCopy so this banner and the read-only notice on
 // the standalone dashboard pages can never drift apart.
 import {
@@ -111,7 +112,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
       <div style={{ flex: 1, minWidth: 210, display: "flex", gap: 12, alignItems: "flex-start" }}>
         {/* Only on the urgent/blocked card, which has real room for it - the
             gentle one-line notice above stays as bare as it already was. */}
-        <img aria-hidden alt="" src={ICON_FLOWER} style={{ width: 48, height: 48, objectFit: "contain", flexShrink: 0 }} />
+        <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_FLOWER} style={{ width: 48, height: 48, objectFit: "contain", flexShrink: 0 }} />
         <div>
           <p
             className="serif"

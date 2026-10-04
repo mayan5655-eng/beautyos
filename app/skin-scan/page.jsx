@@ -7,6 +7,7 @@ import { fetchPublicBranding } from "@/lib/branding";
 import FloralCorners from "../FloralCorners";
 import { accentStyle } from "@/lib/theme";
 import { FLOWER_MARK } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -240,11 +241,10 @@ export default function SkinScanPage() {
   );
 
   return (
-    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "'Assistant','Heebo',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9) 0%,var(--brand-cream, #FDFBF9) 55%,var(--brand-cream, #FDFBF9) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant),'Assistant',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9) 0%,var(--brand-cream, #FDFBF9) 55%,var(--brand-cream, #FDFBF9) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700&family=Frank+Ruhl+Libre:wght@500;600;700&display=swap');
         * { box-sizing: border-box; }
-        .serif { font-family: 'Frank Ruhl Libre','Assistant',serif; }
+        .serif { font-family: var(--font-frank),'Frank Ruhl Libre',var(--font-assistant),serif; }
         .ss-card { animation: ssIn 0.55s cubic-bezier(.2,.7,.3,1) both; }
         @keyframes ssIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         .ss-btn { transition: transform 0.15s, filter 0.2s; cursor: pointer; border: none; font-family: inherit; }
@@ -528,7 +528,7 @@ export default function SkinScanPage() {
       </div>
 
       <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-        מופעל ע"י קלמיה <img src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
+        מופעל ע"י קלמיה <BrandImage src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
       </div>
     </div>
   );

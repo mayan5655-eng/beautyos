@@ -23,6 +23,7 @@
 // bug this codebase has now hit five times.
 
 import { ICON_FLOWER, ICON_CALENDAR } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 
 // Named icons that have a large-raster counterpart in the ad-aligned icon
 // set, used in place of the small stroked-SVG circle badge below when
@@ -100,7 +101,7 @@ export default function EmptyState({
           play (it already carries its own small cosmos) - a card never
           carries two flowers at once. */}
       {!compact && hasMeaningfulIcon && !LARGE_ICON_SRC[icon] && (
-        <img
+        <BrandImage width={110} height={110}
           aria-hidden
           src={ICON_FLOWER}
           alt=""
@@ -145,10 +146,11 @@ export default function EmptyState({
           </svg>
         </div>
       ) : (
-        <img
+        <BrandImage
           aria-hidden
           src={ICON_FLOWER}
           alt=""
+          width={isMoment ? 128 : 112} height={isMoment ? 128 : 112}
           style={{
             position: "relative",
             width: compact ? 56 : isMoment ? 128 : 112,

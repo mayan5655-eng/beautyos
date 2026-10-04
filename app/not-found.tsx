@@ -10,6 +10,7 @@
 // same visual language as ErrorScreen.
 
 import { FLOWER_WATERMARK, LOGO_COMPACT } from '@/lib/brand';
+import BrandImage from "@/app/BrandImage";
 
 export default function NotFound() {
   return (
@@ -40,7 +41,7 @@ export default function NotFound() {
           overflow: 'hidden',
         }}
       >
-        <img
+        <BrandImage width={140} height={140}
           aria-hidden
           src={FLOWER_WATERMARK}
           alt=""
@@ -55,7 +56,7 @@ export default function NotFound() {
             pointerEvents: 'none',
           }}
         />
-        <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{ position: 'relative', width: 150, height: 'auto', margin: '0 auto 18px' }} />
+        <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ position: 'relative', width: 150, height: 'auto', margin: '0 auto 18px' }} />
         <h1
           style={{
             fontFamily: "var(--display, 'Frank Ruhl Libre', Georgia, serif)",

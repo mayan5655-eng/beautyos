@@ -24,6 +24,7 @@ import {
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
   LOGO_FULL, LOGO_FULL_W, LOGO_FULL_H, FLOWER_MARK,
 } from '@/lib/brand'
+import BrandImage from "@/app/BrandImage";
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '13px 15px', marginBottom: 12, border: `1px solid ${ACCENT_LINE_2}`,
@@ -251,7 +252,7 @@ export default function ResetPasswordPage() {
           </p>
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
-            <img src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />
+            <BrandImage src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>

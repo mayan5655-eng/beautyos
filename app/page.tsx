@@ -28,7 +28,7 @@ export const metadata = {
   openGraph: {
     title: "קלמיה — עסק פורח, חיים עם יותר שקט",
     description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד. חודש ראשון חינם.",
-    images: [{ url: "/og-1200x630.png", width: 1200, height: 630, alt: "קלמיה" }],
+    images: [{ url: "/og-1200x630.jpg", width: 1200, height: 630, alt: "קלמיה" }],
   },
 };
 

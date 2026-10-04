@@ -17,6 +17,7 @@
 
 import Icon from "../Icon";
 import { ICON_QUESTION } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 import Reveal from "./Reveal";
 
 export default function PhoneMock() {
@@ -71,7 +72,7 @@ export default function PhoneMock() {
               thought of it. Same copy voice and colour as the real card. */}
           <Reveal delay={650} style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid rgba(233,169,161,.5)", padding: "10px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-              <img alt="" src={ICON_QUESTION} style={{ width: 20, height: 20, objectFit: "contain" }} />
+              <BrandImage width={20} height={20} alt="" src={ICON_QUESTION} style={{ width: 20, height: 20, objectFit: "contain" }} />
               <span style={{ fontFamily: "var(--font-hand), cursive", fontSize: 13, color: "#C07A72" }}>שאלה אחת</span>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.5 }}>התפנה תור ב-14:00 — להציע אותו בוואטסאפ ללקוחות מתאימות?</p>

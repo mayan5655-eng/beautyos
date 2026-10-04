@@ -5,6 +5,17 @@ import { securityHeaders } from "./lib/securityHeaders";
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@supabase/ssr', '@supabase/supabase-js'],
 
+  // Brand marks are served by app/BrandImage.tsx through /_next/image as WebP
+  // at the width they are drawn at. 85 is the one non-default quality it uses
+  // (fine icon strokes); Next 16 rejects any quality not listed here. The
+  // files are unhashed and rarely change, so cache the optimized output for 31
+  // days instead of the 4-hour default - re-requesting a mark on every visit
+  // is exactly what made first load slow.
+  images: {
+    qualities: [75, 85],
+    minimumCacheTTL: 2678400,
+  },
+
   // Every response, pages and API routes alike. Built in lib/securityHeaders.ts
   // so the policy is one readable, testable list rather than a string here.
   // The development flag loosens exactly two things (eval for React Refresh,

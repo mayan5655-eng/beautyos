@@ -9,6 +9,7 @@ import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { accentStyle } from "@/lib/theme";
 import { FLOWER_MARK, FLOWER_WATERMARK } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 
 type Post = {
   id: string;
@@ -81,7 +82,7 @@ export default function CommunityPage() {
 
         {!loading && !error && posts.length === 0 && (
           <div style={{ position: "relative", textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", overflow: "hidden" }}>
-            <img aria-hidden src={FLOWER_WATERMARK} alt="" style={{ position: "absolute", top: "50%", left: "50%", width: 220, height: 220, objectFit: "contain", transform: "translate(-50%, -50%)", opacity: 0.1, pointerEvents: "none" }} />
+            <BrandImage width={220} height={220} aria-hidden src={FLOWER_WATERMARK} alt="" style={{ position: "absolute", top: "50%", left: "50%", width: 220, height: 220, objectFit: "contain", transform: "translate(-50%, -50%)", opacity: 0.1, pointerEvents: "none" }} />
             <p style={{ position: "relative", fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים.</p>
           </div>
         )}
@@ -118,7 +119,7 @@ export default function CommunityPage() {
         </div>
 
         <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 30, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          Kalmea <img src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
+          Kalmea <BrandImage src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
         </p>
       </div>
     </div>

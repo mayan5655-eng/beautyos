@@ -1,6 +1,7 @@
 'use client';
 
 import { FLOWER_64 } from '@/lib/brand';
+import BrandImage from '@/app/BrandImage';
 
 // app/Spinner.tsx
 //
@@ -21,7 +22,7 @@ export default function Spinner({ label, inline = false, size }: { label?: strin
   const px = size ?? (inline ? 14 : 20);
   const ring = (
     <span role="status" aria-live="polite" aria-label={label || 'טוענת'} style={{ display: 'inline-flex', width: px, height: px }}>
-      <img aria-hidden alt="" src={FLOWER_64} className="spinner-flower" style={{ width: px, height: px, objectFit: 'contain' }} />
+      <BrandImage aria-hidden alt="" src={FLOWER_64} width={px} height={px} className="spinner-flower" style={{ width: px, height: px, objectFit: 'contain' }} />
     </span>
   );
   if (inline) {

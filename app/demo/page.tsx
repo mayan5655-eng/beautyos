@@ -3,6 +3,7 @@
 // app/demo/[field]/route.ts, which mints the real session.
 
 import { LOGO_COMPACT } from '@/lib/brand';
+import BrandImage from '@/app/BrandImage';
 
 export const metadata = {
   title: 'נסי את קלמיה - דמו',
@@ -19,7 +20,7 @@ export default function DemoChooserPage() {
         background: 'var(--brand-cream, #FDFBF9)',
       }}
     >
-      <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{ width: 150, height: 'auto' }} />
+      <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto' }} />
       <h1 style={{ fontSize: 30, fontWeight: 600, color: 'var(--ink, #2A2233)', margin: 0 }}>
         רוצה לראות איך זה עובד?
       </h1>

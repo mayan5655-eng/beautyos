@@ -11,6 +11,11 @@
 "use client";
 
 import { FLOWER_FULL } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
+
+// Mirrors the clamp() on `shared` below so the browser picks a candidate for
+// the width it is drawn at, not for the 260 declared as intrinsic.
+const SIZES = "clamp(140px, 34vw, 260px)";
 
 export default function PhotoFlowerCorners({
   fixed = false,
@@ -43,9 +48,10 @@ export default function PhotoFlowerCorners({
         pointerEvents: "none",
       }}
     >
-      <img
+      <BrandImage
         alt=""
         src={FLOWER_FULL}
+        width={260} height={260} sizes={SIZES}
         style={{
           ...shared,
           top: "-9%",
@@ -53,9 +59,10 @@ export default function PhotoFlowerCorners({
           transform: "rotate(-8deg)",
         }}
       />
-      <img
+      <BrandImage
         alt=""
         src={FLOWER_FULL}
+        width={260} height={260} sizes={SIZES}
         style={{
           ...shared,
           bottom: "-9%",

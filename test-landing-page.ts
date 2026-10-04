@@ -35,7 +35,7 @@ ok(/return <LandingPage/.test(pageSrc), 'a logged-out visitor gets the landing p
 ok(!/router\.push\(["']\/login["']\)|router\.replace\(["']\/login["']\)/.test(pageSrc),
   'no client-side redirect to /login left in the root route itself');
 ok(/export const metadata/.test(pageSrc), 'has real metadata (title/description/OG), not inherited silence');
-ok(/og-1200x630\.png/.test(pageSrc), 'OG image is set');
+ok(/og-1200x630\.jpg/.test(pageSrc), 'OG image is set');
 
 // ── Copy rules ────────────────────────────────────────────────────────────
 // "פקידת קבלה" (receptionist) in the cost-comparison table is a different
