@@ -28,6 +28,7 @@ import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
 import Spinner from "./Spinner";
+import DeferredGate from "./DeferredGate";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
@@ -1119,6 +1120,12 @@ export default function BeautyOS() {
   const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
   const [waitlist,     setWaitlist]     = useState([]);
+  // forms / expenses / waitlist are NOT read at boot (see loadDeferred): the
+  // dashboard does not draw them, and each only matters inside one tab or one
+  // client card. Until they arrive their lists are [] - which must never be
+  // shown as "none" - so every screen that reads one is gated on its status
+  // here ("loading" | "ok" | "error"), via <DeferredGate>.
+  const [deferred, setDeferred] = useState({ forms: "loading", expenses: "loading", waitlist: "loading" });
   // Re-render once a minute so the clock-driven cards on the dashboard (the next
   // client, the end-of-day list) appear and change on their own.
   const [, setMinuteTick] = useState(0);
@@ -2327,6 +2334,38 @@ export default function BeautyOS() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [advisorMessages, advisorSending]);
 
+  // The three reads the dashboard does not need. Started after the core load
+  // succeeds (and again on every reload, since loadAll calls it), so they ride
+  // behind first render instead of inside it. A failed read is "error", never
+  // an empty list - same rule as the core reads, applied per screen.
+  const loadDeferred = async () => {
+    try {
+      const [f, ex, wl] = await Promise.all([
+        Promise.resolve(supabase.from("forms").select("*")),
+        Promise.resolve(supabase.from("expenses").select("*")),
+        Promise.resolve(supabase.from("waitlist").select("*")),
+      ]);
+      const take = (name, res, set) => {
+        if (res?.error) {
+          console.error(`[BeautyOS] loadDeferred: ${name} failed`, res.error);
+          try { Sentry.captureException(new Error(`loadDeferred ${name} — ${res.error.message || "unknown"}`)); } catch {}
+          return "error";
+        }
+        set(res?.data || []);
+        return "ok";
+      };
+      setDeferred({
+        forms: take("forms", f, setForms),
+        expenses: take("expenses", ex, setExpenses),
+        waitlist: take("waitlist", wl, setWaitlist),
+      });
+    } catch (err) {
+      console.error("[BeautyOS] loadDeferred threw:", err);
+      try { Sentry.captureException(err); } catch {}
+      setDeferred({ forms: "error", expenses: "error", waitlist: "error" });
+    }
+  };
+
   const loadAll = async () => {
     try {
       // Get the logged-in user and their tenant, to load the correct settings row.
@@ -2341,7 +2380,46 @@ export default function BeautyOS() {
       // the same no-data/no-answer conflation as everywhere else, one step
       // earlier in the same function. The app is a PWA (public/sw.js), so the
       // shell genuinely does load with no network and this path is reachable.
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      //
+      // Everything below that does not depend on the ANSWER to "who is she" is
+      // started right here, before the first await: the auth check, the tenant
+      // lookup and the ten core reads all leave together. They used to run as
+      // three dependent stages (auth, then rpc, then reads), each a full round
+      // trip plus a CORS preflight - ~1.85s of a throttled-mobile cold load.
+      // The reads carry no tenant filter of their own (RLS scopes them), so
+      // they never needed the tenant id; only the tenants read does, and that
+      // one still waits for it below.
+      //
+      // Starting a read early does not make its result trustworthy early: not
+      // one of them is looked at until the same checks as before have passed -
+      // transport failure, logged out, rpc error, failed core read, in that
+      // order (test-load-chain.ts pins it). For a logged-out visitor the
+      // reads come back empty under RLS and are thrown away by the redirect.
+      // supabase-js query builders are lazy thenables - nothing is sent until
+      // .then() - so each is wrapped in Promise.resolve to actually start it.
+      const authP = Promise.resolve(supabase.auth.getUser());
+      const rpcP = Promise.resolve(supabase.rpc("get_user_tenant_id"));
+      const EARLY_READS = [
+        ["appointments",   supabase.from("appointments").select("*")],
+        ["clients",        supabase.from("clients").select("*")],
+        ["leads",          supabase.from("leads").select("*")],
+        ["service_prices", supabase.from("service_prices").select("*")],
+        ["settings",       supabase.from("settings").select("*")],
+        ["receipts",       supabase.from("receipts").select("*")],
+        // Not core: the table arrives with add_till_and_calendar_small_things.sql,
+        // applied by hand, and a missing table must not stop the boot. Until it
+        // exists no receipt can be voided, which the void button says.
+        ["receipt_voids",  supabase.from("receipt_voids").select("*")],
+        ["packages",       supabase.from("packages").select("*")],
+        // Manual WhatsApp queue: not core, same reasoning as receipt_voids -
+        // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
+        // newest-first: a queue is something she works through, not an
+        // archive, and this card groups/caps display further on its own.
+        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*").eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
+        ["owner_notifs",     supabase.from("owner_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(50)],
+      ].map(([name, q]) => [name, Promise.resolve(q)]);
+
+      const { data: authData, error: authErr } = await authP;
       const user = authData?.user || null;
       const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
       const authTransportFailure =
@@ -2365,7 +2443,7 @@ export default function BeautyOS() {
       // answer ("this user belongs to no tenant"); an error means we do not
       // know, and carrying on would pick a settings row by fallback and show
       // her a dashboard assembled from a guess.
-      const { data: rpcTenant, error: rpcErr } = await supabase.rpc("get_user_tenant_id");
+      const { data: rpcTenant, error: rpcErr } = await rpcP;
       if (rpcErr) {
         console.error("[BeautyOS] loadAll: get_user_tenant_id failed", rpcErr);
         try { Sentry.captureException(new Error(`loadAll: get_user_tenant_id — ${rpcErr.message}`)); } catch {}
@@ -2375,40 +2453,23 @@ export default function BeautyOS() {
       const myTenantId = rpcTenant || null;
       // Every read is NAMED, so a failure can say which one failed instead of
       // vanishing. See the CORE_READS check below for why that matters.
+      //
+      // The tenants read is the one that needs myTenantId, so it is the one
+      // that goes second - one short stage, not three.
+      // Selects the whole row deliberately: the plan-state columns are added
+      // by trial-state.sql, which is run by hand against Supabase, so naming
+      // them explicitly would make this query fail outright on any
+      // environment where that migration has not been run yet. The row is one
+      // row on a tiny table, and RLS already scopes it to her own tenant.
       const READS = [
-        ["appointments",   supabase.from("appointments").select("*")],
-        ["clients",        supabase.from("clients").select("*")],
-        ["forms",          supabase.from("forms").select("*")],
-        ["leads",          supabase.from("leads").select("*")],
-        ["service_prices", supabase.from("service_prices").select("*")],
-        ["settings",       supabase.from("settings").select("*")],
-        ["receipts",       supabase.from("receipts").select("*")],
-        // Not core: the table arrives with add_till_and_calendar_small_things.sql,
-        // applied by hand, and a missing table must not stop the boot. Until it
-        // exists no receipt can be voided, which the void button says.
-        ["receipt_voids",  supabase.from("receipt_voids").select("*")],
-        ["packages",       supabase.from("packages").select("*")],
-        ["waitlist",       supabase.from("waitlist").select("*")],
-        // Business expenses (for input-VAT in tax reports). RLS-scoped to tenant.
-        ["expenses",       supabase.from("expenses").select("*")],
+        ...EARLY_READS,
         // Feature tier + trial/subscription state for this tenant.
-        // Selects the whole row deliberately: the plan-state columns are added
-        // by trial-state.sql, which is run by hand against Supabase, so naming
-        // them explicitly would make this query fail outright on any
-        // environment where that migration has not been run yet. The row is one
-        // row on a tiny table, and RLS already scopes it to her own tenant.
-        ["tenants",        supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle()],
-        // Manual WhatsApp queue: not core, same reasoning as receipt_voids -
-        // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
-        // newest-first: a queue is something she works through, not an
-        // archive, and this card groups/caps display further on its own.
-        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*").eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
-        ["owner_notifs",     supabase.from("owner_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(50)],
+        ["tenants", Promise.resolve(supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle())],
       ];
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
       READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
-      const [a,c,f,l,sv,st,r,rv,pk,wl,ex,tn,wap,onf] = settled;
+      const { appointments: a, clients: c, leads: l, service_prices: sv, settings: st, receipts: r, receipt_voids: rv, packages: pk, tenants: tn, whatsapp_pending: wap, owner_notifs: onf } = res;
 
       // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
       // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
@@ -2454,7 +2515,6 @@ export default function BeautyOS() {
       // is a real answer and can be trusted.
       setAppointments(a.data || []);
       setClients(c.data || []);
-      setForms(f.data || []);
       setLeads(l.data || []);
       setServices(sv.data || []);
       // Zero settings rows now means SHE IS GENUINELY NEW, not "the settings
@@ -2506,10 +2566,11 @@ export default function BeautyOS() {
       setWhatsappPending(wap?.error ? [] : (wap?.data || []));
       if (onf?.error) console.warn("[BeautyOS] owner_notifications not readable yet:", onf.error.code || "", onf.error.message || "");
       setOwnerNotifs(onf?.error ? [] : (onf?.data || []));
-      setExpenses(ex?.data || []);
       setPackages(pk.data || []);
-      setWaitlist(wl.data || []);
       setLoadError(null);
+      // Core load succeeded and is on screen's way; fetch the three lists no
+      // first screen needs. Not awaited: nothing waits on them.
+      loadDeferred();
     } catch (err) {
       // Anything unexpected is ALSO a failed load, not an empty one. This used
       // to call handleDbError alone, which raises a toast and then lets the
@@ -9677,6 +9738,9 @@ ${c.claimUrl}`)}`;
 
           {/* TAX REPORTS */}
           {activeTab==="tax"&&(()=>{
+            // expenses arrive after first render (loadDeferred); zero expenses
+            // and not-loaded-yet must not look the same on a tax screen.
+            if (deferred.expenses !== "ok") return <div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.expenses} what="את ההוצאות" onRetry={loadDeferred}/></div>;
             const status = settings.business_tax_status || "exempt";
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
@@ -10071,6 +10135,7 @@ ${c.claimUrl}`)}`;
  </div>
 
  <div className="glass-card" style={{padding:18}}>
+ {deferred.waitlist!=="ok"?<DeferredGate status={deferred.waitlist} what="את רשימת ההמתנה" onRetry={loadDeferred}/>:(<>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_CALENDAR} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
@@ -10088,6 +10153,7 @@ ${c.claimUrl}`)}`;
                     {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:"var(--t-sm)"}}>✆</a>}
  </div>
                 ))}
+ </>)}
  </div>
  </div>
  </>)}
@@ -12131,7 +12197,7 @@ ${c.claimUrl}`)}`;
                 })()}
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים (${cForms.length})`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
+                  {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים${deferred.forms==="ok"?` (${cForms.length})`:""}`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
  <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
@@ -12214,7 +12280,8 @@ ${c.claimUrl}`)}`;
  </div>
                     ))
                   )}
-                  {clientTab==="forms"&&(
+                  {clientTab==="forms"&&deferred.forms!=="ok"&&<DeferredGate status={deferred.forms} what="את הטפסים" onRetry={loadDeferred}/>}
+                  {clientTab==="forms"&&deferred.forms==="ok"&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>שלחי טופס לחתימה דיגיטלית</p>
  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>

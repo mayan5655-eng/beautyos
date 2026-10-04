@@ -5,6 +5,7 @@ import PWARegister from "./pwa-register";
 import IOSInstallBanner from "./ios-install-banner";
 import InstallPromptBanner from "./install-prompt-banner";
 import { APP_URL } from "@/lib/appUrl";
+import { preconnect } from "react-dom";
 
 // ── Self-hosted, not next/font/google ───────────────────────────────────────
 //
@@ -269,6 +270,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Open the socket to Supabase (DNS + TCP + TLS, ~4 round trips) while the JS
+  // is still downloading, so the first data request does not pay for it. On
+  // throttled mobile that setup sat at the head of a 1.85s data chain.
+  // crossOrigin: supabase-js reads are CORS fetches; a non-CORS preconnect
+  // opens a socket the browser will not reuse for them.
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    preconnect(process.env.NEXT_PUBLIC_SUPABASE_URL, { crossOrigin: "anonymous" });
+  }
   return (
     <html
       lang="he"
