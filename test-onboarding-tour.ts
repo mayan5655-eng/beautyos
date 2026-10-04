@@ -44,7 +44,7 @@ ok(JSON.stringify(idMatches) === JSON.stringify(expectedOrder),
 
 // Every step has a real nav-button or data-tour selector, a real sentence
 // (not a placeholder), and an icon from the brand-icons set.
-const stepObjects = [...stepsBlock.matchAll(/\{[^{}]*id:"[a-z-]+"[^{}]*\}/gs)];
+const stepObjects = [...stepsBlock.matchAll(/\{[^{}]*id:"[a-z-]+"[^{}]*\}/g)];
 ok(stepObjects.length >= 6, 'each step object is parseable on its own');
 
 // The last step ends on an action, not a congratulation.
