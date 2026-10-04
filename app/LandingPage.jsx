@@ -89,6 +89,8 @@ export default function LandingPage() {
           width={BANNER_WIDE_W}
           height={BANNER_WIDE_H}
           priority
+          fetchPriority="high"
+          sizes="(max-width: 1100px) 100vw, 1100px"
           style={{ width: "100%", height: "auto", borderRadius: "var(--r-lg)" }}
         />
       </header>
