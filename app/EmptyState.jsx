@@ -22,7 +22,13 @@
 // emoji: they render in colour on iOS against a monochrome design, which is the
 // bug this codebase has now hit five times.
 
-import { ICON_FLOWER } from "@/lib/brand";
+import { ICON_FLOWER, ICON_CALENDAR } from "@/lib/brand";
+
+// Named icons that have a large-raster counterpart in the ad-aligned icon
+// set, used in place of the small stroked-SVG circle badge below when
+// !compact (a real empty state, room to notice it) - not every EMPTY_ICONS
+// key has one yet, only the ones the set actually covers.
+const LARGE_ICON_SRC = { calendar: ICON_CALENDAR };
 
 const STROKE = {
   fill: "none",
@@ -89,9 +95,11 @@ export default function EmptyState({
           drawer vs. empty leads list), this is just enough Kalmea presence
           that "nothing here yet" doesn't read as generic. Skipped in
           compact mode (too small a card for a watermark to read as anything
-          but clutter) and skipped whenever the flower itself is already the
-          icon below, so a card never carries two flowers at once. */}
-      {!compact && hasMeaningfulIcon && (
+          but clutter), skipped whenever the flower itself is already the
+          icon below, AND skipped when the large-icon set's own glyph is in
+          play (it already carries its own small cosmos) - a card never
+          carries two flowers at once. */}
+      {!compact && hasMeaningfulIcon && !LARGE_ICON_SRC[icon] && (
         <img
           aria-hidden
           src={ICON_FLOWER}
@@ -109,7 +117,14 @@ export default function EmptyState({
           }}
         />
       )}
-      {hasMeaningfulIcon ? (
+      {hasMeaningfulIcon && !compact && LARGE_ICON_SRC[icon] ? (
+        <img
+          aria-hidden
+          alt=""
+          src={LARGE_ICON_SRC[icon]}
+          style={{ position: "relative", width: 72, height: 72, margin: "0 auto 12px", display: "block" }}
+        />
+      ) : hasMeaningfulIcon ? (
         <div
           aria-hidden="true"
           style={{

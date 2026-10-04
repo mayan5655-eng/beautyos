@@ -30,6 +30,7 @@ import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
 import { designIdeaSuggestion } from '@/lib/design/suggestions';
+import { ICON_PLAY } from '@/lib/brand';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -323,9 +324,12 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         </div>
         {(!group || group === REEL_GROUP) && (
           <div style={{ marginBottom: 22 }}>
-            <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels(null, null, fields).length}</span>
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <img aria-hidden alt="" src={ICON_PLAY} style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
+              <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', margin: 0, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels(null, null, fields).length}</span>
+              </p>
+            </div>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
               {latestReels(null, null, fields).map(reelCard)}

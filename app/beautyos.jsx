@@ -14,7 +14,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_CALENDAR, ICON_FLOWER } from "@/lib/brand";
+import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -7240,8 +7240,9 @@ export default function BeautyOS() {
           onClick={() => { setShowHelp(true); setHelpState("idle"); }}
           aria-label="תקועה? כתבי לנו"
           className="fab-help"
-          style={{position:"fixed",insetInlineStart:14,bottom:14,zIndex:4500,padding:"10px 16px",borderRadius:"var(--r-full)",border:"1px solid var(--line-2)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,fontFamily:"inherit",cursor:"pointer",boxShadow:"var(--shadow-md)"}}
+          style={{position:"fixed",insetInlineStart:14,bottom:14,zIndex:4500,display:"flex",alignItems:"center",gap:7,padding:"7px 16px 7px 8px",borderRadius:"var(--r-full)",border:"1px solid var(--line-2)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,fontFamily:"inherit",cursor:"pointer",boxShadow:"var(--shadow-md)"}}
         >
+          <img aria-hidden alt="" src={ICON_QUESTION} style={{width:28,height:28,objectFit:"contain",flexShrink:0}}/>
           תקועה?
         </button>
       )}
@@ -7259,7 +7260,10 @@ export default function BeautyOS() {
               </div>
             ) : (
               <>
-                <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,marginBottom:4,color:"var(--ink)"}}>תקועה?</h3>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  <img aria-hidden alt="" src={ICON_QUESTION} style={{width:34,height:34,objectFit:"contain",flexShrink:0}}/>
+                  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
+                </div>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
                   כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אלייך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
@@ -7465,14 +7469,17 @@ ${c.claimUrl}`)}`;
       {showVoice&&(
  <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="Beauty Voice">
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+ <div style={{display:"flex",alignItems:"center",gap:8}}>
+ <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>Beauty Voice ✦</h3>
+ </div>
  <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:"var(--t-lg)",cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
 
             {voiceStatus==="listening"&&(
  <div style={{textAlign:"center",padding:"16px 0"}}>
  <div className="voice-pulse" style={{width:66,height:66,borderRadius:"50%",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",color:pc}}>
- <svg viewBox="0 0 24 24" width="28" height="28" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+ <img aria-hidden alt="" src={ICON_MICROPHONE} style={{width:38,height:38,objectFit:"contain"}}/>
  </div>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)"}}><Spinner inline label="מקשיבה"/></p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:5,lineHeight:1.5}}>אמרי בקול אחת מהפקודות הבאות:</p>
@@ -8478,7 +8485,7 @@ ${c.claimUrl}`)}`;
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
             {appointments.length===0&&(
-              <EmptyState compact icon="calendar" accent={pc} accentTint={pcTint}
+              <EmptyState icon="calendar" accent={pc} accentTint={pcTint}
                 title="הלוח עדיין ריק"
                 body="אפשר לקבוע תור בלחיצה על שעה פנויה בלוח, או מהכפתור כאן. תורים שנקבעים מעמוד ההזמנות הציבורי שלך מופיעים כאן לבד."
                 actions={[
@@ -11369,7 +11376,10 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>נכתבות על ידי לקוחות אחרי הטיפול, דרך קישור שנשלח בוואטסאפ. אפשר להסתיר ביקורת, אבל לא לערוך אותה — וזה מה שנותן להן ערך.</p>
                     {clientReviewsError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginBottom:8}}>לא הצלחנו לטעון את הביקורות.</p>}
                     {!clientReviewsError&&clientReviews.length===0&&(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10,lineHeight:1.6}}>עוד לא התקבלו ביקורות. הן יגיעו מעצמן — הבקשה נשלחת יומיים אחרי כל טיפול.</p>
+ <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+ <img aria-hidden alt="" src={ICON_HEART} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. הן יגיעו מעצמן — הבקשה נשלחת יומיים אחרי כל טיפול.</p>
+ </div>
                     )}
                     {clientReviews.map(rv=>(
  <div key={rv.id} style={{background:"var(--surface-2)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:7,opacity:rv.status==="hidden"?0.55:1}}>
