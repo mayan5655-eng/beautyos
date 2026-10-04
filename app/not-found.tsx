@@ -9,7 +9,7 @@
 // nothing matched), so there is no "her" accent to carry - Kalmea chrome,
 // same visual language as ErrorScreen.
 
-import { FLOWER_WATERMARK, FLOWER_MARK } from '@/lib/brand';
+import { FLOWER_WATERMARK, LOGO_COMPACT } from '@/lib/brand';
 
 export default function NotFound() {
   return (
@@ -55,7 +55,7 @@ export default function NotFound() {
             pointerEvents: 'none',
           }}
         />
-        <img src={FLOWER_MARK} alt="" width={52} height={52} style={{ position: 'relative', margin: '0 auto 18px' }} />
+        <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{ position: 'relative', width: 150, height: 'auto', margin: '0 auto 18px' }} />
         <h1
           style={{
             fontFamily: "var(--display, 'Frank Ruhl Libre', Georgia, serif)",

@@ -20,6 +20,7 @@
 // deliberately contains no em-dashes.
 
 import { supportWhatsAppUrl } from "@/lib/support";
+import { ICON_FLOWER } from "@/lib/brand";
 // All Hebrew comes from lib/planCopy so this banner and the read-only notice on
 // the standalone dashboard pages can never drift apart.
 import {
@@ -107,14 +108,19 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4, background: pcGrad }}
       />
 
-      <div style={{ flex: 1, minWidth: 210 }}>
-        <p
-          className="serif"
-          style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}
-        >
-          {title}
-        </p>
-        <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+      <div style={{ flex: 1, minWidth: 210, display: "flex", gap: 12, alignItems: "flex-start" }}>
+        {/* Only on the urgent/blocked card, which has real room for it - the
+            gentle one-line notice above stays as bare as it already was. */}
+        <img aria-hidden alt="" src={ICON_FLOWER} style={{ width: 34, height: 34, objectFit: "contain", flexShrink: 0 }} />
+        <div>
+          <p
+            className="serif"
+            style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}
+          >
+            {title}
+          </p>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+        </div>
       </div>
 
       {/* No number configured means no WhatsApp route. The banner still says

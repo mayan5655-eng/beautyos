@@ -30,7 +30,7 @@ import { upcomingHolidays, holidayPrompt } from '@/lib/design/holidays';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
 import { designIdeaSuggestion } from '@/lib/design/suggestions';
-import { ICON_PLAY } from '@/lib/brand';
+import { ICON_PLAY, ICON_FRAME } from '@/lib/brand';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -315,7 +315,10 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       )}
 
       {view === 'templates' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
-        <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>תבניות מוכנות, כבר בצבעים שלך</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <img aria-hidden alt="" src={ICON_FRAME} style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
+          <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>תבניות מוכנות, כבר בצבעים שלך</p>
+        </div>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כל תבנית מתמלאת אוטומטית בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בחרי אחת, שני מה שבא לך, והורידי. בלי הגבלה.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           <button style={chip(!group)} onClick={() => setGroup(null)}>הכול</button>

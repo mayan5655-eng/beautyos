@@ -161,31 +161,40 @@ export const BANNER_HEADER_W = 1035
 export const BANNER_HEADER_H = 580
 
 // ---- Line icons ----
-// Deep green outline + a small pink cosmos attached, cropped from
-// brand/icons-set.png's 3x2 grid (scripts/crop-brand-icons.mjs) with the
-// cream background chroma-keyed to transparent. RASTER, not SVG - fine
-// strokes and a small flower that turn to mush below ~28px, so these are
-// for section headers and empty states ONLY: never the bottom nav, an
+// Deep green outline + a small pink cosmos attached, 512x512 transparent
+// PNGs (brand/icons/, copied to public/brand-icons/). The first five
+// (flower/calendar/microphone/question/heart/play) shipped once already as
+// crops from a 3x2 grid (brand/icons-set.png, scripts/crop-brand-icons.mjs)
+// - THIS set replaced those files in place with cleaner standalone exports
+// at the same paths, so no call site needed to change. RASTER, not SVG -
+// fine strokes and a small flower that turn to mush below ~28px, so these
+// are for section headers and empty states ONLY: never the bottom nav, an
 // inline button, or a list row (EMPTY_ICONS' stroked-SVG set stays for all
 // of that). Each one also counts as a flower appearance for the
 // "never more than two per screen" rule.
 //   flower      general empty state, trial banner, success confirmations,
 //               anywhere with no more specific meaning
-//   calendar    calendar tab header, an empty day, the waitlist, the
-//               booking-link screen
-//   microphone  voice commands (screen + empty state), Settings' voice
-//               section
-//   question    help/support: "תקועה?", the help sheet, the FAQ, the
-//               "שאלה אחת" card header + its empty state
-//   heart       reviews, the client club, a returning client's card -
-//               anything about loyalty
-//   play        reels/video, the templates gallery's reel tab
+//   calendar    calendar tab header, an empty day, the waitlist
+//   microphone  the voice screen and its empty state
+//   question    help sheet, "תקועה?", the FAQ, the "שאלה אחת" card
+//   heart       reviews, the client club
+//   play        reels and video
+//   wallet      cashier and payments
+//   person      the empty clients screen
+//   envelope    leads and messages
+//   frame       content and templates
+//   sparkle     anywhere the AI generates something
 export const ICON_FLOWER = '/brand-icons/icon-flower.png'
 export const ICON_CALENDAR = '/brand-icons/icon-calendar.png'
 export const ICON_MICROPHONE = '/brand-icons/icon-microphone.png'
 export const ICON_QUESTION = '/brand-icons/icon-question.png'
 export const ICON_HEART = '/brand-icons/icon-heart.png'
 export const ICON_PLAY = '/brand-icons/icon-play.png'
+export const ICON_WALLET = '/brand-icons/icon-wallet.png'
+export const ICON_PERSON = '/brand-icons/icon-person.png'
+export const ICON_ENVELOPE = '/brand-icons/icon-envelope.png'
+export const ICON_FRAME = '/brand-icons/icon-frame.png'
+export const ICON_SPARKLE = '/brand-icons/icon-sparkle.png'
 
 // The page wash used on every branded screen. A true ombré: paper at the top,
 // warming through a pale-petal mid-tone, settling into the pale-petal edge.

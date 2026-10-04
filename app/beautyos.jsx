@@ -14,7 +14,7 @@ import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPrevi
 import { matchesQuery } from "@/lib/search/matchQuery";
 import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART } from "@/lib/brand";
+import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import TrialBanner from "./TrialBanner";
 import { isDemoTenantId } from "@/lib/demoTenants";
 import dynamic from "next/dynamic";
@@ -7251,7 +7251,7 @@ export default function BeautyOS() {
           <Sheet open onClose={() => setShowHelp(false)} width={420} zIndex={5200} ariaLabel="עזרה">
             {helpState === "sent" ? (
               <div style={{textAlign:"center"}}>
-                <div style={{fontSize:"var(--t-hero)",marginBottom:10}}>✅</div>
+                <img aria-hidden alt="" src={ICON_FLOWER} style={{width:52,height:52,margin:"0 auto 10px",display:"block"}}/>
                 <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
                 <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
                   {SUPPORT_TEAM_HE} יחזרו אלייך. אפשר להמשיך לעבוד בינתיים.
@@ -7748,14 +7748,14 @@ ${c.claimUrl}`)}`;
  <img className="hdr-logo desktop-only" src={LOGO_COMPACT} alt="Kalmea" width={520} height={177}
       style={{width:196,height:"auto",display:"block",overflow:"visible",flexShrink:0,
               marginInlineEnd:14,filter:"drop-shadow(0 10px 22px rgba(48,24,72,0.16))"}}/>
- <div className="mobile-only" style={{alignItems:"center",gap:7,flexShrink:0,marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}>
- {/* Ad-aligned pass: she should read "kalmea", not just see a flower - in
-     the ads the wordmark is the biggest thing after the headline, and at
-     the old 22px it read as an afterthought next to the menu/search/badges
-     beside it. Scaled up ~45%; the flower mark grows with it so the two
-     stay in proportion. */}
- <img src={FLOWER_64} alt="" width={64} height={64} style={{width:30,height:30,flexShrink:0,display:"block"}}/>
- <img src={LOGO_TEXT} alt="Kalmea" width={LOGO_TEXT_W} height={LOGO_TEXT_H} style={{width:"auto",height:32,display:"block"}}/>
+ <div className="mobile-only" style={{alignItems:"center",flexShrink:0,marginInlineEnd:10,filter:"drop-shadow(0 4px 10px rgba(48,24,72,0.16))"}}>
+ {/* Was the flower crop (FLOWER_64) and the text crop (LOGO_TEXT) side by
+     side as two separate images - visually disconnected, since the stem
+     that flows into the "k" in the real lockup doesn't survive being cut
+     into two pieces with a gap between them. One connected image now,
+     same as the desktop lockup just above, scaled for the header's height
+     instead of its width. */}
+ <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{width:"auto",height:34,display:"block"}}/>
  </div>
           {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
           {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
@@ -8494,9 +8494,12 @@ ${c.claimUrl}`)}`;
                 ]}/>
             )}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
- <div className={calView==="week"?undefined:"desktop-only"}>
+ <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:10}}>
+ <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>לוח שבועי</p>
  <h2 style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(weekDates[0])} – {formatDateHe(weekDates[6])}</h2>
+ </div>
  </div>
  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
  {/* Mobile-only day/week toggle. Hidden on desktop, so desktop always shows the week grid. */}
@@ -8764,7 +8767,15 @@ ${c.claimUrl}`)}`;
  </div>
             {filteredClients.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-xl)",marginTop:6}}>
- <div style={{width:64,height:64,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>{(searchQuery||filterStatus!=="all")?"⌕":"♥"}</div>
+ {/* "No clients yet" gets the person icon; "no results for this filter" is
+     a different situation (she has clients, this search just matched none)
+     and keeps the plain magnifying glass rather than borrowing an icon that
+     would claim the wrong thing. */}
+ {(searchQuery||filterStatus!=="all")?(
+ <div style={{width:64,height:64,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>⌕</div>
+ ):(
+ <img aria-hidden alt="" src={ICON_PERSON} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
+ )}
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>{(searchQuery||filterStatus!=="all")?"לא נמצאו לקוחות":"עוד אין לקוחות"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:340,margin:"0 auto 18px",lineHeight:1.6}}>{(searchQuery||filterStatus!=="all")?"נסי לשנות את החיפוש או הסינון.":"הוסיפי את הלקוחה הראשונה, או ייבאי רשימה שלמה בבת אחת."}</p>
  {!(searchQuery||filterStatus!=="all")&&(
@@ -8895,7 +8906,11 @@ ${c.claimUrl}`)}`;
             )}
             {filteredLeads.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-xl)",marginTop:6}}>
- <div style={{width:64,height:64,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>✦</div>
+ {leadSearch||leadFilter!=="all"?(
+ <div style={{width:64,height:64,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",background:"var(--surface)",boxShadow:"var(--shadow-md)"}}>⌕</div>
+ ):(
+ <img aria-hidden alt="" src={ICON_ENVELOPE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
+ )}
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>{leadSearch||leadFilter!=="all"?"לא נמצאו פניות":"עוד אין פניות"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{leadSearch||leadFilter!=="all"?"נסי לשנות את החיפוש או הסינון.":"פניות מהאתר ומפייסבוק יופיעו כאן. אפשר גם להוסיף פנייה ידנית."}</p>
  {!(leadSearch||leadFilter!=="all")&&<button className="empty-cta primary-btn" onClick={()=>{setEditingLead(null);setNewLead(emptyLead);setShowLeadModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ פנייה חדשה</button>}
@@ -8929,7 +8944,10 @@ ${c.claimUrl}`)}`;
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה ותשלומים</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תשלומים</h2>
+ <div style={{display:"flex",alignItems:"center",gap:8}}>
+ <img aria-hidden alt="" src={ICON_WALLET} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
+ </div>
  <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -9096,7 +9114,10 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  {peopleSegments()}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>מרכז הודעות</h2>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+ <img aria-hidden alt="" src={ICON_ENVELOPE} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>מרכז הודעות</h2>
+ </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
 
  {/* Sub-tabs: the send tools, or the log of everything already sent. */}
@@ -9259,7 +9280,10 @@ ${c.claimUrl}`)}`;
           {activeTab==="campaigns"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>פוסטים, רילסים וקמפיינים</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:16}}>תוכן</h2>
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+ <img aria-hidden alt="" src={ICON_FRAME} style={{width:30,height:30,objectFit:"contain",flexShrink:0}}/>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תוכן</h2>
+ </div>
 
  <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
@@ -9424,6 +9448,7 @@ ${c.claimUrl}`)}`;
 
  {marketingView==="ai"&&(<>
  <div style={{textAlign:"center",marginBottom:18}}>
+ <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:36,height:36,objectFit:"contain",marginBottom:4}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>תוכן AI</h2>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
  </div>
@@ -9631,6 +9656,7 @@ ${c.claimUrl}`)}`;
                 {/* REPORT CARD */}
  <div id="tax-report" style={{background:"var(--surface)",borderRadius:"var(--r-lg)",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"26px 24px"}}>
  <div style={{textAlign:"center",marginBottom:18}}>
+ <img src={BANNER_WIDE} alt="" width={BANNER_WIDE_W} height={BANNER_WIDE_H} style={{width:"100%",maxWidth:280,height:"auto",margin:"0 auto 12px",display:"block"}}/>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name||"העסק"} — {statusLabel}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
  </div>
@@ -9719,6 +9745,7 @@ ${c.claimUrl}`)}`;
  <div style={{maxWidth:840,marginLeft:"auto",marginRight:"auto",display:"flex",flexDirection:"column",height:"100%"}}>
  <div style={{textAlign:"center",marginBottom:6}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.04em",marginBottom:4}}>בינה מלאכותית</p>
+ <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:32,height:32,objectFit:"contain",marginBottom:2}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>יועץ עסקי AI</h2>
  </div>
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
@@ -9728,7 +9755,7 @@ ${c.claimUrl}`)}`;
  <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:"var(--t-sm)",margin:"auto"}}><Spinner inline label="טוען"/></p>
               ):advisorMessages.length===0?(
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
- <div style={{width:60,height:60,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-3xl)",color:"var(--pc-contrast)",background:pcGrad,boxShadow:"var(--shadow-accent)"}}>✦</div>
+ <img aria-hidden alt="" src={ICON_SPARKLE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
@@ -9940,8 +9967,11 @@ ${c.claimUrl}`)}`;
  </div>
 
  <div className="glass-card" style={{padding:18}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
-              {waitlist.filter(w=>w.status==="waiting").length===0?<EmptyState compact icon="people" accent={pc} accentTint={pcTint}
+ <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+ <img aria-hidden alt="" src={ICON_CALENDAR} style={{width:28,height:28,objectFit:"contain",flexShrink:0}}/>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>רשימת המתנה ({waitlist.filter(w=>w.status==="waiting").length})</h3>
+ </div>
+              {waitlist.filter(w=>w.status==="waiting").length===0?<EmptyState icon="calendar" accent={pc} accentTint={pcTint}
                  title="רשימת ההמתנה ריקה"
                  body="כשלקוחה רוצה תור ואין לך מקום — הוסיפי אותה לכאן. כשמתפנה תור, היא הראשונה שתדע."
                  actions={[{label:"הוספה לרשימה",onClick:()=>setShowWaitlistModal(true)}]}/>
@@ -10582,6 +10612,7 @@ ${c.claimUrl}`)}`;
  <Sheet open onClose={()=>setShowReceipt(null)} width={360} zIndex={1100} flush className="pop-in" ariaLabel={docLabelHe(showReceipt)}>
  <div className="receipt-print" style={{padding:24}}>
  <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
+ <img src={BANNER_WIDE} alt="" width={BANNER_WIDE_W} height={BANNER_WIDE_H} style={{width:"100%",maxWidth:240,height:"auto",margin:"0 auto 10px",display:"block"}}/>
  <p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>{docLabelHe(showReceipt)}{showReceipt.legal_status==="issued"&&showReceipt.legal_doc_number?" מספר "+showReceipt.legal_doc_number:""}</p>
                 {settings.business_phone&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{settings.business_phone}</p>}
@@ -11767,7 +11798,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
- <div style={{fontSize:"var(--t-3xl)",marginBottom:8}}>✦</div>
+ <img aria-hidden alt="" src={ICON_QUESTION} style={{width:40,height:40,objectFit:"contain",marginBottom:8}}/>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שאלות ותשובות</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
  </div>

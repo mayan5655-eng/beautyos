@@ -14,7 +14,7 @@ import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
 import BrandBackdrop from "../BrandBackdrop";
-import { BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H } from "@/lib/brand";
+import { BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
@@ -329,17 +329,30 @@ export default function OnboardingPage() {
       `}</style>
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 460 }}>
-        {/* Same banner as /login and /signup - wordmark + slogan baked into
-            one asset (BANNER_HEADER, see lib/brand.ts), replacing the small
-            gem-icon + "KALMEA" caption this used to be. */}
+        {/* Step 1 only: the FULL banner, flowers included - a real "welcome"
+            moment, not the cropped header. Steps 2-5 keep BANNER_HEADER
+            (the legible-at-phone-width crop): she's in task mode by then,
+            and the full banner's slogan/domain line tested illegible at
+            this column width (see BANNER_HEADER's comment). */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
-          <Image
-            src={BANNER_HEADER}
-            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
-            width={BANNER_HEADER_W}
-            height={BANNER_HEADER_H}
-            style={{ width: "min(380px, 96%)", height: "auto", filter: "drop-shadow(0 10px 22px rgba(48,24,72,0.16))" }}
-          />
+          {step === 1 ? (
+            <Image
+              src={BANNER_WIDE}
+              alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+              width={BANNER_WIDE_W}
+              height={BANNER_WIDE_H}
+              priority
+              style={{ width: "min(460px, 100%)", height: "auto", filter: "drop-shadow(0 10px 22px rgba(48,24,72,0.16))" }}
+            />
+          ) : (
+            <Image
+              src={BANNER_HEADER}
+              alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+              width={BANNER_HEADER_W}
+              height={BANNER_HEADER_H}
+              style={{ width: "min(380px, 96%)", height: "auto", filter: "drop-shadow(0 10px 22px rgba(48,24,72,0.16))" }}
+            />
+          )}
         </div>
 
       <div style={cardStyle}>

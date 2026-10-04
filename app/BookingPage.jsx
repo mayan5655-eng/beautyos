@@ -13,7 +13,7 @@ import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
-import { FLOWER_MARK } from "@/lib/brand";
+import { LOGO_COMPACT, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -517,7 +517,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         {/* No valid tenant resolved here, so there is no "her" accent to
             preserve - this is Kalmea chrome, not her content, hence the
             flower mark instead of a pc-colored glyph. */}
-        <img src={FLOWER_MARK} alt="" width={40} height={40} style={{ marginBottom: 16 }} />
+        <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{ width: 150, height: "auto", marginBottom: 16 }} />
         <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #7D8D87)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
         <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)", maxWidth: 320, lineHeight: 1.7 }}>
           נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
@@ -1246,14 +1246,20 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
         </>
       )}
 
-      {/* FOOTER */}
+      {/* FOOTER — the full banner (flowers included), not a one-line credit
+          with a 12px flower glyph. It's the strongest brand asset there is;
+          this was the most under-used spot for it. */}
       <div style={{ marginTop: "auto", textAlign: "center", padding: "34px 20px 0" }}>
         {addr && step === 1 && (
           <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
-        <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "1px", display: "inline-flex", alignItems: "center", gap: 5 }}>
-          מופעל ע"י קלמיה <img src={FLOWER_MARK} alt="" width={12} height={12} style={{ display: "inline-block", opacity: 0.7 }} />
-        </p>
+        <img
+          src={BANNER_WIDE}
+          alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+          width={BANNER_WIDE_W}
+          height={BANNER_WIDE_H}
+          style={{ width: "min(340px, 100%)", height: "auto", display: "inline-block" }}
+        />
       </div>
     </div>
   );

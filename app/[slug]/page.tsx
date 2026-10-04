@@ -26,7 +26,7 @@ import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
 import { APP_URL } from '@/lib/appUrl';
 import BookingPage from '../BookingPage';
-import { FLOWER_MARK } from '@/lib/brand';
+import { LOGO_COMPACT } from '@/lib/brand';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -124,7 +124,7 @@ export default async function SlugPage({ params }: Props) {
           background: 'var(--brand-cream, #FDFBF9)',
         }}
       >
-        <img src={FLOWER_MARK} alt="" width={40} height={40} style={{ marginBottom: 14 }} />
+        <img src={LOGO_COMPACT} alt="Kalmea" width={520} height={177} style={{ width: 150, height: 'auto', marginBottom: 14 }} />
         <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
           לא מצאנו עסק בכתובת הזו
         </h1>
