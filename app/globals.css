@@ -436,6 +436,51 @@ h1, h2, h3 {
   line-height: 1;
 }
 
+/* ── Landing page animation primitives ───────────────────────────────────────
+   Restrained on purpose - this is what makes the page feel made, not busy.
+   kl-reveal: the one scroll-in treatment (app/landing/Reveal.jsx drives the
+   .kl-reveal-in class via IntersectionObserver, triggerOnce). Buttons get a
+   press-scale and a hover colour shift, nothing else moves on hover. Flower
+   marks fade to 60%, never pop to full opacity instantly. */
+.kl-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+.kl-reveal-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+.kl-press {
+  transition: transform 0.12s ease-out, background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
+}
+.kl-press:active {
+  transform: scale(0.96);
+}
+.kl-flower-in {
+  opacity: 0;
+  animation: klFlowerFade 0.6s ease-out forwards;
+}
+@keyframes klFlowerFade {
+  from { opacity: 0; }
+  to { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kl-reveal, .kl-reveal-in {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .kl-press, .kl-press:active {
+    transition: none !important;
+    transform: none !important;
+  }
+  .kl-flower-in {
+    opacity: 0.6 !important;
+    animation: none !important;
+  }
+}
+
 /* Refined scrollbars — slim, deep-green-tinted, unobtrusive */
 * {
   scrollbar-width: thin;
