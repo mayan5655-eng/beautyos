@@ -2457,8 +2457,8 @@ export default function BeautyOS() {
         // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
         // newest-first: a queue is something she works through, not an
         // archive, and this card groups/caps display further on its own.
-        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*").eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
-        ["owner_notifs",     supabase.from("owner_notifications").select("*").is("read_at", null).order("created_at", { ascending: false }).limit(50)],
+        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*", { count: "exact" }).eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
+        ["owner_notifs",     supabase.from("owner_notifications").select("*", { count: "exact" }).is("read_at", null).order("created_at", { ascending: false }).limit(50)],
       ].map(([name, q]) => [name, Promise.resolve(q)]);
 
       const { data: authData, error: authErr } = await authP;
@@ -2552,6 +2552,14 @@ export default function BeautyOS() {
         try { Sentry.captureException(new Error(`loadAll incomplete: ${partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", ")}`)); } catch {}
         toast(`לא נטענה כל ההיסטוריה של ${partialReads.map((n) => PARTIAL_HE[n]).join(" ו")} - מה שמוצג חלקי. כתבי לנו ונטפל בזה.`, "error");
       }
+
+      // The two capped reads are capped ON PURPOSE (a queue she works through, the
+      // newest notifications) - and the exact count comes back with them, so when
+      // the cap hides some, the code knows and says so instead of the oldest
+      // waiting messages simply not being there.
+      const hidden = (r) => (r && typeof r.count === "number" && r.data ? Math.max(0, r.count - r.data.length) : 0);
+      if (hidden(wap) > 0) toast(`יש ${wap.count} הודעות שממתינות לשליחה ידנית - מוצגות ${wap.data.length} האחרונות. אחרי ששלחת אותן יופיעו הישנות יותר.`, "error");
+      if (hidden(onf) > 0) console.warn(`[BeautyOS] ${hidden(onf)} older unread notifications not shown (cap ${onf.data.length})`);
 
       // Safe default 'none' if the row/column is missing for any reason.
       const plan = tn?.data?.plan || "none";

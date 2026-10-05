@@ -174,6 +174,7 @@ group('dashboard boot');
     ok(`boot reads ${t} through readAllRows`, new RegExp(`readAllRows\\(supabase, "${t}"`).test(src));
     ok(`boot no longer does an unpaged ${t} select`, !new RegExp(`supabase\\.from\\("${t}"\\)\\.select\\("\\*"\\)\\]`).test(src));
   }
+  ok('the capped manual-WhatsApp queue reports its exact count, so a hidden overflow is known', src.includes('from("whatsapp_messages").select("*", { count: "exact" })') && src.includes('hidden(wap) > 0'));
   ok('boot tells her when a read was incomplete', /incomplete/.test(src) && /complete === false|!\w+\.complete/.test(src));
 }
 
