@@ -66,12 +66,16 @@ const REAL_ID = '11111111-1111-1111-1111-111111111111';
   const message = await trackedCreate(client as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test', capClient: healthy, capNoCache: true } as any);
   assert.ok(message, 'a real tenant id is never blocked');
 
-  // ...and with NO usable database the ceiling cannot be checked, so the call is
-  // REFUSED (fails closed) - the model is never reached.
+  // ...and when the usage table cannot be read the ceiling cannot be checked, so
+  // the call is REFUSED (fails closed) - the model is never reached. The broken
+  // database is INJECTED: relying on "no env configured" made this pass locally and
+  // fail on Vercel, whose build has the real variables (and so quietly read the
+  // real table).
+  const brokenDb = { from() { throw new Error('no database'); } };
   let reached = false;
   const watched = { messages: { create: async () => { reached = true; return { usage: {} }; } } };
   const q = console.error; console.error = () => {};
-  await assert.rejects(() => trackedCreate(watched as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test' }), /עצרנו לרגע/);
+  await assert.rejects(() => trackedCreate(watched as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test', capClient: brokenDb, capAlert: async () => {}, capNoCache: true } as any), /עצרנו לרגע/);
   console.error = q;
   assert.equal(reached, false, 'an unreadable ceiling refuses before the model is called');
 }
