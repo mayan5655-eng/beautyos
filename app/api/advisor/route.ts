@@ -8,13 +8,12 @@
 // session (get_user_tenant_id over the user's cookies) - never from the client.
 // All business data is read scoped to that tenant only.
 
-import { capNoticeOf } from '@/lib/ai/capMessages'
 import { MODELS, EFFORT } from '@/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
-import { trackedCreate } from '@/lib/ai/usage'
+import { trackedStream } from '@/lib/ai/usage'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
@@ -234,7 +233,13 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     // Persist the user's question.
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
-    const aiResponse = await trackedCreate(anthropic, {
+    // STREAMED: she is waiting on this, and the model thinks before it writes, so
+    // a whole answer takes 13-18 s. The text is sent as it is written (newline-
+    // delimited JSON) and shown as it arrives; the spinner covers only the
+    // thinking. The spend ceiling and metering are trackedStream's, exactly as for
+    // any other call: a refusal throws HERE, before a response has started, and is
+    // answered below as ordinary JSON.
+    const s = await trackedStream(anthropic, {
       model: MODELS.writer,
       // Room to think AND answer: she is asking about her own business, and the
       // answer is what she acts on.
@@ -244,18 +249,36 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
       messages: [...priorTurns, { role: 'user', content: message }] as any,
     }, { tenantId, callSite: 'advisor' })
 
-    const reply = aiResponse.content
-      .map((b: any) => (b.type === 'text' ? b.text : ''))
-      .filter(Boolean)
-      .join('\n')
-      .trim()
-
-    if (!reply) return NextResponse.json({ error: 'לא התקבלה תשובה' }, { status: 502 })
-
-    // Persist the assistant's reply.
-    await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'assistant', content: reply })
-
-    return NextResponse.json({ reply, ...capNoticeOf(aiResponse) })
+    const enc = new TextEncoder()
+    const line = (o: Record<string, unknown>) => enc.encode(JSON.stringify(o) + '\n')
+    const answer = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let full = ''
+        try {
+          for await (const text of s.deltas) {
+            full += text
+            controller.enqueue(line({ t: 'd', x: text }))
+          }
+          const reply = full.trim()
+          if (!reply) throw new Error('לא התקבלה תשובה')
+          // Persist the assistant's reply, once it is complete.
+          await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'assistant', content: reply })
+          controller.enqueue(line({ t: 'done', ...(s.capNotice ? { capNotice: s.capNotice } : {}) }))
+        } catch (err: any) {
+          console.error('Error streaming /api/advisor:', err)
+          controller.enqueue(line({ t: 'error', error: err?.message || 'שגיאה' }))
+        } finally {
+          controller.close()
+        }
+      },
+    })
+    return new Response(answer, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-store, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
+    })
   } catch (err: any) {
     console.error('Error in /api/advisor:', err)
     return NextResponse.json({ error: err.message || 'שגיאה' }, { status: 500 })

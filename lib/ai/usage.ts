@@ -207,11 +207,19 @@ export async function recordUsage({
  * caller's problem and there is nothing to meter. Only the metering is
  * swallowed.
  */
-export async function trackedCreate(
-  client: Pick<Anthropic, 'messages'>,
-  params: Anthropic.MessageCreateParamsNonStreaming,
-  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
-): Promise<Anthropic.Message> {
+/**
+ * Everything that must be true BEFORE any AI call is allowed to spend money -
+ * shared by trackedCreate and trackedStream so a stream can never be a looser
+ * way in than a plain call. Throws DemoBlockedError / AiCapExceededError /
+ * AiCapUnavailableError; returns the allowance (which carries the near-limit
+ * heads-up) when the call may go ahead.
+ */
+async function guardSpend(
+  tenantId: string | null,
+  callSite: string,
+  hooks: { capClient?: { from: (t: string) => any }; capNow?: Date; capAlert?: (a: any) => Promise<void>; capNoCache?: boolean }
+) {
+  const { capClient, capNow, capAlert, capNoCache } = hooks;
   // Checked before the cap and before the call: a demo tenant (lib/demoTenants.ts)
   // must never spend real money, full stop, regardless of what the cap math
   // below would have allowed.
@@ -234,6 +242,16 @@ export async function trackedCreate(
     throw new AiCapExceededError(callSite, allowance.callsUsed, allowance.callsCap ?? 0, allowance.reason === 'dollars' ? 'dollars' : 'calls');
   }
 
+  return allowance;
+}
+
+export async function trackedCreate(
+  client: Pick<Anthropic, 'messages'>,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
+): Promise<Anthropic.Message> {
+  const allowance = await guardSpend(tenantId, callSite, { capClient, capNow, capAlert, capNoCache });
+
   const message = (await client.messages.create(params)) as Anthropic.Message;
   // Near the limit: the warm heads-up rides on the message object (not
   // enumerable, so it never leaks into a serialised response by accident) for
@@ -249,4 +267,56 @@ export async function trackedCreate(
     db,
   });
   return message;
+}
+
+/**
+ * trackedCreate, streamed: for an answer a person is WAITING on (the advisor),
+ * so text appears as it is written instead of after 15 seconds of nothing.
+ *
+ * Same rules as trackedCreate - the same guard runs BEFORE a stream is opened, so
+ * a refusal throws here, before any response has started, and a route can still
+ * answer with ordinary JSON. After that:
+ *
+ *   const s = await trackedStream(anthropic, params, { tenantId, callSite });
+ *   for await (const text of s.deltas) send(text);   // text only - thinking is not forwarded
+ *   s.message();                                      // the final message, after the loop
+ *
+ * Usage is only known at the end, so the row is written when the stream
+ * finishes - and ALSO if the consumer stops early (the tab was closed): the
+ * model has already been paid for, so the generator waits for the final message
+ * and records it. An error before completion is thrown to the caller and writes
+ * no row (nothing was delivered), like a failed trackedCreate. A metering failure
+ * never breaks the answer.
+ */
+export async function trackedStream(
+  client: Pick<Anthropic, 'messages'>,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
+): Promise<{ deltas: AsyncGenerator<string, void, unknown>; message: () => Anthropic.Message | null; capNotice: string | null }> {
+  const allowance = await guardSpend(tenantId, callSite, { capClient, capNow, capAlert, capNoCache });
+  const stream = client.messages.stream(params as Anthropic.MessageStreamParams);
+  let final: Anthropic.Message | null = null;
+  let failed = false;
+
+  async function* deltas(): AsyncGenerator<string, void, unknown> {
+    try {
+      for await (const ev of stream as AsyncIterable<Anthropic.MessageStreamEvent>) {
+        if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') yield ev.delta.text;
+      }
+    } catch (e) {
+      failed = true;
+      throw e;
+    } finally {
+      // Normal end AND early stop (consumer returned): collect what the model
+      // produced so the spend is recorded. Skipped when the stream itself failed.
+      if (!failed) {
+        try { final = await stream.finalMessage(); } catch { /* nothing to meter */ }
+        if (final) {
+          await recordUsage({ tenantId, callSite, model: params?.model, usage: extractUsage(final), attribution, db });
+        }
+      }
+    }
+  }
+
+  return { deltas: deltas(), message: () => final, capNotice: capNoticeHe(allowance) };
 }

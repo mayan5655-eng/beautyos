@@ -6764,12 +6764,46 @@ export default function BeautyOS() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: q }),
       });
-      const data = await res.json();
-      if (res.ok && data.reply) {
-        setAdvisorMessages(prev => [...(prev || []), { id: "a-" + Date.now(), role: "assistant", content: data.reply }]);
-        if (data.capNotice) toast(data.capNotice);
-      } else {
+      // Refusals (not signed in, plan, a spend limit) come back as ordinary JSON,
+      // before anything is streamed. A real answer arrives as newline-delimited
+      // JSON: { t: "d", x: text } deltas, then { t: "done" } (or { t: "error" }).
+      if (!(res.headers.get("content-type") || "").includes("ndjson")) {
+        const data = await res.json().catch(() => ({}));
         toast(data.error || "היועץ לא הצליח לענות", "error");
+        return;
+      }
+      const aid = "a-" + Date.now();
+      let shown = "";
+      const show = (text, streaming) => setAdvisorMessages(prev => {
+        const list = prev || [];
+        return list.some(m => m.id === aid)
+          ? list.map(m => (m.id === aid ? { ...m, content: text, streaming } : m))
+          : [...list, { id: aid, role: "assistant", content: text, streaming }];
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let failed = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const raw = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!raw) continue;
+          let ev;
+          try { ev = JSON.parse(raw); } catch { continue; }
+          if (ev.t === "d") { shown += ev.x; show(shown.trimStart(), true); }
+          else if (ev.t === "done") { show(shown.trim(), false); if (ev.capNotice) toast(ev.capNotice); }
+          else if (ev.t === "error") failed = ev.error || "היועץ לא הצליח לענות";
+        }
+      }
+      if (failed) {
+        // Keep what was written (it was shown), but it was not saved: say so.
+        if (shown) show(shown.trim(), false);
+        toast(failed, "error");
       }
     } catch (err) {
       toast(err.message, "error");
@@ -10002,7 +10036,7 @@ ${c.claimUrl}`)}`;
                     ):null;})()}
  </div>
               ))}
-              {advisorSending&&(
+              {advisorSending&&!(advisorMessages&&advisorMessages.length&&advisorMessages[advisorMessages.length-1].streaming)&&(
  <div style={{alignSelf:"flex-end",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"16px 16px 4px 16px",padding:"11px 16px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>היועצת חושבת…</div>
               )}
  </div>
