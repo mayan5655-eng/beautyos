@@ -29,6 +29,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { ACTIVE_OR_NULL } from '@/lib/serviceActive';
 import BookingPage from '../BookingPage';
 import { LOGO_COMPACT } from '@/lib/brand';
+import { ogVersion } from '@/lib/og/tenantOg';
 import BrandImage from '@/app/BrandImage';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -80,7 +81,7 @@ const loadPublicSettings = cache((tenantId: string) => fetchPublicSettings(publi
 // Her active treatments, read the way the browser read them: the anon key, the
 // same filter. Null on a failed read, so the client falls back to loading them
 // itself instead of showing a business with an empty menu.
-async function loadServices(tenantId: string) {
+const loadServices = cache(async (tenantId: string) => {
   try {
     const { data, error } = await publicClient()
       .from('service_prices')
@@ -91,7 +92,7 @@ async function loadServices(tenantId: string) {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
@@ -100,16 +101,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const brand = resolveBranding(await loadPublicSettings(tenant.id));
   const title = brand.businessName || tenant.name || 'Kalmea';
-  const description =
-    brand.welcomeMessage ||
-    brand.businessDescription ||
-    `קביעת תור אונליין אצל ${title}`;
+  // Her own words first. A short line gets her treatments after it, and with no words at all
+  // the preview names the business and what it offers - never a generic Kalmea sentence.
+  const services = ((await loadServices(tenant.id)) || [])
+    .map((s: { name?: string }) => String(s?.name || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const own = brand.welcomeMessage || brand.businessDescription;
+  const description = own
+    ? own.length < 60 && services.length ? `${own} · ${services.join(', ')}` : own
+    : services.length ? `קביעת תור אונליין אצל ${title}: ${services.join(', ')}` : `קביעת תור אונליין אצל ${title}`;
 
-  // portraitOgUrl is the 1200x630 crop written at upload time, next to the
-  // portrait itself. Absent when she has not uploaded a photo, and then the
-  // link previews with NO image on purpose: our logo on her business is a
-  // worse preview than none, and the gap is the prompt to add one.
-  const image = brand.portraitOgUrl;
+  // Every business has a preview image now, generated per tenant (app/og/[key]): her photo,
+  // logo, name and accent colour, or the Kalmea banner with her name when she has uploaded
+  // nothing. The hash makes a changed photo / name / colour a new URL, so WhatsApp and
+  // Instagram - which cache an image by its URL - pick the change up.
+  const image = `${APP_URL}/og/${encodeURIComponent(slug)}?v=${ogVersion(brand, title)}`;
 
   return {
     metadataBase: new URL(APP_URL),
@@ -123,13 +130,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: `${APP_URL}/${encodeURIComponent(slug)}`,
       locale: 'he_IL',
       siteName: title,
-      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}),
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
     },
     twitter: {
-      card: image ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
-      ...(image ? { images: [image] } : {}),
+      images: [image],
     },
   };
 }
