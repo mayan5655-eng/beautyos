@@ -48,14 +48,35 @@
 // one while a hardcoded copy here blocked at the old value is exactly the class
 // of bug this file should not introduce.
 //
-// ── Fails OPEN ──────────────────────────────────────────────────────────────
-// If ai_usage cannot be read we allow the call, matching lib/skinScanQuota.ts
-// and lib/planState.ts. This is a COST control, not a security boundary: a
-// database wobble must not take her advisor away in the middle of a question.
-// The security boundary in this project (lib/adminGuard.ts) fails closed; spend
-// controls fail open. The asymmetry is intentional and documented in both.
+// ── Fails CLOSED ────────────────────────────────────────────────────────────
+// If ai_usage cannot be read - the count errors, times out or throws, or the
+// month's spend cannot be summed - the call is REFUSED, with a plain Hebrew
+// message that makes no claim about her month (capMessages.ts), and the
+// operator is alerted that the counter is broken (opsAlert.js).
+//
+// This file used to fail open, on the reasoning that a cost control must not
+// take her advisor away mid-question during a database wobble. That reasoning
+// priced the wobble and not the alternative: with the counter unreadable the
+// ceiling does not exist, so one bad query - or one loop that happens while
+// the database is struggling, which is exactly when loops are likeliest - lets a
+// tenant spend without limit on Kalmea's bill. A ceiling that opens when it
+// breaks is not a ceiling. A refused call costs her a retry in a few minutes and
+// nothing else (everything outside AI keeps working); an uncapped one can cost
+// real money. So spend controls now fail closed like the security boundary does
+// (lib/adminGuard.ts). lib/skinScanQuota.ts, the scanner's own counter, follows.
+//
+// Two ceilings, because the counts are a proxy and the money is the point:
+//   1. a per-feature COUNT per month (MONTHLY_CALL_CAPS below), chosen against
+//      each feature's known per-call cost;
+//   2. a per-tenant DOLLAR ceiling per month across every feature
+//      (tenantMonthlyUsdCeiling), summed from ai_usage.cost_usd. It also bounds
+//      the call sites with no count cap at all (marketing/shooting-list).
+// Crossing either refuses the call. Coming within 20% of either is announced to
+// her first, warmly, with the date it renews.
 
 import { createClient } from '@supabase/supabase-js';
+import { readAllRows } from '../pagedRead.js';
+import { capRefusalHe } from './capMessages.ts';
 
 /** Monthly ceiling per tenant, per call site. Absent = uncapped by this file. */
 export const MONTHLY_CALL_CAPS: Record<string, number> = {
@@ -89,12 +110,34 @@ export class AiCapExceededError extends Error {
   readonly callSite: string;
   readonly used: number;
   readonly cap: number;
-  constructor(callSite: string, used: number, cap: number) {
-    super(`AI monthly cap reached for ${callSite}: ${used}/${cap}`);
+  readonly reason: 'calls' | 'dollars';
+  /**
+   * `message` IS the user-facing Hebrew (the same convention as
+   * DemoBlockedError below): every route already answers a failure with
+   * `error: err.message`, so the warm sentence reaches her without a per-route
+   * edit. The numbers stay on the fields, for logs.
+   */
+  constructor(callSite: string, used: number, cap: number, reason: 'calls' | 'dollars' = 'calls') {
+    super(capRefusalHe(reason, callSite));
     this.name = 'AiCapExceededError';
     this.callSite = callSite;
     this.used = used;
     this.cap = cap;
+    this.reason = reason;
+  }
+}
+
+/**
+ * The usage counter could not be read, so the call was refused rather than
+ * allowed blind. Not "she used her allowance" - nothing is known about that -
+ * so it has its own class and its own sentence.
+ */
+export class AiCapUnavailableError extends Error {
+  readonly callSite: string;
+  constructor(callSite: string) {
+    super(capRefusalHe('unreadable', callSite));
+    this.name = 'AiCapUnavailableError';
+    this.callSite = callSite;
   }
 }
 
@@ -165,13 +208,17 @@ type CountQuery = {
 export type CapStatus = {
   used: number;
   cap: number | null;
+  /** true when the call must be refused: over the cap, OR the count could not be read */
   exceeded: boolean;
-  /** true when the count could not be read, so the call was allowed anyway */
+  /** true when the count could not be read (and `exceeded` is therefore true) */
   unknown: boolean;
 };
 
 /**
  * How much of this month's allowance for one feature a tenant has used.
+ *
+ * FAILS CLOSED: an unreadable count returns exceeded:true, unknown:true. Every
+ * caller that only ever looked at `.exceeded` therefore refuses, with no edit.
  *
  * An unattributed call (tenantId null) is never capped: there is no tenant to
  * charge it to, and refusing it would break the one path - a scan through a
@@ -187,12 +234,12 @@ export async function getCallCapStatus(
     return { used: 0, cap, exceeded: false, unknown: false };
   }
 
-  const table =
-    opts.db ??
-    ((admin() as unknown as { from: (t: string) => CountQuery }).from('ai_usage'));
   const since = monthStartIso(opts.now);
 
   try {
+    const table =
+      opts.db ??
+      ((admin() as unknown as { from: (t: string) => CountQuery }).from('ai_usage'));
     const { count, error } = await table
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
@@ -202,9 +249,9 @@ export async function getCallCapStatus(
     if (error || count === null || count === undefined) {
       console.error(
         `[ai-cap] count failed for tenant ${tenantId} / ${callSite}: ` +
-        `${error?.message ?? 'null count'} - failing OPEN`
+        `${error?.message ?? 'null count'} - failing CLOSED (call refused)`
       );
-      return { used: 0, cap, exceeded: false, unknown: true };
+      return { used: 0, cap, exceeded: true, unknown: true };
     }
 
     const used = Number(count) || 0;
@@ -212,8 +259,209 @@ export async function getCallCapStatus(
   } catch (e) {
     console.error(
       `[ai-cap] threw for tenant ${tenantId} / ${callSite}: ` +
-      `${e instanceof Error ? e.message : String(e)} - failing OPEN`
+      `${e instanceof Error ? e.message : String(e)} - failing CLOSED (call refused)`
     );
-    return { used: 0, cap, exceeded: false, unknown: true };
+    return { used: 0, cap, exceeded: true, unknown: true };
   }
+}
+
+// ── the dollar ceiling ──────────────────────────────────────────────────────
+
+/**
+ * The most one tenant may cost per calendar month (Israel time), across every
+ * feature, in USD. Tunable with AI_TENANT_MONTHLY_USD; anything that is not a
+ * positive number - unset, junk, zero, negative - falls back to the default,
+ * never to "no ceiling".
+ *
+ * $25: roughly twice what heavy honest use costs (the table at the top of this
+ * file puts realistic use at $4-11), and well under what pinning every count cap
+ * in one month would cost (about $60).
+ */
+export const DEFAULT_TENANT_MONTHLY_USD = 25;
+export function tenantMonthlyUsdCeiling(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.AI_TENANT_MONTHLY_USD);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_TENANT_MONTHLY_USD;
+}
+
+/**
+ * What a usage row with no price is assumed to have cost. cost_usd is null when
+ * the model is missing from MODEL_RATES; counting that as free would make an
+ * unpriced model a way around the ceiling.
+ */
+export const UNPRICED_ROW_USD = 0.05;
+
+/** Within this share of either ceiling she is told, warmly, before being stopped. */
+export const NEAR_LIMIT = 0.8;
+
+export type AllowanceReason = 'ok' | 'calls' | 'dollars' | 'unreadable';
+
+export type Allowance = {
+  allowed: boolean;
+  reason: AllowanceReason;
+  callSite: string;
+  callsUsed: number;
+  callsCap: number | null;
+  /** null when it could not be summed */
+  spentUsd: number | null;
+  usdCap: number;
+  /** allowed, but within NEAR_LIMIT of a ceiling */
+  near: boolean;
+  nearWhat?: 'calls' | 'dollars';
+};
+
+type Client = { from: (t: string) => any };
+
+// Summed spend per tenant, kept for a few seconds so a burst of calls (a bot
+// answering a stream of messages) does not re-read a month of rows each time. A
+// failed read is never cached, so an outage is never remembered as "fine".
+const SPEND_TTL_MS = 20_000;
+const spendCache = new Map<string, { at: number; usd: number }>();
+
+async function monthlySpendUsd(client: Client, tenantId: string, since: string, useCache: boolean): Promise<number | null> {
+  const key = `${tenantId}|${since}`;
+  const hit = useCache ? spendCache.get(key) : undefined;
+  if (hit && Date.now() - hit.at < SPEND_TTL_MS) return hit.usd;
+  try {
+    const r = await readAllRows(client, 'ai_usage', {
+      columns: 'id, cost_usd',
+      order: 'id',
+      filter: (q: any) => q.eq('tenant_id', tenantId).gte('created_at', since),
+      ceiling: 50_000,
+    });
+    // Unreadable, or not ALL of it read: an unknown total is not a small one.
+    if (r.error || !r.complete || !r.data) return null;
+    let usd = 0;
+    for (const x of r.data as { cost_usd: number | string | null }[]) {
+      const c = x.cost_usd === null || x.cost_usd === undefined ? UNPRICED_ROW_USD : Number(x.cost_usd);
+      usd += Number.isFinite(c) ? c : UNPRICED_ROW_USD;
+    }
+    if (useCache) spendCache.set(key, { at: Date.now(), usd });
+    return usd;
+  } catch {
+    return null;
+  }
+}
+
+type AlertFn = (a: { reason: 'unreadable' | 'dollars'; tenantId: string; callSite: string; detail: string }) => Promise<void>;
+const alertedAt = new Map<string, number>();
+const ALERT_THROTTLE_MS = 30 * 60 * 1000;
+
+/**
+ * Tell the operator, through the same three channels as every other alert
+ * (lib/opsAlert.js): the log, the admin panel, WhatsApp. Imported lazily so
+ * this module stays loadable without a WhatsApp client, and throttled so a
+ * broken counter is one message, not one per AI call.
+ */
+const defaultAlert: AlertFn = async ({ reason, tenantId, callSite, detail }) => {
+  const { raiseOpsAlert } = await import('../opsAlert.js');
+  const { sendWhatsApp } = await import('../whatsapp.js');
+  await raiseOpsAlert({
+    db: admin() as never,
+    send: sendWhatsApp,
+    to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim(),
+    source: 'ai-cap',
+    severity: reason === 'unreadable' ? 'error' : 'warning',
+    message:
+      reason === 'unreadable'
+        ? `מונה ה-AI לא נקרא - כל קריאות ה-AI נחסמות עד שיתוקן (נכשל ב-${callSite}). ${detail}`
+        : `עסק ${String(tenantId).slice(0, 8)} הגיע לתקרת ההוצאה החודשית על AI (${detail}). הקריאות שלה נעצרות עד ה-1 בחודש.`,
+    details: { reason, tenantId, callSite, detail },
+  });
+};
+
+async function raise(a: Parameters<AlertFn>[0], send: AlertFn, throttle: Map<string, number>): Promise<void> {
+  // One alert per cause: a broken counter is global, so it is keyed by reason
+  // alone; a tenant hitting her ceiling is keyed by tenant.
+  const key = a.reason === 'unreadable' ? 'unreadable' : `dollars:${a.tenantId}`;
+  const last = throttle.get(key) ?? 0;
+  if (Date.now() - last < ALERT_THROTTLE_MS) return;
+  throttle.set(key, Date.now());
+  try { await send(a); } catch (e) { console.error('[ai-cap] could not raise the ops alert:', e instanceof Error ? e.message : String(e)); }
+}
+
+/**
+ * May this tenant make this AI call right now?
+ *
+ * Refuses, in this order of precedence, when: the counter or the month's spend
+ * cannot be read ('unreadable'); the feature's call cap is reached ('calls');
+ * the tenant's dollar ceiling is reached ('dollars'). Allowed otherwise, with
+ * `near` set when she is within NEAR_LIMIT of either, so the caller can tell her
+ * warmly (capNoticeHe) before she is stopped.
+ *
+ * Unattributed calls (no tenant) are not capped, as in getCallCapStatus.
+ * `opts` exists for tests: an injected client/clock/alert and no spend cache.
+ */
+export async function checkAiAllowance(
+  tenantId: string | null | undefined,
+  callSite: string,
+  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number> } = {}
+): Promise<Allowance> {
+  try {
+    return await checkAiAllowanceUnsafe(tenantId, callSite, opts);
+  } catch (e) {
+    // Nothing in here may throw into a caller: any surprise (no database
+    // configured, a client that cannot be built) is an unreadable counter, and an
+    // unreadable counter refuses.
+    console.error(`[ai-cap] allowance check threw for tenant ${tenantId} / ${callSite}: ${e instanceof Error ? e.message : String(e)} - failing CLOSED (call refused)`);
+    if (tenantId) await raise({ reason: 'unreadable', tenantId, callSite, detail: 'בדיקת המכסה נכשלה' }, opts.alert ?? defaultAlert, opts.alertThrottle ?? alertedAt);
+    return { allowed: false, reason: 'unreadable', callSite, callsUsed: 0, callsCap: capFor(callSite), spentUsd: null, usdCap: tenantMonthlyUsdCeiling(), near: false };
+  }
+}
+
+async function checkAiAllowanceUnsafe(
+  tenantId: string | null | undefined,
+  callSite: string,
+  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number> }
+): Promise<Allowance> {
+  const usdCap = tenantMonthlyUsdCeiling();
+  const callsCap = capFor(callSite);
+  const base = { callSite, callsUsed: 0, callsCap, spentUsd: 0, usdCap, near: false } as const;
+  if (!tenantId) return { ...base, allowed: true, reason: 'ok' };
+
+  const client: Client = opts.client ?? (admin() as unknown as Client);
+  const send = opts.alert ?? defaultAlert;
+  const throttle = opts.alertThrottle ?? alertedAt;
+  const since = monthStartIso(opts.now);
+
+  const status = await getCallCapStatus(tenantId, callSite, { now: opts.now, db: client.from('ai_usage') as CountQuery });
+  if (status.unknown) {
+    await raise({ reason: 'unreadable', tenantId, callSite, detail: 'ספירת הקריאות נכשלה' }, send, throttle);
+    return { ...base, allowed: false, reason: 'unreadable', spentUsd: null };
+  }
+
+  const spent = await monthlySpendUsd(client, tenantId, since, !opts.noCache);
+  if (spent === null) {
+    console.error(`[ai-cap] spend sum failed for tenant ${tenantId} - failing CLOSED (call refused)`);
+    await raise({ reason: 'unreadable', tenantId, callSite, detail: 'סכום ההוצאה החודשית לא נקרא' }, send, throttle);
+    return { ...base, allowed: false, reason: 'unreadable', callsUsed: status.used, spentUsd: null };
+  }
+
+  if (status.exceeded) {
+    return { ...base, allowed: false, reason: 'calls', callsUsed: status.used, spentUsd: spent };
+  }
+  if (spent >= usdCap) {
+    await raise({ reason: 'dollars', tenantId, callSite, detail: `$${spent.toFixed(2)} מתוך $${usdCap}` }, send, throttle);
+    return { ...base, allowed: false, reason: 'dollars', callsUsed: status.used, spentUsd: spent };
+  }
+
+  const nearCalls = callsCap !== null && status.used >= callsCap * NEAR_LIMIT;
+  const nearUsd = spent >= usdCap * NEAR_LIMIT;
+  return {
+    ...base, allowed: true, reason: 'ok', callsUsed: status.used, spentUsd: spent,
+    near: nearCalls || nearUsd,
+    ...(nearCalls ? { nearWhat: 'calls' as const } : nearUsd ? { nearWhat: 'dollars' as const } : {}),
+  };
+}
+
+/**
+ * A counter OTHER than the AI call counter (the skin scanner's) could not be
+ * read: same alert, same throttle, one message however many calls were refused.
+ */
+export async function reportCounterFailure(
+  tenantId: string,
+  callSite: string,
+  detail: string,
+  alert: AlertFn = defaultAlert
+): Promise<void> {
+  await raise({ reason: 'unreadable', tenantId, callSite, detail }, alert, alertedAt);
 }

@@ -16,7 +16,8 @@ import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { getCallCapStatus, DemoBlockedError } from '@/lib/ai/callCaps';
+import { checkAiAllowance, DemoBlockedError } from '@/lib/ai/callCaps';
+import { capRefusalHe, capNoticeHe } from '@/lib/ai/capMessages';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { generateImage, OpenAIImageError } from '@/lib/ai/openaiImages';
 import { imagePromptForDirection, type Direction } from '@/lib/ai/creativeDirector';
@@ -48,8 +49,13 @@ export async function POST(request: NextRequest) {
   const tenantLimited = checkTenantLimit(tenantId, 'creatives');
   if (tenantLimited) return tenantLimited;
 
-  const cap = await getCallCapStatus(tenantId, CALL_SITE);
-  if (cap.exceeded) return NextResponse.json({ success: false, error: `סיימת את תמונות ה-AI של החודש (${cap.used} מתוך ${cap.cap}). הן מתחדשות בתחילת החודש הבא, ובינתיים אפשר לבחור תמונה מהגלריה.` }, { status: 429 });
+  // Fails closed: an unreadable counter refuses, and the operator is told.
+  const allowance = await checkAiAllowance(tenantId, CALL_SITE);
+  if (!allowance.allowed) {
+    const tail = allowance.reason === 'unreadable' ? '' : ' ובינתיים אפשר לבחור תמונה מהגלריה.';
+    return NextResponse.json({ success: false, error: capRefusalHe(allowance.reason as 'calls' | 'dollars' | 'unreadable', CALL_SITE) + tail }, { status: allowance.reason === 'unreadable' ? 503 : 429 });
+  }
+  const cap = { used: allowance.callsUsed, cap: allowance.callsCap };
 
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) || {}; } catch { /* empty */ }
@@ -110,5 +116,5 @@ export async function POST(request: NextRequest) {
   const url = storage.getPublicUrl(path).data?.publicUrl || '';
 
   console.log(`[designs/ai-image] TENANT FILTER: tenant_id = ${tenantId} | ${image.model} ${image.size} ${image.quality} | ${image.ms}ms | usd=${image.costUsd ?? 'unknown'}`);
-  return NextResponse.json({ success: true, url, path, model: image.model, size: image.size, quality: image.quality, ms: image.ms, costUsd: image.costUsd, variation, capUsed: cap.used + 1, capLimit: cap.cap });
+  return NextResponse.json({ success: true, url, path, model: image.model, size: image.size, quality: image.quality, ms: image.ms, costUsd: image.costUsd, variation, capUsed: cap.used + 1, capLimit: cap.cap, ...(capNoticeHe(allowance) ? { capNotice: capNoticeHe(allowance) } : {}) });
 }

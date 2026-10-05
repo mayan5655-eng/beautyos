@@ -26,6 +26,12 @@ import {
 // to ship a red suite that looks green.
 const OUT = console.log.bind(console);
 
+// These tests are about METERING, so the ceiling check is given a healthy, empty
+// usage table. (With no database at all the check now REFUSES - fails closed -
+// which test-ai-cap.ts and test-demo-blocked.ts assert.)
+import { makeCapDb } from './testkit/capDb.js';
+const CAP = { capClient: makeCapDb({ ai_usage: [] }), capNoCache: true };
+
 let passed = 0;
 let failed = 0;
 const eq = (label, got, want) => {
@@ -177,12 +183,12 @@ await quiet(async () => {
 
   // (a) the insert returns an error
   const m1 = await trackedCreate(anthropic, { model: 'claude-haiku-4-5', max_tokens: 10 },
-    { tenantId: 't', callSite: 'advisor', db: makeDb({ failWith: 'permission denied' }) });
+    { tenantId: 't', callSite: 'advisor', ...CAP, db: makeDb({ failWith: 'permission denied' }) });
   eq('insert error -> message still returned', m1.content[0].text, 'ok');
 
   // (b) the insert throws outright
   const m2 = await trackedCreate(anthropic, { model: 'claude-haiku-4-5', max_tokens: 10 },
-    { tenantId: 't', callSite: 'advisor', db: makeDb({ throwOn: true }) });
+    { tenantId: 't', callSite: 'advisor', ...CAP, db: makeDb({ throwOn: true }) });
   eq('insert throw -> message still returned', m2.content[0].text, 'ok');
 
   // (c) recordUsage itself never rejects
@@ -195,7 +201,7 @@ await quiet(async () => {
   const bare = makeAnthropic({ noUsage: true });
   const db4 = makeDb();
   const m4 = await trackedCreate(bare, { model: 'claude-haiku-4-5', max_tokens: 10 },
-    { tenantId: 't', callSite: 'advisor', db: db4 });
+    { tenantId: 't', callSite: 'advisor', ...CAP, db: db4 });
   eq('no usage block -> message still returned', m4.content[0].text, 'ok');
   eq('and a zero-token row is still written', db4.rows[0].input_tokens, 0);
 })();
@@ -208,7 +214,7 @@ await quiet(async () => {
   let threw = false;
   try {
     await trackedCreate(anthropic, { model: 'claude-haiku-4-5', max_tokens: 10 },
-      { tenantId: 't', callSite: 'advisor', db });
+      { tenantId: 't', callSite: 'advisor', ...CAP, db });
   } catch { threw = true; }
   ok('the API error reaches the caller', threw);
   eq('nothing was metered for a call that never happened', db.rows.length, 0);
@@ -220,7 +226,7 @@ await quiet(async () => {
   const anthropic = makeAnthropic();
   const db = makeDb();
   const params = { model: 'claude-sonnet-4-5', max_tokens: 2048, system: 'sys', messages: [{ role: 'user', content: 'hi' }] };
-  const msg = await trackedCreate(anthropic, params, { tenantId: 't1', callSite: 'marketing/strategy', db });
+  const msg = await trackedCreate(anthropic, params, { tenantId: 't1', callSite: 'marketing/strategy', ...CAP, db });
   eq('params reach the API untouched', anthropic.calls[0], params);
   eq('the response is returned unchanged', msg.id, 'msg_1');
   eq('model recorded from params', db.rows[0].model, 'claude-sonnet-4-5');

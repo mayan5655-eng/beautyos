@@ -20,7 +20,8 @@ import { createClient } from '@/lib/supabase/server';
 import { requirePlatformAdmin } from '@/lib/adminGuard';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { getCallCapStatus } from '@/lib/ai/callCaps';
+import { checkAiAllowance } from '@/lib/ai/callCaps';
+import { capRefusalHe } from '@/lib/ai/capMessages';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { composeImagePrompt, FORMAT_SIZES, type ImageFormat, type NegativeSpace } from '@/lib/ai/imagePrompt';
 import { generateImage, IMAGE_QUALITIES, OpenAIImageError, type ImageQuality } from '@/lib/ai/openaiImages';
@@ -60,13 +61,14 @@ export async function POST(request: NextRequest) {
   const tenantLimited = checkTenantLimit(tenantId, 'creatives');
   if (tenantLimited) return tenantLimited;
 
-  const cap = await getCallCapStatus(tenantId, CALL_SITE);
-  if (cap.exceeded) {
+  const allowance = await checkAiAllowance(tenantId, CALL_SITE);
+  if (!allowance.allowed) {
     return NextResponse.json(
-      { success: false, error: `הגעת לתקרת תמונות הבדיקה החודשית (${cap.used}/${cap.cap}).`, cap },
-      { status: 429 }
+      { success: false, error: capRefusalHe(allowance.reason as 'calls' | 'dollars' | 'unreadable', CALL_SITE) },
+      { status: allowance.reason === 'unreadable' ? 503 : 429 }
     );
   }
+  const cap = { used: allowance.callsUsed, cap: allowance.callsCap };
 
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) || {}; } catch { /* empty body is fine */ }

@@ -17,7 +17,7 @@
 
 import { recordUsage } from './usage.ts';
 import { FORMAT_SIZES, type ImageFormat } from './imagePrompt.ts';
-import { DemoBlockedError } from './callCaps.ts';
+import { DemoBlockedError, checkAiAllowance, AiCapExceededError, AiCapUnavailableError } from './callCaps.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 
 const ENDPOINT = 'https://api.openai.com/v1/images/generations';
@@ -85,6 +85,15 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   if (isDemoTenantId(input.tenantId)) {
     console.log(`[openai-images] BLOCKED ${input.callSite} for demo tenant ${input.tenantId}`);
     throw new DemoBlockedError(input.callSite);
+  }
+
+  // The ceilings are enforced HERE, not only in the routes that call this: the
+  // per-feature count check lives in each route, but the tenant's dollar
+  // ceiling must hold for every image, whoever asks. Fails closed.
+  const allowance = await checkAiAllowance(input.tenantId, input.callSite);
+  if (!allowance.allowed) {
+    if (allowance.reason === 'unreadable') throw new AiCapUnavailableError(input.callSite);
+    throw new AiCapExceededError(input.callSite, allowance.callsUsed, allowance.callsCap ?? 0, allowance.reason === 'dollars' ? 'dollars' : 'calls');
   }
 
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();

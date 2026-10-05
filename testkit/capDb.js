@@ -13,6 +13,7 @@
 // Supports what the app's reads and the jobs under test use: select (with
 // {count:'exact'} and head), eq/neq/is/not/in/gte/lte/like, order, range, limit,
 // insert, then. `db.log` records every read so a test can assert how it paged.
+/** @param {Record<string, any[]>} tables @param {{ maxRows?: number, failPage?: ((from: number) => boolean) | null }} [opts] */
 export function makeCapDb(tables, { maxRows = 1000, failPage = null } = {}) {
   const log = [];
   const db = {

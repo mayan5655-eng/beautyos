@@ -5588,6 +5588,7 @@ export default function BeautyOS() {
       if (res.ok && data.intent) {
         const intent = data.intent;
         setVoiceIntent(intent);
+        if (data.capNotice) toast(data.capNotice);
         if (intent.action === "book_appointment") prepareBooking(intent);
         else if (intent.action === "show_day") showDayInfo(intent);
         else if (intent.action === "revenue_summary") revenueInfo(intent);
@@ -6669,6 +6670,7 @@ export default function BeautyOS() {
       const data = await res.json();
       if (res.ok && data.success && data.reel) {
         setReelData(data.reel);
+        if (data.capNotice) toast(data.capNotice);
       } else {
         setReelError(data.error || "יצירת הרילס נכשלה");
       }
@@ -6765,6 +6767,7 @@ export default function BeautyOS() {
       const data = await res.json();
       if (res.ok && data.reply) {
         setAdvisorMessages(prev => [...(prev || []), { id: "a-" + Date.now(), role: "assistant", content: data.reply }]);
+        if (data.capNotice) toast(data.capNotice);
       } else {
         toast(data.error || "היועץ לא הצליח לענות", "error");
       }

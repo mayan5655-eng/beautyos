@@ -6,6 +6,7 @@ import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
 import { DemoBlockedError } from './lib/ai/callCaps.ts';
 import { sendWhatsApp } from './lib/whatsapp.js';
 import { trackedCreate } from './lib/ai/usage.ts';
+import { makeCapDb } from './testkit/capDb.js';
 import { generateImage } from './lib/ai/openaiImages.ts';
 import { issueForReceipt, creditForVoid } from './lib/legalReceipts/service.js';
 
@@ -57,13 +58,22 @@ const REAL_ID = '11111111-1111-1111-1111-111111111111';
 
 // ── A real tenant is never affected by any of the above ─────────────────────
 {
-  // trackedCreate with a real tenant id still reaches the cap check (which,
-  // with no real env configured here, fails open per lib/ai/callCaps.ts's own
-  // design) and then the client - proving the guard is demo-id-specific, not
-  // a blanket block.
+  // trackedCreate with a real tenant id passes the ceiling check (given a healthy
+  // usage table) and reaches the client - proving the guard is demo-id-specific,
+  // not a blanket block.
   const client = { messages: { create: async () => ({ usage: { input_tokens: 1, output_tokens: 1 } }) } };
-  const message = await trackedCreate(client as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test' });
+  const healthy = makeCapDb({ ai_usage: [] });
+  const message = await trackedCreate(client as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test', capClient: healthy, capNoCache: true } as any);
   assert.ok(message, 'a real tenant id is never blocked');
+
+  // ...and with NO usable database the ceiling cannot be checked, so the call is
+  // REFUSED (fails closed) - the model is never reached.
+  let reached = false;
+  const watched = { messages: { create: async () => { reached = true; return { usage: {} }; } } };
+  const q = console.error; console.error = () => {};
+  await assert.rejects(() => trackedCreate(watched as any, { model: 'claude-haiku-4-5', max_tokens: 10, messages: [] } as any, { tenantId: REAL_ID, callSite: 'test' }), /עצרנו לרגע/);
+  console.error = q;
+  assert.equal(reached, false, 'an unreadable ceiling refuses before the model is called');
 }
 
 console.log('demo blocked: ok');

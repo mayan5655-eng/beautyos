@@ -27,7 +27,8 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
-import { getCallCapStatus, AiCapExceededError, DemoBlockedError } from './callCaps.ts';
+import { checkAiAllowance, AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from './callCaps.ts';
+import { capNoticeHe } from './capMessages.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -42,6 +43,11 @@ export interface TrackOptions {
   attribution?: Attribution;
   /** Injected in tests so nothing touches a real database. */
   db?: { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } } | null;
+  /** Test hooks for the ceiling check: an injected client, clock and alert, and no spend cache. */
+  capClient?: { from: (t: string) => any };
+  capNow?: Date;
+  capAlert?: (a: any) => Promise<void>;
+  capNoCache?: boolean;
 }
 
 /**
@@ -197,7 +203,7 @@ export async function recordUsage({
 export async function trackedCreate(
   client: Pick<Anthropic, 'messages'>,
   params: Anthropic.MessageCreateParamsNonStreaming,
-  { tenantId = null, callSite, attribution = 'verified', db = null }: TrackOptions
+  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
 ): Promise<Anthropic.Message> {
   // Checked before the cap and before the call: a demo tenant (lib/demoTenants.ts)
   // must never spend real money, full stop, regardless of what the cap math
@@ -207,19 +213,26 @@ export async function trackedCreate(
     throw new DemoBlockedError(callSite);
   }
 
-  // Ceiling check BEFORE the call, so a refusal costs nothing. Fails open on
-  // a read failure - see lib/ai/callCaps.ts for why a spend control fails open
-  // where a security boundary would fail closed.
-  const cap = await getCallCapStatus(tenantId, callSite);
-  if (cap.exceeded) {
+  // Ceiling check BEFORE the call, so a refusal costs nothing. Fails CLOSED: a
+  // counter that cannot be read refuses the call and tells the operator - see
+  // lib/ai/callCaps.ts. Checks the feature's call cap AND the tenant's dollar
+  // ceiling for the month.
+  const allowance = await checkAiAllowance(tenantId, callSite, { client: capClient, now: capNow, alert: capAlert, noCache: capNoCache });
+  if (!allowance.allowed) {
     console.error(
-      `[ai-cap] REFUSED ${callSite} for tenant ${tenantId}: ` +
-      `${cap.used}/${cap.cap} calls used this month.`
+      `[ai-cap] REFUSED ${callSite} for tenant ${tenantId}: reason=${allowance.reason} ` +
+      `calls=${allowance.callsUsed}/${allowance.callsCap ?? '-'} spent=$${allowance.spentUsd === null ? '?' : allowance.spentUsd.toFixed(2)}/$${allowance.usdCap}`
     );
-    throw new AiCapExceededError(callSite, cap.used, cap.cap as number);
+    if (allowance.reason === 'unreadable') throw new AiCapUnavailableError(callSite);
+    throw new AiCapExceededError(callSite, allowance.callsUsed, allowance.callsCap ?? 0, allowance.reason === 'dollars' ? 'dollars' : 'calls');
   }
 
   const message = (await client.messages.create(params)) as Anthropic.Message;
+  // Near the limit: the warm heads-up rides on the message object (not
+  // enumerable, so it never leaks into a serialised response by accident) for
+  // the route to pass to her - "נשארו 3 ... הן מתחדשות בראשון לחודש".
+  const notice = capNoticeHe(allowance);
+  if (notice) Object.defineProperty(message, 'capNotice', { value: notice, enumerable: false });
   await recordUsage({
     tenantId,
     callSite,

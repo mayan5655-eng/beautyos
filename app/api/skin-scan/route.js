@@ -84,9 +84,25 @@ export async function POST(request) {
       const quota = await getQuotaStatus(tenantId);
       console.log(
         `[skin-scan] TENANT FILTER: tenant_id = ${tenantId} | ` +
-        `quota ${quota.used}/${quota.limit}${quota.unknown ? " (UNKNOWN — failing open)" : ""} | ` +
+        `quota ${quota.used}/${quota.limit}${quota.unknown ? " (UNKNOWN — failing CLOSED)" : ""} | ` +
         `signed=${signed}`
       );
+      if (quota.unknown) {
+        // The counter is unreadable, so the scan is refused (fails closed; the
+        // operator has been alerted). Say the TRUE thing to the client - the
+        // scanner is unavailable right now - not the false one, that the
+        // business used up its scans.
+        return Response.json(
+          {
+            success: false,
+            scannerUnavailable: true,
+            error:
+              "סורק העור לא זמין כרגע. אפשר לנסות שוב בעוד כמה דקות, " +
+              "או לפנות ישירות לקוסמטיקאית והיא תשמח לעזור.",
+          },
+          { status: 503 }
+        );
+      }
       if (quota.exceeded) {
         // The CLIENT sees this, not the cosmetician - she is not in this
         // request at all. Her own warning lives on the scanner card in the app,

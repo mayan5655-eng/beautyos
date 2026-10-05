@@ -22,7 +22,8 @@ import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile';
-import { AiCapExceededError, DemoBlockedError } from '@/lib/ai/callCaps';
+import { AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from '@/lib/ai/callCaps';
+import { capRefusalHe, capNoticeHe } from '@/lib/ai/capMessages';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
 import { generateImage } from '@/lib/ai/openaiImages';
 import { composeImagePrompt, type ImageFormat } from '@/lib/ai/imagePrompt';
@@ -93,7 +94,10 @@ export async function POST(request: NextRequest) {
 
   const allowance = await generationAllowance(tenantId, settings?.ai_generation_cap);
   if (allowance.exceeded) {
-    return NextResponse.json({ success: false, error: `ניצלת את ${allowance.cap} היצירות של החודש. התבניות פתוחות תמיד, בלי הגבלה.`, used: allowance.used, cap: allowance.cap }, { status: 429 });
+    // Unreadable counter or used-up month: different sentences, neither a scolding,
+    // both say what keeps working. Templates are always open.
+    const error = allowance.unknown ? capRefusalHe('unreadable', 'designs/generate') : `${capRefusalHe('calls', 'designs/generate')} התבניות פתוחות תמיד.`;
+    return NextResponse.json({ success: false, error, used: allowance.used, cap: allowance.cap }, { status: allowance.unknown ? 503 : 429 });
   }
 
   const branding = (settings?.branding && typeof settings.branding === 'object' ? settings.branding : {}) as Record<string, unknown>;
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
     plan = await planPost(profile, brief, candidates, tenantId);
   } catch (e) {
     if (e instanceof DemoBlockedError) return NextResponse.json({ success: false, error: e.message }, { status: 403 });
-    if (e instanceof AiCapExceededError) return NextResponse.json({ success: false, error: `ניצלת את ${e.cap} היצירות של החודש. התבניות פתוחות תמיד.`, used: e.used, cap: e.cap }, { status: 429 });
+    if (e instanceof AiCapExceededError || e instanceof AiCapUnavailableError) return NextResponse.json({ success: false, error: e.message, used: allowance.used, cap: allowance.cap }, { status: e instanceof AiCapUnavailableError ? 503 : 429 });
     console.error('[designs/generate] plan failed:', e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, error: 'ה-AI לא הצליח לבנות את הפוסט הפעם. נסי לנסח אחרת, או בחרי תבנית מהגלריה.' }, { status: 502 });
   }
@@ -174,5 +178,10 @@ export async function POST(request: NextRequest) {
   }
   if (!designs.length) return NextResponse.json({ success: false, error: 'הפוסטים נבנו אבל השמירה נכשלה. נסי שוב.' }, { status: 500 });
 
-  return NextResponse.json({ success: true, options: designs, copy: plan.copy, used: allowance.used + 1, cap: allowance.cap });
+  // Within 20% of this month's generations: tell her warmly, before she is stopped.
+  const usedNow = allowance.used + 1;
+  const capNotice = allowance.cap > 0 && usedNow >= allowance.cap * 0.8
+    ? capNoticeHe({ allowed: true, reason: 'ok', callSite: 'designs/generate', callsUsed: usedNow, callsCap: allowance.cap, spentUsd: null, usdCap: 0, near: true, nearWhat: 'calls' })
+    : null;
+  return NextResponse.json({ success: true, options: designs, copy: plan.copy, used: usedNow, cap: allowance.cap, ...(capNotice ? { capNotice } : {}) });
 }

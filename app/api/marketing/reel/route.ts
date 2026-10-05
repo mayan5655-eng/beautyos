@@ -7,6 +7,7 @@
 // POST /api/marketing/reel  { topic, duration?, vibe? }
 // Multi-tenant: business context is loaded from the logged-in user's tenant.
 
+import { capNoticeOf } from '@/lib/ai/capMessages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -172,7 +173,7 @@ ${GROUNDING_RULES}
       return NextResponse.json({ error: 'יצירת הרילס נכשלה, נסי שוב' }, { status: 422 })
     }
 
-    return NextResponse.json({ success: true, reel })
+    return NextResponse.json({ success: true, reel, ...capNoticeOf(message) })
   } catch (error: any) {
     console.error('Error in /api/marketing/reel:', error)
     return NextResponse.json({ error: error.message || 'יצירת הרילס נכשלה' }, { status: 500 })

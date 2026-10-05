@@ -129,17 +129,18 @@ export async function planPost(profile: BusinessProfile, brief: string, candidat
   return parseGeneratePlan(block.text, candidates);
 }
 
-export type GenerationAllowance = { used: number; cap: number; remaining: number; exceeded: boolean };
+export type GenerationAllowance = { used: number; cap: number; remaining: number; exceeded: boolean; /** the count could not be read - and `exceeded` is therefore true */ unknown: boolean };
 
 /**
  * This month's allowance for a tenant. The per-tenant override wins over the
  * platform number; the count comes from ai_usage like every other cap. A
- * count that cannot be read fails open, as all spend controls here do.
+ * count that cannot be read FAILS CLOSED (exceeded + unknown), like every spend
+ * control here now - see lib/ai/callCaps.ts.
  */
 export async function generationAllowance(tenantId: string, tenantCap: unknown, opts: { status?: CapStatus } = {}): Promise<GenerationAllowance> {
   const status = opts.status || await getCallCapStatus(tenantId, GENERATE_CALL_SITE);
   const override = Number(tenantCap);
   const cap = Number.isFinite(override) && override >= 0 && tenantCap !== null && tenantCap !== undefined ? Math.floor(override) : (status.cap ?? 0);
   const used = status.unknown ? 0 : status.used;
-  return { used, cap, remaining: Math.max(0, cap - used), exceeded: !status.unknown && used >= cap };
+  return { used, cap, remaining: status.unknown ? 0 : Math.max(0, cap - used), exceeded: status.unknown || used >= cap, unknown: status.unknown };
 }

@@ -7,6 +7,7 @@
 // SECURITY: requires an authenticated session (like /api/advisor). No tenant
 // data is sent to the model — only the transcript + today's date.
 
+import { capNoticeOf } from '@/lib/ai/capMessages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       // keep the safe default (unknown)
     }
 
-    return NextResponse.json({ intent })
+    return NextResponse.json({ intent, ...capNoticeOf(aiResponse) })
   } catch (err: any) {
     console.error('Error in /api/voice-intent:', err)
     return NextResponse.json({ error: err.message || 'שגיאה' }, { status: 500 })

@@ -149,17 +149,17 @@ await quiet(async () => {
 group('quota fails OPEN, never closed');
 await quiet(async () => {
   const err = await getQuotaStatus(TENANT, { db: makeDb({ error: { message: 'boom' } }) });
-  eq('read error -> not exceeded', err.exceeded, false);
+  eq('read error -> REFUSED (fails closed)', err.exceeded, true);
   eq('read error -> flagged unknown', err.unknown, true);
 
   // The exact false positive seen in production: head:true on a missing table
   // returns NO error and a null count.
   const nul = await getQuotaStatus(TENANT, { db: makeDb({ nullCount: true }) });
-  eq('null count (no error!) -> not exceeded', nul.exceeded, false);
+  eq('null count (no error!) -> REFUSED (fails closed)', nul.exceeded, true);
   eq('null count -> flagged unknown', nul.unknown, true);
 
   const thrown = await getQuotaStatus(TENANT, { db: makeDb({ throwOn: true }) });
-  eq('thrown -> not exceeded', thrown.exceeded, false);
+  eq('thrown -> REFUSED (fails closed)', thrown.exceeded, true);
   eq('thrown -> flagged unknown', thrown.unknown, true);
 
   const noTenant = await getQuotaStatus('', { db: makeDb({ count: 999 }) });

@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile';
-import { AiCapExceededError } from '@/lib/ai/callCaps';
+import { AiCapExceededError, AiCapUnavailableError } from '@/lib/ai/callCaps';
 import { getTemplate } from '@/lib/design/templates';
 import { directFill } from '@/lib/ai/creativeDirector';
 
@@ -45,8 +45,9 @@ export async function POST(request: NextRequest) {
     const out = await directFill(profile, template, brief, tenantId);
     return NextResponse.json({ success: true, ...out });
   } catch (e) {
-    if (e instanceof AiCapExceededError) {
-      return NextResponse.json({ success: false, error: `סיימת את מילויי ה-AI של החודש (${e.used} מתוך ${e.cap}). הם מתחדשים בתחילת החודש הבא, ובינתיים אפשר למלא את הטקסטים ידנית.` }, { status: 429 });
+    if (e instanceof AiCapExceededError || e instanceof AiCapUnavailableError) {
+      // The error's own message is the warm Hebrew sentence (with when it renews).
+      return NextResponse.json({ success: false, error: e.message }, { status: e instanceof AiCapUnavailableError ? 503 : 429 });
     }
     console.error('[designs/ai-fill] failed:', e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, error: 'ה-AI לא הצליח למלא את התבנית הפעם. נסי שוב, או מלאי ידנית.' }, { status: 502 });

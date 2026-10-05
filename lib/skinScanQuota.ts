@@ -23,6 +23,7 @@
 // a lead-capture funnel.
 
 import { createClient } from '@supabase/supabase-js';
+import { reportCounterFailure } from './ai/callCaps.ts';
 
 /** Rows in ai_usage carry this call_site for the scanner. */
 export const SKIN_SCAN_CALL_SITE = 'skin-scan';
@@ -57,7 +58,7 @@ export interface QuotaStatus {
   limit: number;
   remaining: number;
   exceeded: boolean;
-  /** True when the count could not be read - see the fail-open note below. */
+  /** True when the count could not be read. `exceeded` is then true too: it fails CLOSED. */
   unknown: boolean;
 }
 
@@ -72,16 +73,20 @@ function admin() {
 /**
  * How many scans this tenant has spent this month, and whether that is over.
  *
- * ── Fails OPEN, deliberately ──────────────────────────────────────────────
- * If ai_usage cannot be read, this reports used=0 / unknown=true and the caller
- * lets the scan through. The alternative - failing closed - means one bad
- * database moment silently switches off every cosmetician's lead capture, which
- * is a far worse outcome than a handful of uncounted scans. The metering table
- * is a cost guard, not an auth boundary; a guard that takes the product down
- * when it wobbles is not a guard.
+ * ── Fails CLOSED ────────────────────────────────────────────────────────
+ * If ai_usage cannot be read, this reports unknown=true AND exceeded=true, so
+ * the scan is refused and the operator is alerted that the counter is broken
+ * (lib/ai/callCaps.ts reportCounterFailure). It used to fail open, on the
+ * grounds that one bad database moment must not switch off lead capture. But the
+ * scanner is PUBLIC: anyone with a link can call it, every call spends money on
+ * the tenant's account, and this count is the only ceiling on it. A ceiling that
+ * opens when the database wobbles is open exactly when it is least watched. The
+ * cost of closing is a client seeing "try again in a few minutes" for a few
+ * minutes; the cost of leaving it open is uncapped spend.
  *
- * The `unknown` flag is returned rather than hidden so the caller can log it.
- */
+ * The `unknown` flag is returned so the route can say the true thing to the
+ * client (the scanner is unavailable) rather than the false one (the business
+ * used up its scans). */
 /**
  * Just the slice of the supabase chain this module uses. Narrow on purpose:
  * the test double has to implement only this, and anything it adds beyond this
@@ -103,10 +108,11 @@ interface CountQuery extends PromiseLike<CountResult> {
 
 export async function getQuotaStatus(
   tenantId: string,
-  opts: { db?: { from: (t: string) => CountQuery } | null; now?: Date } = {}
+  opts: { db?: { from: (t: string) => CountQuery } | null; now?: Date; alert?: Parameters<typeof reportCounterFailure>[3] } = {}
 ): Promise<QuotaStatus> {
   const limit = monthlyLimit();
   if (!tenantId) return { used: 0, limit, remaining: limit, exceeded: false, unknown: true };
+  // (No tenant: nothing to charge it to and nothing to count - the one case that is allowed through.)
 
   // The real client's builder types are far wider than the four methods used
   // here; narrowing at the boundary keeps the test double honest and stops
@@ -124,9 +130,10 @@ export async function getQuotaStatus(
 
     if (error || count === null || count === undefined) {
       console.error(
-        `[skin-scan-quota] count failed for tenant ${tenantId}: ${error?.message ?? 'null count'} — failing OPEN`
+        `[skin-scan-quota] count failed for tenant ${tenantId}: ${error?.message ?? 'null count'} — failing CLOSED (scan refused)`
       );
-      return { used: 0, limit, remaining: limit, exceeded: false, unknown: true };
+      await reportCounterFailure(tenantId, SKIN_SCAN_CALL_SITE, 'ספירת סריקות העור נכשלה', opts.alert);
+      return { used: 0, limit, remaining: 0, exceeded: true, unknown: true };
     }
 
     const used = Number(count) || 0;
@@ -139,8 +146,9 @@ export async function getQuotaStatus(
     };
   } catch (e) {
     console.error(
-      `[skin-scan-quota] threw for tenant ${tenantId}: ${e instanceof Error ? e.message : String(e)} — failing OPEN`
+      `[skin-scan-quota] threw for tenant ${tenantId}: ${e instanceof Error ? e.message : String(e)} — failing CLOSED (scan refused)`
     );
-    return { used: 0, limit, remaining: limit, exceeded: false, unknown: true };
+    await reportCounterFailure(tenantId, SKIN_SCAN_CALL_SITE, 'ספירת סריקות העור נכשלה', opts.alert);
+    return { used: 0, limit, remaining: 0, exceeded: true, unknown: true };
   }
 }

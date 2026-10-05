@@ -79,6 +79,7 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
       setResult({ options: data.options, copy: data.copy });
       onCreated?.(data.options);
       toast?.(`${data.options.length} אפשרויות מוכנות. בחרי אחת ותערכי.`);
+      if (data.capNotice) toast?.(data.capNotice);
     } catch (e) { setError(String(e.message || e)); } finally { setBusy(false); }
   };
 

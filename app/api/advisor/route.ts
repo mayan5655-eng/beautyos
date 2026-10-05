@@ -8,6 +8,7 @@
 // session (get_user_tenant_id over the user's cookies) - never from the client.
 // All business data is read scoped to that tenant only.
 
+import { capNoticeOf } from '@/lib/ai/capMessages'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -247,7 +248,7 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     // Persist the assistant's reply.
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'assistant', content: reply })
 
-    return NextResponse.json({ reply })
+    return NextResponse.json({ reply, ...capNoticeOf(aiResponse) })
   } catch (err: any) {
     console.error('Error in /api/advisor:', err)
     return NextResponse.json({ error: err.message || 'שגיאה' }, { status: 500 })

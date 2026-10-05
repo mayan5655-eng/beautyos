@@ -37,12 +37,12 @@ assert.equal(plan.options[1].templateKey, 'rosh-hashana-feed');
 assert.deepEqual(plan.copy.hashtags, ['#עור', '#skincare']);
 assert.throws(() => parseGeneratePlan(JSON.stringify({ options: [{ templateKey: 'offer-feed', values: {} }] }), feed), /only 1 usable/);
 
-// ── The allowance: platform default, tenant override, fail-open ─────────────
+// ── The allowance: platform default, tenant override, fail-CLOSED ───────────
 const status = (used: number, cap: number | null, unknown = false) => ({ used, cap, exceeded: cap !== null && used >= cap, unknown });
-assert.deepEqual(await generationAllowance('t', null, { status: status(3, 9) }), { used: 3, cap: 9, remaining: 6, exceeded: false });
-assert.deepEqual(await generationAllowance('t', 20, { status: status(9, 9) }), { used: 9, cap: 20, remaining: 11, exceeded: false }, 'a tenant override wins');
-assert.deepEqual(await generationAllowance('t', 0, { status: status(0, 9) }), { used: 0, cap: 0, remaining: 0, exceeded: true }, '0 switches it off');
-assert.deepEqual(await generationAllowance('t', 'junk', { status: status(9, 9) }), { used: 9, cap: 9, remaining: 0, exceeded: true });
-assert.deepEqual(await generationAllowance('t', null, { status: status(0, 9, true) }), { used: 0, cap: 9, remaining: 9, exceeded: false }, 'an unreadable count fails open');
+assert.deepEqual(await generationAllowance('t', null, { status: status(3, 9) }), { used: 3, cap: 9, remaining: 6, exceeded: false, unknown: false });
+assert.deepEqual(await generationAllowance('t', 20, { status: status(9, 9) }), { used: 9, cap: 20, remaining: 11, exceeded: false, unknown: false }, 'a tenant override wins');
+assert.deepEqual(await generationAllowance('t', 0, { status: status(0, 9) }), { used: 0, cap: 0, remaining: 0, exceeded: true, unknown: false }, '0 switches it off');
+assert.deepEqual(await generationAllowance('t', 'junk', { status: status(9, 9) }), { used: 9, cap: 9, remaining: 0, exceeded: true, unknown: false });
+assert.deepEqual(await generationAllowance('t', null, { status: status(0, 9, true) }), { used: 0, cap: 9, remaining: 0, exceeded: true, unknown: true }, 'an unreadable count REFUSES (fails closed), and says it was unreadable');
 
 console.log('post generator: ok');
