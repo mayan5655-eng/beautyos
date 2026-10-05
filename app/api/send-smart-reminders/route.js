@@ -66,6 +66,22 @@ export async function POST(request) {
       `sent=${stats.sent} failed=${stats.failed} ms=${stats.ms}`
     );
 
+    // A run that skipped a read, or left people unsent, says so out loud.
+    const gaps = [
+      stats.incomplete?.length ? `קריאות שלא הושלמו (הכללים שתלויים בהן לא רצו): ${stats.incomplete.join(", ")}` : "",
+      stats.unsent?.length ? `לא נשלחו (נגמר הזמן): ${stats.unsent.length}` : "",
+      stats.errored?.length ? `נכשלו/נתקעו: ${stats.errored.length}` : "",
+      stats.logFailed ? `נשלחו ולא נרשמו ביומן (יישלחו שוב מחר): ${stats.logFailed}` : "",
+    ].filter(Boolean);
+    if (gaps.length && !dryRun) {
+      console.error(`[send-smart-reminders] INCOMPLETE ${JSON.stringify({ incomplete: stats.incomplete, unsent: stats.unsent?.length, errored: stats.errored, logFailed: stats.logFailed })}`);
+      const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
+      if (to) {
+        try { await sendWhatsApp(to, ["תזכורות חכמות - ההרצה לא הושלמה", ...gaps].join(String.fromCharCode(10)), { name: "Kalmea", type: "invariants" }); }
+        catch (e) { console.error("[send-smart-reminders] could not alert the operator:", e?.message || String(e)); }
+      }
+    }
+
     return Response.json({ success: true, dryRun, results, stats });
   } catch (err) {
     return Response.json({ success: false, error: err.message }, { status: 500 });

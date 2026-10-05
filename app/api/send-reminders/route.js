@@ -2,24 +2,30 @@
 // Sends WhatsApp reminders for tomorrow's appointments, for ALL tenants.
 // Runs via Vercel Cron once a day. Multi-tenant aware: each reminder uses
 // the correct business name for the tenant that owns that appointment.
+//
+// The work lives in lib/reminders/dailyReminders.js: one job per tenant, run in
+// parallel with a cap and in isolation, paged reads, and a report of every
+// tenant it did not finish. This file supplies the real database, the real
+// sender, and the alert that tells the operator who was missed.
+//
+// Retry: POST/GET /api/send-reminders?only=<tenantId>[,<tenantId>...] with the
+// same cron secret re-runs just those tenants (the alert lists them) and skips
+// any phone already reminded in the last 20 hours.
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
-import { greet, lines, hebrewDate, timeRange, hhmm, durationHe, mapsLink } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
-// reportReminderFailures is retired (see below) but the two status labels are
-// still shared with that module so a future rename stays a one-place change.
-import { STATUS_FAILED, STATUS_NO_PHONE } from "../../../lib/reminders/failureReport.js";
 import { isDemoTenantId } from "../../../lib/demoTenants.ts";
+import { runDailyReminders } from "../../../lib/reminders/dailyReminders.js";
+import { describeMissed } from "../../../lib/cronFanout.js";
 
-// Vercel's default function timeout is short (10-15s depending on plan) and was
-// never declared here. This job sends serially to every tenant's appointments
-// for tomorrow, so at ~40 sends/day across 50 tenants it needs headroom the
-// default does not give.
+// 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
+// tenant may take longer than 60 s, so it always ends by 260 s on its own terms
+// and reports who it did not reach - rather than being killed mid-list.
 export const maxDuration = 300;
 
 const supabase = createClient(
@@ -48,193 +54,57 @@ export async function POST(request) {
 
   try {
     const tomorrow = getTomorrowDate();
-    console.log("TOMORROW DATE:", tomorrow);
+    const onlyParam = new URL(request.url).searchParams.get("only");
+    const only = onlyParam ? onlyParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
-    // Get all of tomorrow's appointments (across all tenants).
-    // We include tenant_id so we can label each message with the right business.
-    //
-    // CANCELLED ROWS ARE EXCLUDED, and that filter is the whole point of this
-    // query rather than a detail of it. Cancelling is a soft update - the row
-    // keeps its date and its phone number - so without this the job read a
-    // cancelled appointment as an upcoming one and sent its client a reminder
-    // for a visit she had already called off, with live confirm and cancel
-    // links on the end of it. Every other reader of this table already applies
-    // the same rule: lib/apptTime, /api/availability, the booking guard, the
-    // in-app calendar and the appointments_no_overlap constraint all treat a
-    // cancelled row as a slot that is free and an appointment that is not
-    // happening. This job was the one that did not.
-    //
-    // Filtered in the query rather than in the loop below so a cancelled row
-    // never reaches the send path at all, and so "how many are there" in the
-    // early return below counts real appointments.
-    // `kind` separates a client appointment from one of her own personal
-    // events - an accountant meeting, a course, a day off - which live in this
-    // same table so that they block a booking through the overlap constraint.
-    // Nobody is expecting a WhatsApp about those.
-    //
-    // Asked for optionally, and dropped if the database has not got the column
-    // yet: this file deploys before add_appointment_kind.sql is applied by
-    // hand, and a reminder run that fails outright because it named a column
-    // too early would be a worse bug than the one it prevents. Without the
-    // column every row reads as an appointment, which is exactly today's
-    // behaviour. Same bet, and the same test for it, as softCancelAppointment
-    // makes for the cancel-audit columns.
-    // `duration` was missing from this list, so timeRange() below only ever
-    // had a start and every reminder read "14:30" where the booking
-    // confirmation had said "14:30–15:15". Same column every other reader
-    // selects; NOT NULL since the booking path stopped writing zero.
-    const COLS = "id, name, service, date, hour, start_minute, duration, client_phone, tenant_id, confirmation_status";
-    const loadTomorrow = (cols) => supabase
-      .from("appointments")
-      .select(cols)
-      .eq("date", tomorrow)
-      .neq("confirmation_status", "cancelled");
+    const run = await runDailyReminders({
+      db: supabase,
+      send: sendWhatsApp,
+      tomorrow,
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app",
+      deps: { startMinute, isPersonal, confirmLinks, isDemoTenantId, isMissingColumnError },
+      only,
+    });
 
-    let { data: appointments, error } = await loadTomorrow(COLS + ", kind");
-    if (isMissingColumnError(error)) {
-      ({ data: appointments, error } = await loadTomorrow(COLS));
-    }
-
-    if (error) {
-      return Response.json({ success: false, error: error.message }, { status: 500 });
-    }
-
-    // sendWhatsApp already refuses a demo tenant, but filtering here too means
-    // this run's own failure report (below) never counts a demo tenant's
-    // seeded appointment as a real reminder that failed to send.
-    appointments = (appointments || []).filter((a) => !isDemoTenantId(a.tenant_id));
-
-    if (!appointments || appointments.length === 0) {
+    if (run.empty) {
       return Response.json({ success: true, sent: 0, message: "אין תורים מחר" });
     }
 
-    // Load all settings rows once, so we don't query per appointment. We read
-    // the whole row (select "*") rather than named columns on purpose: the
-    // reminders_enabled toggle column may not exist yet in every environment,
-    // and "*" can't fail on a missing column the way an explicit select would.
-    // Map of tenant_id -> settings row.
-    const { data: settingsRows } = await supabase.from("settings").select("*");
-    const settingsByTenant = {};
-    (settingsRows || []).forEach((row) => {
-      settingsByTenant[row.tenant_id] = row;
-    });
-
-    // Appointment reminders are ON by default: a tenant is skipped only when it
-    // has explicitly turned reminders_enabled off. undefined/null (column absent
-    // or never set) counts as ON, so behavior matches how the cron ran before
-    // the toggle existed.
-    const remindersEnabled = (tenantId) =>
-      settingsByTenant[tenantId]?.reminders_enabled !== false;
-
-    // Master switch: "השהיית כל האוטומציות" (settings.automations.paused).
-    // A tenant-wide gate ON TOP of reminders_enabled - when it is on, nothing
-    // automated goes out for that tenant at all.
-    // Fails open: only a literal true pauses, so a missing column or a
-    // malformed JSONB value can never silently stop a paying tenant's messages.
-    const tenantPaused = (tenantId) => {
-      const autos = settingsByTenant[tenantId]?.automations;
-      return !!(autos && typeof autos === "object" && autos.paused === true);
-    };
-    // One log line per tenant per run, not per appointment.
-    const pausedLogged = new Set();
-
-    // Same fallback as send-reminder-manual. Without it, a missing env var in
-    // production silently produced links reading "undefined/confirm?id=..." -
-    // and only on the cron path, so the manual button would have looked fine
-    // while every automatic reminder went out broken.
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app";
-
-    // Send a reminder to each appointment, using its tenant's business name.
-    //
-    // Every result row carries the tenant and the appointment's time, not just
-    // a name and a status: the failure report after the loop groups by tenant
-    // and tells her WHEN the un-reminded client is due, which is the one fact
-    // she needs to send it herself.
-    const results = [];
-    const row = (appt, status) => ({
-      name: appt.name,
-      status,
-      tenantId: appt.tenant_id,
-      time: hhmm(startMinute(appt)),
-    });
-    for (const appt of appointments) {
-      // Her own blocked-out time is not a client and has nobody to remind.
-      // Checked explicitly rather than left to the missing client_phone below,
-      // so this never depends on a personal event not acquiring one.
-      if (isPersonal(appt)) continue;
-      // Master pause first: it overrides the per-type toggle below.
-      if (tenantPaused(appt.tenant_id)) {
-        if (!pausedLogged.has(appt.tenant_id)) {
-          console.log(`[send-reminders] skipped: automations paused for tenant ${appt.tenant_id}`);
-          pausedLogged.add(appt.tenant_id);
+    // Anything the run did not finish is said out loud, never left to be
+    // noticed by a client who was not reminded.
+    const missed = describeMissed(`תזכורות ל-${tomorrow}`, run.fanout);
+    if (missed) {
+      console.error(`[send-reminders] INCOMPLETE ${JSON.stringify(run.fanout)}`);
+      const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
+      if (to) {
+        try {
+          await sendWhatsApp(
+            to,
+            `${missed}\n\nלהרצה חוזרת רק לאלה: /api/send-reminders?only=<מזהה מלא>`,
+            { name: "Kalmea", type: "invariants" }
+          );
+        } catch (e) {
+          console.error("[send-reminders] could not alert the operator:", e?.message || String(e));
         }
-        results.push(row(appt, "מושהה (השהיית אוטומציות)"));
-        continue;
       }
-      // Respect the tenant's "appointment reminders" automation toggle.
-      if (!remindersEnabled(appt.tenant_id)) {
-        results.push(row(appt, "מושבת (הגדרות)"));
-        continue;
-      }
-      if (!appt.client_phone) {
-        results.push(row(appt, STATUS_NO_PHONE));
-        continue;
-      }
-
-      const tenantSettings = settingsByTenant[appt.tenant_id] || {};
-      const businessName = tenantSettings.business_name || "העסק";
-      const brandJson = tenantSettings.branding && typeof tenantSettings.branding === "object" ? tenantSettings.branding : {};
-      const address = String(brandJson.public_address || brandJson.address || "").trim();
-      const arrivalNote = String(brandJson.arrival_note || "").trim();
-      const durationText = durationHe(appt.duration);
-      // Signed: /api/confirm now requires a token binding the id to the action.
-      // Dated: the links die three days after the appointment, not never.
-      const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(baseUrl, appt.id, { date: appt.date });
-
-      // Same voice as the booking confirmation she already received: the same
-      // greeting, the same mark, the same way of saying a date, the same
-      // address/arrival-note she already gets once - repeated here because a
-      // reminder is read the morning of, when "where exactly" matters again,
-      // not just at booking time. Confirm before cancel, and the cancel line
-      // softened to invite a reschedule rather than a loss: she'd rather move
-      // the appointment than lose the client.
-      const message = lines(
-        greet(appt.name),
-        `תזכורת לתור שלך ב${businessName} מחר.`,
-        "",
-        durationText ? `${appt.service} · ${durationText}` : appt.service,
-        `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,
-        address ? "" : null,
-        address ? `📍 ${address}` : null,
-        address ? mapsLink(address) : null,
-        arrivalNote ? "" : null,
-        arrivalNote || null,
-        "",
-        `לאישור: ${confirmLink}`,
-        `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
-      );
-
-      const res = await sendWhatsApp(appt.client_phone, message, {
-        name: appt.name,
-        type: "reminder",
-        tenantId: appt.tenant_id,
-      });
-
-      results.push(row(appt, res.ok ? "נשלח" : res.queued ? "ממתין לשליחה ידנית" : STATUS_FAILED));
     }
 
-    // reportReminderFailures (lib/reminders/failureReport.js) retired, not
-    // called: a reminder that doesn't send now falls back into the same
-    // manual WhatsApp queue she already opens the app to work through, so a
-    // separate WhatsApp telling her "some reminders failed" would be one
-    // more automated message that itself could fail silently. The queue IS
-    // the report. The module is left in place, unused, in case a future
-    // failure mode needs resurrecting it - see lib/whatsapp.js's own
-    // "keep GreenAPI code behind a flag" rule for why nothing here is deleted.
-    const report = null;
-
-    return Response.json({ success: true, date: tomorrow, results, report });
+    return Response.json({
+      success: run.fanout.complete,
+      date: tomorrow,
+      results: run.results,
+      fanout: run.fanout,
+      report: null,
+    }, { status: run.fanout.complete ? 200 : 207 });
   } catch (err) {
+    console.error("[send-reminders] aborted:", err?.message || String(err));
+    // An aborted run reminded NOBODY. That is the case most worth a message.
+    const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
+    if (to) {
+      try {
+        await sendWhatsApp(to, `תזכורות מחר - ההרצה נעצרה ולא נשלחה אף תזכורת: ${err?.message || String(err)}`, { name: "Kalmea", type: "invariants" });
+      } catch { /* the log line above is the fallback */ }
+    }
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }
 }
