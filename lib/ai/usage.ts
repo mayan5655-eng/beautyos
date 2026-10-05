@@ -27,7 +27,7 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
-import { checkAiAllowance, AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from './callCaps.ts';
+import { checkAiAllowance, AiCapExceededError, AiCapUnavailableError, DemoBlockedError, AiProviderUnavailableError, isProviderUnavailable, reportProviderFailure } from './callCaps.ts';
 import { capNoticeHe } from './capMessages.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -48,6 +48,8 @@ export interface TrackOptions {
   capNow?: Date;
   capAlert?: (a: any) => Promise<void>;
   capNoCache?: boolean;
+  providerAlert?: (a: any) => Promise<void>;
+  providerThrottle?: Map<string, number>;
 }
 
 /**
@@ -208,6 +210,22 @@ export async function recordUsage({
  * swallowed.
  */
 /**
+ * If the provider itself refused (empty credit balance, rejected key), tell the
+ * operator once and hand the caller an error that blames nobody; any other error
+ * is returned untouched.
+ */
+async function asProviderError(
+  e: unknown,
+  callSite: string,
+  hooks: { providerAlert?: (a: any) => Promise<void>; providerThrottle?: Map<string, number> }
+): Promise<unknown> {
+  if (!isProviderUnavailable(e)) return e;
+  console.error(`[ai-provider] ${callSite}: the AI provider is refusing calls: ${(e as Error).message?.slice(0, 200)}`);
+  await reportProviderFailure(callSite, String((e as Error).message || ''), hooks.providerAlert, hooks.providerThrottle);
+  return new AiProviderUnavailableError(callSite);
+}
+
+/**
  * Everything that must be true BEFORE any AI call is allowed to spend money -
  * shared by trackedCreate and trackedStream so a stream can never be a looser
  * way in than a plain call. Throws DemoBlockedError / AiCapExceededError /
@@ -248,11 +266,16 @@ async function guardSpend(
 export async function trackedCreate(
   client: Pick<Anthropic, 'messages'>,
   params: Anthropic.MessageCreateParamsNonStreaming,
-  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
+  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache, providerAlert, providerThrottle }: TrackOptions
 ): Promise<Anthropic.Message> {
   const allowance = await guardSpend(tenantId, callSite, { capClient, capNow, capAlert, capNoCache });
 
-  const message = (await client.messages.create(params)) as Anthropic.Message;
+  let message: Anthropic.Message;
+  try {
+    message = (await client.messages.create(params)) as Anthropic.Message;
+  } catch (e) {
+    throw await asProviderError(e, callSite, { providerAlert, providerThrottle });
+  }
   // Near the limit: the warm heads-up rides on the message object (not
   // enumerable, so it never leaks into a serialised response by accident) for
   // the route to pass to her - "נשארו 3 ... הן מתחדשות בראשון לחודש".
@@ -291,7 +314,7 @@ export async function trackedCreate(
 export async function trackedStream(
   client: Pick<Anthropic, 'messages'>,
   params: Anthropic.MessageCreateParamsNonStreaming,
-  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache }: TrackOptions
+  { tenantId = null, callSite, attribution = 'verified', db = null, capClient, capNow, capAlert, capNoCache, providerAlert, providerThrottle }: TrackOptions
 ): Promise<{ deltas: AsyncGenerator<string, void, unknown>; message: () => Anthropic.Message | null; capNotice: string | null }> {
   const allowance = await guardSpend(tenantId, callSite, { capClient, capNow, capAlert, capNoCache });
   const stream = client.messages.stream(params as Anthropic.MessageStreamParams);
@@ -305,7 +328,7 @@ export async function trackedStream(
       }
     } catch (e) {
       failed = true;
-      throw e;
+      throw await asProviderError(e, callSite, { providerAlert, providerThrottle });
     } finally {
       // Normal end AND early stop (consumer returned): collect what the model
       // produced so the spend is recorded. Skipped when the stream itself failed.

@@ -22,7 +22,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile';
-import { AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from '@/lib/ai/callCaps';
+import { AiCapExceededError, AiCapUnavailableError, AiProviderUnavailableError, DemoBlockedError } from '@/lib/ai/callCaps';
 import { UngroundedClaimsError } from '@/lib/ai/claimsGuard';
 import { capRefusalHe, capNoticeHe } from '@/lib/ai/capMessages';
 import { PUBLIC_BUCKET } from '@/lib/clientImages';
@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof DemoBlockedError) return NextResponse.json({ success: false, error: e.message }, { status: 403 });
     if (e instanceof AiCapExceededError || e instanceof AiCapUnavailableError) return NextResponse.json({ success: false, error: e.message, used: allowance.used, cap: allowance.cap }, { status: e instanceof AiCapUnavailableError ? 503 : 429 });
+    // The AI provider itself is refusing (credit balance, key): not her request, not her fault.
+    if (e instanceof AiProviderUnavailableError) return NextResponse.json({ success: false, error: e.message }, { status: 503 });
     // The model stated claims about feel / intensity / downtime / suitability / contents
     // that her profile does not back, twice. Nothing is published; tell her how to fix it.
     if (e instanceof UngroundedClaimsError) return NextResponse.json({ success: false, error: e.message }, { status: 422 });

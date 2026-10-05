@@ -348,7 +348,7 @@ async function monthlySpendUsd(client: Client, tenantId: string, since: string, 
   }
 }
 
-type AlertFn = (a: { reason: 'unreadable' | 'dollars'; tenantId: string; callSite: string; detail: string }) => Promise<void>;
+type AlertFn = (a: { reason: 'unreadable' | 'dollars' | 'provider'; tenantId: string; callSite: string; detail: string }) => Promise<void>;
 const alertedAt = new Map<string, number>();
 const ALERT_THROTTLE_MS = 30 * 60 * 1000;
 
@@ -366,9 +366,11 @@ const defaultAlert: AlertFn = async ({ reason, tenantId, callSite, detail }) => 
     send: sendWhatsApp,
     to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim(),
     source: 'ai-cap',
-    severity: reason === 'unreadable' ? 'error' : 'warning',
+    severity: reason === 'dollars' ? 'warning' : 'error',
     message:
-      reason === 'unreadable'
+      reason === 'provider'
+        ? `ספק ה-AI דוחה את הקריאות שלנו, ולכן כל תכונות ה-AI לא עובדות לאף עסק: ${detail}. בדרך כלל זה אומר שיתרת הקרדיט ב-Anthropic נגמרה (Plans & Billing) או שהמפתח נפסל.`
+        : reason === 'unreadable'
         ? `מונה ה-AI לא נקרא - כל קריאות ה-AI נחסמות עד שיתוקן (נכשל ב-${callSite}). ${detail}`
         : `עסק ${String(tenantId).slice(0, 8)} הגיע לתקרת ההוצאה החודשית על AI (${detail}). הקריאות שלה נעצרות עד ה-1 בחודש.`,
     details: { reason, tenantId, callSite, detail },
@@ -378,7 +380,7 @@ const defaultAlert: AlertFn = async ({ reason, tenantId, callSite, detail }) => 
 async function raise(a: Parameters<AlertFn>[0], send: AlertFn, throttle: Map<string, number>): Promise<void> {
   // One alert per cause: a broken counter is global, so it is keyed by reason
   // alone; a tenant hitting her ceiling is keyed by tenant.
-  const key = a.reason === 'unreadable' ? 'unreadable' : `dollars:${a.tenantId}`;
+  const key = a.reason === 'unreadable' ? 'unreadable' : a.reason === 'provider' ? 'provider' : `dollars:${a.tenantId}`;
   const last = throttle.get(key) ?? 0;
   if (Date.now() - last < ALERT_THROTTLE_MS) return;
   throttle.set(key, Date.now());
@@ -457,6 +459,42 @@ async function checkAiAllowanceUnsafe(
     near: nearCalls || nearUsd,
     ...(nearCalls ? { nearWhat: 'calls' as const } : nearUsd ? { nearWhat: 'dollars' as const } : {}),
   };
+}
+
+/**
+ * Is this error the AI PROVIDER refusing us - an empty credit balance or a rejected
+ * key - rather than a problem with one request? That is a platform-wide outage:
+ * every AI feature fails for every tenant, and without this each of them showed
+ * "the AI could not do that, try phrasing it differently" while the operator heard
+ * nothing. Deliberately narrow: a malformed request or a transient overload is
+ * not this, and is left alone.
+ */
+export function isProviderUnavailable(e: unknown): boolean {
+  const err = e as { status?: number; message?: string } | null;
+  const msg = String(err?.message || '');
+  if (err?.status === 400 && /credit balance is too low|plans\s*&\s*billing/i.test(msg)) return true;
+  if ((err?.status === 401 || err?.status === 403) && /authentication|invalid x-api-key|permission/i.test(msg)) return true;
+  return false;
+}
+
+/** The AI provider refused the call (see isProviderUnavailable). The message is for HER and blames nobody. */
+export class AiProviderUnavailableError extends Error {
+  readonly callSite: string;
+  constructor(callSite: string) {
+    super('ה-AI לא זמין כרגע בצד שלנו, וזה לא קשור אליך או לבקשה שלך 🌸 אנחנו כבר יודעות ומטפלות בזה. אפשר לנסות שוב מאוחר יותר.');
+    this.name = 'AiProviderUnavailableError';
+    this.callSite = callSite;
+  }
+}
+
+/** Alert the operator that the provider is refusing calls - once per throttle window, whatever the call volume. */
+export async function reportProviderFailure(
+  callSite: string,
+  detail: string,
+  alert: AlertFn = defaultAlert,
+  throttle: Map<string, number> = alertedAt
+): Promise<void> {
+  await raise({ reason: 'provider', tenantId: '', callSite, detail: detail.slice(0, 200) }, alert, throttle);
 }
 
 /**
