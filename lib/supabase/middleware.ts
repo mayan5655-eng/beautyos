@@ -7,6 +7,7 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { verifiedUserFromSession } from './sessionGate';
 
 // Public routes that must never require login (clients/leads use these).
 const PUBLIC_PREFIXES = [
@@ -64,11 +65,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: do not run any code between createServerClient and getUser().
-  // getUser() refreshes the token and triggers the cookie writes above.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // IMPORTANT: do not run any code between createServerClient and this call.
+  // It reads the session, which refreshes a token that is about to expire and
+  // triggers the cookie writes above.
+  // Page-level gate only: the token's signature is verified locally
+  // (lib/supabase/sessionGate.ts) instead of a round trip to the Auth server.
+  // Every API route and write still calls auth.getUser().
+  const user = await verifiedUserFromSession(supabase);
 
   // Protected pages (everything that is not public) require a session.
   if (!user && !isPublicPath(request.nextUrl.pathname)) {

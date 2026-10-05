@@ -14,6 +14,7 @@
 // session that expires mid-use after this server check already passed.
 
 import { createClient } from "@/lib/supabase/server";
+import { verifiedUserFromSession } from "@/lib/supabase/sessionGate";
 import LandingPage from "./LandingPage";
 import BeautyOSLoader from "./BeautyOSLoader";
 
@@ -34,7 +35,10 @@ export const metadata = {
 
 export default async function Page() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Page-level gate only: the token's signature is verified locally
+  // (lib/supabase/sessionGate.ts) instead of a round trip to the Auth server.
+  // Every API route and write still calls auth.getUser().
+  const user = await verifiedUserFromSession(supabase);
   if (user) return <BeautyOSLoader />;
   return <LandingPage />;
 }

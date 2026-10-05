@@ -4,6 +4,7 @@
 
 import { createClient } from '../../lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { verifiedUserFromSession } from '../../lib/supabase/sessionGate';
 
 export default async function DashboardLayout({
   children,
@@ -12,9 +13,10 @@ export default async function DashboardLayout({
 }) {
   // Check that user is logged in
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Page-level gate only: the token's signature is verified locally
+  // (lib/supabase/sessionGate.ts) instead of a round trip to the Auth server.
+  // Every API route and write still calls auth.getUser().
+  const user = await verifiedUserFromSession(supabase);
 
   if (!user) {
     redirect('/login');
