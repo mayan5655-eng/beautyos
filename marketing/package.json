@@ -1,0 +1,14 @@
+{
+  "name": "kalmea-marketing",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Regenerable marketing recordings. Own package.json on purpose: nothing here is installed by the site's build.",
+  "type": "module",
+  "scripts": {
+    "record": "node record-demo.mjs"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "playwright-core": "1.63.0"
+  }
+}
