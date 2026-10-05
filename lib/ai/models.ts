@@ -45,5 +45,9 @@ export const EFFORT = {
   advisor: 'low',
   // The caption / post-copy call alone, so it can be tuned (and trialled) without
   // moving the reels, the AI fill or the advisor with it.
-  captions: 'high',
+  // medium, after a side-by-side on production (2026-10-05): high cost ~$0.10 and
+  // ~31 s per generation and did NOT fix what was wrong with the captions (the
+  // brief's own words repeated, its slogan copied, one templated shape) - those
+  // were prompt problems, fixed in buildGeneratePrompt. See test-post-generator.ts.
+  captions: 'medium',
 } as const;

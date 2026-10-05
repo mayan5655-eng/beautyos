@@ -45,4 +45,20 @@ assert.deepEqual(await generationAllowance('t', 0, { status: status(0, 9) }), { 
 assert.deepEqual(await generationAllowance('t', 'junk', { status: status(9, 9) }), { used: 9, cap: 9, remaining: 0, exceeded: true, unknown: false });
 assert.deepEqual(await generationAllowance('t', null, { status: status(0, 9, true) }), { used: 0, cap: 9, remaining: 0, exceeded: true, unknown: true }, 'an unreadable count REFUSES (fails closed), and says it was unreadable');
 
+// ── The voice rules: what was wrong with the first captions, kept wrong-proof ──
+// A live side-by-side showed the captions echoing the brief's own words ("עדין"
+// twice in a sentence), copying its slogan verbatim, and always taking the same
+// hook / benefit / call-to-action shape - at medium AND at high effort, so it was
+// the prompt, not the model. These rules are the fix; if an edit drops one, say
+// so here rather than find out from a cosmetician's feed.
+for (const rule of [
+  'הבקשה שלה היא נושא, לא ניסוח',
+  'אל תחזרי על אותה מילה',
+  'פתחי בפרט מוחשי אחד',
+  'משפטים באורכים שונים',
+  'ולא סיסמאות',
+  'אדם אחר כתב אותה',
+]) assert.ok(prompt.includes(rule), `the caption prompt lost its voice rule: ${rule}`);
+assert.ok(prompt.indexOf('איך הטקסט צריך להישמע') < prompt.indexOf('החזירי JSON בלבד'), 'the voice rules come before the output format');
+
 console.log('post generator: ok');
