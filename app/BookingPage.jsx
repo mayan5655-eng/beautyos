@@ -692,6 +692,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: ink, lineHeight: 1.3 }}>{text}</p>
     </div>
   );
+  // WhatsApp's own green (#25D366) is 1.98:1 under white text; #0B7A3E is 5.4:1 and still reads as
+  // WhatsApp. Used for every WhatsApp button on this page.
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
 
   return (
@@ -794,7 +796,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </p>
                 {wa && (
                   <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
-                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#25D366", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
+                     style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
                     <Icon name="whatsapp" size={15}/> לתיאום תור בוואטסאפ
                   </a>
                 )}
@@ -821,7 +823,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                           const key = groupKeyForService(resultGroups, sv);
                           if (!mine.length || !key) return null;
                           return (
-                            <button onClick={() => goToResults(key)} className="bk-btn" aria-label={"תוצאות של " + sv.name}
+                            <button onClick={() => goToResults(key)} className="bk-btn" aria-label={"תוצאות (" + mine.length + ") של " + sv.name}
                               style={{ background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                               <span style={{ display: "flex" }}>
                                 {mine.slice(0, 3).map((r, k) => (
@@ -1030,7 +1032,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div>
                 {eyebrow("עקבו אחרינו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#25D366")}>וואטסאפ</a>}
+                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
                   ))}
@@ -1049,7 +1051,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {recentPosts.map((p) => (
                     <div key={p.id} style={{ background: cream, borderRadius:"var(--r-md)", border: `1px solid ${hair}`, overflow: "hidden" }}>
-                      {p.image_url && (
+                      {/* A post image saved before the bucket split can point into the PRIVATE
+                          client-images bucket, which never serves to the public: the browser
+                          blocks the response and logs an error on every visit to her page, for a
+                          picture nobody can see. Skip those; a re-upload goes to the public one. */}
+                      {p.image_url && !p.image_url.includes("/client-images/") && (
                         <Photo src={p.image_url} sizes="(max-width: 540px) 100vw, 540px" style={{ width: "100%", height: 240 }} />
                       )}
                       <div style={{ padding: "15px 17px" }}>
@@ -1283,7 +1289,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#25D366", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
                 <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>
             )}
