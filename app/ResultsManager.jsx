@@ -82,7 +82,7 @@ export default function ResultsManager({ tenantId, services }) {
     try {
       const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
       const path = `${tenantId}/results/${side}_${Date.now()}.jpg`;
-      const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg" });
+      const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
       if (error) { setMsg("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע."); return; }
       const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
       if (url) setPhoto(side, url);

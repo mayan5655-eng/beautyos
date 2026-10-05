@@ -99,6 +99,8 @@ export default function SignupPage() {
             width={BANNER_HEADER_W}
             height={BANNER_HEADER_H}
             priority
+            fetchPriority="high"
+            sizes="(max-width: 420px) 96vw, 380px"
             style={logoStyle}
           />
         </div>

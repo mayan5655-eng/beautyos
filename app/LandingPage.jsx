@@ -144,7 +144,7 @@ export default function LandingPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginTop: 18 }}>
           {BEFORE_AFTER.map((pair, i) => (
             <Reveal key={pair.before} delay={(i % 3) * 80} style={{ background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--line)", padding: "16px 18px" }}>
-              <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)", textDecoration: "line-through", marginBottom: 6 }}>{pair.before}</p>
+              <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "line-through", marginBottom: 6 }}>{pair.before}</p>
               <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600 }}>{pair.after}</p>
             </Reveal>
           ))}
@@ -219,7 +219,7 @@ export default function LandingPage() {
         </Reveal>
       </section>
 
-      <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-3)" }}>
+      <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
         <p>© {new Date().getFullYear()} קלמיה</p>
       </footer>
     </div>

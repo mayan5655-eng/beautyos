@@ -18,7 +18,7 @@ const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
 
 export default function PrivacyPage() {
   return (
-    <main dir="rtl" style={pageStyle}>
+    <div dir="rtl" style={pageStyle}>
       <article style={cardStyle}>
         <header style={{ marginBottom: 10 }}>
           <p style={brandStyle}>Kalmea</p>
@@ -206,7 +206,7 @@ export default function PrivacyPage() {
           עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
         </footer>
       </article>
-    </main>
+    </div>
   );
 }
 

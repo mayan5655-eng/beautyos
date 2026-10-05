@@ -4568,7 +4568,7 @@ export default function BeautyOS() {
     const blob = await resizeImage(file, preset);
     const ext = preset.type === "image/png" ? "png" : (/svg/i.test(file.type) ? "svg" : "jpg");
     const path = `${tid}/branding/${name}_${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || preset.type });
+    const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || preset.type, cacheControl: "31536000" });
     if (error) return { error };
     return { url: supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "" };
   };
@@ -6763,7 +6763,7 @@ export default function BeautyOS() {
       // client-images bucket) and keep using a public URL.
       const tid = settings?.tenant_id || "shared";
       const fileName = `${tid}/${Date.now()}.jpg`;
-      const { error: ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(fileName, blob, { contentType: "image/jpeg" });
+      const { error: ue } = await supabase.storage.from(PUBLIC_BUCKET).upload(fileName, blob, { contentType: "image/jpeg", cacheControl: "31536000" });
       if (!ue) {
         const { data: urlData } = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(fileName);
         setNewPost(p => ({ ...p, image_url: urlData.publicUrl }));
@@ -8134,7 +8134,7 @@ ${c.claimUrl}`)}`;
  </button>
  </aside>
 
- <main className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBF8F1":undefined}}>
+ <div className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBF8F1":undefined}}>
           <ChromeFlowerBg/>
           {/* Trial notice. Sits OUTSIDE the keyed tab wrapper on purpose: it is a
               property of the account, not of a screen, so it stays put and does
@@ -10234,7 +10234,7 @@ ${c.claimUrl}`)}`;
             );
           })()}
  </div>
- </main>
+ </div>
  </div>
 
       {/* APPT MODAL */}

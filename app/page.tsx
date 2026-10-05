@@ -14,8 +14,8 @@
 // session that expires mid-use after this server check already passed.
 
 import { createClient } from "@/lib/supabase/server";
-import BeautyOS from "./beautyos";
 import LandingPage from "./LandingPage";
+import BeautyOSLoader from "./BeautyOSLoader";
 
 // Only meaningfully seen by a crawler or a social-share unfurl, both of
 // which hit this route with no session - so this describes the landing
@@ -35,6 +35,6 @@ export const metadata = {
 export default async function Page() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (user) return <BeautyOS />;
+  if (user) return <BeautyOSLoader />;
   return <LandingPage />;
 }

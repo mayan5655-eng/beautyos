@@ -48,8 +48,8 @@ export default function PhoneMock() {
 
           {/* revenue hero */}
           <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--line)", padding: "12px 14px", marginBottom: 10, boxShadow: "var(--shadow-sm)" }}>
-            <p style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 2 }}>הכנסות היום</p>
-            <p className="serif" style={{ fontSize: 22, fontWeight: 700, color: "var(--pc, #E9A9A1)" }}>₪890</p>
+            <p style={{ fontSize: 10, color: "var(--ink-2)", marginBottom: 2 }}>הכנסות היום</p>
+            <p className="serif" style={{ fontSize: 22, fontWeight: 700, color: "var(--brand-accent)" }}>₪890</p>
           </div>
 
           {/* two upcoming appointments */}
@@ -59,10 +59,10 @@ export default function PhoneMock() {
               { time: "12:00", name: "דנה לוי", service: "מניקור ג'ל" },
             ].map((a) => (
               <div key={a.time} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--line)", padding: "8px 10px" }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--pc, #E9A9A1)", minWidth: 32 }}>{a.time}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "var(--brand-accent)", minWidth: 32 }}>{a.time}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{a.name}</p>
-                  <p style={{ fontSize: 9.5, color: "var(--ink-3)" }}>{a.service}</p>
+                  <p style={{ fontSize: 9.5, color: "var(--ink-2)" }}>{a.service}</p>
                 </div>
               </div>
             ))}
@@ -73,7 +73,7 @@ export default function PhoneMock() {
           <Reveal delay={650} style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid rgba(233,169,161,.5)", padding: "10px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
               <BrandImage width={20} height={20} alt="" src={ICON_QUESTION} style={{ width: 20, height: 20, objectFit: "contain" }} />
-              <span style={{ fontFamily: "var(--font-hand), cursive", fontSize: 13, color: "#C07A72" }}>שאלה אחת</span>
+              <span style={{ fontFamily: "var(--font-hand), cursive", fontSize: 13, color: "#A8544B" }}>שאלה אחת</span>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.5 }}>התפנה תור ב-14:00 — להציע אותו בוואטסאפ ללקוחות מתאימות?</p>
           </Reveal>
@@ -82,7 +82,7 @@ export default function PhoneMock() {
         {/* bottom nav, decorative */}
         <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 0 14px", borderTop: "1px solid var(--line)", background: "var(--surface)" }}>
           {["היום", "יומן", "לקוחות", "תשלום", "תוכן"].map((l, i) => (
-            <span key={l} style={{ fontSize: 8.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "var(--pc, #E9A9A1)" : "var(--ink-3)" }}>{l}</span>
+            <span key={l} style={{ fontSize: 8.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "var(--brand-accent)" : "var(--ink-2)" }}>{l}</span>
           ))}
         </div>
       </div>

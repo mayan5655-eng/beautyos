@@ -146,6 +146,8 @@ export default function LoginPage() {
             width={BANNER_HEADER_W}
             height={BANNER_HEADER_H}
             priority
+            fetchPriority="high"
+            sizes="(max-width: 420px) 96vw, 380px"
             style={{
               width: 'min(380px, 96%)', height: 'auto',
               filter: 'drop-shadow(0 10px 22px rgba(48,24,72,0.16))',

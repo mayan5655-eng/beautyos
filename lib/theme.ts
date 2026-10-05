@@ -68,6 +68,43 @@ export function contrastOn(hex: string): string {
     : '#FFFFFF';
 }
 
+// Her accent as TEXT. The accent itself is a fill - buttons, rules, washes -
+// and is chosen for how it looks as one: the default petal pink is 1.97:1
+// against white, which is fine as a fill and unreadable as a heading. Anything
+// that draws words in her colour on a light page (her booking page's headings,
+// prices, step labels) reads --pc-text instead.
+//
+// Same hue and saturation as hers, lightness lowered only as far as it takes to
+// reach `min` against white AND against Kalmea's cream (the darker of the two
+// surfaces she can land on). An accent whose --pc-deep already passes - a deep
+// plum, a forest green - gets exactly that, so only the colours that need it move.
+const rgbToHsl = ({ r, g, b }: Rgb): [number, number, number] => {
+  const R = r / 255, G = g / 255, B = b / 255;
+  const max = Math.max(R, G, B), min = Math.min(R, G, B), d = max - min;
+  const l = (max + min) / 2;
+  if (!d) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === R ? ((G - B) / d) % 6 : max === G ? (B - R) / d + 2 : (R - G) / d + 4;
+  return [(h * 60 + 360) % 360, s, l];
+};
+const hslToHex = (h: number, s: number, l: number): string => {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return `#${[r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('')}`;
+};
+export function readableAccentText(accent: string, min = 4.6): string {
+  const surfaces = ['#FFFFFF', '#F0EADE'];
+  const ok = (hex: string) => surfaces.every((bg) => contrastRatio(hex, bg) >= min);
+  const start = darken(accent, 0.16);
+  if (ok(start)) return start;
+  const [h, s, l0] = rgbToHsl(hexToRgb(start));
+  for (let l = l0; l > 0; l -= 0.01) {
+    const hex = hslToHex(h, s, l);
+    if (ok(hex)) return hex;
+  }
+  return BRAND_INK;
+}
+
 // The full accent family derived from one hex. Ratios mirror globals.css.
 export function buildAccentTokens(accent?: string | null): Record<string, string> {
   const pc = (accent || '').trim() || DEFAULT_ACCENT;
@@ -79,6 +116,7 @@ export function buildAccentTokens(accent?: string | null): Record<string, string
     '--pc': pc,
     '--pc-2': pc2,
     '--pc-deep': pcDeep,
+    '--pc-text': readableAccentText(pc),
     '--pc-tint': lighten(pc, 0.9),
     '--pc-tint-2': lighten(pc, 0.82),
     '--pc-soft': `rgba(${rgb.r},${rgb.g},${rgb.b},0.10)`,

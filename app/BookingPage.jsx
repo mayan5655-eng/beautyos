@@ -15,6 +15,7 @@ import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
+import Image from "next/image";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -59,13 +60,39 @@ const RESULTS_PER_GROUP = 4;
 
 // A picture that never leaves a hole: missing or broken (a default not yet
 // shipped, a deleted upload) falls back to a soft tint instead of an icon.
-function Photo({ src, style, eager = false }) {
+//
+// Goes through next/image, not a bare <img>: the files are tenant uploads (or
+// the shipped defaults) and used to be sent exactly as stored - the original
+// bytes at any screen size, with only the storage bucket's 1-hour cache. Now
+// each one is served as WebP at the width it is drawn (the `sizes` prop says
+// how wide that is) and cached for a month by the image optimizer, which also
+// covers photos uploaded before the upload path learned to resize. `fill`
+// inside a positioned wrapper keeps every call site's box exactly as it was:
+// the wrapper takes the old style, so aspect-ratio / absolute inset still hold
+// and nothing moves when the picture arrives. `eager` is the hero: preloaded
+// and fetched at high priority, because it is the largest thing on the page.
+function Photo({ src, style, eager = false, sizes = "(max-width: 540px) 100vw, 540px" }) {
   const [badSrc, setBadSrc] = useState(null);
   const bad = badSrc === src;
   if (!src || bad) {
     return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #FDF6F6) 0%, var(--brand-cream, #FDFBF9) 100%)" }} />;
   }
-  return <img src={src} alt="" loading={eager ? "eager" : "lazy"} onError={() => setBadSrc(src)} style={{ ...style, objectFit: "cover", objectPosition: "center", display: "block" }} />;
+  return (
+    <div style={{ position: "relative", overflow: "hidden", ...style }}>
+      <Image src={src} alt="" fill sizes={sizes} quality={75}
+        preload={eager} fetchPriority={eager ? "high" : undefined} loading={eager ? undefined : "lazy"}
+        unoptimized={/\.svg(\?|$)/i.test(src)}
+        onError={() => setBadSrc(src)}
+        style={{ objectFit: "cover", objectPosition: "center" }} />
+    </div>
+  );
+}
+
+// Her logo: a real <Image> with width and height, so the box is reserved before
+// the file arrives. The pair is the largest the CSS ever draws it at; the style
+// on the caller shrinks it to the file's true proportions, as before.
+function Logo({ src, alt, w, h, style }) {
+  return <Image src={src} alt={alt} width={w} height={h} sizes={w + "px"} unoptimized={/\.svg(\?|$)/i.test(src)} style={style} />;
 }
 
 // Small botanical mark + rules either side: the section beat, used on every
@@ -138,7 +165,7 @@ function ResultThumb({ result, onOpen, label }) {
   return (
     <button onClick={onOpen} aria-label={label} className="bk-btn"
       style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: "1 / 1", borderRadius: "var(--r-sm)", overflow: "hidden", border: "1px solid " + HAIR, background: "none" }}>
-      <Photo src={result.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      <Photo src={result.after} sizes="(max-width: 540px) 50vw, 270px" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
       {result.before && (
         <span aria-hidden="true" style={{ position: "absolute", bottom: 6, insetInlineEnd: 6, padding: "1px 8px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: "var(--t-xs)", fontWeight: 600 }}>לפני · אחרי</span>
       )}
@@ -216,19 +243,29 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
  * the server. Without it the component falls back to reading ?t= itself, which
  * is exactly what it always did.
  */
-export default function BookingPage({ tenantId: tenantIdProp }) {
+export default function BookingPage({ tenantId: tenantIdProp, initialSettings = /** @type {any} */ (null), initialServices = /** @type {any} */ (null) }) {
   // === DATA ===
-  const [settings, setSettings] = useState(null);
-  const [services, setServices] = useState([]);
+  // /[slug] reads the public settings and the service list on the server and
+  // hands them in, so the first HTML already contains her hero, treatments and
+  // hours - and the hero photo can be preloaded from the document head instead
+  // of being discovered only after this component has downloaded, run, and
+  // fetched. Without them (/book?t=, which has no server step) it loads
+  // everything itself, exactly as before.
+  const [settings, setSettings] = useState(initialSettings);
+  const [services, setServices] = useState(initialServices || []);
   const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSettings);
+  // False through the server render and the first client render, so anything
+  // that depends on the clock (today's hours, which days have a free slot)
+  // starts identical on both sides and only fills in once we are in the browser.
+  const [mounted, setMounted] = useState(false);
   const [tenantId, setTenantId] = useState(null);
   const [tenantError, setTenantError] = useState(false);
   // Whether the busy-slot list actually loaded. Distinct from "nothing is
   // booked", and the distinction matters: conflating the two is what made the
   // old bug invisible, because a failed read looked exactly like a free diary.
   const [availabilityError, setAvailabilityError] = useState(false);
-  const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
+  const [brand, setBrand] = useState(() => (initialSettings ? resolveBranding(initialSettings) : null)); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   // Reviews written by clients. null until the read resolves, so "none yet" and
   // "not loaded" stay apart.
@@ -261,6 +298,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
+    setMounted(true);
     let t = tenantIdProp || null, svc = null;
     try {
       const params = new URLSearchParams(window.location.search);
@@ -293,8 +331,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
       const [row, sv, ap, rv, rs] = await Promise.all([
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
-        fetchPublicSettings(supabase, t),
-        supabase.from("service_prices").select("*").eq("tenant_id", t).or(ACTIVE_OR_NULL),
+        initialSettings ? Promise.resolve(initialSettings) : fetchPublicSettings(supabase, t),
+        initialServices ? Promise.resolve({ data: initialServices }) : supabase.from("service_prices").select("*").eq("tenant_id", t).or(ACTIVE_OR_NULL),
         // Busy slots come from the server, NOT from a direct table read.
         //
         // This used to be supabase.from("appointments") on the anon key. RLS
@@ -374,7 +412,11 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // reads the variables, so no heading can fall back to the default purple.
   const accent = brand?.primary || settings?.primary_color || "#E9A9A1";
   const pc = "var(--pc)";
-  const deep = "var(--pc-deep)";
+  // Words in her colour read --pc-text (lib/theme.ts), never --pc itself: the
+  // accent is a fill, and the default pink is 1.97:1 as text. Every heading,
+  // price and step label below goes through these two; fills keep `pc`.
+  const pcText = "var(--pc-text)";
+  const deep = pcText;
 
   // Half-hour granularity, and slotsBetween refuses any start whose treatment
   // would run past closing - the old loop offered the last hour of the day even
@@ -428,7 +470,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // days and warns at the slot level, rather than hiding her whole diary
   // because one fetch failed.
   const availableDays = [];
-  for (let i = 0; i < 21 && availableDays.length < 14; i++) {
+  for (let i = 0; mounted && i < 21 && availableDays.length < 14; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     if (isOpenOn(settings, d) && dayHasFreeSlot(d)) availableDays.push(d);
@@ -505,7 +547,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FDFBF9)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pc }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FDFBF9)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pcText }}>
         ✦ טוען
       </div>
     );
@@ -555,7 +597,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // page that shows a booking button anyway wastes her client's time and loses
   // the enquiry silently.
   const hasServices = services.length > 0;
-  const hasOpenDays = availableDays.length > 0;
+  // Until mounted there is no clock to ask, so assume days exist: the booking
+  // buttons are in the server HTML and are taken away a beat later in the one
+  // case where she really has none open.
+  const hasOpenDays = !mounted || availableDays.length > 0;
   const canBook = hasServices && hasOpenDays;
   // The sticky bar exists whenever there is something to tap: WhatsApp if she has a
   // number, otherwise the online flow (which needs a bookable service and day).
@@ -594,9 +639,9 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
   // averaging 5.0 should not wear the same clothes as sixty.
   const reviewsAreReal = !!(dbReviews && dbReviews.length);
   const avgRating = reviews.length ? reviews.reduce((a, r) => a + (Number(r.rating) || 0), 0) / reviews.length : 0;
-  const now = new Date();
+  const now = mounted ? new Date() : null;
   const weekHours = normalizeBusinessHours(settings);
-  const todayHours = weekHours[now.getDay()];
+  const todayHours = now ? weekHours[now.getDay()] : null;
   const socials = [
     brand?.website && { key: "web", label: "אתר", href: socialHref("https://", brand.website) },
     brand?.instagram && { key: "ig", label: "אינסטגרם", href: socialHref("https://instagram.com/", brand.instagram) },
@@ -687,7 +732,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
             <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
               {brand?.logoUrl ? (
-                <img src={brand.logoUrl} alt={bizName}
+                <Logo src={brand.logoUrl} alt={bizName} w={260} h={84}
                   style={{ maxHeight: 84, maxWidth: "min(70%, 260px)", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
               ) : (
                 <p className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 600, color: ink, letterSpacing: 1, margin: 0 }}>{bizName}</p>
@@ -724,7 +769,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           <div style={{ ...section, marginTop: 14, marginBottom: 22, textAlign: "center" }}>
             {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, margin: "0 0 4px" }}>{person}</p>}
             <p style={{ ...T_META, color: faint, margin: 0 }}>
-              {todayHours ? "היום " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : "סגור היום"}
+              {!mounted ? "\u00A0" : todayHours ? "היום " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : "סגור היום"}
               {addr ? " · " + addr : ""}
             </p>
           </div>
@@ -766,7 +811,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   const img = serviceImage(sv, brand?.serviceImages);
                   return (
                     <div key={sv.id || i} style={{ background: "var(--brand-surface, #FDFBF9)", border: "1px solid " + HAIR, borderRadius: "var(--r-md)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
-                      <Photo src={img.url} style={{ width: "100%", aspectRatio: "4 / 3" }} />
+                      <Photo src={img.url} sizes="(max-width: 540px) 46vw, 260px" style={{ width: "100%", aspectRatio: "4 / 3" }} />
                       <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1, textAlign: "center" }}>
                         <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
                         {sv.description && <p style={{ ...T_META, color: faint, margin: 0, lineHeight: 1.5 }}>{sv.description}</p>}
@@ -781,7 +826,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                               <span style={{ display: "flex" }}>
                                 {mine.slice(0, 3).map((r, k) => (
                                   <span key={r.id || k} style={{ width: 30, height: 30, marginInlineStart: k ? -8 : 0, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--brand-surface, #FDFBF9)", display: "block" }}>
-                                    <Photo src={r.after} style={{ width: "100%", height: "100%" }} />
+                                    <Photo src={r.after} sizes="64px" style={{ width: "100%", height: "100%" }} />
                                   </span>
                                 ))}
                               </span>
@@ -845,7 +890,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.85, margin: 0, whiteSpace: "pre-line" }}>{aboutText}</p>
                 {aboutSignoff && <p className="script" style={{ margin: "12px 0 0", fontSize: "var(--t-3xl)", lineHeight: 1.1, color: deep }}>{aboutSignoff}</p>}
               </div>
-              <Photo src={brand?.portraitUrl || defaultImageUrl(defaultAboutKey(brand?.fields))} style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
+              <Photo src={brand?.portraitUrl || defaultImageUrl(defaultAboutKey(brand?.fields))} sizes="(max-width: 540px) 46vw, 260px" style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
             </div>
           </div>
 
@@ -854,7 +899,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
               {valueProps.map((v, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ width: 58, height: 58, borderRadius: "50%", border: "1px solid " + HAIR, background: "var(--brand-surface, #FDFBF9)", margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center", color: pc }}>
+                  <div style={{ width: 58, height: 58, borderRadius: "50%", border: "1px solid " + HAIR, background: "var(--brand-surface, #FDFBF9)", margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center", color: pcText }}>
                     <ValueIcon i={i} />
                   </div>
                   <p style={{ fontSize: "var(--t-sm)", color: ink, lineHeight: 1.4, margin: 0 }}>{v}</p>
@@ -873,7 +918,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <div>
                   {howIWork.map((step, i) => (
                     <div key={i} style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}` }}>
-                      <span className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: pc, flexShrink: 0, lineHeight: 1 }}>{i + 1}</span>
+                      <span className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: pcText, flexShrink: 0, lineHeight: 1 }}>{i + 1}</span>
                       <p style={{ ...T_BODY, color: ink, margin: 0 }}>{step}</p>
                     </div>
                   ))}
@@ -890,7 +935,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               <div style={{ display: "grid", gridTemplateColumns: clinicPhotos.length === 1 ? "1fr" : `repeat(${clinicPhotos.length}, 1fr)`, gap: 8 }}>
                 {clinicPhotos.map((p, i) => (
                   <div key={i} style={{ aspectRatio: clinicPhotos.length === 1 ? "16 / 9" : "3 / 4", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
-                    <img src={p} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <Photo src={p} sizes="(max-width: 540px) 50vw, 270px" style={{ width: "100%", height: "100%" }} />
                   </div>
                 ))}
               </div>
@@ -904,8 +949,8 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 {eyebrow("גלריה")}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8 }}>
                   {gallery.map((g, i) => (
-                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" style={{ display: "block", aspectRatio: "1 / 1", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
-                      <img src={g} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" aria-label={"תמונה " + (i + 1) + " מתוך " + gallery.length + " בגלריה"} style={{ display: "block", aspectRatio: "1 / 1", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
+                      <Photo src={g} sizes="(max-width: 540px) 25vw, 135px" style={{ width: "100%", height: "100%" }} />
                     </a>
                   ))}
                 </div>
@@ -921,7 +966,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
                   <span className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
                   <div>
-                    <div style={{ fontSize:"var(--t-lg)", color: pc, letterSpacing: 2 }}>
+                    <div style={{ fontSize:"var(--t-lg)", color: pcText, letterSpacing: 2 }}>
                       {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
                     </div>
                     <span style={{ ...T_META, color: faint }}>{reviews.length} ביקורות{reviewsAreReal ? " מלקוחות" : ""}</span>
@@ -930,7 +975,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
                   {reviews.map((rv, i) => (
                     <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius:"var(--r-lg)", padding: "18px 20px" }}>
-                      <div style={{ fontSize:"var(--t-md)", color: pc, letterSpacing: 1.5, marginBottom: 10 }}>
+                      <div style={{ fontSize:"var(--t-md)", color: pcText, letterSpacing: 1.5, marginBottom: 10 }}>
                         {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
                       {rv.text && <p className="serif" style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
@@ -957,7 +1002,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
               )}
               {(showAllHours ? [0, 1, 2, 3, 4, 5, 6] : []).map((d) => {
                 const v = weekHours[d];
-                const today = d === now.getDay();
+                const today = !!now && d === now.getDay();
                 return (
                   <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius:"var(--r-sm)", background: today ? "var(--pc-tint)" : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
                     <span style={{ fontSize:"var(--t-md)", color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
@@ -1005,7 +1050,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   {recentPosts.map((p) => (
                     <div key={p.id} style={{ background: cream, borderRadius:"var(--r-md)", border: `1px solid ${hair}`, overflow: "hidden" }}>
                       {p.image_url && (
-                        <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 240, objectFit: "cover", objectPosition: "center", display: "block" }} />
+                        <Photo src={p.image_url} sizes="(max-width: 540px) 100vw, 540px" style={{ width: "100%", height: 240 }} />
                       )}
                       <div style={{ padding: "15px 17px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8 }}>
@@ -1079,7 +1124,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
           {/* compact header */}
           <div style={{ width: "100%", maxWidth: 480, padding: "30px 20px 6px", textAlign: "center" }}>
             {brand?.logoUrl ? (
-              <img src={brand.logoUrl} alt={bizName} style={{ maxHeight: 48, maxWidth: 160, objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
+              <Logo src={brand.logoUrl} alt={bizName} w={160} h={48} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             ) : null}
             <h2 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
           </div>
@@ -1098,14 +1143,14 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 2 — CHOOSE DATE + TIME */}
             {step === 2 && (
               <div className="bk-card">
-                <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pc, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה לעמוד העסק</button>
+                <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה לעמוד העסק</button>
                 <div style={{ background: cream, borderRadius:"var(--r-md)", padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 11, border: `1px solid ${hair}` }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedService.color || pc }} />
                   <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink, flex: 1 }}>{selectedService.name}</p>
                   <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
                 </div>
 
-                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
                 {availableDays.length === 0 ? (
                   <div style={{ ...noticeBox, marginBottom: 22 }}>
                     אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.
@@ -1141,7 +1186,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                         שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
                       </div>
                     )}
-                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pc, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
+                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     {visibleSlots.length === 0 && (
                       <div style={noticeBox}>אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.</div>
                     )}
@@ -1175,10 +1220,10 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 3 — DETAILS */}
             {step === 3 && (
               <div className="bk-card">
-                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pc, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
+                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
 
                 <div style={{ background: cream, borderRadius:"var(--r-lg)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
-                  <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
+                  <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span>
                     <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span>
@@ -1197,7 +1242,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   </div>
                 </div>
 
-                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pc, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
@@ -1211,7 +1256,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
                   <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת הפרטים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>
                     אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
-                    <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pc, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+                    <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
                   </span>
                 </label>
 
@@ -1228,7 +1273,7 @@ export default function BookingPage({ tenantId: tenantIdProp }) {
             {/* STEP 4 — SUCCESS */}
             {step === 4 && (
               <div className="bk-card" style={{ textAlign: "center", paddingTop: 24 }}>
-                <div style={{ fontSize:"var(--t-hero)", marginBottom: 14, color: pc }}>✦</div>
+                <div style={{ fontSize:"var(--t-hero)", marginBottom: 14, color: pcText }}>✦</div>
                 <h2 className="serif" style={{ fontSize:"var(--t-3xl)", fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
                   נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}

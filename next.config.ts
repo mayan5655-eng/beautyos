@@ -2,8 +2,36 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { securityHeaders } from "./lib/securityHeaders";
 
+// Tenant photos live in Supabase storage and are served by the optimizer, so the
+// storage host has to be on the allowlist. Derived from the same env var the
+// app talks to Supabase with, and limited to the PUBLIC bucket path - the
+// private client-images bucket is signed-URL only and never goes through here.
+const supabaseHost = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').hostname; } catch { return ''; }
+})();
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@supabase/ssr', '@supabase/supabase-js'],
+
+  // The stylesheet is small (a few KB gzipped) and every page needs all of it
+  // before first paint, so as a separate file it is nothing but a round trip
+  // standing between the HTML and the first pixel - Lighthouse put that at
+  // 150-540 ms of render-blocking on every page, on a 150 ms-RTT mobile link.
+  // Inlined, it arrives with the document. The cost is a few KB of HTML per
+  // navigation that a cached stylesheet would have saved a returning visitor.
+  experimental: { inlineCss: true },
+
+  turbopack: {
+    resolveAlias: {
+      // Next prepends a ~1 KB block to the main chunk that back-fills
+      // String.prototype.trimStart, Array.prototype.at/flat/flatMap,
+      // Object.fromEntries and Object.hasOwn. Every one of them exists in
+      // the browsers Next itself supports (Chrome/Edge/Firefox 111+, Safari
+      // 16.4+ - the floor in its docs), so it is dead weight that Lighthouse
+      // reports as "Legacy JavaScript" on every page.
+      '../build/polyfills/polyfill-module': './lib/emptyPolyfill.js',
+    },
+  },
 
   // Brand marks are served by app/BrandImage.tsx through /_next/image as WebP
   // at the width they are drawn at. 85 is the one non-default quality it uses
@@ -14,6 +42,9 @@ const nextConfig: NextConfig = {
   images: {
     qualities: [75, 85],
     minimumCacheTTL: 2678400,
+    remotePatterns: supabaseHost
+      ? [{ protocol: 'https', hostname: supabaseHost, pathname: '/storage/v1/object/public/**' }]
+      : [],
   },
 
   // Every response, pages and API routes alike. Built in lib/securityHeaders.ts

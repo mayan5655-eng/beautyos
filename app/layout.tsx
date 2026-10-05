@@ -317,7 +317,14 @@ export default function RootLayout({
           }}
         />
         <PWARegister />
-        {children}
+        {/* The one main landmark for every page. It lives here, not per page,
+            so no route can forget it - and no page may add its own <main>: two
+            landmarks of the same kind is the other way to fail the audit
+            (beautyos.jsx, dashboard/layout, privacy and terms each had one
+            and were changed to <div>). flex-1 + flex-col keep it a drop-in
+            for the body's own column, so a page that fills the screen still
+            does. The install banners stay outside it: they are chrome. */}
+        <main className="flex flex-1 flex-col">{children}</main>
         <IOSInstallBanner />
         <InstallPromptBanner />
       </body>

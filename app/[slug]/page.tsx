@@ -22,9 +22,11 @@
 // tenant id to the client component that does the rest.
 
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
 import { APP_URL } from '@/lib/appUrl';
+import { ACTIVE_OR_NULL } from '@/lib/serviceActive';
 import BookingPage from '../BookingPage';
 import { LOGO_COMPACT } from '@/lib/brand';
 import BrandImage from '@/app/BrandImage';
@@ -50,8 +52,12 @@ const publicClient = () =>
  * public page is entitled to. An unknown slug comes back empty rather than as
  * an error, so "no such business" stays distinguishable from "the lookup
  * failed" - and a failed lookup must not render as a missing business.
+ *
+ * cache(): generateMetadata and the page both resolve the same slug in one
+ * request; without it that was two identical round trips to Supabase, in series
+ * with everything that depends on the tenant id, before a byte could be sent.
  */
-async function resolveTenant(slug: string): Promise<{ id: string; name: string } | null> {
+const resolveTenant = cache(async (slug: string): Promise<{ id: string; name: string } | null> => {
   try {
     const { data, error } = await publicClient().rpc('get_public_tenant_by_slug', { p_slug: slug });
     if (error) {
@@ -64,6 +70,27 @@ async function resolveTenant(slug: string): Promise<{ id: string; name: string }
     console.error('[slug] tenant lookup threw:', err instanceof Error ? err.message : String(err));
     return null;
   }
+});
+
+// One read of her public settings per request, shared by generateMetadata and
+// the page itself (React's cache() dedupes within a render) - the page now
+// needs the same row to paint her hero on the server.
+const loadPublicSettings = cache((tenantId: string) => fetchPublicSettings(publicClient(), tenantId));
+
+// Her active treatments, read the way the browser read them: the anon key, the
+// same filter. Null on a failed read, so the client falls back to loading them
+// itself instead of showing a business with an empty menu.
+async function loadServices(tenantId: string) {
+  try {
+    const { data, error } = await publicClient()
+      .from('service_prices')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .or(ACTIVE_OR_NULL);
+    return error ? null : data || [];
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -71,7 +98,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tenant = await resolveTenant(slug);
   if (!tenant) return { title: 'Kalmea' };
 
-  const brand = resolveBranding(await fetchPublicSettings(publicClient(), tenant.id));
+  const brand = resolveBranding(await loadPublicSettings(tenant.id));
   const title = brand.businessName || tenant.name || 'Kalmea';
   const description =
     brand.welcomeMessage ||
@@ -136,5 +163,18 @@ export default async function SlugPage({ params }: Props) {
     );
   }
 
-  return <BookingPage tenantId={tenant.id} />;
+  // Both reads run together. If either fails the page gets null for it and
+  // loads that part in the browser, as it did before this step existed.
+  const [initialSettings, initialServices] = await Promise.all([
+    loadPublicSettings(tenant.id),
+    loadServices(tenant.id),
+  ]);
+
+  return (
+    <BookingPage
+      tenantId={tenant.id}
+      initialSettings={initialSettings && initialServices ? initialSettings : null}
+      initialServices={initialSettings && initialServices ? initialServices : null}
+    />
+  );
 }

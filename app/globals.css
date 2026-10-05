@@ -189,6 +189,10 @@
   --pc: #E9A9A1;
   --pc-2: #EEBCB6;
   --pc-deep: #C48E87;
+  /* Her accent as TEXT on a light page: same hue, darkened to 4.6:1 against
+     white and cream (lib/theme.ts readableAccentText). The pink above is 1.97:1
+     as text; this is 5.6:1 / 4.7:1. */
+  --pc-text: #9A544B;
   --pc-tint: #FDF6F6;
   --pc-tint-2: #FBF0EE;
   --pc-soft: rgba(233, 169, 161, 0.10);

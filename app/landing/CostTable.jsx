@@ -100,7 +100,7 @@ export default function CostTable({ rows, totalLow, totalHigh, closingLine }) {
       </div>
 
       <Reveal delay={rows.length * 80 + 60} style={{ textAlign: "center", marginTop: 22 }}>
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, letterSpacing: "0.02em", marginBottom: 6 }}>
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", fontWeight: 600, letterSpacing: "0.02em", marginBottom: 6 }}>
           סך הכל, לפני קלמיה
         </p>
         <p

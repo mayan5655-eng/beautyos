@@ -40,9 +40,9 @@ export default async function DashboardLayout({
         only this route also hosts the full-bleed app shell, which draws its own
         header, main and bottom bar and manages its own safe-area insets.
       */}
-      <main style={{ padding: '32px 0', backgroundColor: 'white' }}>
+      <div style={{ padding: '32px 0', backgroundColor: 'white' }}>
         {children}
-      </main>
+      </div>
     </div>
   );
 }
