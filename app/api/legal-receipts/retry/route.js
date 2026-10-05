@@ -6,6 +6,7 @@
 
 import { isAuthorizedCron, cronUnauthorized } from "../../../../lib/cronAuth";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
+import { raiseOpsAlert } from "../../../../lib/opsAlert.js";
 import { adminDb } from "../../../../lib/legalReceipts/routeAuth";
 import { createMorning } from "../../../../lib/legalReceipts/morning.js";
 import { retryDue } from "../../../../lib/legalReceipts/service.js";
@@ -20,12 +21,12 @@ export async function POST(request) {
     // Bounded per run on purpose - but a backlog past the bound, or a receipt the
     // run could not finish, is a number someone is told, not a quiet gap.
     if (r.deferred || r.errored?.length || r.unreached?.length) {
-      const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
-      if (to) {
-        try {
-          await sendWhatsApp(to, ["קבלות חוקיות - ניסיון חוזר לא הושלם", r.deferred ? `ממתינות להרצה הבאה (מעבר לתקרה): ${r.deferred}` : "", r.errored?.length ? `נכשלו/נתקעו: ${r.errored.length}` : "", r.unreached?.length ? `לא הגענו אליהן: ${r.unreached.length}` : ""].filter(Boolean).join(String.fromCharCode(10)), { name: "Kalmea", type: "invariants" });
-        } catch (e) { console.error("[legal-receipts] could not alert the operator:", e?.message || String(e)); }
-      }
+      await raiseOpsAlert({
+        db: adminDb(), send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+        source: "legal-receipts-retry", severity: "warning",
+        message: ["קבלות חוקיות - ניסיון חוזר לא הושלם", r.deferred ? `ממתינות להרצה הבאה (מעבר לתקרה): ${r.deferred}` : "", r.errored?.length ? `נכשלו/נתקעו: ${r.errored.length}` : "", r.unreached?.length ? `לא הגענו אליהן: ${r.unreached.length}` : ""].filter(Boolean).join(String.fromCharCode(10)),
+        details: { due: r.due, deferred: r.deferred, errored: r.errored, unreached: r.unreached },
+      });
     }
     return Response.json({ success: !r.error, ...r });
   } catch (e) {

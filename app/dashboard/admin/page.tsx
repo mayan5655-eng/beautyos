@@ -22,6 +22,7 @@ import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { checkInstanceState } from '@/lib/greenApi/health'
 import AdminClient, { type AdminTenantRow } from './AdminClient'
+import OpsEvents from './OpsEvents'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -104,11 +105,16 @@ export default async function AdminPage() {
   const greenApiState = await checkInstanceState()
 
   return (
-    <AdminClient
-      initialTenants={rows}
-      ownTenantId={ownTenantId}
-      metricsAvailable={!rich.error}
-      greenApiState={greenApiState}
-    />
+    <>
+      <AdminClient
+        initialTenants={rows}
+        ownTenantId={ownTenantId}
+        metricsAvailable={!rich.error}
+        greenApiState={greenApiState}
+      />
+      {/* The alert log: written before WhatsApp is attempted, so it still exists
+          when WhatsApp is the thing that is down. */}
+      <OpsEvents db={db} />
+    </>
   )
 }

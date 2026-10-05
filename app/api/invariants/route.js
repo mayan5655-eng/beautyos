@@ -13,6 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { raiseOpsAlert } from "../../../lib/opsAlert.js";
 import { runInvariants, formatInvariantReport } from "../../../lib/invariants.js";
 import { staleSupportMessages, formatStaleSupportLine } from "../../../lib/supportInbox.ts";
 import { checkInstanceState } from "../../../lib/greenApi/health.ts";
@@ -73,18 +74,17 @@ async function run() {
     let notified = false;
 
     if (report) {
-      const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
-      if (to) {
-        try {
-          await sendWhatsApp(to, `בדיקת נתונים יומית\n\n${report}`, { name: "Kalmea", type: "invariants" });
-          notified = true;
-        } catch (waErr) {
-          // A failed notification must not fail the check. The finding is in
-          // the log either way, and losing the report because the messenger
-          // was down would be the worse outcome.
-          console.error("[invariants] notify failed:", waErr?.message || String(waErr));
-        }
-      }
+      // Admin-panel log first, WhatsApp second (lib/opsAlert.js): a WhatsApp
+      // alert about WhatsApp being down is the message that cannot arrive.
+      // A failed notification still must not fail the check: raiseOpsAlert
+      // never throws, and the finding is in the log either way.
+      const raised = await raiseOpsAlert({
+        db: admin, send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+        source: "invariants", severity: failures.length || errors.length || greenApiDown ? "error" : "warning",
+        message: `בדיקת נתונים יומית\n\n${report}`,
+        details: { failures, errors, greenApiDown },
+      });
+      notified = raised.delivery === "handed_to_greenapi";
     }
 
     return Response.json({

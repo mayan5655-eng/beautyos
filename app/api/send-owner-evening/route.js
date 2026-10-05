@@ -12,6 +12,7 @@ import { buildEveningSummary, isQuietEvening } from "../../../lib/eveningSummary
 import { runEveningSummaries } from "../../../lib/eveningRun.js";
 import { describeMissed } from "../../../lib/cronFanout.js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { raiseOpsAlert } from "../../../lib/opsAlert.js";
 
 // 120 s ceiling: stop starting tenants at 60 s, none may run past 30 s.
 export const maxDuration = 120;
@@ -28,11 +29,11 @@ function israelTomorrow() {
   return `${il.getFullYear()}-${String(il.getMonth() + 1).padStart(2, "0")}-${String(il.getDate()).padStart(2, "0")}`;
 }
 
-async function alertOperator(text) {
-  const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
-  if (!to) return;
-  try { await sendWhatsApp(to, text, { name: "Kalmea", type: "invariants" }); }
-  catch (e) { console.error("[owner-evening] could not alert the operator:", e?.message || String(e)); }
+async function alertOperator(text, severity = "error", details = null) {
+  await raiseOpsAlert({
+    db: supabase, send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+    source: "send-owner-evening", severity, message: text, details,
+  });
 }
 
 export async function POST(request) {
@@ -50,7 +51,7 @@ export async function POST(request) {
     const missed = describeMissed("סיכום ערב", run.fanout);
     if (missed) {
       console.error(`[owner-evening] INCOMPLETE ${JSON.stringify(run.fanout)}`);
-      await alertOperator(missed);
+      await alertOperator(missed, "error", { fanout: run.fanout });
     }
     return Response.json({ success: run.fanout.complete, sent: run.sent, fanout: run.fanout }, { status: run.fanout.complete ? 200 : 207 });
   } catch (e) {

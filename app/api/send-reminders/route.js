@@ -22,6 +22,7 @@ import { isMissingColumnError } from "../../../lib/pgError";
 import { isDemoTenantId } from "../../../lib/demoTenants.ts";
 import { runDailyReminders } from "../../../lib/reminders/dailyReminders.js";
 import { describeMissed } from "../../../lib/cronFanout.js";
+import { raiseOpsAlert } from "../../../lib/opsAlert.js";
 
 // 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
 // tenant may take longer than 60 s, so it always ends by 260 s on its own terms
@@ -75,18 +76,12 @@ export async function POST(request) {
     const missed = describeMissed(`תזכורות ל-${tomorrow}`, run.fanout);
     if (missed) {
       console.error(`[send-reminders] INCOMPLETE ${JSON.stringify(run.fanout)}`);
-      const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
-      if (to) {
-        try {
-          await sendWhatsApp(
-            to,
-            `${missed}\n\nלהרצה חוזרת רק לאלה: /api/send-reminders?only=<מזהה מלא>`,
-            { name: "Kalmea", type: "invariants" }
-          );
-        } catch (e) {
-          console.error("[send-reminders] could not alert the operator:", e?.message || String(e));
-        }
-      }
+      await raiseOpsAlert({
+        db: supabase, send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+        source: "send-reminders", severity: "error",
+        message: `${missed}\n\nלהרצה חוזרת רק לאלה: /api/send-reminders?only=<מזהה מלא>`,
+        details: { date: tomorrow, fanout: run.fanout },
+      });
     }
 
     return Response.json({
@@ -99,12 +94,11 @@ export async function POST(request) {
   } catch (err) {
     console.error("[send-reminders] aborted:", err?.message || String(err));
     // An aborted run reminded NOBODY. That is the case most worth a message.
-    const to = String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim();
-    if (to) {
-      try {
-        await sendWhatsApp(to, `תזכורות מחר - ההרצה נעצרה ולא נשלחה אף תזכורת: ${err?.message || String(err)}`, { name: "Kalmea", type: "invariants" });
-      } catch { /* the log line above is the fallback */ }
-    }
+    await raiseOpsAlert({
+      db: supabase, send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+      source: "send-reminders", severity: "error",
+      message: `תזכורות מחר - ההרצה נעצרה ולא נשלחה אף תזכורת: ${err?.message || String(err)}`,
+    });
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }
 }
