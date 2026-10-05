@@ -183,5 +183,5 @@ export async function POST(request: NextRequest) {
   const capNotice = allowance.cap > 0 && usedNow >= allowance.cap * 0.8
     ? capNoticeHe({ allowed: true, reason: 'ok', callSite: 'designs/generate', callsUsed: usedNow, callsCap: allowance.cap, spentUsd: null, usdCap: 0, near: true, nearWhat: 'calls' })
     : null;
-  return NextResponse.json({ success: true, options: designs, copy: plan.copy, used: usedNow, cap: allowance.cap, ...(capNotice ? { capNotice } : {}) });
+  return NextResponse.json({ success: true, options: designs, copy: plan.copy, plan: plan.meta, used: usedNow, cap: allowance.cap, ...(capNotice ? { capNotice } : {}) });
 }

@@ -43,6 +43,8 @@ export type PostOption = {
 export type PostPlan = {
   options: PostOption[];
   copy: { text: string; hashtags: string[] };
+  /** What the planning call cost in time and tokens (thinking included) - so effort and model choices are judged on numbers. */
+  meta?: { ms: number; inputTokens: number; outputTokens: number };
 };
 
 /**
@@ -120,16 +122,19 @@ const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }
 
 /** One Claude call: brief -> a plan of 2-3 options. Metered as GENERATE_CALL_SITE; that is what the cap counts. */
 export async function planPost(profile: BusinessProfile, brief: string, candidates: Fillable[], tenantId: string | null): Promise<PostPlan> {
+  const started = Date.now();
   const message = await trackedCreate(anthropic(), {
     model: GENERATE_MODEL,
     // Room for the model to think AND write the plan: thinking counts against this.
     max_tokens: 12000,
-    output_config: { effort: EFFORT.writer },
+    output_config: { effort: EFFORT.captions },
     messages: [{ role: 'user', content: buildGeneratePrompt(profile, brief, candidates) }],
   }, { tenantId, callSite: GENERATE_CALL_SITE });
   const block = message.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') throw new Error('generate: no text from Claude');
-  return parseGeneratePlan(block.text, candidates);
+  const plan = parseGeneratePlan(block.text, candidates);
+  const u = (message as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+  return { ...plan, meta: { ms: Date.now() - started, inputTokens: Number(u?.input_tokens) || 0, outputTokens: Number(u?.output_tokens) || 0 } };
 }
 
 export type GenerationAllowance = { used: number; cap: number; remaining: number; exceeded: boolean; /** the count could not be read - and `exceeded` is therefore true */ unknown: boolean };

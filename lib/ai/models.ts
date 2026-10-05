@@ -43,4 +43,7 @@ export const EFFORT = {
   // (measured 2026-10-05) - too long to stare at a spinner; the extra thinking
   // buys little on a question about her own numbers. Raise it if answers feel thin.
   advisor: 'low',
+  // The caption / post-copy call alone, so it can be tuned (and trialled) without
+  // moving the reels, the AI fill or the advisor with it.
+  captions: 'high',
 } as const;
