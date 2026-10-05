@@ -3,6 +3,7 @@
 // Generates campaign strategies, post variations, and Facebook group suggestions
 
 import Anthropic from '@anthropic-ai/sdk'
+import { MODELS, EFFORT } from './models.ts'
 import { trackedCreate } from './usage.ts'
 import { cityHashtag } from './profileHygiene.ts'
 import type { FieldKey } from '../businessFields.ts'
@@ -205,8 +206,9 @@ ${businessContext}
 
   try {
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-5',
-      max_tokens: 4096,
+      model: MODELS.ideas,
+      max_tokens: 8000,
+      output_config: { effort: EFFORT.ideas },
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'marketing/groups' })
 

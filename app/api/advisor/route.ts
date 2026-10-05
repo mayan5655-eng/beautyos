@@ -9,6 +9,7 @@
 // All business data is read scoped to that tenant only.
 
 import { capNoticeOf } from '@/lib/ai/capMessages'
+import { MODELS, EFFORT } from '@/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -175,6 +176,9 @@ function renderBrandIdentity(profile: BusinessProfile): string {
 }
 
 // POST: answer one question, grounded in the tenant's data; persist both turns.
+// A thinking model can take 20+ seconds; the platform default (10-15 s) would kill the request mid-thought.
+export const maxDuration = 120
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -231,8 +235,11 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
     const aiResponse = await trackedCreate(anthropic, {
-      model: 'claude-haiku-4-5',
-      max_tokens: 1024,
+      model: MODELS.writer,
+      // Room to think AND answer: she is asking about her own business, and the
+      // answer is what she acts on.
+      max_tokens: 8000,
+      output_config: { effort: EFFORT.writer },
       system: systemPrompt,
       messages: [...priorTurns, { role: 'user', content: message }] as any,
     }, { tenantId, callSite: 'advisor' })

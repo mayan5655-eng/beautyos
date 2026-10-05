@@ -8,6 +8,9 @@ import { requireActiveTenant } from '@/lib/planGuard'
 import { suggestFacebookGroups } from '@/lib/ai/marketingAI'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 
+// A thinking model can take 20+ seconds; the platform default (10-15 s) would kill the request mid-thought.
+export const maxDuration = 120
+
 export async function POST(request: NextRequest) {
   try {
     // Step 1: Auth check

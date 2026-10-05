@@ -8,6 +8,7 @@
 // Multi-tenant: business context is loaded from the logged-in user's tenant.
 
 import { capNoticeOf } from '@/lib/ai/capMessages'
+import { MODELS, EFFORT } from '@/lib/ai/models'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -17,6 +18,9 @@ import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+// A thinking model can take 20+ seconds; the platform default (10-15 s) would kill the request mid-thought.
+export const maxDuration = 120
 
 export async function POST(request: NextRequest) {
   try {
@@ -155,8 +159,9 @@ ${GROUNDING_RULES}
 }`
 
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-5',
+      model: MODELS.writer,
       max_tokens: 16000,
+      output_config: { effort: EFFORT.writer },
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId, callSite: 'marketing/reel' })
 

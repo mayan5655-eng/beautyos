@@ -15,6 +15,7 @@
 //   - today's date, so the season is real rather than guessed
 
 import { NextRequest, NextResponse } from 'next/server'
+import { MODELS, EFFORT } from '@/lib/ai/models'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
@@ -25,6 +26,9 @@ import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 const DAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
+
+// A thinking model can take 20+ seconds; the platform default (10-15 s) would kill the request mid-thought.
+export const maxDuration = 120
 
 export async function POST(_request: NextRequest) {
   try {
@@ -138,8 +142,9 @@ ${GROUNDING_RULES}
 }`
 
     const message = await trackedCreate(anthropic, {
-      model: 'claude-sonnet-5',
-      max_tokens: 4000,
+      model: MODELS.ideas,
+      max_tokens: 8000,
+      output_config: { effort: EFFORT.ideas },
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId, callSite: 'marketing/shooting-list' })
 

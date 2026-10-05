@@ -20,11 +20,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
 import { GROUNDING_RULES, buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import { composeImagePrompt, type ImageFormat, type NegativeSpace } from './imagePrompt.ts';
+import { MODELS, EFFORT } from './models.ts';
 import type { Template } from '../design/contract.ts';
 import { limitText } from '../design/limitText.ts';
 import type { FieldKey } from '../businessFields.ts';
 
-export const DIRECTOR_MODEL = 'claude-sonnet-5';
+export const DIRECTOR_MODEL = MODELS.writer;
 export const DIRECTOR_CALL_SITE = 'creatives/direct';
 
 export type Direction = {
@@ -147,7 +148,9 @@ const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }
 export async function directFill(profile: BusinessProfile, template: Template, brief: string, tenantId: string | null): Promise<DirectorOutput> {
   const message = await trackedCreate(anthropic(), {
     model: DIRECTOR_MODEL,
-    max_tokens: 4096,
+    // Room for the model to think AND write copy plus the picture directions.
+    max_tokens: 12000,
+    output_config: { effort: EFFORT.writer },
     messages: [{ role: 'user', content: buildDirectorPrompt(profile, template, brief) }],
   }, { tenantId, callSite: DIRECTOR_CALL_SITE });
   const block = message.content.find((b) => b.type === 'text');

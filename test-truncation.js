@@ -175,6 +175,8 @@ group('dashboard boot');
     ok(`boot no longer does an unpaged ${t} select`, !new RegExp(`supabase\\.from\\("${t}"\\)\\.select\\("\\*"\\)\\]`).test(src));
   }
   ok('the capped manual-WhatsApp queue reports its exact count, so a hidden overflow is known', src.includes('from("whatsapp_messages").select("*", { count: "exact" })') && src.includes('hidden(wap) > 0'));
+  const q = fs.readFileSync(new URL('./app/api/questions/route.js', import.meta.url), 'utf8');
+  ok('the question-a-day eligibility check reads her history through readAllRows', q.includes('readAllRows(admin, "appointments"') && q.includes('readAllRows(admin, "clients"') && !/admin.from("appointments").select/.test(q));
   ok('boot tells her when a read was incomplete', /incomplete/.test(src) && /complete === false|!\w+\.complete/.test(src));
 }
 

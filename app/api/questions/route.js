@@ -11,6 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { checkTenantLimit } from "../../../lib/rateLimit";
+import { readAllRows } from "../../../lib/pagedRead.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -28,10 +29,17 @@ const KINDS = new Set(["gap_fill", "comeback"]);
 //   comeback  -> app/api/clients/comeback (last visit before the break, within 240d)
 async function hasCandidates(tenantId, kind, payload) {
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: clients }, { data: appts }] = await Promise.all([
-    admin.from("clients").select("id, name, phone, status").eq("tenant_id", tenantId),
-    admin.from("appointments").select("client_id, service, date").eq("tenant_id", tenantId),
+  // Paged: a plain select returns at most max_rows (1,000) without saying so, so a
+  // tenant with a long history had her "last visit" worked out from a fragment and
+  // was offered questions that reach nobody (or none that do). lib/pagedRead.js.
+  const [cl, ap] = await Promise.all([
+    readAllRows(admin, "clients", { columns: "id, name, phone, status", filter: (q) => q.eq("tenant_id", tenantId) }),
+    readAllRows(admin, "appointments", { columns: "id, client_id, service, date", filter: (q) => q.eq("tenant_id", tenantId) }),
   ]);
+  // A read that could not be finished is an unknown answer, not an empty one.
+  if (cl.error || ap.error || !cl.complete || !ap.complete) throw new Error("could not read the history needed to check who a question would reach");
+  const clients = cl.data;
+  const appts = ap.data;
   const lastVisit = new Map();
   const hadService = new Set();
   for (const a of appts || []) {

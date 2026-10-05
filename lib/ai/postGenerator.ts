@@ -16,13 +16,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
 import { getCallCapStatus, type CapStatus } from './callCaps.ts';
+import { MODELS, EFFORT } from './models.ts';
 import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import type { Template } from '../design/contract.ts';
 import type { Fillable } from '../design/reel.ts';
 import { sanitizeValues } from '../design/design.ts';
 import { fillableVariables } from './creativeDirector.ts';
 
-export const GENERATE_MODEL = 'claude-sonnet-5';
+export const GENERATE_MODEL = MODELS.writer;
 export const GENERATE_CALL_SITE = 'designs/generate';
 export const GENERATE_IMAGE_CALL_SITE = 'designs/generate-image';
 export const OPTIONS_PER_GENERATION = 3;
@@ -121,7 +122,9 @@ const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }
 export async function planPost(profile: BusinessProfile, brief: string, candidates: Fillable[], tenantId: string | null): Promise<PostPlan> {
   const message = await trackedCreate(anthropic(), {
     model: GENERATE_MODEL,
-    max_tokens: 3000,
+    // Room for the model to think AND write the plan: thinking counts against this.
+    max_tokens: 12000,
+    output_config: { effort: EFFORT.writer },
     messages: [{ role: 'user', content: buildGeneratePrompt(profile, brief, candidates) }],
   }, { tenantId, callSite: GENERATE_CALL_SITE });
   const block = message.content.find((b) => b.type === 'text');

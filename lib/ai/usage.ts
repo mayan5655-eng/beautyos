@@ -69,6 +69,9 @@ export const MODEL_RATES: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
   'claude-sonnet-5':            { input: 2, output: 10 },
   'claude-opus-5':              { input: 5, output: 25 },
+  // The current Opus and Sonnet (platform.claude.com model table, cached 2026-09-25).
+  'claude-opus-5-5':            { input: 4, output: 20 },
+  'claude-sonnet-5-5':          { input: 2, output: 10 },
   // OpenAI image models (lib/ai/openaiImages.ts). Billed per token like text:
   // text input $5/M, image output $30/M (model card, Sept 2026). A high
   // 1024x1280 image is roughly 4,000 output tokens, about 13 cents.
