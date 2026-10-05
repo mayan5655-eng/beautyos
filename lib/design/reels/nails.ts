@@ -62,7 +62,7 @@ export const nailMenuScroll: ReelTemplate = makeReel({
     { seconds: 1.8, transition: 'cut', motion: 'none', label: 'עיצוב 1', def: { name: 'עיצוב 1', layout: { family: 'top', shape: 'arch' }, photoSlot: { aiHint: `nail-art design option one, clean studio crop, ${LIGHT}` }, kicker: { default: 'אופציה 1' }, headline: { default: 'קלאסי ונקי', maxLength: 26, lines: 1 }, cta: null } },
     { seconds: 1.8, transition: 'cut', motion: 'none', label: 'עיצוב 2', def: { name: 'עיצוב 2', layout: { family: 'top', shape: 'arch' }, photoSlot: { aiHint: `nail-art design option two, bolder colour, ${LIGHT}` }, kicker: { default: 'אופציה 2' }, headline: { default: 'נועז ובולט', maxLength: 26, lines: 1 }, cta: null } },
     { seconds: 1.8, transition: 'cut', motion: 'none', label: 'עיצוב 3', def: { name: 'עיצוב 3', layout: { family: 'top', shape: 'arch' }, photoSlot: { aiHint: `nail-art design option three, delicate fine-line art, ${LIGHT}` }, kicker: { default: 'אופציה 3' }, headline: { default: 'עדין ומיוחד', maxLength: 26, lines: 1 }, cta: null } },
-    { seconds: 2.6, transition: 'fade', motion: 'none', label: 'בחירה', def: { name: 'בחירה', layout: { family: 'text', block: 'blush', photo: 'none' }, kicker: { default: 'איזה מדבר אלייך?' }, headline: { default: 'בחרי את שלך', maxLength: 30, lines: 1 }, cta } },
+    { seconds: 2.6, transition: 'fade', motion: 'none', label: 'בחירה', def: { name: 'בחירה', layout: { family: 'text', block: 'blush', photo: 'none' }, kicker: { default: 'איזה מדבר אליך?' }, headline: { default: 'בחרי את שלך', maxLength: 30, lines: 1 }, cta } },
   ]),
 });
 

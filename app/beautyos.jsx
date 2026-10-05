@@ -232,7 +232,7 @@ const HELP_SECTIONS = [
     "⚠️ יש מכסת סריקות חודשית, מוצגת בהגדרות → כללי.",
   ]},
   { key:"leads", icon:"chat", title:"פניות", body:[
-    "כל מי שפנתה אלייך ועדיין לא הפכה ללקוחה — מהאתר, מפייסבוק או שהזנת ידנית.",
+    "כל מי שפנתה אליך ועדיין לא הפכה ללקוחה — מהאתר, מפייסבוק או שהזנת ידנית.",
     "- סינון לפי סטטוס: חדש, אין מענה, ממתינה לתשובה, בטיפול, נשלח מחיר, נקבע תור, לא הגיע, למעקב בהמשך, נסגר, לא רלוונטי",
     "- **✦ פנייה חדשה** להוספה ידנית, **⇪ ייבוא פניות** מקובץ",
     "- **✆ שליחת וואטסאפ** לכל הפניות בסטטוס מסוים בבת אחת",
@@ -7527,7 +7527,7 @@ export default function BeautyOS() {
                 <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FLOWER} style={{width:52,height:52,margin:"0 auto 10px",display:"block"}}/>
                 <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
                 <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
-                  {SUPPORT_TEAM_HE} יחזרו אלייך. אפשר להמשיך לעבוד בינתיים.
+                  {SUPPORT_TEAM_HE} יחזרו אליך. אפשר להמשיך לעבוד בינתיים.
                 </p>
                 <button type="button" onClick={()=>{setShowHelp(false);setHelpText("");setHelpState("idle");}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-xl)",fontSize:"var(--t-md)"}}>סגירה</button>
               </div>
@@ -7538,7 +7538,7 @@ export default function BeautyOS() {
                   <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
                 </div>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
-                  כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אלייך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
+                  כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אליך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
                 <textarea
                   value={helpText}
@@ -9355,7 +9355,7 @@ ${c.claimUrl}`)}`;
                 message:`שלום ${c.name}! \nיום הולדת שמח! \n${bizSafe?`מ${bizSafe} `:""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`};
             });
             const coldTargets=coldClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
-              message:`שלום ${c.name}! \nמתגעגעים אלייך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `}));
+              message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `}));
             const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
             const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
             const reviewTargets=reviewClientIds.map(cid=>{
@@ -11449,7 +11449,7 @@ ${c.claimUrl}`)}`;
        {pct>=0.8 && (
          <p style={{fontSize:"var(--t-sm)",color:tone,marginTop:5,lineHeight:1.5}}>
            {pct>=1
-             ? "הגעת למכסת הסריקות החודשית. לקוחות שינסו לסרוק יקבלו הודעה שאפשר לפנות אלייך ישירות."
+             ? "הגעת למכסת הסריקות החודשית. לקוחות שינסו לסרוק יקבלו הודעה שאפשר לפנות אליך ישירות."
              : `נשארו ${scanQuota.remaining} סריקות החודש.`}
          </p>
        )}
@@ -11780,7 +11780,7 @@ ${c.claimUrl}`)}`;
  {masterPaused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}><Icon name="pause" size={13}/> כל האוטומציות מושהות כרגע.</p>}
 
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>התראות אלייך</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>התראות אליך</p>
  <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
    const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
    setEditSettings(prev=>({...prev,automations:{...a,owner_alert_whatsapp:!(a.owner_alert_whatsapp===true)}}));
@@ -12169,7 +12169,7 @@ ${c.claimUrl}`)}`;
  <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
  <div style={{flex:1}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אלייך בערב (באפליקציה, ובדפדפן אם הפעלת התראות למטה): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות למטה): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
  <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} />
  </div>

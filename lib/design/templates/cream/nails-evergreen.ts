@@ -163,7 +163,7 @@ export const designMenuGrid: CreamDef = {
   photoSlot: { aiHint: `a flatlay of three different nail-art styles side by side for comparison, ${STUDIO_LIGHT}, organised and inviting` },
   kicker: { default: 'בחרי את שלך' },
   headline: { default: '3 עיצובים מהשבוע האחרון', maxLength: 40 },
-  cta: { default: 'תגידי לי מה מדבר אלייך' },
+  cta: { default: 'תגידי לי מה מדבר אליך' },
 };
 
 export const processTimelapse: CreamDef = {

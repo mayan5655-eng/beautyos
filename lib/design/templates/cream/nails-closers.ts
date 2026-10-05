@@ -84,7 +84,7 @@ export const thankYou: CreamDef = {
   description: 'הודעת תודה חמה, בלי מכירה — בונה קשר.',
   versions: { feed: 1, story: 1 },
   layout: { family: 'text', block: 'blush', photo: 'none' },
-  kicker: { default: 'ממני אלייך' },
+  kicker: { default: 'ממני אליך' },
   headline: { default: 'תודה שאת חלק מהסטודיו הזה', maxLength: 40 },
   subline: { default: 'על כל ביקור, כל שיחה, כל עיצוב שבחרת' },
   cta: { default: 'נתראה בביקור הבא' },

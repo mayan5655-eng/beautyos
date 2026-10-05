@@ -70,7 +70,7 @@ export const holidayGreeting: ReelTemplate = makeReel({
   musicVibe: 'חגיגי ורך',
   scenes: scenes('holiday-reel', 'seasonal', 'seasonal', [
     { seconds: 3, transition: 'cut', motion: 'kenburns', label: 'פתיחה', def: { name: 'פתיחה', layout: { family: 'overlay', headline: 'bottom' }, photoSlot: { sources: ['ai', 'gallery', 'clinic', 'upload', 'previous'], aiHint: 'a warm holiday still life on cream linen, soft window light, calm empty space' }, kicker: { default: 'חג שמח' }, headline: { default: 'שתהיה לך שנה של עור זוהר', maxLength: 44 }, cta: null, deco: { asset: 'pomegranate' } } },
-    { seconds: 3, transition: 'fade', motion: 'none', label: 'ברכה', def: { name: 'ברכה', layout: { family: 'text', block: 'blush', photo: 'none' }, kicker: { default: 'ממני אלייך' }, headline: { default: 'תודה שאת חלק מהשנה שלי', maxLength: 44 }, subline: { default: 'על כל ביקור, כל שיחה, כל חיוך' }, cta: null, deco: { asset: 'leaf' } } },
+    { seconds: 3, transition: 'fade', motion: 'none', label: 'ברכה', def: { name: 'ברכה', layout: { family: 'text', block: 'blush', photo: 'none' }, kicker: { default: 'ממני אליך' }, headline: { default: 'תודה שאת חלק מהשנה שלי', maxLength: 44 }, subline: { default: 'על כל ביקור, כל שיחה, כל חיוך' }, cta: null, deco: { asset: 'leaf' } } },
     { seconds: 3, transition: 'fade', motion: 'kenburns', label: 'הזמנה', def: { name: 'הזמנה', layout: { family: 'top', shape: 'circle' }, photoSlot: { aiHint: `a serene clinic detail, ${LIGHT}` }, kicker: { default: 'לפני החג' }, headline: { default: 'נשארו מקומות אחרונים', maxLength: 36 }, cta: { default: 'לתור לפני החג' } } },
   ]),
 });
