@@ -64,7 +64,7 @@ export function ogVersion(brand: Brand, name: string): string {
 
 // Only her own uploads: https, on our Supabase storage host. The URL is read from her settings,
 // so it is not trusted to point anywhere else (the server would fetch it).
-function allowedImageUrl(u: string): boolean {
+export function allowedImageUrl(u: string): boolean {
   try {
     const url = new URL(u);
     const host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://invalid.invalid').host;

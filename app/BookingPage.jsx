@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
+import { logoSrc } from "@/lib/logoSrc";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
@@ -92,7 +93,7 @@ function Photo({ src, style, eager = false, sizes = "(max-width: 540px) 100vw, 5
 // the file arrives. The pair is the largest the CSS ever draws it at; the style
 // on the caller shrinks it to the file's true proportions, as before.
 function Logo({ src, alt, w, h, style }) {
-  return <Image src={src} alt={alt} width={w} height={h} sizes={w + "px"} unoptimized={/\.svg(\?|$)/i.test(src)} style={style} />;
+  return <Image src={src} alt={alt} width={w} height={h} sizes={w + "px"} unoptimized={/\.svg(\?|$)/i.test(src) || src.startsWith("/logo/")} style={style} />;
 }
 
 // Small botanical mark + rules either side: the section beat, used on every
@@ -734,7 +735,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
             <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
               {brand?.logoUrl ? (
-                <Logo src={brand.logoUrl} alt={bizName} w={260} h={84}
+                <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={260} h={84}
                   style={{ maxHeight: 84, maxWidth: "min(70%, 260px)", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
               ) : (
                 <p className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 600, color: ink, letterSpacing: 1, margin: 0 }}>{bizName}</p>
@@ -1130,7 +1131,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {/* compact header */}
           <div style={{ width: "100%", maxWidth: 480, padding: "30px 20px 6px", textAlign: "center" }}>
             {brand?.logoUrl ? (
-              <Logo src={brand.logoUrl} alt={bizName} w={160} h={48} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
+              <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={160} h={48} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             ) : null}
             <h2 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
           </div>

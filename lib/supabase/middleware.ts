@@ -20,7 +20,8 @@ const PUBLIC_PREFIXES = [
   '/confirm',
   '/demo', // the public demo chooser AND /demo/cosmetics, /demo/nails (lib/demoTenants.ts) - two path segments, so the single-top-level-segment rule below does not already cover it
   '/api',
-  '/og', // per-tenant link-preview images (app/og/[key]); fetched by WhatsApp / Instagram / Facebook scrapers, which have no session
+  '/logo', // her logo with a white background taken out (app/logo/[key]); public pages draw it, so no session
+  '/og',// per-tenant link-preview images (app/og/[key]); fetched by WhatsApp / Instagram / Facebook scrapers, which have no session
   '/cesdk-poc', // cesdk-poc: the caption font under public/cesdk-poc; delete with app/cesdk-poc
   '/design-fonts', // the design studio's fonts (public/design-fonts), fetched by the renderer without a session
   '/design-deco', // the studio's line drawings (public/design-deco), fetched by the renderer the same way
