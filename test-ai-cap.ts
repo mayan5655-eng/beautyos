@@ -149,6 +149,13 @@ for (const [label, flags] of [
   assert.equal(a.reason, 'dollars');
 }
 {
+  // Rows recorded at exactly $0 (a response with no usage block) cannot be free either.
+  const rows = Array.from({ length: 600 }, (_, i) => row(i, 'whatsapp-webhook', 0));
+  const a = await checkAiAllowance(T, 'voice-intent', opts(world(rows)));
+  assert.equal(a.allowed, false, '600 calls recorded at $0 are assumed to cost something');
+  assert.equal(a.reason, 'dollars');
+}
+{
   // Another tenant's spend is not hers; last month's is not this month's.
   const rows = [
     ...Array.from({ length: 1500 }, (_, i) => row(i, 'advisor', 0.05, '22222222-2222-2222-2222-222222222222')),

@@ -38,6 +38,19 @@ const FAKE_ENV = {
   SUPABASE_SERVICE_ROLE_KEY: 'placeholder-service-key',
   CONFIRM_LINK_SECRET: 'placeholder-signing-secret',
   REVIEW_LINK_SECRET: 'placeholder-signing-secret',
+  // Everything that spends money, sends a message or authenticates a caller is
+  // EMPTY for tests, whatever the machine has in its environment. A test that
+  // needs one sets it itself. (test-no-live-env.js holds this line.)
+  ANTHROPIC_API_KEY: '',
+  OPENAI_API_KEY: '',
+  GREENAPI_ID_INSTANCE: '',
+  GREENAPI_API_TOKEN: '',
+  GREENAPI_API_URL: '',
+  CRON_SECRET: '',
+  FACEBOOK_APP_SECRET: '',
+  NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
+  SENTRY_AUTH_TOKEN: '',
+  NEXT_PUBLIC_SENTRY_DSN: '',
 };
 
 const files = readdirSync('.')
@@ -58,7 +71,11 @@ for (const file of files) {
   const run = spawnSync(
     process.execPath,
     ['--experimental-strip-types', '--no-warnings', file],
-    { encoding: 'utf8', env: { ...FAKE_ENV, ...process.env } }
+    // FAKE_ENV goes LAST so it wins. It used to go first, which let the real
+    // variables override it: on Vercel (whose build runs this) every test then
+    // held the production Supabase service key, and the stubbed AI tests wrote
+    // junk rows into the real ai_usage table on every deploy.
+    { encoding: 'utf8', env: { ...process.env, ...FAKE_ENV } }
   );
 
   const ok = run.status === 0;

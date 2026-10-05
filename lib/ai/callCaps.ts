@@ -284,9 +284,10 @@ export function tenantMonthlyUsdCeiling(env: Record<string, string | undefined> 
 }
 
 /**
- * What a usage row with no price is assumed to have cost. cost_usd is null when
- * the model is missing from MODEL_RATES; counting that as free would make an
- * unpriced model a way around the ceiling.
+ * What a usage row with no usable price is assumed to have cost. cost_usd is null
+ * when the model is missing from MODEL_RATES, and 0 when the response carried no
+ * usage block; counting either as free would make the calls the meter cannot
+ * price a way around the ceiling.
  */
 export const UNPRICED_ROW_USD = 0.05;
 
@@ -332,8 +333,13 @@ async function monthlySpendUsd(client: Client, tenantId: string, since: string, 
     if (r.error || !r.complete || !r.data) return null;
     let usd = 0;
     for (const x of r.data as { cost_usd: number | string | null }[]) {
+      // A row with no price - or a price of exactly zero, which no real call has
+      // (the cheapest Haiku reply is a fraction of a cent) and which means the
+      // usage block was missing - is assumed to have cost something. Counting
+      // it as free would make the calls the meter could not price the ones the
+      // ceiling cannot see.
       const c = x.cost_usd === null || x.cost_usd === undefined ? UNPRICED_ROW_USD : Number(x.cost_usd);
-      usd += Number.isFinite(c) ? c : UNPRICED_ROW_USD;
+      usd += Number.isFinite(c) && c > 0 ? c : UNPRICED_ROW_USD;
     }
     if (useCache) spendCache.set(key, { at: Date.now(), usd });
     return usd;

@@ -142,7 +142,11 @@ export async function recordUsage({
   try {
     const inputTokens = Number(usage?.inputTokens) || 0;
     const outputTokens = Number(usage?.outputTokens) || 0;
-    const costUsd = computeCost(model, inputTokens, outputTokens);
+    // A response with no usage block (both counts zero) is a real call whose cost
+    // we could not see. Recording $0.000000 would hide it from every report and
+    // from the dollar ceiling; recording NULL says "unpriced" and the ceiling
+    // assumes a price (lib/ai/callCaps.ts UNPRICED_ROW_USD).
+    const costUsd = inputTokens === 0 && outputTokens === 0 ? null : computeCost(model, inputTokens, outputTokens);
 
     if (costUsd === null) {
       // Loud: an unpriced model is money leaving with no number attached.

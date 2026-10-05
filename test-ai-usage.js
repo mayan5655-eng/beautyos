@@ -204,6 +204,7 @@ await quiet(async () => {
     { tenantId: 't', callSite: 'advisor', ...CAP, db: db4 });
   eq('no usage block -> message still returned', m4.content[0].text, 'ok');
   eq('and a zero-token row is still written', db4.rows[0].input_tokens, 0);
+  eq('...with cost NULL (unpriced), never $0 - a call we could not price must not look free', db4.rows[0].cost_usd, null);
 })();
 
 // ── 5. a failed AI call is NOT metered ─────────────────────────────────────

@@ -22,6 +22,9 @@ import { isDemoTenantId } from '../demoTenants.ts';
 
 const ENDPOINT = 'https://api.openai.com/v1/images/generations';
 
+/** What an image is metered at when the API reports no usage. */
+export const IMAGE_FALLBACK_OUTPUT_TOKENS = 4000;
+
 /** The qualities the gpt-image-2.5 family accepts. */
 export const IMAGE_QUALITIES = ['low', 'medium', 'high', 'xhigh', 'max', 'auto'] as const;
 export type ImageQuality = (typeof IMAGE_QUALITIES)[number];
@@ -135,10 +138,18 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   const b64 = json?.data?.[0]?.b64_json;
   if (!b64) throw new OpenAIImageError(502, 'OpenAI returned no image data');
 
-  const usage = {
+  let usage = {
     inputTokens: Number(json?.usage?.input_tokens) || 0,
     outputTokens: Number(json?.usage?.output_tokens) || 0,
   };
+  // An image the API did not report usage for still cost money. Without a number
+  // it would be recorded as unpriced; estimate it instead, at the figure the rate
+  // table documents for a high-quality portrait (about 4,000 image tokens, ~13
+  // cents), so the meter and the dollar ceiling see roughly what was spent.
+  if (usage.inputTokens === 0 && usage.outputTokens === 0) {
+    console.error(`[openai-images] ${model}: no usage in the response - estimating ${IMAGE_FALLBACK_OUTPUT_TOKENS} output tokens for the meter`);
+    usage = { inputTokens: 0, outputTokens: IMAGE_FALLBACK_OUTPUT_TOKENS };
+  }
   const metered = await recordUsage({ tenantId: input.tenantId, callSite: input.callSite, model, usage });
 
   return {
