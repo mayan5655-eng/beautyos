@@ -291,7 +291,7 @@ async function ownerTake(browser, booking) {
 
     step = mark('content studio');
     await tap(nav(page, 'תוכן'), { after: 1000 });
-    await tap(page.locator('button:visible', { hasText: 'תוכן AI' }).first(), { after: 900 }); // the studio tab, NOT a generate button
+    await tap(page.locator('button:visible', { hasText: 'פוסטים ותבניות' }).first(), { after: 900 }); // the default tab, NOT a generate button
     const week = page.getByText('מה מפרסמים השבוע');
     await week.waitFor({ timeout: 15000 });
     await glide(week, 800); await pause(800);

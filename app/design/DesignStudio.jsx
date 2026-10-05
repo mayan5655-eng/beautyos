@@ -60,7 +60,7 @@ function openOccasions(fields) {
   return out;
 }
 
-export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [] }) {
+export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [], onOpenScript }) {
   const [view, setView] = useState('week'); // the door's views: week | templates | mine
   const [preset, setPreset] = useState(null); // a brief handed to the AI card, e.g. a filming idea as a reel
   const [presetKey, setPresetKey] = useState(0);
@@ -288,10 +288,29 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
               </button>
             </div>
           )}
-          <WeekView settings={settings} appointments={appointments} services={services} designs={designs || []} readOnly={readOnly} creating={creating} toast={toast}
-            onCreate={(t, values) => create(t, values)}
-            onReel={(brief) => { setPreset({ brief, format: 'reel' }); setPresetKey((k) => k + 1); toast?.('הרעיון נכנס לכרטיס ה-AI למטה'); }} />
-          <Generate key={presetKey} preset={preset} settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => { setDesigns((p) => [...list, ...(p || [])]); }} onOpen={(d) => setOpen(d)} />
+          <WeekView part="posts" settings={settings} appointments={appointments} services={services} designs={designs || []} readOnly={readOnly} creating={creating} toast={toast}
+            onCreate={(t, values) => create(t, values)} />
+
+          {/* EVERYTHING that uses AI, in one marked place. The posts above, the templates and her designs need no AI
+              and no connection to one; she should be able to tell, at a glance, which is which - and when the AI
+              is unavailable, only what is in here is affected. */}
+          <div data-ai-block style={{ border: '1px dashed var(--line-2)', borderRadius: 'var(--r-lg)', padding: '18px 14px 6px', marginBottom: 18, background: 'var(--surface-2)' }}>
+            <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}><Icon name="sparkle" size={18} /> עם AI</p>
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>כאן ה-AI מציע וכותב בשבילך. התבניות, העיצובים שלך והפוסטים המוכנים למעלה פתוחים תמיד, גם כשה-AI לא זמין.</p>
+            <WeekView part="ai" settings={settings} appointments={appointments} services={services} designs={designs || []} readOnly={readOnly} creating={creating} toast={toast}
+              onCreate={(t, values) => create(t, values)}
+              onReel={(brief) => { setPreset({ brief, format: 'reel' }); setPresetKey((k) => k + 1); toast?.('הרעיון נכנס לכרטיס ה-AI למטה'); }} />
+            {onOpenScript && (
+              <div className="glass-card" style={{ padding: '14px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 2 }}><Icon name="film" size={14} /> תסריט לצילום</p>
+                  <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>ה-AI כותב תסריט קצר לרילס, סצנה אחרי סצנה, על נושא שתבחרי.</p>
+                </div>
+                <button onClick={onOpenScript} disabled={readOnly} style={{ padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 }}>לכתוב תסריט</button>
+              </div>
+            )}
+            <Generate key={presetKey} preset={preset} settings={settings} readOnly={readOnly} toast={toast} onCreated={(list) => { setDesigns((p) => [...list, ...(p || [])]); }} onOpen={(d) => setOpen(d)} />
+          </div>
           {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 12 }}>{error}</p>}
         </>
       )}

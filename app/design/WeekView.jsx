@@ -34,7 +34,9 @@ function holidayTemplates(fields) {
   return out;
 }
 
-export default function WeekView({ settings, appointments, services, designs, readOnly, creating, onCreate, onReel, toast }) {
+// part: 'posts' = the ready-made posts (no AI anywhere), 'ai' = the two AI cards (what to film, where to post).
+// Omitted = both, as before. DesignStudio places them apart so the AI sits in ONE marked block.
+export default function WeekView({ settings, appointments, services, designs, readOnly, creating, onCreate, onReel, toast, part }) {
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
   const suggestions = useMemo(() => {
@@ -68,9 +70,11 @@ export default function WeekView({ settings, appointments, services, designs, re
     } catch (e) { setError(String(e.message || e)); } finally { setGroupsBusy(false); }
   };
 
+  const showPosts = part !== 'ai';
+  const showAi = part !== 'posts';
   return (
     <>
-      <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
+      {showPosts && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>מה מפרסמים השבוע</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 14 }}>פוסטים שכבר מוכנים בצבעים שלך, לפי החגים, היומן והטיפולים שלך. תבחרי אחד, תשני מילה, תורידי.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
@@ -93,9 +97,9 @@ export default function WeekView({ settings, appointments, services, designs, re
             );
           })}
         </div>
-      </div>
+      </div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 18 }}>
+      {showAi && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
         <div style={card}>
           <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}><Icon name="camera" size={14} /> מה לצלם השבוע</p>
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>3 עד 5 רעיונות של עשר דקות בקליניקה, לפי השירותים והיומן שלך. כל רעיון יכול להפוך לרילס.</p>
@@ -133,8 +137,8 @@ export default function WeekView({ settings, appointments, services, designs, re
             </div>
           )}
         </div>
-      </div>
-      {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 12 }}>{error}</p>}
+      </div>}
+      {showAi && error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 12 }}>{error}</p>}
       {toast ? null : null}
     </>
   );

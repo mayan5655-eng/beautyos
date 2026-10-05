@@ -1307,7 +1307,7 @@ export default function BeautyOS() {
   const [reelData,    setReelData]    = useState(null);
   const [reelLoading, setReelLoading] = useState(false);
   const [reelError,   setReelError]   = useState(null);
-  const [marketingView,  setMarketingView]  = useState("campaigns"); // campaigns | ai
+  const [marketingView,  setMarketingView]  = useState("posts"); // posts | campaigns - posts and templates first: they need no AI and no Facebook connection
   // WhatsApp tab sub-views: the send tools, or the log of what was already sent.
   const [waView,         setWaView]         = useState("send"); // send | log
   const [waMessages,     setWaMessages]     = useState(null);   // null = not loaded yet
@@ -2231,7 +2231,7 @@ export default function BeautyOS() {
     if(has("רדומ","לא ביקר","לא הגיע","החזרת לקוחות","להחזיר לקוחות","נטש"))
       return { label:"פתחי משימות ממתינות", run:()=>setActiveTab("dashboard") };
     if(has("קמפיין","מבצע","שיווק","פוסט","סושיאל","אינסטגרם","פייסבוק"))
-      return { label:"צרי קמפיין", run:()=>setActiveTab("campaigns") };
+      return { label:"צרי קמפיין", run:()=>{ setMarketingView("campaigns"); setActiveTab("campaigns"); } };
     if(has("ליד","פנייה","פניות","לידים"))
       return { label:"פתחי לידים", run:()=>setActiveTab("leads") };
     if(has("יומן","תור פנוי","תורים פנויים","למלא את היומן","זמינות"))
@@ -9559,8 +9559,8 @@ ${c.claimUrl}`)}`;
  </div>
 
  <div style={{display:"inline-flex",gap:3,marginBottom:18,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
+ <button onClick={()=>setMarketingView("posts")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="posts"?pcGrad:"transparent",color:marketingView==="posts"?"var(--pc-contrast)":"var(--ink-2)"}}>פוסטים ותבניות</button>
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
- <button onClick={()=>setMarketingView("ai")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="ai"?pcGrad:"transparent",color:marketingView==="ai"?"var(--pc-contrast)":"var(--ink-2)"}}>תוכן AI</button>
  </div>
 
  {marketingView==="campaigns"&&(<>
@@ -9719,19 +9719,18 @@ ${c.claimUrl}`)}`;
  </div>
  </>)}
 
- {marketingView==="ai"&&(<>
+ {marketingView==="posts"&&(<>
  <div style={{textAlign:"center",marginBottom:18}}>
- <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_SPARKLE} style={{width:52,height:52,objectFit:"contain",marginBottom:4}}/>
- <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>תוכן AI</h2>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>פוסטים מוכנים, קמפיינים שמורים, ורילסים — הכל במקום אחד</p>
+ <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FRAME} style={{width:52,height:52,objectFit:"contain",marginBottom:4}}/>
+ <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>פוסטים ותבניות</h2>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע — בלי AI</p>
  </div>
 
- <div style={{display:"flex",justifyContent:"center",marginBottom:22}}>
- <div style={{display:"inline-flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)",flexWrap:"wrap",justifyContent:"center"}}>
- <button onClick={()=>setAiPostsView("studio")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="studio"?pcGrad:"transparent",color:aiPostsView==="studio"?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600}}>סטודיו</button>
- <button onClick={()=>setAiPostsView("reels")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:aiPostsView==="reels"?pcGrad:"transparent",color:aiPostsView==="reels"?"var(--pc-contrast)":"var(--ink-2)"}}><Icon name="film" size={14}/> תסריט לצילום</button>
+ {aiPostsView==="reels"&&(
+ <div style={{display:"flex",justifyContent:"center",marginBottom:18}}>
+ <button onClick={()=>setAiPostsView("studio")} className="primary-btn" style={{padding:"8px 20px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:"transparent",color:"var(--ink-2)",border:"1px solid var(--line)"}}>← חזרה לפוסטים ותבניות</button>
  </div>
- </div>
+ )}
 
               {/* Her templates, posts and reels are HER content, even though the
                   studio is reached from inside the Kalmea-chrome dashboard -
@@ -9742,7 +9741,7 @@ ${c.claimUrl}`)}`;
                   whatever this div sets. */}
               {aiPostsView==="studio"&&(
  <div style={accentStyle(herAccent)}>
- <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services}/>
+ <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services} onOpenScript={()=>setAiPostsView("reels")}/>
  </div>
               )}
 
