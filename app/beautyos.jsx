@@ -41,6 +41,7 @@ import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
+import { advisorWaitLine } from "@/lib/advisorWait";
 import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
 import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
@@ -1269,6 +1270,7 @@ export default function BeautyOS() {
   const [advisorMessages, setAdvisorMessages] = useState(null); // null = not loaded yet
   const [advisorInput,    setAdvisorInput]    = useState("");
   const [advisorSending,  setAdvisorSending]  = useState(false);
+  const [advisorWaitSec,  setAdvisorWaitSec]  = useState(0); // seconds since she asked, until the first word
   // Subscription plan of the logged-in business: none | basic | pro | premium.
   // Loaded in loadAll; NOT used to gate anything yet.
   const [currentPlan,     setCurrentPlan]     = useState("none");
@@ -2345,6 +2347,16 @@ export default function BeautyOS() {
     if (activeTab === "advisor" && advisorMessages === null) loadAdvisor();
     /* eslint-disable-next-line */
   }, [activeTab]);
+
+  // The advisor thinks for several seconds before its first word. Clock the wait,
+  // so the bubble can change and show how long it has been (lib/advisorWait.js)
+  // instead of sitting on one static line that looks like a hang.
+  useEffect(() => {
+    if (!advisorSending) { setAdvisorWaitSec(0); return undefined; }
+    const t0 = Date.now();
+    const id = setInterval(() => setAdvisorWaitSec(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [advisorSending]);
 
   // Keep the advisor chat scrolled to the latest message.
   useEffect(() => {
@@ -10037,7 +10049,7 @@ ${c.claimUrl}`)}`;
  </div>
               ))}
               {advisorSending&&!(advisorMessages&&advisorMessages.length&&advisorMessages[advisorMessages.length-1].streaming)&&(
- <div style={{alignSelf:"flex-end",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"16px 16px 4px 16px",padding:"11px 16px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>היועצת חושבת…</div>
+ <div style={{alignSelf:"flex-end",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"16px 16px 4px 16px",padding:"11px 16px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}} role="status" aria-live="polite">{advisorWaitLine(advisorWaitSec)}</div>
               )}
  </div>
 

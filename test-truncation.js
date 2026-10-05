@@ -177,6 +177,10 @@ group('dashboard boot');
   ok('the capped manual-WhatsApp queue reports its exact count, so a hidden overflow is known', src.includes('from("whatsapp_messages").select("*", { count: "exact" })') && src.includes('hidden(wap) > 0'));
   const q = fs.readFileSync(new URL('./app/api/questions/route.js', import.meta.url), 'utf8');
   ok('the question-a-day eligibility check reads her history through readAllRows', q.includes('readAllRows(admin, "appointments"') && q.includes('readAllRows(admin, "clients"') && !/admin.from("appointments").select/.test(q));
+  const adv = fs.readFileSync(new URL('./app/api/advisor/route.ts', import.meta.url), 'utf8');
+  for (const t of ['clients', 'appointments', 'receipts', 'leads', 'skin_scans']) {
+    ok(`the advisor reads her ${t} through readAllRows (her revenue and client counts were computed from a 1,000-row fragment)`, adv.includes(`readAllRows(supabase, '${t}'`) && !new RegExp(`supabase\.from\('${t}'\)\.select`).test(adv));
+  }
   ok('boot tells her when a read was incomplete', /incomplete/.test(src) && /complete === false|!\w+\.complete/.test(src));
 }
 

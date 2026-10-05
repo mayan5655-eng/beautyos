@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedStream } from '@/lib/ai/usage'
+import { readAllRows } from '@/lib/pagedRead'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
@@ -58,18 +59,27 @@ async function buildBusinessSnapshot(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tenantId: string
 ) {
+  // The history reads go through readAllRows: a plain select returns at most 1,000
+  // rows without saying so, and the figures below (revenue, dormant clients, top
+  // services) were being worked out from that fragment for any business with a
+  // longer history - in answers she then acts on. A read that cannot be finished
+  // stops the answer instead of letting it be built on part of her data.
+  const mine = (q: any) => q.eq('tenant_id', tenantId)
   const [settingsRes, servicesRes, clientsRes, apptsRes, receiptsRes, leadsRes, scansRes] =
     await Promise.all([
       supabase.from('settings').select('business_name, therapist_name, working_hours_start, working_hours_end, working_days, business_hours').eq('tenant_id', tenantId).limit(1),
       supabase.from('service_prices').select('name, price, duration, active').eq('tenant_id', tenantId),
-      supabase.from('clients').select('id').eq('tenant_id', tenantId),
-      supabase.from('appointments').select('client_id, service, date').eq('tenant_id', tenantId),
-      supabase.from('receipts').select('amount, service, created_at, client_id').eq('tenant_id', tenantId),
-      supabase.from('leads').select('status').eq('tenant_id', tenantId),
+      readAllRows(supabase, 'clients', { columns: 'id', filter: mine }),
+      readAllRows(supabase, 'appointments', { columns: 'id, client_id, service, date', filter: mine }),
+      readAllRows(supabase, 'receipts', { columns: 'id, amount, service, created_at, client_id', filter: mine }),
+      readAllRows(supabase, 'leads', { columns: 'id, status', filter: mine }),
       // Connect the AI Skin Scanner's saved history (read-only, aggregate) so the
       // Advisor can reason over skin progress, not just money and bookings.
-      supabase.from('skin_scans').select('client_id, score, skin_type, created_at').eq('tenant_id', tenantId),
+      readAllRows(supabase, 'skin_scans', { columns: 'id, client_id, score, skin_type, created_at', filter: mine }),
     ])
+  for (const [name, r] of [['clients', clientsRes], ['appointments', apptsRes], ['receipts', receiptsRes], ['leads', leadsRes], ['skin_scans', scansRes]] as const) {
+    if (r.error || !r.complete) throw new Error(`לא הצלחנו לקרוא את כל נתוני העסק (${name}), אז לא עונים על סמך חלק מהם. נסי שוב בעוד רגע.`)
+  }
 
   const settings: any = settingsRes.data?.[0] || {}
   const services = (servicesRes.data || []).filter(isServiceActive)
