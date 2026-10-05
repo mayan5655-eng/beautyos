@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { MODELS, EFFORT } from './models.ts'
 import { trackedCreate } from './usage.ts'
 import { cityHashtag } from './profileHygiene.ts'
+import { CLAIMS_RULE_HE } from './claimsGuard.ts'
 import type { FieldKey } from '../businessFields.ts'
 
 const anthropic = new Anthropic({
@@ -22,6 +23,7 @@ export interface BusinessProfile {
   business_name?: string | null
   business_description?: string | null
   services?: string[] | null            // ADVERTISABLE menu only, "name (₪price, duration)"
+  service_details?: string[] | null     // "name: description" - what SHE wrote about each treatment; the only source for claims about feel, intensity, downtime, suitability, contents
   /** How many treatments were withheld as not-advertisable. Never their names. */
   restricted_service_count?: number | null
   target_audience?: string | null
@@ -87,6 +89,13 @@ export function buildBusinessContext(profile: BusinessProfile): string {
       `השירותים והמחירים בפועל:\n${profile.services.map((s) => `- ${s}`).join('\n')}`
     )
   }
+  if (profile.service_details && profile.service_details.length > 0) {
+    // What she herself wrote about each treatment. Without this the model has no way
+    // to know how a treatment feels, so every such claim would be invented.
+    parts.push(
+      `תיאורי השירותים (כאן, ורק כאן, כתוב מה העסק אומר על התחושה, העוצמה, זמן ההתאוששות, ההתאמה וההרכב של כל טיפול - רק מכאן מותר להסיק טענות כאלה):\n${profile.service_details.map((s) => `- ${s}`).join('\n')}`
+    )
+  }
   if (profile.price_range) {
     parts.push(`טווח מחירים בפועל: ${profile.price_range}`)
   }
@@ -145,11 +154,13 @@ export function buildBusinessContext(profile: BusinessProfile): string {
 export const GROUNDING_RULES = `== כללי דיוק — מחייבים ==
 1. מותר להזכיר אך ורק טיפולים שמופיעים ברשימת השירותים שלמעלה. טיפול שאינו ברשימה — אין להזכיר, גם אם הוא נפוץ מאוד בעסקים דומים.
 2. מותר לנקוב אך ורק במחירים שמופיעים ברשימה, בדיוק כפי שהם. אין להמציא מחיר, ואין להמציא מבצע, הנחה, "מחיר השקה" או מתנה שלא נמסרו לך.
-3. אין להבטיח תוצאה ואין לנסח טענה רפואית: לא "מרפא", לא "מעלים", לא "פותר", לא "תוצאות מובטחות", ולא הבטחה למספר טיפולים או לפרק זמן עד לתוצאה. מותר וכדאי לתאר חוויה, תחושה ותועלת קוסמטית.
+3. אין להבטיח תוצאה ואין לנסח טענה רפואית: לא "מרפא", לא "מעלים", לא "פותר", לא "תוצאות מובטחות", ולא הבטחה למספר טיפולים או לפרק זמן עד לתוצאה. מותר לתאר תועלת קוסמטית כללית בלבד - על התחושה, העוצמה, ההתאוששות, ההתאמה וההרכב חל הכלל המחמיר שלמטה.
 4. אין להמציא עדויות, ביקורות, שמות לקוחות, דירוגים או נתונים סטטיסטיים.
 5. אם חסר מידע — השמיטי אותו. פוסט קצר ונכון עדיף על פוסט מלא ומומצא.
 6. אסור בהחלט להזכיר טיפולים רפואיים או פולשניים — בוטוקס, פילרים, חומצה היאלורונית, כל סוג של הזרקה, מזותרפיה, פלזמה/PRP, ליפוליזה או חוטים — גם אם נראה לך שהעסק מציע אותם, גם אם הלקוחה תבקש, וגם אם הם מופיעים בהקשר אחר. בישראל אלה פעולות רפואיות, ופרסום שלהן בשם קוסמטיקאית הוא עבירה. רשימת השירותים שקיבלת כבר סוננה — אל תוסיפי אליה.
 7. את הכתובת יש לכתוב במלואה בדיוק כפי שנמסרה, או לא להזכיר כתובת בכלל. אין לקצר, להמציא שכונה או להוסיף עיר שלא נמסרה.
+
+${CLAIMS_RULE_HE}
 
 אלה אינם כללי סגנון. זהו עסק אמיתי המפרסם בפומבי בישראל, והטקסט נכתב בשמה ומתפרסם באחריותה.`
 

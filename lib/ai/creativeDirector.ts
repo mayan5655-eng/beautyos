@@ -21,6 +21,7 @@ import { trackedCreate } from './usage.ts';
 import { GROUNDING_RULES, buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import { composeImagePrompt, type ImageFormat, type NegativeSpace } from './imagePrompt.ts';
 import { MODELS, EFFORT } from './models.ts';
+import { withClaimsGuard, fixHebrewSlips } from './claimsGuard.ts';
 import type { Template } from '../design/contract.ts';
 import { limitText } from '../design/limitText.ts';
 import type { FieldKey } from '../businessFields.ts';
@@ -146,16 +147,27 @@ const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }
 
 /** One Claude call: brief -> values, copy, directions. Throws on refusal or bad output. */
 export async function directFill(profile: BusinessProfile, template: Template, brief: string, tenantId: string | null): Promise<DirectorOutput> {
-  const message = await trackedCreate(anthropic(), {
-    model: DIRECTOR_MODEL,
-    // Room for the model to think AND write copy plus the picture directions.
-    max_tokens: 12000,
-    output_config: { effort: EFFORT.writer },
-    messages: [{ role: 'user', content: buildDirectorPrompt(profile, template, brief) }],
-  }, { tenantId, callSite: DIRECTOR_CALL_SITE });
-  const block = message.content.find((b) => b.type === 'text');
-  if (!block || block.type !== 'text') throw new Error('director: no text from Claude');
-  return parseDirectorOutput(template, block.text);
+  // Held to the claims rule (lib/ai/claimsGuard.ts), exactly as the caption generator
+  // is: she posts the filled template without reading it.
+  const out = await withClaimsGuard(async (correction) => {
+    const message = await trackedCreate(anthropic(), {
+      model: DIRECTOR_MODEL,
+      // Room for the model to think AND write copy plus the picture directions.
+      max_tokens: 12000,
+      output_config: { effort: EFFORT.writer },
+      messages: [{ role: 'user', content: buildDirectorPrompt(profile, template, brief) + (correction ? `\n\n${correction}` : '') }],
+    }, { tenantId, callSite: DIRECTOR_CALL_SITE });
+    const block = message.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') throw new Error('director: no text from Claude');
+    return parseDirectorOutput(template, block.text);
+  },
+  (o) => [...Object.values(o.values).map(String), o.copy?.text ?? '', ...(o.copy?.hashtags ?? [])],
+  `${buildBusinessContext(profile)}\n${clean(brief)}`);
+  return {
+    ...out,
+    values: Object.fromEntries(Object.entries(out.values).map(([k, v]) => [k, typeof v === 'string' ? fixHebrewSlips(v) : v])) as typeof out.values,
+    copy: out.copy ? { ...out.copy, text: fixHebrewSlips(out.copy.text) } : out.copy,
+  };
 }
 
 /** The image model's prompt for one direction, through the typography ban. */

@@ -17,6 +17,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
 import { getCallCapStatus, type CapStatus } from './callCaps.ts';
 import { MODELS, EFFORT } from './models.ts';
+import { CLAIMS_RULE_HE, withClaimsGuard, fixHebrewSlips } from './claimsGuard.ts';
 import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
 import type { Template } from '../design/contract.ts';
 import type { Fillable } from '../design/reel.ts';
@@ -88,6 +89,8 @@ ${catalogue}
 - "imageSubject": תיאור באנגלית של התמונה בלבד - סצנה, אור, צבעוניות, קומפוזיציה עם מרחב שקט בחלק התחתון. ללא טקסט, ללא לוגו, ללא מחיר, ללא אנשים מזוהים. אם לתבנית אין תמונת AI - מחרוזת ריקה.
 - "copy": טקסט לפוסט עצמו (עד 90 מילים) ו-3 עד 6 האשטגים בעברית ובאנגלית.
 
+${CLAIMS_RULE_HE}
+
 == איך הטקסט צריך להישמע (גם הפוסט וגם הטקסט על התמונה) ==
 - הבקשה שלה היא נושא, לא ניסוח. אל תעתיקי ממנה משפט, סלוגן או שורה כמו שהם - נסחי מחדש במילים שלך, גם אם הניסוח שלה טוב.
 - אל תחזרי על אותה מילה (או אותו שורש) בתוך הפוסט, ובוודאי לא בתוך משפט אחד. אם שם הטיפול כבר כולל מילה כמו "עדין", אמרי אותה פעם אחת בלבד.
@@ -132,18 +135,35 @@ const anthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }
 /** One Claude call: brief -> a plan of 2-3 options. Metered as GENERATE_CALL_SITE; that is what the cap counts. */
 export async function planPost(profile: BusinessProfile, brief: string, candidates: Fillable[], tenantId: string | null): Promise<PostPlan> {
   const started = Date.now();
-  const message = await trackedCreate(anthropic(), {
-    model: GENERATE_MODEL,
-    // Room for the model to think AND write the plan: thinking counts against this.
-    max_tokens: 12000,
-    output_config: { effort: EFFORT.captions },
-    messages: [{ role: 'user', content: buildGeneratePrompt(profile, brief, candidates) }],
-  }, { tenantId, callSite: GENERATE_CALL_SITE });
-  const block = message.content.find((b) => b.type === 'text');
-  if (!block || block.type !== 'text') throw new Error('generate: no text from Claude');
-  const plan = parseGeneratePlan(block.text, candidates);
-  const u = (message as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-  return { ...plan, meta: { ms: Date.now() - started, inputTokens: Number(u?.input_tokens) || 0, outputTokens: Number(u?.output_tokens) || 0 } };
+  let inputTokens = 0, outputTokens = 0;
+  // Held to the claims rule (lib/ai/claimsGuard.ts): she posts this without reading
+  // it, so a sensation, intensity, downtime, suitability or contents claim that is
+  // not in her own profile, service descriptions or request is caught here - one
+  // retry naming the words, then a refusal - instead of being published for her.
+  const plan = await withClaimsGuard(async (correction) => {
+    const message = await trackedCreate(anthropic(), {
+      model: GENERATE_MODEL,
+      // Room for the model to think AND write the plan: thinking counts against this.
+      max_tokens: 12000,
+      output_config: { effort: EFFORT.captions },
+      messages: [{ role: 'user', content: buildGeneratePrompt(profile, brief, candidates) + (correction ? `\n\n${correction}` : '') }],
+    }, { tenantId, callSite: GENERATE_CALL_SITE });
+    const block = message.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') throw new Error('generate: no text from Claude');
+    const u = (message as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
+    inputTokens += Number(u?.input_tokens) || 0;
+    outputTokens += Number(u?.output_tokens) || 0;
+    return parseGeneratePlan(block.text, candidates);
+  },
+  (p) => [p.copy.text, ...p.copy.hashtags, ...p.options.flatMap((o) => [o.angle, ...Object.values(o.values).map(String)])],
+  `${buildBusinessContext(profile)}\n${brief}`);
+  // The model's one recurring spelling slip (אלייך for אליך), fixed deterministically.
+  const fixed: PostPlan = {
+    ...plan,
+    copy: { text: fixHebrewSlips(plan.copy.text), hashtags: plan.copy.hashtags },
+    options: plan.options.map((o) => ({ ...o, values: Object.fromEntries(Object.entries(o.values).map(([k, v]) => [k, typeof v === 'string' ? fixHebrewSlips(v) : v])) as typeof o.values })),
+  };
+  return { ...fixed, meta: { ms: Date.now() - started, inputTokens, outputTokens } };
 }
 
 export type GenerationAllowance = { used: number; cap: number; remaining: number; exceeded: boolean; /** the count could not be read - and `exceeded` is therefore true */ unknown: boolean };

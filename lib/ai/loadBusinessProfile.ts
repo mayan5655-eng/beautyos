@@ -66,10 +66,17 @@ export async function loadBusinessProfile(
       .limit(1),
     supabase
       .from('service_prices')
-      .select('name, price, duration')
+      .select('name, price, duration, description')
       .eq('tenant_id', tenantId)
       .or(ACTIVE_OR_NULL),
   ])
+
+  // service_prices.description arrives with add_service_description.sql, run by
+  // hand. Naming an absent column fails the whole read, so degrade to the plain
+  // list rather than lose the services altogether.
+  const servicesData = servicesRes.error && isMissingColumnError(servicesRes.error)
+    ? (await supabase.from('service_prices').select('name, price, duration').eq('tenant_id', tenantId).or(ACTIVE_OR_NULL)).data
+    : servicesRes.data
 
   // business_fields is added by supabase/migrations/add_business_fields.sql,
   // applied by hand and possibly not yet run. Naming an unknown column in an
@@ -84,7 +91,7 @@ export async function loadBusinessProfile(
     settingsData && settingsData[0] ? settingsData[0] : {}
   const brand: Record<string, any> =
     row.branding && typeof row.branding === 'object' ? row.branding : {}
-  const services: Array<Record<string, any>> = servicesRes.data || []
+  const services: Array<Record<string, any>> = servicesData || []
 
   // Performed is not the same as advertisable. Injectables and blood-derived
   // procedures are medical acts in Israel; they can legitimately sit on her
@@ -102,6 +109,13 @@ export async function loadBusinessProfile(
     const extra = [price, dur].filter(Boolean).join(', ')
     return extra ? `${s.name} (${extra})` : String(s.name)
   })
+
+  // What she wrote about each advertisable treatment: the only place a claim about
+  // how it feels, how strong it is, downtime, who it suits or what it contains may
+  // come from (lib/ai/claimsGuard.ts).
+  const serviceDetails = advertisable
+    .filter((s) => String(s.description || '').trim())
+    .map((s) => `${s.name}: ${String(s.description).trim().slice(0, 300)}`)
 
   // Price range spans the ADVERTISABLE menu only. Including botox at ₪800 would
   // put a number in front of her that no post is allowed to explain.
@@ -134,6 +148,7 @@ export async function loadBusinessProfile(
     therapist_name: usableTherapistName(row.therapist_name),
     business_description: clean(brand.business_description),
     services: serviceLines.length > 0 ? serviceLines : undefined,
+    service_details: serviceDetails.length > 0 ? serviceDetails : undefined,
     restricted_service_count: restricted.length || undefined,
     price_range: priceRange,
     region: address?.full,

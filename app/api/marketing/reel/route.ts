@@ -16,6 +16,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
+import { withClaimsGuard, fixHebrewSlips } from '@/lib/ai/claimsGuard'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -110,6 +111,11 @@ export async function POST(request: NextRequest) {
         ? `יתרונות תחרותיים: ${profile.unique_selling_points.join(', ')}`
         : null,
       servicesText ? `שירותים ומחירים בפועל:\n${servicesText}` : null,
+      // What SHE wrote about each treatment: the only place a claim about how it
+      // feels, how strong it is, downtime, who it suits or what it contains may come from.
+      profile.service_details?.length
+        ? `תיאורי השירותים (כאן, ורק כאן, כתוב מה העסק אומר על התחושה, העוצמה, זמן ההתאוששות, ההתאמה וההרכב של כל טיפול - רק מכאן מותר להסיק טענות כאלה):\n${profile.service_details.map((d) => `- ${d}`).join('\n')}`
+        : null,
     ]
       .filter(Boolean)
       .join('\n')
@@ -158,27 +164,32 @@ ${GROUNDING_RULES}
   "music_vibe": "תיאור סגנון המוזיקה המומלץ (למשל: אפביט קליל, רגוע ומפנק)"
 }`
 
-    const message = await trackedCreate(anthropic, {
-      model: MODELS.writer,
-      max_tokens: 16000,
-      output_config: { effort: EFFORT.writer },
-      messages: [{ role: 'user', content: prompt }],
-    }, { tenantId, callSite: 'marketing/reel' })
+    // Held to the claims rule (lib/ai/claimsGuard.ts): the script and caption are
+    // posted as written, so a claim about feel, intensity, downtime, suitability or
+    // contents that is not in her profile, service descriptions or topic is caught
+    // here - one retry naming the words, then a refusal.
+    const strings = (v: unknown): string[] => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings) : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : [])
+    const run = await withClaimsGuard(async (correction) => {
+      const message = await trackedCreate(anthropic, {
+        model: MODELS.writer,
+        max_tokens: 16000,
+        output_config: { effort: EFFORT.writer },
+        messages: [{ role: 'user', content: prompt + (correction ? `\n\n${correction}` : '') }],
+      }, { tenantId, callSite: 'marketing/reel' })
+      const textBlock = message.content.find((b) => b.type === 'text')
+      let reel: unknown = null
+      if (textBlock && textBlock.type === 'text') {
+        try { reel = JSON.parse(textBlock.text.replace(/```json|```/g, '').trim()) } catch { reel = null }
+      }
+      return { message, reel, gotText: !!(textBlock && textBlock.type === 'text') }
+    }, (r) => strings(r.reel), `${contextLines}\n${topic}`)
 
-    const textBlock = message.content.find((b) => b.type === 'text')
-    if (!textBlock || textBlock.type !== 'text') {
-      return NextResponse.json({ error: 'לא התקבלה תשובה מה-AI' }, { status: 500 })
-    }
+    if (!run.gotText) return NextResponse.json({ error: 'לא התקבלה תשובה מה-AI' }, { status: 500 })
+    if (!run.reel) return NextResponse.json({ error: 'יצירת הרילס נכשלה, נסי שוב' }, { status: 422 })
+    // Spelling slips ("אלייך") fixed deterministically, across every string in the script.
+    const fix = (v: unknown): unknown => (typeof v === 'string' ? fixHebrewSlips(v) : Array.isArray(v) ? v.map(fix) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fix(x)])) : v)
 
-    const clean = textBlock.text.replace(/```json|```/g, '').trim()
-    let reel
-    try {
-      reel = JSON.parse(clean)
-    } catch (e) {
-      return NextResponse.json({ error: 'יצירת הרילס נכשלה, נסי שוב' }, { status: 422 })
-    }
-
-    return NextResponse.json({ success: true, reel, ...capNoticeOf(message) })
+    return NextResponse.json({ success: true, reel: fix(run.reel), ...capNoticeOf(run.message) })
   } catch (error: any) {
     console.error('Error in /api/marketing/reel:', error)
     return NextResponse.json({ error: error.message || 'יצירת הרילס נכשלה' }, { status: 500 })
