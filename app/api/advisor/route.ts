@@ -239,7 +239,7 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
       // Room to think AND answer: she is asking about her own business, and the
       // answer is what she acts on.
       max_tokens: 8000,
-      output_config: { effort: EFFORT.writer },
+      output_config: { effort: EFFORT.advisor },
       system: systemPrompt,
       messages: [...priorTurns, { role: 'user', content: message }] as any,
     }, { tenantId, callSite: 'advisor' })

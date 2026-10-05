@@ -39,4 +39,8 @@ export const MODELS = {
 export const EFFORT = {
   writer: 'medium',
   ideas: 'medium',
+  // A chat answer she is waiting on. At medium the advisor took 26 s on production
+  // (measured 2026-10-05) - too long to stare at a spinner; the extra thinking
+  // buys little on a question about her own numbers. Raise it if answers feel thin.
+  advisor: 'low',
 } as const;
