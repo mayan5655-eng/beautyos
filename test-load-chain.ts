@@ -44,7 +44,7 @@ const loadAll = src.slice(start, end);
 
 const iGetUserCall = loadAll.indexOf('supabase.auth.getSession()');
 const iRpcCall = loadAll.indexOf('supabase.rpc("get_user_tenant_id")');
-const iFirstRead = loadAll.indexOf('supabase.from("appointments")');
+const iFirstRead = loadAll.indexOf('readAllRows(supabase, "appointments")');
 const iAwaitAuth = loadAll.indexOf('await authP');
 const iAwaitRpc = loadAll.indexOf('await rpcP');
 const iTenantsRead = loadAll.indexOf('supabase.from("tenants")');

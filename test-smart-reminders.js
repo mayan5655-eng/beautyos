@@ -60,10 +60,11 @@ function makeDb(tables) {
       let rows = tables[table] ? [...tables[table]] : [];
       const chain = {
         select() { return chain; },
+        order() { return chain; },
         eq(col, val) { rows = rows.filter((r) => r[col] === val); return chain; },
         range(from, to) {
           const slice = rows.slice(from, to + 1);
-          return Promise.resolve({ data: slice, error: null });
+          return Promise.resolve({ data: slice, error: null, count: rows.length });
         },
         insert(row) { tables[table] = tables[table] || []; tables[table].push(row); return Promise.resolve({ error: null }); },
         then(res) { return Promise.resolve({ data: rows, error: null }).then(res); },

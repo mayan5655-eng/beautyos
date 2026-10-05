@@ -40,6 +40,7 @@ import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
+import { readAllRows } from "@/lib/pagedRead";
 import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
 import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
@@ -2441,17 +2442,17 @@ export default function BeautyOS() {
       const authP = Promise.resolve(supabase.auth.getSession());
       const rpcP = Promise.resolve(supabase.rpc("get_user_tenant_id"));
       const EARLY_READS = [
-        ["appointments",   supabase.from("appointments").select("*")],
-        ["clients",        supabase.from("clients").select("*")],
-        ["leads",          supabase.from("leads").select("*")],
+        ["appointments",   readAllRows(supabase, "appointments")],
+        ["clients",        readAllRows(supabase, "clients")],
+        ["leads",          readAllRows(supabase, "leads")],
         ["service_prices", supabase.from("service_prices").select("*")],
         ["settings",       supabase.from("settings").select("*")],
-        ["receipts",       supabase.from("receipts").select("*")],
+        ["receipts",       readAllRows(supabase, "receipts")],
         // Not core: the table arrives with add_till_and_calendar_small_things.sql,
         // applied by hand, and a missing table must not stop the boot. Until it
         // exists no receipt can be voided, which the void button says.
-        ["receipt_voids",  supabase.from("receipt_voids").select("*")],
-        ["packages",       supabase.from("packages").select("*")],
+        ["receipt_voids",  readAllRows(supabase, "receipt_voids")],
+        ["packages",       readAllRows(supabase, "packages")],
         // Manual WhatsApp queue: not core, same reasoning as receipt_voids -
         // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
         // newest-first: a queue is something she works through, not an
@@ -2524,6 +2525,12 @@ export default function BeautyOS() {
       // unblocked - because this is the BILLING row, and a transient error
       // there must never lock her out of her own calendar. Failing open on
       // billing and failing loud on data is the intended asymmetry.
+      // Every one of those whole-table reads goes through readAllRows: the API
+      // hands back at most max_rows (1,000 by default) per request and says
+      // nothing when it stops, so a plain select("*") quietly showed a busy
+      // business a calendar missing its newest appointments. Past a very large
+      // ceiling a read stops on purpose and reports complete:false - and then she
+      // is told, below, instead of being shown a fragment as if it were all.
       const CORE_READS = READS.map(([name]) => name).filter((n) => n !== "tenants" && n !== "receipt_voids" && n !== "whatsapp_pending" && n !== "owner_notifs");
       const failedReads = CORE_READS.filter((n) => res[n]?.error);
       if (failedReads.length > 0) {
@@ -2536,6 +2543,14 @@ export default function BeautyOS() {
         } catch {}
         setLoadError({ tables: failedReads, message: first?.message || "", code: first?.code || "" });
         return; // the `finally` still clears `loading`
+      }
+
+      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", leads: "הלידים", receipts: "הקבלות", receipt_voids: "ביטולי הקבלות", packages: "החבילות" };
+      const partialReads = Object.keys(PARTIAL_HE).filter((n) => res[n] && res[n].data && res[n].complete === false);
+      if (partialReads.length > 0) {
+        console.error("[BeautyOS] loadAll: incomplete read", partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", "));
+        try { Sentry.captureException(new Error(`loadAll incomplete: ${partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", ")}`)); } catch {}
+        toast(`לא נטענה כל ההיסטוריה של ${partialReads.map((n) => PARTIAL_HE[n]).join(" ו")} - מה שמוצג חלקי. כתבי לנו ונטפל בזה.`, "error");
       }
 
       // Safe default 'none' if the row/column is missing for any reason.
