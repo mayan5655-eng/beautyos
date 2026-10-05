@@ -1272,7 +1272,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
                   {submitting ?<Spinner inline label="קובע תור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
-                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור מאושר מיד, ואישור יגיע אלייך בוואטסאפ</p>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור מאושר מיד, ואישור יגיע אליך בוואטסאפ</p>
               </div>
             )}
 
