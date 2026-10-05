@@ -163,6 +163,8 @@ const collect = async (it: AsyncIterable<string>) => { const out: string[] = [];
   assert.ok(route.includes('trackedStream('), 'the advisor route streams through trackedStream (metered, capped)');
   assert.ok(!route.includes('trackedCreate('), 'and no longer waits for the whole answer');
   assert.ok(/ndjson/.test(route), 'it answers with a stream');
+  const rawRoute = fs.readFileSync('app/api/advisor/route.ts', 'utf8');
+  assert.ok(rawRoute.includes('טקסט רגיל בלבד: בלי כוכביות'), 'the advisor is told to write plain text: the chat shows markdown symbols literally, and the stronger model uses them freely');
   const ui = code('app/beautyos.jsx');
   const send = ui.slice(ui.indexOf('const sendAdvisor'), ui.indexOf('const uploadPostImage'));
   assert.ok(send.includes('getReader()'), 'the dashboard reads the answer as it arrives');
