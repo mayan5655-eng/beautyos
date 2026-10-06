@@ -24,16 +24,10 @@ import { CANVAS } from '@/lib/design/contract';
 import { downloadBlob } from './exportPng';
 import { resolveImageRef } from './images';
 import { renderLayersCanvas, drawImageLayer, boxPx, loadImage } from './canvasRender';
+import { pickRecorderMime, fileExtFor } from '@/lib/design/recorderMime';
 
 const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30;
 const TRANSITION_MS = 500;
-
-const pickMime = () => {
-  for (const c of ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(c)) return c;
-  }
-  return 'video/webm';
-};
 
 /** Which of a frame's layers are photos, and the split around them. */
 function splitLayers(layers) {
@@ -105,8 +99,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       const b = document.createElement('canvas'); b.width = W; b.height = H; const bctx = b.getContext('2d');
       drawScene(ctx, scenes[0], 0);
 
-      const mime = pickMime();
-      const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+      const mime = pickRecorderMime(); // H.264 + AAC when the browser can; see lib/design/recorderMime.js for why
       const tracks = [...canvas.captureStream(FPS).getVideoTracks()];
       if (music && audioRef.current) {
         try {
@@ -151,7 +144,10 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       });
       recorder.stop();
       await finished;
-      const blob = new Blob(chunks, { type: mime });
+      // What the recorder REPORTS it recorded decides the name: an MP4 box around VP9/Opus is not a postable .mp4.
+      const actualMime = recorder.mimeType || mime;
+      const ext = fileExtFor(actualMime);
+      const blob = new Blob(chunks, { type: actualMime });
       const url = URL.createObjectURL(blob);
       setVideo({ url, ext, blob });
       setStatus('');
@@ -191,6 +187,9 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
           <button onClick={() => downloadBlob(video.blob, `${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
             <Icon name="download" size={14} /> הורדת הסרטון ({video.ext})
           </button>
+          {video.ext !== 'mp4' && (
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 8 }}>הדפדפן הזה שומר את הסרטון בפורמט שאינסטגרם לא מקבלת. כדי לקבל קובץ שאפשר להעלות, יצרי את הרילס ב-Chrome מעודכן או בספארי.</p>
+          )}
         </div>
       )}
 
