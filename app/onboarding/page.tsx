@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { displayName } from "@/lib/personName";
+import { ONBOARDING_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import Image from "next/image";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
@@ -20,7 +21,9 @@ import { BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, BANNER_WIDE, BANNER_WI
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
 
-const PRESET_COLORS = ["#4A2E5A", "var(--pc-tint)", "#A7C4F4", "var(--success)", "var(--pc-tint)", "rgba(242,184,75,0.16)", "var(--pc)", "var(--ink)"];
+// Real hex values, by name (lib/brandSwatches.js): this list had been run through the token sweep and offered
+// "var(--success)" and friends as colours, which saved a string her page cannot use.
+const PRESET_COLORS = ONBOARDING_SWATCHES;
 
 type OnboardingData = {
   business_name: string;
@@ -466,7 +469,9 @@ export default function OnboardingPage() {
                       type="button"
                       onClick={() => setData({ ...data, primary_color: c })}
                       className="swatch"
-                      title={c}
+                      title={swatchLabel(c)}
+                      aria-label={swatchLabel(c)}
+                      aria-pressed={data.primary_color.toLowerCase() === c.toLowerCase()}
                       style={{
                         width: 30, height: 30, borderRadius: "50%", padding: 0,
                         border: data.primary_color.toLowerCase() === c.toLowerCase() ? `3px solid var(--ink)` : "2px solid var(--line)",
