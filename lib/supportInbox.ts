@@ -10,6 +10,8 @@
 // runInvariants and folds into the same nightly WhatsApp, rather than a
 // second alert channel to remember to check.
 
+import { parseDb } from './dbTime.js';
+
 export type StaleSupportResult = {
   /** null when the table does not exist yet or the query failed - distinct
    *  from 0, which means "checked, and nothing is stuck". */
@@ -49,7 +51,7 @@ export async function staleSupportMessages(
     if (rows.length === 0) return { count: 0, oldestDays: null };
 
     const oldest = rows.reduce(
-      (min, r) => Math.min(min, new Date(r.created_at).getTime()),
+      (min, r) => Math.min(min, parseDb(r.created_at).getTime()),
       Date.now()
     );
     const oldestDays = Math.floor((Date.now() - oldest) / 86_400_000);

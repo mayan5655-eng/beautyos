@@ -26,6 +26,8 @@
 // and the per-service figures read amount; the till's day and month cards
 // show the tip beside the total, not inside it.
 
+import { parseDb } from './dbTime.js';
+
 export type PaymentLine = { method: string; amount: number };
 
 export type ReceiptLike = {
@@ -169,7 +171,7 @@ export function totalsOf(receipts: ReceiptLike[]): Totals {
 export function receiptsInMonth<T extends ReceiptLike>(receipts: T[], month: number, year: number): T[] {
   return receipts.filter((r) => {
     if (!r.created_at) return false;
-    const d = new Date(r.created_at);
+    const d = parseDb(r.created_at);
     return !isNaN(d.getTime()) && d.getMonth() === month && d.getFullYear() === year;
   });
 }
@@ -213,7 +215,7 @@ export function receiptsOnDay<T extends ReceiptLike>(receipts: T[], dayKey: stri
 /** YYYY-MM-DD of an ISO timestamp in the browser's local time (Israel, for her). */
 export function localDayKey(iso: string | null | undefined): string {
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = parseDb(iso); // a zone-less DB timestamp is UTC (lib/dbTime.js), not local
   if (isNaN(d.getTime())) return '';
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;

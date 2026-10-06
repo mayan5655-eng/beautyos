@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { parseDb } from "@/lib/dbTime";
 import { displayName } from "@/lib/personName";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
@@ -1066,7 +1067,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                             {postTypeLabel(p.post_type)}
                           </span>
                           <span style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.3px" }}>
-                            {new Date(p.created_at).toLocaleDateString("he-IL")}
+                            {parseDb(p.created_at).toLocaleDateString("he-IL")}
                           </span>
                         </div>
                         {p.title && <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}

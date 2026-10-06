@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { parseDb } from "@/lib/dbTime";
 import { displayName } from "@/lib/personName";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -34,7 +35,7 @@ import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, SPLIT_METHOD } from "@/lib/till";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
@@ -2804,7 +2805,7 @@ export default function BeautyOS() {
     const d=new Date(now);d.setMonth(now.getMonth()-(5-i));
     const m=d.getMonth(),y=d.getFullYear();
     const appts=appointments.filter(a=>{if(!a.date)return false;const ad=new Date(a.date);return ad.getMonth()===m&&ad.getFullYear()===y;});
-    const rev=liveRcpts.filter(r=>{if(!r.created_at)return false;const rd=new Date(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
+    const rev=liveRcpts.filter(r=>{if(!r.created_at)return false;const rd=parseDb(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
     return {month:MONTHS_HE[m].slice(0,3),count:appts.length,revenue:rev};
   /* now is derived from thisMonth/thisYear, which gate this memo */ }), [appointments, liveRcpts, thisMonth, thisYear]);
 
@@ -2822,7 +2823,7 @@ export default function BeautyOS() {
   // "new" (where inbound Facebook leads and manually added leads start) and
   // "no_answer" (reached out, nobody picked up).
   const newLeadsCount      = leads.filter(l=>l.status==="no_answer"||l.status==="new").length;
-  const thisMonthLeads     = leads.filter(l=>{if(!l.created_at)return false;const d=new Date(l.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;});
+  const thisMonthLeads     = leads.filter(l=>{if(!l.created_at)return false;const d=parseDb(l.created_at);return d.getMonth()===thisMonth&&d.getFullYear()===thisYear;});
   const convertedLeads     = leads.filter(l=>l.status==="closed");
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
   const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
@@ -2970,7 +2971,7 @@ export default function BeautyOS() {
       activeServices.filter(s=>has(s.name))
         .slice(0,5).map(s=>({type:"service",label:s.name,sub:`₪${s.price}`+(s.duration?` · ${s.duration}′`:""),obj:s})),
       receipts.filter(r=>has(r.client_name)||has(r.service)||has(r.amount))
-        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${(r.created_at||"").slice(0,10)}`,obj:r})),
+        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${localDayKey(r.created_at)}`,obj:r})),
     ];
     return groups.flat().slice(0,15);
   })();
@@ -5634,7 +5635,7 @@ export default function BeautyOS() {
     const period = intent.period === "today" ? "today" : "month";
     const rs = period === "today"
       ? receiptsOnDay(liveRcpts, today)
-      : liveRcpts.filter(r => { const c = r.created_at && new Date(r.created_at); return c && c.getMonth() === thisMonth && c.getFullYear() === thisYear; });
+      : liveRcpts.filter(r => { const c = r.created_at && parseDb(r.created_at); return c && c.getMonth() === thisMonth && c.getFullYear() === thisYear; });
     const total = rs.reduce((s,r) => s + (Number(r.amount)||0), 0);
     setVoiceInfo({ kind: "revenue", period, total, count: rs.length });
     setVoiceStatus("info");
@@ -5737,7 +5738,7 @@ export default function BeautyOS() {
           payment_method: receipt.payment_method,
           tip: Number(receipt.tip) || 0,
           payments_text: isSplit(receipt) ? paymentsOf(receipt).map(p=>`${p.method} ₪${p.amount}`).join(", ") : "",
-          date: (receipt.created_at || "").slice(0, 10),
+          date: localDayKey(receipt.created_at),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -5774,7 +5775,7 @@ export default function BeautyOS() {
     const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const rows = [
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
-      ["תאריך", esc((receipt.created_at || "").slice(0, 10))],
+      ["תאריך", esc(localDayKey(receipt.created_at))],
       ["שירות", esc(receipt.service || "")],
       ["אמצעי תשלום", esc(receipt.payment_method || "")],
     ];
@@ -5783,7 +5784,7 @@ export default function BeautyOS() {
     if (Number(receipt.tip) > 0) rows.push(["טיפ", "₪" + esc(receipt.tip)]);
     if (receipt.note) rows.push(["הערה", esc(receipt.note)]);
     const vd = voidOf(receipt, receiptVoids);
-    if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(String(vd.created_at || "").slice(0, 10))]);
+    if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(localDayKey(vd.created_at))]);
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${esc(docLabelHe(receipt))}</title>
 <style>
@@ -5910,7 +5911,7 @@ export default function BeautyOS() {
       `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
       `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
-      `📅 תאריך: ${(receipt.created_at || "").slice(0, 10)}\n\n` +
+      `📅 תאריך: ${localDayKey(receipt.created_at)}\n\n` +
       (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
   };
@@ -6429,7 +6430,7 @@ export default function BeautyOS() {
 
   const handleExportCSV = () => {
     const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום"]];
-    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,r.created_at?.slice(0,10)||"",r.amount,r.payment_method]);});
+    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,localDayKey(r.created_at)||"",r.amount,r.payment_method]);});
     // Quote every cell (escaping embedded quotes) so values containing commas
     // — e.g. a multi-item receipt service "פנים, עיסוי" — don't shift columns.
     const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
@@ -7696,7 +7697,7 @@ ${c.claimUrl}`)}`;
             // been more than a day - a message that's been sitting that
             // long needs the same quiet urgency a lapsed-client line gets.
             const ageHe=(()=>{
-              const ts=new Date(m.created_at).getTime();
+              const ts=parseDb(m.created_at).getTime();
               if(!Number.isFinite(ts))return"";
               const mins=Math.floor((Date.now()-ts)/60000);
               if(mins<1)return"ממש עכשיו";
@@ -8549,7 +8550,7 @@ ${c.claimUrl}`)}`;
                       {
                         const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
-                        const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&new Date(m.created_at).getTime()>dayAgo);
+                        const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
                           const names=[...new Set(failedAuto.map(m=>m.recipient_name).filter(Boolean))];
                           const shown=names.slice(0,4).join(", ")+(names.length>4?` ועוד ${names.length-4}`:"");
@@ -8569,7 +8570,7 @@ ${c.claimUrl}`)}`;
                         // The oldest item's wait time, so the grouped line
                         // itself carries the visible age marker - she
                         // shouldn't have to open the list to see urgency.
-                        const oldestTs=Math.min(...whatsappPending.map(m=>new Date(m.created_at).getTime()).filter(Number.isFinite));
+                        const oldestTs=Math.min(...whatsappPending.map(m=>parseDb(m.created_at).getTime()).filter(Number.isFinite));
                         const oldestMins=Number.isFinite(oldestTs)?Math.floor((Date.now()-oldestTs)/60000):null;
                         const ageWhy=oldestMins===null?"":oldestMins<60?`הראשונה ממתינה ${oldestMins} דק׳`:oldestMins<24*60?`הראשונה ממתינה ${Math.floor(oldestMins/60)} שע׳`:`הראשונה ממתינה ${contactAgoHe(new Date(oldestTs).toISOString())}`;
                         q.push({key:"wa-pending",icon:"✆",accent:"var(--success)",source:"וואטסאפ",what:"הודעות מוכנות לשליחה",who:whatsappPending.length===1?"הודעה אחת":`${whatsappPending.length} הודעות`,why:ageWhy||"כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך",primaryLabel:"פתיחת הרשימה",run:()=>setShowWaQueue(true)});
@@ -9329,7 +9330,7 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {r.created_at?.slice(0,10)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {localDayKey(r.created_at)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
@@ -9542,7 +9543,7 @@ ${c.claimUrl}`)}`;
  <td style={{padding:"10px 13px",fontSize:"var(--t-sm)"}}><span className="pill" style={{background:"var(--pc-tint)",color:pc,padding:"3px 9px",fontWeight:600}}>{WA_TYPE_LABELS[m.message_type]||m.message_type}</span></td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",fontWeight:700,whiteSpace:"nowrap",color:waDeliveryLabel(m).color}}>{waDeliveryLabel(m).text}</td>
  <td style={{padding:"10px 13px",fontSize:"var(--t-xs)",color:"var(--ink-2)",maxWidth:300}}>{m.message_body}</td>
- <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?new Date(m.created_at).toLocaleString("he-IL"):""}</td>
+ <td style={{padding:"10px 13px",fontSize:"var(--t-sm)",color:"var(--ink-3)",whiteSpace:"nowrap"}}>{m.created_at?parseDb(m.created_at).toLocaleString("he-IL"):""}</td>
  </tr>
                       ))}
  </tbody>
@@ -9857,15 +9858,15 @@ ${c.claimUrl}`)}`;
             const status = settings.business_tax_status || "exempt";
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
-            const inYear = liveRcpts.filter(r=>r.created_at && new Date(r.created_at).getFullYear()===taxYear);
+            const inYear = liveRcpts.filter(r=>r.created_at && parseDb(r.created_at).getFullYear()===taxYear);
             let periodReceipts, rangeLabel;
             if(status==="exempt"){
               periodReceipts=inYear; rangeLabel=`שנת ${taxYear}`;
             } else if(taxPeriodMode==="monthly"){
-              periodReceipts=inYear.filter(r=>new Date(r.created_at).getMonth()===taxPeriodIdx);
+              periodReceipts=inYear.filter(r=>parseDb(r.created_at).getMonth()===taxPeriodIdx);
               rangeLabel=`${MONTHS_HE[taxPeriodIdx]} ${taxYear}`;
             } else {
-              periodReceipts=inYear.filter(r=>Math.floor(new Date(r.created_at).getMonth()/2)===taxPeriodIdx);
+              periodReceipts=inYear.filter(r=>Math.floor(parseDb(r.created_at).getMonth()/2)===taxPeriodIdx);
               rangeLabel=`${MONTHS_HE[taxPeriodIdx*2]}–${MONTHS_HE[taxPeriodIdx*2+1]} ${taxYear}`;
             }
             const gross=periodReceipts.reduce((s,r)=>s+(Number(r.amount)||0),0);
@@ -10103,7 +10104,7 @@ ${c.claimUrl}`)}`;
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
  <span className="pill" style={{fontSize:"var(--t-sm)",color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
- <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{new Date(p.created_at).toLocaleDateString("he-IL")}</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{parseDb(p.created_at).toLocaleDateString("he-IL")}</span>
  </div>
  {p.title&&<p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>{p.title}</p>}
  {p.body&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{p.body}</p>}
@@ -10902,7 +10903,7 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{fontSize:"var(--t-xs)",color:"var(--ink)",lineHeight:1.9}}>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{showReceipt.created_at?.slice(0,10)}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{localDayKey(showReceipt.created_at)}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
                 {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
@@ -10933,7 +10934,7 @@ ${c.claimUrl}`)}`;
  <div style={{marginTop:12,padding:"10px 12px",borderRadius:"var(--r-sm)",background:"rgba(224,91,111,0.08)",border:"1px solid var(--danger)"}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)"}}>{isVoidComplete(showReceipt)?"התשלום בוטל":"ביטול התשלום בתהליך"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2,lineHeight:1.5}}>{vd.reason}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>{String(vd.created_at||"").slice(0,10)} · {vd.credit_status==="issued"?creditStateHe(vd):(vd.credit_status&&vd.credit_status!=="none")?(creditStateHe(vd)||"ממתין למסמך זיכוי")+". התשלום ממשיך להיספר עד שהמסמך יונפק.":"המקור נשמר כפי שהיה ואינו נספר בסיכומים"}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>{localDayKey(vd.created_at)} · {vd.credit_status==="issued"?creditStateHe(vd):(vd.credit_status&&vd.credit_status!=="none")?(creditStateHe(vd)||"ממתין למסמך זיכוי")+". התשלום ממשיך להיספר עד שהמסמך יונפק.":"המקור נשמר כפי שהיה ואינו נספר בסיכומים"}</p>
  {vd.credit_error&&vd.credit_status!=="issued"&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",marginTop:4,lineHeight:1.5}}>{vd.credit_error}</p>}
  {["failed","unknown","pending_request"].includes(vd.credit_status)&&<button onClick={()=>retryCredit(vd)} disabled={isBusy("legalCredit")} className="primary-btn" style={{marginTop:8,padding:"8px 14px",fontSize:"var(--t-xs)",background:"var(--surface)",color:"var(--danger)",border:"1px solid var(--danger)"}}>{isBusy("legalCredit")?<Spinner inline label="מנסה"/>:"ניסיון חוזר להנפקת זיכוי"}</button>}
  {vd.credit_status==="issued"&&vd.credit_doc_url&&<a href={vd.credit_doc_url} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:6,fontSize:"var(--t-xs)",color:pcDeep,fontWeight:600}}>צפייה במסמך הזיכוי</a>}
@@ -11702,7 +11703,7 @@ ${c.claimUrl}`)}`;
  <button onClick={()=>toggleReviewHidden(rv)} style={{background:"none",border:"none",color:rv.status==="hidden"?pcDeep:"var(--ink-3)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{rv.status==="hidden"?"החזרה":"הסתרה"}</button>
  </div>
                         {rv.body&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,marginBottom:3}}>{rv.body}</p>}
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{rv.client_name||"לקוחה"} · {new Date(rv.created_at).toLocaleDateString("he-IL")}{rv.status==="hidden"?" · מוסתרת":""}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{rv.client_name||"לקוחה"} · {parseDb(rv.created_at).toLocaleDateString("he-IL")}{rv.status==="hidden"?" · מוסתרת":""}</p>
  </div>
                     ))}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginTop:14,marginBottom:2}}>ביקורות שהוקלדו ידנית</p>
@@ -12367,7 +12368,7 @@ ${c.claimUrl}`)}`;
  {s.image_url?<SignedImage value={s.image_url} alt="" style={{width:46,height:46,borderRadius:"var(--r-sm)",objectFit:"cover",flexShrink:0}} fallback={<div style={{width:46,height:46,borderRadius:"var(--r-sm)",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"var(--t-xl)"}}>✦</div>}/>:<div style={{width:46,height:46,borderRadius:"var(--r-sm)",background:pcTint,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:"var(--t-xl)"}}>✦</div>}
  <div style={{flex:1}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{s.skin_type||"סריקת עור"}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{new Date(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{parseDb(s.created_at).toLocaleDateString("he-IL")}{s.report?.clinical_treatment?` · ${s.report.clinical_treatment}`:""}</p>
  </div>
  <div style={{width:34,height:34,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",border:`3px solid ${s.score>=75?"var(--success)":s.score>=50?"var(--warning)":pc}`,flexShrink:0}}><span style={{fontSize:"var(--t-sm)",fontWeight:800,color:s.score>=75?"var(--success)":s.score>=50?"var(--warning)":pc}}>{s.score}</span></div>
  </div>
@@ -12378,7 +12379,7 @@ ${c.claimUrl}`)}`;
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{r.created_at?.slice(0,10)} · {r.payment_method}</p></div>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{localDayKey(r.created_at)} · {r.payment_method}</p></div>
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
                     ))
@@ -12451,7 +12452,7 @@ ${c.claimUrl}`)}`;
  {ph.after_url?<SignedImage value={ph.after_url} alt="תמונת אחרי הטיפול" style={{width:"100%",borderRadius:"var(--r-xs)",display:"block"}} fallback={<div style={{padding:"24px 0",background:pcTint,borderRadius:"var(--r-xs)",fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>—</div>}/>:<div style={{padding:"24px 0",background:pcTint,borderRadius:"var(--r-xs)",fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>—</div>}
  </div>
  </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:5,textAlign:"left"}}>{new Date(ph.created_at).toLocaleDateString("he-IL")}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:5,textAlign:"left"}}>{parseDb(ph.created_at).toLocaleDateString("he-IL")}</p>
  </div>
  ))}
  </div>
@@ -12598,7 +12599,7 @@ ${c.claimUrl}`)}`;
                     ))}
  </div>
                   {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
-                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{l.created_at.slice(0,10)}</span></div>}
+                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{localDayKey(l.created_at)}</span></div>}
                   {/* Contact trail. Reads "טרם יצרת קשר" until the first
                       successful WhatsApp send from the app. */}
  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>
