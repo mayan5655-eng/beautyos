@@ -61,6 +61,7 @@ import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
+import { ownServices } from "@/lib/serviceScope";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -2586,7 +2587,11 @@ export default function BeautyOS() {
       setAppointments(a.data || []);
       setClients(c.data || []);
       setLeads(l.data || []);
-      setServices(sv.data || []);
+      // service_prices is the one table that is readable across tenants (the public booking page needs an
+      // anonymous read), so unlike the others it is NOT scoped by RLS for her: keep only the rows that are hers.
+      // A new tenant used to see 21 services from three other businesses here, and a checklist that called
+      // the menu done. See lib/serviceScope.js.
+      setServices(ownServices(sv.data, myTenantId));
       // Zero settings rows now means SHE IS GENUINELY NEW, not "the settings
       // read failed" - that case returned above. Before this change the two
       // were the same branch, so a failed read could bounce an established user
@@ -4863,7 +4868,7 @@ export default function BeautyOS() {
       // have inserted, updated and deleted in one pass, and one query is the
       // only version of "what is actually there now" that cannot drift.
       if (changed > 0) {
-        const { data: fresh, error: refetchErr } = await supabase.from("service_prices").select("*");
+        const { data: fresh, error: refetchErr } = await supabase.from("service_prices").select("*").eq("tenant_id", tenantId);
         if (!refetchErr && fresh) setServices(fresh);
       }
 
@@ -4871,7 +4876,7 @@ export default function BeautyOS() {
         // Half a save is not a save. Say which part failed, leave the panel
         // open with the draft intact so nothing she typed is lost, and do not
         // toast success over the top of it.
-        const { data: fresh } = await supabase.from("service_prices").select("*");
+        const { data: fresh } = await supabase.from("service_prices").select("*").eq("tenant_id", tenantId);
         if (fresh) {
           setServices(fresh);
           setEditServices(fresh.map(sv => ({ ...sv })));

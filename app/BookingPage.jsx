@@ -3,12 +3,12 @@ import { useState, useEffect, useRef } from "react";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { logoSrc } from "@/lib/logoSrc";
+import { fetchPublicServices } from "@/lib/publicServices";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
-import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
@@ -333,7 +333,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
         initialSettings ? Promise.resolve(initialSettings) : fetchPublicSettings(supabase, t),
-        initialServices ? Promise.resolve({ data: initialServices }) : supabase.from("service_prices").select("*").eq("tenant_id", t).or(ACTIVE_OR_NULL),
+        initialServices ? Promise.resolve({ data: initialServices }) : fetchPublicServices(supabase, t),
         // Busy slots come from the server, NOT from a direct table read.
         //
         // This used to be supabase.from("appointments") on the anon key. RLS

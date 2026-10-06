@@ -26,7 +26,7 @@ import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
 import { APP_URL } from '@/lib/appUrl';
-import { ACTIVE_OR_NULL } from '@/lib/serviceActive';
+import { fetchPublicServices } from '@/lib/publicServices';
 import BookingPage from '../BookingPage';
 import { LOGO_COMPACT } from '@/lib/brand';
 import { ogVersion } from '@/lib/og/tenantOg';
@@ -83,11 +83,7 @@ const loadPublicSettings = cache((tenantId: string) => fetchPublicSettings(publi
 // itself instead of showing a business with an empty menu.
 const loadServices = cache(async (tenantId: string) => {
   try {
-    const { data, error } = await publicClient()
-      .from('service_prices')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .or(ACTIVE_OR_NULL);
+    const { data, error } = await fetchPublicServices(publicClient(), tenantId);
     return error ? null : data || [];
   } catch {
     return null;
