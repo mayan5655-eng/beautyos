@@ -12,7 +12,7 @@
 // the API, which hold nothing a search result should point at.
 
 import type { MetadataRoute } from 'next'
-import { APP_URL } from '@/lib/appUrl'
+import { APP_URL } from '../lib/appUrl.ts'
 
 export default function robots(): MetadataRoute.Robots {
   return {

@@ -26,10 +26,16 @@ assert.ok(/throw err instanceof Error/.test(resolve), '...including a thrown one
 assert.ok(!/return null;\s*\n\s*}\s*catch/.test(resolve) && !/error\) \{[^}]*return null/.test(resolve), 'and neither path returns null, which would read as "no such business"');
 assert.ok(/return row \|\| null/.test(resolve), 'null still means exactly: the lookup worked and there is no such business');
 
-// ── sitemap and robots ────────────────────────────────────────────────────────────────────
-const sitemap = raw('app/sitemap.ts');
-for (const p of ["'/'", "'/signup'", "'/privacy'", "'/terms'"]) assert.ok(sitemap.includes(p), `the sitemap lists ${p}`);
-assert.ok(!/slug|tenants|rpc/i.test(sitemap.replace(/\/\/.*$/gm, '')), 'it does not list businesses\' pages (that is her choice to opt into, not a default)');
-assert.ok(raw('app/robots.ts').includes('sitemap: `${APP_URL}/sitemap.xml`'), 'robots.txt points at the sitemap');
+// ── sitemap and robots: call the real functions ─────────────────────────────────────────────
+const sitemap = (await import('./app/sitemap.ts')).default();
+const robots: any = (await import('./app/robots.ts')).default();
+const urls = sitemap.map((e: any) => new URL(e.url));
+assert.ok(urls.length >= 4 && urls.every((u: URL) => u.protocol === 'https:' || u.hostname === 'localhost'), 'absolute URLs');
+assert.equal(new Set(urls.map((u: URL) => u.origin)).size, 1, 'all on one origin');
+const paths = urls.map((u: URL) => u.pathname);
+for (const p of ['/', '/signup', '/privacy', '/terms']) assert.ok(paths.includes(p), `the sitemap lists ${p}`);
+assert.ok(!paths.some((p: string) => p.length > 1 && !['/signup', '/demo', '/privacy', '/terms'].includes(p)), "and nothing else: a business's page is not listed (that is hers to opt into)");
+assert.equal(new URL(robots.sitemap).pathname, '/sitemap.xml', 'robots.txt points at the sitemap');
+assert.equal(new URL(robots.sitemap).origin, urls[0].origin, 'on the same origin as the entries');
 
 console.log('public routes: ok');
