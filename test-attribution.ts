@@ -36,7 +36,7 @@ assert.deepEqual(readAttribution({ search: '?utm_source=%D7%A4%D7%99%D7%99%D7%A1
   // a hostile cookie: unknown keys are dropped, known ones are cleaned and bounded
   const hostile = parseAttribution(encodeURIComponent(JSON.stringify({ utm_source: 'x'.repeat(999) + '<b>', is_admin: true, plan: 'premium', click: 'evil', utm_medium: 123 })));
   assert.deepEqual(Object.keys(hostile!).sort(), ['utm_source'], 'only the keys we ever write survive; a wrong type or an unknown click platform is dropped');
-  assert.equal(hostile!.utm_source!.length <= 60, true);
+  assert.equal((hostile as any).utm_source.length <= 60, true);
 }
 
 // ── the label the admin panel shows ───────────────────────────────────────────────────────
