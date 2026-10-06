@@ -47,3 +47,10 @@ Rules that came from real mistakes, kept in the code as comments:
   400 px down (the recorder scrolled to its own tab bar), a sheet showing a red "time taken" error under a caption
   about ease, and title cards sitting 110 px off-centre were found: none shows up in the script's own checks.
 - Clips act on the demo tenant (one payment each run); the nightly reset at 02:00 UTC clears it.
+
+## cost-animation
+
+`node cost-animation.mjs` renders `out/cost-animation.mp4`: 30 s, 1080x1920, H.264, 30 fps, no audio. The page has no running
+animation; everything on screen is a function of the clock, and the script steps the clock one frame at a time and screenshots
+it, so every run is identical. The rows are read from `app/LandingPage.jsx` (the video cannot drift from the page) and it
+refuses to render unless they total 10,068, the number its copy says. `--frame=16.5` writes one still for checking.
