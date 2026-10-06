@@ -27,7 +27,8 @@
 // one to five seconds is noise, and it actually lands.
 
 import { createClient } from '@supabase/supabase-js';
-import { checkAiAllowance, AiCapExceededError, AiCapUnavailableError, DemoBlockedError, AiProviderUnavailableError, isProviderUnavailable, reportProviderFailure } from './callCaps.ts';
+import { checkAiAllowance, AiCapExceededError, AiCapUnavailableError, DemoBlockedError, AiProviderUnavailableError, isProviderUnavailable, reportProviderFailure, type Allowance } from './callCaps.ts';
+import { DEMO_AI_CALL_SITES, DEMO_DAILY_CALLS, demoDailyUsdCeiling, getDemoDailyStatus } from './demoPolicy.ts';
 import { capNoticeHe } from './capMessages.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -242,8 +243,18 @@ async function guardSpend(
   // must never spend real money, full stop, regardless of what the cap math
   // below would have allowed.
   if (isDemoTenantId(tenantId)) {
-    console.log(`[ai-usage] BLOCKED ${callSite} for demo tenant ${tenantId}`);
-    throw new DemoBlockedError(callSite);
+    // ONE call site is open to a demo tenant - voice, whose answer the route filters down to read-only commands (lib/ai/demoPolicy.ts) -
+    // and only under a small DAILY cap. Everything else, and a capped or unreadable day, gets the same notice as before.
+    if (!DEMO_AI_CALL_SITES.has(callSite)) {
+      console.log(`[ai-usage] BLOCKED ${callSite} for demo tenant ${tenantId}`);
+      throw new DemoBlockedError(callSite);
+    }
+    const day = await getDemoDailyStatus(tenantId as string, { client: hooks.capClient, now: capNow });
+    if (!day.allowed) {
+      console.log(`[ai-usage] BLOCKED ${callSite} for demo tenant ${tenantId}: daily cap (${day.reason}, $${day.usedUsd === null ? '?' : day.usedUsd.toFixed(3)}, ${day.calls ?? '?'} calls)`);
+      throw new DemoBlockedError(callSite);
+    }
+    return { allowed: true, reason: 'ok', callSite, callsUsed: day.calls ?? 0, callsCap: DEMO_DAILY_CALLS, spentUsd: day.usedUsd, usdCap: demoDailyUsdCeiling(), near: false } as Allowance;
   }
 
   // Ceiling check BEFORE the call, so a refusal costs nothing. Fails CLOSED: a

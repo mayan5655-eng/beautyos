@@ -65,6 +65,18 @@ export const RATE_POLICIES = {
       `יומן ההזמנות של העסק עמוס כרגע בבקשות. אפשר לנסות שוב ${m}, או ליצור קשר עם העסק ישירות.`,
   },
 
+  // Voice in the PUBLIC DEMO (lib/ai/demoPolicy.ts): every visitor is the same signed-in demo user, so the caller's address is the only way to
+  // tell one visitor from another, and the tenant cap bounds them all. The daily dollar cap is the real wall; this keeps one visitor from
+  // using the whole day's allowance in a minute.
+  'voice-intent-demo': {
+    perIp: { limit: 6, windowMs: 10 * MINUTE },
+    perTenant: { limit: 40, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשלחו כבר כמה פקודות קוליות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `הדמו עמוס כרגע בפקודות קוליות. אפשר לנסות שוב ${m}.`,
+  },
+
   // The same public booking route, over an HOUR. The ten-minute caps above stop a burst; these stop a slow script that stays just
   // under them all day. perIp: one device. perTenant is reused as the PER-PHONE cap (checkPhoneLimit): one woman is not booking
   // more than a handful of times an hour, and a script filling a calendar with one number is exactly what this refuses.

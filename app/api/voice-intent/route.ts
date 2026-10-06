@@ -13,6 +13,10 @@ import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
+import { voiceActionAllowed } from '@/lib/ai/demoPolicy'
+import { isDemoTenantId } from '@/lib/demoTenants'
+import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit'
+import { DemoBlockedError } from '@/lib/ai/callCaps'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -37,6 +41,12 @@ export async function POST(request: NextRequest) {
     // meter must not cost her the feature - it just records the call as
     // unattributed.
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
+
+    // The public demo is shared by every visitor: bound each address, before anything is read or spent.
+    if (isDemoTenantId(tenantId as string | null)) {
+      const limited = checkIpLimit(request, 'voice-intent-demo') || checkTenantLimit(tenantId as string, 'voice-intent-demo')
+      if (limited) return limited
+    }
 
     const body = await request.json()
     const transcript: string = (body?.transcript || '').toString().trim()
@@ -100,6 +110,12 @@ export async function POST(request: NextRequest) {
       if (match) intent = { ...JSON.parse(match[0]), raw: transcript }
     } catch {
       // keep the safe default (unknown)
+    }
+
+    // A DEMO tenant gets read-only answers only (lib/ai/demoPolicy.ts): a command that would write, send or charge is refused here, by the
+    // server, with the existing demo notice - the client never receives a "book" or "cancel" intent it could act on.
+    if (!voiceActionAllowed(tenantId as string | null, intent?.action)) {
+      return NextResponse.json({ error: new DemoBlockedError('voice-intent').message }, { status: 403 })
     }
 
     return NextResponse.json({ intent, ...capNoticeOf(aiResponse) })
