@@ -34,6 +34,7 @@ import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
+import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
@@ -2141,6 +2142,8 @@ export default function BeautyOS() {
   // before closing has to move rather than sit there out of range.
   // Guarded on length, because a day too short to fit the treatment at all
   // offers no slots, and snapping to apptSlotOptions[0] there wrote NaN.
+  const apptTimeTouched = useRef(false); // true once she has picked a time in the sheet herself
+  useEffect(()=>{ if(showModal) apptTimeTouched.current=false; },[showModal]);
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
     if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) {
@@ -2150,8 +2153,14 @@ export default function BeautyOS() {
       const target = apptSlotOptions.find(m=>!apptOutsideHours(m)) ?? apptSlotOptions[0];
       setNewAppt(prev=>({...prev,startMinute:target,hour:Math.floor(target/60)}));
     }
+    // A NEW appointment opens on a time that is free, not on the hour she opens (usually taken on a busy day: the first
+    // thing she saw was a red "השעה תפוסה"). Only until she picks a time herself; an edit keeps the time it has.
+    if(!editingAppointmentId && !apptTimeTouched.current && apptSlotOptions.length){
+      const want = firstFreeStart({options:apptSlotOptions,requested:apptRequestedStart,duration:Number(newAppt.duration)||0,busy:apptBusy,outside:apptOutsideHours});
+      if(apptSlotOptions.includes(want) && want!==apptRequestedStart) setNewAppt(prev=>({...prev,startMinute:want,hour:Math.floor(want/60)}));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[showModal,newAppt.date,newAppt.duration,apptDayHours?.open,apptDayHours?.close]);
+  },[showModal,newAppt.date,newAppt.duration,apptDayHours?.open,apptDayHours?.close,appointments,editingAppointmentId]);
 
   // Mount only. loadAll is a plain function, recreated on every render, so
   // listing it here would re-run the whole eleven-table load on every render.
@@ -10380,7 +10389,7 @@ ${c.claimUrl}`)}`;
                   it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)})} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>{apptTimeTouched.current=true;setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)});}} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
 
               {/* WHAT. Chips, most-used first, instead of a <select> that made
