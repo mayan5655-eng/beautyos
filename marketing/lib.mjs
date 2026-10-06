@@ -44,6 +44,16 @@ function pageDressing(brand) {
 @font-face{font-family:KalmeaCap;src:url(/design-fonts/FrankRuhlLibre-700.ttf);font-weight:700}
 #__cap{position:fixed;z-index:2147483646;left:14px;right:14px;bottom:92px;display:flex;justify-content:center;pointer-events:none;direction:rtl;opacity:0;transform:translateY(10px);transition:opacity .35s ease,transform .35s ease}
 #__cap.on{opacity:1;transform:none}
+/* the pop-up card: line icon + benefit title + one line of what is on screen. White (cream-tinted), 19px, two-layer shadow;
+   slides in 12px and fades over 250ms, holds, fades out. Replaces the plain caption pill. */
+#__card{position:fixed;z-index:2147483646;left:16px;right:16px;display:flex;justify-content:center;pointer-events:none;direction:rtl;opacity:0;transform:translateY(12px);transition:opacity .25s ease,transform .25s ease}
+#__card.top{top:84px}#__card.bottom{bottom:92px}
+#__card.top{transform:translateY(-12px)}
+#__card.on{opacity:1;transform:none}
+#__card .box{display:flex;align-items:center;gap:14px;max-width:398px;width:100%;box-sizing:border-box;padding:14px 18px;background:#FFFDF8;border:1px solid rgba(24,48,36,.08);border-radius:19px;box-shadow:0 1px 2px rgba(24,48,36,.06),0 14px 30px -12px rgba(24,48,36,.28)}
+#__card img{width:44px;height:44px;object-fit:contain;flex:none}
+#__card .t{font:700 21px/1.25 KalmeaCap,'Frank Ruhl Libre',serif;color:${brand.deep}}
+#__card .s{font:600 14.5px/1.4 Assistant,system-ui,sans-serif;color:#656A56;margin-top:3px}
 #__cap span{background:${brand.deep}F0;color:${brand.cream};font:700 22px/1.35 KalmeaCap,'Frank Ruhl Libre',serif;padding:11px 20px 12px;border-radius:18px;border-bottom:3px solid ${brand.petal};text-align:center;box-shadow:0 8px 24px rgba(31,58,48,.28);max-width:100%}`;
   const ensure = () => {
     if (!document.documentElement) return null;
@@ -65,6 +75,24 @@ function pageDressing(brand) {
       if (/^שליטה קולית/.test(b.getAttribute('aria-label') || '') || t === 'תקועה?') b.style.visibility = 'hidden';
     }
   }, 400);
+  // __card({ icon, title, sub, at: 'top'|'bottom', hold: ms }): shows the card, hides itself after `hold` (default 3000)
+  const ICONS = { calendar: 'icon-calendar', envelope: 'icon-envelope', wallet: 'icon-wallet', person: 'icon-person', frame: 'icon-frame', flower: 'icon-flower', sparkle: 'icon-sparkle', heart: 'icon-heart', play: 'icon-play', question: 'icon-question' };
+  window.__cardTimer = null;
+  window.__card = (spec) => {
+    if (!ensure()) return;
+    let el = document.getElementById('__card');
+    if (!el) { el = document.createElement('div'); el.id = '__card'; document.documentElement.appendChild(el); }
+    clearTimeout(window.__cardTimer);
+    const show = () => {
+      el.className = spec.at === 'top' ? 'top' : 'bottom';
+      el.innerHTML = '<div class="box"><img alt="" src="/brand-icons/' + (ICONS[spec.icon] || 'icon-flower') + '.png"><div><div class="t"></div><div class="s"></div></div></div>';
+      el.querySelector('.t').textContent = spec.title; el.querySelector('.s').textContent = spec.sub || '';
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
+      window.__cardTimer = setTimeout(() => el.classList.remove('on'), spec.hold || 3000);
+    };
+    if (el.classList.contains('on')) { el.classList.remove('on'); setTimeout(show, 260); } else show();
+  };
+  window.__cardOff = () => { clearTimeout(window.__cardTimer); const el = document.getElementById('__card'); if (el) el.classList.remove('on'); };
   window.__say = (text) => {
     if (!ensure()) return;
     let el = document.getElementById('__cap');
@@ -133,7 +161,10 @@ export function makeHelpers(page, name) {
   const nav = (label) => page.locator('button:visible', { hasText: new RegExp(`^\\s*(\\d+\\s*)?${label}\\s*$`) }).last();
   const say = (text) => page.evaluate((t) => window.__say && window.__say(t), text);
   const hush = () => say('');
-  return { page, name, aiCalls, glide, scrollBy, tap, type, nav, say, hush, pause, inView };
+  // The pop-up card (replaces the caption pill). Returns after it has slid in (~300 ms); it hides itself after `hold` ms.
+  const card = async (spec) => { await page.evaluate((s) => window.__card && window.__card(s), spec); await pause(300); };
+  const cardOff = () => page.evaluate(() => window.__cardOff && window.__cardOff());
+  return { page, name, aiCalls, glide, scrollBy, tap, type, nav, say, hush, card, cardOff, pause, inView };
 }
 
 // ── one take: a fresh phone, signed in as the demo owner (or not), recorded ────────────

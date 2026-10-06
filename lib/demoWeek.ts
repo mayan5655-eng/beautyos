@@ -1,0 +1,108 @@
+// lib/demoWeek.ts
+//
+// What a demo clinic's week looks like, as plain data (used by lib/demoSeed.ts, tested without a database).
+//
+// The test it is built for: she looks at it and thinks "that's my Tuesday", not "that's a demo". So: full Hebrew names, a
+// range of real treatments at their real prices, busy days and quiet days (a busy Tuesday, a short Friday, no Saturday), start
+// times that are not a metronome (09:00, 10:15, 11:45...), a gap in the day, a cancellation, a no-show, and receipts dated on
+// the day each treatment was paid, so a day's revenue is a few hundred to a couple of thousand shekels, not one lump at reset time.
+//
+// Deterministic (no Math.random): the same inputs give the same week, so the nightly reset is predictable and testable.
+
+export type WeekService = { name: string; price: number; duration: number };
+export type WeekAppt = {
+  date: string; start_minute: number; duration: number; clientIndex: number; service: string; price: number; serviceIndex: number;
+  status: 'confirmed' | 'pending' | 'cancelled' | 'no_show'; dayOffset: number;
+};
+export type WeekReceipt = { clientIndex: number | null; clientName: string; service: string; amount: number; method: string; createdAtUtc: string; apptKey: string | null };
+
+const FIRST = ['מאיה', 'נועה', 'שירה', 'טליה', 'רוני', 'יעל', 'ליה', 'אור', 'דנה', 'עדי', 'מיכל', 'הילה', 'שני', 'גלית', 'נטע', 'קרן', 'תמר', 'רותם', 'אביגיל', 'מורן'];
+const LAST = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'דהן', 'אברהם', 'אזולאי', 'חדד', 'גבאי', 'שמעון', 'אוחנה', 'סבג', 'מלכה', 'אדרי', 'חיים', 'בן דוד', 'אשכנזי', 'פרידמן', 'רוזנברג'];
+/** A full name, unique for the first 20 indexes (first and last advance at different steps). */
+export function fullName(i: number): string { return `${FIRST[i % FIRST.length]} ${LAST[(i * 7 + 3) % LAST.length]}`; }
+
+const METHODS = ['ביט', 'אשראי', 'מזומן', 'ביט', 'אשראי'];
+// appointments per weekday (0 = Sunday): a busy Tuesday, a short Friday
+const PER_DAY: Record<number, number> = { 0: 5, 1: 4, 2: 6, 3: 3, 4: 5, 5: 2 };
+const GAPS = [0, 15, 30, 0, 45, 15, 75, 0, 30]; // minutes between treatments; a 75 is a real gap in the day
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Israel's date (YYYY-MM-DD) for a moment, and its UTC offset in minutes at that moment. */
+export function israelDate(d: Date): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(d); }
+function israelOffsetMin(utcMs: number): number {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(utcMs)).map((x) => [x.type, x.value]));
+  return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - utcMs) / 60000;
+}
+/** "2026-10-06" at 14:30 Israel time -> the UTC instant, as an ISO string (the receipts column holds UTC). */
+export function israelToUtcIso(date: string, minutes: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d, 0, minutes);
+  return new Date(guess - israelOffsetMin(guess) * 60000).toISOString();
+}
+const addDays = (date: string, n: number) => { const [y, m, d] = date.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+const weekday = (date: string) => new Date(date + 'T12:00:00Z').getUTCDay();
+
+export function buildDemoWeek(services: WeekService[], clientCount: number, now: Date) {
+  const today = israelDate(now);
+  const appts: WeekAppt[] = [];
+  let cursor = 0; // walks through services and clients so the mix varies
+
+  for (let off = -6; off <= 5; off++) {
+    const date = addDays(today, off);
+    const wd = weekday(date);
+    if (wd === 6) continue; // Saturday
+    const count = PER_DAY[wd] ?? 3;
+    let t = 9 * 60 + (wd === 5 ? 0 : [0, 15, 0, 30, 0][(cursor + wd) % 5]);
+    for (let s = 0; s < count; s++) {
+      const svcIdx = (cursor * 3 + s * 2 + wd) % services.length;
+      const svc = services[svcIdx];
+      const dur = Number(svc.duration) || 60;
+      if (t + dur > (wd === 5 ? 14 * 60 : 19 * 60)) break; // never past closing (Friday closes early)
+      let status: WeekAppt['status'] = off < 0 ? 'confirmed' : off === 0 ? 'confirmed' : (s < 2 ? 'confirmed' : 'pending');
+      // texture: one cancellation behind us, one ahead (its slot stays free: a gap), one no-show yesterday
+      if (off === -2 && s === 1) status = 'cancelled';
+      if (off === 2 && s === 2) status = 'cancelled';
+      appts.push({ date, start_minute: t, duration: dur, clientIndex: (cursor + s * 5) % clientCount, service: svc.name, price: Number(svc.price) || 0, serviceIndex: svcIdx, status, dayOffset: off });
+      t += dur + GAPS[(cursor + s) % GAPS.length];
+    }
+    cursor += count;
+  }
+
+  // a no-show: the last appointment of the most recent working day behind us (not "yesterday": that can be a Saturday)
+  const past = appts.filter((a) => a.dayOffset < 0 && a.status === 'confirmed');
+  if (past.length) {
+    const lastDate = past[past.length - 1].date;
+    const onDay = past.filter((a) => a.date === lastDate);
+    onDay[onDay.length - 1].status = 'no_show';
+  }
+
+  // receipts: dated at the end of the treatment, for what was actually done; today only the first two (the rest are still to come)
+  const receipts: WeekReceipt[] = [];
+  const todayPaid: Record<string, number> = {};
+  appts.forEach((a, i) => {
+    if (a.status !== 'confirmed' || a.dayOffset > 0) return;
+    if (a.dayOffset === 0) { todayPaid[a.date] = (todayPaid[a.date] || 0) + 1; if (todayPaid[a.date] > 2) return; }
+    receipts.push({ clientIndex: a.clientIndex, clientName: fullName(a.clientIndex), service: a.service, amount: a.price, method: METHODS[i % METHODS.length], createdAtUtc: israelToUtcIso(a.date, a.start_minute + a.duration), apptKey: `${a.date}#${a.start_minute}` });
+  });
+
+  // last month: enough receipts that "this month vs last month" is a believable, modest comparison
+  const monthStart = today.slice(0, 8) + '01';
+  const thisMonthSoFar = receipts.filter((r) => israelDate(new Date(r.createdAtUtc)) >= monthStart).reduce((n, r) => n + r.amount, 0);
+  const target = Math.round(Math.max(thisMonthSoFar, 2500) * 1.0);
+  const lastMonth: WeekReceipt[] = [];
+  const lm = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 2, 1)); // first day of last month
+  const lmYear = lm.getUTCFullYear(), lmMonth = lm.getUTCMonth();
+  let sum = 0, k = 0;
+  while (sum < target && k < 60) {
+    const svc = services[(k * 5 + 1) % services.length];
+    const day = 2 + ((k * 3) % 26);
+    const date = `${lmYear}-${pad(lmMonth + 1)}-${pad(day)}`;
+    if (weekday(date) !== 6) {
+      lastMonth.push({ clientIndex: (k * 3 + 1) % clientCount, clientName: fullName((k * 3 + 1) % clientCount), service: svc.name, amount: Number(svc.price) || 0, method: METHODS[k % METHODS.length], createdAtUtc: israelToUtcIso(date, 10 * 60 + ((k * 95) % 480)), apptKey: null });
+      sum += Number(svc.price) || 0;
+    }
+    k++;
+  }
+  return { appts, receipts, lastMonth, today };
+}

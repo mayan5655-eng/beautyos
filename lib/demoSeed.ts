@@ -18,6 +18,7 @@ import { serviceTemplateGroupsFor, suggestedPrice } from './tenantTemplate.ts';
 import { insertPickedServices, type PickedService } from './seedServices.ts';
 import { serviceColorAt } from './serviceColors.ts';
 import { getTemplate } from './design/templates/index.ts';
+import { buildDemoWeek, fullName, type WeekService } from './demoWeek.ts';
 
 type Db = {
   from: (table: string) => any;
@@ -131,16 +132,16 @@ export async function resetDemoTenant(db: Db, field: DemoField, now: Date = new 
     }).eq('tenant_id', tenantId);
 
     // ── Services ──
-    const picked = pickSeedServices(field, 6);
+    const picked = pickSeedServices(field, 8);
     const { inserted: insertedServices, error: svcErr } = await insertPickedServices(db, tenantId, picked);
     if (svcErr) return { ok: false, error: `services: ${svcErr.message}` };
     const services = insertedServices.length ? insertedServices : picked.map((p) => ({ ...p }));
 
-    // ── Clients (12) ──
-    const CLIENT_COUNT = 12;
+    // ── Clients (14), with full Hebrew names ──
+    const CLIENT_COUNT = 14;
     const clientRows = Array.from({ length: CLIENT_COUNT }, (_, i) => ({
       tenant_id: tenantId,
-      name: fakeClientName(i),
+      name: fullName(i),
       phone: fakePhone(i),
       skinType: SKIN_TYPES[i % SKIN_TYPES.length],
       status: 'active',
@@ -149,65 +150,54 @@ export async function resetDemoTenant(db: Db, field: DemoField, now: Date = new 
     if (clientErr) return { ok: false, error: `clients: ${clientErr.message}` };
     const clientIds: string[] = (clients || []).map((c: { id: string }) => c.id);
 
-    // ── Appointments: a real-looking week, days -3..+4, working days only,
-    // a fixed slot schedule per day so no two ever overlap. ──
-    type ApptSeed = { date: string; start_minute: number; duration: number; name: string; service: string; price: number; color: string; client_id: string; confirmation_status: string; dayOffset: number };
-    const appts: ApptSeed[] = [];
-    let slotCursor = 0;
-    for (let dayOffset = -3; dayOffset <= 4; dayOffset++) {
-      const d = new Date(now.getTime() + dayOffset * 86_400_000);
-      if (!isWorkingDay(d)) continue;
-      const date = isoDate(d);
-      const slotsToday = dayOffset === -3 || dayOffset === 4 ? 2 : 4; // a quiet day at each end of the window
-      for (let s = 0; s < slotsToday; s++) {
-        const svc = services[(slotCursor + s) % services.length] as { name: string; price: number; duration: number };
-        const client = clientIds[(slotCursor + s) % clientIds.length];
-        const startMinute = DAY_SLOTS[s % DAY_SLOTS.length];
-        const isPast = dayOffset < 0;
-        appts.push({
-          date,
-          start_minute: startMinute,
-          duration: Number(svc.duration) || 60,
-          name: fakeClientName((slotCursor + s) % CLIENT_COUNT),
-          service: svc.name,
-          price: Number(svc.price) || 0,
-          color: serviceColorAt(slotCursor + s),
-          client_id: client,
-          // A little texture: mostly confirmed, one no-show in the past, one
-          // cancelled in the future, the rest pending ahead of time.
-          confirmation_status: isPast
-            ? (s === slotsToday - 1 && dayOffset === -1 ? 'no_show' : 'confirmed')
-            : (s === 1 && dayOffset === 2 ? 'cancelled' : (dayOffset === 0 ? 'confirmed' : 'pending')),
-          dayOffset,
-        });
-      }
-      slotCursor += slotsToday;
-    }
-    const apptRows = appts.map(({ dayOffset: _drop, ...row }) => ({
-      ...row,
-      hour: Math.floor(row.start_minute / 60),
+    // ── Appointments: a clinic's week (lib/demoWeek.ts): busy and quiet days, uneven start times, a gap, a cancellation,
+    // a no-show. Sequential per day, so no two ever overlap (add_appointment_no_overlap.sql's EXCLUDE constraint). ──
+    const week = buildDemoWeek(services as WeekService[], CLIENT_COUNT, now);
+    const apptRows = week.appts.map((a) => ({
+      date: a.date,
+      start_minute: a.start_minute,
+      hour: Math.floor(a.start_minute / 60),
+      duration: a.duration,
+      name: fullName(a.clientIndex),
+      service: a.service,
+      price: a.price,
+      color: serviceColorAt(a.serviceIndex),
+      client_id: clientIds[a.clientIndex],
+      confirmation_status: a.status,
       tenant_id: tenantId,
       kind: 'appointment',
     }));
-    const { data: insertedAppts, error: apptErr } = await db.from('appointments').insert(apptRows).select('id, date, client_id, price, name, confirmation_status');
+    const { data: insertedAppts, error: apptErr } = await db.from('appointments').insert(apptRows).select('id, date, start_minute, client_id, name, confirmation_status');
     if (apptErr) return { ok: false, error: `appointments: ${apptErr.message}` };
-    const pastAppts = (insertedAppts || []).filter((a: { confirmation_status: string }) => a.confirmation_status === 'confirmed')
-      .slice(0, 8);
+    const apptIdByKey = new Map<string, string>((insertedAppts || []).map((a: { id: string; date: string; start_minute: number }) => [`${a.date}#${a.start_minute}`, a.id]));
+    const pastAppts = (insertedAppts || []).filter((a: { confirmation_status: string; date: string }) => a.confirmation_status === 'confirmed' && a.date < week.today).slice(0, 8);
 
-    // ── Receipts: one per past, confirmed appointment (up to 8) ──
-    const receiptRows = pastAppts.map((a: any, i: number) => ({
+    // ── Receipts: dated on the day each treatment was paid (UTC, as the column holds it), for the real service, so a
+    // day's revenue is a few hundred to a couple of thousand shekels instead of one lump at reset time ──
+    const receiptRow = (r: (typeof week.receipts)[number]) => ({
       tenant_id: tenantId,
-      client_id: a.client_id,
-      client_name: a.name,
-      appointment_id: a.id,
-      service: 'טיפול',
-      amount: a.price,
-      payment_method: PAYMENT_METHODS[i % PAYMENT_METHODS.length],
-      items: JSON.stringify([{ id: '1', name: a.name, price: a.price, qty: 1 }]),
-    }));
-    if (receiptRows.length) {
-      const { error: recErr } = await db.from('receipts').insert(receiptRows);
+      client_id: r.clientIndex != null ? clientIds[r.clientIndex] : null,
+      client_name: r.clientName,
+      appointment_id: r.apptKey ? apptIdByKey.get(r.apptKey) ?? null : null,
+      service: r.service,
+      amount: r.amount,
+      payment_method: r.method,
+      items: JSON.stringify([{ id: '1', name: r.service, price: r.amount, qty: 1 }]),
+      created_at: r.createdAtUtc,
+    });
+    if (week.receipts.length) {
+      const { error: recErr } = await db.from('receipts').insert(week.receipts.map(receiptRow));
       if (recErr) return { ok: false, error: `receipts: ${recErr.message}` };
+    }
+    // Last month, so "this month vs last month" and the month screen have something to show. NOT fatal: it is decoration, and a
+    // failure here must never leave the demo half-seeded.
+    try {
+      if (week.lastMonth.length) {
+        const { error: lmErr } = await db.from('receipts').insert(week.lastMonth.map(receiptRow));
+        if (lmErr) console.error('[demo-seed] last-month receipts skipped:', lmErr.message);
+      }
+    } catch (e) {
+      console.error('[demo-seed] last-month receipts skipped:', e instanceof Error ? e.message : String(e));
     }
 
     // ── Reviews (public.reviews): a few of the past appointments get a real

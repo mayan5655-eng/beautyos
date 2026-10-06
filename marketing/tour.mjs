@@ -76,20 +76,19 @@ export const CLIPS = [
     id: 'calendar', title: 'יומן', sub: 'התורים שלך, יום ושבוע',
     setup: goto('יומן'),
     async play(h) {
-      await h.say('היומן שלך'); await pause(2200);
-      await h.say('מעבר בין ימים בנגיעה');
-      await h.tap(h.page.locator('button[aria-label="יום הבא"]'), { before: 300, after: 900 });
-      await h.tap(h.page.locator('button[aria-label="יום הבא"]'), { before: 200, after: 1100 });
-      await h.say('תצוגת שבוע, כשצריך תמונה רחבה');
-      await h.tap(button(h, /^שבוע$/), { after: 3200 });
-      await h.say('וחוזרים ליום');
-      await h.tap(button(h, /^יום$/), { after: 1200 });
-      await h.hush(); // no stale caption over the sheet opening
-      await h.tap(button(h, /תור חדש/), { after: 200 });
+      // Pop-up cards, not caption lines: benefit title + what is on screen, placed where they do not cover what they describe.
+      // Pauses are uneven on purpose (a person on her phone, not a metronome).
+      await h.card({ icon: 'calendar', title: 'היומן שלך, יום אחרי יום', sub: 'כל התורים של היום, לפי שעה', at: 'bottom' }); await pause(3100);
+      await h.tap(h.page.locator('button[aria-label="יום הבא"]'), { before: 380, after: 1250 });
+      await h.card({ icon: 'calendar', title: 'מעבר בין ימים בנגיעה', sub: 'מחר, ומחרתיים, בלי לפתוח כלום', at: 'bottom', hold: 2600 });
+      await h.tap(h.page.locator('button[aria-label="יום הבא"]'), { before: 700, after: 1500 });
+      await h.tap(button(h, /^שבוע$/), { before: 900, after: 400 });
+      await h.card({ icon: 'calendar', title: 'כל השבוע במבט אחד', sub: 'מי מגיעה ומתי נשאר מקום', at: 'bottom' }); await pause(3400);
+      await h.tap(button(h, /^יום$/), { before: 500, after: 1400 });
+      await h.tap(button(h, /תור חדש/), { before: 600, after: 200 });
       await freeTime(h);
-      await h.say('תור חדש בכמה נגיעות'); await pause(1900);
-      await h.say('בוחרים טיפול ומשך'); await pause(2600);
-      await h.page.keyboard.press('Escape'); await pause(900); await h.hush(); await pause(600);
+      await h.card({ icon: 'sparkle', title: 'תור חדש בכמה נגיעות', sub: 'הטופס כבר מציע שעה פנויה', at: 'top' }); await pause(3300);
+      await h.page.keyboard.press('Escape'); await pause(1100); await h.cardOff(); await pause(500);
     },
   },
   {
