@@ -22,15 +22,14 @@
 // tenant id to the client component that does the rest.
 
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
 import { APP_URL } from '@/lib/appUrl';
 import { fetchPublicServices } from '@/lib/publicServices';
 import BookingPage from '../BookingPage';
-import { LOGO_COMPACT } from '@/lib/brand';
 import { ogVersion } from '@/lib/og/tenantOg';
-import BrandImage from '@/app/BrandImage';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -69,15 +68,13 @@ const publicClient = () =>
 const resolveTenant = cache(async (slug: string): Promise<{ id: string; name: string } | null> => {
   try {
     const { data, error } = await timed('tenant-by-slug', publicClient().rpc('get_public_tenant_by_slug', { p_slug: slug }));
-    if (error) {
-      console.error('[slug] tenant lookup failed:', error.message);
-      return null;
-    }
+    if (error) throw new Error(`tenant lookup failed: ${error.message}`);
     const row = Array.isArray(data) ? data[0] : data;
-    return row || null;
+    return row || null; // null = the lookup WORKED and there is no such business
   } catch (err) {
-    console.error('[slug] tenant lookup threw:', err instanceof Error ? err.message : String(err));
-    return null;
+    // A lookup that failed is not a missing business: surface it (a 500 the error page handles) instead of a 404.
+    console.error('[slug] tenant lookup failed:', err instanceof Error ? err.message : String(err));
+    throw err instanceof Error ? err : new Error('tenant lookup failed');
   }
 });
 
@@ -101,7 +98,7 @@ const loadServices = cache(async (tenantId: string) => {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const tenant = await resolveTenant(slug);
-  if (!tenant) return { title: 'Kalmea' };
+  if (!tenant) return { title: 'Kalmea', robots: { index: false, follow: false } };
 
   const brand = resolveBranding(await loadPublicSettings(tenant.id));
   const title = brand.businessName || tenant.name || 'Kalmea';
@@ -149,30 +146,9 @@ export default async function SlugPage({ params }: Props) {
   const { slug } = await params;
   const tenant = await resolveTenant(slug);
 
-  // No tenant here. Rendered rather than notFound() because this is a consumer
-  // surface in Hebrew and Next's default 404 is an English developer page - a
-  // client who mistyped a link should be told something she can act on.
-  if (!tenant) {
-    return (
-      <div
-        dir="rtl"
-        style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          minHeight: '100dvh', padding: '0 24px', textAlign: 'center',
-          fontFamily: 'var(--font-assistant), sans-serif',
-          background: 'var(--brand-cream, #FDFBF9)',
-        }}
-      >
-        <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto', marginBottom: 14 }} />
-        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
-          לא מצאנו עסק בכתובת הזו
-        </h1>
-        <p style={{ fontSize:"var(--t-lg)", color: 'var(--brand-muted, #7D8D87)', lineHeight: 1.7, maxWidth: 340 }}>
-          ייתכן שהקישור השתנה או הוקלד עם שגיאה. כדאי לבקש מהעסק קישור מעודכן.
-        </p>
-      </div>
-    );
-  }
+  // No such business: a real 404 (see not-found.tsx for the Hebrew page and why it is not a 200). A FAILED lookup
+  // never gets here: resolveTenant throws for that, so a database hiccup is a 500, not a 404 a crawler would keep.
+  if (!tenant) notFound();
 
   // Both reads run together. If either fails the page gets null for it and
   // loads that part in the browser, as it did before this step existed.
