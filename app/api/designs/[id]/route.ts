@@ -14,6 +14,11 @@ import { requireActiveTenant } from '@/lib/planGuard';
 import { getTemplate } from '@/lib/design/templates';
 import { getReel } from '@/lib/design/reels';
 import { sanitizeImages, sanitizeValues, sanitizeOverrides, sanitizeCopy } from '@/lib/design/design';
+import { ownRow, callerTenantId } from '@/lib/tenantScope';
+
+// Someone else's design and a design that is not there answer the same way: 404, never "forbidden" (that would confirm the id exists).
+const notFound = () => NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
+const noTenant = () => NextResponse.json({ success: false, error: 'אין גישה' }, { status: 403 });
 
 type Ctx = { params: Promise<{ id: string }> };
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -26,9 +31,14 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: 'לא מחוברת' }, { status: 401 });
 
-  const { data, error } = await supabase.from('designs').select('*').eq('id', id).maybeSingle();
+  const tenantId = await callerTenantId(supabase);
+  if (!tenantId) return noTenant();
+
+  // Scoped in the query AND checked on the row: RLS is the first wall, not the only one.
+  const { data: found, error } = await supabase.from('designs').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  if (!data) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
+  const data = ownRow(found, tenantId);
+  if (!data) return notFound();
   const template = getTemplate(data.template_key, data.template_version) || getReel(data.template_key, data.template_version);
   return NextResponse.json({ success: true, design: data, template });
 }
@@ -42,9 +52,13 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
   const guard = await requireActiveTenant(supabase);
   if (!guard.ok) return guard.response;
 
-  const { data: current, error: curErr } = await supabase.from('designs').select('id, tenant_id, template_key, template_version, category').eq('id', id).maybeSingle();
+  const tenantId = await callerTenantId(supabase);
+  if (!tenantId) return noTenant();
+
+  const { data: found, error: curErr } = await supabase.from('designs').select('id, tenant_id, template_key, template_version, category').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
   if (curErr) return NextResponse.json({ success: false, error: curErr.message }, { status: 500 });
-  if (!current) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
+  const current = ownRow(found, tenantId);
+  if (!current) return notFound();
   const template = getTemplate(current.template_key, current.template_version) || getReel(current.template_key, current.template_version);
   if (!template) return NextResponse.json({ success: false, error: 'התבנית של העיצוב הזה כבר לא קיימת' }, { status: 409 });
 
@@ -71,7 +85,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     patch.is_default = false;
   }
 
-  const { data, error } = await supabase.from('designs').update(patch).eq('id', id).select().single();
+  const { data, error } = await supabase.from('designs').update(patch).eq('id', id).eq('tenant_id', tenantId).select().single();
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, design: data });
 }
@@ -87,8 +101,11 @@ export async function DELETE(_request: NextRequest, ctx: Ctx) {
 
   // select() so a delete that matched NOTHING (someone else's design, or one already gone) is not reported as
   // done: found 2026-10-06, a cross-tenant DELETE answered success:true while the row was untouched.
-  const { data: gone, error } = await supabase.from('designs').delete().eq('id', id).select('id');
+  const tenantId = await callerTenantId(supabase);
+  if (!tenantId) return noTenant();
+
+  const { data: gone, error } = await supabase.from('designs').delete().eq('id', id).eq('tenant_id', tenantId).select('id');
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  if (!gone || gone.length === 0) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
+  if (!gone || gone.length === 0) return notFound();
   return NextResponse.json({ success: true });
 }

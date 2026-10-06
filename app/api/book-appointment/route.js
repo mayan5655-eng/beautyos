@@ -17,12 +17,28 @@ import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
 
 import { sendBookingNotifications } from "../../../lib/bookingNotify";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
-import { checkIpLimit, checkTenantLimit } from "../../../lib/rateLimit";
+import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
+import { raiseOpsAlert } from "../../../lib/opsAlert";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// A blocked booking is written to ops_events, ONCE per key per window (event.first), after the response has gone. No WhatsApp: there is
+// no operator number/send here, so the row is the whole alert. The phone is masked; a flood must not become a flood of writes.
+const logBlock = (tenantId) => (e) => {
+  if (!e.first) return;
+  after(() =>
+    raiseOpsAlert({
+      db: supabase,
+      source: "rate-limit:book-appointment",
+      severity: "warning",
+      message: `public booking blocked: ${e.scope} over ${e.policy}`,
+      details: { scope: e.scope, policy: e.policy, key: e.scope === "phone" ? maskPhone(e.key) : e.key, tenantId: tenantId || null, retryAfterSec: e.retryAfterSec },
+    }).catch(() => {})
+  );
+};
 
 export async function POST(request) {
   try {
@@ -30,8 +46,11 @@ export async function POST(request) {
     // far as parsing JSON. This route is unauthenticated and runs on the
     // service-role key, so "how often" is the only lever there is.
     // See lib/rateLimit.ts for the numbers and why they are what they are.
-    const ipLimited = checkIpLimit(request, "book-appointment");
+    const ipLimited = checkIpLimit(request, "book-appointment", logBlock(null));
     if (ipLimited) return ipLimited;
+    // The same caller over an hour: stops a slow script that stays under the ten-minute cap all day.
+    const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
+    if (ipHourly) return ipHourly;
 
     const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId } =
       await request.json();
@@ -60,6 +79,10 @@ export async function POST(request) {
       );
     }
 
+    // Per PHONE NUMBER, a few attempts an hour: the number is validated above, so this key cannot be varied by typos.
+    const phoneLimited = checkPhoneLimit(phoneCheck.e164, "book-appointment-hourly", logBlock(tenantId));
+    if (phoneLimited) return phoneLimited;
+
     // Tenant must be explicit. We never fall back to a default business -
     // a booking with no tenant must fail rather than land in someone else's
     // account. The /book page passes ?t=<tenantId> through to here.
@@ -74,7 +97,7 @@ export async function POST(request) {
     // The second cap, keyed on the business rather than the caller. This is the
     // one that holds when the requests come from many addresses, and it is what
     // stops a stranger filling one cosmetician's day.
-    const tenantLimited = checkTenantLimit(activeTenantId, "book-appointment");
+    const tenantLimited = checkTenantLimit(activeTenantId, "book-appointment", logBlock(activeTenantId));
     if (tenantLimited) return tenantLimited;
 
     // The service must be a real, ACTIVE row on this tenant's menu. Enforced

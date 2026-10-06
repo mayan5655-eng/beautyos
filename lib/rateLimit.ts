@@ -40,6 +40,7 @@ export type RateRule = { limit: number; windowMs: number };
 type Bucket = { count: number; resetAt: number };
 
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
 
 /**
  * Every limit and every user-facing sentence, in one reviewable place.
@@ -62,6 +63,18 @@ export const RATE_POLICIES = {
       `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}, או להתקשר לעסק ולקבוע טלפונית.`,
     tenantMessage: (m: string) =>
       `יומן ההזמנות של העסק עמוס כרגע בבקשות. אפשר לנסות שוב ${m}, או ליצור קשר עם העסק ישירות.`,
+  },
+
+  // The same public booking route, over an HOUR. The ten-minute caps above stop a burst; these stop a slow script that stays just
+  // under them all day. perIp: one device. perTenant is reused as the PER-PHONE cap (checkPhoneLimit): one woman is not booking
+  // more than a handful of times an hour, and a script filling a calendar with one number is exactly what this refuses.
+  'book-appointment-hourly': {
+    perIp: { limit: 12, windowMs: HOUR },
+    perTenant: { limit: 5, windowMs: HOUR },
+    ipMessage: (m: string) =>
+      `נשלחו יותר מדי בקשות לקביעת תור מהמכשיר הזה בשעה האחרונה. אפשר לנסות שוב ${m}, או להתקשר לעסק ולקבוע טלפונית.`,
+    tenantMessage: (m: string) =>
+      `כבר נשלחו כמה בקשות לקביעת תור למספר הטלפון הזה. אפשר לנסות שוב ${m}, או להתקשר לעסק ולקבוע טלפונית.`,
   },
 
   // The expensive one: every accepted call sends two WhatsApp messages on the
@@ -286,6 +299,10 @@ export const RATE_POLICIES = {
 
 export type PolicyName = keyof typeof RATE_POLICIES;
 
+/** What a block looks like to a caller that wants to log it. `first` is true once per key per window. */
+export type BlockEvent = { scope: 'ip' | 'phone' | 'tenant'; policy: string; key: string; first: boolean; retryAfterSec: number };
+export type BlockListener = (e: BlockEvent) => void;
+
 // A policy name that is not in the table. This is a COST control, not a
 // security boundary (see the fails-open note in lib/ai/callCaps.ts), so the
 // right answer to "the limiter is misconfigured" is to let the request through
@@ -338,7 +355,7 @@ let checksSinceSweep = 0;
  * Exported for the rare caller that needs a bespoke key; the routes use
  * checkIpLimit / checkTenantLimit below instead.
  */
-export function hit(key: string, rule: RateRule): { ok: boolean; retryAfterSec: number } {
+export function hit(key: string, rule: RateRule): { ok: boolean; retryAfterSec: number; first?: boolean } {
   const now = Date.now();
 
   // Sweeping is O(n), so it does not run on every request. Every 500 checks, or
@@ -357,7 +374,9 @@ export function hit(key: string, rule: RateRule): { ok: boolean; retryAfterSec: 
 
   existing.count += 1;
   if (existing.count > rule.limit) {
-    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)) };
+    // `first`: this is the request that tipped the key over, so a caller that logs blocks writes ONE row per window instead of one
+    // per refused request (a flood must not become a flood of database writes).
+    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)), first: existing.count === rule.limit + 1 };
   }
   return { ok: true, retryAfterSec: 0 };
 }
@@ -420,12 +439,34 @@ function limited(message: string, retryAfterSec: number): Response {
  * Returns a ready-to-return Response when the caller is over the limit, or
  * null when the request may proceed.
  */
-export function checkIpLimit(request: Request, policy: PolicyName): Response | null {
+export function checkIpLimit(request: Request, policy: PolicyName, onBlock?: BlockListener): Response | null {
   const p = policyOrNull(policy);
   if (!p) return null;
-  const verdict = hit(`${policy}:ip:${clientIp(request)}`, p.perIp);
+  const ip = clientIp(request);
+  const verdict = hit(`${policy}:ip:${ip}`, p.perIp);
   if (verdict.ok) return null;
+  onBlock?.({ scope: 'ip', policy, key: ip, first: !!verdict.first, retryAfterSec: verdict.retryAfterSec });
   return limited(p.ipMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
+}
+
+/**
+ * Per-PHONE gate (public booking only): the caller's phone number, normalised, is the key. One woman books a few times an hour at
+ * the very most; a script filling a calendar with one number is what this refuses. Reuses the policy's `perTenant` rule and message.
+ */
+export function checkPhoneLimit(phoneE164: string | null | undefined, policy: PolicyName, onBlock?: BlockListener): Response | null {
+  if (!phoneE164) return null;
+  const p = policyOrNull(policy);
+  if (!p) return null;
+  const verdict = hit(`${policy}:phone:${phoneE164}`, p.perTenant);
+  if (verdict.ok) return null;
+  onBlock?.({ scope: 'phone', policy, key: phoneE164, first: !!verdict.first, retryAfterSec: verdict.retryAfterSec });
+  return limited(p.tenantMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
+}
+
+/** Phone numbers are personal data: ops logs keep the shape and the last three digits only. */
+export function maskPhone(p: string): string {
+  const d = String(p || '').replace(/\D/g, '');
+  return d.length > 3 ? `${'*'.repeat(d.length - 3)}${d.slice(-3)}` : '***';
 }
 
 /**
@@ -437,11 +478,12 @@ export function checkIpLimit(request: Request, policy: PolicyName): Response | n
  * already refuses that request with a 400, and inventing a shared "no tenant"
  * bucket would only let one bad caller exhaust it for everybody.
  */
-export function checkTenantLimit(tenantId: string | null | undefined, policy: PolicyName): Response | null {
+export function checkTenantLimit(tenantId: string | null | undefined, policy: PolicyName, onBlock?: BlockListener): Response | null {
   if (!tenantId) return null;
   const p = policyOrNull(policy);
   if (!p) return null;
   const verdict = hit(`${policy}:tenant:${tenantId}`, p.perTenant);
   if (verdict.ok) return null;
+  onBlock?.({ scope: 'tenant', policy, key: tenantId, first: !!verdict.first, retryAfterSec: verdict.retryAfterSec });
   return limited(p.tenantMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
 }

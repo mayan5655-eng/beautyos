@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
+import { ownRow } from '@/lib/tenantScope'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,9 +24,22 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response
 
     const { data: tenantId } = await supabase.rpc('get_user_tenant_id')
+    if (!tenantId) return NextResponse.json({ error: 'אין גישה' }, { status: 403 })
     const { campaignId } = await request.json()
     if (!campaignId) {
       return NextResponse.json({ error: 'חסר מזהה קמפיין' }, { status: 400 })
+    }
+
+    // Her campaign or nothing: someone else's id and an id that is not there answer the same way (404), BEFORE anything is deleted.
+    // (It used to delete nothing and still answer success:true - the cross-tenant DELETE lesson of 2026-10-06.)
+    const { data: mine } = await supabase
+      .from('campaigns')
+      .select('id, tenant_id')
+      .eq('id', campaignId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    if (!ownRow(mine, tenantId)) {
+      return NextResponse.json({ error: 'הקמפיין לא נמצא' }, { status: 404 })
     }
 
     // Delete posts first (scoped to tenant), then the campaign (scoped to tenant)

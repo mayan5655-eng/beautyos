@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../../../lib/supabase/server";
 import { decryptToken } from "../../../../lib/facebook/encryption";
 import { getAdAccounts, getCampaignsWithInsights } from "../../../../lib/facebook/insights";
+import { ownRow, callerTenantId } from "../../../../lib/tenantScope";
 
 /**
  * GET /api/marketing/campaigns
@@ -21,16 +22,25 @@ export async function GET(req) {
       return NextResponse.json({ ok: false, error: "לא מחובר" }, { status: 401 });
     }
 
-    // Get this tenant's active Facebook page row (RLS returns only their own)
-    const { data: pages, error: pErr } = await supabase
+    // THIS tenant, named explicitly. The row below holds an encrypted Facebook page TOKEN: it must never be one a policy happened to
+    // let through (the service_prices lesson, lib/tenantScope.js). No tenant, no row, no token.
+    const tenantId = await callerTenantId(supabase);
+    if (!tenantId) {
+      return NextResponse.json({ ok: false, error: "אין גישה" }, { status: 403 });
+    }
+
+    // Get this tenant's active Facebook page row: scoped in the query AND checked on the row
+    const { data: pageRows, error: pErr } = await supabase
       .from("facebook_pages")
-      .select("page_access_token_encrypted, page_id, page_name, is_active")
+      .select("tenant_id, page_access_token_encrypted, page_id, page_name, is_active")
+      .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .limit(1);
 
     if (pErr) {
       return NextResponse.json({ ok: false, error: pErr.message }, { status: 500 });
     }
+    const pages = (pageRows || []).filter((r) => ownRow(r, tenantId));
     if (!pages || pages.length === 0) {
       return NextResponse.json({
         ok: false,
