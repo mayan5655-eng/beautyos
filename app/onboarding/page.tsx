@@ -146,6 +146,18 @@ export default function OnboardingPage() {
         }
         setTenantId(rpcTenant);
 
+        // Which ad brought her? The landing page left a first-party cookie (app/AttributionCapture.jsx); hand it
+        // to the server once, now that she has an account, and clear it. Fire-and-forget: a failure here must
+        // never stand between her and her first screen. (lib/attribution.js)
+        try {
+          const raw = document.cookie.split("; ").find((c) => c.startsWith("kl_attr="))?.slice("kl_attr=".length);
+          if (raw) {
+            fetch("/api/attribution", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attr: raw }), keepalive: true })
+              .then(() => { document.cookie = "kl_attr=; Max-Age=0; Path=/; SameSite=Lax"; })
+              .catch(() => {});
+          }
+        } catch { /* attribution is a nicety */ }
+
         // If settings already exist → onboarding already complete
         const { data: existing } = await supabase
           .from("settings")

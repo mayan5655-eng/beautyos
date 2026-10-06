@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import PWARegister from "./pwa-register";
+import AttributionCapture from "./AttributionCapture";
 import IOSInstallBanner from "./ios-install-banner";
 import InstallPromptBanner from "./install-prompt-banner";
 import { APP_URL } from "@/lib/appUrl";
@@ -294,6 +295,7 @@ export default function RootLayout({
       ].join(" ")}
     >
       <body className="min-h-full flex flex-col relative">
+        <AttributionCapture />
         {/* Chromium fires beforeinstallprompt early - routinely before React
             has hydrated - and the event is gone the moment it goes unhandled.
             Catching it here, ahead of any app code, is what leaves

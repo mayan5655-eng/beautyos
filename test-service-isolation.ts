@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { ownServices } from './lib/serviceScope.js';
-import { fetchPublicServices } from './lib/publicServices.js';
+import { fetchPublicServices, resetPublicServicesMemo } from './lib/publicServices.js';
 
 const HERS = '11111111-1111-1111-1111-111111111111';
 const THEIRS = '22222222-2222-2222-2222-222222222222';
@@ -44,6 +44,7 @@ const fake = ({ rpc, table }: { rpc: () => any; table?: (calls: string[]) => any
   return { client, calls };
 };
 const warn = console.warn; const quiet = () => { console.warn = () => {}; return () => { console.warn = warn; }; };
+resetPublicServicesMemo();
 
 { // function installed: it is used, and the table is not touched
   const { client, calls } = fake({ rpc: () => ({ data: [{ id: 1, tenant_id: HERS }], error: null }) });
@@ -52,6 +53,7 @@ const warn = console.warn; const quiet = () => { console.warn = () => {}; return
   assert.deepEqual(calls, [`rpc:get_public_services:${HERS}`], 'the RPC is the only call');
 }
 { // function not installed yet (migration not run): falls back, scoped to THIS tenant and to active rows
+  resetPublicServicesMemo();
   const restore = quiet();
   const { client, calls } = fake({
     rpc: () => ({ data: null, error: { code: 'PGRST202', message: 'Could not find the function public.get_public_services' } }),
@@ -64,6 +66,7 @@ const warn = console.warn; const quiet = () => { console.warn = () => {}; return
   assert.ok(calls.includes('from:service_prices') && calls.includes(`eq:tenant_id=${HERS}`) && calls.some((c) => c.startsWith('or:active.is.null')), 'the fallback is scoped to the tenant and to active services');
 }
 { // function postgres-style missing error code
+  resetPublicServicesMemo();
   const restore = quiet();
   const { client } = fake({ rpc: () => ({ data: null, error: { code: '42883', message: 'function get_public_services(uuid) does not exist' } }) });
   const r = await fetchPublicServices(client, HERS);
@@ -71,6 +74,7 @@ const warn = console.warn; const quiet = () => { console.warn = () => {}; return
   assert.equal(r.error, null, '42883 also means "not installed": fall back, do not fail');
 }
 { // any OTHER error is an error: a failed read must not look like an empty menu
+  resetPublicServicesMemo();
   const { client, calls } = fake({ rpc: () => ({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }) });
   const r = await fetchPublicServices(client, HERS);
   assert.equal(r.data, null, 'data is null, not []');
@@ -88,6 +92,25 @@ assert.ok((await fetchPublicServices(fake({ rpc: () => ({ data: [], error: null 
   const r = await fetchPublicServices(client, 'brand-new-tenant-with-none');
   assert.deepEqual(r.data, []); assert.equal(r.error, null);
 }
+
+{ // a missing function is remembered: the NEXT views do not pay a wasted round trip (every view used to)
+  resetPublicServicesMemo();
+  let clock = 1_000_000;
+  const restore = quiet();
+  const missing = () => ({ data: null, error: { code: 'PGRST202', message: 'Could not find the function public.get_public_services' } });
+  const a1 = fake({ rpc: missing, table: () => ({ data: [{ id: 1, tenant_id: HERS }], error: null }) });
+  await fetchPublicServices(a1.client, HERS, { now: () => clock });
+  assert.ok(a1.calls.some((c) => c.startsWith('rpc:')), 'the first view asks the RPC');
+  const a2 = fake({ rpc: missing, table: () => ({ data: [{ id: 1, tenant_id: HERS }], error: null }) });
+  const r2 = await fetchPublicServices(a2.client, HERS, { now: () => clock + 60_000 });
+  assert.ok(!a2.calls.some((c) => c.startsWith('rpc:')), 'a minute later it does NOT ask again: one database call instead of two');
+  assert.deepEqual(r2.data, [{ id: 1, tenant_id: HERS }], 'and still returns her services');
+  const a3 = fake({ rpc: () => ({ data: [{ id: 9, tenant_id: HERS }], error: null }) });
+  const r3 = await fetchPublicServices(a3.client, HERS, { now: () => clock + 11 * 60_000 });
+  restore();
+  assert.deepEqual(r3.data, [{ id: 9, tenant_id: HERS }], 'after ten minutes it asks again, so a freshly installed function is picked up without a redeploy');
+}
+resetPublicServicesMemo();
 
 // ── the unfiltered read cannot come back (a lint, kept because it is the exact bug) ─────────────
 const app = fs.readFileSync('app/beautyos.jsx', 'utf8');

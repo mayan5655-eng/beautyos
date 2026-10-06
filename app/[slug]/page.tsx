@@ -34,6 +34,14 @@ import BrandImage from '@/app/BrandImage';
 
 type Props = { params: Promise<{ slug: string }> };
 
+// One line per database call on this page, with the region the function ran in. Her public page is the one
+// place a stranger on a phone waits for us, and the logs carry no durations of their own: this is how the
+// cost of a call from the function (found 2026-10-06: 0.4-0.9 s each, three in series) is read instead of guessed.
+async function timed<T>(label: string, p: PromiseLike<T>): Promise<T> {
+  const t0 = Date.now();
+  try { return await p; } finally { console.log(`[slug-timing] ${label} ${Date.now() - t0}ms region=${process.env.VERCEL_REGION || 'local'}`); }
+}
+
 // A bare anon client, no cookies. Both functions it calls are SECURITY DEFINER
 // and granted to anon, and nothing here depends on a session - so there is no
 // reason to pull in the cookie-bound helper and opt the route out of static
@@ -60,7 +68,7 @@ const publicClient = () =>
  */
 const resolveTenant = cache(async (slug: string): Promise<{ id: string; name: string } | null> => {
   try {
-    const { data, error } = await publicClient().rpc('get_public_tenant_by_slug', { p_slug: slug });
+    const { data, error } = await timed('tenant-by-slug', publicClient().rpc('get_public_tenant_by_slug', { p_slug: slug }));
     if (error) {
       console.error('[slug] tenant lookup failed:', error.message);
       return null;
@@ -76,14 +84,14 @@ const resolveTenant = cache(async (slug: string): Promise<{ id: string; name: st
 // One read of her public settings per request, shared by generateMetadata and
 // the page itself (React's cache() dedupes within a render) - the page now
 // needs the same row to paint her hero on the server.
-const loadPublicSettings = cache((tenantId: string) => fetchPublicSettings(publicClient(), tenantId));
+const loadPublicSettings = cache((tenantId: string) => timed('settings', fetchPublicSettings(publicClient(), tenantId)));
 
 // Her active treatments, read the way the browser read them: the anon key, the
 // same filter. Null on a failed read, so the client falls back to loading them
 // itself instead of showing a business with an empty menu.
 const loadServices = cache(async (tenantId: string) => {
   try {
-    const { data, error } = await fetchPublicServices(publicClient(), tenantId);
+    const { data, error } = await timed('services', fetchPublicServices(publicClient(), tenantId));
     return error ? null : data || [];
   } catch {
     return null;
