@@ -54,6 +54,16 @@ function pageDressing(brand) {
 #__card img{width:44px;height:44px;object-fit:contain;flex:none}
 #__card .t{font:700 21px/1.25 KalmeaCap,'Frank Ruhl Libre',serif;color:${brand.deep}}
 #__card .s{font:600 14.5px/1.4 Assistant,system-ui,sans-serif;color:#656A56;margin-top:3px}
+/* the tour's pop-up tip: a cream card with a green accent bar on the reading side (right, RTL) and the small flower mark in the
+   corner. Hidden at first; shown after a delay (~0.8 s), so it never sits on frame 0. */
+#__tip{position:fixed;z-index:2147483646;left:16px;right:16px;display:flex;justify-content:center;pointer-events:none;direction:rtl;opacity:0;transform:translateY(14px);transition:opacity .45s ease,transform .45s ease}
+#__tip.top{top:84px;transform:translateY(-14px)}#__tip.bottom{bottom:92px}
+#__tip.on{opacity:1;transform:none}
+#__tip .box{position:relative;max-width:398px;width:100%;box-sizing:border-box;padding:15px 22px 16px 46px;background:${brand.cream};border:1px solid rgba(31,58,48,.10);border-right:6px solid ${brand.deep};border-radius:18px;box-shadow:0 1px 2px rgba(24,48,36,.06),0 16px 32px -14px rgba(24,48,36,.32)}
+#__tip .mark{position:absolute;left:12px;top:11px;width:24px;height:24px;object-fit:contain;opacity:.95}
+#__tip .t{font:700 22px/1.3 KalmeaCap,'Frank Ruhl Libre',serif;color:${brand.deep};text-align:right}
+/* the finger: glides to what is about to be tapped, so a tap never appears out of nowhere */
+#__fing{position:fixed;z-index:2147483647;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(233,169,161,.7);border:2px solid ${brand.deep};box-shadow:0 4px 12px rgba(24,48,36,.25);pointer-events:none;opacity:0;transition:left .5s cubic-bezier(.4,0,.2,1),top .5s cubic-bezier(.4,0,.2,1),opacity .25s ease}
 #__cap span{background:${brand.deep}F0;color:${brand.cream};font:700 22px/1.35 KalmeaCap,'Frank Ruhl Libre',serif;padding:11px 20px 12px;border-radius:18px;border-bottom:3px solid ${brand.petal};text-align:center;box-shadow:0 8px 24px rgba(31,58,48,.28);max-width:100%}`;
   const ensure = () => {
     if (!document.documentElement) return null;
@@ -72,9 +82,39 @@ function pageDressing(brand) {
   setInterval(() => {
     for (const b of document.querySelectorAll('button')) {
       const t = (b.innerText || '').trim();
-      if (/^שליטה קולית/.test(b.getAttribute('aria-label') || '') || t === 'תקועה?') b.style.visibility = 'hidden';
+      if ((!window.__keepVoice && /^שליטה קולית/.test(b.getAttribute('aria-label') || '')) || t === 'תקועה?') b.style.visibility = 'hidden';
+    }
+    // The tour hides the demo-account banner ("זו תצוגת דמו ... התחילי בחינם"): a signed-up trial user does not see it, and the
+    // video must not show a sign-up prompt. Opt-in (window.__hideDemoBanner), so the older recordings are unchanged.
+    if (window.__hideDemoBanner) {
+      for (const d of document.querySelectorAll('div')) {
+        const t = d.innerText || '';
+        if (t.length < 120 && t.includes('זו תצוגת דמו') && t.includes('התחילי בחינם')) d.style.display = 'none';
+      }
     }
   }, 400);
+  // __tip({ text, at: 'top'|'bottom', delay: ms (default 800), hold: ms (default 3400) }): the tour's one-line pop-up
+  window.__tipT1 = null; window.__tipT2 = null;
+  window.__tip = (spec) => {
+    if (!ensure()) return;
+    let el = document.getElementById('__tip');
+    if (!el) { el = document.createElement('div'); el.id = '__tip'; document.documentElement.appendChild(el); }
+    clearTimeout(window.__tipT1); clearTimeout(window.__tipT2);
+    el.className = spec.at === 'top' ? 'top' : 'bottom';
+    el.innerHTML = '<div class="box"><img class="mark" alt="" src="/flower-pink-solid.png"><div class="t"></div></div>';
+    el.querySelector('.t').textContent = spec.text;
+    const delay = spec.delay == null ? 800 : spec.delay;
+    window.__tipT1 = setTimeout(() => requestAnimationFrame(() => el.classList.add('on')), delay);
+    window.__tipT2 = setTimeout(() => el.classList.remove('on'), delay + (spec.hold || 3400));
+  };
+  window.__tipOff = () => { clearTimeout(window.__tipT1); clearTimeout(window.__tipT2); const el = document.getElementById('__tip'); if (el) el.classList.remove('on'); };
+  window.__finger = (x, y) => {
+    if (!ensure()) return;
+    let el = document.getElementById('__fing');
+    if (!el) { el = document.createElement('div'); el.id = '__fing'; el.style.left = (innerWidth * 0.78) + 'px'; el.style.top = (innerHeight * 0.82) + 'px'; document.documentElement.appendChild(el); }
+    requestAnimationFrame(() => { el.style.opacity = 1; el.style.left = x + 'px'; el.style.top = y + 'px'; });
+  };
+  window.__fingerOff = () => { const el = document.getElementById('__fing'); if (el) el.style.opacity = 0; };
   // __card({ icon, title, sub, at: 'top'|'bottom', hold: ms }): shows the card, hides itself after `hold` (default 3000)
   const ICONS = { calendar: 'icon-calendar', envelope: 'icon-envelope', wallet: 'icon-wallet', person: 'icon-person', frame: 'icon-frame', flower: 'icon-flower', sparkle: 'icon-sparkle', heart: 'icon-heart', play: 'icon-play', question: 'icon-question' };
   window.__cardTimer = null;
@@ -150,8 +190,15 @@ export function makeHelpers(page, name) {
     await loc.waitFor({ state: 'visible', timeout: 15000 });
     if (!(await inView(loc)) && !(await isFixed(loc))) { await glide(loc); await pause(250); }
     await pause(before);
+    // the finger glides to the target first (0.5 s ease), a beat on it, then the tap: deliberate, never a jump
+    const box = await loc.boundingBox();
+    if (box) {
+      await page.evaluate(([x, y]) => window.__finger && window.__finger(x, y), [box.x + box.width / 2, box.y + box.height / 2]);
+      await pause(640);
+    }
     await loc.tap();
     await pause(after);
+    await page.evaluate(() => window.__fingerOff && window.__fingerOff());
   };
   const type = async (loc, text, { after = 500 } = {}) => {
     await tap(loc, { before: 300, after: 250 });
@@ -164,7 +211,10 @@ export function makeHelpers(page, name) {
   // The pop-up card (replaces the caption pill). Returns after it has slid in (~300 ms); it hides itself after `hold` ms.
   const card = async (spec) => { await page.evaluate((s) => window.__card && window.__card(s), spec); await pause(300); };
   const cardOff = () => page.evaluate(() => window.__cardOff && window.__cardOff());
-  return { page, name, aiCalls, glide, scrollBy, tap, type, nav, say, hush, card, cardOff, pause, inView };
+  // The tour's one-line pop-up: slides in after ~0.8 s (never on frame 0), hides itself after `hold` ms.
+  const tip = (text, opts = {}) => page.evaluate(([t, o]) => window.__tip && window.__tip({ text: t, ...o }), [text, opts]);
+  const tipOff = () => page.evaluate(() => window.__tipOff && window.__tipOff());
+  return { page, name, aiCalls, glide, scrollBy, tap, type, nav, say, hush, card, cardOff, tip, tipOff, pause, inView };
 }
 
 // ── one take: a fresh phone, signed in as the demo owner (or not), recorded ────────────
@@ -276,4 +326,41 @@ export function stitch(files, outMp4, FADE = 0.45) {
   }
   ff([...inputs, '-filter_complex', graph.replace(/;$/, ''), '-map', '[v]', '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart', outMp4]);
   return duration(outMp4);
+}
+
+// ── H.264 + AAC for Instagram ─────────────────────────────────────────────────────────────
+// ffmpeg is told the codecs outright (libx264 baseline, AAC-LC), so nothing is negotiated from a MIME string the way a browser
+// recorder does (that is how "h264" once became VP9-in-mp4). Baseline is "avc1.42E0xx"; the level is 4.0 (xx = 28) because
+// level 3.0 (xx = 1E) cannot carry a 1080x1920 frame. The audio is a real AAC track of silence: the voice-over goes on top later.
+const AV_OUT = ['-c:v', 'libx264', '-profile:v', 'baseline', '-level', '4.0', '-pix_fmt', 'yuv420p', '-preset', 'slow', '-crf', '18', '-r', '30', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-ac', '2', '-movflags', '+faststart', '-shortest'];
+const SILENCE = ['-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo'];
+
+/** A raw take -> 1080x1920 30 fps H.264 (baseline) + AAC mp4, setup trimmed off the front, at most maxSec long. */
+export function finishClipAv(rawWebm, trim, outMp4, maxSec = 6) {
+  ff(['-ss', Math.max(0, trim - 0.1).toFixed(2), '-i', rawWebm, ...SILENCE, '-vf', NORM, '-map', '0:v', '-map', '1:a', '-t', String(maxSec), ...AV_OUT, outMp4]);
+  return duration(outMp4);
+}
+
+/** Clips joined with a short cross-fade, H.264 + AAC. */
+export function stitchAv(files, outMp4, FADE = 0.4) {
+  const lens = files.map(duration);
+  const inputs = files.flatMap((f) => ['-i', f]);
+  let graph = '', prev = '[0:v]', acc = lens[0];
+  for (let i = 1; i < files.length; i++) {
+    const out = i === files.length - 1 ? '[v]' : `[x${i}]`;
+    graph += `${prev}[${i}:v]xfade=transition=fade:duration=${FADE}:offset=${(acc - FADE).toFixed(3)}${out};`;
+    prev = out; acc += lens[i] - FADE;
+  }
+  ff([...inputs, ...SILENCE, '-filter_complex', graph.replace(/;$/, ''), '-map', '[v]', '-map', `${files.length}:a`, ...AV_OUT, outMp4]);
+  return duration(outMp4);
+}
+
+/** What the finished file really contains, read back by decoding it: the video and audio stream lines, and a full decode pass. */
+export function probeCodecs(file) {
+  const r = spawnSync(ffmpegPath, ['-hide_banner', '-i', file], { encoding: 'utf8' });
+  const lines = (r.stderr || '').split('\n').map((l) => l.trim());
+  const video = (lines.find((l) => /Stream #.*Video:/.test(l)) || '').replace(/^Stream #\S+\s*/, '');
+  const audio = (lines.find((l) => /Stream #.*Audio:/.test(l)) || '').replace(/^Stream #\S+\s*/, '');
+  const dec = spawnSync(ffmpegPath, ['-v', 'error', '-i', file, '-f', 'null', '-'], { encoding: 'utf8' });
+  return { video, audio, decodes: dec.status === 0 && !(dec.stderr || '').trim(), decodeErr: (dec.stderr || '').trim().slice(0, 200) };
 }
