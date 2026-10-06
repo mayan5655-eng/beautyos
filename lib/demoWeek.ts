@@ -22,9 +22,18 @@ const LAST = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'דהן'
 export function fullName(i: number): string { return `${FIRST[i % FIRST.length]} ${LAST[(i * 7 + 3) % LAST.length]}`; }
 
 const METHODS = ['ביט', 'אשראי', 'מזומן', 'ביט', 'אשראי'];
-// appointments per weekday (0 = Sunday): a busy Tuesday, a short Friday
-const PER_DAY: Record<number, number> = { 0: 5, 1: 4, 2: 6, 3: 3, 4: 5, 5: 2 };
-const GAPS = [0, 15, 30, 0, 45, 15, 75, 0, 30]; // minutes between treatments; a 75 is a real gap in the day
+// The pattern is anchored to the RESET DAY, not to a weekday (a seed that is busy on Tuesdays is a dead clinic on every other day):
+//   the busy day (today; the next working day when today is a Saturday) has BUSY_COUNT rows: a gap, a cancellation
+//   days behind it keep a realistic mix, in order from yesterday backwards; days ahead are lighter but never empty
+//   Saturdays stay empty
+const BUSY_COUNT = 6;
+// A Friday closes at 14:00 (the product's default hours): five hours. The six shortest real treatments need 315 minutes even with no
+// gap, so six rows cannot fit. A Friday busy day gets 5, and the days around it are capped so it is still the busiest day.
+const FRIDAY_BUSY_COUNT = 5;
+const PAST_COUNTS = [5, 4, 3, 5, 4, 3];
+const UPCOMING_COUNTS = [3, 2, 3, 2, 2];
+const GAPS = [0, 15, 30, 0, 45, 15, 30, 0, 15]; // minutes between ordinary treatments
+const BIG_GAP = 75; // the real gap in the busy day (after the third treatment)
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -48,24 +57,51 @@ export function buildDemoWeek(services: WeekService[], clientCount: number, now:
   const appts: WeekAppt[] = [];
   let cursor = 0; // walks through services and clients so the mix varies
 
-  for (let off = -6; off <= 5; off++) {
-    const date = addDays(today, off);
-    const wd = weekday(date);
-    if (wd === 6) continue; // Saturday
-    const count = PER_DAY[wd] ?? 3;
-    let t = 9 * 60 + (wd === 5 ? 0 : [0, 15, 0, 30, 0][(cursor + wd) % 5]);
-    for (let s = 0; s < count; s++) {
-      const svcIdx = (cursor * 3 + s * 2 + wd) % services.length;
+  // The busy day is today; when today is a Saturday (closed) it is the next working day, and Saturday itself stays clear.
+  let busyOff = 0;
+  while (weekday(addDays(today, busyOff)) === 6) busyOff++;
+
+  // How many rows each working day gets: the busy day BUSY_COUNT, the days behind it a realistic mix (yesterday first), the days
+  // ahead lighter but never empty. Saturdays are skipped, and do not use up a slot of the mix.
+  const plan: { off: number; date: string; wd: number; count: number }[] = [];
+  let behindN = 0, aheadN = 0;
+  const busyCount = weekday(addDays(today, busyOff)) === 5 ? FRIDAY_BUSY_COUNT : BUSY_COUNT;
+  for (let off = busyOff - 1; off >= -6; off--) { const date = addDays(today, off); if (weekday(date) !== 6) plan.push({ off, date, wd: weekday(date), count: Math.min(PAST_COUNTS[behindN++ % PAST_COUNTS.length], busyCount - 1) }); }
+  plan.reverse();
+  plan.push({ off: busyOff, date: addDays(today, busyOff), wd: weekday(addDays(today, busyOff)), count: busyCount });
+  for (let off = busyOff + 1; off <= 5; off++) { const date = addDays(today, off); if (weekday(date) !== 6) plan.push({ off, date, wd: weekday(date), count: UPCOMING_COUNTS[aheadN++ % UPCOMING_COUNTS.length] }); }
+
+  // one cancellation behind us (the second most recent working day), one ahead (the first upcoming day with 3 or more)
+  const pastDays = plan.filter((p) => p.off < busyOff);
+  const cancelPast = pastDays.length > 1 ? pastDays[pastDays.length - 2].date : null;
+  const cancelAhead = plan.find((p) => p.off > busyOff && p.count >= 3)?.date ?? null;
+
+  for (const day of plan) {
+    const { off, date, wd, count } = day;
+    const close = (wd === 5 ? 14 : 19) * 60; // Friday closes at 14:00 (tenantTemplate's default hours)
+    const busy = off === busyOff;
+    const base = 9 * 60 + (busy ? 0 : [0, 15, 0, 30, 0][(cursor + wd) % 5]);
+    // the day's treatments in order; if the busy day would run past closing (a Friday), it takes the shortest ones and a small gap
+    let picks = Array.from({ length: count }, (_, s) => (cursor * 3 + s * 2 + wd) % services.length);
+    const gapAfter = (s: number) => (busy && s === 2 ? BIG_GAP : GAPS[(cursor + s) % GAPS.length]);
+    const endOf = (idxs: number[], gap: (s: number) => number) => idxs.reduce((t, i, s) => t + (Number(services[i].duration) || 60) + (s < idxs.length - 1 ? gap(s) : 0), base);
+    let gap = gapAfter;
+    if (endOf(picks, gap) > close) {
+      const byLength = services.map((_, i) => i).sort((a, b) => (Number(services[a].duration) || 60) - (Number(services[b].duration) || 60));
+      picks = Array.from({ length: count }, (_, s) => byLength[s % byLength.length]);
+      gap = (s) => (busy && s === 2 ? 15 : 0);
+    }
+    let t = base;
+    picks.forEach((svcIdx, s) => {
       const svc = services[svcIdx];
       const dur = Number(svc.duration) || 60;
-      if (t + dur > (wd === 5 ? 14 * 60 : 19 * 60)) break; // never past closing (Friday closes early)
-      let status: WeekAppt['status'] = off < 0 ? 'confirmed' : off === 0 ? 'confirmed' : (s < 2 ? 'confirmed' : 'pending');
-      // texture: one cancellation behind us, one ahead (its slot stays free: a gap), one no-show yesterday
-      if (off === -2 && s === 1) status = 'cancelled';
-      if (off === 2 && s === 2) status = 'cancelled';
+      if (t + dur > close) return; // never past closing
+      let status: WeekAppt['status'] = off <= 0 ? 'confirmed' : (s < 2 ? 'confirmed' : 'pending');
+      // texture: a cancellation on the busy day (its slot stays pink in the grid), one behind us, one ahead
+      if ((busy && s === 1) || (date === cancelPast && s === 1) || (date === cancelAhead && s === 2)) status = 'cancelled';
       appts.push({ date, start_minute: t, duration: dur, clientIndex: (cursor + s * 5) % clientCount, service: svc.name, price: Number(svc.price) || 0, serviceIndex: svcIdx, status, dayOffset: off });
-      t += dur + GAPS[(cursor + s) % GAPS.length];
-    }
+      t += dur + gap(s);
+    });
     cursor += count;
   }
 
