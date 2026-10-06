@@ -1,0 +1,37 @@
+[
+  {
+    "date": "2026-09-23", "commit": "6995518", "recordedAt": "reconstructed 2026-10-06 from git; nothing was recorded at the time",
+    "reason": "Layout families added to cream.ts (top/overlay/split/text/collage/magazine/frame/pair); the cream builder's output changed for existing definitions. Commit message mentioned the families and nine re-pointed definitions but not that 99 locked hashes were refreshed.",
+    "movedCount": 99, "disclosedInCommitMessage": false
+  },
+  {
+    "date": "2026-09-23", "commit": "cb091bd", "recordedAt": "reconstructed 2026-10-06 from git; nothing was recorded at the time",
+    "reason": "The 50 launch definitions spread across the layout families (a design change to existing definitions). Commit message says so but does not mention the lock refresh of 58 hashes.",
+    "movedCount": 58, "disclosedInCommitMessage": false
+  },
+  {
+    "date": "2026-09-24", "commit": "954fb44", "recordedAt": "reconstructed 2026-10-06 from git; nothing was recorded at the time",
+    "reason": "Caption-clipping fix: story headlineH 290 -> 298 in cream.ts so a three-line headline holds at full size. A visible 8 px change to the headline box of every story template, force-refreshed under the same version; the commit message describes the renderer fix and never mentions the template edit or the lock refresh.",
+    "movedCount": 47, "disclosedInCommitMessage": false
+  },
+  {
+    "date": "2026-09-28", "commit": "6d0a301", "recordedAt": "reconstructed 2026-10-06 from git",
+    "reason": "Multi-field support (nails alongside cosmetics): 107 hashes moved, 16 added.",
+    "movedCount": 107, "disclosedInCommitMessage": true
+  },
+  {
+    "date": "2026-09-28", "commit": "5a4923c", "recordedAt": "reconstructed 2026-10-06 from git",
+    "reason": "Full nails template and reel library: 10 moved, 104 added.",
+    "movedCount": 10, "disclosedInCommitMessage": true
+  },
+  {
+    "date": "2026-09-29", "commit": "e8d576e", "recordedAt": "reconstructed 2026-10-06 from git",
+    "reason": "Per-template seed images: 6 definitions pointed at their own seed image.",
+    "movedCount": 6, "disclosedInCommitMessage": true
+  },
+  {
+    "date": "2026-10-05", "commit": "acad8be", "recordedAt": "reconstructed 2026-10-06 from git",
+    "reason": "Spelling fix (אלייך -> עלייך) in 13 places of shipped copy: 6 hashes moved.",
+    "movedCount": 6, "disclosedInCommitMessage": true
+  }
+]

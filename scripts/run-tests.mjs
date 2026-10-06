@@ -62,10 +62,17 @@ if (files.length === 0) {
   process.exit(1);
 }
 
+// A test that never finishes must FAIL, loudly and by name - not hang the run. Found 2026-10-06: test-cron-isolation.js
+// once sat for 10+ minutes (the same file passes in 8 s, alone and six at a time; the cause was never reproduced),
+// and because this runner had no limit the stall would have hung a deploy build with nothing to say which test or why.
+// The slowest real test takes ~10 s, so two minutes is generous; a test that needs longer should say so here.
+const TEST_TIMEOUT_MS = Number(process.env.TEST_TIMEOUT_MS) || 120_000;
+
 let failed = 0;
 const results = [];
 
 for (const file of files) {
+  const t0 = Date.now();
   // --experimental-strip-types lets node run the .ts files directly. It is a
   // no-op for .js, so one invocation covers both.
   const run = spawnSync(
@@ -75,14 +82,16 @@ for (const file of files) {
     // variables override it: on Vercel (whose build runs this) every test then
     // held the production Supabase service key, and the stubbed AI tests wrote
     // junk rows into the real ai_usage table on every deploy.
-    { encoding: 'utf8', env: { ...process.env, ...FAKE_ENV } }
+    { encoding: 'utf8', env: { ...process.env, ...FAKE_ENV }, timeout: TEST_TIMEOUT_MS, killSignal: 'SIGKILL', maxBuffer: 1 << 26 }
   );
+  const timedOut = run.error && run.error.code === 'ETIMEDOUT';
 
-  const ok = run.status === 0;
+  const ok = run.status === 0 && !timedOut;
   if (!ok) failed++;
-  results.push({ file, ok, out: (run.stdout || '') + (run.stderr || '') });
+  results.push({ file, ok, out: (run.stdout || '') + (run.stderr || ''), ms: Date.now() - t0 });
 
   process.stdout.write(`${ok ? 'PASS' : 'FAIL'}  ${file}\n`);
+  if (timedOut) process.stdout.write(`  TIMED OUT after ${TEST_TIMEOUT_MS / 1000} s: this test did not finish. A hung test is a failure, not a skip.\n`);
   // A passing run's output is noise; a failing one is the whole point.
   if (!ok) {
     process.stdout.write(
@@ -101,7 +110,9 @@ const totals = results.reduce((acc, r) => {
   return acc;
 }, { passed: 0, failed: 0 });
 
+const slowest = [...results].sort((a, b) => b.ms - a.ms).slice(0, 3).map((r) => `${r.file} ${(r.ms / 1000).toFixed(1)}s`).join(', ');
 console.log('─'.repeat(52));
+console.log(`slowest: ${slowest}`);
 console.log(`${files.length - failed}/${files.length} files passed` +
   (totals.passed ? `   ·   ${totals.passed} assertions` : ''));
 

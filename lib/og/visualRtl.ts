@@ -22,6 +22,18 @@ const HEB = /[֐-׿]/;
 const MIRROR: Record<string, string> = { '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{', '<': '>', '>': '<', '«': '»', '»': '«' };
 const LTR_RUN = /[A-Za-z][A-Za-z0-9]*(?:[ .,:/'’&+-]+[A-Za-z0-9]+)*|[0-9]+(?:[.,:/-][0-9]+)*/g;
 
+// A letter with its combining marks (niqqud, cantillation, dagesh) is ONE unit. Reversing character by character
+// put each mark BEFORE its letter, and in a left-to-right layout a combining mark attaches to the letter that
+// comes first - so every vowel landed on its neighbour (computed 2026-10-06 for "שָׁלוֹם": the holam that belongs to
+// the vav ended up on the final mem). Reversing whole clusters keeps each mark on its letter.
+const CLUSTER = /\P{M}\p{M}*/gu;
+function reverseClusters(text: string): string {
+  return (text.match(CLUSTER) || [])
+    .reverse()
+    .map((cluster) => { const base = [...cluster][0]; return MIRROR[base] ? MIRROR[base] + cluster.slice(base.length) : cluster; })
+    .join('');
+}
+
 /** One line of text, in the order a left-to-right renderer must draw it. Text without Hebrew is returned as is. */
 export function visualRtl(line: string): string {
   if (!HEB.test(line)) return line;
@@ -35,7 +47,7 @@ export function visualRtl(line: string): string {
   if (at < line.length) segs.push({ text: line.slice(at), ltr: false });
   return segs
     .reverse()
-    .map((s) => (s.ltr ? s.text : [...s.text].reverse().map((c) => MIRROR[c] ?? c).join('')))
+    .map((s) => (s.ltr ? s.text : reverseClusters(s.text)))
     .join('');
 }
 
