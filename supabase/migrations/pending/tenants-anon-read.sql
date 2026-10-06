@@ -1,0 +1,49 @@
+-- tenants-anon-read.sql
+--
+-- ── STATUS: PENDING - not applied. Run by hand in the Supabase SQL Editor. ──────────────
+--
+-- WHY. Found 2026-10-06 (audit, anon key, counts and column NAMES only - no values read):
+-- public.tenants is readable by an ANONYMOUS caller. `select * from tenants` returned all 38
+-- rows with these columns: id, name, slug, plan, owner_id, created_at, updated_at, plan_status,
+-- trial_started_at, trial_ends_at, is_demo (and a handful of empty legacy columns).
+-- That is a directory of every business on the platform: its tenant id (the input the public
+-- booking and skin-scan endpoints take), its slug, its plan and trial state, and the auth user id
+-- of its owner. The code has always said "never read public.tenants directly - use
+-- get_public_tenant_by_slug"; the table's own access did not say it.
+--
+-- NOTHING in the app reads tenants as an anonymous caller (checked: the dashboard and the
+-- onboarding page are signed in; the admin pages use the service role; every public page goes
+-- through the get_public_tenant_by_slug RPC, which is SECURITY DEFINER). So step 1 cannot break a
+-- flow. It only closes the door.
+--
+-- Safe to run more than once.
+--
+-- ── STEP 0 - look first (read-only) ─────────────────────────────────────────────────────
+--   select policyname, cmd, roles, qual from pg_policies where tablename = 'tenants';
+--   select grantee, privilege_type from information_schema.role_table_grants
+--    where table_name = 'tenants' and grantee in ('anon', 'authenticated');
+
+-- ── STEP 1 - anonymous callers get nothing (the whole fix for the public leak) ──────────
+revoke select on public.tenants from anon;
+
+-- ── VERIFY STEP 1 ───────────────────────────────────────────────────────────────────────
+--   begin; set local role anon; select count(*) from public.tenants; rollback;
+--     expect: ERROR permission denied for table tenants
+--   select count(*) from public.get_public_tenant_by_slug('<a real slug>');   -- still works
+--   then open any public page (/<slug>) and sign in once: both unchanged.
+
+-- ── STEP 2 (OPTIONAL, separate decision) - a signed-in tenant sees only its own row ─────
+-- Today any signed-in business can also read every other business's tenants row (the dashboard
+-- filters by id in the browser, but that is a filter, not a rule). Only do this after STEP 0
+-- shows you what policies exist, and only if get_user_tenant_id() is SECURITY DEFINER (it must
+-- be able to read tenants itself): check with
+--   select proname, prosecdef from pg_proc where proname = 'get_user_tenant_id';
+-- (prosecdef must be true). If it is, run:
+--
+--   drop policy if exists tenants_select_own on public.tenants;
+--   create policy tenants_select_own on public.tenants
+--     for select to authenticated using (id = public.get_user_tenant_id());
+--   -- then drop whatever broader SELECT policy STEP 0 listed, by name.
+--
+-- VERIFY STEP 2: sign in as a brand-new tenant and as the demo; each loads its dashboard; in the
+-- SQL editor, as that user, `select count(*) from tenants` returns 1.

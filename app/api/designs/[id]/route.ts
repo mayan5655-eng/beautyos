@@ -85,7 +85,10 @@ export async function DELETE(_request: NextRequest, ctx: Ctx) {
   const guard = await requireActiveTenant(supabase);
   if (!guard.ok) return guard.response;
 
-  const { error } = await supabase.from('designs').delete().eq('id', id);
+  // select() so a delete that matched NOTHING (someone else's design, or one already gone) is not reported as
+  // done: found 2026-10-06, a cross-tenant DELETE answered success:true while the row was untouched.
+  const { data: gone, error } = await supabase.from('designs').delete().eq('id', id).select('id');
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (!gone || gone.length === 0) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
   return NextResponse.json({ success: true });
 }
