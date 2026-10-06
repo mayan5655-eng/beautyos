@@ -40,6 +40,24 @@ const home = async (h) => {
 const goto = (label) => async (h) => { await home(h); await h.tap(h.nav(label), { before: 200, after: 900 }); };
 const text = (h, re, opts = {}) => h.page.getByText(re, opts).filter({ visible: true }).first();
 const button = (h, re) => h.page.locator('button:visible', { hasText: re }).first();
+// The new-appointment sheet opens on 09:00. On a busy day that is taken, and the sheet turns red ("השעה תפוסה") under a
+// caption about how easy it is. Pick a time the sheet itself does not mark as taken or outside her hours.
+const freeTime = async (h) => {
+  // the one that holds times: the screen behind the sheet can have dropdowns of its own (the clients list filters)
+  const sel = h.page.locator('select:visible').filter({ has: h.page.locator('option', { hasText: /^\d\d:\d\d/ }) }).first();
+  await sel.waitFor({ timeout: 8000 });
+  const read = () => sel.locator('option').evaluateAll((os) => os.map((o) => ({ v: o.value, t: o.textContent || '' })));
+  // the sheet loads that day's bookings after it opens, and the time resets once they arrive: wait until some options
+  // are marked taken (the bookings are in), then pick, and check it STUCK - up to three tries
+  for (let i = 0; i < 40 && !(await read()).some((o) => /תפוס/.test(o.t)); i++) await pause(150);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const free = (await read()).filter((o) => !/תפוס|מחוץ/.test(o.t));
+    if (!free.length) throw new Error('no free time in the sheet to show');
+    await sel.selectOption((free[1] || free[0]).v); await pause(900);
+    if (!(await h.page.getByText(/השעה תפוסה/).filter({ visible: true }).count())) return;
+  }
+  throw new Error('the sheet still says the time is taken');
+};
 
 // ── the clips ──────────────────────────────────────────────────────────────────────────
 export const CLIPS = [
@@ -66,9 +84,11 @@ export const CLIPS = [
       await h.tap(button(h, /^שבוע$/), { after: 3200 });
       await h.say('וחוזרים ליום');
       await h.tap(button(h, /^יום$/), { after: 1200 });
-      await h.say('תור חדש בכמה נגיעות');
-      await h.tap(button(h, /תור חדש/), { after: 2600 });
-      await h.say('בוחרים טיפול ומשך'); await pause(2400);
+      await h.hush(); // no stale caption over the sheet opening
+      await h.tap(button(h, /תור חדש/), { after: 200 });
+      await freeTime(h);
+      await h.say('תור חדש בכמה נגיעות'); await pause(1900);
+      await h.say('בוחרים טיפול ומשך'); await pause(2600);
       await h.page.keyboard.press('Escape'); await pause(900); await h.hush(); await pause(600);
     },
   },
@@ -93,15 +113,17 @@ export const CLIPS = [
     id: 'client-card', title: 'כרטיס לקוחה', sub: 'כל מה שקרה איתה, בכרטיס אחד',
     setup: async (h) => { await goto('לקוחות')(h); await h.tap(text(h, 'דנה כ.', { exact: true }), { before: 200, after: 1500 }); },
     async play(h) {
-      await h.say('הכרטיס שלה — הכול במקום אחד'); await pause(2500);
-      await h.say('כל הטיפולים, לפי הסדר');
-      await h.tap(button(h, /^היסטוריה/), { before: 500, after: 2600 });
+      // her chosen line goes on the screen it describes: the card opens on "פרטים", so the history tab is opened first
+      await pause(1200);
+      await h.tap(button(h, /^היסטוריה/), { before: 400, after: 500 });
+      await h.say('ההיסטוריה שלה, לפני שהיא נכנסת'); await pause(3200);
       await h.say('מה שילמה ומתי');
-      await h.tap(button(h, /^תשלומים/), { before: 500, after: 2600 });
-      await h.say('ומכאן קובעים לה תור');
-      await h.tap(button(h, /^✦ קביעת תור$/), { before: 600, after: 2800 });
-      await h.page.keyboard.press('Escape'); await pause(900);
-      await h.hush(); await pause(900);
+      await h.tap(button(h, /^תשלומים/), { before: 500, after: 2800 });
+      await h.tap(button(h, /^✦ קביעת תור$/), { before: 600, after: 200 });
+      await freeTime(h);
+      await h.say('ומכאן קובעים לה תור'); await pause(2600);
+      await h.hush(); await pause(300);
+      await h.page.keyboard.press('Escape'); await pause(1400);
     },
   },
   {
@@ -123,7 +145,7 @@ export const CLIPS = [
       await h.say('ורושמים');
       await h.tap(h.page.getByRole('button', { name: /רשמי תשלום/ }), { after: 600 });
       await h.page.getByText('אינו קבלה או חשבונית מס').waitFor({ state: 'visible', timeout: 20000 });
-      await h.say('אישור תשלום מוכן, בלי להקליד שוב'); await pause(2800);
+      await h.say('אישור תשלום מוכן ברגע'); await pause(2800);
       await h.tap(h.page.getByRole('button', { name: 'סגירה' }), { after: 700 });
       await h.hush(); await pause(500);
     },
@@ -146,7 +168,17 @@ export const CLIPS = [
     id: 'templates', title: 'תבניות', sub: 'בוחרים, משנים מילה, מורידים',
     setup: async (h) => { await goto('תוכן')(h); await h.tap(button(h, /^תבניות/), { before: 200, after: 1200 }); },
     async play(h) {
-      await h.say('תבניות מוכנות, כבר בצבעים שלך'); await pause(2600);
+      // "a hundred templates" was the brief's number; the product shows far fewer. Count what is actually on this screen.
+      const shown = await h.page.evaluate(() => {
+        const t = (b) => (b.innerText || '').replace(/\s+/g, ' ').trim();
+        const n = (re) => [...document.querySelectorAll('button')].filter((b) => re.test(t(b))).length;
+        return { designs: Math.max(n(/^פוסט 4:5$/), n(/^סטורי 9:16$/)), reels: n(/ליצור ריל/) };
+      });
+      if (shown.designs < 10 || shown.reels < 1) throw new Error(`templates clip: counted ${shown.designs} designs and ${shown.reels} reels on screen - the caption would be wrong`);
+      log(`   caption counts: ${shown.designs} designs, ${shown.reels} reels`);
+      await h.scrollBy(330, 1000); // the grid is on screen while the number is said
+      await h.say(`${shown.designs} תבניות ו-${shown.reels} רילסים, במיתוג שלך`); await pause(3000);
+      await h.scrollBy(-330, 900);
       await h.say('חגים, מבצעים, לפני ואחרי');
       await h.tap(button(h, /^חגים ועונות$/), { after: 2200 });
       await h.tap(button(h, /^סוגרים עסקה$/), { after: 2400 });
@@ -180,8 +212,8 @@ export const CLIPS = [
     owner: false,
     setup: async (h) => { await h.page.goto(`${BASE}/book?t=${DEMO_TENANT}`, { waitUntil: 'networkidle' }); await h.page.locator('#bk-services').waitFor({ state: 'visible', timeout: 15000 }); await pause(400); },
     async play(h) {
-      await h.say('כך הלקוחות שלך רואות את העסק'); await pause(2600);
-      await h.glide(h.page.locator('#bk-services'), 1100); await h.say('הטיפולים והמחירים שלך'); await pause(2400);
+      await h.say('כך הלקוחות שלך רואות את העסק'); await pause(2800);
+      await h.glide(h.page.locator('#bk-services'), 1100); await h.say('הדף שלך, עם התמונות והמחירים שלך'); await pause(3000);
       await h.tap(h.page.locator('#bk-services button', { hasText: 'קביעת תור' }).first(), { after: 1100 });
       await h.say('בוחרות יום');
       await h.page.getByText('בחרי יום').waitFor({ timeout: 10000 });
@@ -203,9 +235,9 @@ export const CLIPS = [
     owner: false,
     setup: async (h) => { await h.page.goto(`${BASE}/skin-scan?t=${DEMO_TENANT}`, { waitUntil: 'networkidle' }); await h.page.getByText('ניתוח עור אישי').first().waitFor({ timeout: 15000 }); await pause(400); },
     async play(h) {
-      await h.say('סורק העור של העסק שלך'); await pause(3000);
-      await h.say('הלקוחה מאשרת ומעלה תמונה אחת'); await h.scrollBy(380, 1300); await pause(3200);
-      await h.say('ומקבלת המלצה לטיפול'); await h.scrollBy(380, 1300); await pause(3200); // the page only: no photo is uploaded, no scan runs
+      await h.say('סורק העור של העסק שלך'); await pause(3400);
+      await h.say('הלקוחה מאשרת ומעלה תמונה אחת'); await h.scrollBy(380, 1300); await pause(3800);
+      await h.say('עם הנחיות קצרות לתמונה טובה'); await h.scrollBy(380, 1300); await pause(3800); // the page only: no photo is uploaded, no scan runs
       await h.hush(); await pause(1500);
     },
   },
@@ -259,7 +291,7 @@ try {
       await card(`${pad(i)}-card`, { kicker: `${i + 1} מתוך ${CLIPS.length}`, title: c.title, sub: c.sub }, 2.4);
       parts.push(mp4);
     }
-    await card('99-close', { title: 'הכול במקום אחד', sub: 'kalmea.app' }, 3);
+    await card('99-close', { title: 'ניהול, שיווק ומכירות<br>בתוכנה אחת', sub: 'kalmea.app' }, 3.4);
     const tour = path.join(OUT, 'kalmea-tour.mp4');
     const secs = stitch(parts, tour);
     log(`tour: ${secs.toFixed(1)} s  ->  ${tour}`);

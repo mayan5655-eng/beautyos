@@ -5,7 +5,8 @@
   "description": "Regenerable marketing recordings. Own package.json on purpose: nothing here is installed by the site's build.",
   "type": "module",
   "scripts": {
-    "record": "node record-demo.mjs"
+    "record": "node record-demo.mjs",
+    "tour": "node tour.mjs"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0",

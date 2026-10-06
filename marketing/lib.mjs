@@ -114,9 +114,13 @@ export function makeHelpers(page, name) {
     const step = (now) => { const t = Math.min(1, (now - t0) / ms); sc.scrollTop = from + dy * ease(t); t < 1 ? requestAnimationFrame(step) : resolve(); };
     requestAnimationFrame(step);
   }), { dy, ms });
+  // The bottom tab bar is fixed to the screen. It sits inside the bottom margin inView() keeps clear for captions, so it
+  // counted as "not in view" and every tap on it scrolled the whole page ~400 px to centre it: each clip that started from a
+  // tab began already scrolled down (found 2026-10-06 reading the contact sheets). Fixed things are never scrolled to.
+  const isFixed = (loc) => loc.evaluate((el) => { for (let e = el; e; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return true; return false; });
   const tap = async (loc, { before = 450, after = 700 } = {}) => {
     await loc.waitFor({ state: 'visible', timeout: 15000 });
-    if (!(await inView(loc))) { await glide(loc); await pause(250); }
+    if (!(await inView(loc)) && !(await isFixed(loc))) { await glide(loc); await pause(250); }
     await pause(before);
     await loc.tap();
     await pause(after);
@@ -182,7 +186,8 @@ export async function renderCard(browser, file, { kicker, title, sub }) {
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><style>
 @font-face{font-family:KF;src:url(${BASE}/design-fonts/FrankRuhlLibre-700.ttf);font-weight:700}
 @font-face{font-family:KA;src:url(${BASE}/design-fonts/Assistant-600.ttf);font-weight:600}
-html,body{margin:0;height:100%;background:${BRAND.cream}}
+html,body{margin:0;width:540px;height:960px;overflow:hidden;background:${BRAND.cream}}
+.bg{position:absolute;inset:0;overflow:hidden}
 body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
 .glow{position:absolute;width:760px;height:760px;border-radius:50%;background:radial-gradient(circle,${BRAND.palePetal} 0%,${BRAND.cream}00 68%);top:50%;left:50%;transform:translate(-50%,-50%)}
 .mark{position:absolute;top:70px;width:210px}
@@ -190,7 +195,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:cente
 .t{position:relative;font:700 66px/1.18 KF;color:${BRAND.deep};margin:0 40px}
 .rule{position:relative;width:64px;height:3px;background:${BRAND.petal};margin:30px 0 24px;border-radius:2px}
 .s{position:relative;font:600 25px/1.5 KA;color:#5E6F68;margin:0 54px}
-</style></head><body><div class="glow"></div><img class="mark" src="${BASE}/kalmea-wordmark.png">
+</style></head><body><div class="bg"><div class="glow"></div></div><img class="mark" src="${BASE}/kalmea-wordmark.png">
 ${kicker ? `<div class="k">${kicker}</div>` : ''}<div class="t">${title}</div>${sub ? `<div class="rule"></div><div class="s">${sub}</div>` : ''}</body></html>`;
   await page.setContent(html, { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);

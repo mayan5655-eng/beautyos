@@ -25,3 +25,25 @@ Output in `out/` (git-ignored): `kalmea-demo.mp4` (H.264, 1080x1920, 30 fps, for
   then flicks through more days on camera - for the cleanest take run it after the reset.
 - Recorded at 430x764 and upscaled to 1080x1920, so it is a little soft. Playwright's recorder ignores device pixel ratio.
 - Env: `KALMEA_BASE`, `KALMEA_DEMO_TENANT`, `KALMEA_DEMO_FIELD`.
+
+## tour
+
+`npm run tour` records ten clips, one per screen (today, calendar, clients, client card, till, content,
+templates, settings, her booking page, skin-scan page), 15-25 s each, and stitches them with a title card
+between chapters into `out/kalmea-tour.mp4` (about 3 min). `-- --only=today,calendar` records just those;
+`-- --stitch-only` re-stitches the clips already in `out/clips`. No AI feature is touched (same guard as
+record-demo). The clips have no audio: they are meant for a voice-over.
+
+Rules that came from real mistakes, kept in the code as comments:
+
+- **A caption only says what the frame shows.** The skin-scan clip never runs a scan, so it promises no result;
+  the history caption is said only once the history tab is open; her booking-page line sits on the services,
+  where photos and prices are both on screen.
+- **Numbers in captions are counted, not typed.** The templates clip counts the cards on screen while it
+  records ("52 תבניות ו-8 רילסים") and refuses to record if the count looks wrong. The brief's "a hundred
+  templates" was not true of the product.
+- **Contact sheets before publishing.** Look at a frame every 2 s of each clip
+  (`ffmpeg -i clip.mp4 -vf fps=1/2,scale=270:-1,tile=5x2 sheet.png`). That is how a clip that began scrolled
+  400 px down (the recorder scrolled to its own tab bar), a sheet showing a red "time taken" error under a caption
+  about ease, and title cards sitting 110 px off-centre were found: none shows up in the script's own checks.
+- Clips act on the demo tenant (one payment each run); the nightly reset at 02:00 UTC clears it.
