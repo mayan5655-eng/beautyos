@@ -39,6 +39,7 @@ import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION }
 import { isMissingColumnError } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
+import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
@@ -9869,20 +9870,15 @@ ${c.claimUrl}`)}`;
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
             const inYear = liveRcpts.filter(r=>r.created_at && parseDb(r.created_at).getFullYear()===taxYear);
-            let periodReceipts, rangeLabel;
-            if(status==="exempt"){
-              periodReceipts=inYear; rangeLabel=`שנת ${taxYear}`;
-            } else if(taxPeriodMode==="monthly"){
-              periodReceipts=inYear.filter(r=>parseDb(r.created_at).getMonth()===taxPeriodIdx);
-              rangeLabel=`${MONTHS_HE[taxPeriodIdx]} ${taxYear}`;
-            } else {
-              periodReceipts=inYear.filter(r=>Math.floor(parseDb(r.created_at).getMonth()/2)===taxPeriodIdx);
-              rangeLabel=`${MONTHS_HE[taxPeriodIdx*2]}–${MONTHS_HE[taxPeriodIdx*2+1]} ${taxYear}`;
-            }
-            const gross=periodReceipts.reduce((s,r)=>s+(Number(r.amount)||0),0);
-            const net=gross/(1+VAT_RATE);
-            const vatDue=gross*VAT_RATE/(1+VAT_RATE);
-            const count=periodReceipts.length;
+            // Two concerns, kept apart (lib/incomePeriod.js): her registration decides how she REPORTS VAT (a year for an
+            // exempt dealer, bi-monthly for the others), never what income she may LOOK at - month by month is for everyone.
+            // And for an exempt dealer what she took IS her turnover: no VAT is carved out of it.
+            const mode = effectiveMode(status, taxPeriodMode);
+            const inPeriod = periodFilter({mode, idx:taxPeriodIdx});
+            const periodReceipts = inYear.filter(r=>inPeriod(parseDb(r.created_at)));
+            const rangeLabel = periodLabel({mode, idx:taxPeriodIdx, year:taxYear, monthNames:MONTHS_HE});
+            const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, VAT_RATE);
+            const yearGross = incomeTotals(inYear.map(r=>r.amount), status, VAT_RATE).gross;
             // Expenses filtered to the SAME period (by expense_date) — used for the
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
@@ -9923,17 +9919,19 @@ ${c.claimUrl}`)}`;
                     ))}
  </div>
  </div>
-                {status!=="exempt"&&(
+                {(
  <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",alignItems:"center",marginBottom:16}}>
  <div style={{display:"flex",gap:3,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-lg)",padding:4,boxShadow:"var(--shadow-xs)"}}>
- <button onClick={()=>{setTaxPeriodMode("bimonthly");setTaxPeriodIdx(Math.floor(new Date().getMonth()/2));}} style={{padding:"6px 13px",borderRadius:"var(--r-md)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="bimonthly"?pcGrad:"transparent",color:taxPeriodMode==="bimonthly"?"var(--pc-contrast)":"var(--ink-2)"}}>דו-חודשי</button>
+ {status==="exempt"
+   ? <button onClick={()=>{setTaxPeriodMode("annual");}} style={{padding:"6px 13px",borderRadius:"var(--r-md)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:mode==="annual"?pcGrad:"transparent",color:mode==="annual"?"var(--pc-contrast)":"var(--ink-2)"}}>שנתי</button>
+   : <button onClick={()=>{setTaxPeriodMode("bimonthly");setTaxPeriodIdx(Math.floor(new Date().getMonth()/2));}} style={{padding:"6px 13px",borderRadius:"var(--r-md)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="bimonthly"?pcGrad:"transparent",color:taxPeriodMode==="bimonthly"?"var(--pc-contrast)":"var(--ink-2)"}}>דו-חודשי</button>}
  <button onClick={()=>{setTaxPeriodMode("monthly");setTaxPeriodIdx(new Date().getMonth());}} style={{padding:"6px 13px",borderRadius:"var(--r-md)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:taxPeriodMode==="monthly"?pcGrad:"transparent",color:taxPeriodMode==="monthly"?"var(--pc-contrast)":"var(--ink-2)"}}>חודשי</button>
  </div>
- <select value={taxPeriodIdx} onChange={e=>setTaxPeriodIdx(Number(e.target.value))} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"8px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
+ {mode!=="annual"&&<select value={taxPeriodIdx} onChange={e=>setTaxPeriodIdx(Number(e.target.value))} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"8px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
                       {taxPeriodMode==="monthly"
                         ? MONTHS_HE.map((m,i)=><option key={i} value={i}>{m}</option>)
                         : Array.from({length:6},(_,i)=><option key={i} value={i}>{MONTHS_HE[i*2]}–{MONTHS_HE[i*2+1]}</option>)}
- </select>
+ </select>}
  </div>
                 )}
 
@@ -9953,10 +9951,18 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
  </div>
                   {status==="exempt"?(
+ <>
  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                      <Stat label={"מחזור שנתי (ללא מע\"מ)"} value={nis(gross)} big gold/>
+                      <Stat label={mode==="annual"?"מחזור שנתי (ללא מע\"מ)":"מחזור החודש (ללא מע\"מ)"} value={nis(gross)} big gold/>
  <Stat label="מספר עסקאות" value={count}/>
  </div>
+                    {mode==="monthly"&&(
+ <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:12}}>
+                        <Stat label={`מחזור שנתי ${taxYear} (ללא מע"מ)`} value={nis(yearGross)}/>
+ </div>
+                    )}
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>עוסק פטור לא גובה מע"מ, ולכן המחזור הוא הסכום שנגבה, בלי ניכוי. הדיווח שלך הוא שנתי; החיתוך לפי חודש כאן הוא לנוחותך.</p>
+ </>
                   ):(
  <>
  <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:12}}>
