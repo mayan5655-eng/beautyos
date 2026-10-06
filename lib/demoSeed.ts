@@ -108,6 +108,9 @@ export async function resetDemoTenant(db: Db, field: DemoField, now: Date = new 
     // colour, automations) was written once at provision and is left alone. ──
     await db.from('settings').update({
       business_name: BUSINESS_NAME[field],
+      // A new signup gets a full free-trial month with full access, so the demo shows a licensed clinic: the income summary then
+      // has its month picker and a month-by-month view (an "עוסק פטור" gets only the annual figure).
+      business_tax_status: 'licensed',
       branding: {
         reviews: REVIEW_BODIES.slice(0, 3).map((text, i) => ({
           name: fakeClientName(i),
