@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { displayName } from "@/lib/personName";
 import Image from "next/image";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
@@ -171,9 +172,11 @@ export default function OnboardingPage() {
           return;
         }
 
-        // Pre-fill therapist name from email/metadata if available
+        // Pre-fill her name ONLY from a name she gave (user_metadata.full_name), never from the email: the email's
+        // local part ("maya.cohen") used to be saved as her name when she skipped the field, and her clients
+        // then read "נעים מאוד, אני maya.cohen" on her booking page (found 2026-10-06). Empty is honest: the
+        // page and the messages are written in the first person without a name. See lib/personName.js.
         const fullName = user.user_metadata?.full_name as string | undefined;
-        const fromEmail = user.email?.split("@")[0] ?? "";
         // Pre-fill business name from signup too (app/signup/page.tsx sends it
         // as user_metadata.business_name) - she already typed it once there.
         // Missed before today: therapist_name got this same treatment, business
@@ -181,7 +184,7 @@ export default function OnboardingPage() {
         const signupBusinessName = user.user_metadata?.business_name as string | undefined;
         setData(d => ({
           ...d,
-          therapist_name: fullName || fromEmail,
+          therapist_name: displayName(fullName),
           business_name: signupBusinessName || d.business_name,
         }));
         setLoading(false);

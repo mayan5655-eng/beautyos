@@ -12,6 +12,7 @@
 // — existing behaviour is unchanged for everyone who hasn't added any Q&A.
 
 import { hoursSummaryHe, type HoursSettings } from "./businessHours.ts";
+import { displayName } from './personName.js';
 
 export interface BotService {
   name?: string | null;
@@ -58,7 +59,7 @@ export function buildSystemPrompt({
   appUrl: string;
 }): string {
   const businessName = settings.business_name || "העסק";
-  const therapistName = settings.therapist_name || "";
+  const therapistName = displayName(settings.therapist_name);
   const bookUrl = `${appUrl}/book?t=${tenantId}`;
 
   const servicesText =

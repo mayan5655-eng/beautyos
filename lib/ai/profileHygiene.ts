@@ -9,6 +9,7 @@
 // half-typed address is fine in a private note and reads as a broken autofill
 // in a Facebook post. And a treatment she is qualified to PERFORM is not
 // automatically one she is permitted to ADVERTISE.
+import { displayName } from '../personName.js';
 
 // ── Treatments that must never appear in advertising ─────────────────────────
 //
@@ -74,32 +75,14 @@ export function splitAdvertisable<T>(
 
 // ── Names ────────────────────────────────────────────────────────────────────
 
-/**
- * True when a "name" is really a login handle.
- *
- * settings.therapist_name is whatever was captured at signup, which for this
- * account is "mayan5655". Handed to the model as שם הקוסמטיקאית, it produced a
- * post referring to her as "מיין" - it reverse-engineered a first name out of a
- * username. Better to give the model no name than a wrong one: with the field
- * absent it writes in first person, which is what the copy wants anyway.
- *
- * Digits or an @ are the giveaway; so is an all-lowercase ASCII token with no
- * spaces. A real name - Hebrew, or capitalised Latin - passes.
- */
-export function looksLikeLoginHandle(name: string): boolean {
-  const s = String(name || '').trim();
-  if (!s) return true;
-  if (/\d/.test(s)) return true;
-  if (s.includes('@')) return true;
-  if (/^[a-z0-9._\-]+$/.test(s)) return true; // "mayan", "maayan_b"
-  return false;
-}
+// The rule itself lives in lib/personName.js so the public page, her greeting, the bot and the booking
+// messages share it with the AI profile (the header there explains the 2026-10-06 finding). Still exported
+// from here for the callers that already import it.
+export { looksLikeLoginHandle } from '../personName.js';
 
 /** The name, or undefined when it is a handle rather than a name. */
 export function usableTherapistName(name?: string | null): string | undefined {
-  const s = typeof name === 'string' ? name.trim() : '';
-  if (!s || looksLikeLoginHandle(s)) return undefined;
-  return s;
+  return displayName(name) || undefined;
 }
 
 // ── Addresses ────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
 //   - empty variable     -> its source, then its default, then ''
 
 import { buildAccentTokens, contrastOn, hexToRgb } from '../theme.ts';
+import { displayName } from '../personName.js';
 import type { ColorRole, Template, VariableDef } from './contract.ts';
 import type { BrandToggles } from './design.ts';
 import { limitText } from './limitText.ts';
@@ -119,7 +120,7 @@ function sourceValue(v: VariableDef, input: BrandingInput, branding: Record<stri
   const review = reviews[input.reviewIndex ?? 0] || null;
   switch (v.source) {
     case 'business_name': return clean(s.business_name);
-    case 'therapist_name': return clean(s.therapist_name);
+    case 'therapist_name': return clean(displayName(s.therapist_name));
     case 'therapist_title': return clean(branding.therapist_title);
     case 'booking_url': return clean(input.bookingUrl);
     case 'phone': return input.brand?.phone === false ? '' : clean(s.business_phone);

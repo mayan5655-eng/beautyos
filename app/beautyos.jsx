@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { displayName } from "@/lib/personName";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
@@ -8050,7 +8051,7 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
           {upcomingBirthdays[0]&&<span className="desktop-only" style={{fontSize:"var(--t-sm)",color:pc}}>{upcomingBirthdays[0].name}</span>}
- <span className="desktop-only" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>שלום{settings.therapist_name?.trim()?`, ${settings.therapist_name}`:""} </span>
+ <span className="desktop-only" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>שלום{displayName(settings.therapist_name)?`, ${displayName(settings.therapist_name)}`:""} </span>
           {/* ☑ and ↓ leave the header below 680px: four 40px buttons plus the
               logo, hamburger and search cannot fit on any phone (see the
               breakpoint block). Both keep a mobile home in the nav drawer, so
@@ -8306,7 +8307,7 @@ ${c.claimUrl}`)}`;
                 carries an empty day fine on its own. */}
             {clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
-                title={<><span className="brand-rose-word">ברוכה הבאה</span>{settings.therapist_name?", "+settings.therapist_name:""}</>}
+                title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
                 actions={[
                   {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
@@ -8316,7 +8317,7 @@ ${c.claimUrl}`)}`;
             )}
             {clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
-                title={<><span className="brand-rose-word">ברוכה הבאה</span>{settings.therapist_name?", "+settings.therapist_name:""}</>}
+                title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
                   {label:"מטופלת חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},

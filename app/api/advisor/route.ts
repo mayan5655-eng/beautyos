@@ -9,6 +9,7 @@
 // All business data is read scoped to that tenant only.
 
 import { MODELS, EFFORT } from '@/lib/ai/models'
+import { displayName } from '@/lib/personName';
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
@@ -148,7 +149,7 @@ async function buildBusinessSnapshot(
     ? `\nאינטליגנציית עור (מתוך היסטוריית הסריקות): לקוחות עם סריקות: ${skin.clientsWithScans} | במגמת שיפור: ${skin.improving} | במגמת נסיגה: ${skin.regressing} | ללא שיפור (פלטו): ${skin.plateaued} | מומלצות להערכה מחדש (30+ ימים): ${skin.dueForReassessment}`
     : ''
 
-  return `שם העסק: ${settings.business_name || 'לא הוגדר'}${settings.therapist_name ? ` (מטפלת: ${settings.therapist_name})` : ''}
+  return `שם העסק: ${settings.business_name || 'לא הוגדר'}${displayName(settings.therapist_name) ? ` (מטפלת: ${displayName(settings.therapist_name)})` : ''}
 שעות פעילות (לפי יום): ${hoursSummaryHe(settings)}
 סך לקוחות: ${clients.length}
 לקוחות רדומות (60+ ימים ללא ביקור): ${dormant}

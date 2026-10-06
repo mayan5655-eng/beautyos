@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { displayName } from "@/lib/personName";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { logoSrc } from "@/lib/logoSrc";
@@ -587,7 +588,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // prompt to go and fill it in.
   const bizName = brand?.businessName || settings?.business_name || "העסק שלי";
   // Her line, under her name. Optional - most clinics never set one.
-  const personName = brand?.therapistName || settings?.therapist_name || "";
+  const personName = displayName(brand?.therapistName || settings?.therapist_name || ""); // never a login handle: lib/personName.js
   const personTitle = brand?.therapistTitle || "";
   const person = [personName, personTitle].filter(Boolean).join(" · ");
   const phoneRaw = String(brand?.whatsappNumber || settings?.business_phone || "").trim();
