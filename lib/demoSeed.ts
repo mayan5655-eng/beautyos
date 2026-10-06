@@ -44,8 +44,6 @@ const SKIN_TYPES = ['רגיל', 'יבש', 'שמן', 'מעורב', 'רגיש'];
 const LEAD_SOURCES = ['פייסבוק', 'אינסטגרם', 'גוגל', 'טיקטוק', 'המלצה', 'הליכה ברחוב'];
 const LEAD_STATUSES = ['new', 'no_answer', 'awaiting_reply', 'in_progress', 'quote_sent', 'scheduled', 'closed', 'irrelevant'];
 
-const PAYMENT_METHODS = ['מזומן', 'אשראי', 'ביט'];
-
 const REVIEW_BODIES = [
   'טיפול מדהים, יצאתי עם עור זוהר ותחושה מפנקת. ממליצה בחום!',
   'תמיד יוצאת מרוצה, שירות אדיב ומקצועי. חוזרת שוב ושוב.',
@@ -62,18 +60,6 @@ const BUSINESS_NAME: Record<DemoField, string> = {
   cosmetics: 'קליניקת דמו - קוסמטיקה',
   nails: 'סטודיו דמו - ציפורניים',
 };
-
-/** A working day's fixed, non-overlapping time slots - by construction, never
- *  needs an overlap check against add_appointment_no_overlap.sql's EXCLUDE
- *  constraint. Minutes from midnight. */
-const DAY_SLOTS = [9 * 60, 10 * 60 + 30, 12 * 60, 14 * 60, 15 * 60 + 45, 17 * 60];
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-function isWorkingDay(d: Date): boolean {
-  return d.getDay() !== 6; // every day but Saturday
-}
 
 /** Real menu items from lib/tenantTemplate.ts - never invented service names,
  *  durations or prices. Takes the first `count` across that field's groups. */
