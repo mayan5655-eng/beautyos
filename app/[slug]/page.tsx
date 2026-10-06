@@ -28,6 +28,7 @@ import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
 import { APP_URL } from '@/lib/appUrl';
 import { fetchPublicServices } from '@/lib/publicServices';
+import { fetchPublicPage } from '@/lib/publicPage';
 import BookingPage from '../BookingPage';
 import { ogVersion } from '@/lib/og/tenantOg';
 
@@ -53,41 +54,53 @@ const publicClient = () =>
   );
 
 /**
- * slug -> { id, name }, through get_public_tenant_by_slug.
+ * Everything this page needs, in ONE database call when get_public_page is installed
+ * (supabase/migrations/pending/public-page-one-call.sql; lib/publicPage.js has the reasoning and the timings:
+ * three calls in two serial stages cost 1.5-2.1 s of server time). 'unavailable' means the function is not
+ * there yet and the three loaders below use the old reads. Throws on a real failure.
+ */
+const loadPage = cache((slug: string) => timed('page', fetchPublicPage(publicClient(), slug)));
+
+/**
+ * slug -> { id, name }.
  *
- * Never a direct read of public.tenants: that table carries plan_status,
- * plan_price, trial dates and owner_id, and the RPC returns the two fields a
- * public page is entitled to. An unknown slug comes back empty rather than as
- * an error, so "no such business" stays distinguishable from "the lookup
- * failed" - and a failed lookup must not render as a missing business.
+ * null = the lookup WORKED and there is no such business. A lookup that FAILED throws (a 500 the error page
+ * handles): it must never read as a missing business, or a database hiccup becomes a 404 a crawler keeps.
+ * Never a direct read of public.tenants: it carries plan, trial dates and owner_id; the RPCs return what a
+ * public page is entitled to.
  *
- * cache(): generateMetadata and the page both resolve the same slug in one
- * request; without it that was two identical round trips to Supabase, in series
- * with everything that depends on the tenant id, before a byte could be sent.
+ * cache(): generateMetadata and the page both resolve the same slug in one request.
  */
 const resolveTenant = cache(async (slug: string): Promise<{ id: string; name: string } | null> => {
   try {
+    const page = await loadPage(slug);
+    if (page.kind === 'found') return page.tenant as { id: string; name: string };
+    if (page.kind === 'none') return null;
+    // not installed yet: the separate lookup, as before
     const { data, error } = await timed('tenant-by-slug', publicClient().rpc('get_public_tenant_by_slug', { p_slug: slug }));
     if (error) throw new Error(`tenant lookup failed: ${error.message}`);
     const row = Array.isArray(data) ? data[0] : data;
-    return row || null; // null = the lookup WORKED and there is no such business
+    return row || null;
   } catch (err) {
-    // A lookup that failed is not a missing business: surface it (a 500 the error page handles) instead of a 404.
     console.error('[slug] tenant lookup failed:', err instanceof Error ? err.message : String(err));
     throw err instanceof Error ? err : new Error('tenant lookup failed');
   }
 });
 
-// One read of her public settings per request, shared by generateMetadata and
-// the page itself (React's cache() dedupes within a render) - the page now
-// needs the same row to paint her hero on the server.
-const loadPublicSettings = cache((tenantId: string) => timed('settings', fetchPublicSettings(publicClient(), tenantId)));
+// One read of her public settings per request, shared by generateMetadata and the page itself (React's cache()
+// dedupes within a render).
+const loadPublicSettings = cache(async (slug: string, tenantId: string) => {
+  const page = await loadPage(slug);
+  if (page.kind === 'found') return page.settings;
+  return timed('settings', fetchPublicSettings(publicClient(), tenantId));
+});
 
-// Her active treatments, read the way the browser read them: the anon key, the
-// same filter. Null on a failed read, so the client falls back to loading them
-// itself instead of showing a business with an empty menu.
-const loadServices = cache(async (tenantId: string) => {
+// Her active treatments. Null on a failed read, so the client falls back to loading them itself instead of
+// showing a business with an empty menu.
+const loadServices = cache(async (slug: string, tenantId: string) => {
   try {
+    const page = await loadPage(slug);
+    if (page.kind === 'found') return page.services;
     const { data, error } = await timed('services', fetchPublicServices(publicClient(), tenantId));
     return error ? null : data || [];
   } catch {
@@ -100,11 +113,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tenant = await resolveTenant(slug);
   if (!tenant) return { title: 'Kalmea', robots: { index: false, follow: false } };
 
-  const brand = resolveBranding(await loadPublicSettings(tenant.id));
+  const brand = resolveBranding(await loadPublicSettings(slug, tenant.id));
   const title = brand.businessName || tenant.name || 'Kalmea';
   // Her own words first. A short line gets her treatments after it, and with no words at all
   // the preview names the business and what it offers - never a generic Kalmea sentence.
-  const services = ((await loadServices(tenant.id)) || [])
+  const services = ((await loadServices(slug, tenant.id)) || [])
     .map((s: { name?: string }) => String(s?.name || '').trim())
     .filter(Boolean)
     .slice(0, 3);
@@ -153,8 +166,8 @@ export default async function SlugPage({ params }: Props) {
   // Both reads run together. If either fails the page gets null for it and
   // loads that part in the browser, as it did before this step existed.
   const [initialSettings, initialServices] = await Promise.all([
-    loadPublicSettings(tenant.id),
-    loadServices(tenant.id),
+    loadPublicSettings(slug, tenant.id),
+    loadServices(slug, tenant.id),
   ]);
 
   return (
