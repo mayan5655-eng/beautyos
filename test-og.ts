@@ -78,6 +78,7 @@ globalThis.fetch = (async (input: any, init?: any) => {
   calls.push({ url, method });
   const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
   if (url.includes('/rest/v1/rpc/get_public_branding')) return lookup === 'fails' ? json({ message: 'boom', code: 'XX000' }, 500) : json(settings);
+  if (url.includes('/rest/v1/settings')) return lookup === 'fails' ? json({ message: 'boom', code: 'XX000' }, 500) : json(settings ? [settings] : []);
   if (url.includes('/rest/v1/rpc/get_public_page')) return json({ tenant: settings ? { id: TENANT, name: 'שם מהטבלה' } : null, settings, services: [{ name: 'פנים' }, { name: 'גבות' }] });
   if (url.includes('/rest/v1/rpc/get_public_tenant_by_slug')) return lookup === 'fails' ? json({ message: 'boom', code: 'XX000' }, 500) : json(settings ? [{ id: TENANT, name: 'שם מהטבלה' }] : []);
   if (url.startsWith(SUPA!)) return storage(url);
@@ -136,13 +137,18 @@ try {
   assert.deepEqual([img.m.width, img.m.height], [1200, 630], 'no photo: the banner, same size');
 
   // the lookup FAILS: 502 and never cached - a blank must not stick on a CDN
-  // (Known gap, found by writing this test: for a tenant UUID - the old /book?t= links - a failed BRANDING read is
-  // swallowed by fetchPublicSettings, so the route serves the neutral banner as a 200 and the CDN keeps it ten
-  // minutes. The promise below holds for the slug lookup, which throws. Reported, not changed here.)
+  // The lookup FAILS - by slug AND by tenant UUID (the old /book?t= links; this one used to be swallowed and served a
+  // neutral banner as a 200 that the CDN kept ten minutes - found by writing this test, fixed 2026-10-06).
   lookup = 'fails'; settings = { business_name: 'x' };
-  res = await og('dana');
-  assert.equal(res.status, 502, 'a failed slug lookup is an error, not an empty picture');
-  assert.equal(res.headers.get('cache-control'), 'no-store');
+  for (const key of ['dana', TENANT]) {
+    res = await og(key);
+    assert.equal(res.status, 502, `a failed lookup (${key.length > 10 ? 'uuid' : 'slug'}) is an error, not an empty picture`);
+    assert.equal(res.headers.get('cache-control'), 'no-store', 'and is never cached');
+  }
+  // and a business that genuinely does not exist is still the neutral banner (that one is the CDN-cacheable answer)
+  lookup = 'ok'; settings = null;
+  res = await og(TENANT);
+  assert.equal(res.status, 200, 'an unknown business gets the neutral banner');
   lookup = 'ok';
 
   // ── generateMetadata of both public routes ──────────────────────────────────────────────────────────

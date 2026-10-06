@@ -49,7 +49,7 @@ export async function brandFor(key: string): Promise<{ id: string; brand: Brand;
     id = row.id;
     tenantName = row.name || '';
   }
-  const settings = await fetchPublicSettings(db, id!);
+  const settings = await fetchPublicSettings(db, id!, { strict: true }); // a failed read throws -> 502, never a cached banner
   if (!settings) return null;
   return { id: id!, brand: resolveBranding(settings), tenantName };
 }
