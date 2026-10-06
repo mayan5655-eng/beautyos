@@ -25,8 +25,9 @@
 
 import { useEffect, useState } from 'react';
 import * as Sentry from '@sentry/nextjs';
-import { FLOWER_WATERMARK } from '@/lib/brand';
+import { LOGO_COMPACT } from '@/lib/brand';
 import BrandImage from "@/app/BrandImage";
+import { PublicPage } from '@/app/PublicChrome';
 
 export type ErrorScreenProps = {
   error: Error & { digest?: string };
@@ -80,135 +81,39 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
   };
 
   return (
-    <div
-      dir="rtl"
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        background: '#FDFBF9',
-        fontFamily: "var(--sans, 'Assistant', system-ui, -apple-system, sans-serif)",
-        color: '#2A2233',
-      }}
-    >
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: 440,
-          background: '#FFFFFF',
-          border: '1px solid #ECE4F0',
-          borderRadius:"var(--r-lg)",
-          boxShadow:"var(--shadow-lg)",
-          padding: '32px 26px',
-          textAlign: 'center',
-          overflow: 'hidden',
-        }}
-      >
-        {/* A faint flower, not a second icon: the warning circle below still
-            carries the actual "something broke" meaning, this is just enough
-            Kalmea in the corner that the card doesn't read as generic. */}
-        <BrandImage width={140} height={140}
-          aria-hidden
-          src={FLOWER_WATERMARK}
-          alt=""
-          style={{
-            position: 'absolute',
-            top: -30,
-            insetInlineEnd: -30,
-            width: 140,
-            height: 140,
-            objectFit: 'contain',
-            opacity: 0.08,
-            pointerEvents: 'none',
-          }}
-        />
+    <PublicPage owner="kalmea" maxWidth={440}>
+      <div className="pub-card" style={{ padding: '30px 24px 28px' }}>
+        <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto', margin: '0 auto 16px' }} />
         <div
           aria-hidden
-          style={{
-            position: 'relative',
-            width: 62,
-            height: 62,
-            margin: '0 auto 18px',
-            borderRadius: '50%',
-            background: '#FBEDE9',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          style={{ width: 62, height: 62, margin: '0 auto 16px', borderRadius: '50%', background: '#FBEDE9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden>
             <path
               d="M12 8.4v4.4M12 16.2v.01M10.3 3.9 2.9 17.1a2 2 0 0 0 1.7 3h14.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
-              fill="none"
-              stroke="#1F3A30"
-              strokeWidth={1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="none" stroke="#1F3A30" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
             />
           </svg>
         </div>
 
-        <h1
-          style={{
-            fontFamily: "var(--display, 'Frank Ruhl Libre', Georgia, serif)",
-            fontSize:"var(--t-2xl)",
-            fontWeight: 600,
-            margin: '0 0 10px',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          משהו השתבש
-        </h1>
+        <h1 className="pub-h1">משהו השתבש</h1>
 
-        <p style={{ fontSize:"var(--t-lg)", lineHeight: 1.6, color: '#6B6275', margin: '0 0 22px' }}>
+        <p className="pub-p" style={{ marginBottom: 22 }}>
           נתקלנו בתקלה זמנית. הנתונים שלך בטוחים.
           <br />
           אפשר לנסות שוב — ואם זה חוזר, שלחי לנו את הקוד למטה.
         </p>
 
         {shortCode && (
-          <div
-            style={{
-              background: '#FDFBF9',
-              border: '1px solid #E2D6EA',
-              borderRadius:"var(--r-md)",
-              padding: '14px 16px',
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ fontSize:"var(--t-md)", fontWeight: 600, color: '#6B6275', marginBottom: 6 }}>
-              קוד התקלה
-            </div>
-            <div
-              style={{
-                fontFamily: "'SF Mono', ui-monospace, Menlo, Consolas, monospace",
-                fontSize:"var(--t-3xl)",
-                fontWeight: 700,
-                letterSpacing: '0.14em',
-                color: '#14261F',
-                direction: 'ltr',
-              }}
-            >
+          <div style={{ background: '#F6F2EA', border: '1px solid rgba(24,48,36,0.1)', borderRadius: 'var(--r-md, 16px)', padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ fontSize: 'var(--t-md, 14px)', fontWeight: 600, color: '#6B6275', marginBottom: 6 }}>קוד התקלה</div>
+            <div style={{ fontFamily: "'SF Mono', ui-monospace, Menlo, Consolas, monospace", fontSize: 'var(--t-3xl, 28px)', fontWeight: 700, letterSpacing: '0.14em', color: '#14261F', direction: 'ltr' }}>
               {shortCode}
             </div>
             <button
               type="button"
               onClick={copy}
-              style={{
-                marginTop: 10,
-                background: 'none',
-                border: 'none',
-                color: '#1F3A30',
-                fontSize:"var(--t-md)",
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                textDecoration: 'underline',
-                padding: 6,
-              }}
+              style={{ marginTop: 10, background: 'none', border: 'none', color: '#1F3A30', fontSize: 'var(--t-md, 14px)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline', padding: 6 }}
             >
               {copied ? 'הקוד הועתק ✓' : 'העתקת הקוד'}
             </button>
@@ -217,45 +122,13 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
 
         <div style={{ display: 'flex', gap: 10, flexDirection: 'column' }}>
           {retry && (
-            <button
-              type="button"
-              onClick={() => retry()}
-              style={{
-                width: '100%',
-                padding: '14px 20px',
-                borderRadius:"var(--r-full)",
-                border: 'none',
-                background: 'linear-gradient(135deg, #50655E 0%, #1A3128 100%)',
-                color: '#FFFFFF',
-                fontSize:"var(--t-lg)",
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
+            <button type="button" onClick={() => retry()} className="brand-pill-btn" style={{ width: '100%', boxSizing: 'border-box' }}>
               נסי שוב
             </button>
           )}
-          <a
-            href="/"
-            style={{
-              width: '100%',
-              padding: '13px 20px',
-              borderRadius:"var(--r-full)",
-              border: '1px solid #E2D6EA',
-              background: '#FFFFFF',
-              color: '#1F3A30',
-              fontSize:"var(--t-lg)",
-              fontWeight: 600,
-              textDecoration: 'none',
-              fontFamily: 'inherit',
-              boxSizing: 'border-box',
-            }}
-          >
-            חזרה למסך הבית
-          </a>
+          <a href="/" className="pub-pill pub-pill-quiet" style={{ color: '#1F3A30' }}>חזרה למסך הבית</a>
         </div>
       </div>
-    </div>
+    </PublicPage>
   );
 }

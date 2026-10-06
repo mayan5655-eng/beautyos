@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
-import { accentStyle } from "@/lib/theme";
+import { PublicPage, BusinessHeader } from "../PublicChrome";
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
@@ -81,11 +81,11 @@ function ConfirmContent() {
     // from jumping while this state has none.
     if (status === 'working') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
     if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
-    if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--success)' };
+    if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--pc-deep)' };
     if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
-    if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--success)' };
-    if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--warning)' };
-    if (status === 'already') return { emoji: '', title: 'כבר טופל', color: 'var(--pc)' };
+    if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--pc-deep)' };
+    if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--ink-2)' };
+    if (status === 'already') return { emoji: '', title: 'כבר טופל', color: 'var(--pc-deep)' };
     return { emoji: '', title: '', color: 'var(--ink)' };
   };
 
@@ -112,48 +112,15 @@ function ConfirmContent() {
     : null;
 
   return (
-    <div style={{
-      ...accentStyle(brandInfo.primaryColor || null),
-      minHeight: '100dvh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'var(--brand-cream, #FDFBF9)',
-      padding: '20px',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      direction: 'rtl'
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius:"var(--r-md)",
-        padding: '40px',
-        maxWidth: '400px',
-        width: '100%',
-        textAlign: 'center',
-        boxShadow:"var(--shadow-sm)"
-      }}>
-        {/* Her logo above the status mark - natural aspect, never cropped. */}
-        {brandInfo.logoUrl ? (
-          <img src={brandInfo.logoUrl} alt={brandInfo.businessName || 'לוגו'} style={{ maxHeight: 52, maxWidth: 170, width: 'auto', height: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 18px' }} />
-        ) : brandInfo.businessName ? (
-          <p style={{ fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>{brandInfo.businessName}</p>
-        ) : null}
-        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'center', minHeight: 58 }}>
-          {markKind ? mark(markKind, styles.color) : <span style={{ fontSize:"var(--t-hero)", lineHeight: 1 }}>{styles.emoji}</span>}
+    <PublicPage primary={brandInfo.primaryColor || null}>
+      <div className="pub-card" style={{ padding: '30px 24px 28px' }}>
+        {/* HER logo and name first and large: this page is hers, Kalmea is the small mark below the card. */}
+        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} />
+        <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center', minHeight: 58 }}>
+          {markKind ? mark(markKind, styles.color) : null}
         </div>
-        <h1 style={{
-          fontSize:"var(--t-2xl)",
-          fontWeight: 'bold',
-          color: styles.color,
-          marginBottom: '12px'
-        }}>
-          {styles.title}
-        </h1>
-        <p style={{
-          fontSize:"var(--t-lg)",
-          color: 'var(--ink)',
-          lineHeight: '1.5'
-        }}>
+        <h1 className="pub-h1">{styles.title}</h1>
+        <p className="pub-p">
           {status === 'working' ? <Spinner inline label="מעדכן את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהלינק הזה. אם התכוונת לאשר את התור — סגרי את החלון ופתחי את הלינק השני בהודעה.'
             : status === 'declined' ? 'לא שינינו כלום. נתראה בתור.'
             : message}
@@ -161,73 +128,28 @@ function ConfirmContent() {
 
         {status === 'ready' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
-            <button
-              type="button"
-              onClick={sendNow}
-              style={{
-                width: '100%', padding: '14px 0', borderRadius:"var(--r-sm)", border: 'none',
-                background: 'var(--danger, #C2557A)', color: '#fff',
-                fontSize:"var(--t-lg)", fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer'
-              }}
-            >
-              כן, בטלי את התור
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatus('declined')}
-              style={{
-                width: '100%', padding: '14px 0', borderRadius:"var(--r-sm)",
-                border: '1px solid var(--line-2, #E6DDE4)', background: '#fff',
-                color: 'var(--ink-2, #5C4F63)',
-                fontSize:"var(--t-lg)", fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer'
-              }}
-            >
-              לא, השאירי את התור
-            </button>
+            <button type="button" onClick={sendNow} className="pub-pill pub-pill-danger">כן, בטלי את התור</button>
+            <button type="button" onClick={() => setStatus('declined')} className="pub-pill pub-pill-quiet">לא, השאירי את התור</button>
           </div>
         )}
 
         {status === 'error' && id && (
-          <button
-            type="button"
-            onClick={action === 'cancel' ? () => setStatus('ready') : sendNow}
-            style={{
-              marginTop: 20, padding: '12px 24px', borderRadius:"var(--r-sm)",
-              border: '1px solid var(--line-2, #E6DDE4)', background: '#fff',
-              color: 'var(--ink-2, #5C4F63)', fontSize:"var(--t-md)", fontWeight: 600,
-              fontFamily: 'inherit', cursor: 'pointer'
-            }}
-          >
+          <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
             נסי שוב
           </button>
         )}
 
         {(status === 'success' || status === 'already' || status === 'declined') && (
-          <p style={{
-            fontSize:"var(--t-md)",
-            color: 'var(--ink-3)',
-            marginTop: '20px'
-          }}>
-            תוכלי לסגור את החלון
-          </p>
+          <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink-3)', marginTop: 20 }}>תוכלי לסגור את החלון</p>
         )}
       </div>
-    </div>
+    </PublicPage>
   );
 }
 
 export default function ConfirmPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <Spinner label="טוענת" />
-      </div>
-    }>
+    <Suspense fallback={<PublicPage owner="kalmea"><Spinner label="טוענת" /></PublicPage>}>
       <ConfirmContent />
     </Suspense>
   );

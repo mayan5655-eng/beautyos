@@ -4,10 +4,8 @@ import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { supabase } from "../supabase";
 import { fetchPublicBranding } from "@/lib/branding";
-import FloralCorners from "../FloralCorners";
 import { accentStyle } from "@/lib/theme";
-import { FLOWER_MARK } from "@/lib/brand";
-import BrandImage from "@/app/BrandImage";
+import { Watermark, PoweredBy } from "../PublicChrome";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  —  /skin-scan  (v6 — premium consultation results)
@@ -230,7 +228,7 @@ export default function SkinScanPage() {
     : s >= 55 ? "יש לך בסיס יפה לעבודה. עם ליווי מותאם אפשר לראות שיפור נעים וברור."
     : "יחד נבנה תוכנית מותאמת שתעשה שינוי אמיתי, צעד אחר צעד, בקצב שלך.";
 
-  const card = { background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", padding: "18px 20px", boxShadow:"var(--shadow-md)", border: `1px solid ${LINE}`, marginBottom: 14 };
+  const card = { background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-card)", padding: "18px 20px", boxShadow:"var(--shadow-md)", border: `1px solid ${LINE}`, marginBottom: 14 };
   const sectionLabel = { fontSize:"var(--t-sm)", letterSpacing: "1.5px", color: ACCENT, fontWeight: 700, marginBottom: 8 };
   const pro = report?.therapist_notes || {};
   const plan = report?.clinic_plan || {};
@@ -259,8 +257,8 @@ export default function SkinScanPage() {
         .chip { display:inline-flex; align-items:center; gap:5px; background:var(--brand-surface, #FDFBF9); border:1px solid ${LINE}; border-radius:999px; padding:6px 12px; font-size:11.5px; font-weight:600; color:${DEEP}; }
       `}</style>
 
-      {/* Subtle brand-tinted floral watermark, behind all content (matches /book) */}
-      <FloralCorners idPrefix="scan" blush={ACCENT} gold={DEEP} opacity={0.9} />
+      {/* One quiet flower behind everything (the public-page language: one watermark per page) */}
+      <Watermark />
 
       {/* HEADER */}
       <div style={{ width: "100%", maxWidth: 500, padding: "40px 22px 8px", textAlign: "center" }}>
@@ -268,11 +266,11 @@ export default function SkinScanPage() {
             amputated. A soft padded surface at natural aspect instead: contain
             never crops, wide takes width, square takes height. */}
         {brand?.logoUrl ? (
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", padding: "10px 16px", boxShadow:"var(--shadow-lg)", margin: "0 auto 12px", border: `1px solid ${ACCENT}33`, maxWidth: "80%" }}>
-            <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 64, maxWidth: 190, width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-card)", padding: "10px 16px", boxShadow:"var(--shadow-lg)", margin: "0 auto 12px", border: `1px solid ${ACCENT}33`, maxWidth: "80%" }}>
+            <img src={brand.logoUrl} alt={brand.businessName || "קליניקה"} style={{ maxHeight: 92, maxWidth: 230, width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
           </div>
         ) : brand?.businessName ? (
-          <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: DEEP, marginBottom: 6 }}>{brand.businessName}</p>
+          <p className="pub-biz-name" style={{ color: DEEP, marginBottom: 8 }}>{brand.businessName}</p>
         ) : null}
         <p style={{ fontSize:"var(--t-xs)", letterSpacing: "3px", color: ACCENT, fontWeight: 700, marginBottom: 10 }}>ניתוח עור אישי</p>
         <h1 className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 700, color: DEEP, lineHeight: 1.25, marginBottom: 8 }}>{brand?.welcomeHeadline || <>הכירי את העור שלך<br />וקבלי המלצה מקצועית</>}</h1>
@@ -283,7 +281,7 @@ export default function SkinScanPage() {
 
         {/* ===== WELCOME + UPLOAD / PREVIEW ===== */}
         {!report && (
-          <div className="ss-card" style={{ ...card, padding: "22px 20px 24px", borderRadius:"var(--r-lg)", textAlign: "center" }}>
+          <div className="ss-card" style={{ ...card, padding: "22px 20px 24px", borderRadius:"var(--r-card)", textAlign: "center" }}>
             {!preview && !loading && (
               <div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap", marginBottom: 18 }}>
                 <span className="chip">✦ ניתוח אישי</span>
@@ -367,7 +365,7 @@ export default function SkinScanPage() {
               </div>
             ) : (
               preview && gateOk && (
-                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, fontSize:"var(--t-lg)", fontWeight: 700, boxShadow:"var(--shadow-xs)" }}>קבלי את הניתוח שלך ✦</button>
+                <button onClick={analyze} className="ss-btn" style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-full)", border: "1.5px solid var(--pc-deep)", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, fontSize:"var(--t-lg)", fontWeight: 700, boxShadow:"var(--shadow-xs)" }}>קבלי את הניתוח שלך ✦</button>
               )
             )}
           </div>
@@ -384,7 +382,7 @@ export default function SkinScanPage() {
             </div>
 
             {/* 1) OVERALL SUMMARY — score + type + warm one-liner */}
-            <div style={{ ...card, padding: "26px 20px", borderRadius:"var(--r-lg)", textAlign: "center" }}>
+            <div style={{ ...card, padding: "26px 20px", borderRadius:"var(--r-card)", textAlign: "center" }}>
               <p style={{ ...sectionLabel, marginBottom: 12 }}>מדד בריאות העור שלך</p>
               <div style={{ width: 116, height: 116, borderRadius: "50%", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", border: `6px solid ${scoreColor(report.score)}`, background: "var(--brand-surface, #FDFBF9)" }}>
                 <span className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 700, color: scoreColor(report.score) }}>{report.score}</span>
@@ -425,7 +423,7 @@ export default function SkinScanPage() {
             )}
 
             {/* 5) RECOMMENDED TREATMENT — one primary recommendation + Book (money moment) */}
-            <div className="ss-card" style={{ background: `linear-gradient(140deg,${DEEP} 0%,${ACCENT} 100%)`, borderRadius:"var(--r-lg)", padding: "22px 20px", boxShadow:"var(--shadow-xs)", marginBottom: 14, textAlign: "center" }}>
+            <div className="ss-card" style={{ background: `linear-gradient(140deg,${DEEP} 0%,${ACCENT} 100%)`, borderRadius:"var(--r-card)", padding: "22px 20px", boxShadow:"var(--shadow-xs)", marginBottom: 14, textAlign: "center" }}>
               <p style={{ fontSize:"var(--t-sm)", color: ON_ACCENT, opacity: 0.85, letterSpacing: "1px", marginBottom: 6 }}>הטיפול המקצועי שהכי מתאים לך</p>
               <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 700, color: ON_ACCENT, marginBottom: 4 }}>{report.clinical_treatment || (report.matched_service || "התאמת טיפול אישית בקליניקה")}</p>
               {report.matched_service && <p style={{ fontSize:"var(--t-md)", color: ON_ACCENT, opacity: 0.92, marginBottom: 4 }}>אצלנו בקליניקה: {report.matched_service}</p>}
@@ -471,7 +469,7 @@ export default function SkinScanPage() {
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
               <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
-              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, padding: "15px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-lg)", fontWeight: 800, boxShadow:"var(--shadow-xs)" }}>{ctaText} ✦</a>}
+              {bookHref() && <a href={bookHref()} onClick={captureBookingLead} style={{ display: "block", textDecoration: "none", background: `linear-gradient(135deg,${ACCENT},${DEEP})`, color: ON_ACCENT, padding: "15px 0", borderRadius:"var(--r-full)", border: "1.5px solid var(--pc-deep)", fontSize:"var(--t-lg)", fontWeight: 800, boxShadow:"var(--shadow-xs)" }}>{ctaText} ✦</a>}
               {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none", background: "#25D366", color: "var(--brand-surface, #FDFBF9)", padding: "13px 0", borderRadius:"var(--r-md)", fontSize:"var(--t-md)", fontWeight: 700, marginTop: 10, boxShadow:"var(--shadow-md)" }}><Icon name="whatsapp" size={15}/> ייעוץ נוסף בוואטסאפ</a>}
             </div>
 
@@ -528,9 +526,7 @@ export default function SkinScanPage() {
 
       </div>
 
-      <div style={{ marginTop: "auto", paddingTop: 30, fontSize:"var(--t-xs)", color: INK2, opacity: 0.6, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-        מופעל ע"י קלמיה <BrandImage src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
-      </div>
+      <div style={{ marginTop: "auto", paddingTop: 10 }}><PoweredBy /></div>
     </div>
   );
 }

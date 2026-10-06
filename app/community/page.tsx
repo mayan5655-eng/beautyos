@@ -5,11 +5,9 @@
 // Visited via /community?t=<tenant_id> (the link the cosmetician shares).
 
 import { useEffect, useState } from "react";
-import Icon from "../Icon";
 import Spinner from "../Spinner";
-import { accentStyle } from "@/lib/theme";
-import { FLOWER_MARK, FLOWER_WATERMARK } from "@/lib/brand";
-import BrandImage from "@/app/BrandImage";
+import { ICON_HEART, ICON_QUESTION } from "@/lib/brand";
+import { PublicPage, LineIcon } from "../PublicChrome";
 
 type Post = {
   id: string;
@@ -58,17 +56,13 @@ export default function CommunityPage() {
     // not in the original audit list, found while auditing --pc usage - this
     // page never actually scoped the accent to the real tenant color before,
     // it just fell back to whatever the global default happened to be).
-    <div dir="rtl" style={{ ...accentStyle(business.color), minHeight: "100dvh", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9),var(--brand-cream, #FDFBF9))", fontFamily: "Arial, sans-serif" }}>
-      <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 14px 48px" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", padding: "34px 16px 22px" }}>
-          <div style={{ marginBottom: 6, color: "var(--pc)" }}><Icon name="heart" size={30}/></div>
-          <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, color: "var(--ink, #2A2233)", margin: 0 }}>
-            {business.name ? `הקהילה של ${business.name}` : "מרחב הלקוחות"}
-          </h1>
-          <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 6 }}>
-            עדכונים, מבצעים וטיפים — במקום אחד
-          </p>
+    <PublicPage primary={business.color} maxWidth={620}>
+      <div style={{ paddingBottom: 8 }}>
+        {/* Header: her name is the headline, in her colour's rule */}
+        <div className="pub-biz" style={{ padding: "6px 16px 0", marginBottom: 18 }}>
+          <h1 className="pub-biz-name" style={{ fontSize: 28 }}>{business.name ? `הקהילה של ${business.name}` : "מרחב הלקוחות"}</h1>
+          <span className="pub-biz-rule" aria-hidden />
+          <p style={{ fontSize: "var(--t-sm)", color: "var(--brand-muted, #656A56)", margin: 0 }}>עדכונים, מבצעים וטיפים — במקום אחד</p>
         </div>
 
         {/* These three were rgba(233,169,161,0.14) - 14% alpha, a hairline-
@@ -78,18 +72,20 @@ export default function CommunityPage() {
             watermark below, since there is no point decorating text nobody
             could read in the first place. */}
         {loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
-        {error && !loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}>{error}</p>}
+        {error && !loading && (
+          <div className="pub-card"><LineIcon src={ICON_QUESTION} /><p style={{ color: "var(--ink-2)", fontSize: "var(--t-lg)", margin: 0 }}>{error}</p></div>
+        )}
 
         {!loading && !error && posts.length === 0 && (
-          <div style={{ position: "relative", textAlign: "center", padding: "40px 20px", background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", overflow: "hidden" }}>
-            <BrandImage width={220} height={220} aria-hidden src={FLOWER_WATERMARK} alt="" style={{ position: "absolute", top: "50%", left: "50%", width: 220, height: 220, objectFit: "contain", transform: "translate(-50%, -50%)", opacity: 0.1, pointerEvents: "none" }} />
-            <p style={{ position: "relative", fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)" }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים.</p>
+          <div className="pub-card" style={{ padding: "36px 20px" }}>
+            <LineIcon src={ICON_HEART} />
+            <p style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", margin: 0 }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים.</p>
           </div>
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {posts.map((p) => (
-            <div key={p.id} style={{ background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-md)", overflow: "hidden", border: "1px solid rgba(233,169,161,0.14)", boxShadow:"var(--shadow-sm)" }}>
+            <div key={p.id} className="pub-card" style={{ borderRadius: "var(--r-card)", overflow: "hidden", padding: 0, textAlign: "start" }}>
               {p.image_url && (
                 <img alt="" src={p.image_url} style={{ width: "100%", maxHeight: 320, objectFit: "cover", objectPosition: "center", display: "block" }} />
               )}
@@ -118,10 +114,7 @@ export default function CommunityPage() {
           ))}
         </div>
 
-        <p style={{ textAlign: "center", fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 30, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          Kalmea <BrandImage src={FLOWER_MARK} alt="" width={11} height={11} style={{ display: "inline-block" }} />
-        </p>
       </div>
-    </div>
+    </PublicPage>
   );
 }

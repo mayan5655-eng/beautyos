@@ -6,21 +6,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Icon, { type IconName } from "../../Icon";
 import Spinner from "../../Spinner";
 import { useParams } from "next/navigation";
+import { PublicPage, BusinessHeader, LineIcon } from "../../PublicChrome";
 
 // Client-facing page: a client opens this from HER cosmetician's WhatsApp, so
 // it takes the ACCENT tier (--pc-*), not the Kalmea brand tier. When the
 // tenant's colour is applied the whole page follows it.
-import { PC, PC_DEEP, PC_TINT, PC_SOFT, CREAM, SURFACE, MUTED } from '@/lib/brand';
-import { accentStyle } from '@/lib/theme';
+import { PC_SOFT, MUTED, ICON_CALENDAR, ICON_HEART, ICON_SPARKLE, ICON_QUESTION } from '@/lib/brand';
 
-const BLUSH = PC;
-const BLUSH_DEEP = PC_DEEP;
-const GOLD = PC_DEEP;
 const INK = 'var(--ink, #2A2233)';
-const PAPER = CREAM;
 
 type Details = {
   service?: string | null;
@@ -90,80 +85,56 @@ export default function ClaimPage() {
   }
 
   return (
-    <div dir="rtl" style={{
-      ...accentStyle(details.primaryColor || null),
-      minHeight: "100dvh", background: `linear-gradient(160deg, ${PAPER} 0%, ${PC_TINT} 100%)`,
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
-      fontFamily: "'Heebo', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif", color: INK,
-    }}>
-      <div style={{
-        background: SURFACE, borderRadius:"var(--r-xl)", width: "100%", maxWidth: 400,
-        padding: "34px 26px", textAlign: "center",
-        boxShadow:"var(--shadow-accent)", border: `1px solid ${PC_SOFT}`,
-      }}>
-        <div aria-hidden style={{ marginBottom: 6 }}><Icon name="leaf" size={30}/></div>
-        <div style={{ fontSize:"var(--t-sm)", letterSpacing: "0.14em", color: GOLD, fontWeight: 700, marginBottom: 18 }}>
-          {details.businessName || " "}
-        </div>
+    <PublicPage primary={details.primaryColor || null}>
+      <div className="pub-card" style={{ padding: "30px 24px 28px" }}>
+        {/* Her name first and large: the offer is hers. */}
+        <BusinessHeader name={details.businessName} />
 
         {state === "loading" && (
-          <p style={{ color: MUTED, fontSize:"var(--t-lg)", margin: "24px 0" }}><Spinner inline label="טוען"/></p>
+          <p style={{ color: MUTED, fontSize: "var(--t-lg)", margin: "24px 0" }}><Spinner inline label="טוען" /></p>
         )}
 
         {state === "available" && (
           <>
-            <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, margin: "0 0 6px", lineHeight: 1.3 }}>
-              {details.clientName ? `${details.clientName}, ` : ""}התפנה תור!
-            </h1>
-            <p style={{ fontSize:"var(--t-md)", color: MUTED, margin: "0 0 22px" }}>
-              רוצה לתפוס אותו? הראשונה שתלחץ — התור שלה.
-            </p>
-            <div style={{ background: PAPER, borderRadius:"var(--r-md)", padding: "18px 16px", margin: "0 0 24px", textAlign: "right" }}>
+            <h1 className="pub-h1">{details.clientName ? `${details.clientName}, ` : ""}התפנה תור!</h1>
+            <p style={{ fontSize: "var(--t-md)", color: MUTED, margin: "0 0 20px" }}>רוצה לתפוס אותו? הראשונה שתלחץ — התור שלה.</p>
+            <div style={{ background: "var(--pc-tint, #FDF6F6)", borderRadius: "var(--r-md)", padding: "16px 16px", margin: "0 0 22px", textAlign: "right" }}>
               <SlotRow label="טיפול" value={details.service || "טיפול"} />
               <SlotRow label="תאריך" value={formatDate(details.slotDate)} />
               <SlotRow label="שעה" value={formatHour(details.slotHour, details.slotTime)} last />
             </div>
-            <button
-              onClick={claim}
-              disabled={claiming}
-              style={{
-                width: "100%", padding: "16px 0", border: "none", borderRadius:"var(--r-md)",
-                background: claiming ? PC_TINT : `linear-gradient(90deg, ${BLUSH}, ${BLUSH_DEEP})`,
-                color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 700, cursor: claiming ? "default" : "pointer",
-                fontFamily: "inherit", boxShadow:"var(--shadow-md)",
-              }}
-            >
-              {claiming ?<Spinner inline label="רק רגע"/>: "אני רוצה את התור"}
+            <button onClick={claim} disabled={claiming} className="pub-pill">
+              {claiming ? <Spinner inline label="רק רגע" /> : "אני רוצה את התור"}
             </button>
           </>
         )}
 
         {state === "won" && (
-          <Result icon="sparkle" title="התור שלך! נתראה" tone={GOLD}
+          <Result icon={ICON_SPARKLE} title="התור שלך! נתראה"
             body={`שמרנו לך את ${details.service || "התור"}${details.slotDate ? ` · ${formatDate(details.slotDate)}` : ""}${formatHour(details.slotHour, details.slotTime) ? ` בשעה ${formatHour(details.slotHour, details.slotTime)}` : ""}. נתראה! 🌸`} />
         )}
 
         {state === "taken" && (
-          <Result icon="heart" title="התור נתפס, מצטערים" tone={BLUSH_DEEP}
+          <Result icon={ICON_HEART} title="התור נתפס, מצטערים"
             body="מישהי הקדימה אותך הפעם. נעדכן אותך בהזדמנות הבאה שמתפנה תור." />
         )}
 
         {state === "expired" && (
-          <Result icon="hourglass" title="ההצעה פגה" tone={MUTED}
+          <Result icon={ICON_CALENDAR} title="ההצעה פגה"
             body="חלון הזמן לתפוס את התור הזה נסגר. נשמח לעדכן אותך בפעם הבאה." />
         )}
 
         {(state === "invalid") && (
-          <Result icon="block" title="הקישור לא תקין" tone={MUTED}
+          <Result icon={ICON_QUESTION} title="הקישור לא תקין"
             body="נראה שהקישור שגוי או ישן. אם קיבלת אותו בוואטסאפ, נסי ללחוץ שוב על הקישור המקורי." />
         )}
 
         {state === "error" && (
-          <Result icon="warning" title="משהו השתבש" tone="var(--danger, #E05B6F)"
+          <Result icon={ICON_QUESTION} title="משהו השתבש"
             body="לא הצלחנו להשלים את הפעולה. נסי שוב עוד רגע, או פני אלינו בוואטסאפ." />
         )}
       </div>
-    </div>
+    </PublicPage>
   );
 }
 
@@ -173,18 +144,19 @@ function SlotRow({ label, value, last }: { label: string; value: string; last?: 
       display: "flex", justifyContent: "space-between", alignItems: "center",
       padding: "9px 2px", borderBottom: last ? "none" : `1px solid ${PC_SOFT}`,
     }}>
-      <span style={{ fontSize:"var(--t-sm)", color: MUTED }}>{label}</span>
-      <span style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: INK }}>{value}</span>
+      <span style={{ fontSize: "var(--t-sm)", color: MUTED }}>{label}</span>
+      <span style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: INK }}>{value}</span>
     </div>
   );
 }
 
-function Result({ icon, title, body, tone }: { icon: IconName; title: string; body: string; tone: string }) {
+// An outcome with a brand line icon (empty and error states carry the quiet line icons, per the public-page language).
+function Result({ icon, title, body }: { icon: string; title: string; body: string }) {
   return (
-    <div style={{ padding: "12px 0" }}>
-      <div aria-hidden style={{ marginBottom: 10, color: tone }}><Icon name={icon} size={40} /></div>
-      <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 700, margin: "0 0 10px", color: tone }}>{title}</h1>
-      <p style={{ fontSize:"var(--t-md)", color: MUTED, lineHeight: 1.6, margin: 0 }}>{body}</p>
+    <div style={{ padding: "6px 0" }}>
+      <LineIcon src={icon} />
+      <h1 className="pub-h1">{title}</h1>
+      <p style={{ fontSize: "var(--t-md)", color: MUTED, lineHeight: 1.6, margin: 0 }}>{body}</p>
     </div>
   );
 }

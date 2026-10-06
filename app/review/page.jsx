@@ -17,9 +17,8 @@
 import { useState, useEffect, useRef } from "react";
 import Spinner from "../Spinner";
 import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
-import { accentStyle } from "@/lib/theme";
-import { LOGO_COMPACT } from "@/lib/brand";
-import BrandImage from "@/app/BrandImage";
+import { ICON_QUESTION } from "@/lib/brand";
+import { PublicPage, BusinessHeader, LineIcon } from "../PublicChrome";
 
 export default function ReviewPage() {
   const [state, setState] = useState("loading"); // loading | form | sent | already | error
@@ -79,35 +78,23 @@ export default function ReviewPage() {
     }
   };
 
-  const ink = "var(--ink, #2A2233)";
-  const muted = "var(--brand-muted, #7D8D87)";
-  // Her accent, set as CSS variables on the wrapper once /api/reviews has
-  // answered; until then the default family. --brand-accent is the Kalmea
-  // wordmark purple and has no business on a client's review page.
   const pc = "var(--pc)";
-  const wrap = {
-    ...accentStyle(info?.primaryColor || null),
-    minHeight: "100dvh", display: "flex", flexDirection: "column",
-    alignItems: "center", justifyContent: "center", textAlign: "center",
-    padding: "0 24px", background: "var(--brand-cream, #FDFBF9)",
-    fontFamily: "var(--font-assistant), sans-serif",
-  };
 
+  // Before the link has been checked there is no business to show: Kalmea's own frame, just the spinner.
   if (state === "loading") {
-    return <div dir="rtl" style={wrap}><BrandImage src={LOGO_COMPACT} alt="Kalmea" width={130} height={38} style={{ width: 130, height: "auto" }} /></div>;
+    return <PublicPage owner="kalmea"><Spinner label="טוענת" /></PublicPage>;
   }
 
   if (state === "error") {
-    // No signature has verified yet at this point, so there is no "her" to
-    // color this with - Kalmea chrome, not tenant content.
+    // No signature has verified yet at this point, so there is no "her" to color this with: Kalmea's frame, a line icon.
     return (
-      <div dir="rtl" style={wrap}>
-        <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={130} height={38} style={{ width: 130, height: "auto", marginBottom: 14 }} />
-        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 10 }}>{errorMsg}</h1>
-        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, maxWidth: 340 }}>
-          אפשר לבקש קישור חדש מהעסק.
-        </p>
-      </div>
+      <PublicPage owner="kalmea">
+        <div className="pub-card">
+          <LineIcon src={ICON_QUESTION} />
+          <h1 className="pub-h1">{errorMsg}</h1>
+          <p className="pub-p">אפשר לבקש קישור חדש מהעסק.</p>
+        </div>
+      </PublicPage>
     );
   }
 
@@ -117,56 +104,45 @@ export default function ReviewPage() {
   // thing that is obvious from the outside and worth nothing when it is noticed.
   if (state === "sent" || state === "already") {
     return (
-      <div dir="rtl" style={wrap}>
-        <p style={{ fontSize:"var(--t-hero)", color: pc, marginBottom: 14 }}>✦</p>
-        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 10 }}>
-          {state === "already" ? "כבר קיבלנו את הביקורת שלך" : "תודה רבה!"}
-        </h1>
-        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 22 }}>
-          {state === "already"
-            ? "הביקורת שהשארת נשמרה, ואי אפשר לשנות אותה מכאן."
-            : `הביקורת שלך תופיע בעמוד של ${info?.businessName || "העסק"}.`}
-        </p>
-        {info?.googleReviewUrl && (
-          <>
-            <p style={{ fontSize:"var(--t-md)", color: muted, lineHeight: 1.7, maxWidth: 360, marginBottom: 12 }}>
-              {GOOGLE_REVIEW_NOTE}
-            </p>
-            <a href={info.googleReviewUrl} target="_blank" rel="noreferrer"
-               style={{ display: "block", textDecoration: "none", background: pc, color: "var(--pc-contrast, #FFFFFF)",
-                        borderRadius:"var(--r-md)", padding: "14px 26px", fontSize:"var(--t-lg)", fontWeight: 600 }}>
-              ביקורת בגוגל
-            </a>
-          </>
-        )}
-      </div>
+      <PublicPage primary={info?.primaryColor || null}>
+        <div className="pub-card">
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <svg viewBox="0 0 24 24" width="58" height="58" fill="none" stroke="var(--pc-deep)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: "block", margin: "0 auto 14px" }}>
+            <circle cx="12" cy="12" r="9.2" /><path d="M7.8 12.4l2.9 2.9 5.5-5.9" />
+          </svg>
+          <h1 className="pub-h1">{state === "already" ? "כבר קיבלנו את הביקורת שלך" : "תודה רבה!"}</h1>
+          <p className="pub-p">
+            {state === "already"
+              ? "הביקורת שהשארת נשמרה, ואי אפשר לשנות אותה מכאן."
+              : `הביקורת שלך תופיע בעמוד של ${info?.businessName || "העסק"}.`}
+          </p>
+          {info?.googleReviewUrl && (
+            <div style={{ marginTop: 22 }}>
+              <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 12 }}>{GOOGLE_REVIEW_NOTE}</p>
+              <a href={info.googleReviewUrl} target="_blank" rel="noreferrer" className="pub-pill">ביקורת בגוגל</a>
+            </div>
+          )}
+        </div>
+      </PublicPage>
     );
   }
 
   return (
-    <div dir="rtl" style={{ ...wrap, justifyContent: "flex-start", paddingTop: "12vh" }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        {/* Her logo, natural aspect, never cropped; falls back to the name line. */}
-        {info?.logoUrl ? (
-          <img src={info.logoUrl} alt={info?.businessName || "לוגו"} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", display: "block", marginBottom: 10 }} />
-        ) : (
-          <p style={{ fontSize:"var(--t-md)", color: muted, marginBottom: 6 }}>{info?.businessName}</p>
-        )}
-        <h1 style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: ink, marginBottom: 8, lineHeight: 1.3 }}>
-          {info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}
-        </h1>
-        <p style={{ fontSize:"var(--t-lg)", color: muted, lineHeight: 1.7, marginBottom: 26 }}>
-          {info?.service ? `${info.service} · ${info.date}` : info?.date}
-        </p>
+    <PublicPage primary={info?.primaryColor || null}>
+      <div className="pub-card" style={{ textAlign: "center" }}>
+        {/* Her logo and name first, large: this page is hers. */}
+        <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+        <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
+        <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${info.date}` : info?.date}</p>
 
         {/* Big targets. This is read one-handed, on a phone, by someone who is
-            doing something else - so the stars are 40px and there is nothing
+            doing something else - so the stars are big and there is nothing
             else on screen competing for the tap. */}
-        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 22, direction: "ltr" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20, direction: "ltr" }}>
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} onClick={() => setRating(n)} aria-label={`${n} כוכבים`}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 4,
-                       fontSize:"var(--t-hero)", lineHeight: 1, color: n <= rating ? pc : "var(--pc-tint-2)" }}>
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 44, minHeight: 44,
+                       fontSize: "var(--t-hero)", lineHeight: 1, color: pc, opacity: n <= rating ? 1 : 0.4 }}>
               {n <= rating ? "★" : "☆"}
             </button>
           ))}
@@ -177,26 +153,22 @@ export default function ReviewPage() {
             form gets abandoned at the last step. */}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
           maxLength={2000} placeholder="משהו שתרצי להוסיף? (לא חובה)"
-          style={{ width: "100%", border: "1px solid var(--pc-tint-2)", borderRadius:"var(--r-md)",
-                   padding: "12px 14px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none",
-                   background: "#fff", color: ink, resize: "vertical", marginBottom: 14 }} />
+          style={{ width: "100%", boxSizing: "border-box", border: "1px solid var(--pc-tint-2)", borderRadius: "var(--r-md)",
+                   padding: "12px 14px", fontSize: "var(--t-lg)", fontFamily: "inherit", outline: "none",
+                   background: "var(--brand-surface, #fff)", color: "var(--ink)", resize: "vertical", marginBottom: 14 }} />
 
         {errorMsg && (
-          <p style={{ fontSize:"var(--t-md)", color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>
+          <p style={{ fontSize: "var(--t-md)", color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>
         )}
 
-        <button onClick={submit} disabled={!rating || submitting}
-          style={{ width: "100%", height: 52, borderRadius:"var(--r-md)", border: "none",
-                   background: rating ? pc : "var(--pc-tint-2)", color: rating ? "var(--pc-contrast, #FFFFFF)" : "#fff",
-                   fontSize:"var(--t-lg)", fontWeight: 600, fontFamily: "inherit",
-                   cursor: rating && !submitting ? "pointer" : "default" }}>
-          {submitting ?<Spinner inline label="שולחת"/>: "שליחת הביקורת"}
+        <button onClick={submit} disabled={!rating || submitting} className="pub-pill">
+          {submitting ? <Spinner inline label="שולחת" /> : "שליחת הביקורת"}
         </button>
 
-        <p style={{ fontSize:"var(--t-md)", color: muted, lineHeight: 1.6, marginTop: 12 }}>
+        <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.6, marginTop: 12 }}>
           הביקורת תופיע בעמוד של העסק עם שמך הפרטי.
         </p>
       </div>
-    </div>
+    </PublicPage>
   );
 }

@@ -7,28 +7,22 @@
 // and neither needs a 200: a segment not-found.tsx carries her Hebrew words AND the right status. The 200 made
 // every unknown URL - /sitemap.xml, a typo, a deleted business - look like a live page to crawlers and to
 // monitoring (found 2026-10-06).
+//
+// Kalmea's own page (there is no business to show), in the shared public-page frame.
 
-import { LOGO_COMPACT } from '@/lib/brand';
+import { LOGO_COMPACT, ICON_FRAME } from '@/lib/brand';
 import BrandImage from '@/app/BrandImage';
+import { PublicPage, LineIcon } from '@/app/PublicChrome';
 
 export default function BusinessNotFound() {
   return (
-    <div
-      dir="rtl"
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100dvh', padding: '0 24px', textAlign: 'center',
-        fontFamily: 'var(--font-assistant), sans-serif',
-        background: 'var(--brand-cream, #FDFBF9)',
-      }}
-    >
-      <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto', marginBottom: 14 }} />
-      <h1 style={{ fontSize: 'var(--t-2xl)', fontWeight: 600, color: 'var(--ink, #2A2233)', marginBottom: 10, lineHeight: 1.3 }}>
-        לא מצאנו עסק בכתובת הזו
-      </h1>
-      <p style={{ fontSize: 'var(--t-lg)', color: 'var(--brand-muted, #7D8D87)', lineHeight: 1.7, maxWidth: 340 }}>
-        ייתכן שהקישור השתנה או הוקלד עם שגיאה. כדאי לבקש מהעסק קישור מעודכן.
-      </p>
-    </div>
+    <PublicPage owner="kalmea" maxWidth={440}>
+      <div className="pub-card" style={{ padding: '30px 24px 28px' }}>
+        <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto', margin: '0 auto 18px' }} />
+        <LineIcon src={ICON_FRAME} />
+        <h1 className="pub-h1">לא מצאנו עסק בכתובת הזו</h1>
+        <p className="pub-p">ייתכן שהקישור השתנה או הוקלד עם שגיאה. כדאי לבקש מהעסק קישור מעודכן.</p>
+      </div>
+    </PublicPage>
   );
 }

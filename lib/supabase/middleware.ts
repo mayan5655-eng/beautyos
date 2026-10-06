@@ -18,6 +18,7 @@ const PUBLIC_PREFIXES = [
   '/skin-scan',
   '/form',
   '/confirm',
+  '/claim', // /claim/<token>: the gap-fill offer a client opens from a WhatsApp link. It was missing, so every such link answered 307 -> /login (found 2026-10-06)
   '/demo', // the public demo chooser AND /demo/cosmetics, /demo/nails (lib/demoTenants.ts) - two path segments, so the single-top-level-segment rule below does not already cover it
   '/api',
   '/logo', // her logo with a white background taken out (app/logo/[key]); public pages draw it, so no session

@@ -31,13 +31,14 @@ export const FORMAT_FOR_CHANNEL = {};
 // Framework modules a presentational component imports but a render does not need. Inert stand-ins.
 const NEXT_STUBS = {
   'next/image': `import React from 'react';
-export default function Image(p) { return React.createElement('img', { src: typeof p.src === 'string' ? p.src : '', alt: p.alt || '' }); }
+export default function Image(p) { return React.createElement('img', { src: typeof p.src === 'string' ? p.src : '', alt: p.alt || '', className: p.className, width: p.width, height: p.height, style: p.style, 'aria-hidden': p['aria-hidden'] }); }
 `,
   'next/link': `import React from 'react';
 export default function Link(p) { return React.createElement('a', { href: p.href }, p.children); }
 `,
   'next/navigation': `export const useRouter = () => ({ push() {}, replace() {}, back() {}, refresh() {} });
 export const usePathname = () => '/';
+export const useParams = () => ({ token: 'abc123' });
 export const useSearchParams = () => new URLSearchParams('');
 export const notFound = () => { throw new Error('notFound'); };
 `,

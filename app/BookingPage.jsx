@@ -16,7 +16,8 @@ import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
-import { LOGO_COMPACT, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
+import { LOGO_COMPACT } from "@/lib/brand";
+import { Watermark, PoweredBy } from "./PublicChrome";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 
@@ -199,7 +200,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(20,15,25,0.84)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FDFBF9)", borderRadius: "var(--r-lg)", padding: 14 }}>
+        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FDFBF9)", borderRadius: "var(--r-card)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
           <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #2A2233)" }}>{title}</p>
           <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
@@ -685,7 +686,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const T_META    = { fontSize:"var(--t-md)", fontWeight: 400, lineHeight: 1.5 };
 
   const section = { width: "100%", maxWidth: 540, padding: "0 20px", marginBottom: 34 };
-  const cardBox = { background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-lg)", padding: "26px 24px", boxShadow:"var(--shadow-lg)", border: `1px solid ${hair}` };
+  const cardBox = { background: "var(--brand-surface, #FDFBF9)", borderRadius:"var(--r-card)", padding: "26px 24px", boxShadow:"var(--shadow-lg)", border: `1px solid ${hair}` };
   // The section beat: every section opens the same way - a short accent dash,
   // then the serif title, then 14px of air. One rhythm down the whole page, so
   // the sections read as movements of one piece rather than widgets stacked.
@@ -720,6 +721,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         .gal-item:hover { transform: scale(1.04); box-shadow: 0 12px 26px -14px rgba(70,50,60,0.45); }
       `}</style>
 
+      <Watermark style={{ top: "auto", bottom: 120, insetInlineEnd: "auto", insetInlineStart: -70, width: 240 }} />
+
       {/* ============ STEP 1 - THE PUBLIC PAGE ============
           One continuous page, top to bottom: hero, treatments, results, about,
           what she stands for, then the practical sections. Every section has a
@@ -737,10 +740,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
             <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
               {brand?.logoUrl ? (
-                <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={260} h={84}
-                  style={{ maxHeight: 84, maxWidth: "min(70%, 260px)", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
+                <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={300} h={104}
+                  style={{ maxHeight: 104, maxWidth: "min(78%, 300px)", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
               ) : (
-                <p className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 600, color: ink, letterSpacing: 1, margin: 0 }}>{bizName}</p>
+                <p className="serif" style={{ fontSize: 32, fontWeight: 700, color: ink, letterSpacing: 0.5, lineHeight: 1.2, margin: 0 }}>{bizName}</p>
               )}
               {brand?.logoTagline && <p style={{ ...T_META, color: ink, opacity: 0.8, margin: "6px 0 0" }}>{brand.logoTagline}</p>}
 
@@ -815,7 +818,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 {services.map((sv, i) => {
                   const img = serviceImage(sv, brand?.serviceImages);
                   return (
-                    <div key={sv.id || i} style={{ background: "var(--brand-surface, #FDFBF9)", border: "1px solid " + HAIR, borderRadius: "var(--r-md)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
+                    <div key={sv.id || i} style={{ background: "var(--brand-surface, #FDFBF9)", border: "1px solid " + HAIR, borderRadius: "var(--r-card)", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-sm)" }}>
                       <Photo src={img.url} sizes="(max-width: 540px) 46vw, 260px" style={{ width: "100%", aspectRatio: "4 / 3" }} />
                       <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1, textAlign: "center" }}>
                         <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
@@ -895,7 +898,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.85, margin: 0, whiteSpace: "pre-line" }}>{aboutText}</p>
                 {aboutSignoff && <p className="script" style={{ margin: "12px 0 0", fontSize: "var(--t-3xl)", lineHeight: 1.1, color: deep }}>{aboutSignoff}</p>}
               </div>
-              <Photo src={brand?.portraitUrl || defaultImageUrl(defaultAboutKey(brand?.fields))} sizes="(max-width: 540px) 46vw, 260px" style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-lg)", border: "1px solid " + HAIR }} />
+              <Photo src={brand?.portraitUrl || defaultImageUrl(defaultAboutKey(brand?.fields))} sizes="(max-width: 540px) 46vw, 260px" style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-card)", border: "1px solid " + HAIR }} />
             </div>
           </div>
 
@@ -979,7 +982,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </div>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
                   {reviews.map((rv, i) => (
-                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius:"var(--r-lg)", padding: "18px 20px" }}>
+                    <div key={i} style={{ flexShrink: 0, width: 250, background: cream, border: `1px solid ${hair}`, borderRadius:"var(--r-card)", padding: "18px 20px" }}>
                       <div style={{ fontSize:"var(--t-md)", color: pcText, letterSpacing: 1.5, marginBottom: 10 }}>
                         {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
@@ -1053,7 +1056,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 {eyebrow("עדכונים")}
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {recentPosts.map((p) => (
-                    <div key={p.id} style={{ background: cream, borderRadius:"var(--r-md)", border: `1px solid ${hair}`, overflow: "hidden" }}>
+                    <div key={p.id} style={{ background: cream, borderRadius:"var(--r-card)", border: `1px solid ${hair}`, overflow: "hidden" }}>
                       {/* A post image saved before the bucket split can point into the PRIVATE
                           client-images bucket, which never serves to the public: the browser
                           blocks the response and logs an error on every visit to her page, for a
@@ -1133,9 +1136,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {/* compact header */}
           <div style={{ width: "100%", maxWidth: 480, padding: "30px 20px 6px", textAlign: "center" }}>
             {brand?.logoUrl ? (
-              <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={160} h={48} style={{ maxHeight: 48, maxWidth: 160, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
+              <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={220} h={72} style={{ maxHeight: 72, maxWidth: 220, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             ) : null}
-            <h2 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
+            <h2 className="serif" style={{ fontSize: 26, fontWeight: 700, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
           </div>
 
           {/* PROGRESS BAR */}
@@ -1231,7 +1234,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div className="bk-card">
                 <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
 
-                <div style={{ background: cream, borderRadius:"var(--r-lg)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
+                <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
                   <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span>
@@ -1287,7 +1290,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
                   נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}
                 </p>
-                <div style={{ background: cream, borderRadius:"var(--r-lg)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
+                <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
@@ -1301,21 +1304,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         </>
       )}
 
-      {/* FOOTER — the full banner (flowers included), not a one-line credit
-          with a 12px flower glyph. It's the strongest brand asset there is;
-          this was the most under-used spot for it. */}
-      <div style={{ marginTop: "auto", textAlign: "center", padding: "34px 20px 0" }}>
+      {/* FOOTER - her address (when she has one), then Kalmea as a small mark. The full 340px banner used to sit here and
+          out-shouted her own page; on a business's page the business is the most prominent thing (public-page language). */}
+      <div style={{ marginTop: "auto", textAlign: "center", padding: "30px 20px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
         {addr && step === 1 && (
           <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
-        <BrandImage
-          src={BANNER_WIDE}
-          alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
-          width={BANNER_WIDE_W}
-          height={BANNER_WIDE_H}
-          sizes="340px"
-          style={{ width: "min(340px, 100%)", height: "auto", display: "inline-block" }}
-        />
+        <PoweredBy />
       </div>
     </div>
   );
