@@ -64,6 +64,7 @@ export default function SkinScanPage() {
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(0);
   const [report, setReport] = useState(null);
+  const [reportToken, setReportToken] = useState(""); // the scan route signs the report it returns; /send only accepts a signed one
   const [errorMsg, setErrorMsg] = useState("");
   const [showPro, setShowPro] = useState(false);
   const [showRoutine, setShowRoutine] = useState(false);
@@ -156,7 +157,7 @@ export default function SkinScanPage() {
     try {
       const res = await fetch("/api/skin-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: imageData, mediaType, tenantId, s: scanSig }) });
       const data = await res.json();
-      if (data.success) { setReport(data.report); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {} }
+      if (data.success) { setReport(data.report); setReportToken(data.reportToken || ""); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {} }
       else setErrorMsg(data.error || "אירעה שגיאה. נסי שוב.");
     } catch (err) { setErrorMsg("שגיאת חיבור. נסי שוב."); } finally { setLoading(false); }
   };
@@ -167,14 +168,14 @@ export default function SkinScanPage() {
     if (sending || sent) return; // duplicate-send / duplicate-lead guard
     setSending(true);
     try {
-      const res = await fetch("/api/skin-scan/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ report, clientName: clientName.trim(), clientPhone: clientPhone.trim(), tenantId }) });
+      const res = await fetch("/api/skin-scan/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ report, reportToken, clientName: clientName.trim(), clientPhone: clientPhone.trim(), tenantId }) });
       const data = await res.json();
       if (data.success) setSent(true); else setSendError(data.error || "השליחה נכשלה. נסי שוב.");
     } catch (err) { setSendError("שגיאת חיבור. נסי שוב."); } finally { setSending(false); }
   };
 
   const reset = () => {
-    setPreview(null); setImageData(null); setReport(null); setErrorMsg(""); setShowPro(false); setShowRoutine(false);
+    setPreview(null); setImageData(null); setReport(null); setReportToken(""); setErrorMsg(""); setShowPro(false); setShowRoutine(false);
     setLeftPreview(null); setRightPreview(null);
     setClientName(""); setClientPhone(""); setSent(false); setSendError("");
     if (fileRef.current) fileRef.current.value = "";
@@ -215,7 +216,7 @@ export default function SkinScanPage() {
       fetch("/api/skin-scan/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenantId, name: clientName.trim(), phone, report }),
+        body: JSON.stringify({ tenantId, s: scanSig, name: clientName.trim(), phone, report }),
         keepalive: true,
       }).catch(() => {});
     } catch {}

@@ -11,6 +11,8 @@ import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { notifyOwner } from "../../../../lib/ownerNotify.js";
 import { upsertScanLead } from "../../../../lib/leads";
 import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
+import { verifyScanReport } from "../../../../lib/scanToken";
+import { checkSendPayload, INVALID_LINK_HE } from "../../../../lib/skinScanGuard";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -71,20 +73,25 @@ export async function POST(request) {
     const ipLimited = checkIpLimit(request, "skin-scan-send");
     if (ipLimited) return ipLimited;
 
-    const { report, clientName, clientPhone, tenantId } = await request.json();
+    const body = await request.json();
+    const { report, tenantId, reportToken } = body;
 
-    if (!report || !clientPhone) {
-      return Response.json({ success: false, error: "חסרים פרטים" }, { status: 400 });
+    // The report must be one OUR scan produced (it carries a signature over exactly its content, for
+    // exactly this tenant), the phone must be an Israeli mobile, and the tenant must be real. Until
+    // 2026-10-06 the phone AND the whole report came from the request body unverified, so anyone could
+    // have the Kalmea WhatsApp number send text of their choosing, labelled with any business's name.
+    // Now the message below can only ever be built from what the model wrote for a real scan.
+    // (lib/skinScanGuard.ts; tested in test-skin-scan-guard.ts)
+    const checked = checkSendPayload(
+      { report, clientPhone: body.clientPhone, tenantId, reportToken },
+      verifyScanReport
+    );
+    if (!checked.ok) {
+      return Response.json({ success: false, error: checked.error }, { status: checked.status });
     }
-    // Tenant must be explicit (the public scanner page passes ?t=<tenantId>).
-    // No fallback: a scan with no tenant must fail rather than notify the wrong
-    // business owner or save the lead into someone else's account.
-    if (!tenantId) {
-      return Response.json(
-        { success: false, error: "קישור הסורק אינו תקין (חסר מזהה עסק)" },
-        { status: 400 }
-      );
-    }
+    const clientPhone = checked.phone;
+    // Free text from the visitor: a display name only, bounded, no control characters.
+    const clientName = String(body.clientName || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 60);
 
     // Per-tenant cap. Keyed on the business because the WhatsApp bill is, and
     // because it is the cap that survives a caller rotating addresses.
@@ -100,6 +107,9 @@ export async function POST(request) {
       .eq("tenant_id", tenantId)
       .limit(1);
     const settingsRow = settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    if (!settingsRow) {
+      return Response.json({ success: false, error: INVALID_LINK_HE }, { status: 404 });
+    }
     const businessName = settingsRow?.business_name || "";
 
     // 1. The full report to the CLIENT. "skin_report" is a utility type - she

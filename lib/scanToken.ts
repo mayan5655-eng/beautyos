@@ -93,3 +93,58 @@ export function buildScanUrl(baseUrl: string, tenantId: string): string {
   const base = String(baseUrl || '').replace(/\/+$/, '');
   return `${base}/skin-scan?t=${encodeURIComponent(tenantId)}&s=${signScanLink(tenantId)}`;
 }
+
+// ── The report itself, signed ──────────────────────────────────────────────────────────────
+//
+// /api/skin-scan/send used to take the whole report (and the phone) from the request body and
+// WhatsApp it from the Kalmea number: anyone could make the platform number send text of their
+// choosing, labelled with any business's name. Now the scan route signs the exact report it
+// produced, and /send builds its message only from a report whose signature verifies - so the
+// text is always what the model wrote for a real scan, never what the caller typed.
+//
+// Bound to the tenant (a report signed for one business cannot be sent as another's) and to the
+// canonical JSON of the report (one changed character fails). Short-lived: she reads the report
+// and sends it within minutes; a token found in a log tomorrow is dead. Namespaced like the
+// link signature so neither can be replayed as the other.
+//
+// What this does NOT do: stop one genuine report being sent to several numbers. That needs the
+// report stored and marked used (a table); the caps in lib/outboundCap.js and lib/rateLimit.ts
+// bound it, and what could be sent is a real AI report, not chosen text.
+
+const REPORT_PURPOSE = 'skin-scan-report';
+export const REPORT_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** JSON with object keys sorted at every depth, so the same report always hashes the same. */
+export function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
+const reportMac = (key: string, tenantId: string, iat: string, report: unknown) =>
+  createHmac('sha256', key).update(`${REPORT_PURPOSE}:${tenantId}:${iat}:${canonicalJson(report)}`).digest('base64url').slice(0, 32);
+
+export function signScanReport(tenantId: string, report: unknown, now: number = Date.now()): string {
+  const iat = Math.floor(now / 1000).toString(36);
+  return `${iat}.${reportMac(secret(), tenantId, iat, report)}`;
+}
+
+export function verifyScanReport(tenantId: string, report: unknown, token: string | null | undefined, now: number = Date.now()): boolean {
+  if (!tenantId || !report || typeof token !== 'string') return false;
+  const dot = token.indexOf('.');
+  if (dot < 1) return false;
+  const iat = token.slice(0, dot);
+  const issuedMs = parseInt(iat, 36) * 1000;
+  if (!Number.isFinite(issuedMs) || now - issuedMs > REPORT_TOKEN_TTL_MS || issuedMs - now > 5 * 60 * 1000) return false;
+  const b = Buffer.from(token.slice(dot + 1));
+  let keys: string[];
+  try { keys = allSecrets(); } catch { return false; }
+  for (const key of keys) {
+    const a = Buffer.from(reportMac(key, tenantId, iat, report));
+    if (a.length === b.length && timingSafeEqual(a, b)) return true;
+  }
+  return false;
+}

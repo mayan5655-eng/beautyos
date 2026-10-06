@@ -11,6 +11,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { upsertScanLead } from "../../../../lib/leads";
 import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
+import { verifyScanLink } from "../../../../lib/scanToken";
+import { checkLeadPayload } from "../../../../lib/skinScanGuard";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -26,12 +28,15 @@ export async function POST(request) {
     const ipLimited = checkIpLimit(request, "skin-scan-lead");
     if (ipLimited) return ipLimited;
 
-    const { tenantId, name, phone, report } = await request.json();
-    // A lead needs a tenant + a phone (the dedup key). No phone -> nothing to
-    // capture here; the /book flow will capture her on completion instead.
-    if (!tenantId || !phone) {
-      return Response.json({ success: false, error: "missing tenant or phone" }, { status: 400 });
+    const body = await request.json();
+    // A lead writes into a business's CRM: it needs her SIGNED link, a mobile number, and only a small
+    // whitelist of the report. (Until 2026-10-06 it needed neither the signature nor a real number, and
+    // its upsert overwrote an existing lead's data for any tenant+phone the caller named.)
+    const checked = checkLeadPayload({ ...body, signature: body.s }, verifyScanLink);
+    if (!checked.ok) {
+      return Response.json({ success: false, error: checked.error }, { status: checked.status });
     }
+    const { tenantId, phone, name, report } = checked.lead;
     const tenantLimited = checkTenantLimit(tenantId, "skin-scan-lead");
     if (tenantLimited) return tenantLimited;
 

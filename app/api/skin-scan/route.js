@@ -9,7 +9,9 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
 import { checkIpLimit, checkTenantLimit } from "@/lib/rateLimit";
-import { verifyScanLink } from "@/lib/scanToken";
+import { verifyScanLink, signScanReport } from "@/lib/scanToken";
+import { checkScanPayload, admitScan } from "@/lib/skinScanGuard";
+import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getQuotaStatus } from "@/lib/skinScanQuota";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 
@@ -20,21 +22,16 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// PHASE 1. Unsigned links still work, because every link she has already shared
-// - Instagram bio, printed QR codes, old WhatsApp messages - has no signature,
-// and enforcing on day one would break her funnel silently. Signed calls record
-// attribution 'verified'; unsigned record 'claimed' and log a warning, so the
-// flip to enforcement can be made on evidence. The query that says when:
+// WHO MAY SCAN. Naming a tenant is not enough: the request must carry either her SIGNED link
+// (every client scan: ?t=<tenant>&s=<signature>) or her own signed-in session for that tenant (the
+// scanner inside her app). And it must name a tenant at all: until 2026-10-06 a request with NO
+// tenantId skipped the signature, the tenant limit, the monthly quota and the dollar ceiling and went
+// straight to a Claude vision call - the "phase 1" leniency below this comment used to be, and the
+// ceiling was documented as enforced "regardless of signature". The rules live in lib/skinScanGuard.ts
+// and are tested there.
 //
-//   select attribution, count(*) from ai_usage
-//    where call_site = 'skin-scan' and created_at > now() - interval '30 days'
-//    group by 1;
-//
-// When 'claimed' reaches zero, set REQUIRE_SIGNATURE to true.
-//
-// Note this only gates ATTRIBUTION, not spend: the rate limit and the monthly
-// ceiling below are enforced from day one regardless of signature.
-const REQUIRE_SIGNATURE = false;
+// Links shared before signing existed (no `s`) are refused with a message that tells the client to ask
+// the cosmetician for a fresh link; she copies it from Settings. That is the cost of closing the hole.
 
 export async function POST(request) {
   try {
@@ -50,27 +47,27 @@ export async function POST(request) {
 
     const { image, mediaType, tenantId, s: signature } = await request.json();
 
-    if (!image) {
-      return Response.json({ success: false, error: "חסרה תמונה" }, { status: 400 });
-    }
+    // 2. Shape and size, then WHO. No I/O until a signature has failed.
+    const shape = checkScanPayload({ image, mediaType, tenantId });
+    if (!shape.ok) return Response.json({ success: false, error: shape.error }, { status: shape.status });
 
-    // 2. Signature. No I/O. Decides ATTRIBUTION now, and admission later.
-    const signed = !!tenantId && verifyScanLink(tenantId, signature);
-    if (tenantId && !signed) {
-      console.warn(
-        `[skin-scan] UNSIGNED request for tenant ${tenantId} — recording as 'claimed'. ` +
-        `Phase 1: allowed. See REQUIRE_SIGNATURE in this file.`
-      );
-      if (REQUIRE_SIGNATURE) {
-        return Response.json(
-          {
-            success: false,
-            error:
-              "הקישור לסורק אינו תקין או שפג תוקפו. כדאי לבקש מהקוסמטיקאית קישור מעודכן.",
-          },
-          { status: 403 }
-        );
-      }
+    const signed = verifyScanLink(tenantId, signature);
+    let sessionTenantId = null;
+    if (!signed) {
+      // Not a signed link: is this HER, signed in, scanning from inside her own app?
+      try {
+        const sess = await createSessionClient();
+        const { data: u } = await sess.auth.getUser();
+        if (u?.user) {
+          const { data: tid } = await sess.rpc("get_user_tenant_id");
+          sessionTenantId = tid || null;
+        }
+      } catch { /* no session: the verdict below refuses */ }
+    }
+    const admitted = admitScan({ tenantId, signatureValid: signed, sessionTenantId });
+    if (!admitted.ok) {
+      console.warn(`[skin-scan] refused (${admitted.reason}) for tenant ${tenantId}`);
+      return Response.json({ success: false, error: admitted.error }, { status: admitted.status });
     }
 
     // 3. Per-tenant burst limit. Still no I/O.
@@ -78,9 +75,8 @@ export async function POST(request) {
     if (tenantLimited) return tenantLimited;
 
     // 4. The monthly ceiling — the only hard cap on spend. One indexed count.
-    //    Fails OPEN if ai_usage cannot be read: a database wobble must not
-    //    switch off every cosmetician's lead capture.
-    if (tenantId) {
+    //    Every admitted request names a tenant, so this always runs.
+    {
       const quota = await getQuotaStatus(tenantId);
       console.log(
         `[skin-scan] TENANT FILTER: tenant_id = ${tenantId} | ` +
@@ -224,12 +220,12 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
         },
       ],
     }, {
-      tenantId: tenantId || null,
+      tenantId,
       callSite: "skin-scan",
       // The whole point of the signature in phase 1: this column is the
       // evidence that says when unsigned traffic has stopped and enforcement
       // can be switched on.
-      attribution: signed ? "verified" : "claimed",
+      attribution: "verified", // admitted: a signed link or her own session (see admitScan)
     });
 
     // 4. Extract + parse safely
@@ -278,7 +274,8 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
       );
     }
 
-    return Response.json({ success: true, report });
+    // Signed, so /api/skin-scan/send builds its WhatsApp from THIS report and nothing a caller typed.
+    return Response.json({ success: true, report, reportToken: signScanReport(tenantId, report) });
   } catch (err) {
     console.error("Skin-scan error:", err);
     return Response.json({ success: false, error: err.message }, { status: 500 });
