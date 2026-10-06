@@ -37,12 +37,20 @@ import { generateImage } from '../lib/ai/openaiImages.ts';
 import { HARD_CONSTRAINTS } from '../lib/ai/imagePrompt.ts';
 import { STYLE } from './imageStyle.ts';
 import { TEMPLATES } from '../lib/design/templates/index.ts';
+import { REELS } from '../lib/design/reels/index.ts';
+import { writeSeedManifest } from './seed-manifest.mjs';
 
 const stem = (templateKey: string) => templateKey.replace(/-(feed|story)$/, '');
 
 type Spec = { stem: string; hint: string };
 
-const feed = TEMPLATES.filter((t) => t.format !== 'story');
+// Until 2026-10-06 this covered feed templates only. Story-only templates and every reel scene frame
+// (keys like 'steps-reel-s1') were never generated, and the app asked for their files anyway: 15 broken
+// images in the gallery. A story-only template is one with no feed sibling under the same stem.
+const reelFrames = REELS.flatMap((r) => r.scenes.map((sc) => sc.frame));
+const feedStems = new Set(TEMPLATES.filter((t) => t.format !== 'story').map((t) => stem(t.key)));
+const storyOnly = TEMPLATES.filter((t) => t.format === 'story' && !feedStems.has(stem(t.key)));
+const feed = [...TEMPLATES.filter((t) => t.format !== 'story'), ...storyOnly, ...reelFrames];
 const withPhoto = feed.filter((t) => t.slots.some((s) => !s.consent));
 
 const missingHint = withPhoto.filter((t) => !t.slots.find((s) => !s.consent)?.aiHint);
@@ -92,4 +100,6 @@ for (const [key, hint] of byStem) {
     console.error(`FAIL ${key}: ${(e as Error).message}`);
   }
 }
+// the app only draws a seed that is on this list: keep it in step with what is now on disk
+console.log(`seed manifest: ${writeSeedManifest()} images`);
 process.exit(failed ? 1 : 0);

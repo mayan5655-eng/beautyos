@@ -23,11 +23,22 @@
 // stem strips the trailing -feed/-story. A consent-gated slot (before/after,
 // a real client photo) never uses one of these, whatever the template.
 
+import { SEED_STEMS } from './templateSeedManifest.ts';
+
 /** 'offer-feed' -> 'offer', 'nail-french-story' -> 'nail-french'. */
 function stem(templateKey: string): string {
   return templateKey.replace(/-(feed|story)$/, '');
 }
 
-export function templateSeedImageUrl(templateKey: string): string {
-  return `/defaults/seed/${stem(templateKey)}.jpg`;
+/**
+ * The seed image for a template, or null when none was generated.
+ *
+ * Null is a real answer: the preview then draws its clean placeholder. Before this check the URL was built
+ * for every template, so each one whose image had never been made (every reel scene, and story-only
+ * templates - the generator covered neither) requested a file that 404'd and showed a broken-image icon.
+ * The list of files that exist is lib/design/templateSeedManifest.ts (scripts/seed-manifest.mjs).
+ */
+export function templateSeedImageUrl(templateKey: string): string | null {
+  const s = stem(templateKey);
+  return SEED_STEMS.has(s) ? `/defaults/seed/${s}.jpg` : null;
 }
