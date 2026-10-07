@@ -27,7 +27,7 @@ import BrandImage from "@/app/BrandImage";
 import {
   trialGentleHe,
   trialUrgentTitleHe,
-  TRIAL_URGENT_BODY_HE,
+  trialUrgentBodyHe,
   blockedNoticeHe,
   CTA_WHATSAPP_HE,
 } from "@/lib/planCopy";
@@ -62,7 +62,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           style={{ width: 7, height: 7, borderRadius: "50%", background: pcGrad, flexShrink: 0 }}
         />
         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: "var(--ink-2)" }}>
-          {trialGentleHe(days)}
+          {trialGentleHe(days, plan.trialEndsAt)}
         </p>
       </div>
     );
@@ -76,12 +76,12 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
   if (blocked) {
     // blockedNoticeHe softens the wording for 'paused': that is an arrangement,
     // not a debt. It also states plainly that viewing still works.
-    const notice = blockedNoticeHe(plan.status);
+    const notice = blockedNoticeHe(plan.status, plan.trialEndsAt);
     title = notice.title;
     body = notice.body;
   } else {
     title = trialUrgentTitleHe(days);
-    body = TRIAL_URGENT_BODY_HE;
+    body = trialUrgentBodyHe(plan.trialEndsAt);
   }
 
   return (

@@ -20,9 +20,21 @@ export function daysHe(n: number): string {
   return `${n} ימים`
 }
 
-/** The quiet line shown for most of the trial. */
-export function trialGentleHe(days: number): string {
-  return `תקופת ההתנסות שלך פעילה, נשארו עוד ${daysHe(days)}`
+/**
+ * The day the trial ends, as she reads dates: 30.10.2026, in Israel's calendar (the same day for her and for the clock that ends it).
+ * Words around it say "בתאריך", never "ב-" glued to the digits, so no bidi rule can turn the hyphen into a sign.
+ */
+export function trialEndDateHe(d: Date | null | undefined): string {
+  if (!d || Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric' })
+    .format(d)
+    .replace(/\//g, '.')
+}
+
+/** The quiet line shown for most of the trial. With the end date when it is known: the cliff is never a surprise. */
+export function trialGentleHe(days: number, endsAt?: Date | null): string {
+  const date = trialEndDateHe(endsAt)
+  return `תקופת ההתנסות שלך פעילה, נשארו עוד ${daysHe(days)}${date ? `, עד ${date}` : ''}`
 }
 
 /**
@@ -37,20 +49,27 @@ export function trialUrgentTitleHe(days: number): string {
 
 export const TRIAL_URGENT_BODY_HE = 'אפשר להמשיך לעבוד בלי הפסקה. כתבי לי ונסגור את זה בקלות. כל מה שיצרת נשאר שלך, גם אם תרצי לעצור.'
 
+/** The urgent card's body, led by the date the trial ends when it is known. */
+export function trialUrgentBodyHe(endsAt?: Date | null): string {
+  const date = trialEndDateHe(endsAt)
+  return date ? `תקופת ההתנסות מסתיימת בתאריך ${date}. ${TRIAL_URGENT_BODY_HE}` : TRIAL_URGENT_BODY_HE
+}
+
 /**
  * The blocked notice. `paused` gets deliberately softer wording: a paused
  * account is an arrangement we made, not a debt.
  */
-export function blockedNoticeHe(status: PlanStatus): { title: string; body: string } {
+export function blockedNoticeHe(status: PlanStatus, endedAt?: Date | null): { title: string; body: string } {
   if (status === 'paused') {
     return {
       title: 'החשבון בהשהיה',
       body: 'החשבון במצב צפייה בלבד. כל הנתונים שלך שמורים במלואם, ואפשר לראות את היומן והלקוחות כרגיל. כשתרצי לחזור, אני כאן.',
     }
   }
+  const date = trialEndDateHe(endedAt)
   return {
     title: 'תקופת ההתנסות הסתיימה',
-    body: 'החשבון עבר למצב צפייה בלבד. כל הנתונים שלך שמורים במלואם, ואפשר להמשיך לראות את היומן והלקוחות. כדי לחזור לעבוד במלוא הכלים, נסדר את ההמשך בהודעה קצרה.',
+    body: `${date ? `ההתנסות הסתיימה בתאריך ${date}. ` : ''}החשבון עבר למצב צפייה בלבד. כל הנתונים שלך שמורים במלואם, ואפשר להמשיך לראות את היומן והלקוחות. כדי לחזור לעבוד במלוא הכלים, נסדר את ההמשך בהודעה קצרה.`,
   }
 }
 

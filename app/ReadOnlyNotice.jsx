@@ -17,7 +17,7 @@ import { supportWhatsAppUrl } from "@/lib/support";
 export default function ReadOnlyNotice({ plan }) {
   if (!plan || !plan.isBlocked) return null;
 
-  const { title, body } = blockedNoticeHe(plan.status);
+  const { title, body } = blockedNoticeHe(plan.status, plan.trialEndsAt);
 
   return (
     <div
