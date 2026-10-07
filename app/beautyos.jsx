@@ -40,6 +40,7 @@ import { isMissingColumnError } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
+import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from "@/lib/tourFlow";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
@@ -298,15 +299,16 @@ const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","�
 // onNext is special-cased in the component (isLast -> onFinish), which the
 // tour's finish handler below turns into opening the new-appointment modal.
 const TOUR_STEPS = [
-  { id:"dashboard", selector:'button[aria-label="היום"]', icon: ICON_FLOWER,
+  // `tab` is the screen the step describes (lib/tourFlow.js): the tour follows her between them.
+  { id:"dashboard", tab:"dashboard", selector:'button[aria-label="היום"]', icon: ICON_FLOWER,
     title:"היום שלך", text:"פה תראי את היום שלך במבט אחד: מי מגיעה, כמה נכנס, ומה מחכה." },
-  { id:"calendar", selector:'button[aria-label="יומן"]', icon: ICON_CALENDAR,
+  { id:"calendar", tab:"calendar", selector:'button[aria-label="יומן"]', icon: ICON_CALENDAR,
     title:"היומן", text:"הלוח שלך. תורים נקבעים כאן, ואת רואה את כל השבוע בלחיצה." },
-  { id:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
+  { id:"clients", tab:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
     title:"הלקוחות שלך", text:"כל לקוחה שלך, עם ההיסטוריה שלה, במקום אחד שתמיד זמין." },
-  { id:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
+  { id:"cashier", tab:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
     title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן — פשוט ומסודר." },
-  { id:"content", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
+  { id:"content", tab:"campaigns", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
     title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
   // requiresSettings: the tour's advance handler opens Settings -> כללי
   // before switching to this step, since the real button lives there.
@@ -1854,8 +1856,8 @@ export default function BeautyOS() {
     tourTriggeredRef.current = true;
     const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
     if (autos.onboarding_tour_seen === true) return;
-    const resumeAt = Number.isInteger(autos.onboarding_tour_step) ? autos.onboarding_tour_step : 0;
-    if (resumeAt >= TOUR_STEPS.length) return;
+    const resumeAt = tourResumeStep(autos.onboarding_tour_step, TOUR_STEPS); // never a step whose card cannot be drawn (the Settings one)
+    if (resumeAt == null) return;
     setTourStep(resumeAt);
   }, [settings?.tenant_id, settings?.automations]);
 
@@ -1875,6 +1877,21 @@ export default function BeautyOS() {
       body: JSON.stringify({ settings: { automations: nextAutomations } }),
     }).catch(() => {});
   }, [settings.automations]);
+
+  // The tour follows her (lib/tourFlow.js). It used to stay on step 1 ("היום שלך 1/6") over every screen until she pressed דלגי.
+  // Going to the screen a step describes jumps to that step; going anywhere the tour has no step for ends it; closing Settings while the
+  // tour is on its Settings step ends it too (nothing is left to point at).
+  const prevTabRef = useRef(activeTab);
+  useEffect(() => {
+    const prevTab = prevTabRef.current; prevTabRef.current = activeTab;
+    const move = tourOnNavigate({ steps: TOUR_STEPS, stepIndex: tourStep, prevTab, tab: activeTab, showSettings });
+    if (move.type === "jump") { setTourStep(move.step); persistTourPatch({ onboarding_tour_step: move.step }); }
+    else if (move.type === "end") { setTourStep(null); persistTourPatch({ onboarding_tour_seen: true }); }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!tourStrandedOutsideSettings({ steps: TOUR_STEPS, stepIndex: tourStep, showSettings })) return;
+    setTourStep(null); persistTourPatch({ onboarding_tour_seen: true });
+  }, [showSettings, tourStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
   const setupSteps = [
