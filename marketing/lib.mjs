@@ -84,6 +84,8 @@ function pageDressing(brand) {
       const t = (b.innerText || '').trim();
       if ((!window.__keepVoice && /^שליטה קולית/.test(b.getAttribute('aria-label') || '')) || t === 'תקועה?') b.style.visibility = 'hidden';
     }
+    // NOTE: the padlock on the calendar's "אירוע אישי" / "אישי" buttons is NOT hidden. It is a real part of the app (it means "private event",
+    // not a paywall), and the video shows the real app. The "no lock" rule is about paywall / upgrade locks only.
     // The tour hides the demo-account banner ("זו תצוגת דמו ... התחילי בחינם"): a signed-up trial user does not see it, and the
     // video must not show a sign-up prompt. Opt-in (window.__hideDemoBanner), so the older recordings are unchanged.
     if (window.__hideDemoBanner) {
