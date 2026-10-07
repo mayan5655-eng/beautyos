@@ -182,6 +182,16 @@ export default function SignupPage() {
             {loading ? <Spinner inline label="יוצרת חשבון" /> : 'הרשמה'}
           </button>
 
+          {/* The two pages exist and say that using the service is agreeing to them, but nothing on sign-up pointed to either (found
+              2026-10-07, the legal review). A pointer, not a consent mechanism: whether a ticked box with a stored version is needed is
+              a question for her lawyer (marketing/out/OVERNIGHT-REPORT.md, item 9). */}
+          <p style={{ ...footerStyle, marginTop: 14 }}>
+            בהרשמה את מאשרת את{' '}
+            <a href="/terms" target="_blank" rel="noreferrer" className="signup-link" style={linkStyle}>תנאי השימוש</a>
+            {' '}ואת{' '}
+            <a href="/privacy" target="_blank" rel="noreferrer" className="signup-link" style={linkStyle}>מדיניות הפרטיות</a>.
+          </p>
+
           <p style={footerStyle}>
             כבר יש לך חשבון?{' '}
             <a href="/login" className="signup-link" style={linkStyle}>

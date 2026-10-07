@@ -6450,7 +6450,7 @@ export default function BeautyOS() {
     const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=`beautyos_${today}.csv`;a.click();URL.revokeObjectURL(url);
+    const a=document.createElement("a");a.href=url;a.download=`kalmea_payments_${today}.csv`;a.click();URL.revokeObjectURL(url);
     toast("הקובץ ירד");
   };
 
@@ -8083,7 +8083,7 @@ ${c.claimUrl}`)}`;
  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
  </svg>
  </button>
- <button onClick={handleExportCSV} className="icon-btn desktop-only" title="ייצוא CSV" aria-label="ייצוא לקוחות לקובץ CSV">↓</button>
+ <button onClick={handleExportCSV} className="icon-btn desktop-only" title="ייצוא תשלומים ל-CSV" aria-label="ייצוא תשלומים לקובץ CSV">↓</button>
                 {/* Same reason as the gear above: U+23FB renders as a colour
                     emoji on iOS. Fixing one and leaving its neighbour is worse
                     than leaving both. */}
@@ -8137,7 +8137,7 @@ ${c.claimUrl}`)}`;
  </button>
  <button className="nav-item mobile-only" style={{display:"none"}} onClick={()=>{handleExportCSV();setShowMobileSidebar(false);}}>
  <span className="nav-ico">↓</span>
- <span style={{flex:1}}>ייצוא לקוחות (CSV)</span>
+ <span style={{flex:1}}>ייצוא תשלומים (CSV)</span>
  </button>
  </aside>
 
