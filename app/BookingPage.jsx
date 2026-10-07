@@ -269,6 +269,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // booked", and the distinction matters: conflating the two is what made the
   // old bug invisible, because a failed read looked exactly like a free diary.
   const [availabilityError, setAvailabilityError] = useState(false);
+  // True until /api/availability has answered (either way). The day and time pickers do not render before then: an unchecked grid must
+  // never look like a checked one (the "every slot is free" bug), and the first screen no longer waits for it.
+  const [availabilityPending, setAvailabilityPending] = useState(true);
   const [brand, setBrand] = useState(() => (initialSettings ? resolveBranding(initialSettings) : null)); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   // Reviews written by clients. null until the read resolves, so "none yet" and
@@ -332,22 +335,28 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const loadData = async (t, prefillServiceName) => {
     try {
       // Every query is scoped to this tenant only.
-      const [row, sv, ap, rv, rs] = await Promise.all([
+      // Busy slots come from the server, NOT from a direct table read.
+      //
+      // This used to be supabase.from("appointments") on the anon key. RLS
+      // denies anon on that table, so it returned zero rows to every real
+      // visitor - as data, not as an error - and the page cheerfully showed
+      // every slot as free. /api/availability does the read on the service
+      // role and returns TIMES ONLY (date, start_minute, hour, duration);
+      // no names, phones, services or prices.
+      //
+      // STARTED here, together with the rest, but NOT awaited with them: it is the slowest call by a wide margin (measured
+      // 2026-10-07: ~1.4 s cold, against ~0.3 s for each of the others), and the first screen - her business, her services,
+      // her reviews - needs none of it. The page used to show nothing until it had answered. Only the day and time pickers need
+      // it, and they wait for it (availabilityPending) instead of showing every slot as free.
+      const availabilityP = fetch(`/api/availability?t=${encodeURIComponent(t)}`)
+        .then((r) => r.json())
+        .catch(() => ({ success: false }));
+
+      const [row, sv, rv, rs] = await Promise.all([
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
         initialSettings ? Promise.resolve(initialSettings) : fetchPublicSettings(supabase, t),
         initialServices ? Promise.resolve({ data: initialServices }) : fetchPublicServices(supabase, t),
-        // Busy slots come from the server, NOT from a direct table read.
-        //
-        // This used to be supabase.from("appointments") on the anon key. RLS
-        // denies anon on that table, so it returned zero rows to every real
-        // visitor - as data, not as an error - and the page cheerfully showed
-        // every slot as free. /api/availability does the read on the service
-        // role and returns TIMES ONLY (date, start_minute, hour, duration);
-        // no names, phones, services or prices.
-        fetch(`/api/availability?t=${encodeURIComponent(t)}`)
-          .then((r) => r.json())
-          .catch(() => ({ success: false })),
         // Reviews a client wrote, through the same SECURITY DEFINER pattern as
         // the branding: anon holds no privilege on public.reviews in either
         // direction, and the function returns published rows only - so "hidden"
@@ -382,9 +391,23 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           if (match) { setSelectedService(match); setStep(2); }
         }
       }
+      // Her client-facing announcements feed. Read through the SAME vetted safe
+      // public endpoint the standalone /community page uses (service role, returns
+      // ONLY whitelisted non-secret fields, scoped to this tenant). Best-effort:
+      // any failure just leaves the feed empty and never blocks the booking flow.
+      // NOT awaited: it used to be, so the whole page waited (a further 0.5-1.0 s) for an optional feed.
+      fetch(`/api/community?t=${encodeURIComponent(t)}`)
+        .then((cRes) => cRes.json())
+        .then((cData) => { if (cData && cData.success && Array.isArray(cData.posts)) setPosts(cData.posts); })
+        .catch(() => { /* announcements are optional — ignore */ });
+
+      // The page can be shown now; availability lands on its own.
+      setLoading(false);
+
       // Only treat this as availability when the server actually said so.
       // Anything else - transport failure, rate limit, 500 - is recorded as an
       // ERROR and surfaced to the visitor, never quietly rendered as "free".
+      const ap = await availabilityP;
       if (ap && ap.success && Array.isArray(ap.busy)) {
         setAppointments(ap.busy);
         setAvailabilityError(false);
@@ -393,16 +416,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         setAvailabilityError(true);
         console.error("availability load failed:", ap?.error || "unknown");
       }
-
-      // Her client-facing announcements feed. Read through the SAME vetted safe
-      // public endpoint the standalone /community page uses (service role, returns
-      // ONLY whitelisted non-secret fields, scoped to this tenant). Best-effort:
-      // any failure just leaves the feed empty and never blocks the booking flow.
-      try {
-        const cRes = await fetch(`/api/community?t=${encodeURIComponent(t)}`);
-        const cData = await cRes.json();
-        if (cData && cData.success && Array.isArray(cData.posts)) setPosts(cData.posts);
-      } catch { /* announcements are optional — ignore */ }
+      setAvailabilityPending(false);
     } catch (err) {
       console.error("loadData error:", err);
       setTenantError(true);
@@ -1163,7 +1177,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </div>
 
                 <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
-                {availableDays.length === 0 ? (
+                {availabilityPending ? (
+                  // The page is already up; only the diary is still being read. Say so, never show an unchecked grid.
+                  <div role="status" style={{ ...noticeBox, marginBottom: 22 }}>בודקת אילו ימים ושעות פנויים…</div>
+                ) : availableDays.length === 0 ? (
                   <div style={{ ...noticeBox, marginBottom: 22 }}>
                     אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.
                   </div>
@@ -1183,7 +1200,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </div>
                 )}
 
-                {selectedDate && (
+                {selectedDate && !availabilityPending && (
                   <>
                     {/* Availability could not be loaded. Say so plainly rather
                         than presenting an unchecked grid as if it were checked.
