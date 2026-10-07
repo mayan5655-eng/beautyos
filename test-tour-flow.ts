@@ -61,4 +61,8 @@ assert.equal(tourStrandedOutsideSettings({ steps: STEPS, stepIndex: null, showSe
 // wired in the app
 assert.ok(/tourOnNavigate\(\{ steps: TOUR_STEPS/.test(src) && /tourResumeStep\(autos\.onboarding_tour_step, TOUR_STEPS\)/.test(src) && /tourStrandedOutsideSettings\(\{ steps: TOUR_STEPS/.test(src), 'the app uses all three');
 
+// the "seen" flag survives leaving the page right after the tour ends: the save is a keepalive request
+const persist = src.slice(src.indexOf('const persistTourPatch = useCallback'), src.indexOf('}, [settings.automations]);', src.indexOf('const persistTourPatch = useCallback')));
+assert.ok(/fetch\("\/api\/settings\/save"/.test(persist) && /keepalive: true/.test(persist), 'the tour save is keepalive');
+
 console.log('tour flow: ok');

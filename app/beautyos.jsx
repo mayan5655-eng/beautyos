@@ -1875,6 +1875,9 @@ export default function BeautyOS() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ settings: { automations: nextAutomations } }),
+      // keepalive: ending the tour is often followed at once by leaving the page, and a plain fetch is cancelled by that navigation:
+      // the "seen" flag was then never saved and the tour came back (found 2026-10-07, intermittent on a fresh account).
+      keepalive: true,
     }).catch(() => {});
   }, [settings.automations]);
 
