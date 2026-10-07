@@ -4,7 +4,7 @@
 // a gap, a cancellation); when today is a Saturday it is Sunday and Saturday stays empty. Checked for 90 different reset days, because
 // a seed that is right on a Tuesday and dead on a Friday would only show up on the day someone records a video.
 import assert from 'node:assert/strict';
-import { buildDemoWeek, fullName, israelDate, israelToUtcIso } from './lib/demoWeek.ts';
+import { buildDemoWeek, clientDetails, fullName, israelDate, israelToUtcIso } from './lib/demoWeek.ts';
 
 // the REAL durations of the cosmetics demo's eight services (75, 60, 45, 60, 60, 75, 60, 30): a Friday is only five hours long
 const SERVICES = [
@@ -20,6 +20,17 @@ const addDays = (date: string, n: number) => { const [y, m, d] = date.split('-')
 const names = Array.from({ length: 20 }, (_, i) => fullName(i));
 assert.equal(new Set(names).size, 20, 'twenty distinct full names');
 assert.ok(names.every((n) => /^[֐-׿]+ [֐-׿ ]+$/.test(n)), 'Hebrew first and last name, not "דנה כ."');
+
+// the details on the client cards: enough of them that the card never looks empty, all Hebrew, none of them a real person's
+{
+  const all = Array.from({ length: 14 }, (_, i) => clientDetails(i));
+  assert.ok(all.filter((d) => d.notes).length >= 6, 'at least six cards carry a note');
+  assert.ok(all.filter((d) => d.allergies).length >= 2, 'a couple carry an allergy');
+  assert.ok(all.filter((d) => d.medical).length >= 1, 'one carries a medical line');
+  assert.ok(all.filter((d) => d.birthday).length >= 3 && all.every((d) => !d.birthday || /^\d{4}-\d{2}-\d{2}$/.test(d.birthday)), 'birthdays are real dates');
+  assert.ok(all.every((d) => [d.notes, d.allergies, d.medical].every((t) => !t || /[֐-׿]/.test(t))), 'Hebrew');
+  assert.deepEqual(clientDetails(5), clientDetails(5), 'deterministic');
+}
 
 // time zone: Israel is UTC+3 until the end of October and UTC+2 after it
 assert.equal(israelToUtcIso('2026-10-06', 14 * 60 + 30), '2026-10-06T11:30:00.000Z', 'summer time');

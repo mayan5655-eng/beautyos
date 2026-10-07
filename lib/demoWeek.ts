@@ -21,6 +21,21 @@ const LAST = ['כהן', 'לוי', 'מזרחי', 'פרץ', 'ביטון', 'דהן'
 /** A full name, unique for the first 20 indexes (first and last advance at different steps). */
 export function fullName(i: number): string { return `${FIRST[i % FIRST.length]} ${LAST[(i * 7 + 3) % LAST.length]}`; }
 
+// What a cosmetician writes on her clients' cards: a note, an allergy, a medical line, a birthday. Warm, short, Hebrew, deterministic.
+// (Invented: no real person. Enough cards carry something that the client-card screen never looks empty.)
+const NOTES = ['מעדיפה טיפולים בשעות הבוקר', 'עור רגיש, להימנע מחומצות חזקות', 'מגיעה עם הבת שלה לפעמים', 'חוזרת כל ארבעה שבועות, תמיד בזמן', 'אוהבת שקט בזמן הטיפול', 'מתחתנת בעוד חודשיים, רוצה הכנה לאירוע'];
+const ALLERGIES = ['רגישות ללנולין', 'אלרגיה לניקל', 'רגישה לבשמים בקרמים'];
+const MEDICAL = ['נוטלת תרופה ללחץ דם, בלי חומצות ביום הטיפול', 'בהיריון, לפי אישור הרופא בלבד'];
+const BIRTHDAYS = ['1989-11-14', '1992-03-02', '1985-12-27', '1995-07-19'];
+export function clientDetails(i: number): { notes?: string; allergies?: string; medical?: string; birthday?: string } {
+  const d: { notes?: string; allergies?: string; medical?: string; birthday?: string } = {};
+  if (i % 2 === 0 || i % 5 === 0) d.notes = NOTES[i % NOTES.length];
+  if (i % 4 === 1) d.allergies = ALLERGIES[Math.floor(i / 4) % ALLERGIES.length];
+  if (i % 7 === 3) d.medical = MEDICAL[Math.floor(i / 7) % MEDICAL.length];
+  if (i % 3 === 0) d.birthday = BIRTHDAYS[Math.floor(i / 3) % BIRTHDAYS.length];
+  return d;
+}
+
 const METHODS = ['ביט', 'אשראי', 'מזומן', 'ביט', 'אשראי'];
 // The pattern is anchored to the RESET DAY, not to a weekday (a seed that is busy on Tuesdays is a dead clinic on every other day):
 //   the busy day (today; the next working day when today is a Saturday) has BUSY_COUNT rows: a gap, a cancellation

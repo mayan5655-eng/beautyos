@@ -18,7 +18,7 @@ import { serviceTemplateGroupsFor, suggestedPrice } from './tenantTemplate.ts';
 import { insertPickedServices, type PickedService } from './seedServices.ts';
 import { serviceColorAt } from './serviceColors.ts';
 import { getTemplate } from './design/templates/index.ts';
-import { buildDemoWeek, fullName, type WeekService } from './demoWeek.ts';
+import { buildDemoWeek, clientDetails, fullName, type WeekService } from './demoWeek.ts';
 
 type Db = {
   from: (table: string) => any;
@@ -135,7 +135,13 @@ export async function resetDemoTenant(db: Db, field: DemoField, now: Date = new 
       skinType: SKIN_TYPES[i % SKIN_TYPES.length],
       status: 'active',
     }));
-    const { data: clients, error: clientErr } = await db.from('clients').insert(clientRows).select('id');
+    // With the details a cosmetician writes on a card (note, allergy, medical line, birthday). If the live table lacks one of those columns the
+    // insert is retried plain: a missing column must never take the demo down.
+    let { data: clients, error: clientErr } = await db.from('clients').insert(clientRows.map((r, i) => ({ ...r, ...clientDetails(i) }))).select('id');
+    if (clientErr) {
+      console.error('[demo-seed] clients with details failed, retrying plain:', clientErr.message);
+      ({ data: clients, error: clientErr } = await db.from('clients').insert(clientRows).select('id'));
+    }
     if (clientErr) return { ok: false, error: `clients: ${clientErr.message}` };
     const clientIds: string[] = (clients || []).map((c: { id: string }) => c.id);
 
