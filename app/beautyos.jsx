@@ -11256,7 +11256,7 @@ ${c.claimUrl}`)}`;
 
       {/* "עוד" SHEET — the remaining tabs. */}
       {showMoreSheet&&(
- <div className="mobile-only" onClick={()=>setShowMoreSheet(false)}
+ <div className="mobile-only" data-overlay="more" onClick={()=>setShowMoreSheet(false)}
       style={{position:"fixed",inset:0,zIndex:1401,background:"rgba(48,24,72,0.34)",
               backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",
               /* Same reasoning as the bar: no inline display, so .mobile-only
@@ -12261,7 +12261,7 @@ ${c.claimUrl}`)}`;
 
       {/* CLIENT PROFILE DRAWER */}
       {selectedClient&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedClient(null)}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} data-overlay="client" onClick={()=>setSelectedClient(null)}>
  <div onClick={e=>e.stopPropagation()} className="client-drawer" style={{background:"var(--surface)",width:440,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"var(--shadow-xl)",borderLeft:"1px solid var(--line)"}}>
             {(()=>{
               const c=selectedClient;
@@ -12578,7 +12578,7 @@ ${c.claimUrl}`)}`;
 
       {/* LEAD PROFILE DRAWER */}
       {selectedLead&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} onClick={()=>setSelectedLead(null)}>
+ <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} data-overlay="lead" onClick={()=>setSelectedLead(null)}>
  <div onClick={e=>e.stopPropagation()} className="lead-drawer" style={{background:"var(--surface)",width:400,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"var(--shadow-xl)",borderLeft:"1px solid var(--line)"}}>
             {(()=>{
               const l=selectedLead;

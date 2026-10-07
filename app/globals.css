@@ -504,6 +504,14 @@ h1, h2, h3 {
   color: var(--plum-700);
 }
 
+/* ── The two floating helpers, out of the way of a form ─────────────────────
+   The mic (.fab-voice, bottom-left) and the "תקועה?" bubble (.fab-help, bottom-right) float over every screen. Inside a bottom sheet or a
+   drawer they sat on top of the form's own fields and buttons (found 2026-10-07, 390 and 430 px: the client form's status chips, the payment
+   sheet's note field). While anything modal is open they step aside; they come back when it closes. Modals are .sheet-backdrop (app/Sheet.tsx)
+   or carry data-overlay (the client and lead drawers, the "עוד" sheet). :has() is in every current browser; an older one keeps the old overlap. */
+body:has(.sheet-backdrop, [data-overlay]) .fab-voice,
+body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; }
+
 /* ── Sheet: the one modal (app/Sheet.tsx) ──────────────────────────────────
    One backdrop, one card, one radius, one shadow, one max height. Centred
    card on a desk; bottom sheet on a phone, pinned where the thumb is. */
