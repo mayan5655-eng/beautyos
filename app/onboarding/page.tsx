@@ -153,10 +153,14 @@ export default function OnboardingPage() {
         // to the server once, now that she has an account, and clear it. Fire-and-forget: a failure here must
         // never stand between her and her first screen. (lib/attribution.js)
         try {
-          const raw = document.cookie.split("; ").find((c) => c.startsWith("kl_attr="))?.slice("kl_attr=".length);
+          // The cookie of THIS browser, else what the signup form stored in her account (she may well confirm her email
+          // on her phone after signing up on a laptop: a cookie alone would lose the ad). The server re-parses either.
+          const raw = document.cookie.split("; ").find((c) => c.startsWith("kl_attr="))?.slice("kl_attr=".length)
+            || (typeof user.user_metadata?.kl_attr === "string" ? (user.user_metadata.kl_attr as string) : "");
           if (raw) {
             fetch("/api/attribution", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attr: raw }), keepalive: true })
-              .then(() => { document.cookie = "kl_attr=; Max-Age=0; Path=/; SameSite=Lax"; })
+              // Cleared only when the server took it: a 401/500 used to clear it too, and the ad was lost for good.
+              .then((r) => { if (r.ok) document.cookie = "kl_attr=; Max-Age=0; Path=/; SameSite=Lax"; })
               .catch(() => {});
           }
         } catch { /* attribution is a nicety */ }

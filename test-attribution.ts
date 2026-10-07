@@ -56,4 +56,12 @@ const route = code('app/api/attribution/route.ts');
 assert.ok(route.includes(".is('signup_source', null)"), 'the server only fills an EMPTY signup_source: a replay cannot rewrite which ad brought her');
 assert.ok(route.includes('get_user_tenant_id') && !/body\.(tenant|tenantId)/.test(route), 'and the tenant is hers, from her session');
 
+// ── the last hops (2026-10-07): the ad survives confirming her email in ANOTHER browser, and a failed call does not throw it away ──
+const signupCode = code('app/signup/page.tsx'), onboardingCode = code('app/onboarding/page.tsx');
+assert.ok(signupCode.includes("'kl_attr='") && /\.\.\.\(attr \? \{ kl_attr: attr \} : \{\}\)/.test(signupCode), 'sign-up stores the cookie in her account (user_metadata.kl_attr)');
+assert.ok(/slice\(0, 600\)/.test(signupCode), '...bounded');
+assert.ok(onboardingCode.includes('user.user_metadata?.kl_attr'), 'onboarding falls back to what the sign-up stored when this browser has no cookie');
+assert.ok(/\.then\(\(r\) => \{ if \(r\.ok\) document\.cookie = "kl_attr=; Max-Age=0/.test(onboardingCode), 'the cookie is cleared only when the server answered ok');
+assert.ok(!/\.then\(\(\) => \{ document\.cookie = "kl_attr=; Max-Age=0/.test(onboardingCode), 'not on any response at all (a 401 or 500 used to clear it, and the ad was lost)');
+
 console.log('attribution: ok');

@@ -98,9 +98,11 @@ function SignedImage({ value, alt = "", style, fallback = null }) {
 // A single pill on/off switch. Extracted so every settings toggle shares one
 // piece of markup instead of repeating the same inline styles. `pc` is the
 // tenant's primary color (the "on" background).
-function Toggle({ on, onChange, pc }) {
+// It is a switch, and says so: role + state + a name (found 2026-10-07: nine unnamed buttons on the Automations tab, so a screen reader
+// announced "button, button, button" for nine different automations).
+function Toggle({ on, onChange, pc, label }) {
   return (
-    <button onClick={onChange} style={{ width: 46, height: 26, borderRadius:"var(--r-sm)", border: "none", cursor: "pointer", background: on ? pc : "#D8CEd3", position: "relative", transition: "background .2s", flexShrink: 0 }}>
+    <button type="button" role="switch" aria-checked={!!on} aria-label={label || undefined} onClick={onChange} style={{ width: 46, height: 26, borderRadius:"var(--r-sm)", border: "none", cursor: "pointer", background: on ? pc : "#D8CEd3", position: "relative", transition: "background .2s", flexShrink: 0 }}>
       <span style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: "50%", background: "var(--surface)", transition: "left .2s" }} />
     </button>
   );
@@ -112,9 +114,9 @@ function AutoToggleRow({ label, desc, on, onChange, pc }) {
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <span style={{ fontSize:"var(--t-sm)", color: "var(--ink)" }}>{label}</span>
-        <Toggle on={on} onChange={onChange} pc={pc} />
+        <Toggle on={on} onChange={onChange} pc={pc} label={label} />
       </div>
-      {desc && <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", marginTop: 6, lineHeight: 1.5 }}>{desc}</p>}
+      {desc &&<p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", marginTop: 6, lineHeight: 1.5 }}>{desc}</p>}
     </div>
   );
 }
@@ -12139,7 +12141,7 @@ ${c.claimUrl}`)}`;
    return(
  <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:isOpen?"var(--surface-2)":"var(--surface)",opacity:isOpen?1:0.6,transition:"opacity .2s"}}>
  <span style={{width:52,fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{label}</span>
- <Toggle on={isOpen} onChange={()=>toggleDay(d)} pc={pc} />
+ <Toggle on={isOpen} onChange={()=>toggleDay(d)} pc={pc} label={`פתוח ביום ${label}`} />
  {isOpen?(
  <div style={{display:"flex",alignItems:"center",gap:6,marginRight:"auto"}}>
  <select aria-label={`שעת פתיחה ביום ${label}`} value={dh.open} onChange={e=>setOpen(d,e.target.value)} style={hourSelectStyle}>{HOURS_ALL.map((h,i)=><option key={h} value={i}>{h}</option>)}</select>
@@ -12170,7 +12172,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>הפסקה שלי</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>לקוחות שקובעות דרך הדף לא יוכלו לקחת אותה, גם כשהיומן נראה פנוי. את עדיין יכולה.</p>
  </div>
- <Toggle on={on} onChange={()=>setLb({on:!on})} pc={pc} />
+ <Toggle on={on} onChange={()=>setLb({on:!on})} pc={pc} label="הפסקה שלי" />
  </div>
  {on&&(
  <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
@@ -12193,7 +12195,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות למטה): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
- <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} />
+ <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} label="סיכום ערב" />
  </div>
    );
  })()}

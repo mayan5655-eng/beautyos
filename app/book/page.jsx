@@ -21,9 +21,14 @@
 // Adding the reverse means another RPC and another hand-run migration to buy
 // nothing a visitor can see: the page she lands on is the same page either way.
 
+import { cache } from "react";
+import { notFound } from "next/navigation";
 import BookingPage from "../BookingPage";
 import { APP_URL } from "@/lib/appUrl";
 import { brandFor, ogVersion } from "@/lib/og/tenantOg";
+
+// One lookup per request, shared by generateMetadata and the page.
+const brandOnce = cache(brandFor);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,7 +36,7 @@ export async function generateMetadata({ searchParams }) {
   const t = String((await searchParams)?.t || "");
   if (!UUID.test(t)) return {}; // no business named: the site-wide defaults, as before
   let found = null;
-  try { found = await brandFor(t); } catch { /* a failed lookup keeps the defaults rather than a wrong business */ }
+  try { found = await brandOnce(t); } catch { /* a failed lookup keeps the defaults rather than a wrong business */ }
   if (!found) return {};
   const { brand } = found;
   const title = brand.businessName || "Kalmea";
@@ -46,6 +51,14 @@ export async function generateMetadata({ searchParams }) {
   };
 }
 
-export default function BookRoute() {
+// A booking link that names no business, or names one that does not exist, is a 404 - not a 200 page that says "invalid link" (a soft 404:
+// crawlers, link checkers and monitors read the status, not the words). The lookup is the one generateMetadata already makes (shared through
+// brandOnce), so this adds no round trip. A lookup that FAILS keeps the page: the client explains, and a hiccup must not become a 404.
+export default async function BookRoute({ searchParams }) {
+  const t = String((await searchParams)?.t || "");
+  if (!UUID.test(t)) notFound();
+  let found;
+  try { found = await brandOnce(t); } catch { found = undefined; }
+  if (found === null) notFound();
   return <BookingPage />;
 }

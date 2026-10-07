@@ -47,12 +47,18 @@ export default function SignupPage() {
 
     setLoading(true)
 
+    // Which ad brought her: the first-party cookie the landing left (app/AttributionCapture.jsx), kept in her account too, so it survives
+    // confirming her email in another browser. Bounded (it is re-parsed and reduced to a label by /api/attribution); never blocks sign-up.
+    let attr = ''
+    try { attr = (document.cookie.split('; ').find((c) => c.startsWith('kl_attr='))?.slice('kl_attr='.length) || '').slice(0, 600) } catch { /* nicety */ }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           business_name: businessName.trim(),
+          ...(attr ? { kl_attr: attr } : {}),
         },
       },
     })
