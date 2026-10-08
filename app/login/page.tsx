@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
