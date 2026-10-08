@@ -10,7 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
 import { checkIpLimit, checkTenantLimit } from "@/lib/rateLimit";
 import { verifyScanLink, signScanReport } from "@/lib/scanToken";
-import { checkScanPayload, admitScan } from "@/lib/skinScanGuard";
+import { checkScanPayload, hasForeignScript, admitScan } from "@/lib/skinScanGuard";
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getQuotaStatus } from "@/lib/skinScanQuota";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
@@ -152,7 +152,8 @@ ${servicesText}
 4. routine_morning: בדיוק 3 שלבים. routine_evening: בדיוק 3 שלבים. כל שלב עם מרכיב או מוצר ספציפי.
 5. אל תאבחני מצבים רפואיים. הערכה קוסמטית בלבד.
 6. אם התמונה לא ברורה או שאין בה פנים, החזירי {"valid": false}.
-7. החזירי JSON בלבד, בלי טקסט נוסף, בלי markdown ובלי backticks.
+7. כתבי רק באותיות עבריות, ולשמות מרכיבים באותיות לטיניות (למשל niacinamide, SPF 30). בלי אותיות ערביות או אותיות מכל כתב אחר, ובלי לערבב כתבים בתוך מילה.
+8. החזירי JSON בלבד, בלי טקסט נוסף, בלי markdown ובלי backticks.
 
 מבנה ה-JSON המדויק:
 {
@@ -175,7 +176,7 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // either signed (verified above, attribution 'verified') or unsigned from a
     // link shared before signing existed (attribution 'claimed'). Only the
     // former should ever be billed to a tenant without reconciliation.
-    const aiResponse = await trackedCreate(anthropic, {
+    const callModel = () => trackedCreate(anthropic, {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1200,
       system: systemPrompt,
@@ -207,8 +208,12 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
       attribution: "verified", // admitted: a signed link or her own session (see admitScan)
     });
 
-    // 4. Extract + parse safely
-    const raw = aiResponse.content
+    // 4. Extract + parse safely. A report with Arabic-script letters in it is asked for ONCE more; if it comes back the same, she gets the
+    // friendly "try again" line rather than a garbled word in a clinic report.
+    let aiResponse, raw, truncated, report;
+    for (let attempt = 0; attempt < 2; attempt++) {
+    aiResponse = await callModel();
+    raw = aiResponse.content
       .map((b) => (b.type === "text" ? b.text : ""))
       .filter(Boolean)
       .join("\n")
@@ -219,9 +224,8 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // stop_reason === "max_tokens" means the model ran out of budget mid-JSON, so
     // the parse below is guaranteed to fail. Surface it explicitly (separate from
     // a genuinely unreadable photo) so the logs make the cause obvious.
-    const truncated = aiResponse.stop_reason === "max_tokens";
+    truncated = aiResponse.stop_reason === "max_tokens";
 
-    let report;
     try {
       report = JSON.parse(clean);
     } catch (parseErr) {
@@ -244,6 +248,13 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
         },
         { status: 422 }
       );
+    }
+    if (report.valid === false || !hasForeignScript(report)) break;
+    console.warn("[skin-scan] Arabic-script letters in the report, attempt " + (attempt + 1));
+    report = null;
+    }
+    if (!report) {
+      return Response.json({ success: false, error: "הניתוח לא הושלם הפעם. נסי שוב בעוד רגע." }, { status: 422 });
     }
 
     if (report.valid === false) {

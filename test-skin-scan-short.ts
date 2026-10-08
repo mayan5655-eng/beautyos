@@ -3,6 +3,7 @@
 // and no raw error text shown to her.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { hasForeignScript } from './lib/skinScanGuard.ts';
 
 const src = fs.readFileSync('app/api/skin-scan/route.js', 'utf8');
 const prompt = src.slice(src.indexOf('const systemPrompt'), src.indexOf('היי הוגנת ומעודדת'));
@@ -16,4 +17,14 @@ assert.ok(src.includes('const SCAN_CLOSING = "זו הערכה ראשונית, ה
 assert.ok(!/error:\s*err\.message\s*\}/.test(src), 'no raw err.message goes to her');
 assert.ok(src.includes('משהו השתבש בסריקה'), 'a friendly Hebrew line when something unexpected fails');
 assert.ok(src.includes('הניתוח לא הושלם הפעם'), 'and when the answer is cut off anyway');
+
+// ── Arabic-script letters in a Hebrew report (2026-10-08: "נياצינמיד"): refused by the prompt, caught by the server, asked again once ──
+assert.ok(prompt.includes('בלי אותיות ערביות') && prompt.includes('niacinamide'), 'the prompt says Hebrew letters, Latin for ingredient names, nothing else');
+assert.equal(hasForeignScript('נياצינמיד'), true, 'Arabic letters inside a Hebrew word are caught');
+assert.equal(hasForeignScript({ routine_morning: ['ניקוי עדין', 'טוניק עם نیاسینامید'] }), true, '...anywhere in the report, nested');
+assert.equal(hasForeignScript({ concerns: ['נקבוביות גלויות'], routine_evening: ['סרום niacinamide 5%', 'SPF 30'] }), false, 'Hebrew with Latin ingredient names is clean');
+assert.equal(hasForeignScript(null), false); assert.equal(hasForeignScript(72), false);
+assert.ok(src.includes('attempt < 2') && src.includes('hasForeignScript(report)'), 'the server asks again, once');
+assert.ok(src.slice(src.indexOf('if (!report)')).slice(0, 220).includes('הניתוח לא הושלם הפעם'), 'and if it is still garbled she gets the friendly line, not the garbled report');
+
 console.log('skin-scan short: ok');

@@ -97,3 +97,14 @@ export function checkLeadPayload(
     },
   };
 }
+
+/**
+ * The report is Hebrew with Latin names for ingredients. The model sometimes slips Arabic-script letters into a word
+ * ("נياצינמיד", found 2026-10-08). True when any string anywhere in the report carries Arabic letters, so the route can ask again.
+ */
+export function hasForeignScript(value: unknown): boolean {
+  if (typeof value === 'string') return /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(value);
+  if (Array.isArray(value)) return value.some(hasForeignScript);
+  if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>).some(hasForeignScript);
+  return false;
+}
