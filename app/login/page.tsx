@@ -60,11 +60,11 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [resetNotice, setResetNotice] = useState('')
   const router = useRouter()
-  // /auth/callback sends ?error=auth when the link could not become a session. The usual cause is opening it in another browser
-  // than the one that signed up; the email IS confirmed by then, so signing in works.
+  // /auth/confirm and /auth/callback send ?error=auth when an email link could not become a session: it expired or was already
+  // used. If she already confirmed, signing in works.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('error') === 'auth') {
-      setError('הקישור לא נפתח כאן, אבל אם אישרת את האימייל אפשר להתחבר עם הסיסמה שבחרת.')
+      setError('הקישור פג תוקף או כבר נוצל. אם כבר אישרת את האימייל, אפשר להתחבר עם הסיסמה שבחרת.')
     }
   }, [])
 

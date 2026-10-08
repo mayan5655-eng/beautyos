@@ -72,4 +72,11 @@ assert.ok(signupCode.includes('identities.length === 0'), 'an already-registered
 assert.ok(signupCode.includes('בדקי את המייל') && signupCode.includes('auth.resend'), 'no session: a check-your-email screen with a resend');
 assert.ok(fs.readFileSync('app/auth/callback/route.ts', 'utf8').includes("!rawNext.startsWith('//')"), 'the callback continues only to same-site paths');
 
+// ── the link works in ANY browser (2026-10-08): token_hash verified on the server, not a PKCE code tied to the signing-up browser ──
+{ const confirm = fs.readFileSync('app/auth/confirm/route.ts', 'utf8');
+  assert.ok(confirm.includes('verifyOtp') && confirm.includes('token_hash'), '/auth/confirm verifies the token_hash on the server');
+  assert.ok(confirm.includes("!rawNext.startsWith('//')") && confirm.includes("'/onboarding'"), '...continues only to same-site paths, onboarding by default');
+  assert.ok(confirm.includes('/login?error=auth'), '...and an expired or used link lands on login with the explanation');
+}
+
 console.log('attribution: ok');
