@@ -155,6 +155,17 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
           )}
         </>
       )}
+      {busy && (
+        // Creation takes about 78 s (plan, then three pictures). Without a clear line she thinks it is stuck and taps again.
+        <div role="status" aria-live="polite" data-testid="design-wait" style={{ marginTop: 12, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '12px 14px', textAlign: 'center' }}>
+          <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--pc-deep)', lineHeight: 1.5 }}>מכינה לך 3 עיצובים, זה לוקח כדקה 🌸</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 2 }}>אפשר להישאר בדף, זה לא נתקע.</p>
+          <div style={{ height: 4, borderRadius: 4, background: 'var(--line)', overflow: 'hidden', marginTop: 10 }}>
+            <div style={{ height: '100%', width: '40%', borderRadius: 4, background: 'var(--pc)', animation: 'designWait 1.6s ease-in-out infinite alternate' }} />
+          </div>
+          <style>{'@keyframes designWait{from{margin-inline-start:0}to{margin-inline-start:60%}}@media (prefers-reduced-motion:reduce){[data-testid="design-wait"] div div{animation:none!important}}'}</style>
+        </div>
+      )}
       {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 8 }}>{error}</p>}
 
       {result && (
