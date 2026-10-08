@@ -64,4 +64,12 @@ assert.ok(onboardingCode.includes('user.user_metadata?.kl_attr'), 'onboarding fa
 assert.ok(/\.then\(\(r\) => \{ if \(r\.ok\) document\.cookie = "kl_attr=; Max-Age=0/.test(onboardingCode), 'the cookie is cleared only when the server answered ok');
 assert.ok(!/\.then\(\(\) => \{ document\.cookie = "kl_attr=; Max-Age=0/.test(onboardingCode), 'not on any response at all (a 401 or 500 used to clear it, and the ad was lost)');
 
+// ── email confirmation (2026-10-08): the link returns her to onboarding, and the sign-up screen waits for it ──
+assert.ok(signupCode.includes('emailRedirectTo') && signupCode.includes('/auth/callback?next=/onboarding'), 'the confirmation link comes back through the callback to onboarding');
+assert.ok(/if \(data\.session\)[\s\S]*router\.push\('\/onboarding'\)/.test(signupCode), 'a session means straight in (confirmation off keeps working)');
+assert.ok(!/if \(data\.user\) \{\s*router\.push/.test(signupCode), 'a user WITHOUT a session is not sent to onboarding (it bounced her to /login with no message)');
+assert.ok(signupCode.includes('identities.length === 0'), 'an already-registered address is not shown a check-your-email screen');
+assert.ok(signupCode.includes('בדקי את המייל') && signupCode.includes('auth.resend'), 'no session: a check-your-email screen with a resend');
+assert.ok(fs.readFileSync('app/auth/callback/route.ts', 'utf8').includes("!rawNext.startsWith('//')"), 'the callback continues only to same-site paths');
+
 console.log('attribution: ok');

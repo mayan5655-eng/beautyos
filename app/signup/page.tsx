@@ -24,6 +24,9 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  // Set once Supabase accepted the sign-up but is waiting for her to confirm her email (no session yet).
+  const [sentTo, setSentTo] = useState('')
+  const [resendNote, setResendNote] = useState('')
   const router = useRouter()
 
   async function handleSignup(e: React.FormEvent) {
@@ -56,6 +59,9 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        // The confirmation link lands on /auth/callback, which trades the code for a session and continues to onboarding.
+        // This URL must be in Supabase > Authentication > URL Configuration > Redirect URLs.
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
         data: {
           business_name: businessName.trim(),
           ...(attr ? { kl_attr: attr } : {}),
@@ -73,10 +79,35 @@ export default function SignupPage() {
       return
     }
 
-    if (data.user) {
+    // With email confirmation ON, Supabase answers an already-registered address with a fake user (no error, no identities)
+    // so that nobody can probe which emails exist. Treat it as what it is.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setError('האימייל כבר רשום במערכת')
+      setLoading(false)
+      return
+    }
+
+    if (data.session) {
+      // Confirmation is off (or already done): straight in, as before.
       router.push('/onboarding')
       router.refresh()
+      return
     }
+
+    if (data.user) {
+      setSentTo(email)
+      setLoading(false)
+    }
+  }
+
+  async function handleResend() {
+    setResendNote('')
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: sentTo,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` },
+    })
+    setResendNote(error ? 'לא הצלחנו לשלוח שוב כרגע. נסי עוד כמה דקות.' : 'שלחנו שוב. כדאי לבדוק גם בספאם.')
   }
 
   return (
@@ -126,6 +157,26 @@ export default function SignupPage() {
           </div>
         </div>
 
+        {sentTo ? (
+          <div role="status" style={{ textAlign: 'center' }}>
+            <h2 style={{ ...welcomeTitleStyle, marginTop: 0 }}>בדקי את המייל 🌸</h2>
+            <p style={welcomeSubtitleStyle}>שלחנו קישור אישור אל</p>
+            <p dir="ltr" style={{ ...welcomeSubtitleStyle, color: DEEP, fontWeight: 700, margin: '4px 0 14px' }}>{sentTo}</p>
+            <p style={welcomeSubtitleStyle}>
+              לחצי עליו וניכנס יחד להקמת העסק. אם הוא לא הגיע תוך דקה, כדאי להסתכל בספאם.
+            </p>
+            <button type="button" onClick={handleResend} className="signup-btn" style={{ ...buttonStyle(false), marginTop: 18 }}>
+              שלחי לי שוב
+            </button>
+            {resendNote && <p style={footerStyle}>{resendNote}</p>}
+            <p style={footerStyle}>
+              טעות באימייל?{' '}
+              <button type="button" onClick={() => { setSentTo(''); setResendNote('') }} className="signup-link" style={{ ...linkStyle, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit' }}>
+                חזרה להרשמה
+              </button>
+            </p>
+          </div>
+        ) : (
         <form onSubmit={handleSignup}>
           <Field label="שם העסק">
             <input
@@ -199,6 +250,7 @@ export default function SignupPage() {
             </a>
           </p>
         </form>
+        )}
       </div>
     </div>
   )

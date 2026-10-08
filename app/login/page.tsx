@@ -60,6 +60,13 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [resetNotice, setResetNotice] = useState('')
   const router = useRouter()
+  // /auth/callback sends ?error=auth when the link could not become a session. The usual cause is opening it in another browser
+  // than the one that signed up; the email IS confirmed by then, so signing in works.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'auth') {
+      setError('הקישור לא נפתח כאן, אבל אם אישרת את האימייל אפשר להתחבר עם הסיסמה שבחרת.')
+    }
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -72,7 +79,10 @@ export default function LoginPage() {
     })
 
     if (error) {
-      setError('אימייל או סיסמה שגויים')
+      // Supabase says this only when the password was right, so it reveals nothing.
+      setError(/not confirmed/i.test(error.message)
+        ? 'עוד לא אישרת את האימייל. שלחנו לך קישור בעת ההרשמה, כדאי לבדוק גם בספאם.'
+        : 'אימייל או סיסמה שגויים')
       setLoading(false)
     } else {
       router.push('/')
