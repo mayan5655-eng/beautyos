@@ -416,6 +416,9 @@ try {
             fs.rmSync(dir, { recursive: true, force: true });
             const setup = async (h) => { await h.page.addInitScript(() => { window.__hideDemoBanner = true; }); await p.setup(h); };
             const take = await recordTake(browser, dir, { owner: p.owner !== false, setup, play: p.play, label: `${c.id}-${pi}` });
+            // The one allowed exception: the voice chapter, run on purpose with KALMEA_VOICE_LIVE=1, makes ONE read-only call to
+            // /api/voice-intent (the demo refuses any intent that writes, and is capped). Anything else still aborts.
+            if (c.id === 'voice' && VOICE_LIVE) take.aiCalls = take.aiCalls.filter((u) => !/\/api\/voice-intent\b/.test(u));
             if (take.aiCalls.length) throw new Error(`the "${c.id}" take touched an AI route, which it must never do:\n  ${take.aiCalls.join('\n  ')}`);
             finishClipAv(take.file, take.trim, out, (p.ms || 20000) / 1000 + 6);
           }
