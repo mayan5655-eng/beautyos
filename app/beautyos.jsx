@@ -8832,8 +8832,8 @@ ${c.claimUrl}`)}`;
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:"var(--r-sm)",padding:"7px 14px",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
  <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>→</button>
  </div>
- <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className="primary-btn" style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}><Icon name="lock" size={14}/> אירוע אישי</button>
- <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
+ <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}><Icon name="lock" size={14}/> אירוע אישי</button>
+ <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
  </div>
  <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"hidden",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -8962,7 +8962,7 @@ ${c.claimUrl}`)}`;
  </div>
  <div style={{display:"flex",gap:8,marginBottom:14}}>
  <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
- <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}><Icon name="lock" size={14}/> אישי</button>
+ <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}><Icon name="lock" size={14}/> אירוע אישי</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"var(--pc-contrast)",padding:"11px 0",fontSize:"var(--t-md)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
                   {(() => {
@@ -10419,6 +10419,7 @@ ${c.claimUrl}`)}`;
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>{apptTimeTouched.current=true;setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)});}} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
+ {!editingAppointmentId && newAppt.date && newAppt.date<today && <p role="status" data-testid="appt-past-date" style={{fontSize:"var(--t-sm)",color:"#8A5A00",marginTop:6,fontWeight:600}}>התאריך כבר עבר</p>}
 
               {/* WHAT. Chips, most-used first, instead of a <select> that made
                   her tap, scroll and tap again for the treatment she performs
@@ -11226,8 +11227,8 @@ ${c.claimUrl}`)}`;
           the bar and still correctly sit above it.
           ============================================================ */}
  <nav className="mobile-only app-bottombar" aria-label="ניווט תחתון" style={{position:"fixed",insetInline:0,bottom:0,zIndex:900,
-        background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.94)",
-        backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
+        /* Fully opaque: at 94% the cards scrolling underneath showed through behind the labels. */
+        background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), #FCFAFE",
         borderTop:"1px solid var(--line)",boxShadow:"var(--shadow-md)",
         /* NO inline display here. An inline style outranks a class selector,
            so display:flex would beat .mobile-only{display:none} and the bar
