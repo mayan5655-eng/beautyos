@@ -33,6 +33,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 // Links shared before signing existed (no `s`) are refused with a message that tells the client to ask
 // the cosmetician for a fresh link; she copies it from Settings. That is the cost of closing the hole.
 
+const SCAN_CLOSING = "זו הערכה ראשונית, האבחון המלא בפגישה";
+
 export async function POST(request) {
   try {
     // ── Check order is chosen for cost ──────────────────────────────────────
@@ -136,69 +138,46 @@ export async function POST(request) {
         : "אין רשימת שירותים";
 
     // 2. System prompt — professional dual report, JSON only
-    const systemPrompt = `את קוסמטיקאית רפואית מנוסה ומקצועית מאוד. את מנתחת תמונת סלפי של לקוחה ומפיקה דוח עור מקצועי ומדויק בעברית.
+    const systemPrompt = `את קוסמטיקאית רפואית מנוסה. את מנתחת תמונת סלפי של לקוחה ומפיקה דוח עור קצר, מקצועי וברור בעברית.
 
-הדוח כפול: חלק חם ומובן ללקוחה, וחלק קליני נפרד למטפלת.
-
-חשוב מאוד — כתבי תמציתי וענייני: כל פריט במשפט אחד קצר וברור, בלי פסקאות ארוכות. עד 4 ממצאים, עד 4 שלבים בתכנית הקליניקה, עד 4 מוצרים ועד 3 טיפים. דייקנות מקצועית חשובה יותר מאורך.
+חשוב מאוד: הדוח קצר. נקודות קצרות בלבד, בלי פסקאות, בלי הסברים ארוכים ובלי משפטי פתיחה או סיום. כל פריט הוא שורה אחת, עד 12 מילים.
 
 השירותים הזמינים בעסק (להתאמה):
 ${servicesText}
 
-הנחיות מקצועיות:
-1. נתחי באופן ספציפי ומדויק — סוג עור, מצב הידרציה, נקבוביות, פיגמנטציה, אזורי בעיה ספציפיים (אזור T, לחיים וכו'), סימני גיל/יובש/דלקת אם יש.
-2. המלצת הטיפול חייבת להיות טיפול קליני מדויק ומקצועי (למשל: פילינג כימי AHA/BHA, מזותרפיה, הידרהפיל, לייזר פיגמנטציה, RF, מיקרונידלינג, טיפול הבראת עור). ציני את הטיפול הקליני הנכון — ואם יש שירות תואם ברשימת העסק, ציני אותו ב-matched_service.
-3. תכנית טיפול לקליניקה (clinic_plan): סדרת טיפולים מלאה ומקצועית — כמה מפגשים, באיזו תדירות, ומה עושים בכל מפגש או שלב. היי ספציפית (למשל: "מפגש 1-3: פילינג אנזימטי + הזנה, אחת לשבועיים").
-4. תכנית טיפוח לבית (home_plan): מה הלקוחה עושה בבית בין הטיפולים — מוצרים, מרכיבים פעילים, ושגרה. כתבי בשפה מקצועית אך מובנת.
-5. שגרת הטיפוח היומית מלאה: בוקר וערב, עם שלבים ומרכיבים פעילים ספציפיים (ניאצינאמיד, רטינול, חומצה היאלורונית, ויטמין C, SPF 50).
-6. החלק למטפלת — קליני לחלוטין: הערכת שכבת עור, מרכיבים פעילים בריכוזים מומלצים, פרוטוקול טיפול מדורג, ואזהרות/קונטרה-אינדיקציות אם רלוונטי.
-7. אל תאבחני מצבים רפואיים. הערכה קוסמטית בלבד.
-8. אם התמונה לא ברורה / אין בה פנים — החזירי "valid": false.
-9. החזירי JSON בלבד — בלי טקסט נוסף, בלי markdown, בלי backticks.
+הנחיות:
+1. skin_type: שורה אחת על סוג העור ומצבו.
+2. concerns: בדיוק 3 ממצאים עיקריים, משפט קצר אחד לכל ממצא.
+3. clinical_treatment: טיפול קליני מומלץ אחד או שניים (למשל: פילינג כימי עדין, הידרהפיל), בשורה אחת. אם יש שירות תואם ברשימת העסק, ציני אותו ב-matched_service, אחרת השאירי ריק.
+4. routine_morning: בדיוק 3 שלבים. routine_evening: בדיוק 3 שלבים. כל שלב עם מרכיב או מוצר ספציפי.
+5. אל תאבחני מצבים רפואיים. הערכה קוסמטית בלבד.
+6. אם התמונה לא ברורה או שאין בה פנים, החזירי {"valid": false}.
+7. החזירי JSON בלבד, בלי טקסט נוסף, בלי markdown ובלי backticks.
 
 מבנה ה-JSON המדויק:
 {
   "valid": true,
-  "skin_type": "סוג עור מדויק (למשל: עור מעורב, נוטה לשומניות באזור T, יובש בלחיים)",
+  "skin_type": "שורה אחת",
   "score": 78,
-  "concerns": ["ממצא ספציפי 1", "ממצא ספציפי 2", "ממצא ספציפי 3"],
-  "clinical_treatment": "שם הטיפול הקליני המדויק המומלץ",
+  "concerns": ["ממצא 1", "ממצא 2", "ממצא 3"],
+  "clinical_treatment": "טיפול אחד או שניים",
   "matched_service": "שם שירות מרשימת העסק אם תואם, אחרת ריק",
-  "clinic_plan": {
-    "treatment_type": "סוג הטיפול המומלץ בקליניקה",
-    "sessions": "מספר מפגשים מומלץ ותדירות (למשל: 6 מפגשים, אחת לשבועיים)",
-    "steps": ["מה עושים במפגש/שלב 1", "שלב 2", "שלב 3"],
-    "expected_results": "מה הלקוחה תראה בסיום הסדרה"
-  },
-  "home_plan": {
-    "summary": "תיאור קצר של מטרת הטיפוח בבית",
-    "products": ["מוצר/מרכיב מומלץ 1 ולמה", "מוצר 2", "מוצר 3"],
-    "tips": ["טיפ 1 לשמירה על התוצאות", "טיפ 2"]
-  },
-  "routine_morning": ["שלב 1 עם מרכיב פעיל", "שלב 2", "שלב 3", "שלב 4 (SPF)"],
-  "routine_evening": ["שלב 1", "שלב 2 עם מרכיב פעיל", "שלב 3", "שלב 4"],
-  "summary": "משפט חם ומעודד אחד ללקוחה",
-  "therapist_notes": {
-    "skin_assessment": "הערכה קלינית של מצב העור, שכבות, ממצאים",
-    "active_ingredients": ["מרכיב + ריכוז מומלץ", "מרכיב + ריכוז"],
-    "protocol": "פרוטוקול טיפול מדורג — מספר מפגשים, תדירות, רצף",
-    "cautions": "אזהרות / קונטרה-אינדיקציות / נקודות תשומת לב"
-  }
+  "routine_morning": ["שלב 1", "שלב 2", "שלב 3"],
+  "routine_evening": ["שלב 1", "שלב 2", "שלב 3"]
 }
 
 score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוגנת ומעודדת.`;
 
-    // 3. Call Claude with vision. Haiku 4.5 is much faster than Sonnet for this
-    // structured-report task. max_tokens is generous enough that the full JSON
-    // report is never truncated (1500 was too tight and cut the JSON off), while
-    // still well below Sonnet's old 4000.
+    // 3. Call Claude with vision. The report is deliberately SHORT (about 300-500 output tokens): the long clinic / home / therapist
+    // blocks it used to carry ran past 3000 tokens and were cut mid-JSON (found 2026-10-08, a real scan returned a parse error).
+    // 1200 is a safety margin over a short report, not a budget to fill.
     // This route is PUBLIC - no session. In phase 1 the tenant may arrive
     // either signed (verified above, attribution 'verified') or unsigned from a
     // link shared before signing existed (attribution 'claimed'). Only the
     // former should ever be billed to a tenant without reconciliation.
     const aiResponse = await trackedCreate(anthropic, {
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 3000,
+      max_tokens: 1200,
       system: systemPrompt,
       messages: [
         {
@@ -259,7 +238,7 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
         {
           success: false,
           error: truncated
-            ? "הדוח היה ארוך מדי והצטמצם. נסי שוב."
+            ? "הניתוח לא הושלם הפעם. נסי שוב בעוד רגע."
             : "לא הצלחנו לנתח את התמונה. נסי תמונה ברורה יותר.",
           stopReason: aiResponse.stop_reason,
         },
@@ -274,10 +253,15 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
       );
     }
 
+    // The closing line is ours, not the model's: always the same honest framing, never a diagnosis.
+    report.summary = SCAN_CLOSING;
+
     // Signed, so /api/skin-scan/send builds its WhatsApp from THIS report and nothing a caller typed.
     return Response.json({ success: true, report, reportToken: signScanReport(tenantId, report) });
   } catch (err) {
     console.error("Skin-scan error:", err);
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    // Hebrew messages we wrote ourselves (provider down, caps) reach her as they are; anything else is a friendly line, never a raw error.
+    const msg = err && typeof err.message === "string" && /[֐-׿]/.test(err.message) ? err.message : "משהו השתבש בסריקה. נסי שוב בעוד רגע.";
+    return Response.json({ success: false, error: msg }, { status: 500 });
   }
 }
