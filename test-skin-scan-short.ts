@@ -27,4 +27,9 @@ assert.equal(hasForeignScript(null), false); assert.equal(hasForeignScript(72), 
 assert.ok(src.includes('attempt < 2') && src.includes('hasForeignScript(report)'), 'the server asks again, once');
 assert.ok(src.slice(src.indexOf('if (!report)')).slice(0, 220).includes('הניתוח לא הושלם הפעם'), 'and if it is still garbled she gets the friendly line, not the garbled report');
 
+// ── the face areas are a fixed list (2026-10-08: "בחוד" is not a place on a face; "calming" is not Hebrew) ──
+assert.ok(prompt.includes('מצח, אף, לחיים, סנטר, אזור העיניים'), 'the face areas are a fixed list');
+assert.ok(prompt.includes('אין אזורים אחרים'), '...and nothing else is a place');
+assert.ok(prompt.includes('מילים באנגלית אסורות חוץ משמות מרכיבים'), 'English only for ingredient names');
+
 console.log('skin-scan short: ok');
