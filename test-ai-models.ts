@@ -51,6 +51,7 @@ const SITES: [string, string, string | null][] = [
   ['app/api/advisor/route.ts', MODELS.writer, 'app/api/advisor/route.ts'],
   ['lib/ai/marketingAI.ts', MODELS.ideas, 'app/api/marketing/groups/route.ts'],
   ['app/api/marketing/shooting-list/route.ts', MODELS.ideas, 'app/api/marketing/shooting-list/route.ts'],
+  ['app/api/skin-scan/route.js', MODELS.ideas, 'app/api/skin-scan/route.js'],
 ];
 for (const [file, model, route] of SITES) {
   const src = code(file);

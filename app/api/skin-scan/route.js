@@ -14,6 +14,10 @@ import { checkScanPayload, hasForeignScript, admitScan } from "@/lib/skinScanGua
 import { createClient as createSessionClient } from "@/lib/supabase/server";
 import { getQuotaStatus } from "@/lib/skinScanQuota";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
+import { MODELS } from "@/lib/ai/models";
+
+// Sonnet 5.5 thinks before it answers, so a call takes tens of seconds.
+export const maxDuration = 60;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -177,8 +181,11 @@ score = ציון עור כללי 0-100 (גבוה = מצב טוב). היי הוג
     // link shared before signing existed (attribution 'claimed'). Only the
     // former should ever be billed to a tenant without reconciliation.
     const callModel = () => trackedCreate(anthropic, {
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
+      // Sonnet 5.5 (2026-10-08, was Haiku) for better Hebrew. Thinking is on and counts against max_tokens, so the budget leaves room
+      // for it; the report itself is still only ~300-500 tokens.
+      model: MODELS.ideas,
+      max_tokens: 8000,
+      output_config: { effort: "low" },
       system: systemPrompt,
       messages: [
         {

@@ -9,7 +9,8 @@ const src = fs.readFileSync('app/api/skin-scan/route.js', 'utf8');
 const prompt = src.slice(src.indexOf('const systemPrompt'), src.indexOf('היי הוגנת ומעודדת'));
 
 const max = Number(/max_tokens:\s*(\d+)/.exec(src)?.[1]);
-assert.ok(max >= 800 && max <= 1500, `max_tokens is a margin over a short report, not the old 3000 (got ${max})`);
+// Sonnet 5.5 thinks first and thinking counts against max_tokens (test-ai-models.ts needs >= 8000); the REPORT stays short, pinned by the prompt below.
+assert.ok(max >= 8000 && max <= 16000, `max_tokens leaves room for thinking (got ${max})`);
 for (const gone of ['clinic_plan', 'home_plan', 'therapist_notes']) assert.ok(!prompt.includes(gone), `the prompt no longer asks for ${gone}`);
 for (const kept of ['"skin_type"', '"concerns"', '"clinical_treatment"', '"routine_morning"', '"routine_evening"', '"matched_service"']) assert.ok(prompt.includes(kept), `the prompt still asks for ${kept}`);
 assert.ok(prompt.includes('בדיוק 3 ממצאים') && prompt.includes('בדיוק 3 שלבים'), '3 findings, 3 steps morning, 3 evening');
