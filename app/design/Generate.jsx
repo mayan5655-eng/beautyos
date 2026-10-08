@@ -8,7 +8,7 @@
 // spends one; at the cap the button closes and the templates below stay
 // open, because templates are unlimited by design.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
@@ -44,12 +44,16 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
   const [error, setError] = useState('');
   const [showTopics, setShowTopics] = useState(false);
   const [topicQuery, setTopicQuery] = useState('');
+  const waitRef = useRef(null);
 
   useEffect(() => {
     let alive = true;
     fetchAllowance().then((a) => { if (alive) setAllowance(a || { used: 0, cap: 0 }); });
     return () => { alive = false; };
   }, []);
+
+  // The message must be on screen the moment she taps: on a phone it sits below the fold and behind the floating buttons otherwise.
+  useEffect(() => { if (busy) waitRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, [busy]);
 
   const atCap = allowance ? allowance.used >= allowance.cap : false;
 
@@ -131,6 +135,17 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
             </button>
           </div>
 
+        {busy && (
+          // Creation takes about 78 s (plan, then three pictures). Without a clear line she thinks it is stuck and taps again.
+          <div role="status" aria-live="polite" data-testid="design-wait" ref={waitRef} style={{ marginTop: 12, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '12px 14px', textAlign: 'center' }}>
+            <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--pc-deep)', lineHeight: 1.5 }}>מכינה לך 3 עיצובים, זה לוקח כדקה 🌸</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 2 }}>אפשר להישאר בדף, זה לא נתקע.</p>
+            <div style={{ height: 4, borderRadius: 4, background: 'var(--line)', overflow: 'hidden', marginTop: 10 }}>
+              <div style={{ height: '100%', width: '40%', borderRadius: 4, background: 'var(--pc)', animation: 'designWait 1.6s ease-in-out infinite alternate' }} />
+            </div>
+            <style>{'@keyframes designWait{from{margin-inline-start:0}to{margin-inline-start:60%}}@media (prefers-reduced-motion:reduce){[data-testid="design-wait"] div div{animation:none!important}}'}</style>
+          </div>
+        )}
           {showTopics && (
             <div style={{ marginTop: 10, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '12px 12px 8px' }}>
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.5, marginBottom: 8 }}>
@@ -154,17 +169,6 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
             </div>
           )}
         </>
-      )}
-      {busy && (
-        // Creation takes about 78 s (plan, then three pictures). Without a clear line she thinks it is stuck and taps again.
-        <div role="status" aria-live="polite" data-testid="design-wait" style={{ marginTop: 12, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '12px 14px', textAlign: 'center' }}>
-          <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--pc-deep)', lineHeight: 1.5 }}>מכינה לך 3 עיצובים, זה לוקח כדקה 🌸</p>
-          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 2 }}>אפשר להישאר בדף, זה לא נתקע.</p>
-          <div style={{ height: 4, borderRadius: 4, background: 'var(--line)', overflow: 'hidden', marginTop: 10 }}>
-            <div style={{ height: '100%', width: '40%', borderRadius: 4, background: 'var(--pc)', animation: 'designWait 1.6s ease-in-out infinite alternate' }} />
-          </div>
-          <style>{'@keyframes designWait{from{margin-inline-start:0}to{margin-inline-start:60%}}@media (prefers-reduced-motion:reduce){[data-testid="design-wait"] div div{animation:none!important}}'}</style>
-        </div>
       )}
       {error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 8 }}>{error}</p>}
 
