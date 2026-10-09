@@ -5,6 +5,7 @@
 
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
+import PublicFooterLinks from "../PublicFooterLinks";
 
 // Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
@@ -205,6 +206,7 @@ export default function PrivacyPage() {
         <footer style={footerStyle}>
           עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
         </footer>
+        <PublicFooterLinks style={{ padding: "6px 0 0" }} />
       </article>
     </div>
   );

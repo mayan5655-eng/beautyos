@@ -326,7 +326,8 @@ export default function RootLayout({
             and were changed to <div>). flex-1 + flex-col keep it a drop-in
             for the body's own column, so a page that fills the screen still
             does. The install banners stay outside it: they are chrome. */}
-        <main className="flex flex-1 flex-col">{children}</main>
+        <a href="#main-content" className="skip-link">דלגי לתוכן הראשי</a>
+        <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col" style={{ outline: "none" }}>{children}</main>
         <IOSInstallBanner />
         <InstallPromptBanner />
       </body>

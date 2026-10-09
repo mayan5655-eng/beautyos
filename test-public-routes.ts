@@ -33,8 +33,8 @@ const urls = sitemap.map((e: any) => new URL(e.url));
 assert.ok(urls.length >= 4 && urls.every((u: URL) => u.protocol === 'https:' || u.hostname === 'localhost'), 'absolute URLs');
 assert.equal(new Set(urls.map((u: URL) => u.origin)).size, 1, 'all on one origin');
 const paths = urls.map((u: URL) => u.pathname);
-for (const p of ['/', '/signup', '/privacy', '/terms']) assert.ok(paths.includes(p), `the sitemap lists ${p}`);
-assert.ok(!paths.some((p: string) => p.length > 1 && !['/signup', '/demo', '/privacy', '/terms'].includes(p)), "and nothing else: a business's page is not listed (that is hers to opt into)");
+for (const p of ['/', '/signup', '/privacy', '/terms', '/accessibility']) assert.ok(paths.includes(p), `the sitemap lists ${p}`);
+assert.ok(!paths.some((p: string) => p.length > 1 && !['/signup', '/demo', '/privacy', '/terms', '/accessibility'].includes(p)), "and nothing else: a business's page is not listed (that is hers to opt into)");
 assert.equal(new URL(robots.sitemap).pathname, '/sitemap.xml', 'robots.txt points at the sitemap');
 assert.equal(new URL(robots.sitemap).origin, urls[0].origin, 'on the same origin as the entries');
 

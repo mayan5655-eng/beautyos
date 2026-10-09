@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '../supabase'
 import BrandBackdrop from '../BrandBackdrop'
+import PublicFooterLinks from '../PublicFooterLinks'
 
 // Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
 // tenant until after signup, so every value reads --brand-*, never --pc-*.
 // Shared with /login and /reset-password via lib/brand.ts.
 import {
-  ACCENT, CREAM, SURFACE, MUTED, DEEP, GRAD,
+  ACCENT, CREAM, SURFACE, MUTED, DEEP,
   ACCENT_LINE, ACCENT_LINE_2, ACCENT_RING, DEEP_SHADOW,
   BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, FLOWER_MARK,
 } from '@/lib/brand'
@@ -144,7 +145,7 @@ export default function SignupPage() {
 
         {/* Welcome */}
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
-          <h2 style={welcomeTitleStyle}>נעים להכיר 🌸</h2>
+          <h1 style={welcomeTitleStyle}>נעים להכיר 🌸</h1>
           <p style={welcomeSubtitleStyle}>
             פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד.
           </p>
@@ -159,7 +160,7 @@ export default function SignupPage() {
 
         {sentTo ? (
           <div role="status" style={{ textAlign: 'center' }}>
-            <h2 style={{ ...welcomeTitleStyle, marginTop: 0 }}>בדקי את המייל 🌸</h2>
+            <h1 style={{ ...welcomeTitleStyle, marginTop: 0 }}>בדקי את המייל 🌸</h1>
             <p style={welcomeSubtitleStyle}>שלחנו קישור אישור אל</p>
             <p dir="ltr" style={{ ...welcomeSubtitleStyle, color: DEEP, fontWeight: 700, margin: '4px 0 14px' }}>{sentTo}</p>
             <p style={welcomeSubtitleStyle}>
@@ -178,9 +179,11 @@ export default function SignupPage() {
           </div>
         ) : (
         <form onSubmit={handleSignup}>
-          <Field label="שם העסק">
+          <Field label="שם העסק" htmlFor="signup-business">
             <input
               className="signup-input"
+              id="signup-business"
+              autoComplete="organization"
               type="text"
               placeholder="למשל: סטודיו רונית"
               value={businessName}
@@ -190,9 +193,11 @@ export default function SignupPage() {
             />
           </Field>
 
-          <Field label="אימייל">
+          <Field label="אימייל" htmlFor="signup-email">
             <input
               className="signup-input"
+              id="signup-email"
+              autoComplete="email"
               type="email"
               placeholder="you@example.com"
               value={email}
@@ -202,9 +207,11 @@ export default function SignupPage() {
             />
           </Field>
 
-          <Field label="סיסמה" hint="לפחות 6 תווים">
+          <Field label="סיסמה" hint="לפחות 6 תווים" htmlFor="signup-password">
             <input
               className="signup-input"
+              id="signup-password"
+              autoComplete="new-password"
               type="password"
               placeholder="בחרי סיסמה"
               value={password}
@@ -215,9 +222,11 @@ export default function SignupPage() {
             />
           </Field>
 
-          <Field label="אישור סיסמה">
+          <Field label="אישור סיסמה" htmlFor="signup-password2">
             <input
               className="signup-input"
+              id="signup-password2"
+              autoComplete="new-password"
               type="password"
               placeholder="הקלידי שוב את הסיסמה"
               value={confirmPassword}
@@ -227,7 +236,7 @@ export default function SignupPage() {
             />
           </Field>
 
-          {error && <div style={errorStyle}>{error}</div>}
+          {error && <div role="alert" style={errorStyle}>{error}</div>}
 
           <button type="submit" disabled={loading} className="signup-btn" style={buttonStyle(loading)}>
             {loading ? <Spinner inline label="יוצרת חשבון" /> : 'הרשמה'}
@@ -251,6 +260,7 @@ export default function SignupPage() {
           </p>
         </form>
         )}
+        <PublicFooterLinks style={{ padding: "14px 0 0" }} />
       </div>
     </div>
   )
@@ -260,16 +270,18 @@ export default function SignupPage() {
 function Field({
   label,
   hint,
+  htmlFor,
   children,
 }: {
   label: string
   hint?: string
+  htmlFor: string
   children: React.ReactNode
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <label style={labelStyle}>{label}</label>
+        <label htmlFor={htmlFor} style={labelStyle}>{label}</label>
         {hint && <span style={hintStyle}>{hint}</span>}
       </div>
       {children}
@@ -366,7 +378,8 @@ const buttonStyle = (loading: boolean): React.CSSProperties => ({
   width: '100%',
   padding: 15,
   marginTop: 6,
-  background: loading ? 'linear-gradient(135deg, #8C7396 0%, #E0B3BE 100%)' : GRAD,
+  // Solid deep green, not the green-to-pink gradient: white text on the pale end of that gradient was under 4.5:1 (WCAG AA).
+  background: loading ? '#5B6B63' : DEEP,
   color: '#fff',
   border: 'none',
   borderRadius:"var(--r-sm)",

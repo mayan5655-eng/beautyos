@@ -16,6 +16,7 @@ import {
   ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER,
 } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
+import PublicFooterLinks from "./PublicFooterLinks";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -220,6 +221,7 @@ export default function LandingPage() {
       </section>
 
       <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
+        <PublicFooterLinks style={{ padding: "0 0 8px" }} />
         <p>© {new Date().getFullYear()} קלמיה</p>
       </footer>
     </div>

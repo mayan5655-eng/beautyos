@@ -18,6 +18,7 @@ import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
 import { Watermark, PoweredBy } from "./PublicChrome";
+import PublicFooterLinks from "./PublicFooterLinks";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 
@@ -1155,7 +1156,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {brand?.logoUrl ? (
               <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={220} h={72} style={{ maxHeight: 72, maxWidth: 220, width: "auto", height: "auto", objectFit: "contain", margin: "0 auto 10px", display: "block" }} />
             ) : null}
-            <h2 className="serif" style={{ fontSize: 26, fontWeight: 700, color: deep, letterSpacing: "0.3px" }}>{bizName}</h2>
+            <h1 className="serif" style={{ fontSize: 26, fontWeight: 700, color: deep, letterSpacing: "0.3px" }}>{bizName}</h1>
           </div>
 
           {/* PROGRESS BAR */}
@@ -1192,7 +1193,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   {availableDays.map((d, i) => {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
-                      <div key={i} className="bk-chip" onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
+                      <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={"יום " + DAYS_HE[d.getDay()] + " " + d.getDate() + " " + MONTHS_HE[d.getMonth()]}
+                        onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(d); setSelectedStart(null); } }}
                         style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--brand-surface, #FDFBF9)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
@@ -1275,9 +1278,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </div>
 
                 <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא"
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא" aria-label="שם מלא" autoComplete="name" aria-required="true"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="טלפון נייד"
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="טלפון נייד" aria-label="טלפון נייד" aria-required="true"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
 
                 {/* CONSENT, before the button. What is stored, what it is
@@ -1296,7 +1299,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>
                 </label>
 
-                {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
+                {errorMsg && <p role="alert" style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
@@ -1335,6 +1338,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}
         <PoweredBy />
+        <PublicFooterLinks />
       </div>
     </div>
   );
