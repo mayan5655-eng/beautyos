@@ -3994,7 +3994,7 @@ export default function BeautyOS() {
       if(error){
         console.error("[marketing consent] update failed:", error);
         const missing=/marketing_|column|schema cache/i.test(String(error.message||""));
-        toast(missing?"כדי לשמור הסכמה והסרה צריך להריץ קודם את המיגרציה add_marketing_consent. עדיין לא רצה.":SAVE_FAILED_HE,"error");
+        toast(missing?"שמירת הסכמה והסרה מדיוור עוד לא פעילה במערכת (עדכון מסד נתונים שעוד לא הורץ).":SAVE_FAILED_HE,"error");
         return;
       }
       if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
