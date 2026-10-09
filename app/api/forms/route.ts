@@ -40,6 +40,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { publicAccent } from '@/lib/branding';
+import { consentFields } from '@/lib/marketingConsent.js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
     // overwriting a form that has already been signed.
     const { data: existing, error: readErr } = await supabase
       .from('forms')
-      .select('id, tenant_id, status')
+      .select('id, tenant_id, client_id, status')
       .eq('id', id)
       .maybeSingle();
 
@@ -225,6 +226,17 @@ export async function POST(request: Request) {
       // The status changed between the read and the write - someone else
       // signed it a moment ago. Same answer as the already-signed case.
       return Response.json({ success: true, state: 'already-signed' });
+    }
+
+    // The optional, unchecked "updates and offers" box on the form. Only a literal true counts, only once the form is really signed, and it
+    // is best-effort: the signed health declaration above never depends on it (e.g. the consent_form migration may not have run).
+    if (body?.marketingConsent === true && existing.client_id) {
+      const { error: consentErr } = await supabase
+        .from('clients')
+        .update(consentFields('consent_form'))
+        .eq('id', existing.client_id)
+        .eq('tenant_id', existing.tenant_id);
+      if (consentErr) console.error('[forms] marketing consent not recorded:', consentErr.message);
     }
 
     return Response.json({ success: true, state: 'signed' });

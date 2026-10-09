@@ -1239,6 +1239,8 @@ export default function BeautyOS() {
   // Services show as chips, most-used first. This opens the long tail.
   const [apptAllServices,   setApptAllServices]    = useState(false);
   const [rebookDone,        setRebookDone]         = useState(null);
+  // The receipt just recorded at the till, for which the one-time "did she agree to updates?" prompt may show. Opening an old receipt from the list never asks.
+  const [consentAskFor,     setConsentAskFor]      = useState(null);
   // A time she picked instead of the proposed one, scoped to the receipt it was
   // picked on so it can never leak onto a different client's booking. It
   // deliberately survives a change of interval: "same time, a week later" is
@@ -3999,7 +4001,8 @@ export default function BeautyOS() {
       }
       if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
       setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));
-      setSelectedClient(data[0]);
+      // Only refresh the open card; from the cashier prompt no client card is open and none should pop up.
+      setSelectedClient(prev=>prev&&String(prev.id)===String(client.id)?data[0]:prev);
       toast(doneMsg);
     } finally {
       setBusyKey("clientMarketing", false);
@@ -5376,7 +5379,7 @@ export default function BeautyOS() {
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
       // failure. Uses the same sendReceiptToClient the manual button uses.
       afterPaymentRecorded(data[0], { autoSend: !!((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone) });
-      setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);
+      setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);setConsentAskFor(data[0].id);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);
       toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`);
     } finally {
@@ -5759,7 +5762,7 @@ export default function BeautyOS() {
       // (print / manual "send to client") as a regular receipt.
       if (data) {
         setReceipts(prev=>[...prev, data[0]]);
-        setShowReceipt(data[0]);
+        setShowReceipt(data[0]);setConsentAskFor(data[0].id);
         // Auto-send to the client on WhatsApp when enabled (same helper as the
         // manual button). Fire-and-forget — never blocks or breaks creation.
         const cl = clients.find(c=>String(c.id)===String(data[0].client_id));
@@ -11009,6 +11012,22 @@ ${MARKETING_FOOTER}`)}`;
               ):null;})()}
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14}}>תודה ונתראה בקרוב ✦</p>
  </div>
+              {/* MARKETING CONSENT, asked by HER, never by a message (a WhatsApp asking for consent may itself be advertising).
+                  Only for a client with no answer yet: someone who opted out is never asked again; someone who agreed is not asked twice.
+                  "לא עכשיו" writes nothing. Outside .receipt-print, so it never lands on a printed receipt. */}
+              {(()=>{
+                const cl=showReceipt.client_id?clients.find(c=>String(c.id)===String(showReceipt.client_id)):null;
+                if(!cl||marketingStatus(cl)!=="none"||String(consentAskFor)!==String(showReceipt.id)) return null;
+                return(
+ <div data-testid="consent-prompt" style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:"var(--surface-2)",border:"1px solid var(--line-2)"}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",lineHeight:1.5,marginBottom:9}}>שאלת אם היא מאשרת לקבל עדכונים ומבצעים?</p>
+ <div style={{display:"flex",gap:8}}>
+ <button onClick={()=>saveClientMarketing(cl,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} className="primary-btn" style={{flex:1,minHeight:44,padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>כן, אישרה</button>
+ <button onClick={()=>setConsentAskFor(null)} style={{flex:1,minHeight:44,padding:"10px 0",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>לא עכשיו</button>
+ </div>
+ </div>
+                );
+              })()}
               {/* NEXT APPOINTMENT — the whole point of putting this here.
                   Above the receipt buttons, because she reaches this screen
                   with the client still in front of her, and this is the last

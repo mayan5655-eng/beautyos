@@ -57,4 +57,22 @@ const mig = src('supabase/migrations/add_marketing_consent.sql');
 for (const c of ['marketing_consent ', 'marketing_consent_at', 'marketing_consent_source', 'marketing_opted_out_at']) assert.ok(mig.includes(c), `migration adds ${c}`);
 assert.ok(/default false/.test(mig) && /if not exists/.test(mig), 'existing clients start as no consent; re-runnable');
 
+
+
+// ── v2: the cashier prompt and the treatment consent form ──
+{
+  const ui2 = src('app/beautyos.jsx');
+  assert.ok(ui2.includes('data-testid="consent-prompt"') && ui2.includes('שאלת אם היא מאשרת לקבל עדכונים ומבצעים?') && ui2.includes('כן, אישרה') && ui2.includes('לא עכשיו'), 'cashier prompt text and buttons');
+  assert.ok(/marketingStatus\(cl\)!=="none"/.test(ui2), 'asked only when there is no answer yet: never after an opt-out, never twice');
+  assert.ok(/consentFields\("manual"\)/.test(ui2), 'a yes at the till is source manual');
+  assert.ok(!/לא עכשיו[^\n]*saveClientMarketing/.test(ui2), '"לא עכשיו" writes nothing');
+  const form = src('app/form/page.jsx');
+  assert.ok(form.includes('useState(false)') && form.includes('const [marketingOk, setMarketingOk] = useState(false)') && form.includes('אשמח לקבל עדכונים ומבצעים') && form.includes('marketingConsent: marketingOk === true'), 'form checkbox starts unchecked, optional');
+  const fapi = src('app/api/forms/route.ts');
+  assert.ok(fapi.includes("body?.marketingConsent === true") && fapi.includes("consentFields('consent_form')"), 'server records consent_form only on a literal true');
+  assert.ok(fapi.indexOf("consentFields('consent_form')") > fapi.indexOf("state: 'signed'") - 900, 'after the signature write');
+  assert.deepEqual(consentFields('consent_form', 'x').marketing_consent_source, 'consent_form');
+  const m2 = src('supabase/migrations/add_consent_form_source.sql');
+  assert.ok(m2.includes("'booking_page', 'manual', 'consent_form'") && m2.includes('drop constraint if exists'), 'constraint widened, re-runnable');
+}
 console.log('marketing consent: ok');

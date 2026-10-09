@@ -27,7 +27,7 @@ do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'clients_marketing_consent_source_check') then
     alter table public.clients add constraint clients_marketing_consent_source_check
-      check (marketing_consent_source is null or marketing_consent_source in ('booking_page', 'manual'));
+      check (marketing_consent_source is null or marketing_consent_source in ('booking_page', 'manual'));  -- 'consent_form' is added by add_consent_form_source.sql
   end if;
 end $$;
 

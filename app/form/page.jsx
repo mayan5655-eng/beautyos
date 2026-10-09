@@ -87,6 +87,8 @@ export default function FormPage() {
   const [brandInfo, setBrandInfo] = useState({ businessName: "", logoUrl: "", primaryColor: "" });
   const [answers, setAnswers] = useState({});
   const [signed, setSigned] = useState(false);
+  // Optional and UNCHECKED by default: promotions need an explicit yes (section 30A). Never blocks signing.
+  const [marketingOk, setMarketingOk] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -204,7 +206,7 @@ export default function FormPage() {
       const res = await fetch("/api/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: formId, answers, signature }),
+        body: JSON.stringify({ id: formId, answers, signature, marketingConsent: marketingOk === true }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.success) {
@@ -361,6 +363,11 @@ export default function FormPage() {
           בחתימתי אני מאשרת שקראתי את השאלות, עניתי עליהן בכנות,<br/>
           והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.
         </div>
+
+        <label data-testid="marketing-consent-checkbox" style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2, #E5E0EA)",background:"var(--brand-cream, #FDFBF9)",marginBottom:14,cursor:"pointer"}}>
+          <input type="checkbox" checked={marketingOk} onChange={(e)=>setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{width:20,height:20,marginTop:2,flexShrink:0,accentColor:"var(--pc)"}}/>
+          <span style={{fontSize:"var(--t-md)",color:"var(--ink, #2A2233)",lineHeight:1.6}}>אשמח לקבל עדכונים ומבצעים</span>
+        </label>
 
         {submitError && (
           <div role="alert" style={{background:"#FDEEF2",border:"1px solid var(--danger, #C2557A)",borderRadius:"var(--r-sm)",padding:"12px 14px",marginBottom:12,fontSize:"var(--t-md)",color:"var(--danger, #C2557A)",fontWeight:600,lineHeight:1.6,textAlign:"center"}}>
