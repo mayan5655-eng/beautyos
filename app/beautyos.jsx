@@ -62,6 +62,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
+import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import FieldPicker from "./FieldPicker";
@@ -686,7 +687,7 @@ function waBirthday(phone, name, businessName) {
   // "מהעסק שלי" / a dangling "מ" never reaches a real client.
   const b = (businessName || "").trim();
   const bs = b && b !== "העסק שלי" ? b : "";
-  return waMsg(phone, `שלום ${name}! \nיום הולדת שמח! \n${bs ? `מ${bs} ` : ""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`);
+  return waMsg(phone, withMarketingFooter(`שלום ${name}! \nיום הולדת שמח! \n${bs ? `מ${bs} ` : ""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`));
 }
 
 function waReview(phone, name) {
@@ -3979,6 +3980,29 @@ export default function BeautyOS() {
       setShowClientModal(false);setEditingClient(null);setNewClient(emptyClient);
     } finally {
       setBusyKey("saveClient", false);
+    }
+  };
+
+  // Marketing consent / opt-out for one client (lib/marketingConsent.js). The columns come from supabase/migrations/add_marketing_consent.sql;
+  // until it has run the update fails and she is told so, plainly - never a success toast for a write that did not happen.
+  const saveClientMarketing = async (client, fields, doneMsg) => {
+    if (guardWrite()) return;
+    if (isBusy("clientMarketing")) return;
+    setBusyKey("clientMarketing", true);
+    try {
+      const {data,error}=await supabase.from("clients").update(fields).eq("id",client.id).select();
+      if(error){
+        console.error("[marketing consent] update failed:", error);
+        const missing=/marketing_|column|schema cache/i.test(String(error.message||""));
+        toast(missing?"כדי לשמור הסכמה והסרה צריך להריץ קודם את המיגרציה add_marketing_consent. עדיין לא רצה.":SAVE_FAILED_HE,"error");
+        return;
+      }
+      if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
+      setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));
+      setSelectedClient(data[0]);
+      toast(doneMsg);
+    } finally {
+      setBusyKey("clientMarketing", false);
     }
   };
 
@@ -7679,7 +7703,9 @@ export default function BeautyOS() {
         const waDigits=(raw)=>{let d=String(raw||"").replace(/\D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
         const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(`שלום${c.name?` ${c.name}`:""}! ✦
 ${composeSend.messageTemplate}
-${c.claimUrl}`)}`;
+${c.claimUrl}
+
+${MARKETING_FOOTER}`)}`;
         const doneCount=composeSend.candidates.filter(c=>composeDone[c.phone]).length;
         return (
  <Sheet open onClose={()=>setComposeSend(null)} width={440} zIndex={4000} title={composeSend.title}>
@@ -8785,7 +8811,7 @@ ${c.claimUrl}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
  </div>
-                          {c.phone&&<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>}
+                          {c.phone&&(canMarket(c)?<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>:<span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{marketingStatus(c)==="opted_out"?"ביקשה הסרה":"אין הסכמה לדיוור"}</span>)}
  </div>
                         );
                       })}
@@ -9387,15 +9413,15 @@ ${c.claimUrl}`)}`;
               return {clientId:a.client_id,name:a.name,phone:cl?.phone,
                 message:`שלום ${a.name}! ✦\nתזכורת לתור מחר:\n${a.service}\nבשעה ${fmtApptTime(a)}\n\nמחכים לך! `};
             });
-            const birthdayTargets=upcomingBirthdays.map(c=>{
+            const birthdayTargets=upcomingBirthdays.filter(canMarket).map(c=>{
               const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());
               if(bd<now)bd.setFullYear(now.getFullYear()+1);
               const days=Math.floor((bd-now)/(1000*60*60*24));
               return {clientId:c.id,name:c.name,phone:c.phone,days,
-                message:`שלום ${c.name}! \nיום הולדת שמח! \n${bizSafe?`מ${bizSafe} `:""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`};
+                message:`שלום ${c.name}! \nיום הולדת שמח! \n${bizSafe?`מ${bizSafe} `:""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`.concat("\n\n",MARKETING_FOOTER)};
             });
-            const coldTargets=coldClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
-              message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `}));
+            const coldTargets=coldClients.filter(canMarket).map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
+              message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `.concat("\n\n",MARKETING_FOOTER)}));
             const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
             const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
             const reviewTargets=reviewClientIds.map(cid=>{
@@ -9406,7 +9432,7 @@ ${c.claimUrl}`)}`;
             }).filter(Boolean);
 
             const audienceClients=clients.filter(c=>{
-              if(!c.phone)return false;
+              if(!c.phone||!canMarket(c))return false;
               if(waBroadcastAudience==="all")return true;
               if(waBroadcastAudience==="vip")return c.status==="VIP";
               if(waBroadcastAudience==="active")return isActiveClient(getLastApptDate(c.id),now);
@@ -9442,6 +9468,8 @@ ${c.claimUrl}`)}`;
  </div>
 
  {waView==="send"&&(<>
+
+ <p data-testid="marketing-consent-note" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12,textAlign:"center"}}>בברכות יום הולדת, בהודעות התחדשות ובהודעה לקבוצה נכללות רק לקוחות שאישרו קבלת עדכונים ומבצעים. כרגע: {clients.filter(canMarket).length} מתוך {clients.length}. אפשר לסמן הסכמה בכרטיס הלקוחה.</p>
 
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(270px,1fr))",gap:14,marginBottom:16}}>
                 {groups.map(g=>{
@@ -9493,10 +9521,10 @@ ${c.claimUrl}`)}`;
                   placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים "
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון בקבוצה זו</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון והסכמה לדיוור בקבוצה זו</p>
  <button onClick={()=>{
                     if(!waBroadcastMsg.trim()){toast("נא לכתוב הודעה","error");return;}
-                    waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:`שלום ${c.name}! ${waBroadcastMsg}`})));
+                    waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:withMarketingFooter(`שלום ${c.name}! ${waBroadcastMsg}`)})));
                   }} className="wa-btn" style={{padding:"9px 18px",fontSize:"var(--t-xs)"}}>✆ שלחי לקבוצה</button>
  </div>
  </div>
@@ -12381,7 +12409,21 @@ ${c.claimUrl}`)}`;
  <span style={{fontWeight:600,color:"var(--danger)"}}>{line}</span>
  </div>
                       ):null; })()}
-                      {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
+                                           {(()=>{ const ms=marketingStatus(c); const when=(iso)=>{try{return new Date(iso).toLocaleDateString("he-IL");}catch{return "";}}; return(
+ <div data-testid="marketing-consent" style={{padding:"10px 12px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--line)"}}>
+ <p style={{color:"var(--ink-2)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:3}}>עדכונים ומבצעים</p>
+ <p data-testid="marketing-status" style={{fontSize:"var(--t-sm)",color:ms==="consent"?"var(--success)":"var(--ink-2)",lineHeight:1.6}}>
+                            {ms==="consent"&&`הסכימה לקבל עדכונים ומבצעים${c.marketing_consent_at?` ב-${when(c.marketing_consent_at)}`:""}${c.marketing_consent_source==="booking_page"?" (בעמוד ההזמנה)":c.marketing_consent_source==="manual"?" (סימנת ידנית)":""}`}
+                            {ms==="opted_out"&&`ביקשה הסרה מדיוור ב-${when(c.marketing_opted_out_at)}. לא נשלחות לה הודעות שיווק.`}
+                            {ms==="none"&&"לא אישרה קבלת עדכונים ומבצעים, ולכן לא נכללת ברשימות שיווק. תזכורות ואישורי תשלום ממשיכים כרגיל."}
+ </p>
+ <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                            {ms!=="consent"&&<button onClick={()=>saveClientMarketing(c,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>סימון הסכמה לדיוור</button>}
+                            {ms!=="opted_out"&&<button onClick={()=>askConfirm({title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור? לא יישלחו לה עוד הודעות שיווק.`,confirmText:"כן, להסיר",onConfirm:()=>saveClientMarketing(c,optOutFields(),"נרשם: ביקשה הסרה מדיוור")})} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>ביקשה הסרה מדיוור</button>}
+ </div>
+ </div>
+                      ); })()}
+ {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
                       {c.skinType&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>סוג עור</span><span style={{fontWeight:600}}>{c.skinType}</span></div>}
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
                       {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}

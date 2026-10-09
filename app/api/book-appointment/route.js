@@ -19,6 +19,7 @@ import { sendBookingNotifications } from "../../../lib/bookingNotify";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
+import { consentFields } from "../../../lib/marketingConsent.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -52,7 +53,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId } =
+    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent } =
       await request.json();
 
     // Basic validation
@@ -321,18 +322,30 @@ export async function POST(request) {
         // Her name is NOT overwritten from this form. The record is hers, and a
         // booking is not the place to rename a woman because she typed her name
         // differently this time.
+        // The optional "updates and offers" checkbox (unchecked by default). Only a literal true counts. A new explicit yes also clears an
+        // earlier opt-out. Best-effort: a booking never fails because this could not be recorded (e.g. the migration has not run).
+        if (marketingConsent === true) {
+          const { error: consentErr } = await supabase.from("clients").update(consentFields("booking_page")).eq("id", match.id).eq("tenant_id", activeTenantId);
+          if (consentErr) console.error("[book-appointment] marketing consent not recorded:", consentErr.message);
+        }
       } else {
-        const { data: created, error: createErr } = await supabase
+        const baseRow = {
+          tenant_id: activeTenantId,
+          name,
+          // Stored normalised, so the next booking matches on the first try.
+          phone: phoneCheck.e164,
+          status: "active",
+        };
+        let { data: created, error: createErr } = await supabase
           .from("clients")
-          .insert({
-            tenant_id: activeTenantId,
-            name,
-            // Stored normalised, so the next booking matches on the first try.
-            phone: phoneCheck.e164,
-            status: "active",
-          })
+          .insert(marketingConsent === true ? { ...baseRow, ...consentFields("booking_page") } : baseRow)
           .select("id")
           .single();
+        if (createErr && marketingConsent === true) {
+          // Most likely the consent columns do not exist yet (migration pending): keep the booking, drop only the consent.
+          console.error("[book-appointment] client create with consent failed, retrying without it:", createErr.message);
+          ({ data: created, error: createErr } = await supabase.from("clients").insert(baseRow).select("id").single());
+        }
         if (createErr) {
           // Not fatal. A booking that lands without a client card is the old
           // behaviour, and refusing the booking over it would be trading a

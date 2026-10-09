@@ -302,6 +302,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // until the lawyer's answer; the point is that nothing is stored or sent
   // before she has been told what for and has said yes.
   const [agreed, setAgreed] = useState(false);
+  // Optional, UNCHECKED by default (Israeli communications law, section 30A: promotions need an explicit yes). Not required to book.
+  const [marketingOk, setMarketingOk] = useState(false);
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
@@ -548,6 +550,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           price: selectedService.price || 0,
           color: selectedService.color || pc,
           tenantId: tenantId,
+          marketingConsent: marketingOk === true,
         }),
       });
       const result = await res.json();
@@ -1287,6 +1290,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
                     <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
                   </span>
+                </label>
+                <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                  <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>
                 </label>
 
                 {errorMsg && <p style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}

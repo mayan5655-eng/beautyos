@@ -99,7 +99,7 @@ function buildWorld({ tenants = 50, clientsPer = 200, stalePct = 0.4, now = new 
     settings.push({ tenant_id: tid, business_name: `עסק ${t}`, automations: null });
     for (let c = 0; c < clientsPer; c++) {
       const id = `${tid}-client-${String(c).padStart(4, '0')}`;
-      clients.push({ id, name: `לקוחה ${c}`, phone: `97254${String(1000000 + t * 1000 + c)}`, tenant_id: tid, birthday: null });
+      clients.push({ id, name: `לקוחה ${c}`, phone: `97254${String(1000000 + t * 1000 + c)}`, tenant_id: tid, birthday: null, marketing_consent: true });
       appointments.push({
         id: `${id}-appt`, client_id: id, tenant_id: tid,
         date: c < clientsPer * stalePct ? staleDate : freshDate,

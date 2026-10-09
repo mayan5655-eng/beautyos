@@ -15,6 +15,7 @@ import { createClient as createServerClient } from "../../../../lib/supabase/ser
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { clinicName } from "../../../../lib/clinicName";
+import { canMarket, MARKETING_FOOTER } from "../../../../lib/marketingConsent.js";
 import { toMinutes, fmtTime, startMinute as apptStart, overlaps } from "../../../../lib/apptTime";
 
 const admin = createClient(
@@ -173,7 +174,7 @@ export async function POST(request) {
 
     // 4. Load this tenant's clients, appointment history, and active waitlist.
     const [{ data: clients }, { data: appts }, { data: waitlistRows }] = await Promise.all([
-      admin.from("clients").select("id, name, phone").eq("tenant_id", tenantId),
+      admin.from("clients").select("*").eq("tenant_id", tenantId),
       admin.from("appointments").select("client_id, service, date").eq("tenant_id", tenantId),
       admin.from("waitlist").select("client_id, client_name, phone, service").eq("tenant_id", tenantId).eq("status", "waiting"),
     ]);
@@ -215,13 +216,14 @@ export async function POST(request) {
       const c = w.client_id ? clientById.get(String(w.client_id)) : null;
       add(w.client_id, w.client_name || c?.name, w.phone || c?.phone);
     }
-    // (b) Lapsed clients (not seen in LAPSED_DAYS+), furthest back first.
+    // (b) Lapsed clients (not seen in LAPSED_DAYS+), furthest back first. (b) and (c) are promotional: consent required.
     const lapsedIds = byLapsed((clients || [])
+      .filter((c) => canMarket(c))
       .map((c) => String(c.id))
       .filter((cid) => daysSince(lastVisit.get(cid)) >= LAPSED_DAYS));
     for (const cid of lapsedIds) { const c = clientById.get(cid); if (c) add(cid, c.name, c.phone); }
     // (c) Clients who had this service before, furthest back first.
-    for (const cid of byLapsed([...hadService])) { const c = clientById.get(cid); if (c) add(cid, c.name, c.phone); }
+    for (const cid of byLapsed([...hadService])) { const c = clientById.get(cid); if (c && canMarket(c)) add(cid, c.name, c.phone); }
 
     if (candidates.length === 0) {
       return Response.json({ success: true, sent: 0, reason: "no_candidates" });
@@ -251,7 +253,7 @@ export async function POST(request) {
           `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${nicePreview} בשעה ${hhPreview}.
 ` +
           `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:
-<קישור אישי לכל לקוחה>`,
+<קישור אישי לכל לקוחה>\n\n${MARKETING_FOOTER}`,
       });
     }
 
@@ -303,6 +305,7 @@ export async function POST(request) {
           `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}.
 ` +
           `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:`,
+        footer: MARKETING_FOOTER, // the composer puts it at the very end, after the link
         candidates: prepared,
       });
     }
@@ -332,7 +335,7 @@ export async function POST(request) {
       const message =
         `שלום${cand.name ? ` ${cand.name}` : ""}! ✦\n` +
         `כאן ${clinic} — התפנה תור${service ? ` ל${service}` : ""} ב-${niceDate} בשעה ${hh}.\n` +
-        `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:\n${claimUrl}`;
+        `רוצה אותו? לחצי כאן לתפוס — הראשונה שתלחץ, התור שלה:\n${claimUrl}\n\n${MARKETING_FOOTER}`;
 
       const res = await sendWhatsApp(cand.phone, message, {
         name: cand.name, type: "slot_offer", tenantId,

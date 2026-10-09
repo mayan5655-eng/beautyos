@@ -82,7 +82,7 @@ group('readAllRows');
 group('winback past 1,000 appointments');
 {
   const T = 'tenant-1';
-  const clients = Array.from({ length: 1500 }, (_, i) => ({ id: `c${pad(i)}`, name: `Client ${i}`, phone: `0501${pad(i)}`, tenant_id: T, birthday: null }));
+  const clients = Array.from({ length: 1500 }, (_, i) => ({ id: `c${pad(i)}`, name: `Client ${i}`, phone: `0501${pad(i)}`, tenant_id: T, birthday: null, marketing_consent: true }));
   // 1,500 appointments, one per client, all long ago and all in an already-
   // reminded state (the log below, which leaves out X and Y), so only the two
   // clients under test can produce a message.
@@ -111,7 +111,7 @@ group('winback past 1,000 appointments');
 group('winback refuses to act on a read it could not finish');
 {
   const T = 'tenant-1';
-  const clients = Array.from({ length: 30 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0502${pad(i)}`, tenant_id: T, birthday: null }));
+  const clients = Array.from({ length: 30 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0502${pad(i)}`, tenant_id: T, birthday: null, marketing_consent: true }));
   const appointments = clients.map((c, i) => ({ id: `a${pad(i)}`, client_id: c.id, date: day(200), tenant_id: T, confirmation_status: 'confirmed' }));
   const db = makeCapDb({ settings: [{ tenant_id: T, business_name: 'S' }], clients, appointments, packages: [], auto_reminders_log: [] }, { failPage: (from) => from >= 0 && false });
   const sent = [];
@@ -124,7 +124,7 @@ group('winback refuses to act on a read it could not finish');
 group('package-done past 1,000 clients');
 {
   const T = 'tenant-1';
-  const clients = Array.from({ length: 1300 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0503${pad(i)}`, tenant_id: T, birthday: null }));
+  const clients = Array.from({ length: 1300 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0503${pad(i)}`, tenant_id: T, birthday: null, marketing_consent: true }));
   const appointments = clients.map((c, i) => ({ id: `a${pad(i)}`, client_id: c.id, date: day(5), tenant_id: T, confirmation_status: 'confirmed' }));
   const packages = [{ id: 'p1', client_id: clients[1250].id, service: 'laser', total_sessions: 6, used_sessions: 6, active: true, tenant_id: T }];
   const db = makeCapDb({ settings: [{ tenant_id: T, business_name: 'S' }], clients, appointments, packages, auto_reminders_log: [] });

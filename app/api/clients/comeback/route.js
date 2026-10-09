@@ -15,6 +15,7 @@ import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { clinicName } from "../../../../lib/clinicName";
 import { APP_URL } from "../../../../lib/appUrl";
 import { checkTenantLimit } from "../../../../lib/rateLimit";
+import { canMarket, MARKETING_FOOTER } from "../../../../lib/marketingConsent.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -60,7 +61,7 @@ export async function POST(request) {
     const clinic = clinicName(settingsRows);
 
     const [{ data: clients }, { data: appts }] = await Promise.all([
-      admin.from("clients").select("id, name, phone, status").eq("tenant_id", tenantId),
+      admin.from("clients").select("*").eq("tenant_id", tenantId),
       admin.from("appointments").select("client_id, date").eq("tenant_id", tenantId),
     ]);
 
@@ -79,6 +80,7 @@ export async function POST(request) {
     for (const c of clients || []) {
       if (candidates.length >= MAX_RECIPIENTS) break;
       if (c.status === "archived") continue;
+      if (!canMarket(c)) continue;                         // promotional: consent required, opt-out respected
       const ph = (c.phone || "").trim();
       if (!ph || seenPhone.has(ph)) continue;
       const lv = lastVisit.get(String(c.id));
@@ -93,7 +95,7 @@ export async function POST(request) {
     const messageFor = (name) =>
       `שלום${name ? ` ${name}` : ""}! ✦\n` +
       `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫\n` +
-      `אפשר לקבוע תור כאן:\n${bookingUrl}`;
+      `אפשר לקבוע תור כאן:\n${bookingUrl}\n\n${MARKETING_FOOTER}`;
 
     // PREPARE mode: hand back the recipients and the message for her to send
     // herself over wa.me - the default yes-path; see slots/offer for why.
@@ -105,6 +107,7 @@ export async function POST(request) {
           `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫
 ` +
           `אפשר לקבוע תור כאן:`,
+        footer: MARKETING_FOOTER, // the composer puts it at the very end, after the link
         candidates: candidates.map((c) => ({ name: c.name, phone: c.phone, claimUrl: bookingUrl })),
       });
     }

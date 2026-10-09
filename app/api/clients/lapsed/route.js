@@ -30,6 +30,7 @@ import {
   computeLastVisits,
   WINBACK_TYPE,
 } from "../../../../lib/reminders/smartReminders";
+import { canMarket } from "../../../../lib/marketingConsent.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -68,7 +69,7 @@ export async function GET(request) {
     console.log(`[clients/lapsed] TENANT FILTER: tenant_id = ${tenantId} (read only, days=${days})`);
 
     const [{ data: clients, error: cErr }, { data: appts, error: aErr }] = await Promise.all([
-      admin.from("clients").select("id, name, phone").eq("tenant_id", tenantId),
+      admin.from("clients").select("*").eq("tenant_id", tenantId),
       admin
         .from("appointments")
         .select("client_id, date, confirmation_status")
@@ -97,9 +98,12 @@ export async function GET(request) {
     (clients || []).forEach((c) => { byId[c.id] = c; });
 
     const rows = [];
+    let noConsent = 0;
     for (const [clientId, lastVisit] of Object.entries(lastVisits)) {
       const client = byId[clientId];
       if (!client) continue;              // another tenant's appointment, or deleted client
+      // A win-back message is promotional: only clients who said yes and have not asked to stop. Counted, so the list can say so.
+      if (!canMarket(client)) { noConsent++; continue; }
       const since = daysSince(lastVisit);
       if (since == null || since < days) continue;
       rows.push({
@@ -122,6 +126,7 @@ export async function GET(request) {
       total: rows.length,
       withPhone: rows.filter((r) => r.hasPhone).length,
       alreadyMessaged: rows.filter((r) => r.alreadyMessaged).length,
+      noConsent, // lapsed clients left out because they have not agreed to promotions (or asked to stop)
       clients: rows,
     });
   } catch (err) {

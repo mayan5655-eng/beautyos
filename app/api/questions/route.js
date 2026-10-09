@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { checkTenantLimit } from "../../../lib/rateLimit";
 import { readAllRows } from "../../../lib/pagedRead.js";
+import { canMarket } from "../../../lib/marketingConsent.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -33,7 +34,7 @@ async function hasCandidates(tenantId, kind, payload) {
   // tenant with a long history had her "last visit" worked out from a fragment and
   // was offered questions that reach nobody (or none that do). lib/pagedRead.js.
   const [cl, ap] = await Promise.all([
-    readAllRows(admin, "clients", { columns: "id, name, phone, status", filter: (q) => q.eq("tenant_id", tenantId) }),
+    readAllRows(admin, "clients", { columns: "*", filter: (q) => q.eq("tenant_id", tenantId) }),
     readAllRows(admin, "appointments", { columns: "id, client_id, service, date", filter: (q) => q.eq("tenant_id", tenantId) }),
   ]);
   // A read that could not be finished is an unknown answer, not an empty one.
@@ -59,8 +60,9 @@ async function hasCandidates(tenantId, kind, payload) {
       if (payload.service && w.service && w.service !== payload.service) continue;
       if (w.phone || (w.client_id && (clients || []).some((c) => String(c.id) === String(w.client_id) && c.phone))) return true;
     }
+    // Waitlist entries above asked to be told, so they stay. Everyone else is marketing: consent required (lib/marketingConsent.js).
     return (clients || []).some((c) => {
-      if (!c.phone || String(c.id) === excluded) return false;
+      if (!c.phone || String(c.id) === excluded || !canMarket(c)) return false;
       const cid = String(c.id);
       return daysSince(lastVisit.get(cid)) >= 30 || hadService.has(cid);
     });
@@ -71,7 +73,7 @@ async function hasCandidates(tenantId, kind, payload) {
   if (!quietStart) return false;
   const floorMs = new Date(`${quietStart}T00:00:00`).getTime() - 240 * 86400000;
   return (clients || []).some((c) => {
-    if (c.status === "archived" || !c.phone) return false;
+    if (c.status === "archived" || !c.phone || !canMarket(c)) return false;
     const lv = lastVisit.get(String(c.id));
     if (!lv || lv > quietStart) return false;
     return new Date(`${lv}T00:00:00`).getTime() >= floorMs;

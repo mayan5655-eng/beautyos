@@ -167,7 +167,7 @@ group('smart reminders send stage');
 {
   const NOW = new Date('2026-10-05T12:00:00Z');
   const T = 'tenant-1';
-  const clients = Array.from({ length: 40 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0509${pad(i)}`, tenant_id: T, birthday: null }));
+  const clients = Array.from({ length: 40 }, (_, i) => ({ id: `c${pad(i)}`, name: `C${i}`, phone: `0509${pad(i)}`, tenant_id: T, birthday: null, marketing_consent: true }));
   const appointments = clients.map((c, i) => ({ id: `a${pad(i)}`, client_id: c.id, date: dateNDaysAgo(200, NOW), tenant_id: T, confirmation_status: 'confirmed' }));
   const mkDb = () => makeCapDb({ settings: [{ tenant_id: T, business_name: 'S' }], clients, appointments, packages: [], auto_reminders_log: [] });
   const sent = [];

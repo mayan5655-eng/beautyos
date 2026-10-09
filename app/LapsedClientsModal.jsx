@@ -33,6 +33,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Spinner from "./Spinner";
 import Sheet from "./Sheet";
 import { toWhatsAppNumber } from '@/lib/phone';
+import { withMarketingFooter, MARKETING_FOOTER } from '@/lib/marketingConsent';
 
 const PRESETS = [
   { days: 90, label: '3 חודשים' },
@@ -41,7 +42,7 @@ const PRESETS = [
 ];
 
 const DEFAULT_MESSAGE =
-  'שלום! 💗\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊';
+  'שלום! 💗\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊\n\n' + MARKETING_FOOTER;
 
 /** The message for one client: a leading "שלום!" becomes "שלום <name>!". */
 function personalise(message, name) {
@@ -53,7 +54,8 @@ function personalise(message, name) {
 function waLink(phone, text) {
   const digits = toWhatsAppNumber(phone);
   if (!digits) return null;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+  // Every promotional message carries the removal line, even if she edited it out of the box (Israeli law, section 30A).
+  return `https://wa.me/${digits}?text=${encodeURIComponent(withMarketingFooter(text))}`;
 }
 
 export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow }) {
@@ -193,7 +195,9 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {!loading && !loadError && data && rows.length === 0 && (
           <div style={{ marginTop: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
             <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2)', lineHeight: 1.7 }}>
-              אין לקוחות שלא הגיעו מעל {days} ימים. 🎉
+              {data.noConsent > 0
+                ? `אין כרגע לקוחות להצעה: ${data.noConsent} לקוחות שלא הגיעו מעל ${days} ימים עוד לא הסכימו לקבל עדכונים ומבצעים (או ביקשו הסרה).`
+                : <>אין לקוחות שלא הגיעו מעל {days} ימים. 🎉</>}
             </p>
           </div>
         )}
@@ -206,6 +210,11 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               <Stat label="כבר נשלחה פנייה" value={data.alreadyMessaged} />
               <Stat label="נבחרו" value={selected.size} tone={selected.size ? 'ok' : undefined} />
             </div>
+            {data.noConsent > 0 && (
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
+                {data.noConsent} לקוחות נוספים לא ברשימה: הם לא הסכימו לקבל עדכונים ומבצעים, או ביקשו הסרה.
+              </p>
+            )}
 
             <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
