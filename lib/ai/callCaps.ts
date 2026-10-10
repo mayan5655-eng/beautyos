@@ -318,10 +318,30 @@ type Client = { from: (t: string) => any };
 const SPEND_TTL_MS = 20_000;
 const spendCache = new Map<string, { at: number; usd: number }>();
 
+// supabase/migrations/add_ai_usage_month_spend.sql adds one SUM function. Until it has been run by hand the
+// paged read below is used; after the first "function not found" the RPC is not retried for a while, so a
+// missing function costs one failed call, not one per AI request.
+let spendRpcMissingUntil = 0;
+const SPEND_RPC_RETRY_MS = 10 * 60 * 1000;
+
 async function monthlySpendUsd(client: Client, tenantId: string, since: string, useCache: boolean): Promise<number | null> {
   const key = `${tenantId}|${since}`;
   const hit = useCache ? spendCache.get(key) : undefined;
   if (hit && Date.now() - hit.at < SPEND_TTL_MS) return hit.usd;
+  const rpc = (client as unknown as { rpc?: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }> }).rpc;
+  if (typeof rpc === 'function' && Date.now() >= spendRpcMissingUntil) {
+    try {
+      const { data, error } = await rpc.call(client, 'ai_usage_month_spend', { p_tenant: tenantId, p_since: since, p_unpriced: UNPRICED_ROW_USD });
+      if (!error && data !== null && data !== undefined && Number.isFinite(Number(data))) {
+        const usd = Number(data);
+        if (useCache) spendCache.set(key, { at: Date.now(), usd });
+        return usd;
+      }
+      if (error) spendRpcMissingUntil = Date.now() + SPEND_RPC_RETRY_MS;
+    } catch {
+      spendRpcMissingUntil = Date.now() + SPEND_RPC_RETRY_MS;
+    }
+  }
   try {
     const r = await readAllRows(client, 'ai_usage', {
       columns: 'id, cost_usd',
@@ -402,7 +422,7 @@ async function raise(a: Parameters<AlertFn>[0], send: AlertFn, throttle: Map<str
 export async function checkAiAllowance(
   tenantId: string | null | undefined,
   callSite: string,
-  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number> } = {}
+  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number>; callsCap?: number } = {}
 ): Promise<Allowance> {
   try {
     return await checkAiAllowanceUnsafe(tenantId, callSite, opts);
@@ -419,10 +439,12 @@ export async function checkAiAllowance(
 async function checkAiAllowanceUnsafe(
   tenantId: string | null | undefined,
   callSite: string,
-  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number> }
+  opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number>; callsCap?: number }
 ): Promise<Allowance> {
   const usdCap = tenantMonthlyUsdCeiling();
-  const callsCap = capFor(callSite);
+  // A caller may raise the per-feature ceiling for one call (the pictures of a generation scale with that
+  // tenant's own generation cap). The dollar ceiling below is never overridden.
+  const callsCap = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? Math.floor(opts.callsCap) : capFor(callSite);
   const base = { callSite, callsUsed: 0, callsCap, spentUsd: 0, usdCap, near: false } as const;
   if (!tenantId) return { ...base, allowed: true, reason: 'ok' };
 
@@ -444,7 +466,8 @@ async function checkAiAllowanceUnsafe(
     return { ...base, allowed: false, reason: 'unreadable', callsUsed: status.used, spentUsd: null };
   }
 
-  if (status.exceeded) {
+  const exceeded = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? status.used >= Math.floor(opts.callsCap) : status.exceeded;
+  if (exceeded) {
     return { ...base, allowed: false, reason: 'calls', callsUsed: status.used, spentUsd: spent };
   }
   if (spent >= usdCap) {

@@ -61,10 +61,13 @@ export interface TrackOptions {
  * not a crash - it is a silently unpriced row.
  *
  * Verified against platform.claude.com/docs/en/about-claude/pricing.
- * No call site uses prompt caching or streaming, so cache-write / cache-read
- * multipliers do not apply; if one ever does, this table needs those rates too
- * and computeCost needs the cache token fields.
+ * Prompt caching (the advisor's system block): a cache WRITE bills at 1.25x the
+ * model's input rate (5-minute cache) and a cache READ at 0.1x. Both counts are
+ * reported by the API separately from input_tokens, so they are added here from
+ * the rate above rather than listed per model.
  */
+export const CACHE_WRITE_MULTIPLIER = 1.25;
+export const CACHE_READ_MULTIPLIER = 0.1;
 export const MODEL_RATES: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5':           { input: 1, output: 5 },
   'claude-haiku-4-5-20251001':  { input: 1, output: 5 },
@@ -92,23 +95,33 @@ export const MODEL_RATES: Record<string, { input: number; output: number }> = {
 export function computeCost(
   model: string | undefined,
   inputTokens: number | null | undefined,
-  outputTokens: number | null | undefined
+  outputTokens: number | null | undefined,
+  cacheWriteTokens: number | null | undefined = 0,
+  cacheReadTokens: number | null | undefined = 0
 ): number | null {
   const rate = model ? MODEL_RATES[model] : undefined;
   if (!rate) return null;
   const cost = (Number(inputTokens) || 0) / 1e6 * rate.input
-             + (Number(outputTokens) || 0) / 1e6 * rate.output;
+             + (Number(outputTokens) || 0) / 1e6 * rate.output
+             + (Number(cacheWriteTokens) || 0) / 1e6 * rate.input * CACHE_WRITE_MULTIPLIER
+             + (Number(cacheReadTokens) || 0) / 1e6 * rate.input * CACHE_READ_MULTIPLIER;
   // 6 dp matches numeric(12,6) in the table; a Haiku call can be well under a
   // hundredth of a cent and must not round to zero.
   return Math.round(cost * 1e6) / 1e6;
 }
 
 /** Pull the token counts out of a response, tolerating a missing usage block. */
-export function extractUsage(message: { usage?: { input_tokens?: number; output_tokens?: number } } | null | undefined): { inputTokens: number; outputTokens: number } {
+export function extractUsage(
+  message: { usage?: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null } } | null | undefined
+): { inputTokens: number; outputTokens: number; cacheWriteTokens?: number; cacheReadTokens?: number } {
   const u = (message && message.usage) || {};
+  const cacheWriteTokens = Number(u.cache_creation_input_tokens) || 0;
+  const cacheReadTokens = Number(u.cache_read_input_tokens) || 0;
   return {
     inputTokens: Number(u.input_tokens) || 0,
     outputTokens: Number(u.output_tokens) || 0,
+    // Present only when the call used the cache, so every uncached call keeps the shape it always had.
+    ...(cacheWriteTokens || cacheReadTokens ? { cacheWriteTokens, cacheReadTokens } : {}),
   };
 }
 
@@ -143,16 +156,20 @@ export async function recordUsage({
   db = null,
 }: TrackOptions & {
   model?: string;
-  usage?: { inputTokens?: number; outputTokens?: number };
+  usage?: { inputTokens?: number; outputTokens?: number; cacheWriteTokens?: number; cacheReadTokens?: number };
 }): Promise<{ ok: boolean; error?: string; costUsd?: number | null }> {
   try {
-    const inputTokens = Number(usage?.inputTokens) || 0;
+    const cacheWrite = Number(usage?.cacheWriteTokens) || 0;
+    const cacheRead = Number(usage?.cacheReadTokens) || 0;
+    // The table has input/output columns only: the prompt side is stored as everything the model read, cached or
+    // not. The cost below prices each part at its own rate.
+    const inputTokens = (Number(usage?.inputTokens) || 0) + cacheWrite + cacheRead;
     const outputTokens = Number(usage?.outputTokens) || 0;
     // A response with no usage block (both counts zero) is a real call whose cost
     // we could not see. Recording $0.000000 would hide it from every report and
     // from the dollar ceiling; recording NULL says "unpriced" and the ceiling
     // assumes a price (lib/ai/callCaps.ts UNPRICED_ROW_USD).
-    const costUsd = inputTokens === 0 && outputTokens === 0 ? null : computeCost(model, inputTokens, outputTokens);
+    const costUsd = inputTokens === 0 && outputTokens === 0 ? null : computeCost(model, Number(usage?.inputTokens) || 0, outputTokens, cacheWrite, cacheRead);
 
     if (costUsd === null) {
       // Loud: an unpriced model is money leaving with no number attached.

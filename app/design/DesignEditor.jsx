@@ -82,7 +82,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
       const blob = await renderTemplateBlob(template, fill, overrides);
       downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`);
       if (!readOnly && settings?.tenant_id) {
-        try { const path = await uploadExport(blob, settings.tenant_id, design.id); await patch({ export_path: path }); } catch { /* the download already happened */ }
+        try { const path = await uploadExport(blob, settings.tenant_id, design.id, design.export_path); await patch({ export_path: path }); } catch { /* the download already happened */ }
       }
     } catch (e) { setError(String(e.message || e)); } finally { setExporting(false); }
   };

@@ -13,7 +13,8 @@ import { createClient } from '@supabase/supabase-js';
 import { FacebookClient, parseLeadFields, extractStandardFields } from '../../../../lib/facebook/client';
 import { decryptToken } from '../../../../lib/facebook/encryption';
 import crypto from 'crypto';
-import { scoreLead } from '../../../../lib/ai/scoreLeads';
+import { scoreLead, UNSCORED_LEAD } from '../../../../lib/ai/scoreLeads';
+import { tenantIsBlocked } from '../../../../lib/tenantActive';
 
 // Service-role client (bypasses RLS). Only ever constructed after the HMAC
 // signature has been verified.
@@ -227,6 +228,9 @@ export async function POST(request: NextRequest) {
       }
 
       const fbClient = new FacebookClient(pageAccessToken);
+      // A lead that arrives for a lapsed tenant is still hers and is still saved; only the paid AI scoring is
+      // skipped (the service-role path bypasses the RLS trial gate, so it has to be asked here).
+      const blocked = await tenantIsBlocked(supabase, pageData.tenant_id);
 
       for (const change of leadgenChanges) {
         const leadgenId = change.value.leadgen_id;
@@ -253,7 +257,7 @@ export async function POST(request: NextRequest) {
           const { name, email, phone } = extractStandardFields(parsedFields);
 
           // Run AI scoring on the lead
-          const aiScore = await scoreLead({
+          const aiScore = blocked ? UNSCORED_LEAD : await scoreLead({
             fullName: name,
             phone: phone,
             email: email,

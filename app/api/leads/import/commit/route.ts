@@ -36,6 +36,7 @@ import { maskValue } from '@/lib/leads/csvImport';
 // stops the preview and the insert reading different tabs of a workbook.
 import { readUpload } from '@/lib/leads/readUpload';
 import { buildRows, SKIP_REASON_HE, IMPORT_STATUS, IMPORT_SOURCE } from '@/lib/leads/buildRows';
+import { requireActiveTenant } from '@/lib/planGuard';
 import type { ColumnMapping } from '@/lib/leads/buildRows';
 
 /** Chunk size. 247 rows becomes 5 statements, not one 247-row statement. */
@@ -62,6 +63,11 @@ export async function POST(request: Request) {
 
     const tenantLimited = checkTenantLimit(tenantId as string, 'leads-import');
     if (tenantLimited) return tenantLimited;
+
+    // The write below uses the service role, which bypasses the RLS trial gate: a lapsed or paused tenant is
+    // refused here, the same way the session-client routes are.
+    const guard = await requireActiveTenant(session);
+    if (!guard.ok) return guard.response;
 
     const form = await request.formData();
     const file = form.get('file');
@@ -165,7 +171,9 @@ export async function POST(request: Request) {
 
       const { data, error } = await admin
         .from('leads')
-        .upsert(payload, { onConflict: 'tenant_id,source,external_id' })
+        // ignoreDuplicates: a lead she already has (same phone) is left exactly as it is. Re-importing a file
+        // used to reset a lead she had moved to "closed" back to follow-up and overwrite her notes.
+        .upsert(payload, { onConflict: 'tenant_id,source,external_id', ignoreDuplicates: true })
         .select('id');
 
       if (error) {
@@ -193,6 +201,8 @@ export async function POST(request: Request) {
       .eq('status', IMPORT_STATUS);
 
     const failedChunks = chunks.filter((c) => c.error).length;
+    // Rows that were already hers are not "not landed": they were deliberately left alone.
+    const alreadyThere = chunks.filter((c) => !c.error).reduce((n, c) => n + (c.attempted - c.landed), 0);
 
     return NextResponse.json({
       success: failedChunks === 0,
@@ -202,7 +212,8 @@ export async function POST(request: Request) {
       result: {
         attempted: built.valid.length,
         landed,
-        notLanded: built.valid.length - landed,
+        alreadyThere,
+        notLanded: built.valid.length - landed - alreadyThere,
         failedChunks,
         firstError,
         chunks,
@@ -213,8 +224,8 @@ export async function POST(request: Request) {
       // success message does the most damage.
       message:
         failedChunks === 0
-          ? `יובאו ${landed} פניות.`
-          : `יובאו ${landed} מתוך ${built.valid.length}. ${failedChunks} מקטעים נכשלו — אפשר להריץ שוב, הייבוא לא יוצר כפילויות.`,
+          ? (alreadyThere > 0 ? `יובאו ${landed} פניות חדשות. ${alreadyThere} כבר היו אצלך ולא שונו.` : `יובאו ${landed} פניות.`)
+          : `יובאו ${landed} מתוך ${built.valid.length}. ${failedChunks} מקטעים נכשלו — אפשר להריץ שוב, הייבוא לא יוצר כפילויות ולא משנה פניות קיימות.`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

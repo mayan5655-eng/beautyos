@@ -54,6 +54,8 @@ export type GenerateImageInput = {
   tenantId: string | null;
   /** Which feature spent it, e.g. 'creatives/test-image'. Keys the monthly cap. */
   callSite: string;
+  /** Raises this call site's monthly COUNT ceiling for this call only (never the dollar ceiling). */
+  callsCap?: number;
 };
 
 export type GeneratedImage = {
@@ -93,7 +95,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   // The ceilings are enforced HERE, not only in the routes that call this: the
   // per-feature count check lives in each route, but the tenant's dollar
   // ceiling must hold for every image, whoever asks. Fails closed.
-  const allowance = await checkAiAllowance(input.tenantId, input.callSite);
+  const allowance = await checkAiAllowance(input.tenantId, input.callSite, input.callsCap ? { callsCap: input.callsCap } : {});
   if (!allowance.allowed) {
     if (allowance.reason === 'unreadable') throw new AiCapUnavailableError(input.callSite);
     throw new AiCapExceededError(input.callSite, allowance.callsUsed, allowance.callsCap ?? 0, allowance.reason === 'dollars' ? 'dollars' : 'calls');

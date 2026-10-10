@@ -3,6 +3,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from './usage.ts'
+import { MODELS } from './models.ts'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -46,6 +47,19 @@ function isObviousSpam(lead: LeadInput): boolean {
 
   return false
 }
+/**
+ * A lead saved WITHOUT a model call: the tenant is on hold, so nothing is spent. It reads as "needs a look", which is
+ * true, and says why in the tags.
+ */
+export const UNSCORED_LEAD: LeadScore = {
+  score: 50,
+  category: 'warm',
+  reasoning: 'הפנייה נשמרה בלי ניתוח אוטומטי כי החשבון מושהה.',
+  tags: ['plan_on_hold'],
+  suggestedAction: 'מומלץ לבדוק את הפנייה ידנית',
+  skippedAI: true,
+}
+
 // Main scoring function - call this for every incoming lead
 // tenantId is only for metering the AI spend below - the scoring itself is
 // unchanged. Optional so an existing caller that has not been updated still
@@ -103,7 +117,7 @@ ${customFieldsText}
     const message = await trackedCreate(anthropic, {
       // Unsuffixed on purpose: the model id is complete as-is, and pinning a
       // dated variant silently ties this to one snapshot.
-      model: 'claude-haiku-4-5',
+      model: MODELS.cheap,
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'score-lead' })
@@ -118,12 +132,17 @@ ${customFieldsText}
     const cleanText = textBlock.text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(cleanText)
 
+    // The model's JSON is data, not truth: a score outside 1-100, a category that is not one of the three, or
+    // tags that are not strings must not reach the leads table as they came.
+    const raw = Number(parsed.score)
+    const score = Number.isFinite(raw) ? Math.min(100, Math.max(1, Math.round(raw))) : 50
+    const category = score >= 80 ? 'hot' : score >= 50 ? 'warm' : 'cold'
     return {
-      score: parsed.score,
-      category: parsed.category,
-      reasoning: parsed.reasoning,
-      tags: parsed.tags || [],
-      suggestedAction: parsed.suggestedAction,
+      score,
+      category,
+      reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning.slice(0, 600) : '',
+      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((t: unknown) => typeof t === 'string').slice(0, 8) : [],
+      suggestedAction: typeof parsed.suggestedAction === 'string' ? parsed.suggestedAction.slice(0, 300) : '',
       skippedAI: false,
     }
   } catch (error) {

@@ -14,6 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
+import { requireActiveTenant } from '@/lib/planGuard';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
@@ -56,6 +57,8 @@ export async function GET() {
 }
 
 export async function POST() {
+  const guard = await requireActiveTenant(await createSessionClient());
+  if (!guard.ok) return guard.response;
   const t = await resolveTenant();
   if (!t.tenantId) return NextResponse.json({ success: false, error: t.error }, { status: t.status });
 
@@ -79,6 +82,8 @@ export async function POST() {
 }
 
 export async function DELETE() {
+  const guard = await requireActiveTenant(await createSessionClient());
+  if (!guard.ok) return guard.response;
   const t = await resolveTenant();
   if (!t.tenantId) return NextResponse.json({ success: false, error: t.error }, { status: t.status });
 

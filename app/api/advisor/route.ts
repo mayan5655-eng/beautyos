@@ -24,6 +24,17 @@ import type { BusinessProfile } from '@/lib/ai/marketingAI'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// A question is a sentence or a paragraph. Bounded so it cannot be used to push an unbounded body through the
+// model (and into advisor_messages).
+const MAX_QUESTION_CHARS = 2000
+
+// The snapshot reads every client, appointment, receipt, lead and scan she has: seconds on a long history, and
+// repeated for every question of one conversation. Kept per tenant for a few minutes so a back-and-forth costs
+// one read. Per server instance (not shared): it only ever skips work, and a cold instance simply reads fresh.
+// Short on purpose: she asks about today's numbers and acts on the answer.
+const SNAPSHOT_TTL_MS = 3 * 60 * 1000
+const snapshotCache = new Map<string, { at: number; text: string }>()
+
 // Resolve the logged-in user's tenant, or return an error response.
 async function resolveTenant(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {
@@ -205,14 +216,21 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response
 
     const body = await request.json()
-    const message: string = (body?.message || '').toString().trim()
+    const message: string = (body?.message || '').toString().trim().slice(0, MAX_QUESTION_CHARS)
     if (!message) return NextResponse.json({ error: 'חסרה שאלה' }, { status: 400 })
 
     // Business snapshot (live numbers) + brand identity (shared profile layer) +
     // recent conversation history (last 16 turns). Snapshot and profile run in
     // parallel so the added identity context costs no extra latency.
+    const cached = snapshotCache.get(tenantId)
     const [snapshot, profile] = await Promise.all([
-      buildBusinessSnapshot(supabase, tenantId),
+      cached && Date.now() - cached.at < SNAPSHOT_TTL_MS
+        ? Promise.resolve(cached.text)
+        : buildBusinessSnapshot(supabase, tenantId).then((text: string) => {
+            snapshotCache.set(tenantId, { at: Date.now(), text })
+            if (snapshotCache.size > 200) snapshotCache.delete(snapshotCache.keys().next().value as string)
+            return text
+          }),
       loadBusinessProfile(supabase, tenantId),
     ])
     const identity = renderBrandIdentity(profile)
@@ -242,9 +260,6 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
 - שמרי על תשובות ממוקדות; פסקאות קצרות או רשימות, לא קיר טקסט.
 - טקסט רגיל בלבד: בלי כוכביות (**), בלי סולמיות (#) ובלי קווי הפרדה. הצג כאן אינו מעבד עיצוב, וסימנים כאלה מופיעים כמו שהם. לרשימה - מקף בתחילת שורה; להדגשה - מילים, לא סימנים.`
 
-    // Persist the user's question.
-    await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
-
     // STREAMED: she is waiting on this, and the model thinks before it writes, so
     // a whole answer takes 13-18 s. The text is sent as it is written (newline-
     // delimited JSON) and shown as it arrives; the spinner covers only the
@@ -257,9 +272,15 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
       // answer is what she acts on.
       max_tokens: 8000,
       output_config: { effort: EFFORT.advisor },
-      system: systemPrompt,
+      // One cached block: within a conversation the snapshot, the identity and the rules are identical for every
+      // question, so after the first one the prompt is read from the cache at a tenth of the input price.
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }] as any,
       messages: [...priorTurns, { role: 'user', content: message }] as any,
     }, { tenantId, callSite: 'advisor' })
+
+    // Persist the question only now: a cap or demo refusal throws above, and used to leave her question in the
+    // history with no answer under it.
+    await supabase.from('advisor_messages').insert({ tenant_id: tenantId, role: 'user', content: message })
 
     const enc = new TextEncoder()
     const line = (o: Record<string, unknown>) => enc.encode(JSON.stringify(o) + '\n')

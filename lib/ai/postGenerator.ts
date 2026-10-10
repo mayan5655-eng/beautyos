@@ -147,7 +147,9 @@ export async function planPost(profile: BusinessProfile, brief: string, candidat
       max_tokens: 12000,
       output_config: { effort: EFFORT.captions },
       messages: [{ role: 'user', content: buildGeneratePrompt(profile, brief, candidates) + (correction ? `\n\n${correction}` : '') }],
-    }, { tenantId, callSite: GENERATE_CALL_SITE });
+    // A retry after the claims guard is the same generation: it is metered (cost) under its own call site and is
+    // not counted again against her monthly generations.
+    }, { tenantId, callSite: correction ? GENERATE_CALL_SITE + '/retry' : GENERATE_CALL_SITE });
     const block = message.content.find((b) => b.type === 'text');
     if (!block || block.type !== 'text') throw new Error('generate: no text from Claude');
     const u = (message as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;

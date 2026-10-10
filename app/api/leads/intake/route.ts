@@ -23,6 +23,7 @@ import crypto from 'crypto';
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from '../../../../lib/phone';
 import { checkIpLimit, checkTenantLimit } from '../../../../lib/rateLimit';
 import { cleanText } from '../../../../lib/cleanText';
+import { tenantIsBlocked } from '../../../../lib/tenantActive';
 
 // Service-role client (bypasses RLS). Only ever used after the key hash
 // matched a tenant.
@@ -132,13 +133,18 @@ export async function POST(request: NextRequest) {
     // advanced is never dragged back to 'new'.
     const { data: existing, error: exErr } = await supabase
       .from('leads')
-      .select('id, status')
+      .select('id, status, email, raw_form_data')
       .eq('tenant_id', tenantId)
       .eq('phone', phone)
       .limit(1);
     if (exErr) {
       console.error('[lead-intake] dedupe read FAILED:', exErr.message);
       return NextResponse.json({ success: false, error: 'server error' }, { status: 500 });
+    }
+
+    // A lapsed or paused tenant stops accepting new leads through this key. 402 says why.
+    if (await tenantIsBlocked(supabase, tenantId)) {
+      return NextResponse.json({ success: false, error: 'account on hold' }, { status: 402 });
     }
 
     const leadCore = {
@@ -154,12 +160,18 @@ export async function POST(request: NextRequest) {
     };
 
     if (existing && existing.length > 0) {
-      const keepStatus =
-        existing[0].status && existing[0].status !== 'new' ? existing[0].status : 'new';
+      // A repeat submit adds to the card; it never replaces what is there. The lead keeps its original source
+      // (so Facebook attribution survives), its name, its status and its first form data; the new submission is
+      // kept alongside under last_submission.
+      const prev = (existing[0].raw_form_data && typeof existing[0].raw_form_data === 'object' ? existing[0].raw_form_data : {}) as Record<string, unknown>;
       const { error: upErr } = await supabase
         .from('leads')
-        .update({ ...leadCore, status: keepStatus })
-        .eq('id', existing[0].id);
+        .update({
+          email: existing[0].email || email,
+          raw_form_data: { ...prev, last_submission: { source, at: leadCore.received_at, ...fields } },
+        })
+        .eq('id', existing[0].id)
+        .eq('tenant_id', tenantId);
       if (upErr) {
         console.error('[lead-intake] lead update FAILED:', upErr.code || '', upErr.message);
         return NextResponse.json({ success: false, error: 'server error' }, { status: 500 });

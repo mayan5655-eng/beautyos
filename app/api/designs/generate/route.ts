@@ -81,9 +81,27 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ success: true, used: a.used, cap: a.cap, remaining: a.remaining });
 }
 
+// One generation at a time per tenant. A double tap (or two tabs) used to run two paid generations side by side,
+// and both passed the allowance check before either was counted. Per server instance: it stops the accidental
+// double-send, which is the realistic case; the monthly cap is still the ceiling.
+const generating = new Set<string>();
+
 export async function POST(request: NextRequest) {
   const ctx = await context(request);
   if (isResponse(ctx)) return ctx;
+  const { tenantId } = ctx;
+  if (generating.has(tenantId)) {
+    return NextResponse.json({ success: false, error: 'ההכנה הקודמת עדיין רצה. חכי רגע ואז נסי שוב.' }, { status: 409 });
+  }
+  generating.add(tenantId);
+  try {
+    return await generateOnce(request, ctx);
+  } finally {
+    generating.delete(tenantId);
+  }
+}
+
+async function generateOnce(request: NextRequest, ctx: { tenantId: string; settings: Record<string, unknown> | null }) {
   const { tenantId, settings } = ctx;
 
   let body: Record<string, unknown> = {};
@@ -148,7 +166,9 @@ export async function POST(request: NextRequest) {
         format: imageFormat,
         fields: profile?.fields ?? null,
       });
-      const image = await generateImage({ prompt, format: imageFormat, tenantId, callSite: GENERATE_IMAGE_CALL_SITE });
+      // Three pictures per generation: the ceiling follows HER generation cap, so a raised cap does not run
+      // into the fixed picture backstop after ten generations and fail silently.
+      const image = await generateImage({ prompt, format: imageFormat, tenantId, callSite: GENERATE_IMAGE_CALL_SITE, callsCap: Math.max(30, allowance.cap * 3) });
       const path = `${tenantId}/designs/gen_${stamp}_${i}.png`;
       const { error } = await storage.upload(path, image.png, { contentType: 'image/png' });
       if (error) throw new Error(error.message);

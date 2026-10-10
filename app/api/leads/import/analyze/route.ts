@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
+import { requireActiveTenant } from '@/lib/planGuard';
 import {
   maskRow,
   normalizeIsraeliMobile,
@@ -55,6 +56,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 400 });
     }
     console.log(`[leads/import/analyze] TENANT FILTER: tenant_id = ${tenantId} (analyse only, no writes)`);
+
+    // This route spends a model call on header mapping: a lapsed tenant does not.
+    const guard = await requireActiveTenant(session);
+    if (!guard.ok) return guard.response;
 
     const tenantLimited = checkTenantLimit(tenantId as string, 'leads-import');
     if (tenantLimited) return tenantLimited;
