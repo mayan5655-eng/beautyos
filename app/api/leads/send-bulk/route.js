@@ -15,6 +15,8 @@ import { requireActiveTenant } from "../../../../lib/planGuard";
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { LEAD_STATUS_KEYS } from "../../../../lib/leads/statuses";
 import { renderLeadTemplate } from "../../../../lib/leads/templates";
+import { withMarketingFooter } from "../../../../lib/marketingConsent";
+import { IMPORT_SOURCE } from "../../../../lib/leads/buildRows";
 
 // Service-role client for reading the tenant's leads (bypasses RLS; always
 // filtered by the session-derived tenant_id below).
@@ -56,6 +58,9 @@ export async function POST(request) {
     // Optional: restrict this send to specific leads (the per-lead one-click
     // send). Applied AFTER the tenant and status filters below, so it can only
     // ever narrow the group - never widen it or reach another tenant's leads.
+    // Imported lists carry no evidence that anyone asked to hear from her (section 30A). They are held back
+    // unless she states, for this send, that the people on the list agreed.
+    const confirmedConsent = body.confirmedConsent === true;
     const leadIds = Array.isArray(body.leadIds)
       ? body.leadIds.filter((id) => typeof id === "string" && id)
       : null;
@@ -75,7 +80,7 @@ export async function POST(request) {
       .from("leads")
       // contact_attempts + first_contacted_at are read so the contact trail
       // below can be computed per row without a second query.
-      .select("id, name, phone, status, contact_attempts, first_contacted_at")
+      .select("id, name, phone, status, source")
       .eq("tenant_id", tenantId)
       .eq("status", status);
 
@@ -118,8 +123,8 @@ export async function POST(request) {
     let queued_count = 0;
     let failed = 0;
     let skipped_no_phone = 0;
+    let skipped_no_consent = 0;
     const results = [];
-    const contacted = [];
 
     for (const lead of leads || []) {
       if (!lead.phone) {
@@ -127,8 +132,14 @@ export async function POST(request) {
         results.push({ name: lead.name || null, status: "אין טלפון" });
         continue;
       }
+      if (lead.source === IMPORT_SOURCE && !confirmedConsent) {
+        skipped_no_consent++;
+        results.push({ name: lead.name || null, status: "ללא אישור הסכמה לדיוור" });
+        continue;
+      }
 
-      const text = renderLeadTemplate(message, lead, settingsRow || {});
+      // Every bulk message carries the removal line (section 30A), once.
+      const text = withMarketingFooter(renderLeadTemplate(message, lead, settingsRow || {}));
       const res = await sendWhatsApp(lead.phone, text, {
         name: lead.name,
         type: "lead_bulk",
@@ -137,56 +148,26 @@ export async function POST(request) {
 
       if (res.queued && res.waLink) {
         queued_count++;
-        contacted.push(lead);
-        results.push({ name: lead.name || null, status: "ממתין לשליחה ידנית", waLink: res.waLink });
+        results.push({ leadId: lead.id, name: lead.name || null, status: "ממתין לשליחה ידנית", waLink: res.waLink });
       } else if (res.ok) {
         // Not reachable today (lead_bulk is never a utility type), kept so a
         // future type reclassification doesn't silently miscount.
         queued_count++;
-        contacted.push(lead);
-        results.push({ name: lead.name || null, status: "נשלח" });
+        results.push({ leadId: lead.id, name: lead.name || null, status: "נשלח" });
       } else {
         failed++;
         results.push({ name: lead.name || null, status: "נכשל" });
       }
     }
 
-    // 6. Stamp the contact trail, successes only - a failed message must never
-    //    claim she made contact. Each row needs its own values (its own attempt
-    //    count, and first_contacted_at only when it was empty), so these go out
-    //    as one awaited batch of concurrent updates rather than a single
-    //    statement. Updates, not upsert: a row deleted between the select and
-    //    the write must no-op, never be re-inserted half-empty.
-    if (contacted.length > 0) {
-      const nowIso = new Date().toISOString();
-      const writes = await Promise.all(
-        contacted.map((lead) =>
-          admin
-            .from("leads")
-            .update({
-              last_contacted_at: nowIso,
-              first_contacted_at: lead.first_contacted_at || nowIso,
-              contact_attempts: (Number(lead.contact_attempts) || 0) + 1,
-            })
-            .eq("id", lead.id)
-            .eq("tenant_id", tenantId)
-        )
-      );
-      // Never fail the response over this: the messages already went out.
-      const stampFailures = writes.filter((w) => w.error).length;
-      if (stampFailures) {
-        console.error(
-          `[send-bulk] contact trail: ${stampFailures}/${contacted.length} updates failed`,
-          writes.find((w) => w.error)?.error?.message
-        );
-      }
-    }
-
+    // 6. The contact trail is NOT stamped here. Nothing has been sent: these are wa.me links she has yet to
+    //    tap. The sheet calls /api/leads/mark-contacted for each lead she actually opens.
     return Response.json({
       success: true,
       queued: queued_count,
       failed,
       skipped_no_phone,
+      skipped_no_consent,
       results,
     });
   } catch (err) {

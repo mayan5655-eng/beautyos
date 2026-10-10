@@ -153,6 +153,13 @@ export async function POST(request: NextRequest) {
     // Signature verified above, so it is safe to take the service-role client.
     const supabase = admin();
 
+    // Set when a lead failed for a reason that a retry can fix (Graph fetch,
+    // insert, scoring). The response then is 5xx so Meta redelivers; before
+    // this every failure answered 200 and the lead survived only as a
+    // facebook_webhook_events row. Permanent failures (page not registered,
+    // inactive page, undecryptable token) stay 200: retrying cannot help.
+    let transientFailure = false;
+
     for (const entry of payload.entry) {
       const pageId = entry.id;
 
@@ -225,6 +232,21 @@ export async function POST(request: NextRequest) {
         const leadgenId = change.value.leadgen_id;
 
         try {
+          // Meta redelivers (and a retry after a 5xx re-sends the whole batch):
+          // a lead already saved is skipped, so it is not re-fetched, re-scored
+          // (a paid AI call) or re-logged.
+          const { data: existing } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('tenant_id', pageData.tenant_id)
+            .eq('source', 'facebook')
+            .eq('external_id', leadgenId)
+            .maybeSingle();
+          if (existing) {
+            console.log('[fb-webhook] lead already saved, skipping:', leadgenId);
+            continue;
+          }
+
           const lead = await fbClient.getLeadDetails(leadgenId, pageAccessToken);
 
           const parsedFields = parseLeadFields(lead.field_data);
@@ -271,6 +293,7 @@ export async function POST(request: NextRequest) {
             );
 
           if (insertError) {
+            transientFailure = true;
             console.error('[fb-webhook] lead insert: FAILED', leadgenId, insertError.code || '', insertError.message);
           } else {
             console.log('[fb-webhook] lead insert: OK', leadgenId, 'tenant', pageData.tenant_id, 'score', aiScore.score);
@@ -286,7 +309,22 @@ export async function POST(request: NextRequest) {
               ? `lead insert failed: ${insertError.code || ''} ${insertError.message}`.trim()
               : null,
           });
+
+          // A retry that succeeds closes the earlier failed rows for this lead,
+          // so the dashboard's failure badge does not keep counting a lead she
+          // already has.
+          if (!insertError) {
+            try {
+              await supabase
+                .from('facebook_webhook_events')
+                .update({ processed: true })
+                .eq('tenant_id', pageData.tenant_id)
+                .eq('leadgen_id', leadgenId)
+                .eq('processed', false);
+            } catch { /* the badge is cosmetic; never fail the lead for it */ }
+          }
         } catch (leadError) {
+          transientFailure = true;
           // Most commonly the Graph API fetch: expired/insufficient token, or
           // missing leads_retrieval permission. Without this row, that failure
           // was invisible outside the hosting logs.
@@ -303,9 +341,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (transientFailure) return new NextResponse('Retry', { status: 500 });
     return new NextResponse('OK', { status: 200 });
   } catch (error) {
     console.error('Facebook webhook error:', error);
-    return new NextResponse('OK', { status: 200 });
+    // A body that is not JSON can never succeed, so answer 200; anything else is
+    // unexpected and worth a redelivery.
+    return new NextResponse(error instanceof SyntaxError ? 'OK' : 'Retry', { status: error instanceof SyntaxError ? 200 : 500 });
   }
 }

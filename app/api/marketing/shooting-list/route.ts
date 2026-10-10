@@ -22,6 +22,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
+import { mapAiError } from '@/lib/ai/aiErrorResponse'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -178,6 +179,8 @@ ${GROUNDING_RULES}
       ideas: list.ideas,
     })
   } catch (error: unknown) {
+    const mapped = mapAiError(error)
+    if (mapped) return NextResponse.json({ error: mapped.message }, { status: mapped.status })
     console.error('Error in /api/marketing/shooting-list:', error)
     const msg = error instanceof Error ? error.message : 'יצירת הרשימה נכשלה'
     return NextResponse.json({ error: msg }, { status: 500 })

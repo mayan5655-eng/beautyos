@@ -17,6 +17,7 @@ import { trackedCreate } from '@/lib/ai/usage'
 import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 import { withClaimsGuard, fixHebrewSlips } from '@/lib/ai/claimsGuard'
+import { mapAiError } from '@/lib/ai/aiErrorResponse'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response
 
     const body = await request.json()
-    const topic: string = (body.topic || '').trim()
+    // Bounded: it goes into the prompt verbatim.
+    const topic: string = String(body.topic || '').trim().slice(0, 300)
 
     // Both of these are now sent by the UI. They were accepted here from the
     // start and never supplied, so every reel was silently 30 seconds with no
@@ -191,6 +193,8 @@ ${GROUNDING_RULES}
 
     return NextResponse.json({ success: true, reel: fix(run.reel), ...capNoticeOf(run.message) })
   } catch (error: any) {
+    const mapped = mapAiError(error)
+    if (mapped) return NextResponse.json({ error: mapped.message }, { status: mapped.status })
     console.error('Error in /api/marketing/reel:', error)
     return NextResponse.json({ error: error.message || 'יצירת הרילס נכשלה' }, { status: 500 })
   }

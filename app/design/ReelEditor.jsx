@@ -59,7 +59,9 @@ export default function ReelEditor({ design, reel, settings, readOnly, previousI
 
   const onVideo = async (blob, ext) => {
     if (readOnly || !settings?.tenant_id) return;
-    try { const path = await uploadReel(blob, settings.tenant_id, design.id, ext); await patch({ export_path: path }); } catch { /* the download still works */ }
+    // Throws on failure: ReelRender reports it. The download itself still works either way.
+    const path = await uploadReel(blob, settings.tenant_id, design.id, ext);
+    await patch({ export_path: path });
   };
 
   return (

@@ -218,7 +218,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             <CesdkEditor
               template={template} fill={fill} overrides={overrides} values={values}
               onChange={(next) => { setOverrides(next.overrides); setValues((p) => ({ ...p, ...next.values })); setDirty(true); }}
-              onExport={(blob) => downloadBlob(blob, `${(name || template.name).replace(/[^p{L}p{N}]+/gu, '-')}-${template.format}.png`)}
+              onExport={(blob) => downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`)}
               onClose={() => setAdvanced(false)}
             />
           )}

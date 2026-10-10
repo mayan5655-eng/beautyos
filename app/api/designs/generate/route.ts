@@ -109,6 +109,11 @@ export async function POST(request: NextRequest) {
   if (!candidates.length) return NextResponse.json({ success: false, error: 'אין תבניות מתאימות לפורמט הזה עדיין' }, { status: 400 });
 
   const supabase = await createClient();
+  // 'copy' lives on the row only after add_designs_reel_and_copy.sql has been run by hand. Find out BEFORE the
+  // paid calls, so a missing column never costs her an Opus call and three pictures and then reports "save failed".
+  const probe = await supabase.from('designs').select('copy').limit(1);
+  const hasCopyColumn = !(probe.error && isMissingColumnError(probe.error));
+  const DESIGN_COLS = 'id, template_key, template_version, category, format, name, values, images, overrides, preview_path, export_path, is_default, parent_id, status, created_at, updated_at';
   let plan;
   let profile;
   try {
@@ -174,13 +179,13 @@ export async function POST(request: NextRequest) {
         values: o.values,
         images: pic ? sanitizeImages(template, { [pic.slot]: pic.url }) : {},
         overrides: {},
-        copy: { text: plan.copy.text, hashtags: plan.copy.hashtags },
+        ...(hasCopyColumn ? { copy: { text: plan.copy.text, hashtags: plan.copy.hashtags } } : {}),
         status: 'draft',
       })
-      .select('id, template_key, template_version, category, format, name, values, images, overrides, copy, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
+      .select(hasCopyColumn ? DESIGN_COLS + ', copy' : DESIGN_COLS)
       .single();
     if (error) { console.error('[designs/generate] insert failed:', error.message); continue; }
-    designs.push({ ...data, angle: o.angle, pictureFailed: !!o.imageSubject && !pic });
+    designs.push({ ...(data as unknown as Record<string, unknown>), angle: o.angle, pictureFailed: !!o.imageSubject && !pic });
   }
   if (!designs.length) return NextResponse.json({ success: false, error: 'הפוסטים נבנו אבל השמירה נכשלה. נסי שוב.' }, { status: 500 });
 
@@ -189,5 +194,5 @@ export async function POST(request: NextRequest) {
   const capNotice = allowance.cap > 0 && usedNow >= allowance.cap * 0.8
     ? capNoticeHe({ allowed: true, reason: 'ok', callSite: 'designs/generate', callsUsed: usedNow, callsCap: allowance.cap, spentUsd: null, usdCap: 0, near: true, nearWhat: 'calls' })
     : null;
-  return NextResponse.json({ success: true, options: designs, copy: plan.copy, plan: plan.meta, used: usedNow, cap: allowance.cap, ...(capNotice ? { capNotice } : {}) });
+  return NextResponse.json({ success: true, options: designs, copy: plan.copy, plan: plan.meta, used: usedNow, cap: allowance.cap, ...(capNotice ? { capNotice } : {}), ...(hasCopyColumn ? {} : { copyColumnMissing: true }) });
 }

@@ -1368,6 +1368,8 @@ export default function BeautyOS() {
   const [bulkStep,          setBulkStep]           = useState("compose");
   const [bulkResult,        setBulkResult]         = useState(null);
   const [bulkError,         setBulkError]          = useState("");
+  // She states, for this one send, that the imported leads in the group agreed to hear from her.
+  const [bulkConfirmConsent, setBulkConfirmConsent] = useState(false);
   // Non-null = send to these lead ids only (the per-lead one-click send).
   // Null = the whole status group, which is the original behavior.
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
@@ -4476,11 +4478,26 @@ export default function BeautyOS() {
     // (app/api/leads/send-bulk/route.js), and the modal shows her a preview
     // for the first recipient so she still sees a real message, not braces.
     setBulkMessage(tpl || "");
-    setBulkResult(null); setBulkError(""); setBulkStep("compose");
+    setBulkResult(null); setBulkError(""); setBulkStep("compose"); setBulkConfirmConsent(false);
   };
   const closeBulk = () => {
     setBulkStatus(null); setBulkStep("compose"); setBulkMessage("");
-    setBulkResult(null); setBulkError(""); setBulkLeadIds(null);
+    setBulkResult(null); setBulkError(""); setBulkLeadIds(null); setBulkConfirmConsent(false);
+  };
+  // Called when she taps a prepared chat link: only then does the lead read as contacted.
+  const markLeadContacted = async (leadId) => {
+    if(!leadId) return;
+    if(bulkResult?.results?.some(r=>r.leadId===leadId&&r.marked)) return;
+    setBulkResult(prev=>prev?{...prev,results:prev.results.map(r=>r.leadId===leadId?{...r,marked:true}:r)}:prev);
+    try{
+      const res=await fetch("/api/leads/mark-contacted",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({leadIds:[leadId]})});
+      const data=await res.json().catch(()=>null);
+      if(!res.ok||!data?.success){ toast(data?.error||"לא הצלחנו לסמן שיצרת קשר","error"); return; }
+      const nowIso=data.at||new Date().toISOString();
+      const stamp=(l)=>({...l,last_contacted_at:nowIso,first_contacted_at:l.first_contacted_at||nowIso,contact_attempts:(Number(l.contact_attempts)||0)+1});
+      setLeads(prev=>prev.map(l=>l.id===leadId?stamp(l):l));
+      setSelectedLead(prev=>(prev&&prev.id===leadId)?stamp(prev):prev);
+    }catch{ /* the chat is open either way */ }
   };
   // Reuses the SAME API route as the standalone leads screen
   // (app/api/leads/send-bulk/route.js). The route resolves the tenant from the
@@ -4498,23 +4515,16 @@ export default function BeautyOS() {
           message:bulkMessage.trim(),
           // Only present for a single-lead send; omitted for a group send.
           ...(bulkLeadIds?{leadIds:bulkLeadIds}:{}),
+          ...(bulkConfirmConsent?{confirmedConsent:true}:{}),
         }),
       });
       const data=await res.json();
       if(!res.ok||!data.success){
         setBulkError(data.error||"שליחה נכשלה"); setBulkStep("confirm"); return;
       }
-      setBulkResult({queued:data.queued??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0,results:data.results||[]});
-      // Single-lead send: reflect the contact trail immediately in the row and
-      // the open drawer instead of waiting for the next load. Group sends are
-      // left to the next refresh - the API reports results by name, not id.
-      if(bulkLeadIds&&bulkLeadIds.length===1&&(data.queued??0)>0){
-        const nowIso=new Date().toISOString();
-        const id=bulkLeadIds[0];
-        const stamp=(l)=>({...l,last_contacted_at:nowIso,first_contacted_at:l.first_contacted_at||nowIso,contact_attempts:(Number(l.contact_attempts)||0)+1});
-        setLeads(prev=>prev.map(l=>l.id===id?stamp(l):l));
-        setSelectedLead(prev=>(prev&&prev.id===id)?stamp(prev):prev);
-      }
+      setBulkResult({queued:data.queued??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0,skipped_no_consent:data.skipped_no_consent??0,results:data.results||[]});
+      // The contact trail is stamped when she TAPS a chat link (markLeadContacted), not here:
+      // nothing has been sent yet, only prepared.
       setBulkStep("result");
     }catch(err){
       setBulkError(err instanceof Error?err.message:"שליחה נכשלה"); setBulkStep("confirm");
@@ -10799,6 +10809,12 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"10px 12px",fontSize:"var(--t-sm)",whiteSpace:"pre-wrap",maxHeight:120,overflowY:"auto",color:"var(--ink)"}}>{previewText}</div>
  </div>
               )}
+              {inGroup.some(l=>l.source==="csv_import")&&(
+ <label style={{display:"flex",gap:8,alignItems:"flex-start",fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:14,cursor:"pointer"}}>
+ <input type="checkbox" checked={bulkConfirmConsent} onChange={e=>setBulkConfirmConsent(e.target.checked)} style={{marginTop:3}}/>
+ <span>חלק מהפניות יובאו מקובץ. אני מאשרת שהן ביקשו או הסכימו לקבל ממני הודעות. בלי האישור הן לא ייכללו בשליחה.</span>
+ </label>
+              )}
  <div style={{display:"flex",gap:6}}>
  <button onClick={closeBulk} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
  <button onClick={()=>setBulkStep("confirm")} disabled={!bulkMessage.trim()||withPhone===0} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>המשיכי</button>
@@ -10826,6 +10842,9 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{flex:1,minWidth:88,background:"rgba(224,91,111,0.10)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:"var(--danger)"}}>{bulkResult.failed}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>נכשלו</p></div>
  <div style={{flex:1,minWidth:88,background:"var(--surface-2)",borderRadius:"var(--r-sm)",padding:"13px 8px",textAlign:"center"}}><p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:700,color:"var(--ink-2)"}}>{bulkResult.skipped_no_phone}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>דילוג (אין טלפון)</p></div>
  </div>
+              {bulkResult.skipped_no_consent>0&&(
+ <p style={{fontSize:"var(--t-sm)",color:"var(--warning)",lineHeight:1.6,marginBottom:12}}>{bulkResult.skipped_no_consent} פניות מרשימה מיובאת לא נכללו, כי אין אישור שהסכימו לקבל הודעות. אם הן ביקשו ממך ליצור קשר, אשרי זאת בשלב כתיבת ההודעה ושלחי שוב.</p>
+              )}
               {/* Each message is a tap from her own phone, not a send she just
                   watched happen - this is the list of taps, not a log. */}
               {bulkResult.results?.some(r=>r.waLink) && (
@@ -10833,7 +10852,7 @@ ${MARKETING_FOOTER}`)}`;
                   {bulkResult.results.filter(r=>r.waLink).map((r,i)=>(
  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"8px 11px",background:"var(--surface-2)",borderRadius:"var(--r-sm)"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name||"(ללא שם)"}</span>
- <a href={r.waLink} target="_blank" rel="noreferrer" style={{flexShrink:0,background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"6px 14px",fontSize:"var(--t-xs)",fontWeight:700,textDecoration:"none"}}>שליחה</a>
+ <a href={r.waLink} target="_blank" rel="noreferrer" onClick={()=>markLeadContacted(r.leadId)} style={{flexShrink:0,background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"6px 14px",fontSize:"var(--t-xs)",fontWeight:700,textDecoration:"none"}}>{r.marked?"נפתח ✓":"שליחה"}</a>
  </div>
                   ))}
  </div>

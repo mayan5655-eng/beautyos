@@ -16,6 +16,13 @@ import { getTemplate } from '@/lib/design/templates';
 import { getReel } from '@/lib/design/reels';
 import { sanitizeImages, sanitizeValues, sanitizeOverrides } from '@/lib/design/design';
 import { CATEGORY_LABELS } from '@/lib/design/contract';
+import { ownRow, callerTenantId } from '@/lib/tenantScope';
+import { isMissingColumnError } from '@/lib/pgError';
+
+const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+// 'copy' arrives with add_designs_reel_and_copy.sql, which is run by hand. Until it has run, the list
+// has to keep working without that column rather than 500 for every tenant.
+const LIST_COLS = 'id, template_key, template_version, category, format, name, values, images, overrides, preview_path, export_path, is_default, parent_id, status, created_at, updated_at';
 
 const NAME_MAX = 60;
 const cleanName = (v: unknown, fallback: string) => {
@@ -31,18 +38,26 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const category = url.searchParams.get('category');
   const status = url.searchParams.get('status');
-  let q = supabase
-    .from('designs')
-    .select('id, template_key, template_version, category, format, name, values, images, overrides, copy, preview_path, export_path, is_default, parent_id, status, created_at, updated_at')
-    .order('updated_at', { ascending: false })
-    .limit(200);
-  if (category && category in CATEGORY_LABELS) q = q.eq('category', category);
-  if (status === 'draft' || status === 'final' || status === 'archived') q = q.eq('status', status);
-  else q = q.neq('status', 'archived');
+  // RLS is the first wall; the explicit tenant filter is the second (see lib/tenantScope.js).
+  const tenantId = await callerTenantId(supabase);
+  if (!tenantId) return NextResponse.json({ success: true, designs: [] });
 
-  const { data, error } = await q;
+  const build = (cols: string) => {
+    let q = supabase.from('designs').select(cols).eq('tenant_id', tenantId).order('updated_at', { ascending: false }).limit(200);
+    if (category && category in CATEGORY_LABELS) q = q.eq('category', category);
+    if (status === 'draft' || status === 'final' || status === 'archived') q = q.eq('status', status);
+    else q = q.neq('status', 'archived');
+    return q;
+  };
+
+  let { data, error } = await build(LIST_COLS + ', copy');
+  let copyMissing = false;
+  if (error && isMissingColumnError(error)) {
+    copyMissing = true;
+    ({ data, error } = await build(LIST_COLS));
+  }
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, designs: data || [] });
+  return NextResponse.json({ success: true, designs: data || [], ...(copyMissing ? { copyColumnMissing: true } : {}) });
 }
 
 export async function POST(request: NextRequest) {
@@ -61,26 +76,27 @@ export async function POST(request: NextRequest) {
 
   // Duplicate: a copy of one of hers, pointing at the same template version.
   if (typeof body.duplicateOf === 'string') {
-    const { data: src, error: srcErr } = await supabase.from('designs').select('*').eq('id', body.duplicateOf).maybeSingle();
+    if (!isUuid(body.duplicateOf)) return NextResponse.json({ success: false, error: 'מזהה לא תקין' }, { status: 400 });
+    const { data: found, error: srcErr } = await supabase.from('designs').select('*').eq('id', body.duplicateOf).eq('tenant_id', tenantId).maybeSingle();
     if (srcErr) return NextResponse.json({ success: false, error: srcErr.message }, { status: 500 });
+    const src = ownRow(found, tenantId);
     if (!src) return NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
-    const { data, error } = await supabase
-      .from('designs')
-      .insert({
-        tenant_id: tenantId,
-        template_key: src.template_key,
-        template_version: src.template_version,
-        category: src.category,
-        format: src.format,
-        name: cleanName(body.name, `${src.name || 'עיצוב'} (עותק)`),
-        values: src.values,
-        images: src.images,
-        overrides: src.overrides,
-        parent_id: src.id,
-        status: 'draft',
-      })
-      .select()
-      .single();
+    const row: Record<string, unknown> = {
+      tenant_id: tenantId,
+      template_key: src.template_key,
+      template_version: src.template_version,
+      category: src.category,
+      format: src.format,
+      name: cleanName(body.name, `${src.name || 'עיצוב'} (עותק)`),
+      values: src.values,
+      images: src.images,
+      overrides: src.overrides,
+      parent_id: src.id,
+      status: 'draft',
+    };
+    // The post text and hashtags go with the copy. 'copy' is only on the row once its migration has run.
+    if ('copy' in src) row.copy = src.copy;
+    const { data, error } = await supabase.from('designs').insert(row).select().single();
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, design: data });
   }

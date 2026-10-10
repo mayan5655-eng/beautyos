@@ -15,6 +15,7 @@ import { getTemplate } from '@/lib/design/templates';
 import { getReel } from '@/lib/design/reels';
 import { sanitizeImages, sanitizeValues, sanitizeOverrides, sanitizeCopy } from '@/lib/design/design';
 import { ownRow, callerTenantId } from '@/lib/tenantScope';
+import { isMissingColumnError } from '@/lib/pgError';
 
 // Someone else's design and a design that is not there answer the same way: 404, never "forbidden" (that would confirm the id exists).
 const notFound = () => NextResponse.json({ success: false, error: 'העיצוב לא נמצא' }, { status: 404 });
@@ -85,9 +86,18 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     patch.is_default = false;
   }
 
-  const { data, error } = await supabase.from('designs').update(patch).eq('id', id).eq('tenant_id', tenantId).select().single();
+  let { data, error } = await supabase.from('designs').update(patch).eq('id', id).eq('tenant_id', tenantId).select().single();
+  // The caption column arrives with add_designs_reel_and_copy.sql (run by hand). Without it, save everything
+  // else and say plainly that the text was not kept, instead of failing the whole save.
+  let copyNotSaved = false;
+  if (error && 'copy' in patch && isMissingColumnError(error)) {
+    const { copy: _dropped, ...rest } = patch;
+    void _dropped;
+    copyNotSaved = true;
+    ({ data, error } = await supabase.from('designs').update(rest).eq('id', id).eq('tenant_id', tenantId).select().single());
+  }
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, design: data });
+  return NextResponse.json({ success: true, design: data, ...(copyNotSaved ? { copyNotSaved: true } : {}) });
 }
 
 export async function DELETE(_request: NextRequest, ctx: Ctx) {

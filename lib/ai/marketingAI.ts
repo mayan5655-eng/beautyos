@@ -7,6 +7,7 @@ import { MODELS, EFFORT } from './models.ts'
 import { trackedCreate } from './usage.ts'
 import { cityHashtag } from './profileHygiene.ts'
 import { CLAIMS_RULE_HE } from './claimsGuard.ts'
+import { isAiRefusal } from './aiErrorResponse.ts'
 import type { FieldKey } from '../businessFields.ts'
 
 const anthropic = new Anthropic({
@@ -231,6 +232,8 @@ ${businessContext}
     const parsed = parseClaudeJSON<{ groups: GroupSuggestion[] }>(textBlock.text)
     return parsed.groups
   } catch (error) {
+    // A cap, a demo block or a provider outage is not "no suggestions": rethrow so the route can say what happened.
+    if (isAiRefusal(error)) throw error
     console.error('Failed to suggest groups:', error)
     return []
   }

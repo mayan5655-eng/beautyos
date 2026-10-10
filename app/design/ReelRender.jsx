@@ -61,8 +61,15 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
 
   const render = async () => {
     if (typeof MediaRecorder === 'undefined') { setError('הדפדפן לא תומך בהקלטת וידאו. נסי בכרום או בספארי מעודכן.'); return; }
+    // A tab that goes to the background stops requestAnimationFrame: the file would come out with frozen frames
+    // and nothing would say so. Stop the take instead, and tell her.
+    if (typeof document !== 'undefined' && document.hidden) { setError('הטאב לא פעיל. חזרי למסך הזה ונסי שוב.'); return; }
+    if (video?.url) { try { URL.revokeObjectURL(video.url); } catch { /* ignore */ } }
     setBusy(true); setError(''); setVideo(null); setProgress(0);
     let audioCtx = null;
+    let leftTheTab = false;
+    const onVisibility = () => { if (document.hidden) leftTheTab = true; };
+    document.addEventListener('visibilitychange', onVisibility);
     try {
       // 1. Draw every scene's under/over layers onto canvases, and load its photos.
       setStatus('מציירת את הסצנות');
@@ -125,6 +132,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       const t0 = performance.now();
       await new Promise((done) => {
         const tick = (now) => {
+          if (leftTheTab) { done(); return; }
           const el = now - t0;
           let i = 0; while (i < scenes.length - 1 && el >= starts[i + 1]) i++;
           const s = scenes[i];
@@ -144,6 +152,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       });
       recorder.stop();
       await finished;
+      if (leftTheTab) throw new Error('ההקלטה הופסקה כי עזבת את הטאב באמצע. השאירי את המסך הזה פתוח עד שהסרטון מוכן, ונסי שוב.');
       // What the recorder REPORTS it recorded decides the name: an MP4 box around VP9/Opus is not a postable .mp4.
       const actualMime = recorder.mimeType || mime;
       const ext = fileExtFor(actualMime);
@@ -151,11 +160,14 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       const url = URL.createObjectURL(blob);
       setVideo({ url, ext, blob });
       setStatus('');
-      onVideo?.(blob, ext);
       toast?.('הרילס מוכן');
+      // Keeping a copy in her account is a bonus on top of the download. When it fails she is told, instead of
+      // the "ready" above implying it was stored.
+      try { await onVideo?.(blob, ext); } catch (e) { setError('הסרטון מוכן להורדה, אבל לא נשמר בחשבון: ' + String(e?.message || e)); }
     } catch (e) {
       setError(String(e?.message || e || 'הרנדר נכשל'));
     } finally {
+      document.removeEventListener('visibilitychange', onVisibility);
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } }
       if (audioCtx) { try { await audioCtx.close(); } catch { /* ignore */ } }
       setBusy(false);
@@ -175,7 +187,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
         </button>
         <label style={{ fontSize: 'var(--t-xs)', color: 'var(--pc-deep)', cursor: 'pointer', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '8px 12px', background: 'var(--surface)' }}>
           <Icon name="music" size={12} /> {music ? music.name : 'מוזיקה (לא חובה)'}
-          <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) setMusic({ name: f.name, url: URL.createObjectURL(f) }); }} />
+          <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) { if (music?.url) { try { URL.revokeObjectURL(music.url); } catch { /* ignore */ } } setMusic({ name: f.name, url: URL.createObjectURL(f) }); } }} />
         </label>
         {music && <button onClick={() => setMusic(null)} style={{ background: 'none', border: 'none', color: 'var(--ink-3)', fontSize: 'var(--t-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>בלי מוזיקה</button>}
       </div>
