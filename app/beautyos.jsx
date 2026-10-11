@@ -48,7 +48,7 @@ import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
 import { advisorWaitLine } from "@/lib/advisorWait";
-import { defaultHowIWork, defaultHeroHeadline, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { defaultHowIWork, defaultHeroHeadline, defaultValueProps } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
 import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
 import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
@@ -11586,7 +11586,7 @@ ${MARKETING_FOOTER}`)}`;
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{SETTINGS_SWATCHES.map(col=><button key={col} type="button" aria-label={swatchLabel(col)} title={swatchLabel(col)} aria-pressed={editSettings.primary_color===col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  </>)}
  {inG("clients")&&(<>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הקישור הזה מוצג ללקוחה אחרי שכתבה לך ביקורת בטופס שלנו, כדי שתוכל גם לכתוב בגוגל. בקשת הביקורת עצמה (יומיים אחרי הטיפול) מפנה לטופס.</p></div>
  </>)}
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (חובה לבחור)</p>
@@ -11787,7 +11787,7 @@ ${MARKETING_FOOTER}`)}`;
  <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
-                    {colorRow("צבע משני (הדגשות)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
+                    {colorRow("צבע משני (לעיצובים ולפוסטים)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
  {/* Named for where it appears, because the old name - "opening headline" -
      described a slot rather than a consequence. What it actually did was
      replace the business name in the page's <h1>, so a clinic that filled it
@@ -11821,8 +11821,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={lbl}>ארבעת הערכים שלך (שורה מתחת לכל סמל)</p>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                     {[0,1,2,3].map(i=>{
-                      const vals=Array.isArray(brand.value_props)?brand.value_props:DEFAULT_VALUE_PROPS;
-                      return <input key={i} value={vals[i]||""} onChange={e=>{ const next=[0,1,2,3].map(j=>vals[j]||""); next[i]=e.target.value; setBrand("value_props",next); }} placeholder={DEFAULT_VALUE_PROPS[i]} style={inp}/>;
+                      const dvp=defaultValueProps(businessFieldsOf(editSettings));
+                      const vals=Array.isArray(brand.value_props)?brand.value_props:dvp;
+                      return <input key={i} value={vals[i]||""} onChange={e=>{ const next=[0,1,2,3].map(j=>vals[j]||""); next[i]=e.target.value; setBrand("value_props",next); }} placeholder={dvp[i]} style={inp}/>;
                     })}
  </div>
  </div>
@@ -11833,7 +11834,7 @@ ${MARKETING_FOOTER}`)}`;
      generators wrote about her audience without being told who it is. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}>✦ מידע לתוכן השיווקי</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>לא מוצג ללקוחות. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>לא מוצג בדף ההזמנות שלך. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
  <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
@@ -12002,7 +12003,7 @@ ${MARKETING_FOOTER}`)}`;
    const on=autos.quiet===true;
    const stamp=new Date().toISOString();
    setAutos(on?{...autos,quiet:false,quiet_ended_at:stamp}:{...autos,quiet:true,quiet_started_at:stamp});
- }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו." />
+ }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו. שימי לב: תזכורות ללקוחות והחזרת לקוחות ממשיכות. להפסקה מלאה של הכול, השתמשי ב&quot;השהיית כל האוטומציות&quot;." />
  </div>
  {masterPaused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}><Icon name="pause" size={13}/> כל האוטומציות מושהות כרגע.</p>}
  </>)}
@@ -12013,8 +12014,8 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
    const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
    setEditSettings(prev=>({...prev,automations:{...a,owner_alert_whatsapp:!(a.owner_alert_whatsapp===true)}}));
- }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר העסק שלך — שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
-          {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — גם אם תפעילי, ההתראה תגיע רק באפליקציה עד שהחיבור יתחדש.</p>}
+ }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר ההתראות שהגדרת (בקבוצה &quot;העסק שלי&quot;), ואם לא הגדרת, למספר העסק — שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
+          {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — ההתראה בוואטסאפ תחכה ב&quot;הודעות מוכנות לשליחה&quot;, ותצטרכי ללחוץ כדי לקבל אותה. באפליקציה ההתראה תמיד מגיעה.</p>}
  </div>
 
  </>)}
@@ -12170,7 +12171,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
- <AutoToggleRow pc={pc} label="הכנת אישור תשלום ללקוחה מיד לאחר הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
+ <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
  </>)}
  </div>
@@ -12322,6 +12323,7 @@ ${MARKETING_FOOTER}`)}`;
               {inG("advanced")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
+ {!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",lineHeight:1.6,marginBottom:10,fontWeight:700}}>הבוט עוד לא פעיל בחשבון שלך, ולכן התשובות כאן עדיין לא נשלחות ללקוחות. הן נשמרות, ויופעלו כשהבוט יחובר.</p>}
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",marginBottom:8}}/>
@@ -12419,7 +12421,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
  <div style={{flex:1}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות למטה): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות דפדפן (בקבוצה &quot;חיבורים&quot;)): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
  <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} label="סיכום ערב" />
  </div>

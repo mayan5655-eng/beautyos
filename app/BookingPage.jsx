@@ -8,7 +8,7 @@ import { logoSrc } from "@/lib/logoSrc";
 import { fetchPublicServices } from "@/lib/publicServices";
 import { supabase } from "./supabase";
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
-import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, DEFAULT_HERO_BENEFITS, DEFAULT_VALUE_PROPS } from "@/lib/branding";
+import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, defaultHeroBenefits, defaultValueProps } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
@@ -635,11 +635,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // already use a few lines below for the photos.
   const heroHeadline = brand?.welcomeHeadline || defaultHeroHeadline(brand?.fields);
   const heroLines = heroHeadline.split(/\n|(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
-  const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || DEFAULT_HERO_BENEFITS;
+  const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || defaultHeroBenefits(brand?.fields);
   const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
   const aboutSignoff = brand?.aboutSignoff || "";
   const aboutText = brand?.businessDescription || defaultAboutText(brand?.fields);
-  const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : DEFAULT_VALUE_PROPS;
+  const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : defaultValueProps(brand?.fields);
   const resultGroups = groupResults(results, services);
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
