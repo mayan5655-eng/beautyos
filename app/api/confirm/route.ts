@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
+import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -80,12 +81,14 @@ export async function POST(request: NextRequest) {
     // Public branding for the page header; best-effort - a failed read
     // leaves the confirmation working, just unbranded.
     let brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {};
+    let cancelWindowHours = 0;
     try {
       const { data: st } = await supabase
         .from('settings')
         .select('business_name, branding, primary_color')
         .eq('tenant_id', appt.tenant_id)
         .maybeSingle();
+      cancelWindowHours = resolveBookingRules(st?.branding).cancelWindowHours;
       brand = {
         businessName: st?.business_name || '',
         logoUrl: (st?.branding as { logo_url?: string } | null)?.logo_url || '',
@@ -98,6 +101,20 @@ export async function POST(request: NextRequest) {
     // through its own link.
     if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand);
     if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand);
+
+    // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
+    // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
+    if (action === 'cancel' && cancelWindowHours > 0) {
+      const startMin = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
+      if (startMin !== null && isInsideCancelWindow(String(appt.date), Number(startMin), cancelWindowHours)) {
+        return NextResponse.json({
+          success: false,
+          tooLate: true,
+          businessName: brand.businessName || '',
+          error: `אפשר לבטל דרך הקישור עד ${cancelWindowHours} שעות לפני התור. כדי לבטל עכשיו, נא ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`,
+        }, { status: 409 });
+      }
+    }
 
     const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
     // A cancellation carries WHEN it happened: that is what separates a late

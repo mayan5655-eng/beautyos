@@ -95,16 +95,35 @@ export function isTooSoonForSelfBooking(
 export const DEFAULT_MAX_DAYS_AHEAD = 21;
 export const MAX_DAYS_AHEAD_LIMIT = 60; // /api/availability reports 60 days
 
-export type BookingRules = { minLeadMinutes: number; maxDaysAhead: number };
+export type BookingRules = {
+  minLeadMinutes: number;
+  maxDaysAhead: number;
+  /** Deposit asked for when booking, in shekels. 0 = none. Collected by her (Bit, transfer): see depositNote. */
+  depositAmount: number;
+  /** One line on how to pay the deposit, shown on the page and after booking. */
+  depositNote: string;
+  /** Hours before the appointment within which a client can no longer cancel through her link. 0 = no window. */
+  cancelWindowHours: number;
+};
+
+export const MAX_DEPOSIT_AMOUNT = 5000;
+export const MAX_DEPOSIT_NOTE = 200;
+export const CANCEL_WINDOW_OPTIONS = [0, 12, 24, 48, 72] as const;
 
 export function resolveBookingRules(branding: unknown): BookingRules {
   const b = branding && typeof branding === 'object' && !Array.isArray(branding) ? (branding as Record<string, unknown>) : {};
   const r = b.booking_rules && typeof b.booking_rules === 'object' ? (b.booking_rules as Record<string, unknown>) : {};
   const hours = Number(r.min_notice_hours);
   const days = Number(r.max_days_ahead);
+  const dep = Number(r.deposit_amount);
+  const win = Number(r.cancel_window_hours);
+  const note = typeof r.deposit_note === 'string' ? r.deposit_note.replace(/s+/g, ' ').trim().slice(0, MAX_DEPOSIT_NOTE) : '';
   return {
     minLeadMinutes: Number.isFinite(hours) && hours >= 0 && hours <= 168 ? Math.round(hours * 60) : SELF_BOOKING_MIN_LEAD_MINUTES,
     maxDaysAhead: Number.isFinite(days) && days >= 1 && days <= MAX_DAYS_AHEAD_LIMIT ? Math.round(days) : DEFAULT_MAX_DAYS_AHEAD,
+    depositAmount: Number.isFinite(dep) && dep > 0 && dep <= MAX_DEPOSIT_AMOUNT ? Math.round(dep) : 0,
+    depositNote: note,
+    cancelWindowHours: Number.isFinite(win) && win > 0 && win <= 168 ? Math.round(win) : 0,
   };
 }
 
@@ -113,4 +132,24 @@ export function isTooFarAhead(dateStr: string, maxDaysAhead: number, now: Date =
   const days = daysBetween(wallClockNow(now).date, dateStr);
   if (days === null) return true;
   return days > maxDaysAhead;
+}
+
+/**
+ * Does booking on her page need an explicit "I agree" from the client? Yes when she asked for a deposit or set a
+ * cancellation window: the page shows the terms and the server refuses a booking that did not accept them.
+ */
+export function bookingTermsRequired(rules: BookingRules): boolean {
+  return rules.depositAmount > 0 || rules.cancelWindowHours > 0;
+}
+
+/**
+ * Is this appointment inside her cancellation window, so the client's own link can no longer cancel it?
+ * False when she set no window. An unparseable slot is NOT inside the window (the link then behaves as it always
+ * did): this rule only ever restricts a client, it never blocks her own cancel in the app.
+ */
+export function isInsideCancelWindow(dateStr: string, startMinute: number, windowHours: number, now: Date = new Date()): boolean {
+  if (!(windowHours > 0)) return false;
+  const mins = minutesUntilSlot(dateStr, startMinute, now);
+  if (mins === null) return false;
+  return mins < windowHours * 60;
 }

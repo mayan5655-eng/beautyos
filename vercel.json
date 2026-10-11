@@ -23,6 +23,14 @@
     {
       "path": "/api/demo/reset",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/facebook/ad-spend",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/send-weekly-report",
+      "schedule": "0 15 * * 0"
     }
   ]
 }
