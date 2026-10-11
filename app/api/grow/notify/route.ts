@@ -1,0 +1,53 @@
+// app/api/grow/notify/route.ts
+//
+// Grow's server-to-server callback (form POST, no signature). Authorised by the per-payment secret in the URL
+// (?t=...) and then by the content: the process id and the amount must match the payment we created
+// (lib/grow/service.applyNotification). A forged or replayed call can therefore neither mark an unrelated
+// payment paid nor change an amount. Always answers 200 for a well-formed call so Grow does not retry forever;
+// the body says what happened, for the logs.
+import { NextResponse } from 'next/server';
+import { APP_URL } from '@/lib/appUrl';
+import { growCredentials } from '@/lib/grow/config';
+import { applyNotification, approveTransaction } from '@/lib/grow/service';
+import { supabaseGrowRepo } from '@/lib/grow/repo';
+import { randomBytes } from 'node:crypto';
+import { admin } from '../_shared';
+
+export const maxDuration = 30;
+
+async function readBody(request: Request): Promise<Record<string, unknown>> {
+  const ct = request.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) return (await request.json()) as Record<string, unknown>;
+    const form = await request.formData();
+    const out: Record<string, unknown> = {};
+    form.forEach((v, k) => { out[k] = typeof v === 'string' ? v : ''; });
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export async function POST(request: Request) {
+  const token = new URL(request.url).searchParams.get('t') || '';
+  const raw = await readBody(request);
+  const creds = growCredentials();
+  try {
+    const result = await applyNotification(
+      raw,
+      token,
+      { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+      creds ? (n) => approveTransaction(n, creds) : undefined,
+    );
+    if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
+    return NextResponse.json({ success: true, status: result.status });
+  } catch (e) {
+    console.error('[grow] notify failed:', (e as Error)?.message);
+    // 500 so Grow retries: nothing was recorded.
+    return NextResponse.json({ success: false }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ error: 'method not allowed' }, { status: 405 });
+}

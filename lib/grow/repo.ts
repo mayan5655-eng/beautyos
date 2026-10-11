@@ -1,0 +1,51 @@
+// lib/grow/repo.ts
+//
+// SERVER ONLY. The service-role implementation of GrowRepo (lib/grow/service.ts). Every statement names the
+// tenant it acts for; the notify secret is the only way into a row from a callback.
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { GrowRepo, GrowPayment } from './service.ts';
+
+const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token';
+const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column|schema cache/i.test(e.message || ''));
+
+export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
+  return {
+    async insertPayment(row) {
+      const { data, error } = await db.from('grow_payments').insert(row).select(SELECT).single();
+      if (error || !data) throw new Error(error?.message || 'insert failed');
+      return data as unknown as GrowPayment;
+    },
+    async updatePayment(id, patch) {
+      const { error } = await db.from('grow_payments').update(patch).eq('id', id);
+      if (error) throw new Error(error.message);
+    },
+    async markPaid(id, patch) {
+      const { data, error } = await db.from('grow_payments').update(patch).eq('id', id).eq('status', 'created').select(SELECT);
+      if (error) throw new Error(error.message);
+      return (data && data[0] ? data[0] : null) as unknown as GrowPayment | null;
+    },
+    async findByToken(token) {
+      const { data, error } = await db.from('grow_payments').select(SELECT).eq('notify_token', token).maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data || null) as unknown as GrowPayment | null;
+    },
+    async insertReceipt(row) {
+      let { data, error } = await db.from('receipts').insert(row).select('id').single();
+      if (error && isMissingColumn(error)) {
+        // A column from a hand-run migration is not there yet (legal_provider, tip, discount): record the
+        // payment with the columns every deployment has rather than lose it.
+        const minimal: Record<string, unknown> = {};
+        for (const k of ['tenant_id', 'client_id', 'client_name', 'appointment_id', 'service', 'amount', 'payment_method', 'note', 'items']) minimal[k] = row[k];
+        ({ data, error } = await db.from('receipts').insert(minimal).select('id').single());
+      }
+      if (error || !data) throw new Error(error?.message || 'receipt insert failed');
+      return { id: String((data as { id: unknown }).id) };
+    },
+    async setReceiptDocument(receiptId, url) {
+      const { error } = await db.from('receipts').update({
+        legal_status: 'issued', legal_provider: 'grow', legal_doc_url: url, legal_issued_at: new Date().toISOString(),
+      }).eq('id', receiptId);
+      if (error && !isMissingColumn(error)) throw new Error(error.message);
+    },
+  };
+}

@@ -69,6 +69,8 @@ import LeadSourcesEditor from "./LeadSourcesEditor";
 import SourceReport from "./SourceReport";
 import GoalsCard from "./GoalsCard";
 import GoalsEditor from "./GoalsEditor";
+import GrowCard from "./GrowCard";
+import GrowChargePanel from "./GrowChargePanel";
 import { resolveGoals } from "@/lib/goals";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
@@ -11017,6 +11019,7 @@ ${MARKETING_FOOTER}`)}`;
                   className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:"var(--t-sm)"}}>שלחי בקשת תשלום</a>
  </div>
             )}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -12322,6 +12325,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               )}
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("clients")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
