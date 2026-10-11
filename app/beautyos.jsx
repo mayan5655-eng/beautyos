@@ -1912,6 +1912,7 @@ export default function BeautyOS() {
   const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
   const setupSteps = [
     { key:"details",  done: !!(settings.business_name && settings.business_name.trim() && settings.business_name.trim()!=="העסק שלי") && !!(settings.business_phone && String(settings.business_phone).trim()), label:"פרטי העסק", hint:"שם וטלפון ליצירת קשר", onClick:()=>openSetupTab("general") },
+    { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
