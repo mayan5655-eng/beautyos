@@ -73,6 +73,10 @@ export type SettingsEditableColumn = (typeof SETTINGS_EDITABLE_COLUMNS)[number];
 
 const EDITABLE = new Set<string>(SETTINGS_EDITABLE_COLUMNS);
 
+// Keys inside `automations` the Settings screen never edits and the tour writes on its own, from its own copy of the row:
+// the stored value always wins on a save, so a draft opened before the tour ended cannot bring the tour back.
+export const AUTOMATIONS_STORED_WINS_KEYS = ['onboarding_tour_seen', 'onboarding_tour_step'] as const;
+
 // Keys inside `automations` that belong to the platform, not the tenant.
 export const AUTOMATIONS_PROTECTED_KEYS = ['feature_flags'] as const;
 
@@ -150,4 +154,32 @@ export function preserveProtectedAutomations(
     if (k in storedAutos) next[k] = storedAutos[k];
   }
   return { ...payload, automations: next };
+}
+
+/**
+ * A save MERGES into the two jsonb bags instead of replacing them. The screen sends the whole row as it was when
+ * Settings was opened; anything another screen wrote to `automations` or `branding` in the meantime (the tour's
+ * progress, a lead template saved from the leads screen, a design preference) was overwritten by that older copy.
+ * Now the stored bag is the base and what she sent wins key by key, except the tour keys, where the stored value
+ * always wins. A key she cleared is sent as an empty value (the UI never relies on omission), so clearing still
+ * sticks. Pure; the route calls it with the row it just read.
+ */
+export function mergeStoredBags(
+  payload: Record<string, unknown>,
+  stored: { automations?: unknown; branding?: unknown } | null | undefined
+): Record<string, unknown> {
+  const asObj = (v: unknown): Record<string, unknown> | null =>
+    v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+  const next = { ...payload };
+  const storedAutos = asObj(stored?.automations);
+  const incomingAutos = asObj(payload.automations);
+  if (incomingAutos && storedAutos) {
+    const merged: Record<string, unknown> = { ...storedAutos, ...incomingAutos };
+    for (const k of AUTOMATIONS_STORED_WINS_KEYS) if (k in storedAutos) merged[k] = storedAutos[k];
+    next.automations = merged;
+  }
+  const storedBranding = asObj(stored?.branding);
+  const incomingBranding = asObj(payload.branding);
+  if (incomingBranding && storedBranding) next.branding = { ...storedBranding, ...incomingBranding };
+  return next;
 }

@@ -27,7 +27,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
-import { pickSettingsPayload, preserveProtectedAutomations } from '@/lib/settingsColumns';
+import { pickSettingsPayload, preserveProtectedAutomations, mergeStoredBags } from '@/lib/settingsColumns';
 import { SEEDED_SETTINGS_KEYS } from '@/lib/tenantTemplate';
 import { isMissingColumnError } from '@/lib/pgError';
 
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
   // though the client's copy of them is never trusted.
   const { data: existing, error: readErr } = await db
     .from('settings')
-    .select('id, automations')
+    .select('id, automations, branding')
     .eq('tenant_id', tenantId)
     .maybeSingle();
   if (readErr) {
@@ -98,7 +98,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'שגיאה בקריאת ההגדרות' }, { status: 500 });
   }
 
-  const toWrite = preserveProtectedAutomations(payload, existing?.automations);
+  // Merge into the stored bags so a save from an older copy of the row cannot erase what another screen wrote since.
+  const toWrite = mergeStoredBags(preserveProtectedAutomations(payload, existing?.automations), existing);
 
   if (existing) {
     const { data, error } = await db
