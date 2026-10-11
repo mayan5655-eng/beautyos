@@ -12,7 +12,7 @@ import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadl
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
-import { isTooSoonForSelfBooking } from "@/lib/bookingPolicy";
+import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
@@ -305,6 +305,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [agreed, setAgreed] = useState(false);
   // Optional, UNCHECKED by default (Israeli communications law, section 30A: promotions need an explicit yes). Not required to book.
   const [marketingOk, setMarketingOk] = useState(false);
+  const [termsOk, setTermsOk] = useState(false);
+  const [depositInfo, setDepositInfo] = useState(null);
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
@@ -486,7 +488,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   };
 
   // Her own self-booking rules (Settings > calendar and services); the defaults are the page's old behaviour.
-  const bookingRules = brand?.bookingRules || { minLeadMinutes: 120, maxDaysAhead: 21 };
+  const bookingRules = brand?.bookingRules || { minLeadMinutes: 120, maxDaysAhead: 21, depositAmount: 0, depositNote: "", cancelWindowHours: 0 };
+  const termsRequired = bookingTermsRequired(bookingRules);
   // === Build the next 14 BOOKABLE days (respecting per-day business_hours) ===
   // Her own rules (notice, how far ahead) are applied here and again by /api/book-appointment.
   // If availability could not be loaded, appointments is empty and every open
@@ -533,6 +536,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     const phoneErr = phoneErrorHe(phone);
     if (phoneErr) { setErrorMsg(phoneErr); return; }
     if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
+    if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -555,12 +559,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           color: selectedService.color || pc,
           tenantId: tenantId,
           marketingConsent: marketingOk === true,
+          acceptedTerms: termsRequired ? termsOk === true : undefined,
         }),
       });
       const result = await res.json();
       // Prefer the server's specific message (e.g. "slot taken") when provided,
       // otherwise fall back to the generic error.
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
+      setDepositInfo(result.deposit || null);
       setStep(4);
     } catch (err) {
       setErrorMsg(CLIENT_STUCK_HE);
@@ -1059,7 +1065,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div>
                 {eyebrow("עקבו אחרינו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                  {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
+                  {depositInfo && depositInfo.amount > 0 && (
+                  <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
+                    <b>מקדמה: ₪{depositInfo.amount}</b>
+                    {depositInfo.note ? <><br />{depositInfo.note}</> : null}
+                  </div>
+                )}
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
                   ))}
@@ -1297,6 +1309,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
                   </span>
                 </label>
+                {termsRequired && (
+                  <label data-testid="booking-terms" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${termsOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור תנאי ההזמנה" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
+                      {bookingRules.depositAmount > 0 && <>מקדמה של ₪{bookingRules.depositAmount} לתיאום התור{bookingRules.depositNote ? ` (${bookingRules.depositNote})` : ""}. </>}
+                      {bookingRules.cancelWindowHours > 0 && <>אפשר לבטל עד {bookingRules.cancelWindowHours} שעות לפני התור. </>}
+                      קראתי ואני מאשרת.
+                    </span>
+                  </label>
+                )}
                 <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>

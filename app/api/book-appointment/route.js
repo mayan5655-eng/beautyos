@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
-import { isTooSoonForSelfBooking, isTooFarAhead, resolveBookingRules } from "../../../lib/bookingPolicy";
+import { isTooSoonForSelfBooking, isTooFarAhead, resolveBookingRules, bookingTermsRequired } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
 import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
 
@@ -53,7 +53,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent } =
+    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
       await request.json();
 
     // Basic validation
@@ -200,6 +200,14 @@ export async function POST(request) {
     // Her own rules (Settings > calendar and services); the defaults are what this route enforced before they
     // existed. The same function the public page uses, so the two never disagree.
     const rules = resolveBookingRules(settingsRows && settingsRows[0] ? settingsRows[0].branding : null);
+    // A deposit or a cancellation window is a condition of the booking: the page shows it and asks for a tick, and
+    // the server refuses a booking that did not accept it (the route is reachable without the page).
+    if (bookingTermsRequired(rules) && acceptedTerms !== true) {
+      return Response.json(
+        { success: false, error: "כדי לקבוע תור צריך לאשר את תנאי ההזמנה" },
+        { status: 400 }
+      );
+    }
     if (isTooSoonForSelfBooking(date, newStart, new Date(), rules.minLeadMinutes)) {
       const lead = rules.minLeadMinutes >= 60
         ? `${Math.round(rules.minLeadMinutes / 60)} שעות`
@@ -458,7 +466,12 @@ export async function POST(request) {
       })
     );
 
-    return Response.json({ success: true, appointmentId: appt.id });
+    return Response.json({
+      success: true,
+      appointmentId: appt.id,
+      // What she asked for up front, so the confirmation screen can say how to pay it.
+      deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
+    });
   } catch (err) {
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }
