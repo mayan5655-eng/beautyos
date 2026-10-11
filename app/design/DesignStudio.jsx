@@ -36,6 +36,9 @@ import { legacyCampaignTextsVisible } from '@/lib/featureFlags';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
+/** The Kalmea pack's keys. They are the newest additions, so the gallery lifts them and marks them "חדש". */
+const isNewKey = (key) => key.startsWith('pk-');
+const newBadge = { position: 'absolute', top: 6, left: 6, zIndex: 1, background: 'var(--ink)', color: 'var(--surface)', fontSize: 'var(--t-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--r-full)' };
 
 const chip = (on) => ({ padding: '7px 13px', borderRadius: 'var(--r-full)', border: '1px solid var(--line-2)', background: on ? 'var(--pc)' : 'var(--surface)', color: on ? 'var(--pc-contrast)' : 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
 const ghost = { padding: '8px 0', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flex: 1 };
@@ -87,13 +90,19 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   };
 
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
+  // Her reels, the newest (pk-*) first. Nothing is removed or reordered among the others.
+  const orderedReels = useMemo(() => {
+    const all = latestReels(null, null, fields);
+    return [...all.filter((r) => isNewKey(r.key)), ...all.filter((r) => !isNewKey(r.key))];
+  }, [fields]);
   const occasions = useMemo(() => openOccasions(fields), [fields]);
   // Per group: its cards, the seasonal ones whose window is open lifted to the front with their days left.
   const sections = useMemo(() => {
     const open = new Map(occasions.map((o) => [o.template.key, o.upcoming]));
     return GROUPS.filter((g) => !group || g === group).map((g) => {
       const list = galleryTemplates(null, g, fields);
-      const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : 0);
+      // an open occasion first, then the newest templates (the Kalmea pack, keys pk-*), then the rest in library order
+      const rank = (t) => (open.has(t.key) ? open.get(t.key).daysLeft - 1000 : isNewKey(t.key) ? -500 : 0);
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
   }, [group, occasions, fields]);
@@ -238,6 +247,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     const storyOnly = t.format === 'story';
     return (
       <div key={t.key} style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
+        {isNewKey(t.key) && <span style={newBadge}>חדש</span>}
         {upcoming && <span style={{ position: 'absolute', top: 8, right: 8, zIndex: 1, background: 'var(--pc)', color: 'var(--pc-contrast)', fontSize: 'var(--t-xs)', fontWeight: 700, padding: '3px 9px', borderRadius: 'var(--r-full)' }}>{upcoming.daysLeft <= 0 ? 'עכשיו' : upcoming.daysLeft === 1 ? 'מחר' : `בעוד ${upcoming.daysLeft} ימים`}</span>}
         <button onClick={() => setPreview(t)} title="לתצוגה גדולה" style={{ padding: 0, border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', overflow: 'hidden', boxShadow: 'var(--shadow-xs)', aspectRatio: storyOnly ? '9 / 16' : '4 / 5', background: 'var(--surface-2)', cursor: 'zoom-in', display: 'block', width: '100%' }}>
           <DomPreview template={t} fill={fill} width={150} style={{ width: '100%', height: 'auto', aspectRatio: storyOnly ? '9 / 16' : '4 / 5' }} preferSeed />
@@ -262,7 +272,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     const f = fillReel(r, { settings });
     const blocked = r.category === 'review' && !hasReviews;
     return (
-      <div key={r.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div key={r.key} style={{ display: 'flex', flexDirection: 'column', gap: 8, position: 'relative' }}>
+        {isNewKey(r.key) && <span style={newBadge}>חדש</span>}
         <div style={{ display: 'flex', gap: 4 }}>
           {r.scenes.slice(0, 3).map((s, i) => (
             <div key={s.id} style={{ flex: 1, borderRadius: 'var(--r-xs)', overflow: 'hidden', border: '1px solid var(--line)', aspectRatio: '9 / 16', background: 'var(--surface-2)' }}>
@@ -366,12 +377,12 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_PLAY} style={{ width: 44, height: 44, objectFit: 'contain', flexShrink: 0 }} />
               <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', margin: 0, display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{latestReels(null, null, fields).length}</span>
+                רילסים <span style={{ fontSize: 'var(--t-xs)', fontWeight: 400, color: 'var(--ink-3)', fontFamily: 'inherit' }}>{orderedReels.length}</span>
               </p>
             </div>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
-              {latestReels(null, null, fields).map(reelCard)}
+              {orderedReels.map(reelCard)}
             </div>
           </div>
         )}
