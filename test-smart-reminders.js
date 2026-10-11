@@ -62,6 +62,7 @@ function makeDb(tables) {
         select() { return chain; },
         order() { return chain; },
         eq(col, val) { rows = rows.filter((r) => r[col] === val); return chain; },
+        in(col, vals) { rows = rows.filter((r) => vals.includes(r[col])); return chain; },
         range(from, to) {
           const slice = rows.slice(from, to + 1);
           return Promise.resolve({ data: slice, error: null, count: rows.length });
@@ -395,6 +396,39 @@ group('a queued message counts as handled');
   const before = calls.length;
   await runSmartReminders({ db, send: queuedSend, dryRun: false, now: w.now });
   eq('a second run queues nothing new for the same clients', calls.length, before);
+}
+
+// ── her own timing (Settings > messages): win-back days and the review delay ───────────────────────────
+group('her own timing');
+{
+  const now = new Date('2026-08-26T12:00:00Z');
+  const mk = (tid, timing) => ({ tenant_id: tid, business_name: tid, automations: timing ? { timing } : null });
+  const client = (tid) => ({ id: tid + '-c', name: 'לקוחה', phone: '972541234567', tenant_id: tid, birthday: null, marketing_consent: true });
+  const appt = (tid, daysAgo) => ({ id: tid + '-a', client_id: tid + '-c', tenant_id: tid, date: dateNDaysAgo(daysAgo, now), confirmation_status: 'confirmed', service: 'פילינג' });
+  // last visit 100 days ago: a default tenant (90) wins her back, one who set 180 does not, one who set 60 does
+  const w = {
+    settings: [mk('t-default', null), mk('t-180', { winback_days: 180 }), mk('t-60', { winback_days: 60 })],
+    clients: [client('t-default'), client('t-180'), client('t-60')],
+    appointments: [appt('t-default', 100), appt('t-180', 100), appt('t-60', 100)],
+    packages: [], auto_reminders_log: [],
+  };
+  const calls = [];
+  const send = async (phone, message, opts) => { calls.push(opts.tenantId + ':' + opts.type); return { ok: true }; };
+  await runSmartReminders({ db: makeDb(w), send, dryRun: false, now });
+  eq('winback follows her own days', calls.filter((c) => c.endsWith('auto_winback')).sort(), ['t-60:auto_winback', 't-default:auto_winback']);
+
+  // review: visits 2 and 3 days ago; a default tenant is asked for the 2-day-old one, a "3 days" tenant for the 3-day-old
+  const r = {
+    settings: [mk('r-default', null), mk('r-3', { review_delay_days: 3 })],
+    clients: [client('r-default'), client('r-3')],
+    appointments: [appt('r-default', 2), appt('r-3', 2), { ...appt('r-3', 3), id: 'r-3-b', client_id: 'r-3-c' }],
+    packages: [], auto_reminders_log: [],
+  };
+  const calls2 = [];
+  const send2 = async (phone, message, opts) => { calls2.push(opts.tenantId + ':' + opts.type); return { ok: true }; };
+  await runSmartReminders({ db: makeDb(r), send: send2, dryRun: false, now });
+  eq('review follows her own delay', calls2.filter((c) => c.endsWith('auto_review')).sort(), ['r-3:auto_review', 'r-default:auto_review']);
+  ok('the default tenant was asked for the 2-day visit only', calls2.filter((c) => c === 'r-default:auto_review').length === 1);
 }
 
 console.log('\n' + '='.repeat(64));

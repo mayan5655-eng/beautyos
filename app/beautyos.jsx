@@ -5083,6 +5083,8 @@ export default function BeautyOS() {
   const handleAddService = () => {
     if (guardWrite()) return;
     if (!newService.name.trim()) { toast("נא להזין שם שירות", "error"); return; }
+    if (!(Number(newService.price) >= 0)) { toast("המחיר לא יכול להיות שלילי", "error"); return; }
+    if (!(Number(newService.duration) >= 5 && Number(newService.duration) <= 600)) { toast("משך הטיפול צריך להיות בין 5 ל-600 דקות", "error"); return; }
     const name = newService.name.trim();
     const clash = (editServices || []).some(s => !s._deleted && (s.name || "").trim() === name);
     if (clash) { toast("כבר יש שירות בשם הזה", "error"); return; }
@@ -12023,8 +12025,8 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="נשלחת אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל; אחרת מוכנה בתור השליחה הידנית שלך." />
- <AutoToggleRow pc={pc} label="בקשת ביקורת (יומיים אחרי טיפול)" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
- <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות (90+ יום)" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
+ <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, בתור השליחה הידנית שלך." />
  </div>
 
@@ -12169,6 +12171,27 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
  {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4,fontWeight:600}}>תזמון הודעות ללקוחות</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>מתי יוצאות בקשת הביקורת והחזרת הלקוחות הרדומות. כשההודעות לא יוצאות אוטומטית, הן מחכות ב&quot;הודעות מוכנות לשליחה&quot;.</p>
+ {(()=>{
+   const t=(autos.timing&&typeof autos.timing==="object")?autos.timing:{};
+   const rv=Number(t.review_delay_days)>=1&&Number(t.review_delay_days)<=14?Number(t.review_delay_days):2;
+   const wb=Number(t.winback_days)>=30&&Number(t.winback_days)<=365?Number(t.winback_days):90;
+   const setT=(patch)=>setAutos({...autos,timing:{...t,...patch}});
+   const sel={border:"1px solid var(--line-2)",borderRadius:"var(--r-xs)",padding:"7px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",background:"var(--surface)"};
+   return(
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>בקשת ביקורת אחרי הטיפול</span>
+ <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>החזרת לקוחה שלא ביקרה</span>
+ <select aria-label="החזרת לקוחה שלא ביקרה" value={wb} onChange={e=>setT({winback_days:Number(e.target.value)})} style={sel}>{[[60,"אחרי 60 יום"],[90,"אחרי 90 יום"],[120,"אחרי 120 יום"],[180,"אחרי חצי שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ </div>
+   );
+ })()}
+ </div>
+ </>)}
+ {inG("messages")&&(<>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
  <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
@@ -12240,8 +12263,10 @@ ${MARKETING_FOOTER}`)}`;
      next to a price. Optional; empty renders nothing. */}
  <input value={svc.description||""} aria-label="תיאור קצר ללקוחה" placeholder="תיאור קצר לעמוד ההזמנות. ה-AI כותב פוסטים רק על מה שכתוב כאן (למשל איך מרגישים, כמה זמן) - בלי תיאור הוא יישאר כללי" onChange={e=>patchDraftService(idx,{description:e.target.value})} maxLength={140} style={{width:"100%",border:"none",background:"transparent",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",color:"var(--ink-2)",marginBottom:7,paddingRight:17}}/>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
- <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>patchDraftService(idx,{price:Number(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
- <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>patchDraftService(idx,{duration:Number(e.target.value)})} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <input type="number" value={svc.price} aria-label="מחיר בשקלים" onChange={e=>patchDraftService(idx,{price:Number(e.target.value)})} onBlur={e=>{const v=Number(e.target.value);const fixed=Math.max(0,Math.round(v||0));if(fixed!==v)patchDraftService(idx,{price:fixed});}} min={0} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <span aria-hidden="true" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",flexShrink:0}}>₪</span>
+ <input type="number" value={svc.duration} aria-label="משך בדקות" onChange={e=>patchDraftService(idx,{duration:Number(e.target.value)})} onBlur={e=>{const v=Number(e.target.value);const fixed=Math.min(600,Math.max(5,Math.round(v||60)));if(fixed!==v)patchDraftService(idx,{duration:fixed});}} min={5} max={600} style={{width:44,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/>
+ <span aria-hidden="true" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",flexShrink:0}}>דק׳</span>
  {/* Which business field this service belongs to — the only place in the
      product that sets or fixes it after creation. Drives the default photo
      (lib/defaultImages.js) and whether it appears in a field-filtered view.
@@ -12409,6 +12434,28 @@ ${MARKETING_FOOTER}`)}`;
  <select aria-label="אורך ההפסקה" value={mins} onChange={e=>setLb({minutes:Number(e.target.value)})} style={hourSelectStyle}>{[15,30,45,60,90].map(m=><option key={m} value={m}>{m} דקות</option>)}</select>
  </div>
  )}
+ </div>
+   );
+ })()}
+{inG("booking")&&(()=>{
+   // How far ahead, and how late, a client may book on her own page. Stored in branding.booking_rules and enforced by the
+   // public page AND /api/book-appointment from one function (lib/bookingPolicy.ts). She can still book anything herself.
+   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+   const r=(b.booking_rules&&typeof b.booking_rules==="object")?b.booking_rules:{};
+   const notice=Number.isFinite(Number(r.min_notice_hours))&&r.min_notice_hours!==""&&r.min_notice_hours!==null&&r.min_notice_hours!==undefined?Number(r.min_notice_hours):2;
+   const ahead=Number.isFinite(Number(r.max_days_ahead))&&r.max_days_ahead?Number(r.max_days_ahead):21;
+   const setRule=(patch)=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};const cur=(pb.booking_rules&&typeof pb.booking_rules==="object")?pb.booking_rules:{};return {...prev,branding:{...pb,booking_rules:{...cur,...patch}}};});
+   const sel={border:"1px solid var(--line-2)",borderRadius:"var(--r-xs)",padding:"7px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",background:"var(--surface)"};
+   return(
+ <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:"var(--surface-2)"}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:"0 0 2px"}}>כללי קביעת תור בדף שלך</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"0 0 10px"}}>מה לקוחות יכולות לקבוע בעצמן דרך הדף. את תמיד יכולה לקבוע כל תור ידנית ביומן.</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>הודעה מראש לפחות</span>
+ <select aria-label="הודעה מראש לפחות" value={notice} onChange={e=>setRule({min_notice_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי הגבלה"],[1,"שעה"],[2,"שעתיים"],[4,"4 שעות"],[12,"12 שעות"],[24,"יום"],[48,"יומיים"],[72,"3 ימים"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>עד כמה זמן קדימה</span>
+ <select aria-label="עד כמה זמן קדימה" value={ahead} onChange={e=>setRule({max_days_ahead:Number(e.target.value)})} style={sel}>{[[7,"שבוע"],[14,"שבועיים"],[21,"3 שבועות"],[30,"30 יום"],[45,"45 יום"],[60,"60 יום"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ </div>
  </div>
    );
  })()}

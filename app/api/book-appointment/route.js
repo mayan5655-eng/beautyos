@@ -9,7 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
 import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptTime";
-import { isTooSoonForSelfBooking, SELF_BOOKING_MIN_LEAD_MINUTES } from "../../../lib/bookingPolicy";
+import { isTooSoonForSelfBooking, isTooFarAhead, resolveBookingRules } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
 import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
 
@@ -197,12 +197,26 @@ export async function POST(request) {
     //     Scoped to public self-booking only. The in-app modal does not come
     //     through this route, so she can still add a walk-in starting now, and
     //     gap-fill has its own lead rule in app/api/slots/offer.
-    if (isTooSoonForSelfBooking(date, newStart)) {
+    // Her own rules (Settings > calendar and services); the defaults are what this route enforced before they
+    // existed. The same function the public page uses, so the two never disagree.
+    const rules = resolveBookingRules(settingsRows && settingsRows[0] ? settingsRows[0].branding : null);
+    if (isTooSoonForSelfBooking(date, newStart, new Date(), rules.minLeadMinutes)) {
+      const lead = rules.minLeadMinutes >= 60
+        ? `${Math.round(rules.minLeadMinutes / 60)} שעות`
+        : `${rules.minLeadMinutes} דקות`;
       return Response.json(
         {
           success: false,
-          error: `ניתן לקבוע תור לפחות ${Math.round(SELF_BOOKING_MIN_LEAD_MINUTES / 60)} שעות מראש. נא לבחור מועד מאוחר יותר.`,
+          error: rules.minLeadMinutes > 0
+            ? `ניתן לקבוע תור לפחות ${lead} מראש. נא לבחור מועד מאוחר יותר.`
+            : "המועד הזה כבר עבר. נא לבחור מועד מאוחר יותר.",
         },
+        { status: 409 }
+      );
+    }
+    if (isTooFarAhead(date, rules.maxDaysAhead)) {
+      return Response.json(
+        { success: false, error: `ניתן לקבוע תור עד ${rules.maxDaysAhead} ימים מראש. נא לבחור מועד קרוב יותר.` },
         { status: 409 }
       );
     }

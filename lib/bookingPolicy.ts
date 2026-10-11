@@ -84,3 +84,33 @@ export function isTooSoonForSelfBooking(
   if (mins === null) return true;
   return mins < minLeadMinutes;
 }
+
+/**
+ * Her own booking rules for self-booking on the public page (Settings > calendar and services), stored in
+ * branding.booking_rules: { min_notice_hours, max_days_ahead }. Both are optional; a missing or malformed value
+ * is the default, which is what the page did before the rules existed (2 hours' notice, 21 days ahead).
+ * Read by the public page (to offer fewer slots) AND by /api/book-appointment (to refuse), from this one function,
+ * so the page and the server can never disagree about what is bookable.
+ */
+export const DEFAULT_MAX_DAYS_AHEAD = 21;
+export const MAX_DAYS_AHEAD_LIMIT = 60; // /api/availability reports 60 days
+
+export type BookingRules = { minLeadMinutes: number; maxDaysAhead: number };
+
+export function resolveBookingRules(branding: unknown): BookingRules {
+  const b = branding && typeof branding === 'object' && !Array.isArray(branding) ? (branding as Record<string, unknown>) : {};
+  const r = b.booking_rules && typeof b.booking_rules === 'object' ? (b.booking_rules as Record<string, unknown>) : {};
+  const hours = Number(r.min_notice_hours);
+  const days = Number(r.max_days_ahead);
+  return {
+    minLeadMinutes: Number.isFinite(hours) && hours >= 0 && hours <= 168 ? Math.round(hours * 60) : SELF_BOOKING_MIN_LEAD_MINUTES,
+    maxDaysAhead: Number.isFinite(days) && days >= 1 && days <= MAX_DAYS_AHEAD_LIMIT ? Math.round(days) : DEFAULT_MAX_DAYS_AHEAD,
+  };
+}
+
+/** Is this date further ahead than her rule allows? Unparseable counts as too far (refused, like the lead check). */
+export function isTooFarAhead(dateStr: string, maxDaysAhead: number, now: Date = new Date()): boolean {
+  const days = daysBetween(wallClockNow(now).date, dateStr);
+  if (days === null) return true;
+  return days > maxDaysAhead;
+}

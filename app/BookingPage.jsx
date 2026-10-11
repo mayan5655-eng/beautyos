@@ -480,18 +480,21 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     const ds = formatDate(d);
     const busy = busyOn(ds);
     return slotsBetween(dh.open, dh.close, SLOT_STEP, svcDuration).some((m) =>
-      !isTooSoonForSelfBooking(ds, m) &&
+      !isTooSoonForSelfBooking(ds, m, new Date(), bookingRules.minLeadMinutes) &&
       !busy.some(([bs, be]) => overlaps(m, m + svcDuration, bs, be))
     );
   };
 
+  // Her own self-booking rules (Settings > calendar and services); the defaults are the page's old behaviour.
+  const bookingRules = brand?.bookingRules || { minLeadMinutes: 120, maxDaysAhead: 21 };
   // === Build the next 14 BOOKABLE days (respecting per-day business_hours) ===
+  // Her own rules (notice, how far ahead) are applied here and again by /api/book-appointment.
   // If availability could not be loaded, appointments is empty and every open
   // day looks free - which is the right way to degrade: the page keeps offering
   // days and warns at the slot level, rather than hiding her whole diary
   // because one fetch failed.
   const availableDays = [];
-  for (let i = 0; mounted && i < 21 && availableDays.length < 14; i++) {
+  for (let i = 0; mounted && i <= bookingRules.maxDaysAhead && availableDays.length < 14; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     if (isOpenOn(settings, d) && dayHasFreeSlot(d)) availableDays.push(d);
@@ -511,7 +514,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // this only keeps the page from offering a slot that would then be rejected.
   const selectedDateStr = selectedDate ? formatDate(selectedDate) : null;
   const tooSoon = (start) =>
-    selectedDateStr !== null && isTooSoonForSelfBooking(selectedDateStr, start);
+    selectedDateStr !== null && isTooSoonForSelfBooking(selectedDateStr, start, new Date(), bookingRules.minLeadMinutes);
 
   // What step 2 actually puts on screen, hoisted so the grid and its empty
   // state read the same list. Late in the day every remaining slot is inside
