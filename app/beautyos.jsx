@@ -7359,6 +7359,11 @@ export default function BeautyOS() {
         @keyframes sheen{0%{transform:translateX(-120%)}60%,100%{transform:translateX(220%)}}
         .empty-cta{transition:transform 0.14s,box-shadow 0.2s,filter 0.2s}.empty-cta:hover{transform:translateY(-2px);box-shadow:var(--shadow-glow);filter:saturate(1.06)}
         .mobile-only{display:none}
+        /* Desktop: the sidebar keeps a sticky "book" pill in the same bottom-left corner as the mic, which hid it
+           (found in the new-tenant walkthrough). Lift the mic above the pill. */
+        @media (min-width:681px){
+          .fab-voice{bottom:84px!important}
+        }
         @media (max-width:680px){
           .desktop-only{display:none!important}
           .mobile-only{display:flex!important}
@@ -8404,7 +8409,7 @@ ${MARKETING_FOOTER}`)}`;
  </p>
               )}
  </div>
- <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
+ <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
@@ -8869,6 +8874,9 @@ ${MARKETING_FOOTER}`)}`;
  <span key={i} style={{flex:1,textAlign:"center",fontSize:"var(--t-sm)",color:isCurrent?"var(--ink)":"var(--ink-3)",fontWeight:isCurrent?700:500}}>{m.month}</span>
                     );})}
  </div>
+                {monthlyData.every(m=>!(m.revenue>0))&&(
+ <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6}}>עוד אין הכנסות להצגה. אחרי התשלום הראשון שתרשמי בקופה, הגרף יתמלא.</p>
+                )}
  </motion.div>
 
                 {/* UPCOMING BIRTHDAYS — full list */}
@@ -11531,7 +11539,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
- <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
+ <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
                 {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
