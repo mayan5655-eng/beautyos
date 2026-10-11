@@ -378,6 +378,25 @@ group('manual send suppresses the automated winback');
     sender2.calls.some((c) => c.name === returner.name && c.tenantId === returner.tenant_id));
 }
 
+// ── a queued message is handled, not failed, and is not re-queued tomorrow ───────────────────────────────
+// Win-back and package-done carry no date in their key, and while the central number is off every one of them
+// comes back queued (ok:false, queued:true). They used to be counted failed and left unlogged, so the same
+// clients were queued again every day.
+group('a queued message counts as handled');
+{
+  const w = buildWorld({ tenants: 2, clientsPer: 10, stalePct: 1 });
+  const db = makeDb({ settings: w.settings, clients: w.clients, appointments: w.appointments, packages: w.packages, auto_reminders_log: w.auto_reminders_log });
+  const calls = [];
+  const queuedSend = async (phone, message, opts) => { calls.push(opts.type); return { ok: false, queued: true, waLink: 'https://wa.me/x' }; };
+  const first = await runSmartReminders({ db, send: queuedSend, dryRun: false, now: w.now });
+  eq('queued is not failed', first.stats.failed, 0);
+  ok('queued is counted', first.stats.queued > 0);
+  eq('every queued message is logged', w.auto_reminders_log.length, first.stats.queued);
+  const before = calls.length;
+  await runSmartReminders({ db, send: queuedSend, dryRun: false, now: w.now });
+  eq('a second run queues nothing new for the same clients', calls.length, before);
+}
+
 console.log('\n' + '='.repeat(64));
 console.log(`  passed ${passed}   failed ${failed}`);
 console.log('='.repeat(64));
