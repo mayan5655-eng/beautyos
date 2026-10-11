@@ -63,6 +63,13 @@ import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@
 import LeadImportModal from "./LeadImportModal";
 import LapsedClientsModal from "./LapsedClientsModal";
 import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
+import { DEFAULT_LEAD_SOURCES, resolveLeadSources, sourceLabelHe } from "@/lib/leadSources";
+import { buildSourceReport } from "@/lib/sourceReport";
+import LeadSourcesEditor from "./LeadSourcesEditor";
+import SourceReport from "./SourceReport";
+import GoalsCard from "./GoalsCard";
+import GoalsEditor from "./GoalsEditor";
+import { resolveGoals } from "@/lib/goals";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import ServiceTemplatePicker from "./ServiceTemplatePicker";
 import FieldPicker from "./FieldPicker";
@@ -392,7 +399,8 @@ const FORM_TYPES = [
   {key:"laser",label:"הסרת שיער בלייזר"},
   {key:"peel",label:"פילינג כימי"},
 ];
-const LEAD_SOURCES = ["פייסבוק","אינסטגרם","גוגל","טיקטוק","המלצה","הליכה ברחוב","סורק העור","אחר"];
+// The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
+const LEAD_SOURCES = [...DEFAULT_LEAD_SOURCES];
 // Canonical manual workflow statuses. These KEYS must stay in sync with
 // ALLOWED_STATUSES in app/api/leads/send-bulk/route.js and LEAD_STATUSES in
 // app/dashboard/leads/LeadsClient.tsx — the bulk WhatsApp send targets a status
@@ -446,17 +454,7 @@ const SOURCE_ICONS = {"פייסבוק":"◦","אינסטגרם":"◦","גוגל"
 // csv_import on every row it creates, which is 247 of her leads - by far the
 // largest single source - and it would otherwise appear in her own attribution
 // report as a raw English key.
-const SOURCE_LABELS_HE = {
-  csv_import: "ייבוא מקובץ",
-  facebook_lead_ad: "מודעת לידים בפייסבוק",
-  skin_scan: "סורק העור",
-};
-/** The label to SHOW for a stored source value. Unknown values pass through. */
-const sourceLabelHe = (src) => {
-  const s = String(src ?? "").trim();
-  if (!s) return "לא ידוע";
-  return SOURCE_LABELS_HE[s] || s;
-};
+// sourceLabelHe (machine sources -> Hebrew) lives in lib/leadSources.ts, shared with the report.
 // Reporting only, never a button. It has to be IN this list or
 // paymentBreakdown cannot count it - that function iterates PAYMENT_METHODS, so
 // a method missing from it is a receipt that silently leaves the report. But
@@ -2931,6 +2929,11 @@ export default function BeautyOS() {
     if (unknown) unknown.label = "לא ידוע";
     return [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.clients - a.clients);
   }, [clients, leadByClientId, clientTotalById]);
+
+  // Her editable list of sources (Settings > Clients and leads); what the new-lead form offers.
+  const leadSourceList = useMemo(() => resolveLeadSources(settings?.automations), [settings?.automations]);
+  // Every lead, every source as stored (csv_import, facebook_lead_ad ... included): the header number.
+  const allSourcesReport = useMemo(() => buildSourceReport(leads, liveRcpts), [leads, liveRcpts]);
 
   const campaignStats = useMemo(() => LEAD_SOURCES.map(source=>{
     const sourceLeads=leads.filter(l=>l.source===source);
@@ -8399,6 +8402,7 @@ ${MARKETING_FOOTER}`)}`;
  </p>
               )}
  </div>
+ <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
@@ -9793,7 +9797,7 @@ ${MARKETING_FOOTER}`)}`;
                 {label:"סה״כ לידים",value:leads.length,icon:"✉"},
                 {label:"הומרו",value:convertedLeads.length,icon:"✓"},
                 {label:"המרה",value:`${conversionRate}%`,icon:"↗"},
-                {label:"הכנסות מלידים",value:`₪${campaignStats.reduce((s,c)=>s+c.revenue,0).toLocaleString()}`,icon:"₪"},
+                {label:"הכנסות מלידים",value:`₪${Math.round(allSourcesReport.totals.revenue).toLocaleString()}`,icon:"₪"},
               ].map((s,i)=>(
  <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"16px 16px",border:`1px solid var(--line)`}}>
  <span style={{display:"inline-flex",width:30,height:30,borderRadius:"var(--r-xs)",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",color:pc,background:"var(--pc-tint)",marginBottom:8}}>{s.icon}</span>
@@ -9837,30 +9841,7 @@ ${MARKETING_FOOTER}`)}`;
                 })}
  </div>
 
- <div className="glass-card" style={{padding:18,marginBottom:14}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:14}}>ביצועים לפי מקור</h3>
-              {campaignStats.length===0?<EmptyState compact icon="chart" accent={pc} accentTint={pcTint}
-                 title="עוד לא נמדד אף מקור"
-                 body="כשתירשם פנייה דרך עמוד ההזמנות, סורק העור או וואטסאפ — היא תופיע כאן עם כמה הכניסה בפועל."
-                 actions={[{label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")}]}/>
-                :campaignStats.map((s,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 12px",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",marginBottom:6}}>
- <span style={{fontSize:"var(--t-lg)",flexShrink:0}}>{s.icon}</span>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)"}}>{s.source}</p>
- <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
- <span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{s.total} לידים</span>
- <span style={{fontSize:"var(--t-xs)",color:"var(--success)"}}>{s.converted} הומרו</span>
- <span style={{fontSize:"var(--t-xs)",color:pc,fontWeight:700}}>{s.rate}%</span>
- </div>
- <div style={{background:"var(--line)",borderRadius:"var(--r-xs)",height:5,marginTop:5,overflow:"hidden"}}>
- <div style={{background:pcGrad,borderRadius:"var(--r-xs)",height:5,width:`${s.rate}%`}}/>
- </div>
- </div>
- <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{s.revenue.toLocaleString()}</p>
- </div>
-                ))}
- </div>
+  <SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>
  </>)}
 
  {marketingView==="posts"&&(<>
@@ -10832,7 +10813,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{LEAD_SOURCES.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{leadSourceList.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
  <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>תזכורת מעקב</p><input type="date" value={newLead.reminder_date} onChange={e=>setNewLead({...newLead,reminder_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
@@ -12340,10 +12321,12 @@ ${MARKETING_FOOTER}`)}`;
                   )}
  </div>
               )}
+              {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("clients")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                   {renderImportChooser()}
+ <LeadSourcesEditor sources={resolveLeadSources(editSettings.automations)} pc={pc} pcTint={pcTint} onChange={(list)=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,lead_sources:list}};})}/>
  </div>
               )}
               {inG("advanced")&&(
