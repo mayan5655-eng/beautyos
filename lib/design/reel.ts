@@ -50,6 +50,8 @@ export type ReelTemplate = {
   holiday?: string;
   /** A word for her music choice; nothing is bundled. */
   musicVibe?: string;
+  /** A caption she may start from (see Template.suggestedCaption). */
+  suggestedCaption?: string;
   /** The union of every scene's fillable variables, namespaced sN_. */
   variables: VariableDef[];
   /** The union of every scene's slots, namespaced sN_. */
@@ -65,6 +67,14 @@ export const scenePrefix = (i: number) => `s${i + 1}_`;
 /** The sources she types or that the AI writes; the rest comes from settings per frame. */
 const HERS = new Set<VariableDef['source']>(['user', 'static']);
 
+/**
+ * A slot whose key starts with this is ONE picture for the whole reel: every scene's frame binds the same key
+ * and the reel lists it once, un-namespaced. Without it a three-scene reel built around one photo (the
+ * presenter reels, the photo reels) would ask for the same picture three times.
+ */
+export const SHARED_SLOT_PREFIX = 'shared_';
+export const isSharedSlot = (key: string) => key.startsWith(SHARED_SLOT_PREFIX);
+
 /** Build the namespaced variable and slot lists from the scenes. */
 export function reelSurface(scenes: ReelScene[]): { variables: VariableDef[]; slots: SlotDef[] } {
   const variables: VariableDef[] = [];
@@ -72,13 +82,16 @@ export function reelSurface(scenes: ReelScene[]): { variables: VariableDef[]; sl
   scenes.forEach((s, i) => {
     const p = scenePrefix(i);
     for (const v of s.frame.variables) if (HERS.has(v.source)) variables.push({ ...v, key: p + v.key, label: `${s.label}: ${v.label}` });
-    for (const sl of s.frame.slots) slots.push({ ...sl, key: p + sl.key, label: `${s.label}: ${sl.label}` });
+    for (const sl of s.frame.slots) {
+      if (isSharedSlot(sl.key)) { if (!slots.some((x) => x.key === sl.key)) slots.push({ ...sl }); continue; }
+      slots.push({ ...sl, key: p + sl.key, label: `${s.label}: ${sl.label}` });
+    }
   });
   return { variables, slots };
 }
 
 /** A reel from its scenes: the surface is derived, never hand-written. */
-export function makeReel(def: { key: string; version: number; category: Category; group: TemplateGroup; name: string; description: string; needs?: string[]; holiday?: string; musicVibe?: string; scenes: ReelScene[]; fields?: FieldKey[] }): ReelTemplate {
+export function makeReel(def: { key: string; version: number; category: Category; group: TemplateGroup; name: string; description: string; needs?: string[]; holiday?: string; musicVibe?: string; suggestedCaption?: string; scenes: ReelScene[]; fields?: FieldKey[] }): ReelTemplate {
   const { variables, slots } = reelSurface(def.scenes);
   const r: ReelTemplate = {
     key: def.key, version: def.version, category: def.category, group: def.group, name: def.name, description: def.description,
@@ -91,6 +104,7 @@ export function makeReel(def: { key: string; version: number; category: Category
   };
   if (def.holiday) r.holiday = def.holiday;
   if (def.musicVibe) r.musicVibe = def.musicVibe;
+  if (def.suggestedCaption) r.suggestedCaption = def.suggestedCaption;
   return r;
 }
 
@@ -129,9 +143,16 @@ export function fillReel(reel: ReelTemplate, input: BrandingInput): ReelFill {
   const missing: string[] = [];
   const scenes = reel.scenes.map((s, i) => {
     const p = scenePrefix(i);
-    const own = (m: Record<string, unknown>) => Object.fromEntries(Object.entries(m).filter(([k]) => k.startsWith(p)).map(([k, v]) => [k.slice(p.length), v]));
+    const own = (m: Record<string, unknown>) => Object.fromEntries([
+      ...Object.entries(m).filter(([k]) => k.startsWith(p)).map(([k, v]) => [k.slice(p.length), v]),
+      // a shared slot reaches every scene under its own key
+      ...Object.entries(m).filter(([k]) => isSharedSlot(k)),
+    ]);
     const fill = fillTemplate(s.frame, { ...input, inputs: own(inputs) as Record<string, string>, images: own(images) as Record<string, string | null> });
-    for (const m of fill.missing) missing.push(m.startsWith('slot:') ? `slot:${p}${m.slice(5)}` : p + m);
+    for (const m of fill.missing) {
+      const entry = m.startsWith('slot:') ? (isSharedSlot(m.slice(5)) ? m : `slot:${p}${m.slice(5)}`) : p + m;
+      if (!missing.includes(entry)) missing.push(entry);
+    }
     return fill;
   });
   return { scenes, missing, totalSeconds: reel.scenes.reduce((n, s) => n + s.seconds, 0) };

@@ -56,7 +56,7 @@ assert.ok(getTemplate('review-feed', 2)!.layers.some((l) => l.type === 'rating')
 assert.equal(storySibling('offer-feed')!.key, 'offer-story');
 assert.equal(storySibling('glow-story-story'), null, 'a story-only key has no story sibling of its own');
 assert.ok(!galleryTemplates().some((t) => /-story$/.test(t.key) && t.key !== 'glow-story-story'), 'the gallery folds stories into their feed card; the story-only one stands alone');
-assert.equal(galleryTemplates().length, 102, 'one card per definition');
+assert.equal(galleryTemplates().length, 102 + 6 + 8, 'one card per definition, plus the pack: 6 presenter posts and 8 concepts (test-design-pack.ts)');
 assert.ok(galleryTemplates().every((t) => t.group), 'the v1 generation is not offered any more');
 assert.equal(galleryTemplates(null, 'seasonal').length, 30, 'cosmetics 15 + nails 15');
 assert.equal(galleryTemplates('offer', 'closer').length, 12, 'cosmetics: duo, gift card, referral; nails: gift card, referral, bridal package, mother-daughter, before-you-go, loyalty, birthday, flash sale, clearance');
@@ -65,10 +65,10 @@ assert.equal(galleryTemplates('offer', 'closer').length, 12, 'cosmetics: duo, gi
 assert.deepEqual(getTemplate('offer-feed')!.fields, ['cosmetics'], 'untouched: the compiler default for a def with no fields set');
 assert.deepEqual(getTemplate('nail-before-after-feed')!.fields, ['nails']);
 assert.deepEqual(getTemplate('limited-offer-feed')!.fields, ['cosmetics', 'nails']);
-assert.equal(galleryTemplates(null, null, ['nails']).length, 52, 'the 50 nails templates plus the 2 dual-field ones');
-assert.equal(galleryTemplates(null, null, ['cosmetics']).length, 52, 'the original 50 plus the 2 dual-field ones');
-assert.equal(galleryTemplates(null, null, ['cosmetics', 'nails']).length, 102, 'both fields: everything, same as no filter at all');
-assert.equal(galleryTemplates(null, null).length, 102, 'omitted: every field, same as before this parameter existed');
+assert.equal(galleryTemplates(null, null, ['nails']).length, 52 + 3 + 5, 'the 50 nails templates plus the 2 dual-field ones');
+assert.equal(galleryTemplates(null, null, ['cosmetics']).length, 52 + 3 + 3, 'the original 50 plus the 2 dual-field ones');
+assert.equal(galleryTemplates(null, null, ['cosmetics', 'nails']).length, 102 + 6 + 8, 'both fields: everything, same as no filter at all');
+assert.equal(galleryTemplates(null, null).length, 102 + 6 + 8, 'omitted: every field, same as before this parameter existed');
 for (const t of TEMPLATES) {
   assert.deepEqual(validateTemplate(t), [], `${templateId(t)} is valid`);
   assert.deepEqual(JSON.parse(JSON.stringify(t)), t, `${templateId(t)} is plain JSON`);

@@ -77,7 +77,7 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
         style={{
           maxWidth: '100%',
           fontFamily: font, fontSize: `${basePx}px`, fontWeight: weight || 600, lineHeight: lineHeight || 1.2, letterSpacing: letterSpacing ? `${letterSpacing}em` : undefined,
-          color, textAlign: align, direction: textDirection(String(content || '')), whiteSpace: maxLines === 1 ? 'nowrap' : 'normal', wordBreak: 'break-word', display: 'block',
+          color, textAlign: align, direction: textDirection(String(content || '')), whiteSpace: maxLines === 1 ? 'nowrap' : /\n/.test(String(content || '')) ? 'pre-line' : 'normal', wordBreak: 'break-word', display: 'block',
           ...(pill ? { background: pillColor, borderRadius: `${pill.radius * (basePx / 40)}px`, padding: `${pill.padding * 0.6 * (basePx / 40)}px ${pill.padding * (basePx / 40)}px` } : {}),
         }}
       >

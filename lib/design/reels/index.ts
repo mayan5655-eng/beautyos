@@ -9,8 +9,10 @@ import type { ReelTemplate } from '../reel.ts';
 import type { FieldKey } from '../../businessFields.ts';
 import { REELS as LAUNCH } from './launch.ts';
 import { NAILS_REELS } from './nails.ts';
+import { PACK_REELS } from './pack.ts';
+import { PACK_CONCEPT_REELS } from './pack-concepts.ts';
 
-export const REELS: ReelTemplate[] = [...LAUNCH, ...NAILS_REELS];
+export const REELS: ReelTemplate[] = [...LAUNCH, ...NAILS_REELS, ...PACK_REELS, ...PACK_CONCEPT_REELS];
 
 /** A reel at an exact version, or null. */
 export function getReel(key: string, version?: number | null): ReelTemplate | null {

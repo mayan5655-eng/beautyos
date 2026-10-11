@@ -65,6 +65,8 @@ export const textDirection = (s: string): 'ltr' | 'rtl' => (/[֐-׿؀-ۿ]/.test(
  * characters, like `word-break: break-word`.
  */
 export function wrapWords(text: string, maxWidth: number, width: (s: string) => number): string[] {
+  // A newline is a line break somebody chose: each paragraph is wrapped on its own and the results stacked.
+  if (/\n/.test(text)) return text.split(/\r?\n/).flatMap((p) => wrapWords(p, maxWidth, width));
   const words = text.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const lines: string[] = [];
@@ -101,7 +103,8 @@ function roundRect(ctx: CanvasLike, x: number, y: number, w: number, h: number, 
 
 /** Lay out and draw one text layer. */
 export function drawText(ctx: CanvasLike, s: TextSpec): DrawnText {
-  const text = s.text.replace(/\s+/g, ' ').trim();
+  // Spaces collapse; a newline is a line break somebody chose and is kept (a one-line layer flattens it below).
+  const text = s.text.replace(/[^\S\n]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
   if (!text) return { px: s.sizePx, lines: [], fits: true, tops: [] };
   const dir = textDirection(text);
   const pill = s.pill || null;
@@ -117,7 +120,7 @@ export function drawText(ctx: CanvasLike, s: TextSpec): DrawnText {
   const linesAt = (px: number) => {
     setFont(px);
     const w = (str: string) => ctx.measureText(str).width;
-    return s.maxLines === 1 ? [text] : wrapWords(text, availW, w);
+    return s.maxLines === 1 ? [text.replace(/\n/g, ' ')] : wrapWords(text, availW, w);
   };
   const measure = (px: number) => {
     const lines = linesAt(px);

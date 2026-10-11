@@ -21,6 +21,8 @@ import { NAILS_EVERGREEN } from './cream/nails-evergreen.ts';
 import { NAILS_SEASONAL } from './cream/nails-seasonal.ts';
 import { NAILS_CLOSERS } from './cream/nails-closers.ts';
 import { UNIVERSAL } from './cream/universal.ts';
+import { PACK_PRESENTER_POSTS } from './pack/presenter-posts.ts';
+import { PACK_CONCEPT_POSTS } from './pack/concepts.ts';
 
 export const CREAM_DEFS: CreamDef[] = [
   ...EVERGREEN, ...HOLIDAYS, ...CLOSERS,
@@ -32,9 +34,18 @@ export const TEMPLATES: Template[] = [
   ...CREAM_DEFS.flatMap(creamTemplates),
 ];
 
+/**
+ * The Kalmea pack's hand-composed statics (lib/design/templates/pack/): presenter posts with an AI character.
+ * Kept apart from TEMPLATES, which is exactly "every format of every cream definition" (and is what the seed
+ * images, the holiday lookups and the library-shape tests count); lookups and the gallery read both.
+ */
+export const PACK_TEMPLATES: Template[] = [...PACK_PRESENTER_POSTS, ...PACK_CONCEPT_POSTS];
+
+const EVERY_TEMPLATE: Template[] = [...TEMPLATES, ...PACK_TEMPLATES];
+
 /** A template at an exact version, or null. */
 export function getTemplate(key: string, version?: number | null): Template | null {
-  const same = TEMPLATES.filter((t) => t.key === key);
+  const same = EVERY_TEMPLATE.filter((t) => t.key === key);
   if (!same.length) return null;
   if (version == null) return same.reduce((a, b) => (b.version > a.version ? b : a));
   return same.find((t) => t.version === version) || null;
@@ -46,7 +57,7 @@ export function getTemplate(key: string, version?: number | null): Template | nu
  *  every field, unchanged from before this parameter existed. */
 export function latestTemplates(category?: Category | null, fields?: FieldKey[] | null): Template[] {
   const byKey = new Map<string, Template>();
-  for (const t of TEMPLATES) {
+  for (const t of EVERY_TEMPLATE) {
     const cur = byKey.get(t.key);
     if (!cur || t.version > cur.version) byKey.set(t.key, t);
   }

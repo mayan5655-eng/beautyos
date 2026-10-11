@@ -91,6 +91,9 @@ export function mix(a: string, b: string, t: number): string {
 }
 
 const clean = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+/** Like clean, but keeps the line breaks (at most four lines): for a variable whose breaks were chosen. */
+const cleanLines = (v: unknown): string =>
+  typeof v === 'string' ? v.split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 4).join('\n') : '';
 /** "@handle" from whatever she typed: a handle, an @handle or a full instagram.com link. */
 export const instagramHandle = (v: unknown): string => {
   const s = clean(v).replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@/, '');
@@ -155,8 +158,10 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
 
   const values: Record<string, string> = {};
   for (const v of template.variables) {
-    const typed = clean(input.inputs?.[v.key]);
-    let val = typed || sourceValue(v, input, branding) || clean(v.default);
+    // A fixed variable is the template's own constant (the AI-character label): nothing she or the AI typed reaches it.
+    const tidy = v.lineBreaks ? cleanLines : clean;
+    const typed = v.source === 'fixed' ? '' : tidy(input.inputs?.[v.key]);
+    let val = typed || sourceValue(v, input, branding) || tidy(v.default);
     val = limitText(val, v.maxLength);
     values[v.key] = val;
     if (v.required && !val) missing.push(v.key);

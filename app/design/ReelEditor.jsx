@@ -14,7 +14,7 @@ import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import ImagePicker from './ImagePicker';
 import ReelRender from './ReelRender';
-import { fillReel, scenePrefix } from '@/lib/design/reel';
+import { fillReel, scenePrefix, isSharedSlot } from '@/lib/design/reel';
 import { uploadReel } from './exportPng';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
@@ -96,6 +96,35 @@ export default function ReelEditor({ design, reel, settings, readOnly, previousI
                   </button>
                 ); })}
               </div>
+            </div>
+          )}
+
+          {/* One picture for the whole reel (a shared slot): listed once, above the scenes. */}
+          {reel.slots.some((sl) => isSharedSlot(sl.key)) && (
+            <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px', marginBottom: 12 }}>
+              <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>התמונה של הרילס</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {reel.slots.filter((sl) => isSharedSlot(sl.key)).map((sl) => (
+                  <span key={sl.key} style={{ display: 'contents' }}>
+                    <button onClick={() => setPickSlot(sl)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', background: 'var(--surface)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink)' }}>
+                      <Icon name="image" size={14} /> {sl.label}{images[sl.key] ? ' ✓' : sl.required ? ' (חסרה)' : ''}
+                    </button>
+                    {sl.defaultImage && images[sl.key] && (
+                      <button type="button" onClick={() => { setImages((x) => ({ ...x, [sl.key]: null })); setDirty(true); }} style={{ padding: '8px 12px', border: '1px dashed var(--line-2)', borderRadius: 'var(--r-sm)', background: 'none', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink-2)' }}>חזרה לדמות AI</button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {reel.suggestedCaption && (
+            <div style={{ border: '1px dashed var(--line-2)', borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 12, background: 'var(--surface-2)' }}>
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4 }}>הצעה לטקסט לפוסט</p>
+              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', lineHeight: 1.6, marginBottom: 8 }}>{reel.suggestedCaption}</p>
+              <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(reel.suggestedCaption); toast?.('ההצעה הועתקה'); } catch { toast?.('לא ניתן להעתיק', 'error'); } }} className="primary-btn" style={{ padding: '7px 12px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-xs)' }}>
+                <Icon name="copy" size={12} /> העתקת ההצעה
+              </button>
             </div>
           )}
 

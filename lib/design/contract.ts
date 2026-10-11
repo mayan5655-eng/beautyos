@@ -242,7 +242,9 @@ export function ratingCount(value: string | null | undefined): number {
 export type VariableSource =
   | 'business_name' | 'therapist_name' | 'therapist_title' | 'booking_url'
   | 'phone' | 'instagram' | 'contact' | 'whatsapp_url'
-  | 'review_text' | 'review_name' | 'review_rating' | 'static' | 'user';
+  | 'review_text' | 'review_name' | 'review_rating' | 'static' | 'user'
+  /** A constant of the template that is NOT hers to change (the "AI character" label): shown from its default, never listed in a fill form. */
+  | 'fixed';
 
 export type VariableDef = {
   key: string;
@@ -254,6 +256,12 @@ export type VariableDef = {
   default?: string;
   maxLength?: number;
   required?: boolean;
+  /**
+   * Keep the line breaks of the default and of what she types. Off for everything that existed before this
+   * flag (a newline collapsed into a space); on for a short headline whose breaks the designer chose, because
+   * Hebrew left to auto-wrap can break in the wrong place.
+   */
+  lineBreaks?: boolean;
 };
 
 export type ImageSource = 'gallery' | 'clinic' | 'portrait' | 'hero' | 'upload' | 'before' | 'after' | 'ai' | 'previous';
@@ -291,6 +299,11 @@ export type Template = {
   holiday?: string;
   /** Gallery group; a template without one sits with the evergreens. */
   group?: TemplateGroup;
+  /**
+   * A caption she may start from: plain text, never filled in for her. The editors offer it as a suggestion
+   * (a presenter template's voice-over script, for instance) and it never overrides text she wrote.
+   */
+  suggestedCaption?: string;
   /**
    * Which business field(s) this template is FOR — non-empty, e.g.
    * ['cosmetics'], ['nails'], or ['cosmetics','nails'] for one that is

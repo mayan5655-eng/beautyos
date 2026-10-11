@@ -148,6 +148,12 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
                     <Icon name="image" size={14} /> {s.label}{images[s.key] ? ' ✓' : s.required ? ' (חסרה)' : ''}
                   </button>
                 ))}
+                {/* A slot that holds the template's AI character: she can put the character back after choosing her own photo. */}
+                {template.slots.filter((s) => s.defaultImage && images[s.key]).map((s) => (
+                  <button key={`back-${s.key}`} type="button" onClick={() => { setImages((p) => ({ ...p, [s.key]: null })); setDirty(true); }} style={{ padding: '8px 12px', border: '1px dashed var(--line-2)', borderRadius: 'var(--r-sm)', background: 'none', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink-2)' }}>
+                    חזרה לדמות AI
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -184,6 +190,11 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
 
           <div style={{ marginTop: 16, border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px' }}>
             <span style={label}>הטקסט לפוסט</span>
+            {template.suggestedCaption && !copyText.trim() && (
+              <button type="button" onClick={() => { setCopyText(template.suggestedCaption); setDirty(true); }} style={{ display: 'block', width: '100%', textAlign: 'right', padding: '8px 10px', marginBottom: 8, border: '1px dashed var(--line-2)', borderRadius: 'var(--r-xs)', background: 'var(--surface-2)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>
+                הצעה לטקסט: {template.suggestedCaption} <b style={{ color: 'var(--pc-deep)' }}>להשתמש בהצעה</b>
+              </button>
+            )}
             <textarea value={copyText} rows={4} maxLength={2200} placeholder="מה כתוב מתחת לתמונה. ה-AI ממלא את זה, או שאת." onChange={(e) => { setCopyText(e.target.value); setDirty(true); }} style={{ ...input, resize: 'vertical', marginBottom: 8 }} />
             <input value={hashtags} placeholder="#האשטגים #מופרדים #ברווח" onChange={(e) => { setHashtags(e.target.value); setDirty(true); }} style={{ ...input, direction: 'rtl' }} />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>

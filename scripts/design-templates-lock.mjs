@@ -24,7 +24,7 @@
 // TEMPLATES_LOCK_DIR overrides where the two files live (the test uses it so it never touches the real ones).
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import { TEMPLATES } from '../lib/design/templates/index.ts';
+import { TEMPLATES, PACK_TEMPLATES } from '../lib/design/templates/index.ts';
 import { REELS } from '../lib/design/reels/index.ts';
 
 const stable = (v) => JSON.stringify(v, Object.keys(v).sort());
@@ -43,7 +43,7 @@ const reason = ri >= 0 ? String(argv[ri + 1] || '').trim() : '';
 const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
 const next = {};
 const moved = [];
-for (const t of [...TEMPLATES, ...REELS]) {
+for (const t of [...TEMPLATES, ...PACK_TEMPLATES, ...REELS]) {
   const id = `${t.key}@${t.version}`;
   const h = hashTemplate(t);
   if (existing[id] && existing[id] !== h) moved.push({ id, from: existing[id], to: h });

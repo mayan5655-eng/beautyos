@@ -132,6 +132,7 @@ export function sanitizeValues(template: FillSurface, raw: unknown): Record<stri
   const o = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const out: Record<string, string> = {};
   for (const v of template.variables) {
+    if (v.source === 'fixed') continue; // not hers to store
     if (typeof o[v.key] !== 'string') continue;
     let s = (o[v.key] as string).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
     s = limitText(s, v.maxLength);

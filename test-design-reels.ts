@@ -7,9 +7,10 @@ import { validateReel, reelId, fillReel, reelSurface, isReel } from './lib/desig
 import { TEMPLATES } from './lib/design/templates/index.ts';
 import { sanitizeValues, sanitizeImages, sanitizeCopy } from './lib/design/design.ts';
 
-assert.equal(REELS.length, 16, 'the cosmetics launch set (8) plus a comparable nails set (8) — see lib/design/reels/nails.ts');
+assert.equal(REELS.length, 16 + 18 + 8, 'the cosmetics launch set (8) plus a comparable nails set (8) — see lib/design/reels/nails.ts — plus the Kalmea pack (18) (lib/design/reels/pack.ts, tested in test-design-pack.ts)');
 const keys = REELS.map((r) => r.key);
-assert.deepEqual(keys, [
+// the original sixteen, in order, then the Kalmea pack (test-design-pack.ts holds the pack to account)
+assert.deepEqual(keys.filter((k) => !k.startsWith('pk-')), [
   'reveal-reel', 'steps-reel', 'countdown-reel', 'holiday-reel', 'testimonial-reel', 'product-reel', 'day-reel', 'tip-reel',
   'nail-reveal-reel', 'nail-process-reel', 'nail-menu-scroll-reel', 'nail-before-after-wipe-reel', 'nail-colour-swatch-reel', 'nail-closeup-reel', 'nail-testimonial-reel', 'nail-countdown-reel',
 ]);
@@ -24,24 +25,26 @@ for (const r of REELS) {
   assert.ok(r.scenes.reduce((n, s) => n + s.seconds, 0) <= 30, 'at most thirty seconds (validateReel\'s own cap)');
   for (const s of r.scenes) {
     assert.equal(s.frame.format, 'story');
-    assert.ok(s.frame.layers.some((l) => l.id === 'strip') && s.frame.layers.some((l) => l.id === 'logo'), 'every scene carries her strip');
+    // the cream builder's scenes carry a 'strip' plate and a logo; the pack's hand-composed scenes carry the logo (her name when she has no logo)
+    assert.ok(s.frame.layers.some((l) => l.id === 'logo') && (r.key.startsWith('pk-') || s.frame.layers.some((l) => l.id === 'strip')), 'every scene carries her strip');
     assert.ok(!TEMPLATES.some((t) => t.key === s.frame.key), 'frames are private to the reel, not in the static gallery');
   }
-  assert.ok(r.variables.every((v) => /^s\d+_/.test(v.key)) && r.slots.every((s) => /^s\d+_/.test(s.key)), 'namespaced surface');
+  // a shared slot (one picture for the whole reel) is deliberately not namespaced
+  assert.ok(r.variables.every((v) => /^s\d+_/.test(v.key)) && r.slots.every((s) => /^s\d+_/.test(s.key) || /^shared_/.test(s.key)), 'namespaced surface');
 }
 assert.ok(new Set(REELS.flatMap((r) => r.scenes.map((s) => JSON.stringify(s.frame.layers.map((l) => l.id))))).size >= 8, 'scenes are not one layout');
 assert.equal(isReel(getReel('tip-reel')), true);
 assert.equal(getReel('tip-reel', 99), null);
-assert.equal(latestReels('tip').length, 2, 'cosmetics tip-reel + nails colour-swatch-reel, both category tip');
-assert.equal(latestReels(null, 'evergreen').length, 12, 'cosmetics 5 + nails 7 (only nail-countdown-reel is a closer)');
+assert.equal(latestReels('tip').length, 2 + 3, 'cosmetics tip-reel + nails colour-swatch-reel, both category tip; plus the pack serum, skin-needs and nail-shape reels');
+assert.equal(latestReels(null, 'evergreen').length, 12 + 18 + 8, 'cosmetics 5 + nails 7 (only nail-countdown-reel is a closer), plus the pack (18, all evergreen)');
 
 // ── business_fields: every reel is tagged, latestReels filters by it ───────
 assert.deepEqual(getReel('reveal-reel')!.fields, ['cosmetics'], 'untouched: makeReel\'s default for a def with no fields set');
 assert.deepEqual(getReel('nail-reveal-reel')!.fields, ['nails']);
-assert.equal(latestReels(null, null, ['nails']).length, 8);
-assert.equal(latestReels(null, null, ['cosmetics']).length, 8);
-assert.equal(latestReels(null, null, ['cosmetics', 'nails']).length, 16, 'both fields: everything, same as no filter at all');
-assert.equal(latestReels(null, null).length, 16, 'omitted: every field, same as before this parameter existed');
+assert.equal(latestReels(null, null, ['nails']).length, 8 + 15 + 3, '8 + the pack: 6 photo, 4 nails graphic, 2 dual, 3 presenters');
+assert.equal(latestReels(null, null, ['cosmetics']).length, 8 + 5 + 5, '8 + the pack: 2 dual, 3 presenters');
+assert.equal(latestReels(null, null, ['cosmetics', 'nails']).length, 16 + 18 + 8, 'both fields: everything, same as no filter at all');
+assert.equal(latestReels(null, null).length, 16 + 18 + 8, 'omitted: every field, same as before this parameter existed');
 
 // Immutability: the same lock file as the statics.
 const deep = (v: unknown): unknown => (Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, deep((v as Record<string, unknown>)[k])])) : v);
