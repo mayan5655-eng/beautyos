@@ -83,7 +83,8 @@ ok(/onboarding_tour_step/.test(src), 'a step index is persisted for resuming, no
 
 // ── Mounted once, in the live tree ───────────────────────────────────────────
 ok(/<OnboardingTour\b/.test(src), 'OnboardingTour is actually rendered somewhere in beautyos.jsx');
-ok(/import OnboardingTour from ["']\.\/OnboardingTour["']/.test(src), 'OnboardingTour is imported');
+// Loaded on demand (next/dynamic): the first screen does not draw it, and the card only exists while a step is active.
+ok(/import OnboardingTour from ["']\.\/OnboardingTour["']/.test(src) || /const OnboardingTour = dynamic\(\(\) => import\(["']\.\/OnboardingTour["']\)/.test(src), 'OnboardingTour is imported');
 
 // ── Motion: respects prefers-reduced-motion, animates when it doesn't ───────
 ok(/prefers-reduced-motion:\s*reduce/.test(tourSrc), 'checks prefers-reduced-motion');

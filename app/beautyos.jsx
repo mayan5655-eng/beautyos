@@ -1,9 +1,9 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import { parseDb } from "@/lib/dbTime";
 import { displayName } from "@/lib/personName";
 import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
-import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
 import { daysSinceLastVisit, isActiveClient, isColdClient } from "@/lib/clientActivity";
@@ -20,9 +20,8 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialBanner from "./TrialBanner";
-import OnboardingTour from "./OnboardingTour";
+const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
-import dynamic from "next/dynamic";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
@@ -54,26 +53,26 @@ import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
 import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
 import { buildNextClientBrief, untilHe } from "@/lib/nextClient";
 import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
-import ResultsManager from "./ResultsManager";
+const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false });
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
 import * as Sentry from "@sentry/nextjs";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
-import LeadImportModal from "./LeadImportModal";
-import LapsedClientsModal from "./LapsedClientsModal";
+const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
+const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });
 import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
 import { DEFAULT_LEAD_SOURCES, resolveLeadSources, sourceLabelHe } from "@/lib/leadSources";
 import { buildSourceReport } from "@/lib/sourceReport";
-import LeadSourcesEditor from "./LeadSourcesEditor";
-import SourceReport from "./SourceReport";
+const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: false });
+const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
-import GoalsEditor from "./GoalsEditor";
-import GrowCard from "./GrowCard";
+const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import { resolveGoals } from "@/lib/goals";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
-import ServiceTemplatePicker from "./ServiceTemplatePicker";
+const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
@@ -7329,6 +7328,15 @@ export default function BeautyOS() {
         .primary-btn:hover:not(:disabled){transform:translateY(-1.5px);filter:saturate(1.06)}
         .primary-btn:active:not(:disabled){transform:scale(0.97)}
         .primary-btn:disabled{opacity:0.5;cursor:default}
+        /* Entry animations that used to need framer-motion (the whole library was in the first-load bundle for
+           seven fades): plain keyframes, same easing, and off for people who asked for less motion. */
+        @keyframes fmIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+        @keyframes fmGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+        @keyframes fmPulse{0%,100%{transform:scale(1);opacity:.82}50%{transform:scale(1.12);opacity:1}}
+        .fm-in{animation:fmIn .42s cubic-bezier(.2,.7,.3,1) both}
+        .fm-grow{transform-origin:bottom;animation:fmGrow .6s cubic-bezier(.2,.7,.3,1) both}
+        .fm-pulse{animation:fmPulse 1.6s ease-in-out infinite}
+        @media (prefers-reduced-motion:reduce){.fm-in,.fm-grow,.fm-pulse{animation:none!important}}
         /* Reusable premium primitives for the redesign */
         .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;box-shadow:0 1px 2px rgba(31,58,48,.05), 0 8px 20px rgba(31,58,48,.06);position:relative;overflow:hidden}
         /* .card-boxed, translucent variant: the petal-pink page under היום's
@@ -7645,6 +7653,7 @@ export default function BeautyOS() {
       `}</style>
 
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
+      {tourStep !== null && tourStep !== undefined && (
       <OnboardingTour
         steps={TOUR_STEPS}
         stepIndex={tourStep}
@@ -7655,6 +7664,7 @@ export default function BeautyOS() {
         pcDeep={pcDeep}
         pcGrad={pcGrad}
       />
+      )}
 
       {/* -- "תקועה?" -- on every screen, above everything ------------------ */}
       {!showHelp && (
@@ -7731,6 +7741,7 @@ export default function BeautyOS() {
       )}
 
 
+      {showLapsed && (
       <LapsedClientsModal
         open={showLapsed}
         onClose={()=>setShowLapsed(false)}
@@ -7738,7 +7749,9 @@ export default function BeautyOS() {
         pcGrad={pcGrad}
         pcShadow={pcShadow}
       />
+      )}
 
+      {showLeadImport && (
       <LeadImportModal
         open={showLeadImport}
         onClose={()=>setShowLeadImport(false)}
@@ -7747,6 +7760,7 @@ export default function BeautyOS() {
         pcGrad={pcGrad}
         pcShadow={pcShadow}
       />
+      )}
 
       {/* TOASTS */}
       {toasts.length>0&&(
@@ -8573,7 +8587,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,ease:[0.2,0.7,0.3,1]}} className="glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+ <div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
                     {/* The mockup replaces this card's old icon+heading+count
                         header with just the divider below - the divider
                         itself is the "new section" signal, no label needed. */}
@@ -8648,10 +8662,10 @@ ${MARKETING_FOOTER}`)}`;
                         );
                       });
                     })()}
- </motion.div>
+ </div>
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
- <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.06,ease:[0.2,0.7,0.3,1]}} className="glass-card card-boxed" style={{padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
+ <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"rgba(242,184,75,0.14)",color:"var(--warning)"}}>✷</span>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
@@ -8790,7 +8804,7 @@ ${MARKETING_FOOTER}`)}`;
                         ))}
                       </>);
                     })()}
- </motion.div>
+ </div>
  </div>
 
  </>);
@@ -8819,13 +8833,13 @@ ${MARKETING_FOOTER}`)}`;
                   {stats.map((s,i)=>{
                     const up=s.trend!=null&&s.trend>=0;
                     return(
- <motion.div key={i} className="stat-card" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{duration:0.42,delay:0.05*i,ease:[0.2,0.7,0.3,1]}}
+ <div key={i} className="stat-card fm-in"
    onClick={s.onClick||undefined}
    role={s.onClick?"button":undefined}
    tabIndex={s.onClick?0:undefined}
    onKeyDown={s.onClick?onKbdActivate:undefined}
    aria-label={s.onClick?`${s.label} — ${s.value}, פתיחת הרשימה`:undefined}
-   style={{background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
+   style={{animationDelay:`${0.05*i}s`,background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
  <span style={{width:42,height:42,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xl)",fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
@@ -8836,14 +8850,14 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{position:"relative",fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{s.label}</p>
  <p className="serif" style={{position:"relative",fontSize:"var(--t-hero)",fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
                       {s.sub&&<p style={{position:"relative",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{s.sub}</p>}
- </motion.div>
+ </div>
                     );
                   })}
  </div>
 
                 {/* REVENUE CHART */}
- <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} transition={{duration:0.45,delay:0.1,ease:[0.2,0.7,0.3,1]}}
-   style={{background:"var(--surface)",borderRadius:"var(--r-xl)",padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,position:"relative",overflow:"hidden"}}>
+ <div className="fm-in"
+   style={{animationDelay:"0.1s",background:"var(--surface)",borderRadius:"var(--r-xl)",padding:"26px 30px 22px",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",marginBottom:24,position:"relative",overflow:"hidden"}}>
  <div aria-hidden style={{position:"absolute",top:-70,left:-40,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle, var(--pc-soft), transparent 70%)",pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:14,marginBottom:22,flexWrap:"wrap"}}>
  <div>
@@ -8862,9 +8876,9 @@ ${MARKETING_FOOTER}`)}`;
                       return(
  <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",gap:7,height:"100%"}}>
  <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:isCurrent?pc:"var(--ink-3)"}}>{m.revenue>0?`₪${(m.revenue/1000).toFixed(m.revenue>=10000?0:1)}k`:""}</span>
- <motion.div initial={{height:0}} animate={{height:Math.max(h,4)}} transition={{duration:0.6,delay:0.15+0.06*i,ease:[0.2,0.7,0.3,1]}}
+ <div className="fm-grow"
    title={`${m.month}: ₪${m.revenue.toLocaleString()}`}
-   style={{width:"100%",maxWidth:44,borderRadius:"12px 12px 5px 5px",background:isCurrent?`linear-gradient(180deg,${pc2} 0%,${pcDeep} 100%)`:`linear-gradient(180deg,${lighten(pc,0.62)} 0%,${lighten(pc,0.4)} 100%)`,boxShadow:isCurrent?"var(--shadow-accent)":"none",cursor:"default"}}/>
+   style={{height:Math.max(h,4),animationDelay:`${0.15+0.06*i}s`,width:"100%",maxWidth:44,borderRadius:"12px 12px 5px 5px",background:isCurrent?`linear-gradient(180deg,${pc2} 0%,${pcDeep} 100%)`:`linear-gradient(180deg,${lighten(pc,0.62)} 0%,${lighten(pc,0.4)} 100%)`,boxShadow:isCurrent?"var(--shadow-accent)":"none",cursor:"default"}}/>
  </div>
                       );
                     })}
@@ -8877,7 +8891,7 @@ ${MARKETING_FOOTER}`)}`;
                 {monthlyData.every(m=>!(m.revenue>0))&&(
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6}}>עוד אין הכנסות להצגה. אחרי התשלום הראשון שתרשמי בקופה, הגרף יתמלא.</p>
                 )}
- </motion.div>
+ </div>
 
                 {/* UPCOMING BIRTHDAYS — full list */}
  <div className="glass-card" style={{padding:"24px 26px",marginBottom:24}}>
@@ -12805,7 +12819,7 @@ ${MARKETING_FOOTER}`)}`;
       {scanLoading&&(
  <Sheet open onClose={()=>{}} busy width={320} zIndex={1400} className="pop-in" ariaLabel="סורקת את העור">
  <div style={{textAlign:"center",padding:"8px 6px"}}>
- <motion.div animate={{scale:[1,1.12,1],opacity:[0.82,1,0.82]}} transition={{duration:1.6,repeat:Infinity,ease:"easeInOut"}} style={{width:78,height:78,borderRadius:"50%",margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-hero)",background:pcGrad,boxShadow:"var(--shadow-accent)"}}>🔍</motion.div>
+ <div className="fm-pulse" style={{width:78,height:78,borderRadius:"50%",margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-hero)",background:pcGrad,boxShadow:"var(--shadow-accent)"}}>🔍</div>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",marginBottom:8}}><Spinner inline label="מנתחת את העור"/></p>
  <p style={{fontSize:"var(--t-sm)",color:pcDeep,fontWeight:600,minHeight:18}}>{SCAN_STEPS[scanStep%SCAN_STEPS.length]}</p>
  <div style={{display:"flex",gap:5,justifyContent:"center",marginTop:16}}>
