@@ -8,20 +8,29 @@
 // The reverse direction (a renderer reporting a moved box) goes through
 // pxBoxToPercent, so what lands in overrides is always template units.
 
-import { CANVAS, ratingCount, type Box, type Template } from './contract.ts';
+import { CANVAS, ratingCount, layerVisible, type Box, type Template } from './contract.ts';
+import { graphicDrawing, resolvePaint, STILL_T } from './graphics.ts';
 import { applyOverrides, type Overrides } from './design.ts';
 import type { Fill } from './mapBranding.ts';
 
 export type FontFiles = { display: string; body: string; accent: string };
 
 export type SceneBlock =
-  | { kind: 'rect'; id: string; x: number; y: number; w: number; h: number; shape: 'rect' | 'ellipse'; color: string; opacity: number; radius: number; gradientTo: string | null; gradientAngle: number }
+  | { kind: 'rect'; id: string; x: number; y: number; w: number; h: number; shape: 'rect' | 'ellipse'; color: string; opacity: number; radius: number; gradientTo: string | null; gradientAngle: number; rotate?: number }
   | { kind: 'texture'; id: string; x: number; y: number; w: number; h: number; opacity: number; blend: 'soft-light' | 'multiply' }
-  | { kind: 'image'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fit: 'cover' | 'contain'; focusX: number; focusY: number; radius: number; shape: 'rect' | 'arch'; overlayColor: string | null; overlayOpacity: number; overlayDirection: 'top' | 'bottom' | 'flat' | 'rise' }
+  | { kind: 'image'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fit: 'cover' | 'contain'; focusX: number; focusY: number; radius: number; shape: 'rect' | 'arch'; overlayColor: string | null; overlayOpacity: number; overlayDirection: 'top' | 'bottom' | 'flat' | 'rise'; rotate?: number }
   | { kind: 'text'; id: string; x: number; y: number; w: number; h: number; bind: string; text: string; fontFile: string; sizePx: number; weight: number; color: string; align: 'right' | 'center' | 'left'; valign: 'top' | 'center' | 'bottom'; maxLines: number; lineHeight: number; letterSpacing: number; pillColor: string | null; pillRadius: number; pillPadding: number; editable: boolean }
   | { kind: 'logo'; id: string; x: number; y: number; w: number; h: number; ref: string | null; fallbackText: string | null; fontFile: string; color: string }
   | { kind: 'rating'; id: string; x: number; y: number; w: number; h: number; count: number; total: number; color: string; align: 'right' | 'left' }
-  | { kind: 'deco'; id: string; x: number; y: number; w: number; h: number; asset: string; ref: string; color: string; opacity: number; flip: boolean };
+  | { kind: 'deco'; id: string; x: number; y: number; w: number; h: number; asset: string; ref: string; color: string; opacity: number; flip: boolean }
+  | GraphicBlock;
+
+/** A graphic's primitives with every colour resolved to hex, in the layer's own pixel box. */
+export type ResolvedPrim =
+  | { t: 'path'; d: string; fill: string | null; stroke: string | null; strokeWidth: number; opacity: number; dash: [number, number] | null }
+  | { t: 'text'; x: number; y: number; size: number; str: string; fill: string };
+
+export type GraphicBlock = { kind: 'graphic'; id: string; x: number; y: number; w: number; h: number; prims: ResolvedPrim[]; rotate: { deg: number; cx: number; cy: number } | null };
 
 export type SceneSpec = {
   width: number;
@@ -43,15 +52,27 @@ export function buildSceneSpec(template: Template, fill: Fill, overrides: Overri
   const px = (b: Box) => ({ x: r1((b.x / 100) * canvas.w), y: r1((b.y / 100) * canvas.h), w: r1((b.w / 100) * canvas.w), h: r1((b.h / 100) * canvas.h) });
   const blocks: SceneBlock[] = [];
   for (const l of applyOverrides(template, overrides)) {
+    // A layer tied to the bundled AI character (its label) exists only while the character is what is showing.
+    if (!layerVisible(l, fill)) continue;
     const box = px(l.box);
     if (l.type === 'shape') {
-      blocks.push({ kind: 'rect', id: l.id, ...box, shape: l.shape || 'rect', color: colors[l.color], opacity: l.opacity ?? 1, radius: l.radius || 0, gradientTo: l.gradient ? colors[l.gradient.to] : null, gradientAngle: l.gradient?.angle ?? 180 });
+      blocks.push({ kind: 'rect', id: l.id, ...box, shape: l.shape || 'rect', color: colors[l.color], opacity: l.opacity ?? 1, radius: l.radius || 0, gradientTo: l.gradient ? colors[l.gradient.to] : null, gradientAngle: l.gradient?.angle ?? 180, ...(l.rotate ? { rotate: l.rotate } : {}) } as SceneBlock);
+    } else if (l.type === 'graphic') {
+      // The still pose: a vendor renderer draws no animation, only the picture.
+      const d = graphicDrawing(l, box.w, box.h, STILL_T);
+      blocks.push({
+        kind: 'graphic', id: l.id, ...box, rotate: d.rotate || null,
+        prims: d.prims.map((p) => (p.t === 'text'
+          ? { t: 'text' as const, x: p.x, y: p.y, size: p.size, str: p.str, fill: resolvePaint(p.fill, colors) }
+          : { t: 'path' as const, d: p.d, fill: p.fill ? resolvePaint(p.fill, colors) : null, stroke: p.stroke ? resolvePaint(p.stroke, colors) : null, strokeWidth: p.strokeWidth ?? 0, opacity: p.opacity ?? 1, dash: p.dash || null })),
+      });
     } else if (l.type === 'texture') {
       blocks.push({ kind: 'texture', id: l.id, ...box, opacity: l.opacity, blend: l.blend || 'soft-light' });
     } else if (l.type === 'image') {
       blocks.push({
         kind: 'image', id: l.id, ...box, ref: fill.images?.[l.slot] || null, fit: l.fit, focusX: l.focus?.x ?? 0.5, focusY: l.focus?.y ?? 0.5, radius: l.radius || 0, shape: l.shape || 'rect',
         overlayColor: l.overlay ? colors[l.overlay.color] : null, overlayOpacity: l.overlay?.opacity ?? 0, overlayDirection: l.overlay?.direction || 'flat',
+        ...(l.rotate ? { rotate: l.rotate } : {}),
       });
     } else if (l.type === 'rating') {
       blocks.push({ kind: 'rating', id: l.id, ...box, count: ratingCount(fill.values?.[l.bind]), total: 5, color: colors[l.color], align: l.align });

@@ -83,7 +83,17 @@ export type TextLayer = {
   /** A pill behind the text. */
   background?: { color: ColorRole; radius: number; padding: number };
   editable?: boolean;
+  /** Drawn only while this slot holds the template's bundled character (see VisibleWhen). */
+  visibleWhen?: VisibleWhen;
 };
+
+/**
+ * A layer that exists only for one state of a picture slot. The one use today: the fixed "AI character" label
+ * of a presenter template. It shows while the slot holds the bundled AI character and disappears the moment
+ * she puts her own photo there. It is an ordinary layer in the template, inside the safe zone, so it is part
+ * of every export and cannot be cropped out of the design.
+ */
+export type VisibleWhen = { slot: string; origin: 'ai_character' };
 
 export type ImageLayer = {
   id: string;
@@ -98,6 +108,8 @@ export type ImageLayer = {
   shape?: 'rect' | 'arch';
   /** Focal point (0..1) the cover crop keeps. */
   focus?: { x: number; y: number };
+  /** Degrees, clockwise, around the box centre (a polaroid on a table). */
+  rotate?: number;
   /**
    * A wash over the picture so text on it reads. bottom/top fade from one
    * edge; flat covers evenly; rise is solid across the lower part and fades
@@ -116,6 +128,9 @@ export type ShapeLayer = {
   opacity?: number;
   radius?: number;
   gradient?: { to: ColorRole; angle: number };
+  /** Degrees, clockwise, around the box centre. */
+  rotate?: number;
+  visibleWhen?: VisibleWhen;
 };
 
 export type LogoLayer = {
@@ -170,7 +185,49 @@ export type RatingLayer = {
   align: 'right' | 'left';
 };
 
-export type Layer = TextLayer | ImageLayer | ShapeLayer | LogoLayer | TextureLayer | DecoLayer | RatingLayer;
+/**
+ * A small vector illustration that can move, drawn from lib/design/graphics.ts: the one place its geometry
+ * lives, so the DOM preview, the PNG export and the reel recorder show the same picture. Colours are roles.
+ *
+ *   wave      a filled sine band, crest at the top of its box (colour)
+ *   swatches  a row of round colour dots (colours, 2-4)
+ *   burst     an N-point star (colour; params.points)
+ *   calendar  a month card with a highlighted day (colour = header, colour2 = highlight)
+ *   bottle    a nail-polish bottle (colour = glass, colour2 = cap)
+ *   rings     concentric outlines (colour; params.count)
+ *   frame     a dashed rounded outline (colour; params.radius)
+ *
+ * `motion` is what the recorder animates; every other renderer draws the still pose.
+ */
+export type GraphicKind = 'wave' | 'swatches' | 'burst' | 'calendar' | 'bottle' | 'rings' | 'frame';
+export const GRAPHIC_KINDS: GraphicKind[] = ['wave', 'swatches', 'burst', 'calendar', 'bottle', 'rings', 'frame'];
+export type GraphicMotion = 'none' | 'float' | 'spin' | 'wave' | 'tilt';
+
+export type GraphicLayer = {
+  id: string;
+  type: 'graphic';
+  kind: GraphicKind;
+  box: Box;
+  color: ColorRole;
+  color2?: ColorRole;
+  /** swatches: one role per dot. */
+  colors?: ColorRole[];
+  opacity?: number;
+  motion?: GraphicMotion;
+  /** Numeric knobs per kind (points, count, radius, amplitude, phase). */
+  params?: Record<string, number>;
+  /** Degrees, clockwise, around the box centre. */
+  rotate?: number;
+};
+
+export type Layer = TextLayer | ImageLayer | ShapeLayer | LogoLayer | TextureLayer | DecoLayer | RatingLayer | GraphicLayer;
+
+/** Is this layer drawn for this fill? Layers without `visibleWhen` always are. */
+export function layerVisible(l: Layer, fill: { imageOrigin?: Record<string, string> } | null | undefined): boolean {
+  const w = (l as { visibleWhen?: VisibleWhen }).visibleWhen;
+  if (!w) return true;
+  return fill?.imageOrigin?.[w.slot] === w.origin;
+}
 
 /** How many stars a rating value means: "★★★★☆" -> 4, "5" -> 5, anything else -> 5. */
 export function ratingCount(value: string | null | undefined): number {
@@ -210,6 +267,12 @@ export type SlotDef = {
   required?: boolean;
   /** Pictures of a client: the picker refuses them without recorded consent. */
   consent?: boolean;
+  /**
+   * A picture bundled with the template that fills the slot until she chooses her own (a presenter template's
+   * AI character). It is never auto-replaced by her gallery: she picks, per design, to keep it or to use her
+   * own photo. The fill reports which one is showing (Fill.imageOrigin), which is what `visibleWhen` reads.
+   */
+  defaultImage?: { src: string; kind: 'ai_character' };
 };
 
 export type Template = {
@@ -278,7 +341,7 @@ export function validateTemplate(t: Template): string[] {
     if (ids.has(l.id)) errors.push(`duplicate layer id ${l.id}`);
     ids.add(l.id);
     // Decorative blobs and washes may bleed past the edge; content may not.
-    const decorative = l.type === 'shape' || l.type === 'texture';
+    const decorative = l.type === 'shape' || l.type === 'texture' || l.type === 'graphic';
     if (decorative ? !bleeds(l.box) : !inCanvas(l.box)) errors.push(`layer ${l.id} box is outside the canvas`);
     if (l.type === 'text') {
       if (!vars.has(l.bind)) errors.push(`text layer ${l.id} binds to unknown variable ${l.bind}`);
@@ -299,6 +362,18 @@ export function validateTemplate(t: Template): string[] {
     } else if (l.type === 'deco') {
       if (!DECO_ASSETS.includes(l.asset)) errors.push(`deco ${l.id} uses unknown asset ${l.asset}`);
       if (!COLOR_ROLES.includes(l.color)) errors.push(`deco ${l.id} uses unknown colour role ${l.color}`);
+    } else if (l.type === 'graphic') {
+      if (!GRAPHIC_KINDS.includes(l.kind)) errors.push(`graphic ${l.id} has unknown kind ${l.kind}`);
+      for (const c of [l.color, l.color2, ...(l.colors || [])]) {
+        if (c !== undefined && !COLOR_ROLES.includes(c)) errors.push(`graphic ${l.id} uses unknown colour role ${c}`);
+      }
+      if (l.kind === 'swatches' && !(l.colors && l.colors.length >= 2 && l.colors.length <= 4)) errors.push(`graphic ${l.id}: swatches need 2 to 4 colours`);
+    }
+    const when = (l as { visibleWhen?: VisibleWhen }).visibleWhen;
+    if (when) {
+      const slot = t.slots.find((s) => s.key === when.slot);
+      if (!slot) errors.push(`layer ${l.id} is visible when unknown slot ${when.slot}`);
+      else if (!slot.defaultImage) errors.push(`layer ${l.id} is visible when slot ${when.slot} holds its character, but the slot has no defaultImage`);
     }
   }
   return errors;

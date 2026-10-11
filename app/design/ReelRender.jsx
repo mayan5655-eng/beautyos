@@ -23,7 +23,7 @@ import Spinner from '../Spinner';
 import { CANVAS } from '@/lib/design/contract';
 import { downloadBlob } from './exportPng';
 import { resolveImageRef } from './images';
-import { renderLayersCanvas, drawImageLayer, boxPx, loadImage } from './canvasRender';
+import { renderLayersCanvas, drawImageLayer, drawGraphicLayer, boxPx, loadImage } from './canvasRender';
 import { pickRecorderMime, fileExtFor } from '@/lib/design/recorderMime';
 
 const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30;
@@ -39,6 +39,28 @@ function splitLayers(layers) {
     over: (l, i) => i > last && l.type !== 'image',
     photos: layers.filter((l) => l.type === 'image'),
   };
+}
+
+/** A graphic that moves (waves, spinning stars, a floating dot): drawn live, every frame, never pre-rendered. */
+const isLive = (l) => l.type === 'graphic' && !!l.motion && l.motion !== 'none';
+
+/**
+ * Layer order for a frame that has live graphics. The usual under/photos/over split assumes everything that is
+ * not a photo can be drawn once; here a moving wave sits BETWEEN static layers, so the frame is cut into runs:
+ * a static run (rendered once to a canvas), a photo, or one live graphic, in the layers' own order.
+ */
+function orderedRuns(layers) {
+  const runs = [];
+  let cur = null;
+  layers.forEach((l, i) => {
+    if (l.type === 'image') { cur = null; runs.push({ kind: 'photo', layer: l }); }
+    else if (isLive(l)) { cur = null; runs.push({ kind: 'live', layer: l }); }
+    else {
+      if (!cur) { cur = { kind: 'static', members: new Set() }; runs.push(cur); }
+      cur.members.add(i);
+    }
+  });
+  return runs;
 }
 
 /**
@@ -74,8 +96,27 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       // 1. Draw every scene's under/over layers onto canvases, and load its photos.
       setStatus('מציירת את הסצנות');
       const scenes = [];
+      let startAcc = 0;
       for (let i = 0; i < reel.scenes.length; i++) {
         const frame = reel.scenes[i].frame;
+        const startMs = startAcc;
+        startAcc += reel.scenes[i].seconds * 1000;
+        // A frame with a moving graphic is drawn run by run in layer order (see orderedRuns); every other frame
+        // keeps the original under / photos / over path unchanged.
+        if (frame.layers.some(isLive)) {
+          const runs = [];
+          for (const run of orderedRuns(frame.layers)) {
+            if (run.kind === 'static') runs.push({ kind: 'static', canvas: await renderLayersCanvas(frame, fills[i], (l, k) => run.members.has(k)) });
+            else if (run.kind === 'photo') {
+              const ref = fills[i].images?.[run.layer.slot];
+              const src = ref ? await resolveImageRef(ref) : null;
+              runs.push({ kind: 'photo', layer: run.layer, img: await loadImage(src), box: boxPx(run.layer, W, H) });
+            } else runs.push({ kind: 'live', layer: run.layer, box: boxPx(run.layer, W, H) });
+          }
+          scenes.push({ runs, under: null, over: null, imgs: [], colors: fills[i].colors, fonts: fills[i].fonts, motion: reel.scenes[i].motion, transition: reel.scenes[i].transition, ms: reel.scenes[i].seconds * 1000, startMs });
+          setProgress(Math.round(((i + 1) / reel.scenes.length) * 20));
+          continue;
+        }
         const { photos, under: underFilter, over: overFilter } = splitLayers(frame.layers);
         const under = frame.layers.some((l, k, all) => underFilter(l, k, all)) ? await renderLayersCanvas(frame, fills[i], underFilter) : null;
         const over = frame.layers.some((l, k, all) => overFilter(l, k, all)) ? await renderLayersCanvas(frame, fills[i], overFilter) : null;
@@ -85,7 +126,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
           const src = ref ? await resolveImageRef(ref) : null;
           imgs.push({ layer: l, img: await loadImage(src), box: boxPx(l, W, H) });
         }
-        scenes.push({ under, over, imgs, colors: fills[i].colors, motion: reel.scenes[i].motion, transition: reel.scenes[i].transition, ms: reel.scenes[i].seconds * 1000 });
+        scenes.push({ under, over, imgs, colors: fills[i].colors, fonts: fills[i].fonts, motion: reel.scenes[i].motion, transition: reel.scenes[i].transition, ms: reel.scenes[i].seconds * 1000, startMs });
         setProgress(Math.round(((i + 1) / reel.scenes.length) * 20));
       }
 
@@ -93,6 +134,16 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       const drawScene = (ctx, s, t) => {
         ctx.clearRect(0, 0, W, H);
         ctx.fillStyle = s.colors.surface; ctx.fillRect(0, 0, W, H);
+        if (s.runs) {
+          // Reel-global seconds: a wave keeps travelling across a scene cut instead of restarting each scene.
+          const tReel = (s.startMs + t * s.ms) / 1000;
+          for (const r of s.runs) {
+            if (r.kind === 'static') ctx.drawImage(r.canvas, 0, 0, W, H);
+            else if (r.kind === 'photo') drawImageLayer(ctx, r.layer, r.box, r.img, s.colors, s.motion === 'kenburns' ? 1 + 0.08 * t : 1);
+            else drawGraphicLayer(ctx, r.layer, r.box, s.colors, s.fonts, tReel);
+          }
+          return;
+        }
         if (s.under) ctx.drawImage(s.under, 0, 0, W, H);
         for (const p of s.imgs) drawImageLayer(ctx, p.layer, p.box, p.img, s.colors, s.motion === 'kenburns' ? 1 + 0.08 * t : 1);
         if (s.over) ctx.drawImage(s.over, 0, 0, W, H);

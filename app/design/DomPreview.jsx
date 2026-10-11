@@ -12,7 +12,8 @@
 // auto-size would, so a long business name does not spill out of a pill.
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { CANVAS, ratingCount } from '@/lib/design/contract';
+import { CANVAS, ratingCount, layerVisible } from '@/lib/design/contract';
+import { graphicDrawing, resolvePaint, STILL_T } from '@/lib/design/graphics';
 import { fitText } from '@/lib/design/fitText';
 import { textDirection } from '@/lib/design/canvasText';
 import { applyOverrides, isPrivateRef } from '@/lib/design/design';
@@ -103,7 +104,10 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
   const k = width / canvas.w;
   const height = Math.round(canvas.h * k);
   const colors = { ...fill.colors, ...(overrides?.colors || {}) };
-  const layers = applyOverrides(template, overrides).filter((l, i, all) => (layerFilter ? layerFilter(l, i, all) : true));
+  const layers = applyOverrides(template, overrides)
+    .filter((l, i, all) => (layerFilter ? layerFilter(l, i, all) : true))
+    // The "AI character" label is a layer that exists only while the bundled character is showing.
+    .filter((l) => layerVisible(l, fill));
   const resolved = useResolvedImages(fill.images);
 
   return (
@@ -112,7 +116,25 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
         const box = { position: 'absolute', left: pct(l.box.x), top: pct(l.box.y), width: pct(l.box.w), height: pct(l.box.h) };
         if (l.type === 'shape') {
           const bg = l.gradient ? `linear-gradient(${l.gradient.angle}deg, ${colors[l.color]}, ${colors[l.gradient.to]})` : colors[l.color];
-          return <div key={l.id} style={{ ...box, background: bg, opacity: l.opacity ?? 1, borderRadius: l.shape === 'ellipse' ? '50%' : `${(l.radius || 0) * k}px` }} />;
+          return <div key={l.id} style={{ ...box, background: bg, opacity: l.opacity ?? 1, borderRadius: l.shape === 'ellipse' ? '50%' : `${(l.radius || 0) * k}px`, transform: l.rotate ? `rotate(${l.rotate}deg)` : undefined }} />;
+        }
+        if (l.type === 'graphic') {
+          // The geometry is lib/design/graphics.ts (shared with the PNG and the recorder); here it is an <svg> whose
+          // viewBox is the box in canvas pixels, so it scales with the card like everything else.
+          const w = (l.box.w / 100) * canvas.w, h = (l.box.h / 100) * canvas.h;
+          const d = graphicDrawing(l, w, h, STILL_T);
+          const rot = d.rotate ? `rotate(${d.rotate.deg} ${d.rotate.cx} ${d.rotate.cy})` : undefined;
+          return (
+            <svg key={l.id} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ ...box, overflow: 'visible', pointerEvents: 'none' }} aria-hidden="true">
+              <g transform={rot}>
+                {d.prims.map((p, i) => (p.t === 'text' ? (
+                  <text key={i} x={p.x} y={p.y} fontSize={p.size} textAnchor="middle" fontWeight="700" fill={resolvePaint(p.fill, colors)} style={{ fontFamily: fill.fonts.accent }}>{p.str}</text>
+                ) : (
+                  <path key={i} d={p.d} fill={p.fill ? resolvePaint(p.fill, colors) : 'none'} stroke={p.stroke ? resolvePaint(p.stroke, colors) : 'none'} strokeWidth={p.strokeWidth || 0} strokeDasharray={p.dash ? p.dash.join(' ') : undefined} opacity={p.opacity ?? 1} />
+                )))}
+              </g>
+            </svg>
+          );
         }
         if (l.type === 'rating') {
           const n = ratingCount(fill.values?.[l.bind]);
@@ -154,7 +176,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
                 : rgba(colors[l.overlay.color], l.overlay.opacity)
             : null;
           return (
-            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : l.shape === 'arch' ? `${(l.box.w / 100) * width / 2}px ${(l.box.w / 100) * width / 2}px 0 0` : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})` }}>
+            <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : l.shape === 'arch' ? `${(l.box.w / 100) * width / 2}px ${(l.box.w / 100) * width / 2}px 0 0` : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})`, transform: l.rotate ? `rotate(${l.rotate}deg)` : undefined }}>
               {src && (
                 // eslint-disable-next-line @next/next/no-img-element -- her own pictures at their own size, captured by the exporter
                 <img src={src} alt="" crossOrigin="anonymous" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: l.fit, objectPosition: `${focus.x * 100}% ${focus.y * 100}%`, display: 'block' }} />

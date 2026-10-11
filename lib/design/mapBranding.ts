@@ -54,6 +54,13 @@ export type Fill = {
    * actually publish (see templateSeedImageUrl's own header).
    */
   seedImages: Record<string, string | null>;
+  /**
+   * Where each slot's picture came from: 'ai_character' when the slot is showing the template's bundled AI
+   * character (SlotDef.defaultImage), 'own' for anything she or her gallery supplied, 'none' when empty.
+   * Layers with `visibleWhen` (the "AI character" label) read this, so the label is on exactly while the
+   * character is, and goes the moment she uses her own photo.
+   */
+  imageOrigin: Record<string, 'ai_character' | 'own' | 'none'>;
   colors: Record<ColorRole, string>;
   fonts: { display: string; body: string; accent: string };
   logoUrl: string | null;
@@ -157,10 +164,20 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
 
   const images: Record<string, string | null> = {};
   const seedImages: Record<string, string | null> = {};
+  const imageOrigin: Record<string, 'ai_character' | 'own' | 'none'> = {};
   let galleryIdx = 0, clinicIdx = 0;
   for (const slot of template.slots) {
     const picked = clean(input.images?.[slot.key]);
     let url: string | null = picked || null;
+    // A slot with a bundled character is HER choice per design: it shows the character until she picks a photo,
+    // and never silently swaps in her portrait or a gallery picture (which would hide the character she may
+    // have wanted, and the label with it).
+    if (!url && slot.defaultImage) {
+      images[slot.key] = slot.defaultImage.src;
+      seedImages[slot.key] = null;
+      imageOrigin[slot.key] = 'ai_character';
+      continue;
+    }
     if (!url) {
       // A sensible first picture from her own assets, by what the slot allows.
       const gallery = Array.isArray(branding.gallery) ? (branding.gallery as unknown[]).map(clean).filter(Boolean) : [];
@@ -173,6 +190,7 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
     // Client photos are never auto-filled: consent is a choice she makes.
     if (slot.consent && !picked) url = null;
     images[slot.key] = url;
+    imageOrigin[slot.key] = url ? 'own' : 'none';
     // The template's own seed photo, whenever the slot allows one at all -
     // independent of whether `url` also has her real photo. See the Fill
     // type's own doc: DomPreview picks between the two, this map doesn't.
@@ -184,6 +202,7 @@ export function fillTemplate(template: Template, input: BrandingInput): Fill {
     values,
     images,
     seedImages,
+    imageOrigin,
     colors,
     fonts: FONTS,
     // Logo off on this design: the logo layer falls back to her name, so the strip stays balanced.

@@ -10,7 +10,8 @@
 // clip) and uses the browser's own shaping, so Hebrew keeps its letters in
 // order and a phone number stays a phone number.
 
-import { CANVAS, ratingCount } from '@/lib/design/contract';
+import { CANVAS, ratingCount, layerVisible } from '@/lib/design/contract';
+import { graphicDrawing, resolvePaint, STILL_T } from '@/lib/design/graphics';
 import { applyOverrides } from '@/lib/design/design';
 import { drawText } from '@/lib/design/canvasText';
 import { resolveImageRef } from './images';
@@ -133,9 +134,51 @@ function drawWash(ctx, b, overlay, colors) {
   ctx.fillRect(b.x, b.y, b.w, b.h);
 }
 
+/** Rotate the context about the centre of a box (degrees). The caller wraps this in save/restore. */
+function rotateAbout(ctx, b, deg) {
+  if (!deg) return;
+  ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
+}
+
+/** A graphic layer (lib/design/graphics.ts) at time `t` seconds: the same primitives the DOM preview turns into an svg. */
+export function drawGraphicLayer(ctx, l, b, colors, fonts, t = STILL_T) {
+  const d = graphicDrawing(l, b.w, b.h, t);
+  ctx.save();
+  ctx.translate(b.x, b.y);
+  if (d.rotate) {
+    ctx.translate(d.rotate.cx, d.rotate.cy);
+    ctx.rotate((d.rotate.deg * Math.PI) / 180);
+    ctx.translate(-d.rotate.cx, -d.rotate.cy);
+  }
+  for (const p of d.prims) {
+    ctx.save();
+    ctx.globalAlpha = p.t === 'text' ? 1 : (p.opacity ?? 1);
+    if (p.t === 'text') {
+      ctx.fillStyle = resolvePaint(p.fill, colors);
+      ctx.font = `700 ${p.size}px ${resolveFamily(fonts.accent)}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(p.str, p.x, p.y);
+    } else {
+      const path = new Path2D(p.d);
+      if (p.fill) { ctx.fillStyle = resolvePaint(p.fill, colors); ctx.fill(path); }
+      if (p.stroke) {
+        ctx.strokeStyle = resolvePaint(p.stroke, colors);
+        ctx.lineWidth = p.strokeWidth || 1;
+        ctx.setLineDash(p.dash || []);
+        ctx.stroke(path);
+      }
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 /** A picture in a layer's shape, covering its box around the focal point, zoomed by `zoom`, with its wash. Used by the recorder for Ken Burns. */
 export function drawImageLayer(ctx, l, b, img, colors, zoom = 1) {
   ctx.save();
+  rotateAbout(ctx, b, l.rotate);
   shapePath(ctx, b, l);
   ctx.clip();
   if (img) {
@@ -161,14 +204,19 @@ export const boxPx = (l, W, H) => ({ x: (l.box.x / 100) * W, y: (l.box.y / 100) 
  * Draw layers in order. `filter(layer, index, all)` skips layers (the recorder
  * draws pictures itself, live). Order and geometry follow DomPreview.
  */
-export function drawLayers(ctx, { layers, fill, colors, assets, W, H, filter = null }) {
+export function drawLayers(ctx, { layers, fill, colors, assets, W, H, filter = null, t = STILL_T }) {
   const fonts = fill.fonts;
   layers.forEach((l, i, all) => {
     if (filter && !filter(l, i, all)) return;
+    // The "AI character" label: a layer that exists only while the bundled character is showing.
+    if (!layerVisible(l, fill)) return;
     const b = boxPx(l, W, H);
     ctx.save();
-    if (l.type === 'shape') {
+    if (l.type === 'graphic') {
+      drawGraphicLayer(ctx, l, b, colors, fonts, t);
+    } else if (l.type === 'shape') {
       ctx.globalAlpha = l.opacity ?? 1;
+      rotateAbout(ctx, b, l.rotate);
       shapePath(ctx, b, l);
       ctx.fillStyle = l.gradient ? cssGradient(ctx, b, l.gradient.angle, colors[l.color], colors[l.gradient.to]) : colors[l.color];
       ctx.fill();
