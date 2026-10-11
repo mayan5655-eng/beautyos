@@ -1,7 +1,7 @@
 // lib/featureFlags.ts: per-tenant nav visibility, and the one non-tab flag
 // (skin-scan) that shares its storage and its "explicit beats derived" rule.
 import assert from 'node:assert/strict';
-import { isTabVisible, visibleTabIds, tenantFlags, skinScanVisible, NEVER_HIDDEN, STUB_TABS, SWITCHABLE_TABS } from './lib/featureFlags.ts';
+import { isTabVisible, visibleTabIds, tenantFlags, skinScanVisible, legacyCampaignTextsVisible, NEVER_HIDDEN, STUB_TABS, SWITCHABLE_TABS } from './lib/featureFlags.ts';
 
 // ── isTabVisible: unchanged behaviour, still field-blind ───────────────────
 assert.equal(isTabVisible(null, 'campaigns'), true, 'NEVER_HIDDEN wins over everything, even no settings at all');
@@ -34,6 +34,14 @@ assert.equal(skinScanVisible({ business_fields: ['nails'], automations: { screen
 assert.equal(skinScanVisible({ business_fields: ['cosmetics'], automations: { screens: { skin_scan: false } } }), false, 'explicitly turned off for a cosmetics tenant');
 // A non-boolean stored value is not "explicit" - falls through to the derived default.
 assert.equal(skinScanVisible({ business_fields: ['nails'], automations: { screens: { skin_scan: 'yes' } } }), false);
+
+// The legacy campaign texts section: hidden by default, shown only on an explicit true.
+assert.equal(legacyCampaignTextsVisible(null), false);
+assert.equal(legacyCampaignTextsVisible({}), false, 'default off');
+assert.equal(legacyCampaignTextsVisible({ automations: { screens: { legacy_campaign_texts: false } } }), false);
+assert.equal(legacyCampaignTextsVisible({ automations: { screens: { legacy_campaign_texts: 'yes' } } }), false, 'non-boolean is not an opt-in');
+assert.equal(legacyCampaignTextsVisible({ automations: { screens: { legacy_campaign_texts: true } } }), true);
+assert.equal(legacyCampaignTextsVisible({ automations: { feature_flags: { legacy_campaign_texts: true } } }), true);
 
 // Sanity on the lists themselves, so a future edit that removes a tab from
 // one list but not the other is caught here instead of in production.

@@ -26,6 +26,14 @@ Output in `out/` (git-ignored): `kalmea-demo.mp4` (H.264, 1080x1920, 30 fps, for
 - Recorded at 430x764 and upscaled to 1080x1920, so it is a little soft. Playwright's recorder ignores device pixel ratio.
 - Env: `KALMEA_BASE`, `KALMEA_DEMO_TENANT`, `KALMEA_DEMO_FIELD`.
 
+## Footage (not committed)
+
+`reel-build.mjs` reads four silent clips from this folder: `noa.mp4`, `broll-phones-chaos.mp4`, `broll-treatment-1.mp4`,
+`broll-treatment-2.mp4`. They are AI-generated / third-party footage, so they are git-ignored (`/*.mp4`) and kept
+locally; the script stops with the name of the missing file. `noa.mp4` is a copy of the Higgsfield clip
+`highfield-E295F1D2-...MP4`. `ai-videos.mjs` reads its four originals from `in/ai-videos/` (also ignored) and
+writes to `out/ai-videos/`.
+
 ## tour
 
 `npm run tour` records ten clips, one per screen (today, calendar, clients, client card, till, content,

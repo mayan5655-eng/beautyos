@@ -156,6 +156,20 @@ export function skinScanVisible(
 }
 
 /**
+ * The "old texts" (טקסטים ישנים) list under her designs: campaigns and their posts from the generator that the
+ * content studio replaced. Nothing creates a campaign any more (only list, delete and the shooting list's
+ * "do not repeat" clause read them), so for every new tenant the section is an empty shelf, and for an old one
+ * it is a read-only archive. HIDDEN, NOT DELETED: the Archive component, its route and its tables are
+ * untouched; the section appears only for a tenant that opts in.
+ *
+ * Not a nav tab, and not a screen she switches in Settings: an explicit stored `true` under
+ * automations.screens.legacy_campaign_texts (or feature_flags) shows it. Absent, false or malformed: hidden.
+ */
+export function legacyCampaignTextsVisible(settings: SettingsLike): boolean {
+  return tenantFlags(settings).legacy_campaign_texts === true;
+}
+
+/**
  * Turning one back on for a tenant, until there is a settings screen for it:
  *
  *   update public.settings

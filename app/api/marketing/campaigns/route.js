@@ -58,8 +58,15 @@ export async function GET(req) {
     }
 
     const url = new URL(req.url);
+    // Both values end up in a Graph API path / query with HER page token: only the shapes we use are let through.
+    // (The adAccountId used to be interpolated as given, so a crafted query string could address any Graph path.)
+    const DATE_PRESETS = ["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d", "this_month", "last_month"];
     let adAccountId = url.searchParams.get("adAccountId");
-    const datePreset = url.searchParams.get("datePreset") || "last_30d";
+    if (adAccountId && !/^(act_)?\d{1,20}$/.test(adAccountId)) {
+      return NextResponse.json({ ok: false, error: "חשבון מודעות לא תקין" }, { status: 400 });
+    }
+    const requestedPreset = url.searchParams.get("datePreset") || "last_30d";
+    const datePreset = DATE_PRESETS.includes(requestedPreset) ? requestedPreset : "last_30d";
 
     // If no ad account specified, discover the first one available to this token
     let adAccounts = [];
@@ -72,7 +79,6 @@ export async function GET(req) {
           ok: false,
           needsAdsPermission: true,
           error: "אין הרשאת גישה לחשבון המודעות. ייתכן שצריך לחבר מחדש את פייסבוק עם הרשאת מודעות.",
-          detail: e.fbError?.message || e.message,
         });
       }
       if (adAccounts.length === 0) {
@@ -109,7 +115,8 @@ export async function GET(req) {
       totals,
     });
   } catch (err) {
+    // The detail stays in the log: a Graph error message can carry request fragments, and it is not for her.
     console.error("[marketing/campaigns] error:", err);
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "לא הצלחנו לטעון את הקמפיינים מפייסבוק. נסי שוב בעוד רגע." }, { status: 500 });
   }
 }

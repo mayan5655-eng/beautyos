@@ -1,2 +1,12 @@
 node_modules/
 out/
+in/
+
+# Throwaway probes (a fresh-tenant walkthrough of production, with a hardcoded scratch path and a credentials
+# file outside the repo). They are working notes, not tooling.
+_*.mjs
+
+# Source footage the reel scripts read from this folder (reel-build.mjs requires them and fails with a clear
+# message when they are missing). Large, third-party / AI-generated, and not regenerable from the repo: kept
+# locally, not committed. See README.md "Footage".
+/*.mp4

@@ -29,6 +29,8 @@ export async function GET() {
       .select('*')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
+      // Bounded: this list is read-only history and used to have no ceiling.
+      .limit(100)
 
     if (cErr) {
       return NextResponse.json({ error: cErr.message }, { status: 500 })

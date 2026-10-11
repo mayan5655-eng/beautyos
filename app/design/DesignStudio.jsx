@@ -32,6 +32,7 @@ import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank'
 import { designIdeaSuggestion } from '@/lib/design/suggestions';
 import { ICON_PLAY, ICON_FRAME } from '@/lib/brand';
 import BrandImage from "@/app/BrandImage";
+import { legacyCampaignTextsVisible } from '@/lib/featureFlags';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -42,7 +43,8 @@ const ghost = { padding: '8px 0', borderRadius: 'var(--r-sm)', border: '1px soli
 async function fetchDesigns() {
   const res = await fetch('/api/designs');
   const data = await res.json().catch(() => null);
-  return res.ok && data?.success ? data.designs : [];
+  if (!(res.ok && data?.success)) throw new Error(data?.error || 'load failed');
+  return data.designs;
 }
 
 /** The seasonal templates whose window is open today: one card each, newest
@@ -66,6 +68,9 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   const [presetKey, setPresetKey] = useState(0);
   const [group, setGroup] = useState(null); // null = all three groups, each under its heading
   const [designs, setDesigns] = useState(null);
+  // A failed load is not an empty library: it gets its own message and a retry, so "no designs yet" is only said
+  // when the server said there are none.
+  const [designsFailed, setDesignsFailed] = useState(false);
   const [open, setOpen] = useState(null); // design being edited
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
@@ -73,9 +78,13 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
 
   useEffect(() => {
     let alive = true;
-    fetchDesigns().then((d) => { if (alive) setDesigns(d); });
+    fetchDesigns().then((d) => { if (alive) { setDesigns(d); setDesignsFailed(false); } }).catch(() => { if (alive) { setDesigns([]); setDesignsFailed(true); } });
     return () => { alive = false; };
   }, []);
+  const retryDesigns = () => {
+    setDesigns(null); setDesignsFailed(false);
+    fetchDesigns().then((d) => { setDesigns(d); }).catch(() => { setDesigns([]); setDesignsFailed(true); });
+  };
 
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
   const occasions = useMemo(() => openOccasions(fields), [fields]);
@@ -88,6 +97,13 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       return { group: g, templates: [...list].sort((a, b) => rank(a) - rank(b)), open };
     });
   }, [group, occasions, fields]);
+  // Each gallery card's fill, computed once per (sections, settings). The card renderer used to call fillTemplate for
+  // every card on every render of this component, and the component re-renders on each keystroke and toggle.
+  const fillsByKey = useMemo(() => {
+    const m = new Map();
+    for (const s of sections) for (const t of s.templates) m.set(t.key, fillTemplate(t, { settings }));
+    return m;
+  }, [sections, settings]);
   // Design ideas: the topic bank's visual seed, browsable, not a ready-drawn
   // template like the sections above - a card here has no image until she
   // asks the AI card to write it. The seasonal production nudge (nails-only,
@@ -217,7 +233,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   }
 
   const card = (t, blocked, upcoming) => {
-    const fill = fillTemplate(t, { settings });
+    const fill = fillsByKey.get(t.key) || fillTemplate(t, { settings });
     const story = storySibling(t.key);
     const storyOnly = t.format === 'story';
     return (
@@ -412,7 +428,11 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       {view === 'mine' && <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <p className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', marginBottom: 10 }}>העיצובים שלי</p>
         {designs === null ? <Spinner inline label="טוענת" /> : designs.length === 0 ? (
-          <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>עוד אין עיצובים שמורים. בחרי תבנית למעלה.</p>
+          designsFailed ? (
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)' }}>לא הצלחנו לטעון את העיצובים שלך. <button onClick={retryDesigns} style={{ background: 'none', border: 'none', color: 'var(--pc-deep)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>לנסות שוב</button></p>
+          ) : (
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>עוד אין עיצובים שמורים. בחרי תבנית למעלה.</p>
+          )
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
             {designs.map((d) => {
@@ -433,7 +453,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
             })}
           </div>
         )}
-        <Archive toast={toast} />
+        {/* The old campaign texts: hidden unless this tenant opted in (lib/featureFlags.ts). Not removed. */}
+        {legacyCampaignTextsVisible(settings) && <Archive toast={toast} />}
       </div>}
     </>
   );

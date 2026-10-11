@@ -2287,7 +2287,9 @@ export default function BeautyOS() {
   // ?fb_success=true (page connected) or ?fb_error=... — show a toast, then strip
   // those params so a refresh doesn't re-fire the message.
   useEffect(() => {
-    loadFbConnection();
+    // loadFbConnection is NOT called here any more: its two queries ran for every tenant at boot, including the
+    // many who never open the content or leads tabs. It runs when one of those opens (effect below), and after
+    // the OAuth return further down.
     loadPendingQuestion();
     try {
       const params = new URLSearchParams(window.location.search);
@@ -6723,13 +6725,24 @@ export default function BeautyOS() {
     } catch { /* non-fatal — badge stays off */ }
   };
 
+  // The Facebook connection (page + failed-event count) is only shown on the content and leads tabs.
+  useEffect(() => {
+    if (activeTab === "campaigns" || activeTab === "leads") loadFbConnection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   // Fetch live Facebook ad campaigns for the current tenant
+  const fbLoadSeq = useRef(0);
   const loadFbCampaigns = async (preset) => {
+    // Only the newest request may write: switching the range quickly used to let a slow earlier answer land
+    // last and show the wrong period.
+    const seq = ++fbLoadSeq.current;
     setFbLoading(true); setFbError(null);
     try {
       const dp = preset || fbDatePreset;
       const res = await fetch(`/api/marketing/campaigns?datePreset=${dp}`);
       const data = await res.json();
+      if (seq !== fbLoadSeq.current) return;
       if (data.ok) {
         setFbCampaigns(data.campaigns || []);
         setFbTotals(data.totals || null);
@@ -6738,14 +6751,26 @@ export default function BeautyOS() {
         setFbError(data.error || "לא ניתן לטעון קמפיינים");
       }
     } catch (err) {
+      if (seq !== fbLoadSeq.current) return;
       setFbError(err.message);
       setFbCampaigns([]);
     } finally {
-      setFbLoading(false);
+      if (seq === fbLoadSeq.current) setFbLoading(false);
     }
   };
 
   // === AI MARKETING: full flow (strategy -> posts with images, + groups) ===
+  // The generated script is kept for the tab session: it is a paid AI call, and navigating away or a refresh
+  // used to lose it.
+  useEffect(() => {
+    try {
+      if (reelData) return;
+      const raw = sessionStorage.getItem("kalmea:last-reel");
+      const o = raw ? JSON.parse(raw) : null;
+      if (o && o.reel && typeof o.reel === "object") { setReelData(o.reel); if (typeof o.topic === "string") setReelTopic(o.topic); }
+    } catch { /* storage unavailable: nothing to restore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const generateReel = async () => {
     if (!reelTopic.trim()) { toast("כתבי נושא לרילס", "error"); return; }
     if (reelLoading) return;
@@ -6759,6 +6784,7 @@ export default function BeautyOS() {
       const data = await res.json();
       if (res.ok && data.success && data.reel) {
         setReelData(data.reel);
+        try { sessionStorage.setItem("kalmea:last-reel", JSON.stringify({ reel: data.reel, topic: reelTopic.trim() })); } catch { /* optional */ }
         if (data.capNotice) toast(data.capNotice);
       } else {
         setReelError(data.error || "יצירת הרילס נכשלה");
@@ -7733,7 +7759,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||"(ללא שם)"}</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",direction:"ltr",textAlign:"right"}}>{c.phone}</p>
  </div>
- <a href={waHref(c)} target="_blank" rel="noreferrer" onClick={()=>setComposeDone(prev=>({...prev,[c.phone]:true}))} className="primary-btn" style={{background:composeDone[c.phone]?"var(--surface-2)":"#25D366",color:composeDone[c.phone]?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{composeDone[c.phone]?"✓ נשלח":"שליחה בוואטסאפ"}</a>
+ <a href={waHref(c)} target="_blank" rel="noreferrer" onClick={()=>setComposeDone(prev=>({...prev,[c.phone]:true}))} className="primary-btn" style={{background:composeDone[c.phone]?"var(--surface-2)":"#25D366",color:composeDone[c.phone]?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{composeDone[c.phone]?"✓ נפתח":"שליחה בוואטסאפ"}</a>
  </div>
  ))}
  <div style={{display:"flex",gap:8,marginTop:14}}>
@@ -7759,7 +7785,7 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowWaQueue(false)} width={440} zIndex={4000} title="הודעות מוכנות לשליחה">
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:14}}>כל הודעה כאן יצאה מהתור ולא מהוואטסאפ המרכזי — לחיצה פותחת את השיחה עם הטקסט מוכן, ואת רק שולחת.</p>
           {whatsappPending.length===0?(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"20px 0"}}>התור ריק — הכל נשלח.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"20px 0"}}>אין הודעות שמחכות לשליחה.</p>
           ):(whatsappPending.map((m,i)=>{
             const link=waMsg(m.recipient_phone,m.message_body);
             const done=!!waQueueDone[m.id];
@@ -7786,7 +7812,7 @@ ${MARKETING_FOOTER}`)}`;
  {ageHe&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:2}}>ממתינה · {ageHe}</p>}
  </div>
                 {link?(
- <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(()=>{});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נשלח":"שליחה"}</a>
+ <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(({error})=>{if(error){setWaQueueDone(prev=>({...prev,[m.id]:false}));toast("לא הצלחנו לשמור שההודעה נפתחה","error");}});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נפתח":"שליחה"}</a>
                 ):(
  <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>מספר לא תקין</span>
                 )}
@@ -9905,7 +9931,7 @@ ${MARKETING_FOOTER}`)}`;
 
  {reelData.call_to_action&&(<div style={{background:"var(--pc-tint)",borderRadius:"var(--r-md)",padding:"14px 18px",marginBottom:10}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}><Icon name="megaphone" size={13}/> קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:"var(--t-md)",color:pcDeep,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
 
- {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}><Icon name="pen" size={13}/> תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`);toast("התיאור הועתק");}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>העתיקי</button></div><p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
+ {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}><Icon name="pen" size={13}/> תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`).then(()=>toast("התיאור הועתק")).catch(()=>toast("לא ניתן להעתיק","error"));}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>העתיקי</button></div><p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
 
  {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:2}}><Icon name="music" size={13}/> סגנון מוזיקה מומלץ</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
 

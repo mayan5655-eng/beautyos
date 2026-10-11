@@ -114,7 +114,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        <button onClick={onBack} className="icon-btn" aria-label="חזרה"><Icon name="arrow-right" size={16} /></button>
+        <button onClick={() => { if (dirty && !window.confirm('יש שינויים שלא נשמרו. לצאת בלי לשמור?')) return; onBack?.(); }} className="icon-btn" aria-label="חזרה"><Icon name="arrow-right" size={16} /></button>
         <input value={name} onChange={(e) => { setName(e.target.value); setDirty(true); }} aria-label="שם העיצוב" style={{ ...input, flex: 1, minWidth: 160, fontWeight: 700 }} />
         {design.is_default && <span style={{ fontSize: 'var(--t-xs)', background: 'var(--pc-tint)', color: 'var(--pc-deep)', borderRadius: 'var(--r-full)', padding: '4px 10px', fontWeight: 700 }}>ברירת מחדל</span>}
       </div>

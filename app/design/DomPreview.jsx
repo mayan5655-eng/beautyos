@@ -57,11 +57,16 @@ function AutoFitText({ content, basePx, lineHeight, maxLines, align, valign, wei
     el.style.fontSize = `${px}px`;
   };
   useLayoutEffect(fit, [content, basePx, maxLines, font, weight, lineHeight]);
+  // Refit once the fonts have arrived. This used to be an effect with no dependency list, so EVERY render of EVERY
+  // text layer (a gallery shows hundreds) created a fonts.ready promise and re-measured. The latest fit is held in
+  // a ref so the one-time effect never uses stale props.
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
   useEffect(() => {
     let alive = true;
-    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(() => { if (alive) fit(); });
+    if (typeof document !== 'undefined' && document.fonts?.ready) document.fonts.ready.then(() => { if (alive) fitRef.current(); });
     return () => { alive = false; };
-  });
+  }, []);
 
   const justify = align === 'center' ? 'center' : align === 'left' ? 'flex-end' : 'flex-start';
   return (
@@ -152,7 +157,7 @@ export default function DomPreview({ template, fill, overrides = null, width = 3
             <div key={l.id} style={{ ...box, overflow: 'hidden', borderRadius: l.radius === 999 ? '50%' : l.shape === 'arch' ? `${(l.box.w / 100) * width / 2}px ${(l.box.w / 100) * width / 2}px 0 0` : `${(l.radius || 0) * k}px`, background: `linear-gradient(160deg, ${colors.blush}, ${colors.sand})` }}>
               {src && (
                 // eslint-disable-next-line @next/next/no-img-element -- her own pictures at their own size, captured by the exporter
-                <img src={src} alt="" crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: l.fit, objectPosition: `${focus.x * 100}% ${focus.y * 100}%`, display: 'block' }} />
+                <img src={src} alt="" crossOrigin="anonymous" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: l.fit, objectPosition: `${focus.x * 100}% ${focus.y * 100}%`, display: 'block' }} />
               )}
               {overlay && <div style={{ position: 'absolute', inset: 0, background: overlay }} />}
             </div>
