@@ -113,7 +113,8 @@ assertDeferred('app/api/confirm/route.ts', 'confirm', 'notifyOwnerOfCancellation
 // The ordering half: the appointment write must appear BEFORE the deferred
 // notification call in source order.
 {
-  const src = readFileSync('app/api/book-appointment/route.js', 'utf8');
+  // Line endings normalised: a Windows checkout is CRLF and the anchor below spans a line break.
+  const src = readFileSync('app/api/book-appointment/route.js', 'utf8').split('\r\n').join('\n');
   const insertIdx = src.indexOf('.from("appointments")\n      .insert(');
   const notifyIdx = src.indexOf('sendBookingNotifications(');
   ok(insertIdx !== -1 && notifyIdx !== -1 && insertIdx < notifyIdx,
