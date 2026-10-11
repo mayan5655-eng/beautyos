@@ -1357,6 +1357,11 @@ export default function BeautyOS() {
   const [postImageUploading, setPostImageUploading] = useState(false);
   const [savingPost,        setSavingPost]         = useState(false);
   const [settingsTab,       setSettingsTab]        = useState("general");
+  // Settings is shown as seven groups; the old tab keys survive as section names and as the jump targets other
+  // screens use (openSettings("branding")), mapped to a group by SETTINGS_TAB_GROUP.
+  const [settingsGroup,     setSettingsGroup]      = useState("business");
+  const inG = (...gs) => gs.includes(settingsGroup);
+  const SETTINGS_TAB_GROUP = { general: "business", payment: "business", branding: "page", hours: "booking", services: "booking", automations: "messages", import: "clients", faq: "advanced" };
   const [leadFilter,        setLeadFilter]         = useState("all");
   const [leadSearch,        setLeadSearch]         = useState("");
   // --- Bulk WhatsApp send (per status group) ---
@@ -1807,7 +1812,7 @@ export default function BeautyOS() {
         return missing.length ? [...(prev || []), ...missing] : prev;
       });
     }
-    if (tab) setSettingsTab(tab);
+    if (tab) { setSettingsTab(tab); if (SETTINGS_TAB_GROUP[tab]) setSettingsGroup(SETTINGS_TAB_GROUP[tab]); }
     if (extra === "newService") setShowNewService(true);
     setShowSettings(true);
     setShowSetup(false);
@@ -11503,18 +11508,27 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
  <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
-                {[{k:"general",l:"כללי"},{k:"branding",l:"מיתוג"},{k:"automations",l:"אוטומציות"},{k:"services",l:"שירותים"},{k:"import",l:"ייבוא נתונים"},{k:"faq",l:"שאלות ותשובות"},{k:"hours",l:"שעות"},{k:"payment",l:"תשלום"}].map(t=>(
- <button key={t.k} onClick={()=>setSettingsTab(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsTab===t.k?700:500,color:settingsTab===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
+                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
+ <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
  </div>
  <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
-              {settingsTab==="general"&&(
+              {inG("business","clients","connections","advanced")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ </>)}
+ {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ </>)}
+ {inG("advanced")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{SETTINGS_SWATCHES.map(col=><button key={col} type="button" aria-label={swatchLabel(col)} title={swatchLabel(col)} aria-pressed={editSettings.primary_color===col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
+ </>)}
+ {inG("clients")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>יצורף אוטומטית להודעת בקשת הביקורת שנשלחת ללקוחה יומיים אחרי הטיפול</p></div>
+ </>)}
+ {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (לסיכום ההכנסות)</p>
  <div style={{display:"flex",gap:6}}>
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
@@ -11523,16 +11537,22 @@ ${MARKETING_FOOTER}`)}`;
                   })}
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>קובע איך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. זה סיכום לנוחותך, לא דוח להגשה.</p></div>
+ </>)}
+ {inG("connections")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4,fontWeight:700}}>התראות דפדפן</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>תור חדש וביטול תור מגיעים לכאן במקום בוואטסאפ — הפעילי כדי לקבל אותם גם כשהאפליקציה סגורה.</p>
  <PushSubscribeButton pc={pc} pcGrad={pcGrad} />
  </div>
+ </>)}
+ {inG("business")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>תחומי עיסוק</p>
  <FieldPicker value={businessFieldsOf(editSettings)} onChange={fields=>setEditSettings({...editSettings,business_fields:fields})} accent={pc} accentTint={pcTint} />
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>קובע אילו טיפולים מוצעים לך ברשימה המוכנה, ואילו תמונות ברירת מחדל ותבניות שיווק מוצגות. כיבוי תחום לא מוחק שירותים או עיצובים שכבר יצרת בו.</p>
  </div>
+ </>)}
+ {inG("clients")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
  {/* The scanner link, as she should share it: signed (?t=…&s=…) so the page
@@ -11595,6 +11615,8 @@ ${MARKETING_FOOTER}`)}`;
  })()}
  <button data-tour="booking-link" onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="calendar" size={14}/> העתקת קישור לקביעת תור</button>
  </div>
+ </>)}
+ {inG("advanced")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,fontWeight:700}}>שינוי סיסמה</p>
  <div style={{display:"flex",flexDirection:"column",gap:7}}>
@@ -11605,6 +11627,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </div>
 
+ </>)}
+ {inG("advanced")&&(<>
                 {/* Build identity.
                     Answers "am I actually running the latest version?" without
                     her needing to send a support message to find out - which is
@@ -11627,9 +11651,10 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>לחצי להעתקה</span>
  </button>
  </div>
+ </>)}
  </div>
               )}
-              {settingsTab==="branding"&&(()=>{
+              {inG("page")&&(()=>{
                 const brand=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
                 const setBrand=(k,v)=>setEditSettings(prev=>({...prev,branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}),[k]:v}}));
                 const lbl={fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5};
@@ -11863,7 +11888,7 @@ ${MARKETING_FOOTER}`)}`;
                 );
               })()}
 
-              {settingsTab==="automations"&&(()=>{
+              {inG("messages","clients","connections","advanced")&&(()=>{
                 // Default-ON reminder flags: undefined (column never set) counts
                 // as ON, matching today's cron behavior. Only an explicit false
                 // turns them off.
@@ -11901,8 +11926,11 @@ ${MARKETING_FOOTER}`)}`;
                 const isCleared=(k)=>Object.prototype.hasOwnProperty.call(leadTemplates,k)&&!String(leadTemplates[k]).trim();
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ {inG("messages")&&(<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:2}}>הפעלה וכיבוי של כל התהליכים האוטומטיים במקום אחד.</p>
+ </>)}
 
+ {inG("messages")&&(<>
  <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"2px 12px"}}>
  <AutoToggleRow pc={pc} label="השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
  {/* Manual quiet mode. Turning it OFF stamps quiet_ended_at - that stamp is
@@ -11915,7 +11943,9 @@ ${MARKETING_FOOTER}`)}`;
  }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו." />
  </div>
  {masterPaused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}><Icon name="pause" size={13}/> כל האוטומציות מושהות כרגע.</p>}
+ </>)}
 
+ {inG("messages")&&(<>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>התראות אליך</p>
  <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
@@ -11925,6 +11955,8 @@ ${MARKETING_FOOTER}`)}`;
           {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — גם אם תפעילי, ההתראה תגיע רק באפליקציה עד שהחיבור יתחדש.</p>}
  </div>
 
+ </>)}
+ {inG("messages")&&(<>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="נשלחת אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל; אחרת מוכנה בתור השליחה הידנית שלך." />
@@ -11933,17 +11965,10 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, בתור השליחה הידנית שלך." />
  </div>
 
- {/* The inbound bot answers messages that arrive on a GreenAPI instance
-     mapped to this tenant (settings.green_api_instance). Nothing in the
-     product writes that column any more - per-tenant instances were
-     retired - so only a tenant mapped by hand can ever receive an inbound
-     message. Showing bot toggles to everyone else configured a bot that
-     could never be triggered. The section renders only for a mapped tenant. */}
- {!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
- <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
- <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
-
+ </>)}
+ {inG("advanced")&&(<>
+ {/* "More screens" and the skin-scan switch. They used to sit INSIDE the block below, which renders only for a tenant a WhatsApp
+     instance is mapped to by hand - so no new tenant could ever reach them. They are plain settings; they live in Advanced. */}
  <div style={{marginTop:22}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>מסכים נוספים</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>מה שכבוי כאן יוצא מהתפריט; הנתונים נשארים, ואפשר להחזיר בכל רגע.</p>
@@ -11965,6 +11990,19 @@ ${MARKETING_FOOTER}`)}`;
                       }} />;
                     })()}
  </div>
+ </>)}
+ {inG("advanced")&&(<>
+ {/* The inbound bot answers messages that arrive on a GreenAPI instance
+     mapped to this tenant (settings.green_api_instance). Nothing in the
+     product writes that column any more - per-tenant instances were
+     retired - so only a tenant mapped by hand can ever receive an inbound
+     message. Showing bot toggles to everyone else configured a bot that
+     could never be triggered. The section renders only for a mapped tenant. */}
+ {!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>וואטסאפ</p>
+ <AutoToggleRow pc={pc} label="בוט הוואטסאפ החכם פעיל" on={botOn} onChange={()=>setFlag("bot_active",!botOn)} />
+
  {botOn&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>מתי הבוט יענה?</p>
@@ -11978,6 +12016,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  )}
 
+ </>)}
+ {inG("clients")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
  <p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink-2)",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
@@ -11993,6 +12033,8 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":"באישור — נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
  </div>
 
+ </>)}
+ {inG("connections")&&(<>
  {/* The GreenAPI connect form that stood here is gone, by decision: a
      cosmetician's personal WhatsApp number was RESTRICTED for being
      connected to the API. No tenant should carry that risk, so the product
@@ -12038,11 +12080,15 @@ ${MARKETING_FOOTER}`)}`;
  }} disabled={leadKeyBusy} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"8px 16px",fontSize:"var(--t-sm)",opacity:leadKeyBusy?0.6:1}}>{leadKeyBusy?<Spinner inline label="מפיקה"/>:leadKeyConfigured?"הפקת מפתח חדש":"הפקת מפתח"}</button>
  </div>
 
+ </>)}
+ {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה, רק כשהחיבור המרכזי פעיל ותקין — כל הודעה שלא יצאה ממתינה בתור השליחה הידנית שלך, ולא נעלמת. הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין — את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
+ </>)}
+ {inG("clients")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4,fontWeight:600}}>הודעות מוכנות לפי סטטוס פנייה</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>ההודעה תיפתח מוכנה לשליחה כשתשלחי הודעה לפי סטטוס במסך הפניות. אפשר לכתוב {"{name}"} לשם הפונה ו-{"{clinic}"} לשם העסק. הנוסח האפור הוא ברירת המחדל שתישלח אם לא תשני דבר; אם תמחקי הכל, אותו סטטוס ייפתח ריק.</p>
@@ -12057,15 +12103,18 @@ ${MARKETING_FOOTER}`)}`;
  ))}
  </div>
 
+ </>)}
+ {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
  <AutoToggleRow pc={pc} label="הכנת אישור תשלום ללקוחה מיד לאחר הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
+ </>)}
  </div>
                 );
               })()}
-              {settingsTab==="services"&&(
+              {inG("booking")&&(
  <div>
                   {(()=>{
                   // The whole tab reads from the draft, never from `services`.
@@ -12202,13 +12251,13 @@ ${MARKETING_FOOTER}`)}`;
                   )}
  </div>
               )}
-              {settingsTab==="import"&&(
+              {inG("clients")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                   {renderImportChooser()}
  </div>
               )}
-              {settingsTab==="faq"&&(
+              {inG("advanced")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
                   {(editSettings.faq||[]).length===0&&(
@@ -12230,7 +12279,7 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setEditSettings({...editSettings,faq:[...(editSettings.faq||[]),{q:"",a:""}]})} style={{background:pcTint,border:`1px dashed ${pc}`,borderRadius:"var(--r-sm)",padding:"8px 0",width:"100%",fontSize:"var(--t-xs)",color:pc,cursor:"pointer",fontFamily:"inherit",marginTop:6}}>+ הוספת שאלה</button>
  </div>
               )}
-              {settingsTab==="hours"&&(()=>{
+              {inG("booking","messages")&&(()=>{
                 // Per-day hours live in the business_hours JSONB. We edit a
                 // normalized { 0..6: {open,close}|null } map and, on every
                 // change, also refresh the legacy start/end + working_days on
@@ -12248,6 +12297,7 @@ ${MARKETING_FOOTER}`)}`;
                 const setClose=(d,val)=>{const cur=bh[d]||{open:9,close:18};const close=Number(val);let open=cur.open;if(close<=open)open=Math.max(close-1,0);commit({...bh,[d]:{open,close}});};
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+ {inG("booking")&&(<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:4}}>הגדירי לכל יום אם את עובדת ובאילו שעות — כל שעה בין 00:00 ל-24:00, בכל אחד משבעת הימים. יום כבוי מסומן כ״סגור״.</p>
  {DAYS_HE.map((label,d)=>{
    const dh=bh[d];const isOpen=!!dh;
@@ -12267,7 +12317,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
    );
  })}
- {(()=>{
+ </>)}
+ {inG("booking")&&(()=>{
    // A break clients cannot book into. Stored in branding.lunch_break and saved
    // with the rest of the settings (lib/lunchBreak); she can still book into it herself.
    const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
@@ -12297,7 +12348,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
    );
  })()}
- {(()=>{
+ {inG("messages")&&(()=>{
    // A message to HER the evening before: how many clients tomorrow, who is first,
    // who has not confirmed. Off unless she turns it on (branding.evening_summary).
    const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
@@ -12315,10 +12366,13 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                 );
               })()}
-              {settingsTab==="payment"&&(
+              {inG("business","connections")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון לביט / בקשות תשלום</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המספר הזה ישמש לבקשות תשלום ב-ביט שנשלחות ללקוחות </p>
+ </>)}
+ {inG("connections")&&(<>
  <div style={{marginTop:6,padding:"14px",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>קבלות וחשבוניות חוקיות (מורנינג)</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>קבלה וחשבונית מס חייבות לצאת מתוכנה רשומה ברשות המסים, ולכן אנחנו לא מפיקות אותן בעצמנו. חברי את חשבון מורנינג שלך והמסמכים יונפקו שם, בחשבון שלך ובמספר העסק שלך. עד שתחברי, התשלומים נרשמים כאישורי תשלום, שהם לא קבלה.</p>
@@ -12348,6 +12402,7 @@ ${MARKETING_FOOTER}`)}`;
                     )}
                     {legalMsg&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>{legalMsg}</p>}
  </div>
+ </>)}
  </div>
               )}
  </div>
