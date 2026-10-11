@@ -151,6 +151,8 @@ export async function GET(request: NextRequest) {
             page_access_token_encrypted: encryptedPageToken,
             long_lived_token_expires_at: expiresAt.toISOString(),
             connected_by_user_id: user.id,
+            // Connecting again is an explicit act: a Page she had paused (Settings > connections) is turned back on.
+            is_active: true,
           },
           {
             onConflict: 'tenant_id,page_id',

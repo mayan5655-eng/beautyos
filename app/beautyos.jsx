@@ -1265,6 +1265,9 @@ export default function BeautyOS() {
   const [fbDatePreset,   setFbDatePreset]   = useState("last_30d");
   // Connected Facebook page for THIS tenant (row from facebook_pages), or null if not connected
   const [fbPage,         setFbPage]         = useState(null);
+  // Every Page she connected (Settings > connections): name, whether leads from it are on, Instagram link.
+  const [fbPages,        setFbPages]        = useState(null);
+  const [fbPageBusy,     setFbPageBusy]     = useState("");
   // Failed Facebook webhook events (facebook_webhook_events, processed=false).
   // Drives the red badge on the leads screen's inspector button: a lead that
   // arrived and failed should announce itself, not wait to be gone looking for.
@@ -6718,10 +6721,11 @@ export default function BeautyOS() {
     try {
       const { data } = await supabase
         .from("facebook_pages")
-        .select("page_name")
-        .eq("is_active", true)
-        .limit(1);
-      setFbPage(data && data.length > 0 ? data[0] : null);
+        .select("page_id, page_name, is_active, instagram_business_id");
+      const all = Array.isArray(data) ? data : [];
+      setFbPages(all);
+      const firstOn = all.find((p) => p.is_active);
+      setFbPage(firstOn ? { page_name: firstOn.page_name } : null);
     } catch { /* non-fatal — leave as not-connected */ }
     // Failed webhook events in the last 7 days. head:true fetches no rows, only
     // the count; RLS scopes it to the tenant. If the table is missing (migration
@@ -6737,11 +6741,29 @@ export default function BeautyOS() {
     } catch { /* non-fatal — badge stays off */ }
   };
 
+  // Turn lead delivery from one Page on or off (/api/facebook/pages). Nothing is deleted; the Page row stays.
+  const toggleFbPage = async (pageId, active) => {
+    if (fbPageBusy) return;
+    setFbPageBusy(pageId);
+    try {
+      const res = await fetch("/api/facebook/pages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pageId, active }) });
+      const d = await res.json().catch(() => null);
+      if (!res.ok || !d || !d.success) { toast((d && d.error) || "לא הצלחנו לעדכן את הדף", "error"); return; }
+      await loadFbConnection();
+      toast(active ? "קבלת לידים מהדף הופעלה" : "קבלת לידים מהדף הופסקה");
+    } catch { toast("לא הצלחנו לעדכן את הדף. בדקי את החיבור.", "error"); }
+    finally { setFbPageBusy(""); }
+  };
   // The Facebook connection (page + failed-event count) is only shown on the content and leads tabs.
   useEffect(() => {
     if (activeTab === "campaigns" || activeTab === "leads") loadFbConnection();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+  // ...and in Settings > connections, which lists every Page.
+  useEffect(() => {
+    if (showSettings && settingsGroup === "connections") loadFbConnection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSettings, settingsGroup]);
 
   // Fetch live Facebook ad campaigns for the current tenant
   const fbLoadSeq = useRef(0);
@@ -11531,6 +11553,29 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
               {inG("business","clients","connections","advanced")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ {inG("connections")&&(<>
+ <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>פייסבוק ואינסטגרם</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>לידים ממודעות הלידים שלך מגיעים אוטומטית לרשימת הפניות. כאן רואים אילו דפים מחוברים, ואפשר להפסיק קבלת לידים מדף מסוים בלי למחוק כלום.</p>
+ {fbPages===null?<Spinner inline label="בודקת חיבור"/>:fbPages.length===0?(
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:0}}>עוד לא חיברת דף פייסבוק.</p>
+ ):fbPages.map(p=>(
+ <div key={p.page_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface)"}}>
+ <div style={{flex:1,minWidth:0}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.page_name}</p>
+ <p style={{fontSize:"var(--t-xs)",color:p.is_active?"var(--success)":"var(--ink-3)",margin:0}}>{p.is_active?"✓ לידים מהדף מגיעים אלייך":"קבלת לידים מהדף מופסקת"}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:0}}>{p.instagram_business_id?"חשבון אינסטגרם עסקי מקושר לדף":"אין חשבון אינסטגרם עסקי מקושר לדף"}</p>
+ </div>
+ <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת לידים":"הפעלה מחדש"}</button>
+ </div>
+ ))}
+ <button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"9px 14px",background:"#1877F2",color:"#fff",fontSize:"var(--t-sm)",alignSelf:"flex-start"}}>{fbPages&&fbPages.length>0?"חיבור מחדש / הוספת דף":"התחברי לפייסבוק"}</button>
+ </div>
+ <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)"}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 4px"}}>וואטסאפ</p>
+ <p style={{fontSize:"var(--t-sm)",lineHeight:1.6,margin:0,color:waCentralConnected===true?"var(--success)":waCentralConnected===false?"var(--warning)":"var(--ink-3)"}}>{waCentralConnected===true?"✓ המספר המרכזי מחובר: תזכורות ואישורים יוצאים אוטומטית.":waCentralConnected===false?"המספר המרכזי לא מחובר כרגע. ההודעות מחכות ב\"הודעות מוכנות לשליחה\" ושולחים אותן בלחיצה אחת.":"בודקת את מצב החיבור..."}</p>
+ </div>
+ </>)}
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  </>)}
