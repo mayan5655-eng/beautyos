@@ -225,6 +225,16 @@ const withCreds = (s: any) => { s.legal_receipt_accounts.forEach((a: any) => { a
   assert.equal(db.tables.receipts[0].legal_status, 'none', 'the record is untouched');
 }
 
+// ---- no registration chosen: nothing is filed with the provider, and nothing is guessed ----
+{
+  const sd: any = seed(); sd.settings[0].business_tax_status = null;
+  const db: any = makeDb(withCreds(sd)); const ad = fakeAdapter(() => OK());
+  const r: any = await svc.issueForReceipt({ db, tenantId: TENANT, receiptId: 'r1', adapter: ad as any });
+  assert.deepEqual([r.status, r.skipped], ['none', 'tax_status_missing']);
+  assert.equal(ad.calls.length, 0, 'no document is created for a tenant who never said what she is');
+  assert.equal(db.tables.receipts[0].legal_status, 'none', 'the record is untouched');
+}
+
 // ---- a normal issue ----
 {
   const db: any = makeDb(withCreds(seed())); const ad = fakeAdapter(() => OK('1042'));

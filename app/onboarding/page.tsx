@@ -29,6 +29,8 @@ type OnboardingData = {
   business_name: string;
   therapist_name: string;
   business_phone: string;
+  /** 'exempt' | 'licensed' | 'company' | '' - chosen by her, never defaulted (it decides which legal document is issued). */
+  business_tax_status: string;
   primary_color: string;
   working_hours_start: number;
   working_hours_end: number;
@@ -111,6 +113,7 @@ export default function OnboardingPage() {
     business_name: "",
     therapist_name: "",
     business_phone: "",
+    business_tax_status: "",
     primary_color: "#E9A9A1", // Kalmea's DEFAULT_ACCENT (lib/theme.ts) - a product default, not her choice yet
     working_hours_start: 8,
     working_hours_end: 19,
@@ -260,6 +263,8 @@ export default function OnboardingPage() {
         business_name: data.business_name.trim(),
         therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
+        // Only what she chose. Left unset otherwise: Settings and the income summary ask for it explicitly.
+        ...(data.business_tax_status ? { business_tax_status: data.business_tax_status } : {}),
         primary_color: data.primary_color,
         // Written as-is, even empty: if she skipped the field picker,
         // businessFieldsOf() (lib/businessFields.ts) is what every reader
@@ -437,8 +442,8 @@ export default function OnboardingPage() {
           {step === 2 && (
             <>
               <h1 style={titleStyle}><Icon name="phone" size={22}/> פרטי קשר ועיצוב</h1>
-              <p style={subtitleStyle}>הטלפון לתשלומים יוצמד אוטומטית להודעות הבקשה לתשלום בוואטסאפ. אפשר להשאיר ריק.</p>
-              <Field label="טלפון לתשלומים (ביט / פייבוקס)">
+              <p style={subtitleStyle}>הטלפון שלך יופיע ללקוחות בדף הקביעה ובהודעות, ויצורף לבקשות תשלום בביט. אפשר להשאיר ריק.</p>
+              <Field label="טלפון העסק (וואטסאפ, ביט)">
                 <input
                   className="ob-input"
                   value={data.business_phone}
@@ -446,6 +451,24 @@ export default function OnboardingPage() {
                   placeholder="0501234567"
                   style={{ ...inputStyle, direction: "ltr" }}
                 />
+              </Field>
+              {/* Her registration decides which legal document can be issued and how the income summary is
+                  worked out. No button is pre-selected: it is her answer or it is blank (and the app says so). */}
+              <Field label="סוג העסק (עוסק פטור, מורשה או חברה)">
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[{ k: "exempt", l: "עוסק פטור" }, { k: "licensed", l: "עוסק מורשה" }, { k: "company", l: "חברה בע\"מ" }].map((o) => {
+                    const on = (data.business_tax_status || "") === o.k;
+                    return (
+                      <button key={o.k} type="button" aria-pressed={on} onClick={() => setData({ ...data, business_tax_status: o.k })}
+                        style={{ flex: 1, padding: "11px 6px", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: on ? `1.5px solid ${pc}` : "1px solid var(--line)", background: on ? "var(--pc-tint)" : "var(--surface)", color: "var(--ink)" }}>
+                        {o.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: "var(--t-xs)", color: "var(--ink-3)", lineHeight: 1.5, marginTop: 6 }}>
+                  זה קובע איזה מסמך חוקי אפשר להפיק ללקוחות, ואיך מחושב סיכום ההכנסות. אם את לא בטוחה, אפשר לדלג ולבחור אחר כך בהגדרות: עד שתבחרי, לא יופקו מסמכים חוקיים.
+                </p>
               </Field>
               {/* The one thing every new tenant must be told before her first
                   payment, not after: "אישור תשלום" (what she issues by default)
