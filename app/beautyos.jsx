@@ -3404,7 +3404,13 @@ export default function BeautyOS() {
       const row = Array.isArray(hit) ? hit[0] : hit;
       if (row && String(row.id) !== String(tid)) { setSlugNote("הכתובת הזו כבר תפוסה"); return; }
 
-      const { data, error } = await supabase.from("tenants").update({ slug: want }).eq("id", tid).select();
+      // Through claim_tenant_slug (supabase/migrations/add_slug_claim_rpc.sql): the browser holds no UPDATE on
+      // tenants.slug, so the direct update below was refused. While that function has not been run, fall back to
+      // the direct write, which is what this did before.
+      let { data, error } = await supabase.rpc("claim_tenant_slug", { p_slug: want });
+      if (error && (error.code === "PGRST202" || error.code === "42883" || /claim_tenant_slug/.test(String(error.message||"")) && /find|exist|function/i.test(String(error.message||"")))) {
+        ({ data, error } = await supabase.from("tenants").update({ slug: want }).eq("id", tid).select());
+      }
       if (error) {
         // 23505: someone claimed it between the check above and this write.
         // 23514: the shape or reserved-word constraint refused it - the
@@ -3414,7 +3420,8 @@ export default function BeautyOS() {
         handleDbError(error, "save slug"); return;
       }
       if (!data || !data[0]) { toast("אין הרשאה לעדכן את כתובת העמוד","error"); return; }
-      setPlanRow(data[0]);
+      // the function returns { id, slug }; the direct update returned the whole row. Merge, never replace.
+      setPlanRow(prev=>({...(prev||{}),...data[0]}));
       setSlugDraft(null);
       toast("הכתובת נשמרה ✦");
     } finally { setSlugBusy(false); }
