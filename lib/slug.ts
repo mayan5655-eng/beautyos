@@ -28,7 +28,7 @@ export const SLUG_MAX = 40;
 /** Mirrors tenants_slug_not_reserved. Routes first, then names worth holding. */
 export const RESERVED_SLUGS = new Set([
   'api', 'auth', 'book', 'claim', 'community', 'confirm', 'dashboard',
-  'accessibility', 'demo', 'form', 'login', 'logo', 'og', 'onboarding', 'privacy', 'reset-password', 'review', 'reviews', 'signup',
+  'accessibility', 'data-deletion', 'demo', 'form', 'login', 'logo', 'og', 'onboarding', 'privacy', 'reset-password', 'review', 'reviews', 'signup',
   'skin-scan', 'terms',
   'admin', 'app', 'assets', 'blog', 'help', 'icons', 'images', 'new',
   'pricing', 'public', 'settings', 'splash', 'static', 'support',

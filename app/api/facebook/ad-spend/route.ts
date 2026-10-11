@@ -25,7 +25,13 @@ export async function GET(request: Request) {
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
   const out = { tenants: 0, written: 0, skippedNoPermission: 0, skippedNoAccount: 0, failed: 0, skipped: '' as string };
   try {
-    const { data: pages, error } = await db.from('facebook_pages').select('tenant_id, page_access_token_encrypted').eq('is_active', true);
+    // The ad account is read with the user token when the connection has one (add_facebook_user_token.sql).
+    let pages: any[] | null = null;
+    let error: { message?: string } | null = null;
+    ({ data: pages, error } = await db.from('facebook_pages').select('tenant_id, page_access_token_encrypted, user_access_token_encrypted').eq('is_active', true));
+    if (error && /user_access_token_encrypted|schema cache|column/i.test(error.message || '')) {
+      ({ data: pages, error } = await db.from('facebook_pages').select('tenant_id, page_access_token_encrypted').eq('is_active', true));
+    }
     if (error) return Response.json({ success: false, error: 'pages-read-failed' }, { status: 500 });
 
     const probe = await db.from('ad_spend').select('id').limit(1);
@@ -35,12 +41,12 @@ export async function GET(request: Request) {
 
     const seen = new Set<string>();
     const { since, until } = pullWindow();
-    for (const p of (pages || []) as { tenant_id: string; page_access_token_encrypted: string }[]) {
+    for (const p of (pages || []) as unknown as { tenant_id: string; page_access_token_encrypted: string; user_access_token_encrypted?: string | null }[]) {
       if (!p.tenant_id || seen.has(p.tenant_id)) continue; // one pull per tenant, however many pages
       seen.add(p.tenant_id);
       out.tenants++;
       try {
-        const token = decryptToken(p.page_access_token_encrypted);
+        const token = decryptToken(p.user_access_token_encrypted || p.page_access_token_encrypted);
         const accounts = await getAdAccounts(token);
         if (!accounts.length) { out.skippedNoAccount++; continue; }
         const daily = await getDailyAccountSpend(token, accounts[0].account_id, since, until);

@@ -29,12 +29,17 @@ function admin() {
 // testers of the app - which is how the flow is tested end-to-end before
 // review. (They were temporarily reduced to public_profile alone; that made
 // the OAuth dance completable but the resulting tokens useless for leads.)
+//   ads_read               - the campaign dashboard and the daily ad-spend pull read her ad account. It needs a USER
+//                            token (the Page token cannot list ad accounts), which the callback now stores. Until Meta
+//                            approves it, a person without a role on the app simply is not granted it and the dashboard
+//                            says so. Set FACEBOOK_REQUEST_ADS_READ=false to stop asking for it.
 const FACEBOOK_SCOPES = [
   'public_profile',
   'pages_show_list',
   'pages_manage_metadata',
   'pages_read_engagement',
   'leads_retrieval',
+  ...(process.env.FACEBOOK_REQUEST_ADS_READ === 'false' ? [] : ['ads_read']),
 ].join(',');
 
 export async function GET(request: NextRequest) {

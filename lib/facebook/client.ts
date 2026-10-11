@@ -135,6 +135,24 @@ export class FacebookClient {
     return (data.data || []) as FacebookPage[];
   }
 
+  /** The app-scoped id of the Facebook user this token belongs to (what Meta's deauthorize/deletion callbacks name). */
+  async getMyId(): Promise<string | null> {
+    const params = new URLSearchParams({ access_token: this.accessToken, fields: 'id' });
+    const response = await fetch(`${FB_BASE_URL}/me?${params.toString()}`, { method: 'GET' });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { id?: string };
+    return typeof data.id === 'string' ? data.id : null;
+  }
+
+  /** Permissions this token was actually granted (status === 'granted'), e.g. to know whether ads_read came through. */
+  async getGrantedPermissions(): Promise<string[]> {
+    const params = new URLSearchParams({ access_token: this.accessToken });
+    const response = await fetch(`${FB_BASE_URL}/me/permissions?${params.toString()}`, { method: 'GET' });
+    if (!response.ok) return [];
+    const data = (await response.json()) as { data?: { permission: string; status: string }[] };
+    return (data.data || []).filter((p) => p.status === 'granted').map((p) => p.permission);
+  }
+
   async subscribePageToWebhook(
     pageId: string,
     pageAccessToken: string
