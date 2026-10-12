@@ -185,7 +185,7 @@ export default function FormPage() {
 
   const handleSubmit = async () => {
     setSubmitError("");
-    if (!signed) { setSubmitError("נא לחתום לפני השליחה"); return; }
+    if (!signed) { setSubmitError("חסרה חתימה, אפשר לחתום ואז לשלוח"); return; }
     const unanswered = formTemplate.questions.filter((_,i) => !answers[i]);
     if (unanswered.length > 0) {
       setSubmitError(unanswered.length === 1
@@ -267,7 +267,7 @@ export default function FormPage() {
       <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
       <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>לא הצלחנו להציג את הטופס</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",maxWidth:320,lineHeight:1.7}}>
-        סוג הטופס אינו מוכר למערכת. אנא פני לעסק ששלח לך את הקישור.
+        סוג הטופס אינו מוכר למערכת. כדאי לפנות לעסק ששלח לך את הקישור.
       </p>
     </div>
   );
@@ -321,7 +321,7 @@ export default function FormPage() {
         </div>
 
         <div style={{background:"var(--brand-cream, #FDFBF9)",border:"1px solid var(--warning, #F2B84B)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-md)",color:"var(--ink, #2A2233)"}}>
-          ⚠️ נא לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
+          ⚠️ כדאי לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>

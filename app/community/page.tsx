@@ -45,9 +45,9 @@ export default function CommunityPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) { setPosts(d.posts); setBusiness(d.business); }
-        else setError("לא ניתן לטעון את הקהילה");
+        else setError("לא הצלחנו לטעון את הקהילה, אפשר לנסות שוב");
       })
-      .catch(() => setError("לא ניתן לטעון את הקהילה"))
+      .catch(() => setError("לא הצלחנו לטעון את הקהילה, אפשר לנסות שוב"))
       .finally(() => setLoading(false));
   }, []);
 

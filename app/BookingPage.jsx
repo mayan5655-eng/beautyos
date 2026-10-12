@@ -529,7 +529,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
   const handleConfirm = async () => {
     setErrorMsg("");
-    if (!name.trim()) { setErrorMsg("נא להזין שם"); return; }
+    if (!name.trim()) { setErrorMsg("איך קוראים לך? חסר שם"); return; }
     // A number we cannot reach is not a booking. This used to be a non-empty
     // check on both sides, so "abc" saved an appointment, sent no confirmation,
     // and told neither of them anything was wrong. Same rule server-side.
@@ -594,7 +594,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: "auto", marginBottom: 16 }} />
         <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #7D8D87)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
         <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)", maxWidth: 320, lineHeight: 1.7 }}>
-          נראה שהקישור לקביעת התור חסר או שגוי. אנא פני לעסק לקבלת קישור עדכני.
+          נראה שהקישור לקביעת התור חסר או שגוי. כדאי לפנות לעסק ולבקש קישור חדש.
         </p>
       </div>
     );

@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const message = typeof body?.message === 'string' ? body.message.trim() : '';
     if (!message) {
-      return NextResponse.json({ success: false, error: 'נא לכתוב מה קרה' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'ספרי לנו בקצרה מה קרה' }, { status: 400 });
     }
 
     const admin = createServiceClient(

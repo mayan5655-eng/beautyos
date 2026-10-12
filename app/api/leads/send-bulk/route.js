@@ -69,7 +69,7 @@ export async function POST(request) {
       return Response.json({ success: false, error: "סטטוס לא תקין" }, { status: 400 });
     }
     if (!message) {
-      return Response.json({ success: false, error: "נא לכתוב הודעה" }, { status: 400 });
+      return Response.json({ success: false, error: "עוד לא כתבת הודעה" }, { status: 400 });
     }
     if (leadIds && leadIds.length === 0) {
       return Response.json({ success: false, error: "לא נבחרו פניות" }, { status: 400 });

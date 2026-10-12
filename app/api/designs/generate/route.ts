@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
   if (isResponse(ctx)) return ctx;
   const { tenantId } = ctx;
   if (generating.has(tenantId)) {
-    return NextResponse.json({ success: false, error: 'ההכנה הקודמת עדיין רצה. חכי רגע ואז נסי שוב.' }, { status: 409 });
+    return NextResponse.json({ success: false, error: 'ההכנה הקודמת עדיין רצה. חכי רגע ואז אפשר לנסות שוב.' }, { status: 409 });
   }
   generating.add(tenantId);
   try {
@@ -207,7 +207,7 @@ async function generateOnce(request: NextRequest, ctx: { tenantId: string; setti
     if (error) { console.error('[designs/generate] insert failed:', error.message); continue; }
     designs.push({ ...(data as unknown as Record<string, unknown>), angle: o.angle, pictureFailed: !!o.imageSubject && !pic });
   }
-  if (!designs.length) return NextResponse.json({ success: false, error: 'הפוסטים נבנו אבל השמירה נכשלה. נסי שוב.' }, { status: 500 });
+  if (!designs.length) return NextResponse.json({ success: false, error: 'הפוסטים נבנו אבל השמירה נכשלה. אפשר לנסות שוב.' }, { status: 500 });
 
   // Within 20% of this month's generations: tell her warmly, before she is stopped.
   const usedNow = allowance.used + 1;

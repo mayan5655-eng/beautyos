@@ -594,10 +594,10 @@ function PushSubscribeButton({ pc, pcGrad }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON() }),
       });
-      if (!res.ok) { setErr("השמירה בשרת נכשלה."); setState("off"); return; }
+      if (!res.ok) { setErr("לא הצלחנו לשמור, אפשר לנסות שוב."); setState("off"); return; }
       setState("on");
     } catch (e) {
-      setErr(e?.message || "ההפעלה נכשלה.");
+      setErr(e?.message || "לא הצלחנו להפעיל, אפשר לנסות שוב.");
       setState("off");
     }
   };
@@ -1690,7 +1690,7 @@ export default function BeautyOS() {
     // laptop, or a client self-booking at the same moment) - so the raw
     // constraint name would be the first she ever heard of it.
     if (code === "23505" || code === "23P01") {
-      toast("השעה הזו כבר תפוסה. נא לבחור שעה אחרת.", "error");
+      toast("השעה הזו כבר תפוסה, אפשר לבחור שעה אחרת?", "error");
       return;
     }
     console.error("[BeautyOS] db error:", code, message);
@@ -2224,7 +2224,7 @@ export default function BeautyOS() {
     fetch("/api/automations/skin-followup")
       .then(r=>r.ok?r.json():Promise.reject(new Error("HTTP "+r.status)))
       .then(d=>{ if(!cancelled) setSkinQueue(Array.isArray(d?.queue)?d.queue:[]); })
-      .catch(()=>{ if(!cancelled){ setSkinQueue([]); setSkinQueueError("לא ניתן לטעון כרגע הצעות מעקב עור"); } })
+      .catch(()=>{ if(!cancelled){ setSkinQueue([]); setSkinQueueError("לא הצלחנו לטעון הצעות מעקב עור כרגע"); } })
       .finally(()=>{ if(!cancelled) setSkinQueueLoading(false); });
     return ()=>{cancelled=true;};
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2256,7 +2256,7 @@ export default function BeautyOS() {
     if(queueApproved.has(it.key)) return; // double-click / repeated-approval guard
     const c = clients.find(x=>String(x.id)===String(it.clientId));
     if(!c){ toast("הלקוחה כבר לא קיימת — הפעולה בוטלה","error"); return; }
-    if(!(c.phone&&String(c.phone).trim())){ toast("אין מספר טלפון ללקוחה — לא ניתן לשלוח","error"); return; }
+    if(!(c.phone&&String(c.phone).trim())){ toast("אין ללקוחה מספר טלפון, אז אי אפשר לשלוח לה","error"); return; }
     const text = String(it.message||"").trim();
     if(!text){ toast("אין הודעה מוכנה לכרטיס הזה","error"); return; }
     const link = waMsg(c.phone, text);
@@ -2315,11 +2315,11 @@ export default function BeautyOS() {
           not_authenticated: "יש להתחבר קודם למערכת",
           no_tenant: "לא זוהה עסק לחשבון הזה",
           no_pages: "לא נמצאו דפי פייסבוק בחשבון",
-          save_failed: "שמירת הדף נכשלה",
+          save_failed: "לא הצלחנו לשמור את הדף, אפשר לנסות שוב",
           subscribe_failed: "הדף נשמר אך הרישום להתראות לידים נכשל — נסי להתחבר שוב ולאשר את כל ההרשאות",
           missing_parameters: "פייסבוק החזיר תשובה חסרה, נסי שוב",
         };
-        const base = labels[code] || "החיבור נכשל";
+        const base = labels[code] || "החיבור לא הושלם, אפשר לנסות שוב";
         toast(reason ? `${base}: ${reason}` : `${base} (${code})`, "error");
       }
       if (params.has("fb_success") || params.has("fb_error") || params.has("pages") || params.has("fb_reason")) {
@@ -3288,9 +3288,9 @@ export default function BeautyOS() {
     if (guardWrite()) return;
     const d = personalDraft;
     if (!d) return;
-    if (!String(d.title||"").trim()) { toast("נא להזין כותרת לאירוע","error"); return; }
+    if (!String(d.title||"").trim()) { toast("איך נקרא האירוע? אפשר להוסיף כותרת","error"); return; }
     const dates = datesInRange(d.from, d.to);
-    if (dates.length === 0) { toast("נא לבחור תאריך","error"); return; }
+    if (dates.length === 0) { toast("חסר תאריך, אפשר לבחור אחד","error"); return; }
     // A range is always all-day. A two-day course is not 09:00-10:00 on each of
     // two days; it is two days. Offering a time range across days would invite
     // a shape the one-row-per-day model cannot represent.
@@ -3397,7 +3397,7 @@ export default function BeautyOS() {
     const tid = settings?.tenant_id;
     if (!tid) { toast(STUCK_HE,"error"); return; }
     const bad = slugError(want);
-    if (!want) { toast("נא להזין כתובת","error"); return; }
+    if (!want) { toast("כתבי כאן את הכתובת שתרצי","error"); return; }
     if (bad) { setSlugNote(bad); return; }
     if (want === mySlug) { setSlugDraft(null); setSlugNote(""); return; }
 
@@ -3423,7 +3423,7 @@ export default function BeautyOS() {
         // 23505: someone claimed it between the check above and this write.
         // 23514: the shape or reserved-word constraint refused it - the
         // database is the authority and lib/slug only fails fast.
-        if (error.code === "23505") { setSlugNote("הכתובת נתפסה ברגע האחרון. נא לבחור אחרת."); return; }
+        if (error.code === "23505") { setSlugNote("מישהי הספיקה לתפוס את הכתובת הזו, אפשר לנסות אחרת."); return; }
         if (error.code === "23514") { setSlugNote("הכתובת הזו לא זמינה"); return; }
         handleDbError(error, "save slug"); return;
       }
@@ -3456,7 +3456,7 @@ export default function BeautyOS() {
 
   const handleSave = async () => {
     if (guardWrite()) return;
-    if(!newAppt.name.trim()){toast("נא להזין שם לקוחה","error");return;}
+    if(!newAppt.name.trim()){toast("איך קוראים ללקוחה? חסר שם","error");return;}
     // STAGE C: refuse to double-book. The new appointment occupies
     // [start, start+duration) minutes; reject if it overlaps any non-cancelled
     // appointment already on that date. (Runs before the busy flag is set.)
@@ -3674,7 +3674,7 @@ export default function BeautyOS() {
             body: JSON.stringify(reqBody),
           });
           const data = await res.json().catch(() => ({}));
-          if (!data.success) { toast(data.error || "ההכנה נכשלה", "error"); return; }
+          if (!data.success) { toast(data.error || "לא הצלחנו להכין, אפשר לנסות שוב", "error"); return; }
           if (data.slotTaken) {
             // The slot was booked between the card rendering and her yes. Not
             // a yes and not a no - she never really answered; 'stale'.
@@ -3986,7 +3986,7 @@ export default function BeautyOS() {
 
   const handleSaveClient = async () => {
     if (guardWrite()) return;
-    if(!newClient.name.trim()){toast("נא להזין שם","error");return;}
+    if(!newClient.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
     if(isBusy("saveClient")) return;
     setBusyKey("saveClient", true);
     try {
@@ -4371,7 +4371,7 @@ export default function BeautyOS() {
   // session/tenant resolution or handleSaveSettings.
   const handleChangePassword = async () => {
     if (isBusy("changePw")) return;
-    if (!pwCurrent || !pwNew || !pwConfirm) { toast("נא למלא את כל השדות", "error"); return; }
+    if (!pwCurrent || !pwNew || !pwConfirm) { toast("חסר משהו, אפשר למלא את כל השדות", "error"); return; }
     if (pwNew.length < 8) { toast("הסיסמה החדשה חייבת להכיל לפחות 8 תווים", "error"); return; }
     if (pwNew !== pwConfirm) { toast("הסיסמאות אינן תואמות", "error"); return; }
     setBusyKey("changePw", true);
@@ -4396,7 +4396,7 @@ export default function BeautyOS() {
 
   const handleSaveLead = async () => {
     if (guardWrite()) return;
-    if(!newLead.name.trim()){toast("נא להזין שם","error");return;}
+    if(!newLead.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
     if(isBusy("saveLead")) return;
     setBusyKey("saveLead", true);
     try {
@@ -4542,14 +4542,14 @@ export default function BeautyOS() {
       });
       const data=await res.json();
       if(!res.ok||!data.success){
-        setBulkError(data.error||"שליחה נכשלה"); setBulkStep("confirm"); return;
+        setBulkError(data.error||"ההודעה לא נשלחה, אפשר לנסות שוב"); setBulkStep("confirm"); return;
       }
       setBulkResult({queued:data.queued??0,failed:data.failed??0,skipped_no_phone:data.skipped_no_phone??0,skipped_no_consent:data.skipped_no_consent??0,results:data.results||[]});
       // The contact trail is stamped when she TAPS a chat link (markLeadContacted), not here:
       // nothing has been sent yet, only prepared.
       setBulkStep("result");
     }catch(err){
-      setBulkError(err instanceof Error?err.message:"שליחה נכשלה"); setBulkStep("confirm");
+      setBulkError(err instanceof Error?err.message:"ההודעה לא נשלחה, אפשר לנסות שוב"); setBulkStep("confirm");
     }
   };
 
@@ -5087,7 +5087,7 @@ export default function BeautyOS() {
   // Add a typed row to the draft. Nothing is written here.
   const handleAddService = () => {
     if (guardWrite()) return;
-    if (!newService.name.trim()) { toast("נא להזין שם שירות", "error"); return; }
+    if (!newService.name.trim()) { toast("איך נקרא השירות? חסר שם", "error"); return; }
     if (!(Number(newService.price) >= 0)) { toast("המחיר לא יכול להיות שלילי", "error"); return; }
     if (!(Number(newService.duration) >= 5 && Number(newService.duration) <= 600)) { toast("משך הטיפול צריך להיות בין 5 ל-600 דקות", "error"); return; }
     const name = newService.name.trim();
@@ -5240,7 +5240,7 @@ export default function BeautyOS() {
   // is not touched. The reason is required by the schema as well as the form.
   const handleVoidReceipt = async (receipt) => {
     if (guardWrite()) return;
-    if (!receipt || !voidReason.trim()) { toast("נא לכתוב סיבה לביטול", "error"); return; }
+    if (!receipt || !voidReason.trim()) { toast("כתבי בקצרה למה מבטלים, זה נשמר ברישום", "error"); return; }
     if (isBusy("voidReceipt")) return;
     setBusyKey("voidReceipt", true);
     try {
@@ -5333,7 +5333,7 @@ export default function BeautyOS() {
 
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
-    if(!cashierItems.length){toast("נא להוסיף פריט אחד לפחות","error");return;}
+    if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
     if(isBusy("saveReceipt")) return;
     setBusyKey("saveReceipt", true);
     try {
@@ -5644,8 +5644,8 @@ export default function BeautyOS() {
   const handleAddExpense = async () => {
     if (guardWrite()) return;
     const amt = Number(newExpense.amount);
-    if(!amt || amt<=0){ toast("נא להזין סכום תקין","error"); return; }
-    if(!newExpense.expense_date){ toast("נא לבחור תאריך","error"); return; }
+    if(!amt || amt<=0){ toast("חסר סכום, אפשר להקליד אותו","error"); return; }
+    if(!newExpense.expense_date){ toast("חסר תאריך, אפשר לבחור אחד","error"); return; }
     if(isBusy("addExpense")) return;
     setBusyKey("addExpense", true);
     try {
@@ -5762,7 +5762,7 @@ export default function BeautyOS() {
     if (!b) return;
     if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
     const amt = Number(b.amount);
-    if (!amt || amt <= 0) { toast("נא להזין סכום תקין", "error"); return; }
+    if (!amt || amt <= 0) { toast("חסר סכום, אפשר להקליד אותו", "error"); return; }
     if (isBusy("voiceReceipt")) return;
     setBusyKey("voiceReceipt", true);
     try {
@@ -6091,8 +6091,8 @@ export default function BeautyOS() {
     const b = voiceBooking;
     if (!b) return;
     if (!b.clientName.trim()) { toast("חסר שם לקוחה", "error"); return; }
-    if (!b.service) { toast("נא לבחור שירות", "error"); return; }
-    if (!b.date || !b.time) { toast("נא לבחור תאריך ושעה", "error"); return; }
+    if (!b.service) { toast("איזה שירות? אפשר לבחור", "error"); return; }
+    if (!b.date || !b.time) { toast("חסרים תאריך ושעה, אפשר לבחור", "error"); return; }
     const svc = activeServices.find(s => s.name === b.service);
     // Real minutes. This used to take Number(time.split(":")[0]) and store that
     // as a whole hour, so "קבעי לרונית ב-שתיים וחצי" silently booked 14:00 -
@@ -6184,7 +6184,7 @@ export default function BeautyOS() {
     // If listening ended with no result, surface a gentle retry state.
     rec.onend = () => { setVoiceStatus(s => s === "listening" ? "error" : s); };
     recognitionRef.current = rec;
-    try { rec.start(); } catch { setVoiceStatus("error"); setVoiceErr("לא ניתן להפעיל את המיקרופון"); }
+    try { rec.start(); } catch { setVoiceStatus("error"); setVoiceErr("המיקרופון לא נפתח, אפשר לבדוק שהדפדפן קיבל אישור"); }
   };
 
   // There is no card-payment integration. A "pay by card through Grow" button
@@ -6322,7 +6322,7 @@ export default function BeautyOS() {
 
   const handleSaveOffering = async () => {
     if (guardWrite()) return;
-    if (!newOffering.service) { toast("נא לבחור טיפול","error"); return; }
+    if (!newOffering.service) { toast("איזה טיפול? אפשר לבחור","error"); return; }
     if (!(Number(newOffering.sessions) > 0)) { toast("מספר טיפולים חייב להיות גדול מאפס","error"); return; }
     if (isBusy("saveOffering")) return;
     setBusyKey("saveOffering", true);
@@ -6360,7 +6360,7 @@ export default function BeautyOS() {
 
   const handleSavePackage = async () => {
     if (guardWrite()) return;
-    if(!newPackage.client_id||!newPackage.service){toast("נא לבחור לקוחה ושירות","error");return;}
+    if(!newPackage.client_id||!newPackage.service){toast("חסרים לקוחה ושירות, אפשר לבחור","error");return;}
     if(isBusy("savePackage")) return;
     setBusyKey("savePackage", true);
     try {
@@ -6411,7 +6411,7 @@ export default function BeautyOS() {
           // Loud, and actionable. The package IS saved; what is missing is the
           // money, and she is the only one who can put it in.
           console.error("[packages] receipt insert failed", recErr);
-          toast("החבילה נשמרה, אך התשלום לא נרשם. נא לרשום תשלום של ₪" + price + " בקופה.", "error");
+          toast("החבילה נשמרה, אך התשלום לא נרשם. כדי שלא יישכח, רשמי תשלום של ₪" + price + " בקופה.", "error");
           setShowPackageModal(false);
           return;
         }
@@ -6489,7 +6489,7 @@ export default function BeautyOS() {
 
   const handleSaveWaitlist = async () => {
     if (guardWrite()) return;
-    if(!newWaitlist.client_name||!newWaitlist.service){toast("נא למלא פרטים","error");return;}
+    if(!newWaitlist.client_name||!newWaitlist.service){toast("חסרים כמה פרטים, אפשר להשלים","error");return;}
     if(isBusy("saveWaitlist")) return;
     setBusyKey("saveWaitlist", true);
     try {
@@ -6509,7 +6509,7 @@ export default function BeautyOS() {
 
   const handleSaveProtocol = async () => {
     if (guardWrite()) return;
-    if(!newProtocol.brand||!newProtocol.name){toast("נא למלא מותג ושם","error");return;}
+    if(!newProtocol.brand||!newProtocol.name){toast("חסרים מותג ושם, אפשר להשלים","error");return;}
     if(isBusy("saveProtocol")) return;
     setBusyKey("saveProtocol", true);
     try {
@@ -6677,7 +6677,7 @@ export default function BeautyOS() {
         body: JSON.stringify({ image: base64, mediaType, tenantId: settings.tenant_id }),
       });
       const data = await res.json();
-      if (!data.success) { toast(data.error || "הניתוח נכשל", "error"); setScanLoading(false); return; }
+      if (!data.success) { toast(data.error || "לא הצלחנו לנתח את התמונה, אפשר לנסות שוב", "error"); setScanLoading(false); return; }
       setScanReport(data.report);
 
       // Upload the scan image to storage (best-effort)
@@ -6789,7 +6789,7 @@ export default function BeautyOS() {
         setFbTotals(data.totals || null);
       } else {
         setFbCampaigns([]);
-        setFbError(data.error || "לא ניתן לטעון קמפיינים");
+        setFbError(data.error || "לא הצלחנו לטעון את הקמפיינים");
       }
     } catch (err) {
       if (seq !== fbLoadSeq.current) return;
@@ -6828,7 +6828,7 @@ export default function BeautyOS() {
         try { sessionStorage.setItem("kalmea:last-reel", JSON.stringify({ reel: data.reel, topic: reelTopic.trim() })); } catch { /* optional */ }
         if (data.capNotice) toast(data.capNotice);
       } else {
-        setReelError(data.error || "יצירת הרילס נכשלה");
+        setReelError(data.error || "לא הצלחנו ליצור את הרילס, אפשר לנסות שוב");
       }
     } catch (err) {
       setReelError(err.message);
@@ -7056,9 +7056,9 @@ export default function BeautyOS() {
       const res = await fetch("/api/messages");
       const data = await res.json();
       if (data.success) setWaMessages(data.messages || []);
-      else setWaLogError(data.error || "טעינת ההודעות נכשלה");
+      else setWaLogError(data.error || "לא הצלחנו לטעון את ההודעות, אפשר לרענן");
     } catch (err) {
-      setWaLogError(err.message || "טעינת ההודעות נכשלה");
+      setWaLogError(err.message || "לא הצלחנו לטעון את ההודעות, אפשר לרענן");
     }
     setWaLogLoading(false);
   };
@@ -7429,6 +7429,8 @@ export default function BeautyOS() {
              home-indicator inset the bar itself pads with, plus a gap. */
           .fab-help{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
           .fab-voice{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
+          .fab-help{font-size:0!important;gap:0!important;padding:6px!important;width:44px;height:44px;justify-content:center}
+          .fab-voice{width:48px!important;height:48px!important}
           .wa-btn,.call-btn{padding:9px 14px!important;min-height:44px!important}
           /* Header fit — the desktop logo (30px, 6px letter-spacing, no shrink) pushed
              the left-side action icons off the viewport in RTL. Shrink the wordmark,
@@ -9627,7 +9629,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון והסכמה לדיוור בקבוצה זו</p>
  <button onClick={()=>{
-                    if(!waBroadcastMsg.trim()){toast("נא לכתוב הודעה","error");return;}
+                    if(!waBroadcastMsg.trim()){toast("עוד לא כתבת הודעה","error");return;}
                     waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:withMarketingFooter(`שלום ${c.name}! ${waBroadcastMsg}`)})));
                   }} className="wa-btn" style={{padding:"9px 18px",fontSize:"var(--t-xs)"}}>✆ שלחי לקבוצה</button>
  </div>
@@ -9655,9 +9657,9 @@ ${MARKETING_FOOTER}`)}`;
                   placeholder="כתבי כאן את ההודעה..."
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <button onClick={()=>{
-                  if(!waFreeClient){toast("נא לבחור לקוחה","error");return;}
+                  if(!waFreeClient){toast("למי לשלוח? אפשר לבחור לקוחה","error");return;}
                   if(!waFreeClient.phone){toast("אין טלפון ללקוחה זו","error");return;}
-                  if(!waFreeMsg.trim()){toast("נא לכתוב הודעה","error");return;}
+                  if(!waFreeMsg.trim()){toast("עוד לא כתבת הודעה","error");return;}
                   waSendOne(waFreeClient.id,waFreeClient.phone,waFreeMsg);
                   setWaFreeMsg("");
                 }} className="wa-btn" style={{padding:"11px 16px",fontSize:"var(--t-sm)",width:"100%",justifyContent:"center"}}>✆ שלחי הודעה</button>
@@ -9761,7 +9763,7 @@ ${MARKETING_FOOTER}`)}`;
 
  {fbError&&(
  <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"11px 14px"}}>
- <p style={{fontSize:"var(--t-xs)",color:pc,fontWeight:600,marginBottom:3}}>לא ניתן לטעון כרגע</p>
+ <p style={{fontSize:"var(--t-xs)",color:pc,fontWeight:600,marginBottom:3}}>לא הצלחנו לטעון כרגע</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fbError}</p>
  </div>
  )}
@@ -9954,7 +9956,7 @@ ${MARKETING_FOOTER}`)}`;
    if(reelData.caption)lines.push("","תיאור: "+reelData.caption);
    if(reelData.hashtags&&reelData.hashtags.length>0)lines.push(reelData.hashtags.join(" "));
    if(reelData.music_vibe)lines.push("","🎵 "+reelData.music_vibe);
-   navigator.clipboard.writeText(lines.join("\n")).then(()=>toast("הרילס המלא הועתק")).catch(()=>toast("לא ניתן להעתיק","error"));
+   navigator.clipboard.writeText(lines.join("\n")).then(()=>toast("הרילס המלא הועתק")).catch(()=>toast("ההעתקה לא הצליחה, אפשר לסמן ולהעתיק ידנית","error"));
  }} className="primary-btn" style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pc,border:`1.5px solid ${pc}`,fontSize:"var(--t-sm)",marginBottom:14}}><Icon name="copy" size={14}/> העתיקי את כל הרילס</button>
 
  {reelData.scenes&&reelData.scenes.length>0&&reelData.scenes.map((sc,i)=>(
@@ -9973,7 +9975,7 @@ ${MARKETING_FOOTER}`)}`;
 
  {reelData.call_to_action&&(<div style={{background:"var(--pc-tint)",borderRadius:"var(--r-md)",padding:"14px 18px",marginBottom:10}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}><Icon name="megaphone" size={13}/> קריאה לפעולה (בסוף הרילס)</p><p style={{fontSize:"var(--t-md)",color:pcDeep,fontWeight:600}}>{reelData.call_to_action}</p></div>)}
 
- {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}><Icon name="pen" size={13}/> תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`).then(()=>toast("התיאור הועתק")).catch(()=>toast("לא ניתן להעתיק","error"));}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>העתיקי</button></div><p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
+ {reelData.caption&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"14px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}><Icon name="pen" size={13}/> תיאור לפוסט</p><button onClick={()=>{navigator.clipboard.writeText(`${reelData.caption}\n\n${(reelData.hashtags||[]).join(" ")}`).then(()=>toast("התיאור הועתק")).catch(()=>toast("ההעתקה לא הצליחה, אפשר לסמן ולהעתיק ידנית","error"));}} className="primary-btn" style={{padding:"4px 12px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>העתיקי</button></div><p style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{reelData.caption}</p>{reelData.hashtags&&reelData.hashtags.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8}}>{reelData.hashtags.join(" ")}</p>}</div>)}
 
  {reelData.music_vibe&&(<div style={{background:"var(--surface)",borderRadius:"var(--r-md)",border:"1px solid var(--line)",padding:"12px 18px",marginBottom:10,boxShadow:"var(--shadow-sm)"}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:2}}><Icon name="music" size={13}/> סגנון מוזיקה מומלץ</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink)"}}>{reelData.music_vibe}</p></div>)}
 
@@ -10325,7 +10327,7 @@ ${MARKETING_FOOTER}`)}`;
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מנויי טיפולים</h2>
  </div>
  <div style={{display:"flex",gap:6}}>
- <button className="primary-btn" onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 16px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>+ חבילה חדשה</button>
+ <button className="primary-btn" onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 16px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>+ מכירת חבילה ללקוחה</button>
  <button onClick={()=>setShowWaitlistModal(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>רשימת המתנה</button>
  </div>
  </div>
@@ -10333,7 +10335,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>חבילות למכירה</h3>
- <button onClick={()=>setShowOfferingForm(v=>!v)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"6px 14px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{showOfferingForm?"סגירה":"+ חבילה חדשה"}</button>
+ <button onClick={()=>setShowOfferingForm(v=>!v)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"6px 14px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{showOfferingForm?"סגירה":"+ הגדרת חבילה למכירה"}</button>
  </div>
               {/* The thing that exists before anyone buys it. Without this she
                   could only ASSIGN a package - type a service, a count and a
@@ -10909,7 +10911,7 @@ ${MARKETING_FOOTER}`)}`;
             </>)}
 
             {bulkStep==="sending"&&(
- <div style={{textAlign:"center",padding:"28px 10px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><Spinner inline label="שולחת הודעות — נא לא לסגור את החלון"/></div>
+ <div style={{textAlign:"center",padding:"28px 10px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><Spinner inline label="שולחת הודעות, כדאי להשאיר את החלון פתוח"/></div>
             )}
 
             {bulkStep==="result"&&bulkResult&&(<>
@@ -12142,8 +12144,8 @@ ${MARKETING_FOOTER}`)}`;
        const r=await fetch("/api/settings/lead-key",{method:"POST"});
        const d=await r.json().catch(()=>null);
        if(d&&d.success&&d.key){setLeadKeyJustGenerated(d.key);setLeadKeyConfigured(true);}
-       else toast((d&&d.error)||"הפקת המפתח נכשלה","error");
-     }catch{toast("הפקת המפתח נכשלה — בדקי את החיבור","error");}
+       else toast((d&&d.error)||"לא הצלחנו להפיק את המפתח, אפשר לנסות שוב","error");
+     }catch{toast("לא הצלחנו להפיק את המפתח, כדאי לבדוק את החיבור","error");}
      finally{setLeadKeyBusy(false);}
    };
    if(leadKeyConfigured){
@@ -12355,6 +12357,13 @@ ${MARKETING_FOOTER}`)}`;
  <LeadSourcesEditor sources={resolveLeadSources(editSettings.automations)} pc={pc} pcTint={pcTint} onChange={(list)=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,lead_sources:list}};})}/>
  </div>
               )}
+              {inG("advanced")&&(
+ <div className="glass-card" style={{padding:"14px 16px",marginBottom:14}} data-testid="account-deletion">
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>הנתונים שלך הם שלך</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.65,marginBottom:10}}>אם החלטת לעצור, אפשר לבקש שנמחק את החשבון וכל מה שבו. אנחנו מטפלים בזה ידנית, ובדרך כלל תוך כמה ימים, ונחזור אלייך לאשר.</p>
+ <a href={"mailto:maayanfacebook1992@gmail.com?subject="+encodeURIComponent("בקשת מחיקת חשבון קלמיה")+"&body="+encodeURIComponent("היי, אני רוצה למחוק את החשבון שלי בקלמיה ואת כל המידע בו.")} style={{display:"inline-block",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"8px 14px",textDecoration:"none"}}>לבקש מחיקת חשבון</a>
+ </div>
+ )}
               {inG("advanced")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>

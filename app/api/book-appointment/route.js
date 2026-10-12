@@ -216,15 +216,15 @@ export async function POST(request) {
         {
           success: false,
           error: rules.minLeadMinutes > 0
-            ? `ניתן לקבוע תור לפחות ${lead} מראש. נא לבחור מועד מאוחר יותר.`
-            : "המועד הזה כבר עבר. נא לבחור מועד מאוחר יותר.",
+            ? `ניתן לקבוע תור לפחות ${lead} מראש. אפשר לבחור מועד קצת יותר מאוחר?`
+            : "המועד הזה כבר עבר. אפשר לבחור מועד קצת יותר מאוחר?",
         },
         { status: 409 }
       );
     }
     if (isTooFarAhead(date, rules.maxDaysAhead)) {
       return Response.json(
-        { success: false, error: `ניתן לקבוע תור עד ${rules.maxDaysAhead} ימים מראש. נא לבחור מועד קרוב יותר.` },
+        { success: false, error: `ניתן לקבוע תור עד ${rules.maxDaysAhead} ימים מראש. אפשר לבחור מועד קרוב יותר?` },
         { status: 409 }
       );
     }
@@ -261,7 +261,7 @@ export async function POST(request) {
       const bookedEnd = newStart + svcDuration;
       if (!dh) {
         return Response.json(
-          { success: false, error: "העסק סגור בתאריך הזה. נא לבחור מועד אחר." },
+          { success: false, error: "העסק סגור בתאריך הזה, אפשר לבחור יום אחר?" },
           { status: 409 }
         );
       }
@@ -269,7 +269,7 @@ export async function POST(request) {
         return Response.json(
           {
             success: false,
-            error: `השעה הזו מחוץ לשעות הפעילות (${fmtTime(dh.open*60)}–${fmtTime(dh.close*60)}). נא לבחור מועד אחר.`,
+            error: `השעה הזו מחוץ לשעות הפעילות (${fmtTime(dh.open*60)}–${fmtTime(dh.close*60)}). אפשר לבחור מועד אחר.`,
           },
           { status: 409 }
         );
@@ -282,7 +282,7 @@ export async function POST(request) {
     //      not say why: a visitor does not need to know it is lunch.
     if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration)) {
       return Response.json(
-        { success: false, error: "השעה הזו לא זמינה, נא לבחור שעה אחרת" },
+        { success: false, error: "השעה הזו כבר לא פנויה, אפשר לבחור שעה אחרת?" },
         { status: 409 }
       );
     }
@@ -304,7 +304,7 @@ export async function POST(request) {
       );
       if (clash) {
         return Response.json(
-          { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
+          { success: false, error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
           { status: 409 }
         );
       }
@@ -416,7 +416,7 @@ export async function POST(request) {
       //         writer: both requests can read "free" before either inserts.
       if (error.code === "23505" || error.code === "23P01") {
         return Response.json(
-          { success: false, error: "השעה הזו כבר תפוסה, נא לבחור שעה אחרת" },
+          { success: false, error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
           { status: 409 }
         );
       }

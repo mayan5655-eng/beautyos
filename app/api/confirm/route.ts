@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
           success: false,
           tooLate: true,
           businessName: brand.businessName || '',
-          error: `אפשר לבטל דרך הקישור עד ${cancelWindowHours} שעות לפני התור. כדי לבטל עכשיו, נא ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`,
+          error: `אפשר לבטל דרך הקישור עד ${cancelWindowHours} שעות לפני התור. כדי לבטל עכשיו, אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`,
         }, { status: 409 });
       }
     }
