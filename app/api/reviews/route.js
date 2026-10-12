@@ -109,7 +109,7 @@ export async function POST(request) {
 
   const rating = Number(body?.rating);
   if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return Response.json({ success: false, error: "נא לבחור דירוג" }, { status: 400 });
+    return Response.json({ success: false, error: "כמה כוכבים? אפשר לבחור דירוג" }, { status: 400 });
   }
 
   // A rating with no words is a perfectly good review; the text is optional.
@@ -120,7 +120,7 @@ export async function POST(request) {
   // here rather than left to the client, because the link is live from the
   // moment it is sent and an appointment can be cancelled after it goes out.
   if (appt.confirmation_status === "cancelled") {
-    return Response.json({ success: false, error: "התור בוטל, ולא ניתן להשאיר עליו ביקורת" }, { status: 409 });
+    return Response.json({ success: false, error: "התור הזה בוטל, אז אי אפשר להשאיר עליו ביקורת" }, { status: 409 });
   }
 
   const { error: insErr } = await admin.from("reviews").insert({

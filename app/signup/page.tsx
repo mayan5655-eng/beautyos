@@ -147,7 +147,7 @@ export default function SignupPage() {
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <h1 style={welcomeTitleStyle}>נעים להכיר 🌸</h1>
           <p style={welcomeSubtitleStyle}>
-            פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד.
+            פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד. החודש הראשון חינם, בלי כרטיס אשראי.
           </p>
           {/* Hairline with the actual flower mark, echoing the logo's own
               flower. Matches the same divider on /login. */}
