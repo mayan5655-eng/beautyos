@@ -21,6 +21,7 @@ import { useEffect, useRef } from "react";
 const COUNT_START_MS = 1600;
 const COUNT_MS = 1300;
 const SAFETY_MS = 6000;
+const SETTLE_MS = 600; // wait until the page has loaded and gone quiet: the entrance must never compete with first paint
 
 export default function PhoneMockMotion({ children }) {
   const ref = useRef(null);
@@ -31,6 +32,19 @@ export default function PhoneMockMotion({ children }) {
     let reduced = false;
     try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* treat as motion allowed */ }
     if (reduced || typeof IntersectionObserver === "undefined") return;
+    let settle = 0;
+    let teardown = null;
+
+    const begin = () => {
+      // Already mostly on screen once the page has settled: leave the finished picture alone (no flash from visible to
+      // hidden and back). The entrance is for a mock that scrolls into view.
+      const r = root.getBoundingClientRect();
+      const visible = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+      if (r.height > 0 && visible / r.height >= 0.4) return;
+      teardown = arm();
+    };
+
+    const arm = () => {
 
     const countEl = root.querySelector("[data-pm-count]");
     const target = Number(countEl?.getAttribute("data-pm-count")) || 0;
@@ -67,6 +81,12 @@ export default function PhoneMockMotion({ children }) {
     io.observe(root);
 
     return () => { io && io.disconnect(); finish(); };
+    };
+
+    if (document.readyState === "complete") settle = window.setTimeout(begin, SETTLE_MS);
+    else window.addEventListener("load", () => { settle = window.setTimeout(begin, SETTLE_MS); }, { once: true });
+
+    return () => { clearTimeout(settle); if (teardown) teardown(); };
   }, []);
 
   return <div ref={ref} className="pm">{children}</div>;
