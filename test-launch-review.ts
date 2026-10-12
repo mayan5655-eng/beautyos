@@ -36,3 +36,12 @@ ok('sign-up says the first month is free and asks for no card', () => {
 });
 
 console.log(`${n} passed`);
+
+// Facebook reconnect (2026-10-12): the card shows a clear reconnect button when pages are connected.
+{
+  const a = rd('app/beautyos.jsx');
+  assert.match(a, /data-testid="fb-reconnect"/);
+  assert.match(a, /"התחברי מחדש לפייסבוק"/);
+  assert.match(a, /\{fbPage&&<button onClick=\{\(\)=>\{window\.location\.href="\/api\/facebook\/oauth\/start";\}\}/);
+  console.log('ok - facebook reconnect button on Connections and Content');
+}
