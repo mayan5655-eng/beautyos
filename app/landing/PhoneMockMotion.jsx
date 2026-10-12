@@ -35,14 +35,9 @@ export default function PhoneMockMotion({ children }) {
     let settle = 0;
     let teardown = null;
 
-    const begin = () => {
-      // Already mostly on screen once the page has settled: leave the finished picture alone (no flash from visible to
-      // hidden and back). The entrance is for a mock that scrolls into view.
-      const r = root.getBoundingClientRect();
-      const visible = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
-      if (r.height > 0 && visible / r.height >= 0.4) return;
-      teardown = arm();
-    };
+    // Armed only after the page has loaded and settled, so the entrance can never compete with first paint or LCP.
+    // If the mock is already on screen by then (a phone, usually) it plays right away; otherwise when it scrolls in.
+    const begin = () => { teardown = arm(); };
 
     const arm = () => {
 
