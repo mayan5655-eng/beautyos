@@ -20,6 +20,7 @@
 //     route replaces the column rather than deep-merging it)
 
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
 let passed = 0, failed = 0;
@@ -28,7 +29,7 @@ function ok(cond: unknown, label: string) {
   else { failed++; console.error(`FAIL: ${label}`); }
 }
 
-const src = readFileSync('app/beautyos.jsx', 'utf8');
+const src = readAppSource();
 const tourSrc = readFileSync('app/OnboardingTour.jsx', 'utf8');
 
 // ── The six steps, in the order she actually meets them ─────────────────────

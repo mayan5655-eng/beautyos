@@ -22,6 +22,7 @@
 // on a brand-new empty tenant, no ReferenceError) is scripts/e2e-empty-tenant.mjs.
 
 import { readFileSync } from 'node:fs';
+import { readAppSource } from './lib/appSource.ts';
 
 let passed = 0, failed = 0;
 function ok(cond: unknown, label: string) {
@@ -29,7 +30,7 @@ function ok(cond: unknown, label: string) {
   else { failed++; console.error(`FAIL: ${label}`); }
 }
 
-const src = readFileSync('app/beautyos.jsx', 'utf8').replace(/\r\n/g, '\n');
+const src = readAppSource().replace(/\r\n/g, '\n');
 const layout = readFileSync('app/layout.tsx', 'utf8').replace(/\r\n/g, '\n');
 
 // ---- preconnect ------------------------------------------------------------

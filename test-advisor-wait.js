@@ -13,6 +13,7 @@
 // line says plainly that this is taking longer than usual.
 import { advisorWaitLine, ADVISOR_WAIT_STAGES } from './lib/advisorWait.js';
 import fs from 'node:fs';
+const readAppSource = () => { const n = (s) => s.split('\r\n').join('\n'); return [n(fs.readFileSync('app/beautyos.jsx', 'utf8')), ...fs.readdirSync('app').filter((f) => /^tab-.*\.jsx$/.test(f)).sort().map((f) => n(fs.readFileSync('app/' + f, 'utf8')))].join('\n'); };
 
 let passed = 0, failed = 0;
 const ok = (label, cond) => { if (cond) passed++; else { failed++; console.log(`  FAIL  ${label}`); } };
@@ -35,7 +36,7 @@ ok('no invented counts of rows / records / customers analysed', !/\d+\s*(לקו�
 ok('no "almost done" style promise', !/כמעט סיימתי|כמעט סיימנו|עוד שנייה/.test(everyLine));
 
 // It is actually wired into the dashboard.
-const ui = fs.readFileSync('app/beautyos.jsx', 'utf8');
+const ui = readAppSource();
 ok('the dashboard uses it', ui.includes('advisorWaitLine('));
 ok('the wait is clocked while the answer is pending', ui.includes('advisorWaitSec'));
 

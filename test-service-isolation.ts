@@ -5,6 +5,7 @@
 // disagreed because service_prices is readable across tenants and the dashboard trusted RLS to
 // scope it. These tests run the real helpers against fake clients and fake rows.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { ownServices } from './lib/serviceScope.js';
 import { fetchPublicServices, resetPublicServicesMemo } from './lib/publicServices.js';
@@ -113,7 +114,7 @@ assert.ok((await fetchPublicServices(fake({ rpc: () => ({ data: [], error: null 
 resetPublicServicesMemo();
 
 // ── the unfiltered read cannot come back (a lint, kept because it is the exact bug) ─────────────
-const app = fs.readFileSync('app/beautyos.jsx', 'utf8');
+const app = readAppSource();
 const unfiltered = [...app.matchAll(/from\("service_prices"\)\.select\("\*"\)(?!\s*\.eq\()/g)].length;
 assert.equal(unfiltered, 1, 'exactly one unscoped service_prices read remains in the dashboard (the boot read), and its rows pass through ownServices');
 assert.ok(/setServices\(ownServices\(sv\.data, myTenantId\)\)/.test(app), 'the boot read is passed through ownServices');

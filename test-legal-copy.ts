@@ -2,9 +2,10 @@
 //  - the CSV export said it exports CLIENTS ("ייצוא לקוחות") but writes PAYMENTS, into a file named with the old brand;
 //  - sign-up did not point to the terms or the privacy policy, which both exist and say that using the service is agreeing to them.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
-const app = readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
+const app = readAppSource();
 const fn = app.slice(app.indexOf('handleExportCSV'), app.indexOf('handleExportCSV') + 2500);
 assert.ok(/receipts|payment|שולם|amount/i.test(fn), 'the export really is of payments');
 assert.ok(!/ייצוא לקוחות/.test(app), 'nothing calls the payments export "export clients"');

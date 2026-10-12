@@ -1,8 +1,9 @@
 // Launch review (2026-10-12): copy and small day-one fixes, pinned at source level.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
-const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
+const rd = (p: string) => (p === 'app/beautyos.jsx' ? readAppSource() : readFileSync(p, 'utf8')).split('\r\n').join('\n');
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log('ok -', name); };
 

@@ -7,6 +7,7 @@
 // Israel's time zone, in summer and in winter, and at a month boundary.
 process.env.TZ = 'Asia/Jerusalem'; // before any Date is made: what her browser does
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { parseDb } from './lib/dbTime.js';
 import { localDayKey, receiptsOnDay, receiptsInMonth, monthSummary } from './lib/till.ts';
@@ -51,7 +52,7 @@ const rcpt = (created_at: string, amount = 100) => ({ created_at, amount, paymen
 }
 
 // ── the dashboard may not go back to raw parsing of these columns ──────────────────────────
-const code = (f: string) => fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+const code = (f: string) => (f === 'app/beautyos.jsx' ? readAppSource() : fs.readFileSync(f, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 const app = code('app/beautyos.jsx');
 assert.equal((app.match(/new Date\([A-Za-z_][A-Za-z0-9_.]*\.created_at\)/g) || []).length, 0, 'no raw new Date(x.created_at) in the dashboard: use parseDb');
 assert.equal((app.match(/\.created_at\??\.?\s*(\|\|\s*"")?\)?\.slice\(0,\s*10\)/g) || []).length, 0, 'no created_at.slice(0,10) in the dashboard: that is the UTC date; use localDayKey');
