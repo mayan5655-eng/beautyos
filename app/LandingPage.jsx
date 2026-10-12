@@ -11,6 +11,7 @@ import Link from "next/link";
 import Reveal from "./landing/Reveal";
 import CostTable from "./landing/CostTable";
 import PhoneMock from "./landing/PhoneMock";
+import DemoVideo from "./landing/DemoVideo";
 import {
   BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H,
   ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER,
@@ -191,6 +192,23 @@ export default function LandingPage() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* ── 6b. DEMO VIDEO ────────────────────────────────────────────────── */}
+      <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px", textAlign: "center" }}>
+        <SectionEyebrow>רואים אותה בעבודה</SectionEyebrow>
+        <DemoVideo
+          mp4="/media/kalmea-demo-20s.mp4"
+          webm="/media/kalmea-demo-20s.webm"
+          poster="/media/kalmea-demo-poster.jpg"
+          label="סרטון קצר של קלמיה בעבודה, בנתוני דמו"
+        />
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 16 }}>
+          מהיומן ועד אישור התשלום, בפחות מחצי דקה. אלה נתוני דמו.
+        </p>
+        <noscript>
+          <p style={{ marginTop: 8 }}><a href="/media/kalmea-demo-20s.mp4" style={{ color: "var(--brand-accent)" }}>לצפייה בסרטון</a></p>
+        </noscript>
       </section>
 
       {/* ── 7. THREE PILLARS ──────────────────────────────────────────────── */}
