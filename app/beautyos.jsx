@@ -9747,6 +9747,7 @@ ${MARKETING_FOOTER}`)}`;
  ):(
  <button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"7px 14px",background:"#1877F2",color:"#fff",fontSize:"var(--t-xs)"}}>התחברי לפייסבוק</button>
  )}
+ {fbPage&&<button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"6px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)"}}>התחברי מחדש</button>}
  <select value={fbDatePreset} onChange={e=>{setFbDatePreset(e.target.value);loadFbCampaigns(e.target.value);}} style={{border:"1px solid var(--line)",borderRadius:"var(--r-lg)",padding:"6px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:"var(--ink-2)"}}>
  <option value="today">היום</option>
  <option value="last_7d">7 ימים</option>
@@ -11580,7 +11581,8 @@ ${MARKETING_FOOTER}`)}`;
  <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת לידים":"הפעלה מחדש"}</button>
  </div>
  ))}
- <button onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"9px 14px",background:"#1877F2",color:"#fff",fontSize:"var(--t-sm)",alignSelf:"flex-start"}}>{fbPages&&fbPages.length>0?"חיבור מחדש / הוספת דף":"התחברי לפייסבוק"}</button>
+ {fbPages&&fbPages.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>חיבור מחדש מרענן את ההרשאות (למשל כדי לראות נתוני קמפיינים) ומאפשר להוסיף דף נוסף. הדפים שכבר מחוברים נשארים.</p>}
+ <button data-testid="fb-reconnect" onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"9px 14px",background:"#1877F2",color:"#fff",fontSize:"var(--t-sm)",alignSelf:"flex-start"}}>{fbPages&&fbPages.length>0?"התחברי מחדש לפייסבוק":"התחברי לפייסבוק"}</button>
  </div>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)"}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 4px"}}>וואטסאפ</p>
