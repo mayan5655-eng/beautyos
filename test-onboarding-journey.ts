@@ -1,9 +1,10 @@
 // Things the new-tenant walkthrough (2026-10-12) found, pinned so they do not come back. Source-level: the
 // onboarding page needs a session and a database to render.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
-const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
+const rd = (p: string) => (p === 'app/beautyos.jsx' ? readAppSource() : readFileSync(p, 'utf8')).split('\r\n').join('\n');
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log('ok -', name); };
 

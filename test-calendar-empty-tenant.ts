@@ -28,6 +28,7 @@
 //      catches the button quietly being deleted instead of fixed).
 
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
 let passed = 0, failed = 0;
@@ -36,7 +37,7 @@ function ok(cond: unknown, label: string) {
   else { failed++; console.error(`FAIL: ${label}`); }
 }
 
-const src = readFileSync('app/beautyos.jsx', 'utf8');
+const src = readAppSource();
 
 const declPattern = /const openNewAppt\s*=/g;
 const declarations = [...src.matchAll(declPattern)];

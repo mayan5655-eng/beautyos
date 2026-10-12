@@ -6,6 +6,7 @@
 // quietly kept the default accent. This runs every offered swatch through the colour handling her public page
 // really uses (resolveBranding), and shows what the old values did.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { ONBOARDING_SWATCHES, SETTINGS_SWATCHES, SWATCH_NAMES, isSwatchHex, swatchLabel } from './lib/brandSwatches.js';
 import { resolveBranding, DEFAULT_PRIMARY } from './lib/branding.js';
@@ -37,7 +38,7 @@ const onb = fs.readFileSync('app/onboarding/page.tsx', 'utf8');
 assert.ok(onb.includes('const PRESET_COLORS = ONBOARDING_SWATCHES'), 'onboarding offers the shared hex palette, not a list of its own');
 assert.ok(!/PRESET_COLORS\s*=\s*\[/.test(onb), 'and has no literal list that a token sweep could corrupt again');
 assert.ok(onb.includes('aria-label={swatchLabel(c)}'), 'each onboarding swatch has a name');
-const app = fs.readFileSync('app/beautyos.jsx', 'utf8');
+const app = readAppSource();
 assert.equal((app.match(/aria-label=\{swatchLabel\(/g) || []).length, 2, 'both settings swatch groups name their buttons');
 assert.ok(!/\[\s*"#5B3E67"\s*,\s*"#7A5A88"/.test(app), 'settings uses the shared list too');
 

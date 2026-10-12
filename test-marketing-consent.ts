@@ -1,10 +1,11 @@
 // Marketing consent and opt-out (Israeli communications law, section 30A). Pins: the rule, that every marketing path asks it, that the
 // booking checkbox is optional and unchecked, and that reminders/receipts were NOT put behind it.
 import assert from 'node:assert/strict';
+import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from './lib/marketingConsent.js';
 
-const src = (f: string) => fs.readFileSync(f, 'utf8');
+const src = (f: string) => (f === 'app/beautyos.jsx' ? readAppSource() : fs.readFileSync(f, 'utf8'));
 
 // the rule: fails closed
 assert.equal(canMarket(null), false);
