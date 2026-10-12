@@ -2,12 +2,11 @@
 // (Found 2026-10-07 on a brand-new account: "היום שלך 1/6" sat over Clients and Payments until she pressed דלגי; and a tour saved on the
 // Settings step came back with no card and no way to dismiss it.)
 import assert from 'node:assert/strict';
-import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from './lib/tourFlow.js';
 
 // the real steps, read from the app: the tour and its tests cannot drift apart
-const src = readAppSource();
+const src = readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
 const block = src.slice(src.indexOf('const TOUR_STEPS = ['), src.indexOf('];', src.indexOf('const TOUR_STEPS = [')));
 const STEPS = block.split(/\{\s*id:"/).slice(1).map((chunk) => ({
   id: chunk.slice(0, chunk.indexOf('"')),

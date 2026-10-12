@@ -1,11 +1,10 @@
 // The floating mic and "תקועה?" bubble must not sit on top of a form. Found 2026-10-07 at 390 and 430 px: inside the client form, the payment
 // sheet and the appointment sheet they covered the status chips, the note field and the save row. They step aside while anything modal is open.
 import assert from 'node:assert/strict';
-import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('./app/globals.css', import.meta.url), 'utf8');
-const app = readAppSource();
+const app = readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
 const sheet = readFileSync(new URL('./app/Sheet.tsx', import.meta.url), 'utf8');
 
 // the rule: both helpers hide while a Sheet or a data-overlay is in the page

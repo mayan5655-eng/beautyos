@@ -11,7 +11,6 @@
 // inside the marked block against the buttons outside it. Only the navigation in app/beautyos.jsx - a 5,000
 // line file that cannot be rendered in isolation - is still checked as source, and says so.
 import assert from 'node:assert/strict';
-import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { importApp, renderApp, between, textOf, buttonsOf } from './testkit/render.mjs';
 
@@ -70,7 +69,7 @@ assert.ok(textOf(postsOnly).length > 0 && textOf(postsOnly) !== textOf(aiOnly), 
 assert.ok(textOf(both).length > Math.max(textOf(postsOnly).length, textOf(aiOnly).length) - 1, 'and together they are the whole');
 
 // ── navigation (SOURCE check - beautyos.jsx cannot be rendered on its own) ─────────────────────────
-const app = readAppSource().replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+const app = fs.readFileSync('app/beautyos.jsx', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 assert.ok(app.includes('>פוסטים ותבניות</button>'), '[source] the sub-tab is called "פוסטים ותבניות"');
 assert.ok(!app.includes('תוכן AI'), '[source] nothing in the app calls the area "תוכן AI"');
 assert.ok(/useState\("posts"\)/.test(app), '[source] posts and templates are the default sub-view');

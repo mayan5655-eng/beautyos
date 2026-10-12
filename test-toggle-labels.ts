@@ -1,10 +1,9 @@
 // Every on/off switch in the app has a name and says it is a switch. Found 2026-10-07 on the live Automations tab: nine <button>s with no
 // text, no aria-label and no role, so a screen reader announced "button" nine times for nine different automations.
 import assert from 'node:assert/strict';
-import { readAppSource } from './lib/appSource.ts';
 import { readFileSync } from 'node:fs';
 
-const src = readAppSource();
+const src = readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
 const toggle = src.slice(src.indexOf('function Toggle('), src.indexOf('function AutoToggleRow('));
 assert.ok(/role="switch"/.test(toggle) && /aria-checked=\{!!on\}/.test(toggle) && /aria-label=\{label \|\| undefined\}/.test(toggle), 'Toggle is a named switch with its state');
 assert.ok(/type="button"/.test(toggle), 'and never submits a form');

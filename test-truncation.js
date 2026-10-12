@@ -20,7 +20,6 @@ import { readAllRows } from './lib/pagedRead.js';
 import { runSmartReminders, dateNDaysAgo } from './lib/reminders/smartReminders.js';
 import { runInvariants } from './lib/invariants.js';
 import fs from 'node:fs';
-const readAppSource = () => { const n = (s) => s.split('\r\n').join('\n'); return [n(fs.readFileSync('app/beautyos.jsx', 'utf8')), ...fs.readdirSync('app').filter((f) => /^tab-.*\.jsx$/.test(f)).sort().map((f) => n(fs.readFileSync('app/' + f, 'utf8')))].join('\n'); };
 
 let passed = 0, failed = 0;
 const ok = (label, cond, extra = '') => { if (cond) passed++; else { failed++; console.log(`  FAIL  ${label} ${extra}`); } };
@@ -170,7 +169,7 @@ group('invariants past 1,000 rows');
 // ── the dashboard boot no longer reads whole tables unpaged ─────────────────
 group('dashboard boot');
 {
-  const src = readAppSource();
+  const src = fs.readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
   for (const t of ['appointments', 'clients', 'leads', 'receipts', 'receipt_voids', 'packages']) {
     ok(`boot reads ${t} through readAllRows`, new RegExp(`readAllRows\\(supabase, "${t}"`).test(src));
     ok(`boot no longer does an unpaged ${t} select`, !new RegExp(`supabase\\.from\\("${t}"\\)\\.select\\("\\*"\\)\\]`).test(src));

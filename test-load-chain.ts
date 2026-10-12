@@ -22,7 +22,6 @@
 // on a brand-new empty tenant, no ReferenceError) is scripts/e2e-empty-tenant.mjs.
 
 import { readFileSync } from 'node:fs';
-import { readAppSource } from './lib/appSource.ts';
 
 let passed = 0, failed = 0;
 function ok(cond: unknown, label: string) {
@@ -30,7 +29,7 @@ function ok(cond: unknown, label: string) {
   else { failed++; console.error(`FAIL: ${label}`); }
 }
 
-const src = readAppSource().replace(/\r\n/g, '\n');
+const src = readFileSync('app/beautyos.jsx', 'utf8').replace(/\r\n/g, '\n');
 const layout = readFileSync('app/layout.tsx', 'utf8').replace(/\r\n/g, '\n');
 
 // ---- preconnect ------------------------------------------------------------
@@ -96,8 +95,7 @@ ok(/useState\(\{\s*forms:\s*"loading",\s*expenses:\s*"loading",\s*waitlist:\s*"l
 
 // ---- every consumer is gated ---------------------------------------------------
 // tax tab reads expenses
-// the tax screen lives in app/tab-tax.jsx once split out of the monolith; the gate must be at its top either way
-const taxStart = Math.max(src.indexOf('{activeTab==="tax"&&(()=>{'), src.indexOf('export default function TaxTab'));
+const taxStart = src.indexOf('{activeTab==="tax"&&(()=>{');
 const taxBlock = src.slice(taxStart, taxStart + 900);
 ok(taxStart > 0 && /deferred\.expenses\s*!==\s*"ok"/.test(taxBlock) && /<DeferredGate/.test(taxBlock), 'tax tab shows a gate, not zero expenses, until expenses have loaded');
 // waitlist card

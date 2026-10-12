@@ -17,7 +17,6 @@
 //   * A FAILED STREAM IS NOT METERED AS A SUCCESS - an error before completion
 //     reaches the caller and writes no row.
 import assert from 'node:assert/strict';
-import { readAppSource } from './lib/appSource.ts';
 import fs from 'node:fs';
 import { makeCapDb } from './testkit/capDb.js';
 import { trackedStream } from './lib/ai/usage.ts';
@@ -159,7 +158,7 @@ const collect = async (it: AsyncIterable<string>) => { const out: string[] = [];
 
 // ── the advisor really streams, end to end ─────────────────────────────────
 {
-  const code = (f: string) => (f === 'app/beautyos.jsx' ? readAppSource() : fs.readFileSync(f, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const code = (f: string) => fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const route = code('app/api/advisor/route.ts');
   assert.ok(route.includes('trackedStream('), 'the advisor route streams through trackedStream (metered, capped)');
   assert.ok(!route.includes('trackedCreate('), 'and no longer waits for the whole answer');
