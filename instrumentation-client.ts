@@ -51,8 +51,10 @@ if (sentryEnabled && typeof window !== 'undefined') {
 
   const idle = () => {
     const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => void);
-    if (ric) ric(() => void flush(), { timeout: 5000 });
-    else setTimeout(() => void flush(), 3000);
+    // Well after the page is interactive: reporting setup must never compete with first paint or the first tap. A
+    // real error does not wait for this (see onError).
+    const later = () => { if (ric) ric(() => void flush(), { timeout: 5000 }); else void flush(); };
+    setTimeout(later, 12000);
   };
   if (document.readyState === 'complete') idle();
   else window.addEventListener('load', idle, { once: true });
