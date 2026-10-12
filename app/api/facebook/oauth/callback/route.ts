@@ -121,6 +121,19 @@ export async function GET(request: NextRequest) {
     const fbClient = new FacebookClient(longLivedToken.access_token);
     const pages = await fbClient.getUserPages();
 
+    // Who this Facebook user is (Meta's deauthorize / data-deletion callbacks name her by this id), which
+    // permissions she actually granted, and her long-lived USER token, which is what the ad account is read
+    // with (the Page token cannot list ad accounts). All best-effort: a failure here never blocks the connection.
+    let fbUserId: string | null = null;
+    let grantedScopes: string | null = null;
+    try {
+      fbUserId = await fbClient.getMyId();
+      grantedScopes = (await fbClient.getGrantedPermissions()).join(',') || null;
+    } catch (e) {
+      console.error('Facebook /me lookup failed (connection continues):', e instanceof Error ? e.message : e);
+    }
+    const encryptedUserToken = encryptToken(longLivedToken.access_token);
+
     if (!pages || pages.length === 0) {
       return NextResponse.redirect(
         `${appUrl}/dashboard?fb_error=no_pages`
@@ -139,25 +152,28 @@ export async function GET(request: NextRequest) {
     for (const page of pages) {
       const encryptedPageToken = encryptToken(page.access_token);
 
-      const { error: upsertError } = await supabase
+      const baseRow = {
+        tenant_id: tenantId,
+        page_id: page.id,
+        page_name: page.name,
+        page_category: page.category,
+        instagram_business_id: page.instagram_business_account?.id ?? null,
+        page_access_token_encrypted: encryptedPageToken,
+        long_lived_token_expires_at: expiresAt.toISOString(),
+        connected_by_user_id: user.id,
+        // Connecting again is an explicit act: a Page she had paused (Settings > connections) is turned back on.
+        is_active: true,
+      };
+      // The user-level columns come from add_facebook_user_token.sql; until it is run the row is saved without them.
+      let { error: upsertError } = await supabase
         .from('facebook_pages')
         .upsert(
-          {
-            tenant_id: tenantId,
-            page_id: page.id,
-            page_name: page.name,
-            page_category: page.category,
-            instagram_business_id: page.instagram_business_account?.id ?? null,
-            page_access_token_encrypted: encryptedPageToken,
-            long_lived_token_expires_at: expiresAt.toISOString(),
-            connected_by_user_id: user.id,
-            // Connecting again is an explicit act: a Page she had paused (Settings > connections) is turned back on.
-            is_active: true,
-          },
-          {
-            onConflict: 'tenant_id,page_id',
-          }
+          { ...baseRow, fb_user_id: fbUserId, user_access_token_encrypted: encryptedUserToken, granted_scopes: grantedScopes },
+          { onConflict: 'tenant_id,page_id' }
         );
+      if (upsertError && /fb_user_id|user_access_token_encrypted|granted_scopes|schema cache|column/i.test(upsertError.message || '')) {
+        ({ error: upsertError } = await supabase.from('facebook_pages').upsert(baseRow, { onConflict: 'tenant_id,page_id' }));
+      }
 
       if (upsertError) {
         console.error('Failed to save page:', page.id, upsertError);

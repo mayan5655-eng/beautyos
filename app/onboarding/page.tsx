@@ -16,7 +16,7 @@ import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
 import BrandBackdrop from "../BrandBackdrop";
-import { BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
+import { LOGO_COMPACT, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 
 // The missing-column retry that used to live here moved with the insert into
 // app/api/settings/save; lib/pgError.ts is its one definition now.
@@ -356,11 +356,9 @@ export default function OnboardingPage() {
       `}</style>
 
       <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 460 }}>
-        {/* Step 1 only: the FULL banner, flowers included - a real "welcome"
-            moment, not the cropped header. Steps 2-5 keep BANNER_HEADER
-            (the legible-at-phone-width crop): she's in task mode by then,
-            and the full banner's slogan/domain line tested illegible at
-            this column width (see BANNER_HEADER's comment). */}
+        {/* Step 1 only: the FULL banner, flowers included - a real "welcome" moment. Steps 2-5 show the compact
+            mark: the cropped banner took ~210px of a phone screen and pushed the form below the fold (found in the
+            new-tenant walkthrough, 2026-10-12). */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
           {step === 1 ? (
             <Image
@@ -373,11 +371,11 @@ export default function OnboardingPage() {
             />
           ) : (
             <Image
-              src={BANNER_HEADER}
-              alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
-              width={BANNER_HEADER_W}
-              height={BANNER_HEADER_H}
-              style={{ width: "min(380px, 96%)", height: "auto", filter: "drop-shadow(0 10px 22px rgba(48,24,72,0.16))" }}
+              src={LOGO_COMPACT}
+              alt="קלמיה"
+              width={150}
+              height={44}
+              style={{ width: 140, height: "auto" }}
             />
           )}
         </div>
@@ -387,29 +385,16 @@ export default function OnboardingPage() {
         {/* Progress — written, not graphic. Step names with arrows between
             them, the current one in her accent. RTL reads right to left, so
             "←" points forward. */}
-        <nav aria-label="התקדמות" style={{ marginBottom: 26, display: "flex", alignItems: "center",
-              justifyContent: "center", flexWrap: "wrap", gap: 7, fontSize:"var(--t-sm)", lineHeight: 1.6 }}>
-          {STEP_NAMES.map((name, i) => {
-            const n = i + 1;
-            const current = n === step;
-            const done = n < step;
-            return (
-              <span key={name} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                <span
-                  aria-current={current ? "step" : undefined}
-                  style={{
-                    color: current ? pc : done ? "var(--ink-2)" : "var(--ink-3)",
-                    fontWeight: current ? 700 : 500,
-                  }}
-                >
-                  {name}
-                </span>
-                {n < STEP_NAMES.length && (
-                  <span aria-hidden style={{ color: "var(--ink-3)", fontSize:"var(--t-xs)" }}>←</span>
-                )}
-              </span>
-            );
-          })}
+        <nav aria-label="התקדמות" style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, fontSize: "var(--t-sm)" }}>
+            <span aria-current="step" style={{ color: pc, fontWeight: 700 }}>{STEP_NAMES[step - 1]}</span>
+            <span style={{ color: "var(--ink-3)" }}>שלב {step} מתוך {STEP_NAMES.length}</span>
+          </div>
+          <div aria-hidden style={{ display: "flex", gap: 5 }}>
+            {STEP_NAMES.map((name, i) => (
+              <span key={name} style={{ flex: 1, height: 4, borderRadius: 4, background: i + 1 <= step ? pc : "var(--line)" }} />
+            ))}
+          </div>
         </nav>
 
         {/* Steps */}
@@ -545,6 +530,7 @@ export default function OnboardingPage() {
                   />
                 </>
               )}
+              {data.business_fields.length > 0 && (
               <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "12px 15px", marginTop: 12 }}>
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0
@@ -552,6 +538,7 @@ export default function OnboardingPage() {
                     : `${pickedServices.length} טיפולים ייווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
                 </p>
               </div>
+              )}
             </>
           )}
 
@@ -585,7 +572,7 @@ export default function OnboardingPage() {
           {step === 3 && (
             <>
               <h1 style={titleStyle}><Icon name="clock" size={22}/> שעות עבודה</h1>
-              <p style={subtitleStyle}>שעות ההתחלה והסיום הרגילות שלך, מ-0 עד 24. בהגדרות ← שעות אפשר לקבוע שעות שונות לכל יום בנפרד, כולל שישי ושבת וכולל שעות ערב.</p>
+              <p style={subtitleStyle}>מתי את בדרך כלל מתחילה ומסיימת (בשעון של 24 שעות, למשל 9 עד 18). בהגדרות ← שעות אפשר לקבוע שעות שונות לכל יום, כולל שישי ושבת ושעות ערב.</p>
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
                 <Field label="התחלה" inline>
                   <input
@@ -612,7 +599,7 @@ export default function OnboardingPage() {
                 </Field>
               </div>
               <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                ✨ כמעט סיימנו — עוד שלב אחד ואנחנו בפנים.
+                {`✨ כמעט סיימנו — עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
               </div>
             </>
           )}
@@ -629,7 +616,7 @@ export default function OnboardingPage() {
         <div style={{ display: "flex", gap: 8, marginTop: 26, alignItems: "center", flexWrap: "wrap" }}>
           {step > 1 && !saving && (
             <button onClick={prev} className="ob-btn-secondary" style={btnSecondaryStyle}>
-              ← הקודם
+              → הקודם
             </button>
           )}
 

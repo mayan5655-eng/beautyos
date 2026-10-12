@@ -27,10 +27,12 @@ function Row({ label, p, value, target, accent, pctLabel }) {
   );
 }
 
-export default function GoalsCard({ goals, revenue, bookings, now, accent, onSetGoals }) {
+export default function GoalsCard({ goals, revenue, bookings, now, accent, onSetGoals, hasActivity = true }) {
   const rev = goalProgress(revenue, goals.revenue);
   const bok = goalProgress(bookings, goals.bookings);
   if (!rev && !bok) {
+    // A day-one account has nothing to measure yet: no invitation until there is some activity.
+    if (!hasActivity) return null;
     return (
       <div style={{ maxWidth: 1180, marginInline: 'auto', marginBottom: 12, textAlign: 'start' }}>
         <button type="button" onClick={onSetGoals} style={{ background: 'none', border: 'none', color: '#8CA096', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}>

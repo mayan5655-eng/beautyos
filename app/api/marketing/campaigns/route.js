@@ -30,12 +30,18 @@ export async function GET(req) {
     }
 
     // Get this tenant's active Facebook page row: scoped in the query AND checked on the row
-    const { data: pageRows, error: pErr } = await supabase
+    // The ad account is read with the USER token (the Page token cannot list ad accounts); the columns come from
+    // add_facebook_user_token.sql, so a deployment without it falls back to the Page token as before.
+    const pageQuery = (cols) => supabase
       .from("facebook_pages")
-      .select("tenant_id, page_access_token_encrypted, page_id, page_name, is_active")
+      .select(cols)
       .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .limit(1);
+    let { data: pageRows, error: pErr } = await pageQuery("tenant_id, page_access_token_encrypted, user_access_token_encrypted, granted_scopes, page_id, page_name, is_active");
+    if (pErr && /user_access_token_encrypted|granted_scopes|schema cache|column/i.test(pErr.message || "")) {
+      ({ data: pageRows, error: pErr } = await pageQuery("tenant_id, page_access_token_encrypted, page_id, page_name, is_active"));
+    }
 
     if (pErr) {
       return NextResponse.json({ ok: false, error: pErr.message }, { status: 500 });
@@ -52,9 +58,19 @@ export async function GET(req) {
     const page = pages[0];
     let token;
     try {
-      token = decryptToken(page.page_access_token_encrypted);
+      token = decryptToken(page.user_access_token_encrypted || page.page_access_token_encrypted);
     } catch (e) {
       return NextResponse.json({ ok: false, error: "שגיאה בפענוח הטוקן" }, { status: 500 });
+    }
+
+    // She connected before ads_read was asked for, or Meta has not granted it to her yet: say so plainly instead of
+    // failing inside the Graph call. (granted_scopes is only known for connections made after the migration.)
+    if (typeof page.granted_scopes === "string" && page.granted_scopes && !page.granted_scopes.split(",").includes("ads_read")) {
+      return NextResponse.json({
+        ok: false,
+        needsAdsPermission: true,
+        error: "כדי לראות קמפיינים צריך לחבר מחדש את פייסבוק ולאשר גם את ההרשאה לצפייה במודעות.",
+      });
     }
 
     const url = new URL(req.url);
