@@ -44,6 +44,8 @@ const cormorant = localFont({
   variable: "--font-cormorant",
   weight: "500 700",
   display: "swap",
+  // Latin glyphs only and Hebrew headings use Frank Ruhl: not worth a request on every page before first paint.
+  preload: false,
 });
 
 // Legacy Hebrew sans — kept so any lingering literal references keep resolving.

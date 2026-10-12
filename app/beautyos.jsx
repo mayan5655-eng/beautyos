@@ -57,7 +57,7 @@ const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false })
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
 const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });

@@ -4,7 +4,9 @@ import { useState } from 'react'
 import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { supabase } from '../supabase'
+// Loaded when she submits (or first touches a field), not with the page: the Supabase client is ~56KB gzipped and
+// nothing on this screen needs it to paint.
+const getSupabase = () => import('../supabase').then((m) => m.supabase)
 import BrandBackdrop from '../BrandBackdrop'
 import PublicFooterLinks from '../PublicFooterLinks'
 
@@ -56,7 +58,7 @@ export default function SignupPage() {
     let attr = ''
     try { attr = (document.cookie.split('; ').find((c) => c.startsWith('kl_attr='))?.slice('kl_attr='.length) || '').slice(0, 600) } catch { /* nicety */ }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await (await getSupabase()).auth.signUp({
       email,
       password,
       options: {
@@ -103,7 +105,7 @@ export default function SignupPage() {
 
   async function handleResend() {
     setResendNote('')
-    const { error } = await supabase.auth.resend({
+    const { error } = await (await getSupabase()).auth.resend({
       type: 'signup',
       email: sentTo,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` },

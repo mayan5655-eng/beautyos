@@ -6,7 +6,24 @@ import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { logoSrc } from "@/lib/logoSrc";
 import { fetchPublicServices } from "@/lib/publicServices";
-import { supabase } from "./supabase";
+// The Supabase browser client (about 56KB gzipped) is NOT imported at the top: this page is opened by her clients on a
+// phone, and the server already seeds settings and services. The two public reads below are plain fetches; the client
+// is only loaded in the rare fallback where the server did not seed the page.
+const lazySupabase = () => import("./supabase").then((m) => m.supabase);
+async function anonRpc(name, args) {
+  try {
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const r = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    if (!r.ok) return { data: null, error: { message: `${name} ${r.status}` } };
+    return { data: await r.json(), error: null };
+  } catch (e) {
+    return { data: null, error: e };
+  }
+}
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
 import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, defaultHeroBenefits, defaultValueProps } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
@@ -360,15 +377,15 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const [row, sv, rv, rs] = await Promise.all([
         // SECURITY: public-safe settings via the shared layer (hardened RPC, no
         // direct anonymous settings access; never green_api_token or other secrets).
-        initialSettings ? Promise.resolve(initialSettings) : fetchPublicSettings(supabase, t),
-        initialServices ? Promise.resolve({ data: initialServices }) : fetchPublicServices(supabase, t),
+        initialSettings ? Promise.resolve(initialSettings) : lazySupabase().then((sb) => fetchPublicSettings(sb, t)),
+        initialServices ? Promise.resolve({ data: initialServices }) : lazySupabase().then((sb) => fetchPublicServices(sb, t)),
         // Reviews a client wrote, through the same SECURITY DEFINER pattern as
         // the branding: anon holds no privilege on public.reviews in either
         // direction, and the function returns published rows only - so "hidden"
         // is enforced once, in the database, rather than remembered by every
         // caller.
-        supabase.rpc("get_public_reviews", { p_tenant_id: t }),
-        supabase.rpc("get_public_results", { p_tenant_id: t }),
+        anonRpc("get_public_reviews", { p_tenant_id: t }),
+        anonRpc("get_public_results", { p_tenant_id: t }),
       ]);
       setResults(rs?.error ? [] : cleanPublicResults(rs?.data));
 
