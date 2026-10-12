@@ -20,8 +20,10 @@ export default function CostTable({ rows, totalLow, totalHigh, closingLine }) {
   const ref = useRef(null);
   const [animate, setAnimate] = useState(false); // false until in view; also the reduced-motion "skip straight to final" flag
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [countLow, setCountLow] = useState(0);
-  const [countHigh, setCountHigh] = useState(0);
+  // Start at the real totals: the server HTML, a crawler, a no-JS visitor and anyone whose scroll observer never fires
+  // all see the true sum. The count-up only ever starts from 0 once the table scrolls into view.
+  const [countLow, setCountLow] = useState(totalLow);
+  const [countHigh, setCountHigh] = useState(totalHigh);
 
   useEffect(() => {
     let mq;
@@ -57,6 +59,9 @@ export default function CostTable({ rows, totalLow, totalHigh, closingLine }) {
 
   useEffect(() => {
     if (!animate || reducedMotion) return;
+    // The total sits inside a Reveal that is still invisible while the rows come in, so dropping to 0 here is unseen.
+    setCountLow(0);
+    setCountHigh(0);
     // Rows stagger in at 80ms apart; give them room to finish (their own
     // 500ms rise+fade) before the total starts counting, so the count-up
     // reads as the payoff after the list, not a race against it.

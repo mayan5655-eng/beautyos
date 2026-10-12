@@ -31,6 +31,12 @@ export const metadata = {
     description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד. חודש ראשון חינם.",
     images: [{ url: "/og-1200x630.jpg", width: 1200, height: 630, alt: "קלמיה" }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "קלמיה — עסק פורח, חיים עם יותר שקט",
+    description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד. חודש ראשון חינם.",
+    images: ["/og-1200x630.jpg"],
+  },
 };
 
 export default async function Page() {
