@@ -24,7 +24,7 @@
 // Shared by app/error.tsx and app/global-error.tsx so the two can never drift.
 
 import { useEffect, useState } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import { captureExceptionAsync } from '@/lib/sentryLazy';
 import { LOGO_COMPACT } from '@/lib/brand';
 import BrandImage from "@/app/BrandImage";
 import { PublicPage } from '@/app/PublicChrome';
@@ -40,18 +40,16 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    // Report first, then show her the ID we got back. Guarded so that with no
-    // DSN configured we fall through to digest rather than displaying an ID
-    // that was never sent anywhere.
-    let id: string | null = null;
+    // Report first, then show her the ID we got back. With no DSN configured
+    // captureExceptionAsync resolves to null and we fall through to digest rather
+    // than displaying an ID that was never sent anywhere. The digest is shown
+    // straight away; the Sentry id replaces it as soon as the report is made.
+    let live = true;
+    setFullId(error.digest || null);
     if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-      try {
-        id = Sentry.captureException(error) || null;
-      } catch {
-        id = null;
-      }
+      void captureExceptionAsync(error).then((id) => { if (live && id) setFullId(id); });
     }
-    setFullId(id || error.digest || null);
+    return () => { live = false; };
   }, [error]);
 
   // Six characters, uppercase, no ambiguity about hyphens. Long enough to be

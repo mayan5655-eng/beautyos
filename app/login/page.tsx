@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react'
 import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { supabase } from '../supabase'
+// Loaded when she submits (or first touches a field), not with the page: the Supabase client is ~56KB gzipped and
+// nothing on this screen needs it to paint.
+const getSupabase = () => import('../supabase').then((m) => m.supabase)
 import BrandBackdrop from '../BrandBackdrop'
 
 // Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
@@ -73,7 +75,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await (await getSupabase()).auth.signInWithPassword({
       email,
       password,
     })
@@ -96,7 +98,7 @@ export default function LoginPage() {
     setError('')
     setResetNotice('')
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await (await getSupabase()).auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
 
