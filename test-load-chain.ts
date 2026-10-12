@@ -96,7 +96,8 @@ ok(/useState\(\{\s*forms:\s*"loading",\s*expenses:\s*"loading",\s*waitlist:\s*"l
 
 // ---- every consumer is gated ---------------------------------------------------
 // tax tab reads expenses
-const taxStart = src.indexOf('{activeTab==="tax"&&(()=>{');
+// the tax screen lives in app/tab-tax.jsx once split out of the monolith; the gate must be at its top either way
+const taxStart = Math.max(src.indexOf('{activeTab==="tax"&&(()=>{'), src.indexOf('export default function TaxTab'));
 const taxBlock = src.slice(taxStart, taxStart + 900);
 ok(taxStart > 0 && /deferred\.expenses\s*!==\s*"ok"/.test(taxBlock) && /<DeferredGate/.test(taxBlock), 'tax tab shows a gate, not zero expenses, until expenses have loaded');
 // waitlist card
