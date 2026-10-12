@@ -64,3 +64,10 @@ ok('the clip files exist, are small, and have a poster', () => {
 });
 
 console.log(`${n} passed`);
+
+// The clips are static files for logged-out visitors: the proxy must not send them to /login.
+{
+  const proxy = readFileSync('proxy.ts', 'utf8');
+  assert.match(proxy, /\(\?:svg\|png\|jpg\|jpeg\|gif\|webp\|ico\|mp4\|webm\)/);
+  console.log('ok - proxy leaves .mp4/.webm alone');
+}
