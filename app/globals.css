@@ -455,6 +455,30 @@ h1, h2, h3 {
   opacity: 1;
   transform: translateY(0);
 }
+/* Visitors with scripting off never get the observer that reveals things: show the finished page. */
+@media (scripting: none) {
+  .kl-reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* Landing phone mock: one-time entrance (app/landing/PhoneMockMotion.jsx sets data-pm). With no data-pm - server HTML,
+   no JS, reduced motion - the items are simply in their final state. Opacity and transform only: nothing moves layout. */
+.pm[data-pm="armed"] .pm-in,
+.pm[data-pm="play"] .pm-in {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.pm[data-pm="play"] .pm-in {
+  animation: pmIn 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: var(--pm-d, 0s);
+}
+@keyframes pmIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm .pm-in { opacity: 1 !important; transform: none !important; animation: none !important; }
+}
+
 .kl-press {
   transition: transform 0.12s ease-out, background-color 0.15s ease-out, color 0.15s ease-out, border-color 0.15s ease-out;
 }

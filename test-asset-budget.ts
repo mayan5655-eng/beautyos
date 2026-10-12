@@ -24,6 +24,7 @@ import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LIMIT = 200 * 1024;
+const VIDEO_LIMIT = 2 * 1024 * 1024;
 const ROOTS = ['brand', 'public'];
 
 let passed = 0, failed = 0;
@@ -47,6 +48,13 @@ for (const root of ROOTS) {
   for (const file of walk(root)) {
     count++;
     const size = statSync(file).size;
+    const norm = file.split('\\').join('/');
+    // The one exception: demo clips under public/media/ are lazy-loaded (nothing fetches them before she presses
+    // play), so they get their own 2 MB limit instead of the first-load image budget.
+    if (/^public\/media\/[^/]+\.(mp4|webm)$/.test(norm)) {
+      ok(size <= VIDEO_LIMIT, `${norm} is ${Math.round(size / 1024)} KB - over the ${VIDEO_LIMIT / 1024} KB video limit`);
+      continue;
+    }
     ok(size <= LIMIT, `${file.replace(/\\/g, '/')} is ${Math.round(size / 1024)} KB - over the ${LIMIT / 1024} KB budget (see the header of test-asset-budget.ts)`);
   }
 }

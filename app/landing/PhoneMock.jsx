@@ -11,17 +11,17 @@
 // --r-*, --shadow-*, the serif/hand fonts) so it reads as the product, not
 // a mockup of it.
 //
-// Server component - the only piece that needs client JS is the delayed
-// reveal on the "שאלה אחת" card, which is just Reveal (already a client
-// component) used with an extra delay.
+// Server component. The finished picture is the server HTML; PhoneMockMotion (client) plays the one-time entrance when
+// the mock scrolls into view, driven by the .pm-in items and data-pm-count below (see globals.css).
 
 import Icon from "../Icon";
 import { ICON_QUESTION } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
-import Reveal from "./Reveal";
+import PhoneMockMotion from "./PhoneMockMotion";
 
 export default function PhoneMock() {
   return (
+    <PhoneMockMotion>
     <div
       aria-hidden
       style={{
@@ -49,7 +49,7 @@ export default function PhoneMock() {
           {/* revenue hero */}
           <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--line)", padding: "12px 14px", marginBottom: 10, boxShadow: "var(--shadow-sm)" }}>
             <p style={{ fontSize: 10, color: "var(--ink-2)", marginBottom: 2 }}>הכנסות היום</p>
-            <p className="serif" style={{ fontSize: 22, fontWeight: 700, color: "var(--brand-accent)" }}>₪890</p>
+            <p className="serif" data-pm-count="890" style={{ fontSize: 22, fontWeight: 700, color: "var(--brand-accent)", fontVariantNumeric: "tabular-nums", minHeight: 28 }}>₪890</p>
           </div>
 
           {/* two upcoming appointments */}
@@ -57,8 +57,8 @@ export default function PhoneMock() {
             {[
               { time: "10:30", name: "רונית כהן", service: "טיפול פנים" },
               { time: "12:00", name: "דנה לוי", service: "מניקור ג'ל" },
-            ].map((a) => (
-              <div key={a.time} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--line)", padding: "8px 10px" }}>
+            ].map((a, i) => (
+              <div key={a.time} className="pm-in" style={{ "--pm-d": i === 0 ? "0s" : "0.7s", display: "flex", alignItems: "center", gap: 8, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--line)", padding: "8px 10px" }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: "var(--brand-accent)", minWidth: 32 }}>{a.time}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{a.name}</p>
@@ -70,13 +70,13 @@ export default function PhoneMock() {
 
           {/* שאלה אחת - appears a beat after the rest, as if the system just
               thought of it. Same copy voice and colour as the real card. */}
-          <Reveal delay={650} style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid rgba(233,169,161,.5)", padding: "10px 12px" }}>
+          <div className="pm-in" style={{ "--pm-d": "3.2s", background: "var(--surface)", borderRadius: 14, border: "1px solid rgba(233,169,161,.5)", padding: "10px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
               <BrandImage width={20} height={20} alt="" src={ICON_QUESTION} style={{ width: 20, height: 20, objectFit: "contain" }} />
               <span style={{ fontFamily: "var(--font-hand), cursive", fontSize: 13, color: "#A8544B" }}>שאלה אחת</span>
             </div>
             <p style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.5 }}>התפנה תור ב-14:00 — להציע אותו בוואטסאפ ללקוחות מתאימות?</p>
-          </Reveal>
+          </div>
         </div>
 
         {/* bottom nav, decorative */}
@@ -87,5 +87,6 @@ export default function PhoneMock() {
         </div>
       </div>
     </div>
+    </PhoneMockMotion>
   );
 }
