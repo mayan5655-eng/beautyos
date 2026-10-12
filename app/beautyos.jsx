@@ -20,6 +20,7 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialBanner from "./TrialBanner";
+const HelpTab = dynamic(() => import("./tab-help"), { ssr: false });
 const ProtocolsTab = dynamic(() => import("./tab-protocols"), { ssr: false });
 const CommunityTab = dynamic(() => import("./tab-community"), { ssr: false });
 const AdvisorTab = dynamic(() => import("./tab-advisor"), { ssr: false });
@@ -9293,46 +9294,7 @@ ${MARKETING_FOOTER}`)}`;
 
           {/* PACKAGES */}
           {activeTab==="packages" && <PackagesTab NO_SERVICES_HINT={NO_SERVICES_HINT} activeServices={activeServices} deferred={deferred} handleSaveOffering={handleSaveOffering} handleUndoPackageSession={handleUndoPackageSession} handleUsePackageSession={handleUsePackageSession} isBusy={isBusy} loadDeferred={loadDeferred} newOffering={newOffering} offerings={offerings} offeringsError={offeringsError} packages={packages} pc={pc} pcDeep={pcDeep} pcGrad={pcGrad} pcTint={pcTint} setNewOffering={setNewOffering} setShowOfferingForm={setShowOfferingForm} setShowPackageModal={setShowPackageModal} setShowWaitlistModal={setShowWaitlistModal} setupHint={setupHint} showOfferingForm={showOfferingForm} toggleOffering={toggleOffering} waLink={waLink} waitlist={waitlist} />}
-          {activeTab==="help"&&(()=>{
-            // Read-only, no writes, no gating. Same one-open-at-a-time list as
-            // the setup checklist: a collapsed line per section, the body
-            // revealed on request. The first section is open on arrival so the
-            // page never reads empty.
-            const openKey = expandedHelpKey ?? (HELP_SECTIONS[0]||{}).key;
-            return (
- <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
- <div style={{marginBottom:16}}>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>{HELP_TITLE}</h2>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>{HELP_INTRO}</p>
- </div>
- <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
-                {HELP_SECTIONS.map((sec,i)=>{
-                  const open = openKey===sec.key;
-                  return (
- <div key={sec.key} style={{borderTop:i===0?"none":"1px solid var(--line)",background:open?pcTint:"transparent",transition:"background 0.18s"}}>
- <button
-                      onClick={()=>setExpandedHelpKey(open?"":sec.key)}
-                      aria-expanded={open}
-                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:"pointer"}}>
- <span style={{flex:1,minWidth:0,fontSize:"var(--t-md)",fontWeight:open?700:600,color:"var(--ink)",display:"inline-flex",alignItems:"center",gap:7}}>{sec.icon&&<Icon name={sec.icon} size={15}/>}{sec.title}</span>
- <span aria-hidden style={{fontSize:"var(--t-md)",color:open?pc:"var(--ink-3)",flexShrink:0,display:"inline-block",transition:"transform 0.2s",transform:open?"rotate(-90deg)":"none"}}>←</span>
- </button>
-                      {open&&(
- <div style={{padding:"0 14px 14px 14px"}}>
-                          {sec.body.map((line,j)=>{
-                            if(line.startsWith("### ")) return <p key={j} style={{fontSize:"var(--t-md)",fontWeight:700,color:pcDeep,margin:"12px 0 5px"}}>{helpInline(line.slice(4))}</p>;
-                            if(line.startsWith("- ")) return <p key={j} style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.75,margin:"0 0 3px",paddingRight:14,textIndent:-14}}>• {helpInline(line.slice(2))}</p>;
-                            return <p key={j} style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.75,margin:"0 0 9px"}}>{helpInline(line)}</p>;
-                          })}
- </div>
-                      )}
- </div>
-                  );
-                })}
- </div>
- </div>
-            );
-          })()}
+          {activeTab==="help" && <HelpTab HELP_INTRO={HELP_INTRO} HELP_SECTIONS={HELP_SECTIONS} HELP_TITLE={HELP_TITLE} expandedHelpKey={expandedHelpKey} helpInline={helpInline} pc={pc} pcDeep={pcDeep} pcTint={pcTint} setExpandedHelpKey={setExpandedHelpKey} />}
  </div>
  </div>
  </div>
