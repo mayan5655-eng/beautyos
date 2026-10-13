@@ -4,10 +4,9 @@
 
 import { LOGO_COMPACT } from '@/lib/brand';
 import BrandImage from '@/app/BrandImage';
+import { hebrewPageMeta } from '@/lib/pageMeta';
 
-export const metadata = {
-  title: 'נסי את קלמיה - דמו',
-};
+export const metadata = hebrewPageMeta('נסי את קלמיה · דמו', 'עסק אמיתי, נתונים לדוגמה. אפשר ללחוץ על הכל, ושום הודעה לא יוצאת באמת.');
 
 export default function DemoChooserPage() {
   return (

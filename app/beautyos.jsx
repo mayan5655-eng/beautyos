@@ -9397,7 +9397,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>
- <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא Excel</button>
+ <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא לאקסל</button>
  </div>
  </div>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a

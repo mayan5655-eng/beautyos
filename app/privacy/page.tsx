@@ -12,7 +12,7 @@ import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT
 
 export const metadata: Metadata = {
   title: "מדיניות פרטיות · Kalmea",
-  description: "מדיניות הפרטיות של Kalmea — Beauty Business OS",
+  description: "מדיניות הפרטיות של קלמיה: איזה מידע נשמר, למה, ואיך הוא מוגן.",
 };
 
 const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
