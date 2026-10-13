@@ -72,19 +72,12 @@ console.log(`${n} passed`);
   console.log('ok - proxy leaves .mp4/.webm alone');
 }
 
-// Before/after clip (2026-10-13): sits right under the before/after block, above the demo clip, lazy like it.
+// Before/after clip (2026-10-13): decided NOT to show it on the landing page (too many things before sign-up).
+// The three files stay in public/media for later; the page must not reference them.
 {
   const pg = rd('app/LandingPage.jsx');
-  const a = pg.indexOf('6. לפני / אחרי');
-  const b = pg.indexOf('6a. BEFORE / AFTER VIDEO');
-  const c = pg.indexOf('6b. DEMO VIDEO');
-  assert.ok(a > 0 && b > a && c > b, 'order: before/after text, then its clip, then the demo clip');
-  assert.match(pg, /kalmea-before-after\.mp4/);
-  assert.match(pg, /kalmea-demo-20s\.mp4/); // the existing clip stays
-  const sec = pg.slice(b, c);
-  const text = [...sec.matchAll(/>\s*([^<>{}]+?)\s*</g)].map((m) => m[1]).join(' ');
-  assert.doesNotMatch(text, /בוט|\d/);
-  for (const f of ['mp4', 'webm']) assert.ok(statSync(`public/media/kalmea-before-after.${f}`).size < 2 * 1024 * 1024);
-  assert.ok(statSync('public/media/kalmea-before-after.jpg').size < 120 * 1024);
-  console.log('ok - before/after clip placed, lazy, files within budget');
+  assert.doesNotMatch(pg, /kalmea-before-after/);
+  assert.match(pg, /kalmea-demo-20s.mp4/); // the existing demo clip stays
+  for (const f of ['mp4', 'webm', 'jpg']) assert.ok(statSync(`public/media/kalmea-before-after.${f}`).size > 0);
+  console.log('ok - before/after clip not on the landing page, files kept');
 }
