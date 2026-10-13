@@ -47,4 +47,10 @@ ok('payments export button is Hebrew', () => {
   assert.doesNotMatch(a, /ייצוא Excel/);
 });
 
+ok('the posts-and-templates subtitle no longer ends with the "בלי AI" wording and keeps the rest', () => {
+  const a = rd('app/beautyos.jsx');
+  assert.match(a, />תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע<\/p>/);
+  assert.doesNotMatch(a, /ופוסטים לשבוע — בלי AI/);
+});
+
 console.log(`${n} passed`);
