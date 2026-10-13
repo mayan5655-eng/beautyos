@@ -194,19 +194,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── 6a. BEFORE / AFTER VIDEO: directly under the before/after block ──────── */}
-      <section style={{ maxWidth: 560, margin: "0 auto", padding: "32px 20px 10px", textAlign: "center" }}>
-        <DemoVideo
-          mp4="/media/kalmea-before-after.mp4"
-          webm="/media/kalmea-before-after.webm"
-          poster="/media/kalmea-before-after.jpg"
-          label="סרטון קצר: לפני ואחרי, מהמחברת והפתקים ליומן מסודר"
-        />
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 16 }}>
-          מהמחברת והפתקים ליומן אחד מסודר. הסרטון הוא המחשה.
-        </p>
-      </section>
-
       {/* ── 6b. DEMO VIDEO ────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px", textAlign: "center" }}>
         <SectionEyebrow>רואים אותה בעבודה</SectionEyebrow>
