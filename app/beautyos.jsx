@@ -9875,7 +9875,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{textAlign:"center",marginBottom:18}}>
  <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FRAME} style={{width:52,height:52,objectFit:"contain",marginBottom:4}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>פוסטים ותבניות</h2>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע — בלי AI</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע</p>
  </div>
 
  {aiPostsView==="reels"&&(
