@@ -68,3 +68,19 @@ ok('the share card title matches the Hebrew page title', () => {
 });
 
 console.log(`${n} passed`);
+
+// Landing focus (2026-10-13): one prominent action, everything else quiet.
+{
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. PHONE MOCK'));
+  assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one prominent button in the hero');
+  assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}[\s\S]*חודש ראשון חינם/);
+  assert.match(hero, /href="\/demo"/); // the demo is still one click away, as a quiet text link
+  assert.doesNotMatch(hero.slice(hero.indexOf('href="/demo"') - 40, hero.indexOf('href="/demo"') + 200), /pillBtn/);
+  const demo = page.slice(page.indexOf('9. DEMO'), page.indexOf('9b. FAQ'));
+  assert.doesNotMatch(demo, /boxShadow: "var\(--shadow-sm\)"/); // the two big cards are gone
+  assert.match(demo, /DEMOS\.map/);
+  assert.match(demo, /טכנאיות ציפורניים/);
+  const finalCta = page.slice(page.indexOf('10. FINAL CTA'));
+  assert.equal((finalCta.match(/style=\{pillBtn\}/g) || []).length, 1);
+  console.log('ok - landing focus: one prominent action in the hero and at the end, demo as quiet links');
+}
