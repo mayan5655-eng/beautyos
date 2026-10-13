@@ -133,15 +133,17 @@ export default function LandingPage() {
           <p>קלמיה עושה את זה בשבילך — תורים, תשלומים ותוכן שיווקי, במקום אחד.</p>
         </Reveal>
         <Reveal delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <Link href="/demo" className="kl-press" style={pillBtn}>
-            להיכנס ולראות <span aria-hidden>←</span>
-          </Link>
-          <Link href="/signup" className="kl-press" style={quietBtn}>
-            חודש ראשון חינם
+          <Link href="/signup" className="kl-press" style={pillBtn}>
+            חודש ראשון חינם <span aria-hidden>←</span>
           </Link>
         </Reveal>
         <Reveal delay={200} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
           <p>בלי כרטיס אשראי</p>
+        </Reveal>
+        <Reveal delay={240} style={{ marginTop: 6 }}>
+          <Link href="/demo" className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "underline", textUnderlineOffset: 3 }}>
+            רוצה להציץ קודם? כניסה לדמו
+          </Link>
         </Reveal>
       </section>
 
@@ -257,24 +259,16 @@ export default function LandingPage() {
         <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 4 }}>
           קלמיה נבנתה גם לקוסמטיקאיות וגם לטכנאיות ציפורניים. לכל אחת יש דמו משלה.
         </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginTop: 10 }}>
+        <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 6 }}>
+          אפשר להיכנס לדמו של{" "}
           {DEMOS.map((d, i) => (
-            <Reveal key={d.field} delay={i * 80}>
-              <Link
-                href={d.href}
-                className="kl-press"
-                style={{
-                  display: "block", textAlign: "center", textDecoration: "none",
-                  background: "var(--surface)", borderRadius: "var(--r-lg)", border: "1px solid var(--line)",
-                  padding: "28px 18px", boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                <p className="serif" style={{ fontSize: "var(--t-xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>{d.title}</p>
-                <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>עסק אמיתי, נתונים לדוגמה. לא נשלח שום דבר באמת.</p>
-              </Link>
-            </Reveal>
+            <span key={d.field}>
+              {i > 0 && " או של "}
+              <Link href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3 }}>{d.title}</Link>
+            </span>
           ))}
-        </div>
+          . עסק לדוגמה, ולא נשלח שום דבר באמת.
+        </p>
       </section>
 
       {/* ── 9b. FAQ ───────────────────────────────────────────────────────── */}
