@@ -108,6 +108,18 @@ export default function TermsPage() {
           </En>
         </Section>
 
+        <Section heHeading="מחיר למצטרפות עד 20.10.2026" enHeading="Launch Price">
+          <He>
+            מי שנרשמה עד 20.10.2026 תשלם 349 ₪ לחודש כל עוד המנוי שלה פעיל
+            ברציפות. אם המנוי מסתיים וחוזר, יחול המחיר הרגיל.
+          </He>
+          <En>
+            Anyone who signs up by 20.10.2026 pays NIS 349 per month for as long
+            as her subscription stays continuously active. If the subscription
+            ends and later returns, the regular price applies.
+          </En>
+        </Section>
+
         <Section heHeading="ביטול" enHeading="Termination">
           <He>
             ניתן להפסיק את השימוש בכל עת. אנו רשאים להשעות חשבון המפר תנאים אלה.
@@ -127,7 +139,7 @@ export default function TermsPage() {
         </Section>
 
         <footer style={footerStyle}>
-          עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
+          עודכן לאחרונה: אוקטובר 2026 / Last updated: October 2026
         </footer>
         <PublicFooterLinks style={{ padding: "6px 0 0" }} />
       </article>
