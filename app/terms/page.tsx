@@ -12,7 +12,7 @@ import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT
 
 export const metadata: Metadata = {
   title: "תנאי שימוש · Kalmea",
-  description: "תנאי השימוש של Kalmea — Beauty Business OS",
+  description: "תנאי השימוש של קלמיה: מה את מקבלת, מה באחריותך, והמחיר.",
 };
 
 const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
@@ -105,6 +105,16 @@ export default function TermsPage() {
           <En>
             All rights in the Service are reserved to us. The data you enter remains
             yours.
+          </En>
+        </Section>
+
+        <Section heHeading="מחיר וחודש ראשון" enHeading="Price and First Month">
+          <He>
+            המחיר הרגיל הוא 499 ₪ לחודש. החודש הראשון חינם, בלי כרטיס אשראי.
+          </He>
+          <En>
+            The regular price is NIS 499 per month. The first month is free, with
+            no credit card.
           </En>
         </Section>
 
