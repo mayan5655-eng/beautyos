@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { verifiedUserFromSession } from "@/lib/supabase/sessionGate";
 import LandingPage from "./LandingPage";
 import BeautyOSLoader from "./BeautyOSLoader";
+import { wantsLandingPreview } from "@/lib/homeRoute";
 
 // Only meaningfully seen by a crawler or a social-share unfurl, both of
 // which hit this route with no session - so this describes the landing
@@ -39,12 +40,17 @@ export const metadata = {
   },
 };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // "/?landing=1" is the deliberate way to look at the public page while logged in (lib/homeRoute.ts). Answered before any
+  // session work, so it is also the cheapest path.
+  if (wantsLandingPreview(await searchParams)) return <LandingPage />;
+
   const supabase = await createClient();
   // Page-level gate only: the token's signature is verified locally
   // (lib/supabase/sessionGate.ts) instead of a round trip to the Auth server.
   // Every API route and write still calls auth.getUser().
   const user = await verifiedUserFromSession(supabase);
+
   if (user) return <BeautyOSLoader />;
   return <LandingPage />;
 }
