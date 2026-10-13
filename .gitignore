@@ -60,3 +60,6 @@ CONFIRM_LINK_SECRET.local.txt
 *.csv
 *.xlsx
 *.xls
+
+# marketing videos: large renders stay local, only the source (marketing/video-src) is committed
+marketing/videos/
