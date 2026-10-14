@@ -23,6 +23,7 @@ import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { checkInstanceState } from '@/lib/greenApi/health'
 import AdminClient, { type AdminTenantRow } from './AdminClient'
 import OpsEvents from './OpsEvents'
+import GrowOnboarding from './GrowOnboarding'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -115,6 +116,8 @@ export default async function AdminPage() {
       {/* The alert log: written before WhatsApp is attempted, so it still exists
           when WhatsApp is the thing that is down. */}
       <OpsEvents db={db} />
+      {/* Grow merchant-onboarding updates from /api/grow/webhook: read-only, masked ids. */}
+      <GrowOnboarding db={db} />
     </>
   )
 }
