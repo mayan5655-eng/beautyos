@@ -29,6 +29,12 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
       if (error) throw new Error(error.message);
       return (data || null) as unknown as GrowPayment | null;
     },
+    async findByProcessId(processId) {
+      // Exactly one row or nothing: an id shared by two payments is never guessed at.
+      const { data, error } = await db.from('grow_payments').select(SELECT).eq('process_id', processId).limit(2);
+      if (error) throw new Error(error.message);
+      return (data && data.length === 1 ? data[0] : null) as unknown as GrowPayment | null;
+    },
     async insertReceipt(row) {
       let { data, error } = await db.from('receipts').insert(row).select('id').single();
       if (error && isMissingColumn(error)) {

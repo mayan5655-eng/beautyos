@@ -39,6 +39,8 @@ export type GrowRepo = {
   /** Flip created -> paid atomically; null when it was not 'created' any more (a duplicate callback). */
   markPaid(id: string, patch: Record<string, unknown>): Promise<GrowPayment | null>;
   findByToken(token: string): Promise<GrowPayment | null>;
+  /** The one payment with this Grow process id; null when there is none or the id is ambiguous. Used by the platform webhook, whose URL carries no per-payment secret. */
+  findByProcessId?(processId: string): Promise<GrowPayment | null>;
   insertReceipt(row: Record<string, unknown>): Promise<{ id: string }>;
   setReceiptDocument(receiptId: string, url: string): Promise<void>;
 };
@@ -157,6 +159,22 @@ export async function applyNotification(raw: Record<string, unknown>, token: str
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
   if (!p) return { status: 'unknown-token' };
+  return applyToPayment(p, raw, d, approve);
+}
+
+/**
+ * The platform webhook has no per-payment secret in its URL: the payment is found by Grow's process id instead, and the
+ * same process-id and amount match below still has to pass. Ambiguous or unknown ids are ignored.
+ */
+export async function applyNotificationByProcess(raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
+  const n = readNotification(raw);
+  if (!n || !d.repo.findByProcessId) return { status: 'ignored' };
+  const p = await d.repo.findByProcessId(n.processId);
+  if (!p) return { status: 'unknown-token' };
+  return applyToPayment(p, raw, d, approve);
+}
+
+async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
   if (!p.process_id || !notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) })) return { status: 'mismatch' };
@@ -183,6 +201,34 @@ export async function applyInvoice(raw: unknown, token: string, d: Deps): Promis
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
   if (!p) return { status: 'unknown-token' };
+  const url = findInvoiceUrl(raw);
+  if (!url) return { status: 'no-url' };
+  await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
+  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url);
+  return { status: 'stored' };
+}
+
+/** The Grow process id wherever an invoice notification carries it (processId or process_id, up to a few levels deep). */
+export function findProcessId(raw: unknown): string {
+  const seen = new Set<unknown>();
+  const walk = (v: unknown, depth: number): string => {
+    if (depth > 4 || !v || typeof v !== 'object' || seen.has(v)) return '';
+    seen.add(v);
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if ((k === 'processId' || k === 'process_id') && x != null && typeof x !== 'object') return String(x);
+    }
+    for (const x of Object.values(v as Record<string, unknown>)) { const r = walk(x, depth + 1); if (r) return r; }
+    return '';
+  };
+  return walk(raw, 0);
+}
+
+/** Invoice notification on the platform webhook: correlated by the process id inside it. */
+export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ status: 'stored' | 'unmatched' | 'no-url' }> {
+  const pid = findProcessId(raw);
+  if (!pid || !d.repo.findByProcessId) return { status: 'unmatched' };
+  const p = await d.repo.findByProcessId(pid);
+  if (!p) return { status: 'unmatched' };
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
