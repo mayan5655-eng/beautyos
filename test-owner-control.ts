@@ -156,6 +156,10 @@ ok('the metrics function is projected to name + timestamp at once; its counts an
 });
 
 // ── the entry in the "more" sheet ────────────────────────────────────────────
+ok('the owner pages export no metadata: a non-admin\'s 404 carries no title that gives the route away', () => {
+  for (const p of pages) assert.doesNotMatch(rd(p), /export const (metadata|generateMetadata)/, p);
+});
+
 ok('the entry is decided on the server and renders nothing for non-admins', () => {
   const e = rd('app/dashboard/owner/OwnerEntry.tsx');
   assert.match(e, /requirePlatformAdmin\(\)/);

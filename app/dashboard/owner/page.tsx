@@ -6,7 +6,6 @@ import { OwnerShell, card, muted } from './OwnerShell'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-export const metadata = { title: 'בקרה · קלמיה', robots: { index: false, follow: false } }
 
 const TILES = [
   { href: '/dashboard/owner/signups', title: 'הרשמות', body: 'כמה נרשמו היום, בשבוע ובחודש, ומאיפה הן הגיעו.' },

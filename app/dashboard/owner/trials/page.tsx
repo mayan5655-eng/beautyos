@@ -7,7 +7,6 @@ import { trialsEndingSoon, planStatusCounts, launchPriceQualifiers, dateHe } fro
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-export const metadata = { title: 'ניסיונות · בקרה', robots: { index: false, follow: false } }
 
 const STATUS_HE = { trial: 'בניסיון', active: 'פעיל', expired: 'הסתיים', paused: 'מושהה' } as const
 

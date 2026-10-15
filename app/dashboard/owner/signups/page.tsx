@@ -6,7 +6,6 @@ import { signupWindows, signupsBySource, newestSignups, dateHe } from '@/lib/own
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-export const metadata = { title: 'הרשמות · בקרה', robots: { index: false, follow: false } }
 
 export default async function OwnerSignupsPage() {
   const r = await loadTenants()
