@@ -59,7 +59,7 @@ export default async function GrowOnboarding({ db }: { db: SupabaseClient }) {
 
   const rows = (data || []) as Row[]
   return (
-    <section style={wrap}>
+    <section id="grow-onboarding" style={wrap}>
       <h2 style={{ fontSize: 'var(--t-xl)', fontWeight: 600, marginBottom: 6 }}>הצטרפות ל-Grow</h2>
       <p style={note}>
         עדכוני הצטרפות ש-Grow שלחה. תצוגה בלבד. מזהה העסק מוסתר חלקית, ואף מפתח לא נשמר.

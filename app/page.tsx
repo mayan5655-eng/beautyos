@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { verifiedUserFromSession } from "@/lib/supabase/sessionGate";
 import LandingPage from "./LandingPage";
 import BeautyOSLoader from "./BeautyOSLoader";
+import OwnerEntry from "./dashboard/owner/OwnerEntry";
 import { wantsLandingPreview } from "@/lib/homeRoute";
 
 // Only meaningfully seen by a crawler or a social-share unfurl, both of
@@ -51,6 +52,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   // Every API route and write still calls auth.getUser().
   const user = await verifiedUserFromSession(supabase);
 
-  if (user) return <BeautyOSLoader />;
+  // OwnerEntry decides on the server, and streams: it renders nothing for anyone who is not a platform admin.
+  if (user) return <BeautyOSLoader ownerEntry={<OwnerEntry />} />;
   return <LandingPage />;
 }

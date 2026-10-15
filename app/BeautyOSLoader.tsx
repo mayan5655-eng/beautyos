@@ -19,6 +19,6 @@ import dynamic from 'next/dynamic'
 
 const BeautyOS = dynamic(() => import('./beautyos'))
 
-export default function BeautyOSLoader() {
-  return <BeautyOS />
+export default function BeautyOSLoader({ ownerEntry = null }: { ownerEntry?: React.ReactNode }) {
+  return <BeautyOS ownerEntry={ownerEntry} />
 }

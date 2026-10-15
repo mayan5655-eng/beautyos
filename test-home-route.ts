@@ -28,7 +28,7 @@ ok('the root page: server-side branch, no redirect hop, app still loaded as its 
   assert.match(p, /wantsLandingPreview\(await searchParams\)/);
   // the preview answer comes before any session work
   assert.ok(p.indexOf('wantsLandingPreview(await searchParams)') < p.indexOf('verifiedUserFromSession(supabase)'));
-  assert.ok(/if \(user\) return <BeautyOSLoader \/>;\s*return <LandingPage \/>;/.test(p));
+  assert.ok(/if \(user\) return <BeautyOSLoader ownerEntry=\{<OwnerEntry \/>\} \/>;\s*return <LandingPage \/>;/.test(p));
   assert.ok(!/supabase\.auth\.getUser\(\)/.test(p)); // the cheap local check stays the only gate (test-session-gate.ts)
 });
 

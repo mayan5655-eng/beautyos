@@ -1124,7 +1124,9 @@ function isAuthTransportFailure(authErr) {
   );
 }
 
-export default function BeautyOS() {
+// ownerEntry: a node the server renders only for platform admins (see OwnerEntry in the owner control section); null for everyone else.
+/** @param {{ ownerEntry?: import("react").ReactNode }} [props] */
+export default function BeautyOS({ ownerEntry = null } = {}) {
   const router = useRouter();
 
   // === DATA STATES ===
@@ -11453,6 +11455,7 @@ ${MARKETING_FOOTER}`)}`;
  </button>
                 );
               })}
+              {ownerEntry}
  </div>
  </div>
  </div>
