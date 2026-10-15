@@ -6,6 +6,8 @@ import {
   GROW_IPS, clientIp, ipAllowed, ipCheckEnforced, allowedIps, classifyWebhook, readOnboarding, applyOnboarding, parseWebhookBody,
 } from './lib/grow/webhook.ts';
 import type { OnboardingRepo, MatchState } from './lib/grow/webhook.ts';
+import { GROW_IPS as GROW_IPS_CFG, GROW_IPS_SOURCE } from './lib/grow/growIps.ts';
+import { buildProcessFields, tenantRefOf, findCustomField } from './lib/grow/payload.ts';
 import { applyNotification, applyNotificationByProcess, applyInvoiceByProcess, findProcessId } from './lib/grow/service.ts';
 import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 
@@ -261,6 +263,52 @@ await ok('the admin list is read-only, masks the id and is gated by the admin pa
   assert.doesNotMatch(c, /'use client'|"use client"/);
   const p = rd('app/dashboard/admin/page.tsx');
   assert.ok(p.indexOf('requirePlatformAdmin()') < p.indexOf('<GrowOnboarding'));
+});
+
+// ── cFields: our tenant id travels with the payment and comes back ────────────────
+await ok('the charge carries the tenant id in cField2 (no hyphens) next to the payment id in cField1', () => {
+  const f = Object.fromEntries(buildProcessFields({
+    userId: 'u123', pageCode: 'pc', sum: 250, description: 'פנים', fullName: 'דנה כהן', phone: '0501234567',
+    successUrl: 'https://x.test/ok', cancelUrl: 'https://x.test/no', notifyUrl: 'https://x.test/n?t=abc', paymentRef: 'aaaa-bbbb',
+    tenantRef: '448E9E45-2251-4572-B665-886C5BC7A4C8',
+  }));
+  assert.equal(f.cField1, 'aaaabbbb');
+  assert.equal(f.cField2, '448e9e4522514572b665886c5bc7a4c8');
+  assert.equal(tenantRefOf('ten-1'), 'ten1');
+});
+
+await ok('a payment whose cField2 names another tenant is a mismatch; the right one, or none (older payments), is accepted', async () => {
+  const mk = () => fakeGrowRepo([pay({ tenant_id: '448e9e45-2251-4572-b665-886c5bc7a4c8' })]);
+  const base = { processId: 'P1', transactionId: 'T1', sum: '250', statusCode: '2' };
+  const wrong = await applyNotificationByProcess({ data: { ...base, customFields: { cField2: 'deadbeef' } } }, deps(mk().repo));
+  assert.equal(wrong.status, 'mismatch');
+  const right = await applyNotificationByProcess({ ...base, cField2: '448e9e4522514572b665886c5bc7a4c8' }, deps(mk().repo));
+  assert.equal(right.status, 'paid');
+  const nested = await applyNotificationByProcess({ data: { ...base, customFields: { cField2: '448e9e4522514572b665886c5bc7a4c8' } } }, deps(mk().repo));
+  assert.equal(nested.status, 'paid');
+  const none = await applyNotificationByProcess(base, deps(mk().repo));
+  assert.equal(none.status, 'paid');
+});
+
+await ok('an invoice whose cField2 names another tenant is not attached; the right one is', async () => {
+  const mk = () => fakeGrowRepo([pay({ receipt_id: 'rc-9', tenant_id: 'ten-1' })]);
+  const f1 = mk();
+  const bad = await applyInvoiceByProcess({ ...INVOICE, data: { ...INVOICE.data, customFields: { cField2: 'other' } } }, deps(f1.repo));
+  assert.equal(bad.status, 'mismatch');
+  assert.ok(!f1.log.some((l) => l.startsWith('doc ')));
+  const f2 = mk();
+  const good = await applyInvoiceByProcess({ ...INVOICE, data: { ...INVOICE.data, customFields: { cField2: 'ten1' } } }, deps(f2.repo));
+  assert.equal(good.status, 'stored');
+  assert.equal(findCustomField({ 'data[customFields][cField2]': 'abc' }, 'cField2'), 'abc');
+  assert.equal(findCustomField({ nothing: 1 }, 'cField2'), '');
+});
+
+await ok('the address list lives in its config file with its source, and the webhook uses exactly that list', () => {
+  assert.equal(GROW_IPS_CFG.length, 29);
+  assert.equal(new Set(GROW_IPS_CFG).size, 29);
+  assert.deepEqual([...GROW_IPS], [...GROW_IPS_CFG]);
+  assert.match(GROW_IPS_SOURCE, /developers\.grow\.business\/reference\/ip-address/);
+  assert.doesNotMatch(rd('lib/grow/webhook.ts'), /'3\.123\.194\.128'/); // not duplicated there
 });
 
 console.log(`${n} passed`);
