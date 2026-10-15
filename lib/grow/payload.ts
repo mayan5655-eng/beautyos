@@ -52,7 +52,14 @@ export type ProcessInput = {
   invoiceNotifyUrl?: string;
   /** Our own payment id, echoed back by Grow in customFields.cField1. */
   paymentRef: string;
+  /** Our tenant id (tenantRefOf), echoed back in customFields.cField2: the notification says whose payment it is. */
+  tenantRef?: string;
 };
+
+/** A tenant id as it travels in cField2: lower-case letters and digits only (Grow refuses special characters). */
+export function tenantRefOf(tenantId: unknown): string {
+  return String(tenantId ?? '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+}
 
 /** The multipart fields of createPaymentProcess, in Grow's own parameter names. */
 export function buildProcessFields(i: ProcessInput): [string, string][] {
@@ -68,6 +75,7 @@ export function buildProcessFields(i: ProcessInput): [string, string][] {
     ['notifyUrl', i.notifyUrl],
     ['cField1', growText(String(i.paymentRef).replace(/-/g, ''), 60)],
   ];
+  if (i.tenantRef) f.push(['cField2', tenantRefOf(i.tenantRef)]);
   if (i.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email)) f.push(['pageField[email]', i.email]);
   if (i.invoiceNotifyUrl) f.push(['invoiceNotifyUrl', i.invoiceNotifyUrl]);
   return f;
@@ -102,6 +110,8 @@ export type Notification = {
   payerPhone: string;
   payerEmail: string;
   paymentRef: string;
+  /** customFields.cField2: the tenant id we sent with the charge ('' on payments created before it existed). */
+  tenantRef: string;
   /** Everything approveTransaction asks to be echoed back, as received. */
   echo: Record<string, string>;
 };
@@ -146,6 +156,7 @@ export function readNotification(raw: Record<string, unknown>): Notification | n
     payerPhone: flat.payerPhone || '',
     payerEmail: flat.payerEmail || '',
     paymentRef: flat['customFields.cField1'] || flat.cField1 || '',
+    tenantRef: tenantRefOf(flat['customFields.cField2'] || flat.cField2 || ''),
     echo,
   };
 }
@@ -166,6 +177,24 @@ export function findInvoiceUrl(raw: unknown): string | null {
       for (const x of Object.values(v as Record<string, unknown>)) { const r = walk(x, depth + 1); if (r) return r; }
     }
     return null;
+  };
+  return walk(raw, 0);
+}
+
+/**
+ * A custom field (cField1, cField2) wherever an invoice notification carries it: top level, nested under customFields, or
+ * PHP-style data[customFields][cField2]. Returns '' when absent.
+ */
+export function findCustomField(raw: unknown, name: string): string {
+  const seen = new Set<unknown>();
+  const walk = (v: unknown, depth: number): string => {
+    if (depth > 4 || !v || typeof v !== 'object' || seen.has(v)) return '';
+    seen.add(v);
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (x !== null && x !== undefined && typeof x !== 'object' && (k === name || k.endsWith('[' + name + ']'))) return String(x);
+    }
+    for (const x of Object.values(v as Record<string, unknown>)) { const r = walk(x, depth + 1); if (r) return r; }
+    return '';
   };
   return walk(raw, 0);
 }

@@ -16,7 +16,7 @@
 //
 // Money never passes through Kalmea: the payment page belongs to her Grow account.
 
-import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, growPhone, parseChargeAmount, growText } from './payload.ts';
+import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
 import type { Notification } from './payload.ts';
 
 export type GrowPayment = {
@@ -97,6 +97,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     notifyUrl: `${base}/api/grow/notify?t=${payment.notify_token}`,
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,
+    tenantRef: i.tenantId,
   });
   const form = new FormData();
   for (const [k, v] of fields) form.append(k, v);
@@ -178,6 +179,9 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
   if (!p.process_id || !notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) })) return { status: 'mismatch' };
+  // The tenant id we sent in cField2 must be this payment's tenant. Absent on payments created before cField2 existed:
+  // then the process id, the amount and the secret are the checks, as before.
+  if (n.tenantRef && n.tenantRef !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
   if (!n.paid) return { status: 'not-paid' };
 
   const now = (d.now || (() => new Date()))().toISOString();
@@ -197,10 +201,12 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
 
-export async function applyInvoice(raw: unknown, token: string, d: Deps): Promise<{ status: 'stored' | 'unknown-token' | 'no-url' }> {
+export async function applyInvoice(raw: unknown, token: string, d: Deps): Promise<{ status: 'stored' | 'unknown-token' | 'no-url' | 'mismatch' }> {
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
   if (!p) return { status: 'unknown-token' };
+  const ref = tenantRefOf(findCustomField(raw, 'cField2'));
+  if (ref && ref !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
@@ -224,11 +230,13 @@ export function findProcessId(raw: unknown): string {
 }
 
 /** Invoice notification on the platform webhook: correlated by the process id inside it. */
-export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ status: 'stored' | 'unmatched' | 'no-url' }> {
+export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ status: 'stored' | 'unmatched' | 'no-url' | 'mismatch' }> {
   const pid = findProcessId(raw);
   if (!pid || !d.repo.findByProcessId) return { status: 'unmatched' };
   const p = await d.repo.findByProcessId(pid);
   if (!p) return { status: 'unmatched' };
+  const ref = tenantRefOf(findCustomField(raw, 'cField2'));
+  if (ref && ref !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
