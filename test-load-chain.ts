@@ -108,5 +108,20 @@ ok(/clientTab==="forms"&&deferred\.forms/.test(src), 'client sheet forms content
 const readers = [...src.matchAll(/\b(expenses|waitlist)\.(filter|map|length|reduce|find)/g)].length;
 ok(readers <= 6, `expenses/waitlist have only the known readers (found ${readers}) - a new reader needs a gate`);
 
+// ---- "the one question" is loaded ONCE at boot ---------------------------------
+// Two effects both fired loadPendingQuestion on mount (the mount effect, and the activeTab effect whose first run
+// has activeTab === "dashboard"), so the same two reads went out twice before first paint. The tab effect now skips
+// its first run; every later tab change, the visibility reload and the post-answer reloads are untouched.
+{
+  const mount = src.indexOf('loadFbConnection is NOT called here any more');
+  const mountCall = src.indexOf('loadPendingQuestion();', mount);
+  ok(mount > 0 && mountCall > mount && mountCall - mount < 600, 'the mount effect still starts loadPendingQuestion');
+  const tab = src.indexOf('if (activeTab === "dashboard") loadPendingQuestion();');
+  ok(tab > 0, 'the tab effect still reloads the question when she opens the dashboard tab');
+  const guard = src.lastIndexOf('questionLoadedOnMountRef.current', tab);
+  ok(guard > 0 && tab - guard < 220 && /questionLoadedOnMountRef\.current\s*=\s*false;\s*return;/.test(src.slice(guard - 40, tab)), 'the tab effect skips its first run (already loaded by the mount effect)');
+  ok((src.match(/loadPendingQuestion\(\)/g) || []).length === 5, 'the other triggers are unchanged: mount, tab change, visibility, after an answer (2 sites)');
+}
+
 console.log(`load chain: passed ${passed} failed ${failed}`);
 if (failed > 0) process.exit(1);
