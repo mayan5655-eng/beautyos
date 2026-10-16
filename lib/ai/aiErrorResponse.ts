@@ -27,5 +27,23 @@ export function mapAiError(e: unknown): MappedAiError | null {
   return null;
 }
 
+/** What she reads when the AI failed for a reason we do not recognise (overloaded, rate limit, timeout, anything else). */
+export const AI_BUSY_FALLBACK_HE = 'יש עומס רגעי, נסי שוב עוד רגע';
+
+/**
+ * The only text of a failed AI call that may reach her screen.
+ *   - our own refusals (credit, key, caps, demo, ungrounded claims): their Hebrew message, exactly as before;
+ *   - a message WE wrote (starts with a Hebrew letter and carries no provider JSON): kept;
+ *   - everything else - the SDK's raw English ("529 {\"type\":\"error\"...", "Request timed out.", "Connection error."):
+ *     the short Hebrew fallback. The full error stays in the server log, which every caller writes before answering.
+ */
+export function userMessageForAiError(e: unknown): string {
+  const mapped = mapAiError(e);
+  if (mapped) return mapped.message;
+  const msg = e instanceof Error ? String(e.message || '') : '';
+  const ours = /^\s*[\u0590-\u05FF]/.test(msg) && !/[{}]|request_id|"type"\s*:/.test(msg);
+  return ours ? msg : AI_BUSY_FALLBACK_HE;
+}
+
 /** True for the errors a swallowing catch must NOT swallow: the caller has to see them to explain them. */
 export const isAiRefusal = (e: unknown): boolean => mapAiError(e) !== null;

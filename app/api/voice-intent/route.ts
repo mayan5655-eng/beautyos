@@ -17,6 +17,7 @@ import { voiceActionAllowed } from '@/lib/ai/demoPolicy'
 import { isDemoTenantId } from '@/lib/demoTenants'
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit'
 import { DemoBlockedError } from '@/lib/ai/callCaps'
+import { userMessageForAiError } from '@/lib/ai/aiErrorResponse'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -121,6 +122,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ intent, ...capNoticeOf(aiResponse) })
   } catch (err: any) {
     console.error('Error in /api/voice-intent:', err)
-    return NextResponse.json({ error: err.message || 'שגיאה' }, { status: 500 })
+    return NextResponse.json({ error: userMessageForAiError(err) }, { status: 500 })
   }
 }

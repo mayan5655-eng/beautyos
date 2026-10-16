@@ -15,6 +15,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedStream } from '@/lib/ai/usage'
+import { userMessageForAiError } from '@/lib/ai/aiErrorResponse'
 import { readAllRows } from '@/lib/pagedRead'
 import { hoursSummaryHe } from '@/lib/businessHours'
 import { summarizeTenantSkinTrends } from '@/lib/skinHistory'
@@ -299,7 +300,7 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
           controller.enqueue(line({ t: 'done', ...(s.capNotice ? { capNotice: s.capNotice } : {}) }))
         } catch (err: any) {
           console.error('Error streaming /api/advisor:', err)
-          controller.enqueue(line({ t: 'error', error: err?.message || 'שגיאה' }))
+          controller.enqueue(line({ t: 'error', error: userMessageForAiError(err) }))
         } finally {
           controller.close()
         }
@@ -314,6 +315,6 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
     })
   } catch (err: any) {
     console.error('Error in /api/advisor:', err)
-    return NextResponse.json({ error: err.message || 'שגיאה' }, { status: 500 })
+    return NextResponse.json({ error: userMessageForAiError(err) }, { status: 500 })
   }
 }
