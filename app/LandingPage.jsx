@@ -178,8 +178,6 @@ export default function LandingPage() {
           <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
             499 ₪ <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
           </p>
-          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>349 ₪ לחודש, לכל החיים, למצטרפות עד 20.10</p>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>המחיר נשאר כל עוד המנוי פעיל, בלי הפסקה.</p>
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
         </Reveal>
       </section>

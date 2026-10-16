@@ -23,10 +23,15 @@ ok('the listed ranges add up to the figure on the page', () => {
   assert.equal(rows.reduce((s, r) => s + r[1], 0), 10068);
 });
 
-ok('Kalmea price is shown, with the first-members line and no promise of limited spots', () => {
+ok('Kalmea price is shown (499 and the free month); the launch-offer lines are gone from the page but the terms clause stays', () => {
   assert.match(page, /499 ₪/);
-  assert.match(page, /349 ₪ לחודש, לכל החיים, למצטרפות עד 20.10/);
-  assert.match(page, /המחיר נשאר כל עוד המנוי פעיל, בלי הפסקה./);
+  assert.match(page, /החודש הראשון חינם, בלי כרטיס אשראי./);
+  assert.doesNotMatch(page, /349/);
+  assert.doesNotMatch(page, /לכל החיים|למצטרפות עד/);
+  assert.doesNotMatch(page, /המחיר נשאר כל עוד המנוי פעיל/);
+  const terms = rd('app/terms/page.tsx');
+  assert.match(terms, /מי שנרשמה עד 20.10.2026 תשלם 349 ₪ לחודש/); // the commitment to those who signed up in time stays in writing
+  assert.match(terms, /Anyone who signs up by 20.10.2026 pays NIS 349 per month/);
   assert.doesNotMatch(page, /לחברות הראשונות/);
   assert.doesNotMatch(page, /מקומות|מוגבל|עד שיגמר|רק ל-\d+ /);
 });
