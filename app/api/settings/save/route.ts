@@ -24,12 +24,13 @@
 // code, and an insert naming one column that does not exist fails the whole
 // row - on the signup path, for every new cosmetician.
 
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { pickSettingsPayload, preserveProtectedAutomations, mergeStoredBags } from '@/lib/settingsColumns';
 import { SEEDED_SETTINGS_KEYS } from '@/lib/tenantTemplate';
 import { isMissingColumnError } from '@/lib/pgError';
+import { notifyOwnerOfSignup } from '@/lib/ownerSignupAlert';
 
 function admin() {
   return createClient(
@@ -130,5 +131,15 @@ export async function POST(request: Request) {
     console.error('[settings/save] insert failed:', error.code, error.message);
     return NextResponse.json({ success: false, error: 'יצירת ההגדרות נכשלה' }, { status: 500 });
   }
+  // A new business has finished onboarding (its settings row now exists): tell the platform owner ONCE, after the response has gone, so
+  // nothing here can slow or break her signup. No personal data in the alert; see lib/ownerSignupAlert.ts.
+  const signupName = (data as { business_name?: unknown } | null)?.business_name ?? (insertRow as { business_name?: unknown }).business_name;
+  after(async () => {
+    try {
+      await notifyOwnerOfSignup({ db, tenantId, businessName: signupName, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim() });
+    } catch (e) {
+      console.error('[settings/save] owner signup alert failed:', e instanceof Error ? e.message : 'unknown');
+    }
+  });
   return NextResponse.json({ success: true, settings: data, created: true });
 }

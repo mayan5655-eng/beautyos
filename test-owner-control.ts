@@ -128,9 +128,10 @@ ok('every route is gated before any data is read: platform admin or the same pla
   assert.match(rd('app/dashboard/owner/page.tsx'), /await requireOwner\(\)/);
   assert.match(loader, /export async function loadTenants\(\)[\s\S]*?await requireOwner\(\)/);
   assert.match(loader, /export async function loadActivity\(\)[\s\S]*?await requireOwner\(\)/);
+  assert.match(loader, /export async function loadSignupsPage\(\)[\s\S]*?await requireOwner\(\)/);
   for (const p of pages.slice(1)) {
     const s = rd(p);
-    assert.match(s, /load(Tenants|Activity)\(\)/, p);
+    assert.match(s, /load(Tenants|Activity|SignupsPage)\(\)/, p);
     assert.doesNotMatch(strip(s), /createAdminClient|createClient|\.from\(|\.rpc\(/, `${p} reads no data itself`);
     assert.match(s, /export const dynamic = 'force-dynamic'/, p);
   }
@@ -139,7 +140,9 @@ ok('every route is gated before any data is read: platform admin or the same pla
 // ── privacy ──────────────────────────────────────────────────────────────────
 ok('only tenant-level columns are selected, and the only tables and functions touched are the allowed ones', () => {
   assert.equal(OWNER_TENANT_COLUMNS, 'id, name, created_at, plan_status, trial_started_at, trial_ends_at, signup_source');
-  const code = ownerFiles.map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
+  // signups/contacts.ts is the one file allowed to read a business phone / account email (for the contact links); it has its own pins in
+  // test-owner-signup-contact.ts. Every other owner file is held to the rule below.
+  const code = ownerFiles.filter((f) => !f.replace(/\\/g, '/').endsWith('signups/contacts.ts')).map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
   const from = [...code.matchAll(/\.from\('([^']+)'\)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(from)], ['tenants']);
   const rpc = [...code.matchAll(/\.rpc\('([^']+)'\)/g)].map((m) => m[1]).sort();
