@@ -7,7 +7,7 @@
 // picks up the placeholder blocklist automatically instead of copying it.
 
 // Used when no real clinic name is set.
-export const CLINIC_FALLBACK = 'הקליניקה';
+export const CLINIC_FALLBACK = 'העסק';
 
 // Values that mean the clinic name was never really set: the settings column's
 // own DB default, the product name used on test tenants, and the placeholder

@@ -117,7 +117,7 @@ const hand = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
-  title: "קלמיה — עסק פורח, חיים עם יותר שקט",
+  title: "קלמיה: עסק פורח, חיים עם יותר שקט",
   description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
   applicationName: "Kalmea",
   manifest: "/manifest.json",
@@ -126,7 +126,7 @@ export const metadata: Metadata = {
   // metadata in app/[slug]/page.tsx) previously had no preview image at all.
   openGraph: {
     type: "website",
-    title: "קלמיה — עסק פורח, חיים עם יותר שקט",
+    title: "קלמיה: עסק פורח, חיים עם יותר שקט",
     description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
     url: APP_URL,
     locale: "he_IL",

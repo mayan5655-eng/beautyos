@@ -137,10 +137,13 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         className="primary-btn"
         style={{
           background: pcGrad,
-          color: "var(--surface)",
+          color: "var(--pc-contrast)",
           fontSize:"var(--t-sm)",
           fontWeight: 600,
           padding: "10px 18px",
+          minHeight: 44,
+          display: "inline-flex",
+          alignItems: "center",
           borderRadius:"var(--r-sm)",
           textDecoration: "none",
           whiteSpace: "nowrap",

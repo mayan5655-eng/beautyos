@@ -125,7 +125,7 @@ try {
   await page.click('button[aria-label="לקוחות"]'); await page.waitForTimeout(1200);
   await page.getByText(CLIENT).filter({ visible: true }).first().click(); await page.waitForTimeout(1000);
   const dl = async (label) => { const [d] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), visible(`button:has-text("${label}")`).click()]); const f = await d.path(); return fs.readFileSync(f, 'utf8'); };
-  const json = await dl('הורדה (JSON)');
+  const json = await dl('הורדת כל המידע');
   const parsed = JSON.parse(json);
   check(parsed.client?.name === CLIENT && parsed.sections?.appointments?.length === 1 && parsed.sections?.payments?.length === 1, 'the JSON export has her card, her appointment and her payment');
   check(!/token|secret|password/i.test(Object.keys(parsed.client).join(' ')), 'the export contains no secret-like fields');

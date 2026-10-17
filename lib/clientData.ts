@@ -21,6 +21,7 @@
 // message log by a column called `phone` that is really `recipient_phone`, reported "skipped", and deleted the card with every message
 // still in the database. If any step fails the client card is NOT deleted and the result says so, so the owner can run it again.
 
+import { createHash } from 'node:crypto'
 import { normalizeIsraeliMobile } from './phone.ts'
 
 /** The slice of the Supabase client this uses, so tests can pass a fake. */
@@ -38,6 +39,9 @@ type Err = { code?: string; message?: string } | null | undefined
 export const isTableMissing = (e: Err): boolean => !!e && (e.code === '42P01' || e.code === 'PGRST205' || /relation .* does not exist|Could not find the table/i.test(e.message || ''))
 /** A COLUMN is not there: a bug or a stale schema, never to be shrugged off. */
 export const isColumnMissing = (e: Err): boolean => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column .* does not exist|Could not find the '.*' column/i.test(e.message || ''))
+
+/** The kept record that a number asked to stop receiving marketing, once her card is gone: a hash, never the number (marketing_suppressions, add_audit_hardening SQL). */
+export const suppressionHash = (tenantId: string, e164: string): string => createHash('sha256').update(`${tenantId}:${e164}`).digest('hex')
 
 /** Every shape a phone number may be stored in, for the tables that keep only a phone. */
 export function phoneVariants(raw: unknown): string[] {
@@ -117,7 +121,8 @@ export async function exportClientData(db: Db, tenantId: string, clientId: strin
 const csvCell = (v: unknown): string => {
   let t = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v)
   // a value that starts like a formula would run in Excel (names come from a public form)
-  if (typeof v !== 'number' && /^[=+\-@|\t\r\n]/.test(t)) t = "'" + t
+  // (a phone written as +9725... is not a formula: it keeps its plus sign)
+  if (typeof v !== 'number' && !/^\+?\d[\d\s-]*$/.test(t) && /^[=+\-@|\t\r\n]/.test(t)) t = "'" + t
   return `"${t.replace(/"/g, '""')}"`
 }
 const SECTION_TITLES_HE: Record<string, string> = {
@@ -229,6 +234,17 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
   steps.push(...(await Promise.all(jobs)))
   // the database cannot link published before/after results to a client, so they are not touched: said plainly in the result
   steps.push({ table: 'treatment_results', action: 'skipped', note: 'not linked to a client in the database; remove published results in the results screen' })
+
+  // 3b. someone who asked to stop messages must not become messageable again because her card is gone: keep a hash of the number, not the number
+  try {
+    const opt = await db.from('clients').select('marketing_opted_out_at').eq('tenant_id', tenantId).eq('id', clientId).maybeSingle()
+    const e164 = normalizeIsraeliMobile(String((client as { phone?: unknown }).phone ?? ''))
+    if (!opt.error && opt.data?.marketing_opted_out_at && e164.ok) {
+      const up = await db.from('marketing_suppressions').upsert({ tenant_id: tenantId, phone_hash: suppressionHash(tenantId, e164.e164) })
+      steps.push(up.error ? { table: 'marketing_suppressions', action: isTableMissing(up.error) ? 'skipped' : 'failed', note: 'opt-out record' } : { table: 'marketing_suppressions', action: 'anonymised', note: 'hash kept so she is not messaged again' })
+      if (up.error && !isTableMissing(up.error)) failed = true
+    }
+  } catch { /* the column or table may not exist on this install: nothing to keep */ }
 
   // 4. the card itself, only if nothing above failed
   if (failed) return { ok: false, steps, error: 'some steps failed; the client card was kept so this can be run again' }

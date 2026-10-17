@@ -157,7 +157,7 @@ export default function LoginPage() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
             src={BANNER_HEADER}
-            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+            alt="קלמיה, עסק שפורח. חיים עם יותר שקט."
             width={BANNER_HEADER_W}
             height={BANNER_HEADER_H}
             priority

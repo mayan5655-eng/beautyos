@@ -16,6 +16,7 @@ import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { LEAD_STATUS_KEYS } from "../../../../lib/leads/statuses";
 import { renderLeadTemplate } from "../../../../lib/leads/templates";
 import { withMarketingFooter } from "../../../../lib/marketingConsent";
+import { phoneVariants } from "../../../../lib/clientData";
 import { IMPORT_SOURCE } from "../../../../lib/leads/buildRows";
 
 // Service-role client for reading the tenant's leads (bypasses RLS; always
@@ -89,8 +90,24 @@ export async function POST(request) {
     const { data: leads, error } = await query;
 
     if (error) {
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      console.error("[leads/send-bulk] read failed:", error.message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 });
     }
+
+    // Nobody who asked to stop gets a promotional message: not a lead who replied "הסר" (leads.marketing_opted_out_at, added by
+    // add_audit_hardening_2026-10-18.sql; until then this part is skipped), and not a number whose client card is opted out.
+    const optedOutPhones = new Set();
+    const optedOutLeadIds = new Set();
+    try {
+      const { data: oc } = await admin.from("clients").select("phone").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null);
+      for (const c of oc || []) for (const v of phoneVariants(c.phone)) optedOutPhones.add(v);
+    } catch { /* column not there yet: nobody is opted out */ }
+    try {
+      const { data: ol, error: oe } = await admin.from("leads").select("id").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null);
+      if (!oe) for (const l of ol || []) optedOutLeadIds.add(l.id);
+    } catch { /* same */ }
+    const leadList = (leads || []).filter((l) => !optedOutLeadIds.has(l.id) && !phoneVariants(l.phone).some((v) => optedOutPhones.has(v)));
+    const optedOutCount = (leads || []).length - leadList.length;
 
     // The business name, for {clinic}. One read for the whole batch; a missing
     // row just means the neutral fallback, which is what renderLeadTemplate
@@ -126,7 +143,7 @@ export async function POST(request) {
     let skipped_no_consent = 0;
     const results = [];
 
-    for (const lead of leads || []) {
+    for (const lead of leadList) {
       if (!lead.phone) {
         skipped_no_phone++;
         results.push({ name: lead.name || null, status: "אין טלפון" });
@@ -168,6 +185,7 @@ export async function POST(request) {
       failed,
       skipped_no_phone,
       skipped_no_consent,
+      skipped_opted_out: optedOutCount,
       results,
     });
   } catch (err) {

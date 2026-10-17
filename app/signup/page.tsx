@@ -64,7 +64,7 @@ export default function SignupPage() {
 
     if (error) {
       if (error.message.includes('already registered')) {
-        setError('האימייל כבר רשום במערכת')
+        setError('האימייל הזה כבר רשום. אפשר להתחבר, או לאפס סיסמה בעמוד הכניסה.')
       } else {
         // The raw message is English and technical: log it, and say in Hebrew what happened.
         console.error('[signup] failed:', error.message)
@@ -82,7 +82,7 @@ export default function SignupPage() {
     // With email confirmation ON, Supabase answers an already-registered address with a fake user (no error, no identities)
     // so that nobody can probe which emails exist. Treat it as what it is.
     if (data.user && data.user.identities && data.user.identities.length === 0) {
-      setError('האימייל כבר רשום במערכת')
+      setError('האימייל הזה כבר רשום. אפשר להתחבר, או לאפס סיסמה בעמוד הכניסה.')
       setLoading(false)
       return
     }
@@ -132,7 +132,7 @@ export default function SignupPage() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
           <Image
             src={BANNER_HEADER}
-            alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
+            alt="קלמיה, עסק שפורח. חיים עם יותר שקט."
             width={BANNER_HEADER_W}
             height={BANNER_HEADER_H}
             priority
@@ -142,11 +142,12 @@ export default function SignupPage() {
           />
         </div>
 
+        {!sentTo && (<>
         {/* Welcome */}
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <h1 style={welcomeTitleStyle}>נעים להכיר 🌸</h1>
           <p style={welcomeSubtitleStyle}>
-            פתחי את חשבון היופי שלך — כל מה שצריך לניהול העסק, במקום אחד. החודש הראשון חינם, בלי כרטיס אשראי.
+            פתחי את חשבון היופי שלך: כל מה שצריך לניהול העסק, במקום אחד. החודש הראשון חינם, בלי כרטיס אשראי.
           </p>
           {/* Hairline with the actual flower mark, echoing the logo's own
               flower. Matches the same divider on /login. */}
@@ -156,6 +157,7 @@ export default function SignupPage() {
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${ACCENT_LINE_2}, transparent)` }} />
           </div>
         </div>
+        </>)}
 
         {sentTo ? (
           <div role="status" style={{ textAlign: 'center' }}>

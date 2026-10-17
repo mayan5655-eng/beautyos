@@ -30,7 +30,7 @@ export default function DeferredGate({
           type="button"
           onClick={onRetry}
           className="primary-btn"
-          style={{ padding: "8px 18px", fontSize: "var(--t-sm)", borderRadius: "var(--r-sm)", cursor: "pointer" }}
+          style={{ padding: "8px 18px", minHeight: 44, fontSize: "var(--t-sm)", borderRadius: "var(--r-sm)", cursor: "pointer" }}
         >
           נסי שוב
         </button>

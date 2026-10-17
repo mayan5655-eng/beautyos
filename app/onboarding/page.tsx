@@ -238,6 +238,11 @@ export default function OnboardingPage() {
       setError("בחרי לפחות תחום אחד כדי שנתאים לך את התפריט והתכנים.");
       return;
     }
+    // A closing hour that is not after the opening hour used to be replaced by 9 to 19 without a word.
+    if (step === 3 && Number(data.working_hours_end) && Number(data.working_hours_start) && Number(data.working_hours_end) <= Number(data.working_hours_start)) {
+      setError("שעת הסיום צריכה להיות אחרי שעת ההתחלה.");
+      return;
+    }
     setError("");
     setStep(s => Math.min(STEP_NAMES.length, s + 1));
   };
@@ -416,8 +421,8 @@ export default function OnboardingPage() {
           {step === 1 && (
             <>
               <h1 style={titleStyle}><Icon name="smile" size={22}/> ברוכה הבאה!</h1>
-              <p style={subtitleStyle}>שמחים שאת איתנו. בואי נכיר — נתחיל מהדברים הבסיסיים על העסק שלך. אפשר תמיד לדלג ולעדכן אחר כך.</p>
-              <Field label="שם העסק">
+              <p style={subtitleStyle}>שמחים שאת איתנו. נתחיל מהבסיס, ואת כל זה אפשר לשנות אחר כך.</p>
+              <Field label="שם העסק (יופיע ללקוחות שלך)">
                 <input
                   className="ob-input"
                   value={data.business_name}
@@ -426,7 +431,7 @@ export default function OnboardingPage() {
                   style={inputStyle}
                 />
               </Field>
-              <Field label="שם המטפלת">
+              <Field label="השם שלך">
                 <input
                   className="ob-input"
                   value={data.therapist_name}
@@ -527,7 +532,7 @@ export default function OnboardingPage() {
 
               {data.business_fields.length === 0 ? (
                 <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                  בחרי תחום למעלה כדי לראות טיפולים מוצעים — או דלגי, ובני את המחירון מאפס בהגדרות ← שירותים.
+                  בחרי את התחום שלך כדי שנציע לך טיפולים מתאימים.
                 </div>
               ) : (
                 <>
@@ -549,7 +554,7 @@ export default function OnboardingPage() {
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0
                     ? "לא נוסיף שום טיפול שלא סימנת. אפשר להוסיף הכל ידנית מאוחר יותר תחת הגדרות ← שירותים."
-                    : `${pickedServices.length} טיפולים יתווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
+                    : `${pickedServices.length} טיפולים יתווספו למחירון שלך. משם הם שלך לגמרי. אפשר לשנות שם, מחיר או משך בכל רגע.`}
                 </p>
               </div>
               )}
@@ -558,7 +563,7 @@ export default function OnboardingPage() {
 
           {step === 5 && (
             <>
-              <h1 style={titleStyle}><Icon name="download" size={22}/> יש לך נתונים בתוכנה אחרת?</h1>
+              <h1 style={titleStyle}><Icon name="download" size={22}/> את רוצה להביא לקוחות ממקום אחר?</h1>
               {!showChooser ? (
                 <>
                   <p style={subtitleStyle}>
@@ -567,7 +572,7 @@ export default function OnboardingPage() {
                   </p>
                   <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "13px 15px", marginTop: 4 }}>
                     <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
-                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
+                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח. ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
                     </p>
                   </div>
                 </>
@@ -613,7 +618,7 @@ export default function OnboardingPage() {
                 </Field>
               </div>
               <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                {`כמעט סיימנו — עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
+                {`כמעט סיימנו, עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
               </div>
             </>
           )}
@@ -636,9 +641,11 @@ export default function OnboardingPage() {
 
           {step < STEP_NAMES.length ? (
             <>
-              <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                דלגי
-              </button>
+              {!(step === 4 && data.business_fields.length === 0) && (
+                <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
+                  דלגי
+                </button>
+              )}
               <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc }}>
                 הבא ←
               </button>
@@ -649,16 +656,16 @@ export default function OnboardingPage() {
             // broken: nothing happened until the round-trip came back. The save
             // now runs once she picks a kind, on her way into the wizard.
             <>
-              <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-secondary"
-                style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                {saving ?<Spinner inline label="שומר"/>: "לא עכשיו"}
-              </button>
               {!showChooser && (
-                <button onClick={()=>setShowChooser(true)} className="ob-btn-primary"
-                  style={{ ...btnPrimaryStyle, background: pc }}>
-                  ייבוא נתונים ←
+                <button onClick={()=>setShowChooser(true)} className="ob-btn-secondary"
+                  style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
+                  יש לי נתונים לייבוא
                 </button>
               )}
+              <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-primary"
+                style={{ ...btnPrimaryStyle, background: pc }}>
+                {saving ?<Spinner inline label="שומרת"/>: "סיום ופתיחת היומן ←"}
+              </button>
             </>
           )}
         </div>

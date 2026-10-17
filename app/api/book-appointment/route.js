@@ -20,6 +20,7 @@ import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
+import { suppressionHash } from "../../../lib/clientData";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -352,15 +353,18 @@ export async function POST(request) {
         // Her name is NOT overwritten from this form. The record is hers, and a
         // booking is not the place to rename a woman because she typed her name
         // differently this time.
-        // The optional "updates and offers" checkbox (unchecked by default). Only a literal true counts.
-        // A public form can NOT clear an earlier opt-out: anyone can type any phone number into it, so a stranger could
-        // re-subscribe a client who asked to stop (and fabricate her consent record). The update only lands while she
-        // has no opt-out. Best-effort: a booking never fails because this could not be recorded.
-        if (marketingConsent === true) {
-          const { error: consentErr } = await supabase.from("clients").update(consentFields("booking_page")).eq("id", match.id).eq("tenant_id", activeTenantId).is("marketing_opted_out_at", null);
-          if (consentErr) console.error("[book-appointment] marketing consent not recorded:", consentErr.message);
-        }
+        // The "updates and offers" checkbox changes NOTHING for a client who already has a card. Anyone can type any phone number into this public
+        // form, so ticking the box here would let a stranger write a consent record for someone else's number (and, before, clear her opt-out).
+        // Consent is recorded only when the form creates a NEW card (below); an existing client gives it on her card or in the consent form.
       } else {
+        // A number that asked to stop messages before her card was erased stays suppressed: no consent is recorded from a booking form for it.
+        let consentAllowed = marketingConsent === true;
+        if (consentAllowed) {
+          try {
+            const { data: sup } = await supabase.from("marketing_suppressions").select("phone_hash").eq("tenant_id", activeTenantId).eq("phone_hash", suppressionHash(activeTenantId, phoneCheck.e164)).limit(1);
+            if (sup && sup.length) consentAllowed = false;
+          } catch { /* table not created yet: nothing is suppressed */ }
+        }
         const baseRow = {
           tenant_id: activeTenantId,
           name,
@@ -370,10 +374,10 @@ export async function POST(request) {
         };
         let { data: created, error: createErr } = await supabase
           .from("clients")
-          .insert(marketingConsent === true ? { ...baseRow, ...consentFields("booking_page") } : baseRow)
+          .insert(consentAllowed ? { ...baseRow, ...consentFields("booking_page") } : baseRow)
           .select("id")
           .single();
-        if (createErr && marketingConsent === true) {
+        if (createErr && consentAllowed) {
           // Most likely the consent columns do not exist yet (migration pending): keep the booking, drop only the consent.
           console.error("[book-appointment] client create with consent failed, retrying without it:", createErr.message);
           ({ data: created, error: createErr } = await supabase.from("clients").insert(baseRow).select("id").single());

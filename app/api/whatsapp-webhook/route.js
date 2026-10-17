@@ -25,7 +25,7 @@ import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { hit } from "@/lib/rateLimit";
 import { isAuthorizedWebhook, webhookUnauthorized } from "../../../lib/webhookAuth";
 import { optOutFields, isOptOutReply } from "../../../lib/marketingConsent";
-import { normalizeIsraeliMobile } from "../../../lib/phone";
+import { phoneVariants } from "../../../lib/clientData";
 import { mapGreenApiDeliveryStatus } from "../../../lib/greenApi/deliveryStatus.ts";
 
 const supabase = createClient(
@@ -233,15 +233,26 @@ export async function POST(request) {
     // (which would answer it as a question) and whether or not the bot is on. Only an exact one-word request counts, so an
     // ordinary sentence that happens to contain the word is never read as an opt-out.
     if (isOptOutReply(text)) {
+      // The same cap as the bot below: a loop of "הסר" must not become a loop of lookups and acknowledgements.
+      const optBurst = hit(`wa-optout:${tenantId}:${senderToPhone(senderChatId) || senderChatId}`, { limit: 5, windowMs: 10 * 60_000 });
+      if (!optBurst.ok) return Response.json({ ok: true, optOut: "rate-limited" });
       try {
-        const phoneNorm = normalizeIsraeliMobile(senderToPhone(senderChatId));
-        if (phoneNorm.ok) {
-          const { data: rows } = await supabase.from("clients").select("id, phone").eq("tenant_id", tenantId);
-          const ids = (rows || []).filter(c => normalizeIsraeliMobile(c.phone).e164 === phoneNorm.e164).map(c => c.id);
-          if (ids.length) {
-            const { error: optErr } = await supabase.from("clients").update(optOutFields()).in("id", ids).eq("tenant_id", tenantId);
+        const variants = phoneVariants(senderToPhone(senderChatId));
+        if (variants.length) {
+          // Only this sender's cards, by phone (not every card in the business), in any shape the phone was stored.
+          const { data: cards } = await supabase.from("clients").select("id, marketing_opted_out_at").eq("tenant_id", tenantId).in("phone", variants);
+          const fresh = (cards || []).filter(c => !c.marketing_opted_out_at);
+          if (fresh.length) {
+            const { error: optErr } = await supabase.from("clients").update(optOutFields()).in("id", fresh.map(c => c.id)).eq("tenant_id", tenantId);
             if (optErr) console.error("[whatsapp-webhook] opt-out not recorded:", optErr.message);
-            else await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. לא נשלח לך יותר הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId });
+          }
+          // A person who is only a LEAD (a Facebook form, the skin scan) can ask to stop too. The column arrives with
+          // add_audit_hardening_2026-10-18.sql; until then this is skipped.
+          const { error: leadErr } = await supabase.from("leads").update(optOutFields()).eq("tenant_id", tenantId).in("phone", variants);
+          if (leadErr && !/marketing_opted_out_at|schema cache|does not exist/i.test(leadErr.message || "")) console.error("[whatsapp-webhook] lead opt-out not recorded:", leadErr.message);
+          // Acknowledge once: not again if she was already removed (a second "הסר" would otherwise get a second message).
+          if ((cards || []).length === 0 || fresh.length > 0) {
+            await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId });
           }
         }
       } catch (e) { console.error("[whatsapp-webhook] opt-out failed:", e?.message); }

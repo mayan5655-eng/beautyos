@@ -6514,7 +6514,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const copyPublicLink = async (kind) => {
     const t = settings.tenant_id;
-    if (!t) { toast("חסר מזהה עסק — נסי לרענן", "error"); return; }
+    if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
     // install (bloomos.com today) rather than a hardcoded vendor address.
     const base = (typeof window !== "undefined" && window.location.origin) || APP_URL;
@@ -6540,11 +6540,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : `${base}/book?t=${t}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
+      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← העמוד שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
+      return true;
     } catch {
       toast(url, "info");
+      return false;   // not copied: the day-1 nudge stays so she can try again
     }
   };
 
@@ -8065,7 +8067,7 @@ ${MARKETING_FOOTER}`)}`;
    :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
  </div>
  )}
- <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
               account, and every screen should keep saying so. */}
@@ -12393,7 +12395,7 @@ ${MARKETING_FOOTER}`)}`;
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
                       {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
                       {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:"var(--r-sm)"}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
-                      <ClientPrivacyPanel client={c} toast={toast} canWrite={!planInfo.isBlocked} historyReady={historyReady} onErased={handleClientErased}/>
+                      <ClientPrivacyPanel client={c} toast={toast} historyReady={historyReady} upcomingCount={appts.filter(a=>a.date>=today&&a.confirmation_status!=="cancelled").length} onErased={handleClientErased}/>
  </div>
                   )}
                   {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}

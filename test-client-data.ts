@@ -253,7 +253,8 @@ for (const [name, src] of [['export', exp], ['erase', era]] as const) {
   assert.ok(src.includes('export async function POST') && !/export async function GET/.test(src), `${name}: POST only`);
   assert.ok(src.includes('checkTenantLimit'), `${name}: rate limited`);
 }
-assert.ok(era.includes('requireActiveTenant') && era.includes('isDemoTenantId') && era.includes('confirmName'), 'erase: plan guard, no demo, typed confirmation');
+assert.ok(era.includes('isDemoTenantId') && era.includes('confirmName'), 'erase: no demo, typed confirmation');
+assert.ok(!era.includes('requireActiveTenant'), 'erase stays available to a business whose trial ended: honouring a deletion request is a legal duty');
 assert.ok(!exp.includes('requireActiveTenant'), 'export is a read, so it stays open for a business on hold');
 assert.ok(fs.readFileSync('app/beautyos.jsx', 'utf8').includes('<ClientPrivacyPanel'), 'the client card offers both');
 
