@@ -10,7 +10,7 @@ const withHeader = parseImportGrid('שם\tטלפון\tהערות\nדנה כהן\
 assert.equal(withHeader.width, 3);
 assert.equal(detectHeaderRow(withHeader.rows), true);
 assert.deepEqual(guessColumns(withHeader.rows, true).slice(0, 2), ['name', 'phone']);
-const built = buildImportRows(withHeader, ['name', 'phone', 'notes'], true);
+const built = buildImportRows(withHeader, ['name', 'phone', 'notes'], true) as { rows: Array<Record<string, string | undefined>>; noName: number };
 assert.equal(built.rows.length, 2);
 assert.equal(built.rows[0].name, 'דנה כהן');
 assert.equal(built.rows[0].phone, '0541234567', 'a phone keeps only digits (and +)');
