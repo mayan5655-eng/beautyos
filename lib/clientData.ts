@@ -126,15 +126,19 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
   const phones = phoneVariants((client as { phone?: unknown }).phone)
   let failed = false
 
-  const run = async (table: string, action: 'deleted' | 'anonymised', op: () => Promise<{ error: any; count?: number | null; data?: any[] | null }>) => {
-    const r = await op()
-    if (r.error) {
-      if (isMissing(r.error)) steps.push({ table, action: 'skipped', note: 'not on this install' })
-      else { failed = true; steps.push({ table, action: 'failed', note: String(r.error.code || 'error') }) }
-      return
-    }
-    const n = Array.isArray(r.data) ? r.data.length : (r.count ?? undefined)
-    steps.push({ table, action: n === 0 ? 'none' : action, count: n })
+  // The tables are independent of each other, so they are cleaned in parallel (a business with a long history waited several seconds when
+  // this ran one after another). Steps are still reported in a fixed order.
+  const jobs: Array<Promise<Step>> = []
+  const run = (table: string, action: 'deleted' | 'anonymised', op: () => Promise<{ error: any; count?: number | null; data?: any[] | null }>) => {
+    jobs.push(op().then((r): Step => {
+      if (r.error) {
+        if (isMissing(r.error)) return { table, action: 'skipped', note: 'not on this install' }
+        failed = true
+        return { table, action: 'failed', note: String(r.error.code || 'error') }
+      }
+      const n = Array.isArray(r.data) ? r.data.length : (r.count ?? undefined)
+      return { table, action: n === 0 ? 'none' : action, count: n }
+    }))
   }
 
   // 1. private files (photos, scan images) under this client's own folder
@@ -151,21 +155,22 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
 
   // 2. deleted outright (every query: this business, this client)
   for (const table of ['forms', 'skin_scans', 'client_photos', 'reviews', 'treatment_results', 'auto_reminders_log']) {
-    await run(table, 'deleted', () => db.from(table).delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
+    run(table, 'deleted', () => db.from(table).delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
   }
   if (phones.length) {
     for (const table of ['whatsapp_messages', 'waitlist']) {
-      await run(table, 'deleted', () => db.from(table).delete().eq('tenant_id', tenantId).in('phone', phones).select('id'))
+      run(table, 'deleted', () => db.from(table).delete().eq('tenant_id', tenantId).in('phone', phones).select('id'))
     }
   }
 
   // 3. kept for the books, without her identity
-  await run('appointments', 'anonymised', () =>
+  run('appointments', 'anonymised', () =>
     db.from('appointments').update({ client_id: null, name: ANONYMOUS_NAME_HE, client_phone: null, note: null }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
-  await run('receipts', 'anonymised', () =>
+  run('receipts', 'anonymised', () =>
     db.from('receipts').update({ client_id: null, client_name: ANONYMOUS_NAME_HE }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
-  await run('packages', 'anonymised', () =>
+  run('packages', 'anonymised', () =>
     db.from('packages').update({ client_id: null, client_name: ANONYMOUS_NAME_HE }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
+  steps.push(...(await Promise.all(jobs)))
 
   // 4. the card itself, only if nothing above failed
   if (failed) return { ok: false, steps, error: 'some steps failed; the client card was kept so this can be run again' }

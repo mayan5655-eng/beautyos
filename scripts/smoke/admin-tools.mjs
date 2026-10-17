@@ -40,3 +40,18 @@ export async function purgeTenant(tenantId, userId) {
   return out;
 }
 if (cmd === 'purge') { const [tid, uid] = process.argv.slice(3); console.log(await purgeTenant(tid, uid)); }
+
+// purge-smoke: remove EVERY kalmea-smoke-* account and its business (never the real tenant)
+if (cmd === 'purge-smoke') {
+  for (let p = 1; p <= 10; p++) {
+    const { data } = await db.auth.admin.listUsers({ page: p, perPage: 200 });
+    for (const u of data?.users || []) {
+      if (!/^kalmea-smoke-/.test(u.email || '')) continue;
+      const t = await tenantIdOf(u.id).catch(() => null);
+      const left = t ? await purgeTenant(t, u.id) : [];
+      if (!t) await db.auth.admin.deleteUser(u.id);
+      console.log('removed', u.email, t, left.length ? left.join('; ') : 'ok');
+    }
+    if (!data?.users?.length) break;
+  }
+}

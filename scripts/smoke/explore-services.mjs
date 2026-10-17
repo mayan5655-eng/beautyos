@@ -1,0 +1,13 @@
+import { launch, PASSWORD, BASE } from './lib.mjs';
+import fs from 'node:fs';
+const acct = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const { browser, page } = await launch();
+await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+await page.fill('input[type=email]', acct.email); await page.fill('input[type=password]', PASSWORD); await page.click('button[type=submit]');
+await page.waitForURL((u) => u.pathname.startsWith('/onboarding'), { timeout: 45000 });
+await page.fill('input[placeholder="למשל: סטודיו רונית"]', 'בדיקה'); await page.click('button:has-text("הבא")'); await page.waitForTimeout(400);
+await page.click('button:has-text("הבא")'); await page.waitForTimeout(400); await page.click('button:has-text("הבא")'); await page.waitForTimeout(400);
+await page.click('button:has-text("קוסמטיקה וטיפוח פנים")'); await page.waitForTimeout(700);
+console.log('checkboxes', await page.locator('input[type=checkbox]').count());
+console.log(JSON.stringify(await page.$$eval('label, [role=checkbox], button', (e) => e.map((x) => x.innerText.trim().replace(/\s+/g, ' ').slice(0, 40)).filter(Boolean).slice(0, 40))));
+await browser.close();
