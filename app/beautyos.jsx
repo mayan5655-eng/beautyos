@@ -209,94 +209,8 @@ const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","�
 // Reassuring steps cycled through while the AI skin scan is processing, so the
 // wait feels alive and progressing rather than frozen.
 const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
-// Help page (nav "עזרה"). The text of help-content.md, one entry per "##"
-// heading, embedded verbatim rather than fetched: the page must work offline
-// and cannot depend on a file the deploy may not carry. Body lines render by
-// prefix - "- " is a bullet, "### " a sub-heading, anything else a paragraph -
-// and **bold** inside a line renders bold. Nothing here rewrites the copy.
-const HELP_TITLE = "עזרה — איך המערכת עובדת";
-const HELP_INTRO = "מדריך קצר לכל מסך במערכת. אפשר לפתוח כל חלק בנפרד.";
-const HELP_SECTIONS = [
-  { key:"calendar", icon:"calendar", title:"יומן", body:[
-    "היומן הוא המסך הראשי שלך. כאן את רואה את כל התורים, קובעת חדשים, ומנהלת את הזמן שלך.",
-    "- מעבר בין תצוגת **יום** ל**שבוע**, וקפיצה מהירה ל**היום**",
-    "- **✦ תור חדש** — או פשוט לחיצה על משבצת ריקה ביומן, והשעה כבר מוכנה",
-    "- לחיצה על תור קיים פותחת אותו לעריכה",
-    "- **🔒 אירוע אישי** — חסימת זמן לעצמך, שלא ייקבע בו תור",
-    "- כל תור מסומן בצבע לפי הסטטוס: אישרה, ביטלה, ממתין, אישי",
-    "- מהתור אפשר לשלוח תזכורת, לסמן תשלום, ולפתוח את כרטיס הלקוחה",
-    "בחלון קביעת התור את מחפשת לקוחה לפי שם או טלפון (או מקלידה חדשה), בוחרת תאריך ושעה — שעות תפוסות מסומנות ⛔ — בוחרת טיפול ומשך (30, 45, 60 או 90 דקות), ושומרת.",
-  ]},
-  { key:"clients", icon:"people", title:"לקוחות", body:[
-    "כל הלקוחות שלך במקום אחד, עם כל ההיסטוריה שלהן.",
-    "- חיפוש לפי שם או טלפון, וסינון לפי סטטוס (פעילות, חמות, VIP, להתחדשות) או סוג עור",
-    "- **✦ לקוחה חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** בהדבקה מאקסל או מאנשי הקשר",
-    "- **⏱ מזמן לא הגיעו** — מוצא מי לא הגיעה מזמן ושולח לכולן הודעת חזרה בלחיצה אחת",
-    "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
-    "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
-  ]},
-  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", body:[
-    "לחיצה על לקוחה פותחת חלון צד עם הכל עליה. למעלה — שם, טלפון, סוג עור, וכמה הוציאה אצלך בסך הכל. לפעמים יופיע שם גם רמז אוטומטי, כמו \"לא ביקרה 60 ימים — שווה הודעת התחדשות\".",
-    "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.",
-    "### הלשוניות",
-    "- **פרטים** — סיכום לקריאה: יום הולדת, סוג עור, אלרגיות (צהוב), מידע רפואי (כחול), הערות. לעריכה — הכפתור ✎ למעלה",
-    "- **היסטוריה** — כל התורים מהחדש לישן, עם טיפול, תאריך ומחיר. לכל שורה כפתור **שלחי תזכורת**",
-    "- **סריקות עור** — כל הסריקות שנשמרו, עם ציון צבעוני. לחיצה פותחת את הדוח המלא מחדש",
-    "- **אישורי תשלום** — כל התשלומים, לחיצה פותחת את האישור. אם חיברת חשבון מורנינג, מופיעה כאן גם הקבלה או החשבונית שהונפקה.",
-    "- **חבילות** — חבילות פעילות עם פס התקדמות, וכפתור **✓ השתמשי** שמנצל טיפול",
-    "- **טפסים** — שליחת טופס לחתימה דיגיטלית לפי סוג טיפול (פלזמה, לייזר, פילינג ועוד). מתחת רואים מה נחתם ✓ ומה ממתין ⏳",
-    "- **לפני/אחרי** — העלאת זוג תמונות עם שם טיפול והערה",
-    "- **תמונות** — כל התמונות. הראשונה הופכת לתמונת הפרופיל",
-    "### ✦ סריקת עור AI — איך זה עובד",
-    "מצלמת פנים של הלקוחה (או מעלה תמונה), וממתינה כמה שניות. מקבלת דוח: ציון 0-100, סוג עור, ממצאים, טיפול מומלץ, תוכנית טיפול בקליניקה, תוכנית טיפוח לבית, והערות מקצועיות בשבילך.",
-    "אם הטיפול המומלץ קיים ברשימת השירותים שלך — יופיע כפתור לקביעת התור ישירות. הסריקה נשמרת אוטומטית בכרטיס הלקוחה.",
-    "⚠️ יש מכסת סריקות חודשית, מוצגת בהגדרות → כללי.",
-  ]},
-  { key:"leads", icon:"chat", title:"פניות", body:[
-    "כל מי שפנתה אליך ועדיין לא הפכה ללקוחה — מהאתר, מפייסבוק או שהזנת ידנית.",
-    "- סינון לפי סטטוס: חדש, אין מענה, ממתינה לתשובה, בטיפול, נשלח מחיר, נקבע תור, לא הגיע, למעקב בהמשך, נסגר, לא רלוונטי",
-    "- **✦ פנייה חדשה** להוספה ידנית, **⇪ ייבוא פניות** מקובץ",
-    "- **✆ שליחת וואטסאפ** לכל הפניות בסטטוס מסוים בבת אחת",
-    "- לחיצה על פנייה פותחת אותה: שינוי סטטוס, תזכורת מעקב, הודעות מוכנות, והמרה ללקוחה רשומה",
-    "- פניות מפייסבוק ומדף נחיתה נכנסות לכאן אוטומטית",
-  ]},
-  { key:"services", icon:"nails", title:"שירותים והיסטוריית טיפולים", body:[
-    "רשימת השירותים והמחירים נמצאת ב**הגדרות → שירותים**. שם את מוסיפה טיפול, קובעת מחיר, ומעדכנת מתי שרוצה. אפשר גם לבחור מרשימה מוכנה במקום להקליד הכל.",
-    "ההיסטוריה של כל טיפול שנתת נשמרת בכרטיס הלקוחה, בלשונית **היסטוריה** — יחד עם התמונות לפני/אחרי.",
-  ]},
-  { key:"marketing", icon:"megaphone", title:"שיווק", body:[
-    "ארבעה כלים בלשונית אחת:",
-    "### 🖊️ יצירת פוסטים",
-    "כותבת מה את רוצה לפרסם, ואם בא לך מוסיפה עוד פרטים. לוחצת **✦ צרי לי 5 פוסטים**. מקבלת אסטרטגיה קצרה וחמישה פוסטים מוכנים — כל אחד עם כותרת, טקסט, קריאה לפעולה והאשטגים.",
-    "מכל פוסט אפשר: **להעתיק**, **לשתף לפייסבוק**, או **להוריד תמונה**. לאינסטגרם — מורידים את התמונה ומדביקים את הטקסט ידנית.",
-    "כפתור **✦ שמרי את הקמפיין** שומר הכל תחת **הקמפיינים שלי**.",
-    "⚠️ טיפולים רפואיים כמו בוטוקס ומילויים מסוננים אוטומטית מהפוסטים.",
-    "### 📋 מה לצלם השבוע",
-    "לחיצה אחת, בלי להקליד כלום. מקבלת 3-5 רעיונות לצילום, מותאמים לשירותים שלך ולתורים של השבוע הקרוב. חלקם מסומנים \"בלי להצטלם\" אם את לא רוצה להיות בתמונה. מכל רעיון אפשר לעבור ישר ל**🎬 צרי ריל מזה**.",
-    "### 🎬 רילסים",
-    "כותבת על מה הריל, בוחרת אורך (15/30/60 שניות) ווייב (רגוע ומפנק, אנרגטי וקצבי). מקבלת תסריט מלא — סצנה־סצנה עם מה אומרים, מה כתוב על המסך, ואיך לצלם. בסוף: תיאור לפוסט וסגנון מוזיקה מומלץ.",
-    "ומתחת — **הפכי את התסריט לסרטון**: מוסיפה תמונה לכל סצנה, הכתוביות והתזמונים כבר מוכנים, אפשר להוסיף מוזיקה, ולוחצת **צרי סרטון**. הסרטון יורד למכשיר ואת מעלה אותו לאינסטגרם או לסטטוס.",
-    "### הקמפיינים שלי",
-    "כל קמפיין ששמרת, עם הפוסטים שלו. אפשר להעתיק או למחוק.",
-  ]},
-  { key:"advisor", icon:"robot", title:"יועץ AI", body:[
-    "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך — התורים, התשלומים, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
-    "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
-    "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת — אפשר לחזור אליה בכל זמן.",
-  ]},
-  { key:"settings", icon:"settings", title:"הגדרות", body:[
-    "כאן מגדירים את המערכת פעם אחת, ואחר כך כמעט לא נוגעים.",
-    "- **כללי** — שם העסק, שם המטפלת, צבע, קישור לביקורות גוגל, וקישורי ההזמנה שלך",
-    "- **מיתוג** — הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
-    "- **אוטומציות** — תזכורות, מצב שקט, בוט הוואטסאפ, ומפתח API לקליטת פניות מדף נחיתה",
-    "- **שירותים** — הטיפולים והמחירים שלך",
-    "- **ייבוא נתונים** — הדבקת לקוחות ופניות מאקסל, או בחירה מאנשי הקשר",
-    "- **שאלות ותשובות** — התשובות שהבוט נותן ללקוחות",
-    "- **שעות** — שעות פתיחה לכל יום",
-    "- **תשלום** — מספר הטלפון לביט",
-    "⚠️ אל תשכחי ללחוץ **✓ שמירה** בסוף.",
-  ]},
-];
+import { HELP_TITLE, HELP_INTRO, helpSectionsFor } from "@/lib/helpSections";
+
 // "**x**" -> <b>x</b>; everything else passes through untouched.
 const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
   part.startsWith("**") && part.endsWith("**") ? <b key={i}>{part.slice(2,-2)}</b> : part
@@ -10510,7 +10424,8 @@ ${MARKETING_FOOTER}`)}`;
             // the setup checklist: a collapsed line per section, the body
             // revealed on request. The first section is open on arrival so the
             // page never reads empty.
-            const openKey = expandedHelpKey ?? (HELP_SECTIONS[0]||{}).key;
+            const helpSections = helpSectionsFor(businessFieldsOf(settings));
+            const openKey = expandedHelpKey ?? (helpSections[0]||{}).key;
             return (
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{marginBottom:16}}>
@@ -10518,7 +10433,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>{HELP_INTRO}</p>
  </div>
  <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
-                {HELP_SECTIONS.map((sec,i)=>{
+                {helpSections.map((sec,i)=>{
                   const open = openKey===sec.key;
                   return (
  <div key={sec.key} style={{borderTop:i===0?"none":"1px solid var(--line)",background:open?pcTint:"transparent",transition:"background 0.18s"}}>
@@ -11711,7 +11626,7 @@ ${MARKETING_FOOTER}`)}`;
      loads HER colour and details and the scan is attributed to her. Shown in
      full, copied from the same string, and the QR is drawn from that string -
      a printed code and a bio link can never drift apart. */}
- <div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
+ {skinScanVisible(editSettings)&&(<div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
    <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור — הקישור לשיתוף</p>
    {scanLink ? (
      <>
@@ -11739,7 +11654,7 @@ ${MARKETING_FOOTER}`)}`;
    ) : (
      <Spinner inline label="מפיקה את הקישור"/>
    )}
- </div>
+ </div>)}
  {/* The ceiling, shown BEFORE it is reached. When it is hit, the client sees
      the refusal and she is not in that request at all - so this is the only
      place she can find out, and it has to be visible early enough to act on. */}
@@ -12137,6 +12052,7 @@ ${MARKETING_FOOTER}`)}`;
                         an actual tab id. */}
                     {(()=>{
                       const on = skinScanVisible(editSettings);
+                      if (!on && !businessFieldsOf(editSettings).includes("cosmetics")) return null;
                       return <AutoToggleRow pc={pc} label={SKIN_SCAN_LABEL} on={on} onChange={()=>{
                         const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
                         setAutos({...autos, screens:{...screens, skin_scan: !on}});
@@ -12171,7 +12087,7 @@ ${MARKETING_FOOTER}`)}`;
 
  </>)}
  {inG("clients")&&(<>
- <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ {skinScanVisible(editSettings)&&(<div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
  <p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink-2)",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
@@ -12184,7 +12100,7 @@ ${MARKETING_FOOTER}`)}`;
                     ))}
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":"באישור — נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
- </div>
+ </div>)}
 
  </>)}
  {inG("connections")&&(<>
