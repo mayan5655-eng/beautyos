@@ -104,7 +104,7 @@ function SignedImage({ value, alt = "", style, fallback = null }) {
     return () => { active = false; };
   }, [value]);
   if (!url) return fallback;
-  return <img alt={alt} src={url} style={style} />;
+  return <img alt={alt} src={url} loading="lazy" decoding="async" style={style} />;
 }
 
 // A single pill on/off switch. Extracted so every settings toggle shares one
@@ -10331,7 +10331,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
  {communityPosts.map(p=>(
  <div key={p.id} className="glass-card card-flush">
- {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
+ {p.image_url&&<img alt="" loading="lazy" decoding="async" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
  <span className="pill" style={{fontSize:"var(--t-sm)",color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
@@ -11936,7 +11936,7 @@ ${MARKETING_FOOTER}`)}`;
                       const img=serviceImage(sv,brand.service_images);
                       return (
  <div key={sv.id||sv.name} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface-2)"}}>
- <img src={img.url} alt="" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:52,height:52,borderRadius:"var(--r-xs)",objectFit:"cover",flexShrink:0,background:"var(--line)"}}/>
+ <img src={img.url} alt="" loading="lazy" decoding="async" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:52,height:52,borderRadius:"var(--r-xs)",objectFit:"cover",flexShrink:0,background:"var(--line)"}}/>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-md)",color:"var(--ink)",fontWeight:600,margin:0}}>{sv.name}</p>
  <p style={{fontSize:"var(--t-xs)",color:img.isDefault?"var(--ink-3)":pcDeep,margin:0}}>{img.isDefault?"תמונת ברירת מחדל":"התמונה שלך"}</p>
@@ -11955,7 +11955,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
- <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <img src={g} alt="" loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
  <button onClick={()=>setBrand("clinic_photos",(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).filter((_,j)=>j!==i))} aria-label="הסרת תמונה" style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"var(--surface)",border:"none",fontSize:"var(--t-sm)",cursor:"pointer",lineHeight:1}}>×</button>
  </div>
                     ))}
@@ -11968,7 +11968,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
- <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <img src={g} alt="" loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
  <button onClick={()=>setBrand("gallery",(Array.isArray(brand.gallery)?brand.gallery:[]).filter((_,j)=>j!==i))} style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"var(--surface)",border:"none",fontSize:"var(--t-xs)",cursor:"pointer",lineHeight:1}}>✕</button>
  </div>
                     ))}
