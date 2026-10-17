@@ -37,6 +37,11 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
     },
     async insertReceipt(row) {
       let { data, error } = await db.from('receipts').insert(row).select('id').single();
+      if (error && error.code === '23505' && row.grow_payment_id) {
+        // Two callbacks raced and the other one already wrote this payment's receipt: hand back that one instead of failing or doubling.
+        const { data: existing } = await db.from('receipts').select('id').eq('grow_payment_id', row.grow_payment_id as string).limit(1).maybeSingle();
+        if (existing) return { id: String((existing as { id: unknown }).id) };
+      }
       if (error && isMissingColumn(error)) {
         // A column from a hand-run migration is not there yet (legal_provider, tip, discount): record the
         // payment with the columns every deployment has rather than lose it.

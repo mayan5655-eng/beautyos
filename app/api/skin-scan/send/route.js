@@ -158,6 +158,7 @@ export async function POST(request) {
     return Response.json({ success: true, queued: !!clientResult.queued });
   } catch (err) {
     console.error("skin-scan/send error:", err);
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[send] failed:", err?.message);
+    return Response.json({ success: false, error: "משהו נתקע אצלנו. אפשר לנסות שוב בעוד רגע." }, { status: 500 });
   }
 }

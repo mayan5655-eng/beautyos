@@ -149,6 +149,8 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       discount: 0,
       tip: 0,
       legal_provider: 'grow',
+      // Lets the database refuse a second receipt for the same card charge (receipts_grow_payment_uniq, a hand-run migration).
+      grow_payment_id: p.id,
     });
     await d.repo.updatePayment(p.id, { receipt_id: r.id });
     return r.id;
