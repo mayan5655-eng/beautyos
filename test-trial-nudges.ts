@@ -30,7 +30,7 @@ assert.equal(key(25), null);
 assert.deepEqual(NUDGE_DAYS.map((n) => n.day), [1, 10, 23]);
 
 // never to a paying, blocked or undated tenant
-for (const s of ['active', 'expired', 'paused', null, undefined, '']) assert.equal(key(1, s as string), null, String(s));
+for (const s of ['active', 'expired', 'paused', null, undefined, '']) assert.equal(pickTrialNudge({ status: s as string, trialStartedAt: start, now: day(1) }), null, String(s));
 assert.equal(pickTrialNudge({ status: 'trial', trialStartedAt: null, now: day(1) }), null, 'no start date, no nudge');
 
 // copy: warm, feminine, no em dash, the price only where it belongs, counts handled
