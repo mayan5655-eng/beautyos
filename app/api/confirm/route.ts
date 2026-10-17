@@ -101,6 +101,14 @@ export async function POST(request: NextRequest) {
     // through its own link.
     if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand);
     if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand);
+    // A cancelled appointment is never brought back through a public link: the slot may already be taken by someone else.
+    if (action === 'confirm' && appt.confirmation_status === 'cancelled') {
+      return NextResponse.json({
+        success: false,
+        businessName: brand.businessName || '',
+        error: `התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`,
+      }, { status: 409 });
+    }
 
     // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
     // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.

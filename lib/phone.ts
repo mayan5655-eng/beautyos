@@ -59,6 +59,8 @@ export function normalizeIsraeliMobile(raw: string | null | undefined): PhoneRes
   if (candidate.startsWith('00972')) candidate = candidate.slice(2);
   if (candidate.startsWith('0')) candidate = '972' + candidate.slice(1);
   else if (candidate.startsWith('5') && candidate.length === 9) candidate = '972' + candidate;
+  // "+972 (0)52-123-4567": the (0) is kept as a digit by the strip above, which made a valid number fail.
+  if (candidate.startsWith('9720')) candidate = '972' + candidate.slice(4);
 
   if (!ISRAELI_MOBILE.test(candidate)) return { ok: false, reason: 'not_israeli_mobile' };
   return { ok: true, e164: candidate };

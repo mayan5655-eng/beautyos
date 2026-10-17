@@ -203,7 +203,13 @@ await ok('a callback that died after "paid" but before the receipt is finished b
   assert.equal(first.status, 'paid');
   assert.equal((first as { receiptId: string | null }).receiptId, null);
   assert.equal(m.receipts.length, 0);
-  const second = await applyNotification(paidBody, token, d);
+  // Not at once: Grow delivers to two URLs at nearly the same moment, so a second callback inside two minutes is
+  // the sibling of a first one that is still working, not a retry of a dead one.
+  const tooSoon = await applyNotification(paidBody, token, d);
+  assert.equal(tooSoon.status, 'already');
+  assert.equal(m.receipts.length, 0);
+  const later = { ...d, now: () => new Date(Date.now() + 3 * 60_000) };
+  const second = await applyNotification(paidBody, token, later);
   assert.equal(second.status, 'paid');
   assert.equal(m.receipts.length, 1);
 });

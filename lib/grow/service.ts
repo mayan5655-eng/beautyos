@@ -26,6 +26,8 @@ export type GrowPayment = {
   amount: number | string;
   process_id: string | null;
   receipt_id: string | null;
+  /** When the row last changed: for a paid row without a receipt, how long ago the first callback marked it paid. */
+  updated_at?: string | null;
   client_id: string | null;
   client_name: string | null;
   appointment_id: string | null;
@@ -190,7 +192,10 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   });
   if (!flipped) {
     // Duplicate callback. If the first one died between "paid" and "receipt", finish that job now.
-    if (p.status === 'paid' && !p.receipt_id) {
+    // Only when that first callback has had two minutes to finish: Grow delivers to two URLs at nearly the same moment,
+    // and a second callback landing while the first is still writing the receipt must not write another one.
+    const ageMs = p.updated_at ? (d.now || (() => new Date()))().getTime() - Date.parse(p.updated_at) : Infinity;
+    if (p.status === 'paid' && !p.receipt_id && !(ageMs < 120_000)) {
       const rid = await createReceiptFor(p, n, d);
       return { status: 'paid', paymentId: p.id, receiptId: rid };
     }

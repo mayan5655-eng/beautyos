@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { parseDb } from "@/lib/dbTime";
+import { normalizeIsraeliMobile } from "@/lib/phone";
 import { displayName } from "@/lib/personName";
 import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import { useRouter } from "next/navigation";
@@ -328,7 +329,10 @@ const TOUR_STEPS = [
 ];
 
 // שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
+// Israel's VAT was 17% until the end of 2024 and 18% from 1 January 2025. The tax screen offers the last four years,
+// so the rate follows the year being looked at.
 const VAT_RATE = 0.18;
+const vatRateForYear = (y) => (Number(y) >= 2025 ? 0.18 : 0.17);
 // קטגוריות הוצאה (מפתח DB -> תווית בעברית)
 const EXPENSE_CATEGORIES = [
   {k:"materials",l:"חומרים"},
@@ -3526,6 +3530,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField};
         const start = apptEffectiveStart, end = start + Number(newAppt.duration||0);
         const clashed = [], saved = [];
+        let seriesStopped = false;
         for (const date of dates) {
           const localClash = appointments.some(a=>{
             if(a.date!==date || a.confirmation_status==="cancelled") return false;
@@ -3538,7 +3543,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             // 23P01 is appointments_no_overlap, 23505 the active-slot index:
             // something landed there since the calendar loaded. Same answer.
             if (error.code==="23P01" || error.code==="23505") { clashed.push(date); continue; }
-            handleDbError(error, "create appointment"); break;
+            handleDbError(error, "create appointment"); seriesStopped = true; break;
           }
           if (data && data[0]) saved.push(data[0]);
         }
@@ -3551,6 +3556,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             confirmText: "הבנתי",
             cancelText: "סגירה",
           });
+        } else if (seriesStopped) {
+          // A database error ended the series part-way: never end on a success toast that overstates what was saved.
+          toast(`נקבעו ${saved.length} מתוך ${dates.length} תורים. השאר לא נשמרו, אפשר לנסות שוב.`, "error");
         } else {
           toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
         }
@@ -3998,20 +4006,33 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     });
   };
 
+  const saveClientDupOk = useRef(false);
   const handleSaveClient = async () => {
     if (guardWrite()) return;
     if(!newClient.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
+    // A phone she typed that WhatsApp cannot use used to be saved as typed, and her reminders to that client quietly never arrived.
+    const typedPhone = String(newClient.phone||"").trim();
+    const phoneInfo = typedPhone ? normalizeIsraeliMobile(typedPhone) : null;
+    if(phoneInfo && !phoneInfo.ok){toast("המספר לא נראה כמו נייד ישראלי. אפשר לבדוק אותו, או להשאיר ריק.","error");return;}
+    if(phoneInfo && !editingClient && !saveClientDupOk.current){
+      const dup = clients.find(c=>normalizeIsraeliMobile(c.phone).e164===phoneInfo.e164);
+      if(dup){
+        askConfirm({title:"המספר הזה כבר קיים",message:`יש כבר לקוחה עם המספר הזה: ${dup.name}. להוסיף בכל זאת כרטיס נוסף?`,confirmText:"להוסיף בכל זאת",onConfirm:()=>{saveClientDupOk.current=true;Promise.resolve(handleSaveClient()).finally(()=>{saveClientDupOk.current=false;});}});
+        return;
+      }
+    }
     if(isBusy("saveClient")) return;
     setBusyKey("saveClient", true);
     try {
+      const toSave = {...newClient, name:newClient.name.trim()};
       if(editingClient){
-        const {data,error}=await supabase.from("clients").update(newClient).eq("id",editingClient.id).select();
+        const {data,error}=await supabase.from("clients").update(toSave).eq("id",editingClient.id).select();
         if(error){handleDbError(error, "update client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>prev.map(c=>c.id===editingClient.id?data[0]:c));setSelectedClient(data[0]);
         toast("הלקוחה עודכנה");
       }else{
-        const {data,error}=await supabase.from("clients").insert([newClient]).select();
+        const {data,error}=await supabase.from("clients").insert([toSave]).select();
         if(error){handleDbError(error, "create client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>[...prev,data[0]]);
@@ -5683,6 +5704,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     const amt = Number(newExpense.amount);
     if(!amt || amt<=0){ toast("חסר סכום, אפשר להקליד אותו","error"); return; }
+    if(!Number.isFinite(amt) || amt>=10000000){ toast("הסכום נראה גדול מדי, אפשר לבדוק אותו?","error"); return; }
     if(!newExpense.expense_date){ toast("חסר תאריך, אפשר לבחור אחד","error"); return; }
     if(isBusy("addExpense")) return;
     setBusyKey("addExpense", true);
@@ -6561,11 +6583,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   const handleExportCSV = () => {
-    const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום"]];
-    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,localDayKey(r.created_at)||"",r.amount,r.payment_method]);});
+    // Voided payments stay in the file but are marked, so the export agrees with the totals on screen instead of counting them as income.
+    const voidedIds=new Set(receiptVoids.map(v=>String(v.receipt_id)));
+    const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום","טיפ","הנחה","מבוטל"]];
+    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,localDayKey(r.created_at)||"",r.amount,r.payment_method,Number(r.tip)||0,Number(r.discount)||0,voidedIds.has(String(r.id))?"כן":""]);});
     // Quote every cell (escaping embedded quotes) so values containing commas
     // — e.g. a multi-item receipt service "פנים, עיסוי" — don't shift columns.
-    const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    // A client name comes from a public form: a cell starting with = + - @ would run as a formula in Excel. Numbers are left alone.
+    const esc=v=>{let t=String(v??"");if(typeof v!=="number"&&/^[=+\-@\t\r]/.test(t))t="'"+t;return `"${t.replace(/"/g,'""')}"`;};
     const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);
@@ -10047,6 +10072,7 @@ ${MARKETING_FOOTER}`)}`;
               </div>
             );
             const status = settings.business_tax_status;
+            const vatRate = vatRateForYear(taxYear);
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
             const inYear = liveRcpts.filter(r=>r.created_at && parseDb(r.created_at).getFullYear()===taxYear);
@@ -10057,8 +10083,8 @@ ${MARKETING_FOOTER}`)}`;
             const inPeriod = periodFilter({mode, idx:taxPeriodIdx});
             const periodReceipts = inYear.filter(r=>inPeriod(parseDb(r.created_at)));
             const rangeLabel = periodLabel({mode, idx:taxPeriodIdx, year:taxYear, monthNames:MONTHS_HE});
-            const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, VAT_RATE);
-            const yearGross = incomeTotals(inYear.map(r=>r.amount), status, VAT_RATE).gross;
+            const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, vatRate);
+            const yearGross = incomeTotals(inYear.map(r=>r.amount), status, vatRate).gross;
             // Expenses filtered to the SAME period (by expense_date) — used for the
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
@@ -10069,7 +10095,7 @@ ${MARKETING_FOOTER}`)}`;
                 : expenses.filter(e=>exYear(e)===taxYear && Math.floor(exMonth(e)/2)===taxPeriodIdx);
             const expensesTotal = periodExpenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
             // Input VAT extracted from expenses (same formula as output VAT).
-            const inputVat = expensesTotal*VAT_RATE/(1+VAT_RATE);
+            const inputVat = expensesTotal*vatRate/(1+vatRate);
             const finalVat = vatDue - inputVat;      // output VAT minus input VAT
             const isRefund = finalVat < 0;           // negative => refund from the authority
             const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
@@ -10151,11 +10177,11 @@ ${MARKETING_FOOTER}`)}`;
  <Stat label="מספר עסקאות" value={count}/>
  </div>
  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                        <Stat label={`מס עסקאות (מע\"מ ${Math.round(VAT_RATE*100)}%)`} value={nis(vatDue)}/>
+                        <Stat label={`מס עסקאות (מע\"מ ${Math.round(vatRate*100)}%)`} value={nis(vatDue)}/>
  <Stat label="מס תשומות (על הוצאות)" value={nis(inputVat)}/>
  <Stat label={isRefund?"החזר מע\"מ":"מע\"מ סופי לתשלום"} value={nis(Math.abs(finalVat))} big gold/>
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(VAT_RATE*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית — כלומר מגיע לך החזר מע\"מ מהרשויות.":"זהו הסכום לתשלום לרשויות בגין התקופה."}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(vatRate*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית, כלומר ייתכן שמגיע לך החזר מע\"מ.":"זו הערכה של הסכום לתשלום."} הסכום בפועל נקבע לפי חשבוניות המס שבידייך, לא כל הוצאה כוללת מע\"מ. כדאי לבדוק עם רואה החשבון לפני הדיווח.`}</p>
  </>
                   )}
 
