@@ -35,7 +35,7 @@
      so the whole shell follows from here. */
   --ink: #2A2233;          /* primary text — purple-tinted near-black */
   --ink-2: #6B6275;        /* secondary text */
-  --ink-3: #98879B;        /* tertiary / muted — shared/neutral; intentionally
+  --ink-3: #6F6475;        /* tertiary / muted — shared/neutral; intentionally
                                no longer matches --brand-muted (that one went
                                green with Stage 2, this one stays neutral
                                since tenant pages read it too) */

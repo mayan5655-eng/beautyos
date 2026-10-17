@@ -228,7 +228,7 @@ const HELP_SECTIONS = [
   { key:"clients", icon:"people", title:"לקוחות", body:[
     "כל הלקוחות שלך במקום אחד, עם כל ההיסטוריה שלהן.",
     "- חיפוש לפי שם או טלפון, וסינון לפי סטטוס (פעילות, חמות, VIP, להתחדשות) או סוג עור",
-    "- **✦ לקוחה חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** להעלאה מקובץ",
+    "- **✦ לקוחה חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** בהדבקה מאקסל או מאנשי הקשר",
     "- **⏱ מזמן לא הגיעו** — מוצא מי לא הגיעה מזמן ושולח לכולן הודעת חזרה בלחיצה אחת",
     "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
     "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
@@ -288,7 +288,7 @@ const HELP_SECTIONS = [
     "- **מיתוג** — הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
     "- **אוטומציות** — תזכורות, מצב שקט, בוט הוואטסאפ, ומפתח API לקליטת פניות מדף נחיתה",
     "- **שירותים** — הטיפולים והמחירים שלך",
-    "- **ייבוא נתונים** — העלאת לקוחות ופניות מקובץ",
+    "- **ייבוא נתונים** — הדבקת לקוחות ופניות מאקסל, או בחירה מאנשי הקשר",
     "- **שאלות ותשובות** — התשובות שהבוט נותן ללקוחות",
     "- **שעות** — שעות פתיחה לכל יום",
     "- **תשלום** — מספר הטלפון לביט",
@@ -397,12 +397,15 @@ const planAllows = (plan, feature) => {
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
 const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--ink-3)","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
+// `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
 const FORM_TYPES = [
   {key:"general",label:"הצהרת בריאות כללית"},
-  {key:"plasma",label:"טיפול פלזמה"},
-  {key:"device",label:"מכשור מתקדם"},
-  {key:"laser",label:"הסרת שיער בלייזר"},
-  {key:"peel",label:"פילינג כימי"},
+  {key:"plasma",label:"טיפול פלזמה",only:["cosmetics"]},
+  {key:"device",label:"מכשור מתקדם",only:["cosmetics"]},
+  {key:"laser",label:"הסרת שיער בלייזר",only:["cosmetics"]},
+  {key:"peel",label:"פילינג כימי",only:["cosmetics"]},
+  {key:"nails_general",label:"הצהרת בריאות ואישור טיפול (ציפורניים)",only:["nails"]},
+  {key:"nails_media",label:"אישור צילום עבודות",only:["nails"]},
 ];
 // The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
 const LEAD_SOURCES = [...DEFAULT_LEAD_SOURCES];
@@ -1151,6 +1154,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [showWaQueue, setShowWaQueue] = useState(false);
   const [waQueueDone, setWaQueueDone] = useState({}); // {[row.id]: true} - optimistic, mirrors composeDone
   const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
+  // Skin type is a facial concept: a nail technician is not asked for it (a value already saved still shows on the client card).
+  const showSkinType = businessFieldsOf(settings).includes("cosmetics");
   const [expenses,     setExpenses]     = useState([]);
   const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
@@ -4794,7 +4799,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "clinic");
       if(up.error){ handleDbError(up.error, "upload clinic photo"); return; }
       const url = up.url;
-      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות קליניקה","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
+      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות של העסק","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
       toast("התמונה נוספה — לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
@@ -8460,9 +8465,10 @@ ${MARKETING_FOOTER}`)}`;
                 user) is the literal spec for everything from here through
                 the appointment rows below - values copied from its CSS, not
                 re-derived from the earlier prose brief. Where this file and
-                that mockup disagree, the mockup wins. #8CA096/#5C6B63 are
-                its own literal muted-ink values (a slightly green-tinted
-                reading of "muted"), used here as plain literals rather than
+                that mockup disagree, the mockup wins, with ONE audited exception: the mockup's light
+                green #8CA096 for small text measured 2.3:1 on cream, so it is var(--brand-muted)
+                (#656A56, 4.7:1) here. The mockup's muted-ink values (a slightly green-tinted
+                reading of "muted") are used as green-tinted literals rather than
                 var(--ink-3)/var(--ink-2) - those shared tokens stay neutral,
                 since tenant-facing pages read them too (Stage 2's rule);
                 this is a Kalmea-chrome-only green reserved for this screen. */}
@@ -8479,10 +8485,10 @@ ${MARKETING_FOOTER}`)}`;
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
  <div className="glass-card card-boxed" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
- <p style={{fontSize:12.5,color:"#8CA096"}}>הכנסות היום</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
- <p style={{fontSize:13,color:"#8CA096",marginTop:3}}>
+ <p style={{fontSize:13,color:"var(--brand-muted)",marginTop:3}}>
                   {todayTotals.byMethod.map(m=>`${m.method} ${m.total.toLocaleString()}`).join(" · ")}
                   {todayTotals.tips>0&&` · טיפים ${todayTotals.tips.toLocaleString()}`}
  </p>
@@ -8517,9 +8523,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
  <div style={{position:"relative",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#1F3A30",color:"#FBF8F1",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
- <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"#8CA096",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
+ <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"var(--brand-muted)",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
  <div style={{flex:1}}/>
- {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"#8CA096"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
+ {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--brand-muted)"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
  </div>
  </div>
               );
@@ -8690,10 +8696,10 @@ ${MARKETING_FOOTER}`)}`;
                           return(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 3px"}}>
  <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"transparent",border:"1px solid #C07A72",flexShrink:0}}/>
- <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{hh}:{mm}</span>
+ <span style={{fontSize:13,fontWeight:700,color:"var(--brand-muted)",flexShrink:0,width:40}}>{hh}:{mm}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:15,color:"#C07A72"}}>התפנה</p>
- <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>ממתין להחלטה שלך</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)",marginTop:1}}>ממתין להחלטה שלך</p>
  </div>
  </div>
                           );
@@ -8718,10 +8724,10 @@ ${MARKETING_FOOTER}`)}`;
                             ):(
  <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"#DCE4D5",flexShrink:0}}/>
                             )}
- <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{entryTime(a)}</span>
+ <span style={{fontSize:13,fontWeight:700,color:"var(--brand-muted)",flexShrink:0,width:40}}>{entryTime(a)}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:15,color:open?"#C07A72":"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
- <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>{sub}</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)",marginTop:1}}>{sub}</p>
  </div>
  </div>
                         );
@@ -9269,9 +9275,9 @@ ${MARKETING_FOOTER}`)}`;
  <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active">✓ פעילות</option><option value="cold">להתחדשות</option>
  </select>
- <select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
+ {showSkinType&&(<select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל עור</option>{SKIN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
- </select>
+ </select>)}
  </div>
             {filteredClients.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-xl)",marginTop:6}}>
@@ -10885,7 +10891,7 @@ ${MARKETING_FOOTER}`)}`;
  <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
- <select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+ {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="משהו שכדאי לזכור עליה. למשל: מתחתנת בנובמבר, לא אוהבת ריח חזק" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
@@ -11712,7 +11718,7 @@ ${MARKETING_FOOTER}`)}`;
            {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn on the client; next/image has nothing to optimise */}
            <img src={scanQr} alt="קוד QR לסורק העור" width={112} height={112} style={{width:112,height:112,borderRadius:"var(--r-xs)",border:"1px solid var(--line)",background:"#fff",flexShrink:0}}/>
            <div style={{flex:1,minWidth:0}}>
-             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד QR — לשלט בקליניקה, לכרטיס ביקור או לסטורי.</p>
+             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד QR — לשלט בעסק, לכרטיס ביקור או לסטורי.</p>
              <button onClick={downloadScanQr} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 14px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="download" size={13}/> הורדת ה-QR (PNG)</button>
            </div>
          </div>
@@ -11863,7 +11869,7 @@ ${MARKETING_FOOTER}`)}`;
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
  <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו העסק</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (לעיצובים ולפוסטים)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
  {/* Named for where it appears, because the old name - "opening headline" -
@@ -11874,9 +11880,9 @@ ${MARKETING_FOOTER}`)}`;
  <div><p style={lbl}>כותרת ראשית בראש הדף</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder={`למשל: ${defaultHeroHeadline(businessFieldsOf(editSettings)).replace(/\n/," ")}`} style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטקסט הגדול על התמונה הראשית. כל משפט (עד נקודה) יורד לשורה חדשה, ומהמשפט השני הצבע הוא צבע המותג.</p></div>
  <div><p style={lbl}>משפט פתיחה קצר (מוצג אם לא מילאת שורת יתרונות)</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>לפני שמגיעים (חניה, קומה, אינטרקום)</p><input value={brand.arrival_note||""} onChange={e=>setBrand("arrival_note",e.target.value)} placeholder="למשל: חניה חופשית ברחוב, קומה 2" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>נשלח ללקוחה באישור התור. מונע את השיחה של &quot;איפה בדיוק?&quot; חמש דקות לפני.</p></div>
- <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
+ <div><p style={lbl}>כתובת העסק (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת פתיחה (רקע הדף הראשי)</p>{!brand.hero_image_url&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>כרגע מוצגת תמונת ברירת מחדל. העלי תמונה של הקליניקה או של טיפול והיא תחליף אותה.</p>}{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת פתיחה (רקע הדף הראשי)</p>{!brand.hero_image_url&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>כרגע מוצגת תמונת ברירת מחדל. העלי תמונה של העסק או של טיפול והיא תחליף אותה.</p>}{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
  <div>
  <p style={lbl}>איך אני עובדת (עד 4 שלבים)</p>
@@ -11916,7 +11922,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
  <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
- <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד הקליניקה\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד העסק\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
  </div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
@@ -11941,7 +11947,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <ResultsManager tenantId={settings?.tenant_id} services={activeServices}/>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהקליניקה</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהעסק</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בדף ההזמנות.</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).map((g,i)=>(
@@ -12073,7 +12079,7 @@ ${MARKETING_FOOTER}`)}`;
 
  {inG("messages")&&(<>
  <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"2px 12px"}}>
- <AutoToggleRow pc={pc} label="השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
+ <AutoToggleRow pc={pc} label="השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בעסק. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
  {/* Manual quiet mode. Turning it OFF stamps quiet_ended_at - that stamp is
      what makes the comeback question wait exactly a week (lib/quiet.js).
      Automatic quiet (a dark calendar) needs no toggle and shows no banner. */}
@@ -12809,7 +12815,7 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>שלחי טופס לחתימה דיגיטלית</p>
  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-                        {FORM_TYPES.map(ft=>(
+                        {FORM_TYPES.filter(ft=>!ft.only||ft.only.some(f=>businessFieldsOf(settings).includes(f))).map(ft=>(
  <button key={ft.key} onClick={()=>handleSendForm(c,ft.key)} style={{background:pcTint,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 11px",fontSize:"var(--t-sm)",color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>{ft.label}</button>
                         ))}
  </div>
