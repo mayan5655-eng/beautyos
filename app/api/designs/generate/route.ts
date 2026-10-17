@@ -107,7 +107,7 @@ async function generateOnce(request: NextRequest, ctx: { tenantId: string; setti
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) || {}; } catch { /* empty */ }
   const brief = String(body.brief || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-  if (brief.length < 3) return NextResponse.json({ success: false, error: 'כתבי מה תרצי לפרסם, למשל: מבצע לטיפול פנים לפני החג' }, { status: 400 });
+  if (brief.length < 3) return NextResponse.json({ success: false, error: 'כתבי מה תרצי לפרסם, למשל: מבצע לפני החג' }, { status: 400 });
   const format: 'feed45' | 'story' | 'reel' = body.format === 'story' ? 'story' : body.format === 'reel' ? 'reel' : 'feed45';
   const imageFormat: ImageFormat = format === 'feed45' ? 'feed45' : 'story';
 

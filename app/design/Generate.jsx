@@ -73,7 +73,7 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
     const b = overrideBrief ?? brief;
     const f = overrideFmt ?? format;
     if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
-    if (b.trim().length < 3) { setError('כתבי מה תרצי לפרסם, למשל: מבצע לטיפול פנים לפני החג'); return; }
+    if (b.trim().length < 3) { setError('כתבי מה תרצי לפרסם, למשל: מבצע לפני החג'); return; }
     setError(''); setBusy(true); setResult(null);
     try {
       const res = await fetch('/api/designs/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brief: b, format: f }) });
@@ -120,7 +120,7 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
         </p>
       ) : (
         <>
-          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: מבצע לטיפול פנים קלאסי ב-249 ₪ לפני ראש השנה" style={input} dir="rtl" maxLength={400} rows={2} />
+          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: מבצע על הטיפול הראשון ב-249 ₪ לפני ראש השנה" style={input} dir="rtl" maxLength={400} rows={2} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 4 }}>
               {[['feed45', 'פוסט 4:5'], ['story', 'סטורי 9:16'], ['reel', 'רילס']].map(([k, l]) => (

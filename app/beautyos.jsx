@@ -317,7 +317,7 @@ const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--i
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
 // `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
 const FORM_TYPES = [
-  {key:"general",label:"הצהרת בריאות כללית"},
+  {key:"general",label:"הצהרת בריאות כללית",only:["cosmetics"]},
   {key:"plasma",label:"טיפול פלזמה",only:["cosmetics"]},
   {key:"device",label:"מכשור מתקדם",only:["cosmetics"]},
   {key:"laser",label:"הסרת שיער בלייזר",only:["cosmetics"]},
@@ -1491,6 +1491,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
+    { key:"link",     done: appointments.length>0||clients.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -3591,14 +3592,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if(pending.length===0){toast("כבר הכנת תזכורות לכל התורים של מחר", "info");return;}
     askConfirm({
       title: "שליחת תזכורות",
-      message: `לשלוח תזכורת ל-${pending.length} לקוחות?`,
+      message: `${pending.length===1?"לשלוח תזכורת ללקוחה אחת?":`לשלוח תזכורת ל-${pending.length} לקוחות?`}`,
       confirmText: "שליחה",
       onConfirm: async () => {
         for(const appt of pending){
           await handleSendConfirmation(appt);
           await new Promise(r=>setTimeout(r,500));
         }
-        toast(`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
+        toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
       },
     });
   };
@@ -8195,7 +8196,7 @@ ${MARKETING_FOOTER}`)}`;
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
-                {label:"לקוחה חדשה",hint:"הוספה ל-CRM",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
@@ -9321,7 +9322,7 @@ ${MARKETING_FOOTER}`)}`;
                   ))}
  </div>
  <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
-                  placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים "
+                  placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש יש מבצע מיוחד: 20% הנחה על הטיפול הראשון "
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון והסכמה לדיוור בקבוצה זו</p>
@@ -11212,7 +11213,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>כותרת (לא חובה)</p>
- <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב על טיפולי פנים" style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+ <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב" style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>תוכן</p>
  <textarea value={newPost.body} onChange={e=>setNewPost({...newPost,body:e.target.value})} rows={4} placeholder="כתבי כאן את העדכון, המבצע או הטיפ..." style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box",resize:"vertical"}}/>
@@ -11349,7 +11350,7 @@ ${MARKETING_FOOTER}`)}`;
            {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn on the client; next/image has nothing to optimise */}
            <img src={scanQr} alt="קוד QR לסורק העור" width={112} height={112} style={{width:112,height:112,borderRadius:"var(--r-xs)",border:"1px solid var(--line)",background:"#fff",flexShrink:0}}/>
            <div style={{flex:1,minWidth:0}}>
-             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד QR — לשלט בעסק, לכרטיס ביקור או לסטורי.</p>
+             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד לסריקה: לשלט בעסק, לכרטיס ביקור או לסטורי.</p>
              <button onClick={downloadScanQr} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 14px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="download" size={13}/> הורדת ה-QR (PNG)</button>
            </div>
          </div>
@@ -11499,7 +11500,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;אודותיי&quot; בדף ההזמנות, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, מוצגת תמונת ברירת מחדל.</p>
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
- <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
+ <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: בעלת הסטודיו" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו העסק</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (לעיצובים ולפוסטים)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
@@ -11528,7 +11529,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:10}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:0}}>טקסטים בדף הראשי</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כל שדה ריק מקבל טקסט ברירת מחדל, כך שהדף נראה שלם גם בלי למלא כלום.</p>
- <div><p style={lbl}>שורה מתחת ללוגו</p><input value={brand.logo_tagline||""} onChange={e=>setBrand("logo_tagline",e.target.value)} placeholder="למשל: קוסמטיקה מתקדמת לעור בריא ויפה" style={inp}/></div>
+ <div><p style={lbl}>שורה מתחת ללוגו</p><input value={brand.logo_tagline||""} onChange={e=>setBrand("logo_tagline",e.target.value)} placeholder="למשל: טיפוח שמתחיל בך" style={inp}/></div>
  <div><p style={lbl}>שורת יתרונות (מתחת לכותרת)</p><input value={brand.hero_benefits||""} onChange={e=>setBrand("hero_benefits",e.target.value)} placeholder="למשל: אבחון מקצועי · טיפול אישי · תוצאה שרואים" style={inp}/></div>
  <div><p style={lbl}>משפט בכתב יד (בתמונה הראשית)</p><input value={brand.script_accent||""} onChange={e=>setBrand("script_accent",e.target.value)} placeholder="למשל: טיפוח שמתחיל באהבה עצמית" style={inp}/></div>
  <div><p style={lbl}>חתימה בסוף &quot;אודותיי&quot; (בכתב יד)</p><input value={brand.about_signoff||""} onChange={e=>setBrand("about_signoff",e.target.value)} placeholder="למשל: מחכה לפגוש אותך" style={inp}/></div>

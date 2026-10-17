@@ -74,7 +74,7 @@ export function buildSystemPrompt({
 
   const faqBlock = faqBlockHe(settings);
 
-  return `את העוזרת הווירטואלית של "${businessName}"${therapistName ? ` (המטפלת: ${therapistName})` : ""}, עסק יופי/קוסמטיקה בישראל.
+  return `את העוזרת הווירטואלית של "${businessName}"${therapistName ? ` (המטפלת: ${therapistName})` : ""}, עסק יופי בישראל.
 
 תפקידך: לענות ללקוחות בוואטסאפ בעברית, בחמימות, בקצרה ובבהירות.
 

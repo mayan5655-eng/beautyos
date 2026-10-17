@@ -102,7 +102,7 @@ export default function WeekView({ settings, appointments, services, designs, re
       {showAi && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
         <div style={card}>
           <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}><Icon name="camera" size={14} /> מה לצלם השבוע</p>
-          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>3 עד 5 רעיונות של עשר דקות בקליניקה, לפי השירותים והיומן שלך. כל רעיון יכול להפוך לרילס.</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>3 עד 5 רעיונות של עשר דקות בעסק, לפי השירותים והיומן שלך. כל רעיון יכול להפוך לרילס.</p>
           {!shoot && <button onClick={loadShoot} disabled={shootBusy || readOnly} style={btn}>{shootBusy ? <Spinner inline label="חושבת" /> : 'תני לי רעיונות'}</button>}
           {shoot && (
             <div style={{ display: 'grid', gap: 8 }}>
