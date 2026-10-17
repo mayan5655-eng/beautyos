@@ -141,12 +141,12 @@ export default function OnboardingPage() {
         );
         if (memberErr) {
           console.error("[onboarding] get_user_tenant_id failed", memberErr);
-          setError(`שגיאה בזיהוי העסק: ${memberErr.message}`);
+          setError("משהו נתקע אצלנו בטעינת העסק שלך. נסי לרענן את הדף בעוד רגע.");
           setLoading(false);
           return;
         }
         if (!rpcTenant) {
-          setError("לא נמצא חיבור לעסק. נסי לצאת ולהיכנס שוב.");
+          setError("העסק שלך עוד מתכונן. רענני את הדף בעוד כמה שניות, ואם זה נשאר, צאי והיכנסי שוב.");
           setLoading(false);
           return;
         }
@@ -212,7 +212,8 @@ export default function OnboardingPage() {
         setLoading(false);
       } catch (e: unknown) {
         const err = e as { message?: string };
-        setError(err.message || "שגיאה בטעינה");
+        console.error("[onboarding] init failed", err);
+        setError("משהו נתקע אצלנו בטעינה. נסי לרענן את הדף.");
         setLoading(false);
       }
     };
@@ -230,7 +231,16 @@ export default function OnboardingPage() {
 
   // Capped by the step list, not a literal: adding the import step left this at
   // 3 and made the last step unreachable from "הבא".
-  const next = () => setStep(s => Math.min(STEP_NAMES.length, s + 1));
+  const next = () => {
+    // The field decides the menu, the forms and the content she sees. Skipping it silently made a nail technician
+    // a facial cosmetician (businessFieldsOf falls back to cosmetics), so this step needs one pick.
+    if (step === 4 && data.business_fields.length === 0) {
+      setError("בחרי לפחות תחום אחד כדי שנתאים לך את התפריט והתכנים.");
+      return;
+    }
+    setError("");
+    setStep(s => Math.min(STEP_NAMES.length, s + 1));
+  };
   const prev = () => setStep(s => Math.max(1, s - 1));
 
   // Saves onboarding, then lands her wherever she asked to go. importKind is
@@ -294,13 +304,15 @@ export default function OnboardingPage() {
       });
       const saveData = await saveRes.json().catch(() => ({}));
       if (!saveRes.ok || !saveData.success) {
-        throw new Error(saveData.error || `settings save failed (HTTP ${saveRes.status})`);
+        console.error("[Onboarding] settings save failed", saveRes.status, saveData.error);
+        throw new Error("משהו נתקע אצלנו בשמירה. הנתונים שמילאת נשארו כאן, נסי שוב בעוד רגע.");
       }
 
       // Her picked treatments, now that the settings row exists. A failure here
       // is reported but does NOT block the redirect: she has an account, and
       // the same picker is waiting in Settings → שירותים. Losing the menu is a
       // retry; losing the finished signup is not.
+      let svcFailed = false;
       if (pickedServices.length > 0) {
         const { error: svcErr } = await insertPickedServices(
           supabase,
@@ -309,6 +321,7 @@ export default function OnboardingPage() {
         );
         if (svcErr) {
           console.error("[Onboarding] service seed failed", svcErr);
+          svcFailed = true;
         }
       }
 
@@ -318,7 +331,8 @@ export default function OnboardingPage() {
       }
 
       clearDraft(tenantId);
-      router.replace(importKind ? `/?import=1&kind=${importKind}` : "/");
+      const dest = importKind ? `/?import=1&kind=${importKind}` : "/";
+      router.replace(svcFailed ? `${dest}${dest.includes("?") ? "&" : "?"}svc=failed` : dest);
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.error("[Onboarding save error]", err);
@@ -535,7 +549,7 @@ export default function OnboardingPage() {
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0
                     ? "לא נוסיף שום טיפול שלא סימנת. אפשר להוסיף הכל ידנית מאוחר יותר תחת הגדרות ← שירותים."
-                    : `${pickedServices.length} טיפולים ייווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
+                    : `${pickedServices.length} טיפולים יתווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
                 </p>
               </div>
               )}

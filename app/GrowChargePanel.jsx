@@ -44,7 +44,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
         if (p && p.status === 'paid' && p.receipt_id) {
           clearInterval(timer.current);
           setState('paid');
-          toast?.('התשלום התקבל והקבלה נרשמה');
+          toast?.('התשלום התקבל ואישור התשלום נרשם בקופה');
           onPaid?.(p.receipt_id);
         }
       } catch { /* try again on the next tick */ }
@@ -87,11 +87,11 @@ export default function GrowChargePanel({ amount, description, client, appointme
             <button type="button" onClick={copy} style={{ padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>העתקת קישור</button>
           </div>
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
-            ברגע שהתשלום מתקבל, הקבלה נרשמת בקופה אוטומטית. אל תלחצי &quot;רשמי תשלום&quot; על אותו טיפול, כדי לא לרשום פעמיים.
+            ברגע שהתשלום מתקבל, אישור התשלום נרשם בקופה אוטומטית. אל תלחצי &quot;רשמי תשלום&quot; על אותו טיפול, כדי לא לרשום פעמיים.
           </p>
         </div>
       )}
-      {state === 'paid' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--success)', fontWeight: 700 }}>התשלום התקבל ✓ הקבלה נרשמה בקופה.</p>}
+      {state === 'paid' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--success)', fontWeight: 700 }}>התשלום התקבל ✓ אישור התשלום נרשם בקופה. המסמך החוקי יגיע מ-Grow בנפרד.</p>}
     </div>
   );
 }

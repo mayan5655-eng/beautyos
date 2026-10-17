@@ -53,8 +53,11 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
       await request.json();
+    // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
+    // name cannot be stored or pasted into the owner's WhatsApp text.
+    const name = String(rawName ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 
     // Basic validation
     if (!name || !phone || !service || !date || (hour === undefined && startMinute === undefined)) {
@@ -62,6 +65,11 @@ export async function POST(request) {
         { success: false, error: "חסרים פרטים" },
         { status: 400 }
       );
+    }
+
+    // A real calendar day only: "2026-02-30" used to pass the day arithmetic and fail inside Postgres as a raw 500.
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date + "T12:00:00Z").toISOString().slice(0, 10) !== date) {
+      return Response.json({ success: false, error: "התאריך לא תקין, אפשר לבחור שוב?" }, { status: 400 });
     }
 
     // The phone is the whole point of the booking: it is how she confirms it,
@@ -344,10 +352,12 @@ export async function POST(request) {
         // Her name is NOT overwritten from this form. The record is hers, and a
         // booking is not the place to rename a woman because she typed her name
         // differently this time.
-        // The optional "updates and offers" checkbox (unchecked by default). Only a literal true counts. A new explicit yes also clears an
-        // earlier opt-out. Best-effort: a booking never fails because this could not be recorded (e.g. the migration has not run).
+        // The optional "updates and offers" checkbox (unchecked by default). Only a literal true counts.
+        // A public form can NOT clear an earlier opt-out: anyone can type any phone number into it, so a stranger could
+        // re-subscribe a client who asked to stop (and fabricate her consent record). The update only lands while she
+        // has no opt-out. Best-effort: a booking never fails because this could not be recorded.
         if (marketingConsent === true) {
-          const { error: consentErr } = await supabase.from("clients").update(consentFields("booking_page")).eq("id", match.id).eq("tenant_id", activeTenantId);
+          const { error: consentErr } = await supabase.from("clients").update(consentFields("booking_page")).eq("id", match.id).eq("tenant_id", activeTenantId).is("marketing_opted_out_at", null);
           if (consentErr) console.error("[book-appointment] marketing consent not recorded:", consentErr.message);
         }
       } else {
@@ -401,7 +411,8 @@ export async function POST(request) {
         color: svcColor,
         self_booked: true,
         confirmation_status: "confirmed",
-        confirmation_sent: true,
+        // True only after the WhatsApp message really went out (lib/bookingNotify.js sets it).
+        confirmation_sent: false,
       })
       .select()
       .single();
@@ -420,7 +431,8 @@ export async function POST(request) {
           { status: 409 }
         );
       }
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      console.error("[book-appointment] appointment insert failed:", error.message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
     }
 
     // 2. THIS tenant's business name + owner phone, from the row already read
@@ -473,6 +485,7 @@ export async function POST(request) {
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
     });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[book-appointment] failed:", err?.message);
+    return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
   }
 }

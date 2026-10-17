@@ -227,7 +227,7 @@ const HELP_SECTIONS = [
   { key:"clients", icon:"people", title:"לקוחות", body:[
     "כל הלקוחות שלך במקום אחד, עם כל ההיסטוריה שלהן.",
     "- חיפוש לפי שם או טלפון, וסינון לפי סטטוס (פעילות, חמות, VIP, להתחדשות) או סוג עור",
-    "- **✦ מטופלת חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** להעלאה מקובץ",
+    "- **✦ לקוחה חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** להעלאה מקובץ",
     "- **⏱ מזמן לא הגיעו** — מוצא מי לא הגיעה מזמן ושולח לכולן הודעת חזרה בלחיצה אחת",
     "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
     "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
@@ -1616,6 +1616,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   }, []);
 
+  // Onboarding sends her here with ?svc=failed when the treatments she ticked could not be saved, so she is told
+  // instead of finding an empty list and assuming she never did that step.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("svc") !== "failed") return;
+    toast("הטיפולים שבחרת לא נשמרו. לא נורא, אפשר לבחור אותם שוב בהגדרות ← שירותים.", "error");
+    p.delete("svc");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [toast]);
+
   // Keyboard activation for clickable elements that aren't native buttons:
   // Enter/Space triggers the element's own onClick (via .click()).
   const onKbdActivate = (e) => {
@@ -2610,7 +2622,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return; // the `finally` still clears `loading`
       }
 
-      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", leads: "הלידים", receipts: "הקבלות", receipt_voids: "ביטולי הקבלות", packages: "החבילות" };
+      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", leads: "הלידים", receipts: "אישורי התשלום", receipt_voids: "ביטולי אישורי התשלום", packages: "החבילות" };
       const partialReads = Object.keys(PARTIAL_HE).filter((n) => res[n] && res[n].data && res[n].complete === false);
       if (partialReads.length > 0) {
         console.error("[BeautyOS] loadAll: incomplete read", partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", "));
@@ -3971,7 +3983,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSendAllConfirmations = async () => {
     if (guardWrite()) return;
     const pending=tomorrowAppts.filter(a=>!a.confirmation_sent);
-    if(pending.length===0){toast("כבר נשלחו תזכורות לכל התורים מחר", "info");return;}
+    if(pending.length===0){toast("כבר הכנת תזכורות לכל התורים של מחר", "info");return;}
     askConfirm({
       title: "שליחת תזכורות",
       message: `לשלוח תזכורת ל-${pending.length} לקוחות?`,
@@ -3981,7 +3993,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           await handleSendConfirmation(appt);
           await new Promise(r=>setTimeout(r,500));
         }
-        toast(`נשלחו תזכורות ל-${pending.length} לקוחות`);
+        toast(`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
       },
     });
   };
@@ -5240,9 +5252,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   // Void: a row in receipt_voids naming the receipt and why. The receipt row
   // is not touched. The reason is required by the schema as well as the form.
+  const growVoidOk = useRef(false);
   const handleVoidReceipt = async (receipt) => {
     if (guardWrite()) return;
     if (!receipt || !voidReason.trim()) { toast("כתבי בקצרה למה מבטלים, זה נשמר ברישום", "error"); return; }
+    // A card payment taken through Grow is not undone by voiding it here: the charge and Grow's own document stay.
+    // Say so first, so the books and the bank do not quietly disagree.
+    if (receipt.legal_provider === "grow" && !growVoidOk.current) {
+      askConfirm({
+        title: "התשלום נגבה דרך Grow",
+        message: "ביטול כאן לא מחזיר את הכסף ללקוחה ולא מבטל את המסמך של Grow. את הזיכוי עושים בחשבון Grow. לבטל רק ברישום שלך?",
+        confirmText: "לבטל ברישום שלי",
+        onConfirm: () => { growVoidOk.current = true; Promise.resolve(handleVoidReceipt(receipt)).finally(() => { growVoidOk.current = false; }); },
+      });
+      return;
+    }
     if (isBusy("voidReceipt")) return;
     setBusyKey("voidReceipt", true);
     try {
@@ -5279,7 +5303,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     } finally { setBusyKey("voidReceipt", false); }
   };
 
+  const dupPayOk = useRef(false);
   const handleOpenCashier = (appt) => {
+    dupPayOk.current = false;
     setCashierAppt(appt||null);
     if(appt){
       const client=clients.find(c=>String(c.id)===String(appt.client_id));
@@ -5336,6 +5362,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
+    // Paying the same visit twice (from the calendar after the home list, or after a Grow payment) doubled her income.
+    if(cashierAppt && !dupPayOk.current && liveRcpts.some(r=>r.appointment_id && String(r.appointment_id)===String(cashierAppt.id))){
+      askConfirm({
+        title: "כבר יש תשלום לטיפול הזה",
+        message: "נרשם תשלום על הטיפול הזה. לרשום עוד אחד? זה יוסיף להכנסות.",
+        confirmText: "לרשום עוד אחד",
+        onConfirm: () => { dupPayOk.current = true; handleSaveReceipt(); },
+      });
+      return;
+    }
     if(isBusy("saveReceipt")) return;
     setBusyKey("saveReceipt", true);
     try {
@@ -5850,7 +5886,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית — אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
-      if (!silent) toast("נשלח ללקוחה ב-WhatsApp ✦");
+      if (!silent) toast("ההודעה הועברה לשליחה בוואטסאפ ✦");
       return true;
     } catch {
       if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית", "error");
@@ -5972,7 +6008,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         body: JSON.stringify({ tenantId: settings.tenant_id, appointmentId: appt.id }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success && !data.queued) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
+      if (res.ok && data.success && !data.queued) { toast("התזכורת הועברה לשליחה ✦"); return; }
       if (res.ok && data.queued && data.waLink) {
         // Manual mode (or the central number fell back): this is still
         // success, just not automatic - the honest copy says so, and opens
@@ -7903,14 +7939,14 @@ ${MARKETING_FOOTER}`)}`;
       )}
 
       {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
- <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית — Beauty Voice" title="Beauty Voice" className="fab-voice"
+ <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
         style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"var(--pc-contrast)",boxShadow:"var(--shadow-accent)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
  <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
  </button>
 
       {/* BEAUTY VOICE — modal */}
       {showVoice&&(
- <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="Beauty Voice">
+ <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="שליטה קולית">
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_MICROPHONE} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
@@ -8339,7 +8375,7 @@ ${MARKETING_FOOTER}`)}`;
                     {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"3px 8px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
-                    {a.confirmation_sent&&<span style={{fontSize:"var(--t-sm)",color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נשלח"}</span>}
+                    {a.confirmation_sent&&<span style={{fontSize:"var(--t-sm)",color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נפתחה"}</span>}
  </div>
                 );
               })}
@@ -8485,7 +8521,7 @@ ${MARKETING_FOOTER}`)}`;
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
-                  {label:"מטופלת חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                  {label:"לקוחה חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                   {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
                   {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
                 ]}/>
@@ -8509,7 +8545,7 @@ ${MARKETING_FOOTER}`)}`;
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
-                {label:"מטופלת חדשה",hint:"הוספה ל-CRM",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                {label:"לקוחה חדשה",hint:"הוספה ל-CRM",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
@@ -9197,7 +9233,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button onClick={()=>setShowLapsed(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>מזמן לא הגיעו</button>
  <button onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
- <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ מטופלת חדשה</button>
+ <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
  </div>
  </div>
  <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
@@ -9227,7 +9263,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:340,margin:"0 auto 18px",lineHeight:1.6}}>{(searchQuery||filterStatus!=="all")?"נסי לשנות את החיפוש או הסינון.":"הוסיפי את הלקוחה הראשונה, או ייבאי רשימה שלמה בבת אחת."}</p>
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
- <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ מטופלת חדשה</button>
+ <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
  <button className="empty-cta" onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"11px 22px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
  </div>
  )}
@@ -9553,7 +9589,7 @@ ${MARKETING_FOOTER}`)}`;
               // another, so these are literal values rather than tokens.
               {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:"אין תורים מחר"},
               {key:"birthdays",icon:"🎀",title:"ברכות יום הולדת",color:pc,targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
-              {key:"cold",icon:"✦",title:"מטופלות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל המטופלות פעילות! "},
+              {key:"cold",icon:"✦",title:"לקוחות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל הלקוחות פעילות! "},
               {key:"review",icon:"⭐",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
             ];
 
@@ -9621,7 +9657,7 @@ ${MARKETING_FOOTER}`)}`;
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>שליחת הודעה לקבוצה</h3>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
  <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-                  {[{k:"all",l:"כל המטופלות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
+                  {[{k:"all",l:"כל הלקוחות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
  <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:"var(--r-lg)",background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?"var(--shadow-accent)":"var(--shadow-xs)"}}>{a.l}</button>
                   ))}
  </div>
@@ -9638,7 +9674,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  <div className="glass-card" style={{padding:18}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>הודעה אישית למטופלת</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>הודעה אישית ללקוחה</h3>
  <div style={{position:"relative",marginBottom:10}}>
  <input value={waFreeSearch} onChange={e=>{setWaFreeSearch(e.target.value);if(!e.target.value)setWaFreeClient(null);}}
                     placeholder="חיפוש לקוחה לפי שם או טלפון..."
@@ -10818,7 +10854,7 @@ ${MARKETING_FOOTER}`)}`;
 
       {/* CLIENT MODAL */}
       {showClientModal&&(
- <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת מטופלת":"מטופלת חדשה"}>
+ <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>

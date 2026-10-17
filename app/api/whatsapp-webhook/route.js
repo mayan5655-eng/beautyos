@@ -24,6 +24,8 @@ import { buildSystemPrompt } from "@/lib/botPrompt";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { hit } from "@/lib/rateLimit";
 import { isAuthorizedWebhook, webhookUnauthorized } from "../../../lib/webhookAuth";
+import { optOutFields } from "../../../lib/marketingConsent";
+import { normalizeIsraeliMobile } from "../../../lib/phone";
 import { mapGreenApiDeliveryStatus } from "../../../lib/greenApi/deliveryStatus.ts";
 
 const supabase = createClient(
@@ -227,6 +229,25 @@ export async function POST(request) {
       return Response.json({ ok: true, ignored: "unknown tenant" });
     }
 
+    // "הסר": every promotional message we send says "reply הסר to be removed". That has to work on its own, before the bot
+    // (which would answer it as a question) and whether or not the bot is on. Only an exact one-word request counts, so an
+    // ordinary sentence that happens to contain the word is never read as an opt-out.
+    if (/^(הסר|הסירי|הסירו|הסרה|stop|unsubscribe)[\s.!]*$/i.test(text.trim())) {
+      try {
+        const phoneNorm = normalizeIsraeliMobile(senderToPhone(senderChatId));
+        if (phoneNorm.ok) {
+          const { data: rows } = await supabase.from("clients").select("id, phone").eq("tenant_id", tenantId);
+          const ids = (rows || []).filter(c => normalizeIsraeliMobile(c.phone).e164 === phoneNorm.e164).map(c => c.id);
+          if (ids.length) {
+            const { error: optErr } = await supabase.from("clients").update(optOutFields()).in("id", ids).eq("tenant_id", tenantId);
+            if (optErr) console.error("[whatsapp-webhook] opt-out not recorded:", optErr.message);
+            else await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. לא נשלח לך יותר הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId });
+          }
+        }
+      } catch (e) { console.error("[whatsapp-webhook] opt-out failed:", e?.message); }
+      return Response.json({ ok: true, optOut: true });
+    }
+
     // Respect the tenant's bot on/off switch and active hours
     const active = await shouldBotReply(tenantId);
     if (!active) {
@@ -289,7 +310,7 @@ export async function POST(request) {
     return Response.json({ ok: true });
   } catch (err) {
     console.error("whatsapp-webhook error:", err);
-    return Response.json({ ok: false, error: err.message });
+    return Response.json({ ok: false, error: "internal" });
   }
 }
 
