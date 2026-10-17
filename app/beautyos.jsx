@@ -50,6 +50,7 @@ import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
+import { historyCutoff, mergeById } from "@/lib/historyWindow";
 import { advisorWaitLine } from "@/lib/advisorWait";
 import { defaultHowIWork, defaultHeroHeadline, defaultValueProps } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
@@ -1080,7 +1081,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // client card. Until they arrive their lists are [] - which must never be
   // shown as "none" - so every screen that reads one is gated on its status
   // here ("loading" | "ok" | "error"), via <DeferredGate>.
-  const [deferred, setDeferred] = useState({ forms: "loading", expenses: "loading", waitlist: "loading" });
+  // history: appointments and payments older than the recent window, leads: the whole leads list. Both are read in the background after the
+  // first screen is on (loadHistory), so a business with years of data sees her day straight away. See lib/historyWindow.js.
+  const [deferred, setDeferred] = useState({ forms: "loading", expenses: "loading", waitlist: "loading", history: "loading", leads: "loading" });
+  const historyReady = deferred.history === "ok";
+  const [histSlow, setHistSlow] = useState(false);
+  useEffect(() => {
+    if (deferred.history !== "loading") { setHistSlow(false); return; }
+    const t = setTimeout(() => setHistSlow(true), 700);   // a small business gets it before this fires and never sees the strip
+    return () => clearTimeout(t);
+  }, [deferred.history]);
   // Re-render once a minute so the clock-driven cards on the dashboard (the next
   // client, the end-of-day list) appear and change on their own.
   const [, setMinuteTick] = useState(0);
@@ -2376,15 +2386,47 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         set(res?.data || []);
         return "ok";
       };
-      setDeferred({
+      setDeferred(prev => ({
+        ...prev,
         forms: take("forms", f, setForms),
         expenses: take("expenses", ex, setExpenses),
         waitlist: take("waitlist", wl, setWaitlist),
-      });
+      }));
     } catch (err) {
       console.error("[BeautyOS] loadDeferred threw:", err);
       try { Sentry.captureException(err); } catch {}
-      setDeferred({ forms: "error", expenses: "error", waitlist: "error" });
+      setDeferred(prev => ({ ...prev, forms: "error", expenses: "error", waitlist: "error" }));
+    }
+  };
+
+  // The older half of the data, read AFTER the first screen is on: appointments before the recent window, payments before it, and the leads.
+  // Each read is complete or it is an error: a partial history is never merged in and called done (same rule as the boot reads). Rows are
+  // merged by id, so one that was created while this ran is not duplicated. Safe to call again (the retry button does).
+  const historyCutoffRef = useRef(null);
+  const loadHistory = async () => {
+    const cut = historyCutoffRef.current || (historyCutoffRef.current = historyCutoff());
+    setDeferred(prev => ({ ...prev, history: "loading", leads: "loading" }));
+    try {
+      const [oa, orc, ld] = await Promise.all([
+        readAllRows(supabase, "appointments", { filter: (q) => q.lt("date", cut.date) }),
+        readAllRows(supabase, "receipts", { filter: (q) => q.lt("created_at", cut.iso) }),
+        readAllRows(supabase, "leads"),
+      ]);
+      const okRead = (r) => !r.error && r.data && r.complete !== false;
+      if (okRead(oa)) setAppointments(prev => mergeById(prev, oa.data));
+      if (okRead(orc)) setReceipts(prev => mergeById(prev, orc.data));
+      if (okRead(ld)) setLeads(prev => mergeById(ld.data, prev));
+      for (const [name, r] of [["appointments", oa], ["receipts", orc], ["leads", ld]]) {
+        if (!okRead(r)) {
+          console.error(`[BeautyOS] loadHistory: ${name} not fully read`, r.error || `${r.fetched}/${r.total}`);
+          try { Sentry.captureException(new Error(`loadHistory ${name} — ${r.error?.message || "incomplete"}`)); } catch {}
+        }
+      }
+      setDeferred(prev => ({ ...prev, history: okRead(oa) && okRead(orc) ? "ok" : "error", leads: okRead(ld) ? "ok" : "error" }));
+    } catch (err) {
+      console.error("[BeautyOS] loadHistory threw:", err);
+      try { Sentry.captureException(err); } catch {}
+      setDeferred(prev => ({ ...prev, history: "error", leads: "error" }));
     }
   };
 
@@ -2443,15 +2485,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // without a valid user), so the network check is not repeated on the
       // critical path; verifySession() below does it right after the core
       // load, with the same offline-is-not-logged-out rule.
+      const bootCut = historyCutoffRef.current = historyCutoff();
       const authP = Promise.resolve(supabase.auth.getSession());
       const rpcP = Promise.resolve(supabase.rpc("get_user_tenant_id"));
       const EARLY_READS = [
-        ["appointments",   readAllRows(supabase, "appointments")],
+        // Only the recent window here (lib/historyWindow.js): the rest of the history and the leads arrive in the background (loadHistory).
+        ["appointments",   readAllRows(supabase, "appointments", { filter: (q) => q.gte("date", bootCut.date) })],
         ["clients",        readAllRows(supabase, "clients")],
-        ["leads",          readAllRows(supabase, "leads")],
         ["service_prices", supabase.from("service_prices").select("*")],
         ["settings",       supabase.from("settings").select("*")],
-        ["receipts",       readAllRows(supabase, "receipts")],
+        ["receipts",       readAllRows(supabase, "receipts", { filter: (q) => q.gte("created_at", bootCut.iso) })],
         // Not core: the table arrives with add_till_and_calendar_small_things.sql,
         // applied by hand, and a missing table must not stop the boot. Until it
         // exists no receipt can be voided, which the void button says.
@@ -2509,7 +2552,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
       READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
-      const { appointments: a, clients: c, leads: l, service_prices: sv, settings: st, receipts: r, receipt_voids: rv, packages: pk, tenants: tn, whatsapp_pending: wap, owner_notifs: onf } = res;
+      const { appointments: a, clients: c, service_prices: sv, settings: st, receipts: r, receipt_voids: rv, packages: pk, tenants: tn, whatsapp_pending: wap, owner_notifs: onf } = res;
 
       // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
       // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
@@ -2549,7 +2592,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return; // the `finally` still clears `loading`
       }
 
-      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", leads: "הלידים", receipts: "אישורי התשלום", receipt_voids: "ביטולי אישורי התשלום", packages: "החבילות" };
+      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", receipts: "אישורי התשלום", receipt_voids: "ביטולי אישורי התשלום", packages: "החבילות" };
       const partialReads = Object.keys(PARTIAL_HE).filter((n) => res[n] && res[n].data && res[n].complete === false);
       if (partialReads.length > 0) {
         console.error("[BeautyOS] loadAll: incomplete read", partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", "));
@@ -2577,7 +2620,6 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // is a real answer and can be trusted.
       setAppointments(a.data || []);
       setClients(c.data || []);
-      setLeads(l.data || []);
       // service_prices is the one table that is readable across tenants (the public booking page needs an
       // anonymous read), so unlike the others it is NOT scoped by RLS for her: keep only the rows that are hers.
       // A new tenant used to see 21 services from three other businesses here, and a checklist that called
@@ -2637,6 +2679,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Core load succeeded and is on screen's way; fetch the three lists no
       // first screen needs. Not awaited: nothing waits on them.
       loadDeferred();
+      loadHistory();
       verifySession();
     } catch (err) {
       // Anything unexpected is ALSO a failed load, not an empty one. This used
@@ -2753,8 +2796,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // actually been seen), never cold (she isn't overdue for anything; there
   // was never a first visit to lapse from). This is what keeps her out of
   // the needs-attention queue's win-back nudges. See lib/clientActivity.ts.
-  const activeClients = useMemo(() => clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
-  const coldClients   = useMemo(() => clients.filter(c=>isColdClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
+  const activeClients = useMemo(() => historyReady ? clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
+  // A client last seen before the recent window has NO last visit until the history is in, which would read as "new" instead of "lapsed":
+  // so these two lists stay empty until it is (they are nudges, and arrive a moment later).
+  const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, receipts]);
 
   // Per-service breakdown.
@@ -8377,6 +8422,13 @@ ${MARKETING_FOOTER}`)}`;
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
  <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
+ {((deferred.history==="loading"&&histSlow)||deferred.history==="error")&&(
+ <div role="status" data-testid="history-strip" style={{maxWidth:1180,margin:"0 auto 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>
+ {deferred.history==="error"
+   ?<><span>לא הצלחנו לטעון את כל ההיסטוריה, ומה שמוצג חלקי.</span><button type="button" onClick={loadHistory} style={{background:"none",border:"none",color:"var(--brand-accent)",fontWeight:700,textDecoration:"underline",cursor:"pointer",minHeight:44,padding:"0 6px"}}>נסי שוב</button></>
+   :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
+ </div>
+ )}
  <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:appointments.length,clients:clients.length}} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
@@ -8466,7 +8518,7 @@ ${MARKETING_FOOTER}`)}`;
                 checked services at all. Once she has services, the rest of
                 this screen (today's appointments, needs-attention) already
                 carries an empty day fine on its own. */}
-            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
+            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
@@ -8476,7 +8528,7 @@ ${MARKETING_FOOTER}`)}`;
                   {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
                 ]}/>
             )}
-            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
+            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
@@ -8812,7 +8864,8 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
 
           {/* INSIGHTS / תובנות — overview & analytics (moved off the calm "היום" home) */}
-          {activeTab==="insights"&&(<>
+          {activeTab==="insights"&&!historyReady&&<div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/></div>}
+          {activeTab==="insights"&&historyReady&&(<>
             {(()=>{
               const revTrend=lastMonthRevenue>0?Math.round(((thisMonthRevenue-lastMonthRevenue)/lastMonthRevenue)*100):null;
               const stats=[
@@ -8927,7 +8980,10 @@ ${MARKETING_FOOTER}`)}`;
 
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
-            {appointments.length===0&&(
+            {!historyReady&&historyCutoffRef.current&&formatDate(weekSundayOf(weekStart))<historyCutoffRef.current.date&&(
+              <p role="status" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",marginBottom:10}}>{deferred.history==="error"?"לא הצלחנו לטעון את התורים הישנים. השבוע הזה עלול להיראות חלקי.":"טוענת תורים ישנים. השבוע הזה יתמלא בעוד רגע."}</p>
+            )}
+            {historyReady&&appointments.length===0&&(
               <EmptyState icon="calendar" accent={pc} accentTint={pcTint}
                 title="הלוח עדיין ריק"
                 body="אפשר לקבוע תור בלחיצה על שעה פנויה בלוח, או מהכפתור כאן. תורים שנקבעים מעמוד ההזמנות הציבורי שלך מופיעים כאן לבד."
@@ -9263,7 +9319,8 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
 
           {/* LEADS */}
-          {activeTab==="leads"&&(<>
+          {activeTab==="leads"&&deferred.leads!=="ok"&&<div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.leads} what="את הפניות" onRetry={loadHistory}/></div>}
+          {activeTab==="leads"&&deferred.leads==="ok"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  {peopleSegments()}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -9866,7 +9923,7 @@ ${MARKETING_FOOTER}`)}`;
                 })}
  </div>
 
-  <SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>
+  {(!historyReady||deferred.leads!=="ok")?<DeferredGate status={(deferred.leads==="error"||deferred.history==="error")?"error":"loading"} what="את הפניות וההכנסות" onRetry={loadHistory}/>:<SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>}
  </>)}
 
  {marketingView==="posts"&&(<>
@@ -9998,6 +10055,8 @@ ${MARKETING_FOOTER}`)}`;
             // expenses arrive after first render (loadDeferred); zero expenses
             // and not-loaded-yet must not look the same on a tax screen.
             if (deferred.expenses !== "ok") return <div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.expenses} what="את ההוצאות" onRetry={loadDeferred}/></div>;
+            // Tax years reach back past the recent window: wait for the whole payment history rather than show a year with payments missing.
+            if (!historyReady) return <div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/></div>;
             // No registration chosen: say so and ask, instead of reporting her as an exempt dealer.
             if (!settings.business_tax_status) return (
               <div className="glass-card" style={{padding:18}}>
@@ -12697,7 +12756,8 @@ ${MARKETING_FOOTER}`)}`;
                       <ClientPrivacyPanel client={c} toast={toast} canWrite={!planInfo.isBlocked} onErased={handleClientErased}/>
  </div>
                   )}
-                  {clientTab==="history"&&(
+                  {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}
+                  {clientTab==="history"&&historyReady&&(
                     appts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין היסטוריית תורים</p>
                     :appts.map(a=>(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
@@ -12722,7 +12782,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                     ))
                   )}
-                  {clientTab==="receipts"&&(
+                  {clientTab==="receipts"&&historyReady&&(
                     cReceipts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין תשלומים</p>
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
