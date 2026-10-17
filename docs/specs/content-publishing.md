@@ -1,6 +1,6 @@
 # Content planning and publishing: feature spec
 
-Status: proposal. Written 2026-10-17 from a read-only reading of the code on `main` (76bdca5) and from public
+Status: proposal, **owner decisions recorded 2026-10-18 (section 8); building has not started.** Written 2026-10-17 from a read-only reading of the code on `main` (76bdca5) and from public
 platform documentation. **Nothing here was built or run.** Facts about Meta, TikTok and YouTube are from their
 public docs and developer guides as found on 2026-10-17; anything that depends on those platforms' current
 rules is marked UNVERIFIED and must be re-checked in the platform's own dashboard before work starts. They change
@@ -150,13 +150,12 @@ That is already in the posting kit notes for the founder; productize it as a che
 
 ### 3.4 Reminders (no external API)
 
-- A daily cron (the existing `0 14 * * *` slot is fine, or a new one; Vercel cron minimum frequency depends on the
-  plan, UNVERIFIED which plan production is on, so design for "once a day plus on-open") fans out per active
-  tenant using `cronFanout` and writes `owner_notifications` + web push through `ownerNotify`. Three kinds:
+- A cron (decision 3: production is on Vercel Pro, so a frequent cron is available, see 4.4; the morning and Sunday
+  reminders can use the existing daily slot) fans out per active tenant using `cronFanout` and writes `owner_notifications` + web push through `ownerNotify`. Three kinds:
   **plan ready** (Sunday), **today you post** (morning, at her chosen hour), **missed** (next morning, once, gentle).
-- Exact-time reminders ("in 30 minutes") are only possible with a scheduler finer than daily. Until stage 2 adds one,
-  promise only what a daily run can keep: a morning reminder with the planned time shown. Do not claim a
-  push at 18:30 if the cron runs at 14:00. (This is the "queued is not sent" rule from the kalmea skill, applied to
+- Exact-time reminders ("in 30 minutes") need the frequent cron from decision 3. Until it is deployed, promise only
+  what a daily run can keep: a morning reminder with the planned time shown. Do not claim a push at 18:30 if the
+  cron runs at 14:00. (This is the "queued is not sent" rule from the kalmea skill, applied to
   reminders.)
 - Owner only. Nothing in this module ever messages her clients. No WhatsApp to herself either (that was removed from
   owner pings on purpose, see `lib/ownerNotify.js`).
@@ -296,10 +295,11 @@ App Review steps (what each takes, in order):
 - **Queue table + a publisher job.** A cron calls `/api/content/publish-due` every few minutes; it uses
   `cronFanout` per tenant, claims due jobs with `update ... set state='claimed' ... where state='queued' and
   run_at <= now() returning *` (atomic, so two overlapping runs cannot double-post), checks `tenantMustBeActive`
-  (section 2.2), refreshes nothing silently, publishes, and writes the result. Vercel cron frequency depends on the
-  plan (UNVERIFIED: current crons are all daily). If the plan does not allow every-5-minutes, use Supabase
-  `pg_cron` or an external scheduler that calls the same route with the cron secret. This decision belongs in
-  stage 2's first day.
+  (section 2.2), refreshes nothing silently, publishes, and writes the result. **Decision 3: she is on Vercel Pro, so
+  this is a Vercel cron entry in `vercel.json` running every 5 minutes** (current crons are all daily; the exact
+  minimum interval and per-plan cron limits are UNVERIFIED, so confirm in the Vercel dashboard when adding it). No
+  extra service and no extra cost is assumed. Fallback only if the interval is refused: Supabase `pg_cron` calling
+  the same route with the cron secret (would need her approval, as it is a new moving part).
 - **Idempotency**: `idempotency_key` unique per `(item_platform_id, attempt_group)`; never create a second container
   for the same item; store the container id before calling `media_publish` so a crash does not double-post.
 - **Failure handling**: classify errors (token expired, permission missing, media rejected, rate limited, platform
@@ -478,8 +478,7 @@ binary guarantee, no Python, CPU time and memory limits, 120 s `maxDuration` see
   fastest route and keeps the tuned behaviour.
 - **Hebrew rendering**: subtitles stay libass with our own line breaks; never DOM rasterization (kalmea skill, video
   section). Cards use the existing canvas/scene renderer, or pre-rendered PNGs, not `html2canvas`.
-- **Gate and abuse**: trial tenants get a small allowance (for example 2 renders and 15 minutes of raw footage in
-  the trial), enforced by a per-tenant counter in `callCaps` style (`reels/auto-edit`) and a size/duration limit at
+- **Gate and abuse**: **decision 5: a trial tenant gets 2 auto-edits** (plans are unlimited), enforced by a per-tenant counter in `callCaps` style (`reels/auto-edit`) and a size/duration limit at
   upload; the worker re-checks `tenantMustBeActive` before starting and before the expensive steps. Nothing is
   deleted from her side when the trial ends; raw files older than a retention window can be moved to cold storage
   only with her consent, never silently removed.
@@ -504,6 +503,12 @@ binary guarantee, no Python, CPU time and memory limits, 120 s `maxDuration` see
   LLM "pick the best spans + hook" step with evaluation 4 days, stabilization speed-up 2 days, cutaway matcher + clip
   library 3 days, review screen (transcript, cuts, subtitles) 4 days, upload/size limits/progress 2 days, QA
   automation + tests on real footage 3 days: **20 to 30 dev-days.**
+- **Budget (decision 4): the video server runs on a scale-to-zero service with a hard monthly cap of 100 ILS that she
+  approves.** Enforced in code, not by hope: every `edit_jobs` row records `compute_seconds` and `cost_usd`; before
+  starting a job the worker sums the month's spend and refuses (job state `paused`, Hebrew message "החודש הגענו
+  לתקרת העיבוד, נמשיך בחודש הבא או שנעדכן") once the cap would be exceeded; the provider's own spend alert is set
+  below the cap too. Raising the cap is her decision each time. At the estimate below this means a few hundred
+  reels per month, far above trial and early-launch use.
 - Cost (estimates, not quotes; measure before committing, and she approves any spend):
   - Compute: measured on her laptop without GPU, a 35 s reel took about 95 to 100 s of render (audio + video) and a
     46-minute transcription was the long step; stabilization was about 9 minutes per reel before optimization. On a
@@ -556,16 +561,19 @@ binary guarantee, no Python, CPU time and memory limits, 120 s `maxDuration` see
   posting kit. New permissions are added alongside the current ones; existing connections keep working until she
   chooses to reconnect.
 
-## 8. Decisions needed from the owner before building
+## 8. Decisions (owner, 2026-10-18)
 
-1. Stage 1 first, as recommended? (Needs no approval to start; no cost.)
-2. Meta route for Instagram (Facebook Login with the Page-linked account vs Instagram Login). Needs a look in the
-   App Dashboard; this changes the OAuth flow and the permission names.
-3. Scheduler: is production on a Vercel plan that allows frequent crons, or is a small external scheduler
-   acceptable? (Any upgrade or new service costs money: her approval first.)
-4. Stage 4 compute provider and a monthly compute budget.
-5. Trial allowances (number of plans, auto-edits and raw minutes for a trial tenant).
-6. Confirm-before-publish as the permanent default for TikTok and as the starting default for Meta.
+| # | Decision | Effect on this spec |
+|---|---|---|
+| 1 | Stage 1 first, then stage 4 while Meta reviews | Order: 1, then 4 in parallel with the Meta wait, then 2, then 3. Stage 1 needs no approval and has no cost. |
+| 2 | Check the App Dashboard first; prefer the Facebook Login route for Instagram | First task of stage 2 (before any code): open Permissions and Features, confirm which Instagram publishing permission names exist for the Facebook Login (Page-linked) route, and write the result into section 4.3. Keeps the existing Page connection and `facebook_pages.instagram_business_id`; Instagram Login is only the fallback if the dashboard offers no publishing permission on the Facebook route. |
+| 3 | Vercel Pro: use a frequent Vercel cron | Publisher cron every 5 minutes in `vercel.json` (section 4.4). No external scheduler. Confirm the minimum interval in the Vercel dashboard when adding it. |
+| 4 | Scale-to-zero video server, monthly cap 100 ILS, approved by her | Provider chosen at the start of stage 4 (candidates: Cloud Run, Fly.io; pick the one whose pricing fits the cap, and show her the numbers before creating any account). Spend is tracked per job and enforced as a hard cap (section 6.5). Nothing is created or paid for until she approves the provider. |
+| 5 | Unlimited plans, 2 auto-edits in the trial | No cap on stage 1 plans (one AI call per pack stays inside the existing AI ceiling). Stage 4 counter `reels/auto-edit` is 2 for a trial tenant. The raw-footage length limit per upload is not decided; propose a default at build time and ask. |
+| 6 | Approval always required for TikTok; default approval for Instagram and Facebook; optional hands-off mode later | Every Instagram/Facebook post shows "מוכן לפרסום, בדקי" and waits for one confirm. TikTok has no hands-off mode ever (platform rules). A hands-off toggle for Meta is a later, separate change behind its own flag, off by default. |
+
+Not decided and still open: the raw-footage minutes per trial upload (decision 5), and the per-month paid-plan
+allowances for auto-edits (not asked yet).
 
 ## 9. Sources used for platform facts (checked 2026-10-17; re-verify before building)
 
