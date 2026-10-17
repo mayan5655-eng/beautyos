@@ -7757,7 +7757,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                 <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FLOWER} style={{width:52,height:52,margin:"0 auto 10px",display:"block"}}/>
                 <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
                 <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
-                  {SUPPORT_TEAM_HE} יחזרו אליך. אפשר להמשיך לעבוד בינתיים.
+                  קיבלנו. {SUPPORT_TEAM_HE} יחזרו אלייך בוואטסאפ, בדרך כלל עד סוף היום הבא. אפשר להמשיך לעבוד בינתיים.
                 </p>
                 <button type="button" onClick={()=>{setShowHelp(false);setHelpText("");setHelpState("idle");}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-xl)",fontSize:"var(--t-md)"}}>סגירה</button>
               </div>

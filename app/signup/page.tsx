@@ -41,13 +41,13 @@ export default function SignupPage() {
       return
     }
 
-    if (password.length < 6) {
-      setError('הסיסמה חייבת להיות לפחות 6 תווים')
+    if (password.length < 8) {
+      setError('הסיסמה חייבת להיות לפחות 8 תווים')
       return
     }
 
     if (!businessName.trim()) {
-      setError('יש להזין שם עסק')
+      setError('איך קוראים לעסק שלך? חסר שם')
       return
     }
 
@@ -76,7 +76,14 @@ export default function SignupPage() {
       if (error.message.includes('already registered')) {
         setError('האימייל כבר רשום במערכת')
       } else {
-        setError('שגיאה בהרשמה: ' + error.message)
+        // The raw message is English and technical: log it, and say in Hebrew what happened.
+        console.error('[signup] failed:', error.message)
+        setError(
+          /rate limit/i.test(error.message) ? 'ניסינו לשלוח יותר מדי מיילים. נסי שוב בעוד כמה דקות.'
+          : /invalid.*email|unable to validate email/i.test(error.message) ? 'כתובת האימייל לא נראית תקינה. כדאי לבדוק אותה שוב.'
+          : /password/i.test(error.message) ? 'הסיסמה לא התקבלה. כדאי לבחור סיסמה של 8 תווים לפחות.'
+          : 'משהו נתקע אצלנו, לא אצלך. נסי שוב בעוד רגע.'
+        )
       }
       setLoading(false)
       return
@@ -209,7 +216,7 @@ export default function SignupPage() {
             />
           </Field>
 
-          <Field label="סיסמה" hint="לפחות 6 תווים" htmlFor="signup-password">
+          <Field label="סיסמה" hint="לפחות 8 תווים" htmlFor="signup-password">
             <input
               className="signup-input"
               id="signup-password"

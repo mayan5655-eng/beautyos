@@ -61,6 +61,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'login' | 'forgot'>('login')
   const [resetNotice, setResetNotice] = useState('')
+  const [needsConfirm, setNeedsConfirm] = useState(false)
+  const [resendNote, setResendNote] = useState('')
   const router = useRouter()
   // /auth/confirm and /auth/callback send ?error=auth when an email link could not become a session: it expired or was already
   // used. If she already confirmed, signing in works.
@@ -82,6 +84,7 @@ export default function LoginPage() {
 
     if (error) {
       // Supabase says this only when the password was right, so it reveals nothing.
+      setNeedsConfirm(/not confirmed/i.test(error.message))
       setError(/not confirmed/i.test(error.message)
         ? 'עוד לא אישרת את האימייל. שלחנו לך קישור בעת ההרשמה, כדאי לבדוק גם בספאם.'
         : 'אימייל או סיסמה שגויים')
@@ -209,6 +212,26 @@ export default function LoginPage() {
             )}
 
             {error && <div style={noticeStyle('error')}>{error}</div>}
+            {needsConfirm && email && (
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setResendNote('')
+                    const { error: rErr } = await (await getSupabase()).auth.resend({
+                      type: 'signup',
+                      email,
+                      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding` },
+                    })
+                    setResendNote(rErr ? 'לא הצלחנו לשלוח שוב כרגע. נסי עוד כמה דקות.' : 'שלחנו שוב. כדאי לבדוק גם בספאם.')
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'var(--brand-accent)', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', padding: '10px 6px', minHeight: 44 }}
+                >
+                  שלחי לי שוב את הקישור
+                </button>
+                {resendNote && <p role="status" style={{ marginTop: 4 }}>{resendNote}</p>}
+              </div>
+            )}
             {resetNotice && <div style={noticeStyle('ok')}>{resetNotice}</div>}
 
             <button type="submit" disabled={loading} className="brand-pill-btn" style={btnStyle()}>

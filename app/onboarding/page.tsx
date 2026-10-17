@@ -613,7 +613,7 @@ export default function OnboardingPage() {
                 </Field>
               </div>
               <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                {`✨ כמעט סיימנו — עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
+                {`כמעט סיימנו — עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
               </div>
             </>
           )}

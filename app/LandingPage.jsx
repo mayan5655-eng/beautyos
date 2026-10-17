@@ -19,6 +19,7 @@ import {
 import BrandImage from "@/app/BrandImage";
 import PublicFooterLinks from "./PublicFooterLinks";
 import { supportWhatsAppUrl } from "@/lib/support";
+import { LAUNCH_PRICE_CUTOFF_ISO } from "@/lib/ownerControl";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -168,7 +169,8 @@ export default function LandingPage() {
       {/* ── 5. COST TABLE ─────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px" }}>
         <SectionEyebrow>כמה זה עולה בלי קלמיה</SectionEyebrow>
-        <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="הכל נכנס למערכת אחת." />
+        <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="קלמיה מרכזת את הכלים האלה במקום אחד." />
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textAlign: "center", marginTop: 10 }}>הסכומים הם הערכה לפי מחירי שוק.</p>
       </section>
 
       {/* ── 5b. KALMEA'S OWN PRICE ───────────────────────────────────────── */}
@@ -178,8 +180,11 @@ export default function LandingPage() {
           <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
             499 ₪ <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
           </p>
-          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>349 ₪ לחודש, לכל החיים, למצטרפות עד 20.10</p>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>המחיר נשאר כל עוד המנוי פעיל, בלי הפסקה.</p>
+          {/* The launch price is only advertised while it can still be had: after the cutoff the page shows the regular price alone. */}
+          {Date.now() <= Date.parse(LAUNCH_PRICE_CUTOFF_ISO) && (<>
+            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>349 ₪ לחודש למצטרפות עד 20.10.2026</p>
+            <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>המחיר נשאר כל עוד המנוי פעיל ברציפות.</p>
+          </>)}
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
         </Reveal>
       </section>

@@ -25,8 +25,10 @@ ok('the listed ranges add up to the figure on the page', () => {
 
 ok('Kalmea price is shown, with the first-members line and no promise of limited spots', () => {
   assert.match(page, /499 ₪/);
-  assert.match(page, /349 ₪ לחודש, לכל החיים, למצטרפות עד 20.10/);
-  assert.match(page, /המחיר נשאר כל עוד המנוי פעיל, בלי הפסקה./);
+  assert.match(page, /349 ₪ לחודש למצטרפות עד 20.10.2026/);
+  assert.match(page, /המחיר נשאר כל עוד המנוי פעיל ברציפות./);
+  assert.doesNotMatch(page, /לכל החיים/, 'the terms say the price holds while the subscription stays active, so the page must not say "for life"');
+  assert.match(page, /LAUNCH_PRICE_CUTOFF_ISO/, 'the launch price is only shown while it can still be had');
   assert.doesNotMatch(page, /לחברות הראשונות/);
   assert.doesNotMatch(page, /מקומות|מוגבל|עד שיגמר|רק ל-\d+ /);
 });
