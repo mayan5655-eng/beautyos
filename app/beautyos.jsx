@@ -1999,14 +1999,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const loadDeferred = async () => {
     try {
       const [f, ex, wl] = await Promise.all([
-        Promise.resolve(supabase.from("forms").select("*")),
-        Promise.resolve(supabase.from("expenses").select("*")),
-        Promise.resolve(supabase.from("waitlist").select("*")),
+        readAllRows(supabase, "forms"),
+        readAllRows(supabase, "expenses"),
+        readAllRows(supabase, "waitlist"),
       ]);
       const take = (name, res, set) => {
-        if (res?.error) {
-          console.error(`[BeautyOS] loadDeferred: ${name} failed`, res.error);
-          try { Sentry.captureException(new Error(`loadDeferred ${name} — ${res.error.message || "unknown"}`)); } catch {}
+        // A read that stopped short (complete:false) is an error, not a shorter list.
+        if (res?.error || res?.complete === false) {
+          console.error(`[BeautyOS] loadDeferred: ${name} failed`, res.error || `${res.fetched}/${res.total}`);
+          try { Sentry.captureException(new Error(`loadDeferred ${name} — ${res.error?.message || "incomplete"}`)); } catch {}
           return "error";
         }
         set(res?.data || []);
@@ -2041,7 +2042,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const okRead = (r) => !r.error && r.data && r.complete !== false;
       if (okRead(oa)) setAppointments(prev => mergeById(prev, oa.data));
       if (okRead(orc)) setReceipts(prev => mergeById(prev, orc.data));
-      if (okRead(ld)) setLeads(prev => mergeById(ld.data, prev));
+      if (okRead(ld)) setLeads(prev => mergeById(prev, ld.data));
       for (const [name, r] of [["appointments", oa], ["receipts", orc], ["leads", ld]]) {
         if (!okRead(r)) {
           console.error(`[BeautyOS] loadHistory: ${name} not fully read`, r.error || `${r.fetched}/${r.total}`);
@@ -2118,7 +2119,6 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // Only the recent window here (lib/historyWindow.js): the rest of the history and the leads arrive in the background (loadHistory).
         ["appointments",   readAllRows(supabase, "appointments", { filter: (q) => q.gte("date", bootCut.date) })],
         ["clients",        readAllRows(supabase, "clients")],
-        ["service_prices", supabase.from("service_prices").select("*")],
         ["settings",       supabase.from("settings").select("*")],
         ["receipts",       readAllRows(supabase, "receipts", { filter: (q) => q.gte("created_at", bootCut.iso) })],
         // Not core: the table arrives with add_till_and_calendar_small_things.sql,
@@ -2174,6 +2174,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         ...EARLY_READS,
         // Feature tier + trial/subscription state for this tenant.
         ["tenants", Promise.resolve(supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle())],
+        // Only her own rows, and paged: the table is readable across businesses, so an unfiltered read hit the 1,000-row cap once the platform had
+        // that many services and could return a list without hers (ownServices below still filters, as a second line).
+        ["service_prices", readAllRows(supabase, "service_prices", { filter: (q) => q.eq("tenant_id", myTenantId) })],
       ];
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
@@ -2426,7 +2429,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // A client last seen before the recent window has NO last visit until the history is in, which would read as "new" instead of "lapsed":
   // so these two lists stay empty until it is (they are nudges, and arrive a moment later).
   const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
-  const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, receipts]);
+  const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, liveRcpts]);
 
   // Per-service breakdown.
   //
@@ -2462,7 +2465,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const avgTransaction = useMemo(() => liveRcpts.length>0?Math.round(liveRcpts.reduce((s,r)=>s+(Number(r.amount)||0),0)/liveRcpts.length):0, [liveRcpts]);
 
   const monthlyData = useMemo(() => Array.from({length:6},(_,i)=>{
-    const d=new Date(now);d.setMonth(now.getMonth()-(5-i));
+    const d=new Date(now.getFullYear(),now.getMonth()-(5-i),1);   // day 1: setMonth on the 29th to 31st rolled into the next month and doubled one month in the chart
     const m=d.getMonth(),y=d.getFullYear();
     const appts=appointments.filter(a=>{if(!a.date)return false;const ad=new Date(a.date);return ad.getMonth()===m&&ad.getFullYear()===y;});
     const rev=liveRcpts.filter(r=>{if(!r.created_at)return false;const rd=parseDb(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
@@ -3607,6 +3610,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setSelectedClient(null);
     setAppointments(prev=>prev.map(a=>same(a.client_id)?{...a,client_id:null,name:"לקוחה שנמחקה",client_phone:null,note:null}:a));
     setReceipts(prev=>prev.map(r=>same(r.client_id)?{...r,client_id:null,client_name:"לקוחה שנמחקה"}:r));
+    setForms(prev=>prev.filter(f=>!same(f.client_id)));
+    setWaitlist(prev=>prev.filter(w=>!same(w.client_id)));
+    setPackages(prev=>prev.map(k=>same(k.client_id)?{...k,client_id:null,client_name:"לקוחה שנמחקה"}:k));
+    setLeads(prev=>prev.filter(l=>!same(l.client_id)));
   };
   const saveClientDupOk = useRef(false);
   const handleSaveClient = async () => {
@@ -3827,6 +3834,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // have never seen is created first, so the appointment attaches to a real
   // record instead of being a loose name on the calendar.
   const importAppointments = async () => {
+    if (!historyReady) { toast("הלוח הישן עוד בדרך. כדי שלא ייווצרו תורים כפולים, אפשר לנסות שוב בעוד רגע.", "info"); return; }
     if (guardWrite()) return;
     if (importing) return;
 
@@ -6185,6 +6193,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   const handleExportCSV = () => {
+    // Until the older payments are in, the file would silently stop at about six months back: say so instead of handing her an accountant's file that is short.
+    if(!historyReady){toast(deferred.history==="error"?"לא הצלחנו לטעון את כל ההיסטוריה, אז הקובץ היה חלקי. אפשר לנסות שוב מהסרגל שלמעלה.":"ההיסטוריה עוד בדרך. אפשר לנסות שוב בעוד רגע.","info");return;}
     // Voided payments stay in the file but are marked, so the export agrees with the totals on screen instead of counting them as income.
     const voidedIds=new Set(receiptVoids.map(v=>String(v.receipt_id)));
     const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום","טיפ","הנחה","מבוטל"]];
@@ -8048,14 +8058,14 @@ ${MARKETING_FOOTER}`)}`;
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
  <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
- {((deferred.history==="loading"&&histSlow)||deferred.history==="error")&&(
+ {((deferred.history==="loading"&&histSlow)||deferred.history==="error"||deferred.leads==="error")&&(
  <div role="status" data-testid="history-strip" style={{maxWidth:1180,margin:"0 auto 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>
- {deferred.history==="error"
-   ?<><span>לא הצלחנו לטעון את כל ההיסטוריה, ומה שמוצג חלקי.</span><button type="button" onClick={loadHistory} style={{background:"none",border:"none",color:"var(--brand-accent)",fontWeight:700,textDecoration:"underline",cursor:"pointer",minHeight:44,padding:"0 6px"}}>נסי שוב</button></>
+ {(deferred.history==="error"||deferred.leads==="error")
+   ?<><span>לא הצלחנו לטעון את כל ההיסטוריה והפניות, ומה שמוצג חלקי.</span><button type="button" onClick={loadHistory} style={{background:"none",border:"none",color:"var(--brand-accent)",fontWeight:700,textDecoration:"underline",cursor:"pointer",minHeight:44,padding:"0 6px"}}>נסי שוב</button></>
    :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
  </div>
  )}
- <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:appointments.length,clients:clients.length}} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
               account, and every screen should keep saying so. */}
@@ -8437,6 +8447,10 @@ ${MARKETING_FOOTER}`)}`;
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
                       const paused=settings?.automations?.paused===true;
+                      if(visible.length===0&&!skinQueueLoading&&!skinQueueError&&(!historyReady||deferred.leads!=="ok"))return(
+ <div style={{textAlign:"center",padding:"18px 10px"}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>{(deferred.history==="error"||deferred.leads==="error")?"לא הצלחנו לטעון את כל הפניות וההיסטוריה, אז הרשימה הזו חלקית.":"בודקות מה מחכה לך. הרשימה תתמלא בעוד רגע."}</p>
+ </div>);
                       if(visible.length===0&&!skinQueueLoading&&!skinQueueError)return(
  <div style={{textAlign:"center",padding:"18px 10px"}}>
  <div style={{width:46,height:46,borderRadius:"var(--r-md)",margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xl)",background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
@@ -8606,8 +8620,8 @@ ${MARKETING_FOOTER}`)}`;
 
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
-            {!historyReady&&historyCutoffRef.current&&formatDate(weekSundayOf(weekStart))<historyCutoffRef.current.date&&(
-              <p role="status" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",marginBottom:10}}>{deferred.history==="error"?"לא הצלחנו לטעון את התורים הישנים. השבוע הזה עלול להיראות חלקי.":"טוענת תורים ישנים. השבוע הזה יתמלא בעוד רגע."}</p>
+            {!historyReady&&historyCutoffRef.current&&formatDate(calView==="day"?calDay:weekSundayOf(weekStart))<historyCutoffRef.current.date&&(
+              <p role="status" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",marginBottom:10}}>{deferred.history==="error"?"לא הצלחנו לטעון את התורים הישנים. השבוע הזה עלול להיראות חלקי.":"התורים הישנים בדרך, והמסך הזה יתמלא בעוד רגע."}</p>
             )}
             {historyReady&&appointments.length===0&&(
               <EmptyState icon="calendar" accent={pc} accentTint={pcTint}
@@ -8884,7 +8898,7 @@ ${MARKETING_FOOTER}`)}`;
  <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="חיפוש לפי שם או טלפון..." style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 36px 10px 14px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",boxShadow:"var(--shadow-xs)"}}/>
  </div>
  <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
- <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active">✓ פעילות</option><option value="cold">להתחדשות</option>
+ <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active" disabled={!historyReady}>✓ פעילות</option><option value="cold" disabled={!historyReady}>להתחדשות</option>
  </select>
  {showSkinType&&(<select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל עור</option>{SKIN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
@@ -9165,7 +9179,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{receiptFilter!=="all"?"נסי לשנות את אופן התשלום בסינון.":"כל תשלום שתגבי יופיע כאן. אפשר לפתוח תשלום חדש עכשיו."}</p>
  {receiptFilter==="all"&&<button className="empty-cta primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>}
  </div>
-              ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
+              ):[...filteredReceipts].sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
                 const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
                 const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
                 const voided=voidedIds(receiptVoids).has(String(r.id));
@@ -9301,7 +9315,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
  <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
                   {[{k:"all",l:"כל הלקוחות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
- <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:"var(--r-lg)",background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?"var(--shadow-accent)":"var(--shadow-xs)"}}>{a.l}</button>
+ <button key={a.k} disabled={!historyReady&&(a.k==="active"||a.k==="cold")} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:"var(--r-lg)",background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?"var(--shadow-accent)":"var(--shadow-xs)"}}>{a.l}</button>
                   ))}
  </div>
  <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
@@ -12379,7 +12393,7 @@ ${MARKETING_FOOTER}`)}`;
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
                       {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
                       {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:"var(--r-sm)"}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
-                      <ClientPrivacyPanel client={c} toast={toast} canWrite={!planInfo.isBlocked} onErased={handleClientErased}/>
+                      <ClientPrivacyPanel client={c} toast={toast} canWrite={!planInfo.isBlocked} historyReady={historyReady} onErased={handleClientErased}/>
  </div>
                   )}
                   {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}

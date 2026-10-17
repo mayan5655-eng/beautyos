@@ -87,7 +87,7 @@ const dStart = src.indexOf('const loadDeferred = async () => {');
 ok(dStart > 0 && dStart < start, 'loadDeferred exists, defined before loadAll');
 const deferredSrc = src.slice(dStart, start);
 for (const t of ['forms', 'expenses', 'waitlist']) {
-  ok(deferredSrc.includes(`supabase.from("${t}")`), `loadDeferred reads ${t}`);
+  ok(deferredSrc.includes(`readAllRows(supabase, "${t}")`), `loadDeferred reads ${t}, paged (a plain select would stop silently at 1,000 rows and say "ok")`);
 }
 ok(/"error"/.test(deferredSrc) && /Sentry\.captureException/.test(deferredSrc), 'a failed deferred read is recorded as "error" and reported to Sentry, never as an empty list');
 ok(loadAll.indexOf('loadDeferred();') > loadAll.indexOf('setLoadError(null);') && loadAll.indexOf('loadDeferred();') > 0, 'loadAll starts loadDeferred once the core load succeeded (so every refresh refreshes them too)');

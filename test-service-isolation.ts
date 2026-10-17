@@ -115,7 +115,9 @@ resetPublicServicesMemo();
 // ── the unfiltered read cannot come back (a lint, kept because it is the exact bug) ─────────────
 const app = fs.readFileSync('app/beautyos.jsx', 'utf8');
 const unfiltered = [...app.matchAll(/from\("service_prices"\)\.select\("\*"\)(?!\s*\.eq\()/g)].length;
-assert.equal(unfiltered, 1, 'exactly one unscoped service_prices read remains in the dashboard (the boot read), and its rows pass through ownServices');
+assert.equal(unfiltered, 0, 'no unscoped service_prices read remains in the dashboard');
+assert.ok(app.includes('readAllRows(supabase, "service_prices", { filter: (q) => q.eq("tenant_id", myTenantId) })'), 'the boot read asks for HER rows only, paged, once the tenant id is known');
+assert.ok(app.includes('setServices(ownServices(sv.data, myTenantId))'), 'and the rows still pass through ownServices as a second line');
 assert.ok(/setServices\(ownServices\(sv\.data, myTenantId\)\)/.test(app), 'the boot read is passed through ownServices');
 assert.ok(fs.existsSync('supabase/migrations/pending/service-prices-tenant-isolation.sql'), 'the migration that closes it at the source exists');
 
