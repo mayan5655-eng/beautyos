@@ -23,6 +23,7 @@ import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER
 import BrandImage from "@/app/BrandImage";
 import TrialBanner from "./TrialBanner";
 import TrialNudge from "./TrialNudge";
+import ClientPrivacyPanel from "./ClientPrivacyPanel";
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
@@ -3928,6 +3929,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     });
   };
 
+  // After her data was erased on the server: the same change here, so the screen does not show a client who no longer exists.
+  const handleClientErased = (clientId) => {
+    const same = (a) => String(a) === String(clientId);
+    setClients(prev=>prev.filter(c=>!same(c.id)));
+    setSelectedClient(null);
+    setAppointments(prev=>prev.map(a=>same(a.client_id)?{...a,client_id:null,name:"לקוחה שנמחקה",client_phone:null,note:null}:a));
+    setReceipts(prev=>prev.map(r=>same(r.client_id)?{...r,client_id:null,client_name:"לקוחה שנמחקה"}:r));
+  };
   const saveClientDupOk = useRef(false);
   const handleSaveClient = async () => {
     if (guardWrite()) return;
@@ -12685,6 +12694,7 @@ ${MARKETING_FOOTER}`)}`;
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
                       {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
                       {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:"var(--r-sm)"}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
+                      <ClientPrivacyPanel client={c} toast={toast} canWrite={!planInfo.isBlocked} onErased={handleClientErased}/>
  </div>
                   )}
                   {clientTab==="history"&&(

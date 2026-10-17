@@ -258,6 +258,21 @@ export const RATE_POLICIES = {
       `הודעת החזרנו כבר יצאה לפני רגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // A client's data copy and erasure (app/api/clients/export, /erase): signed-in, one client at a time. A person asks for her copy once or
+  // twice; erasing is rarer still. The limits only stop a loop, never a real use.
+  'client-export': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `ביקשת הרבה קבצים בזמן קצר. אפשר לנסות שוב ${m}.`,
+  },
+  'client-erase': {
+    perIp: { limit: 10, windowMs: 10 * MINUTE },
+    perTenant: { limit: 10, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `בוצעו הרבה מחיקות בזמן קצר. אפשר לנסות שוב ${m}.`,
+  },
+
   // The public community feed: an unauthenticated read that returns the
   // business name, colour and phone for any tenant id, with no limit at all
   // until now. Reads only, so the concern is scraping, not spend. A visitor
