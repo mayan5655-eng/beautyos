@@ -1155,8 +1155,6 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [showWaQueue, setShowWaQueue] = useState(false);
   const [waQueueDone, setWaQueueDone] = useState({}); // {[row.id]: true} - optimistic, mirrors composeDone
   const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
-  // Skin type is a facial concept: a nail technician is not asked for it (a value already saved still shows on the client card).
-  const showSkinType = businessFieldsOf(settings).includes("cosmetics");
   const [expenses,     setExpenses]     = useState([]);
   const [services,     setServices]     = useState([]);
   const [packages,     setPackages]     = useState([]);
@@ -1172,6 +1170,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [, setMinuteTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setMinuteTick((n) => n + 1), 60000); return () => clearInterval(t); }, []);
   const [settings,     setSettings]     = useState({business_name:"",therapist_name:"",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
+  // Skin type is a facial concept: a nail technician is not asked for it (a value already saved still shows on the client card).
+  // Declared AFTER settings: it reads it while rendering.
+  const showSkinType = businessFieldsOf(settings).includes("cosmetics");
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
