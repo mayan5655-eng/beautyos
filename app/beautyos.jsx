@@ -8145,7 +8145,7 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#1F3A30",color:"#FBF8F1",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
  <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"var(--brand-muted)",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
  <div style={{flex:1}}/>
- {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--brand-muted)"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
+ {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--brand-muted)"}}>ענית כן על {questionStats.yes} מתוך {answered}</p>}
  </div>
  </div>
               );

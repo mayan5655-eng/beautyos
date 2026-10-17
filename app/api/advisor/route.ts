@@ -60,10 +60,10 @@ export async function GET() {
       .eq('tenant_id', r.tenantId)
       .order('created_at', { ascending: true })
       .limit(100)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return (console.error("[advisor] failed:", error?.message), NextResponse.json({ error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }))
     return NextResponse.json({ messages: data || [] })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return (console.error("[advisor] failed:", err?.message), NextResponse.json({ error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }))
   }
 }
 

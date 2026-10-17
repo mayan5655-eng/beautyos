@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     copyMissing = true;
     ({ data, error } = await build(LIST_COLS));
   }
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) return (console.error("[designs] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   return NextResponse.json({ success: true, designs: data || [], ...(copyMissing ? { copyColumnMissing: true } : {}) });
 }
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     // The post text and hashtags go with the copy. 'copy' is only on the row once its migration has run.
     if ('copy' in src) row.copy = src.copy;
     const { data, error } = await supabase.from('designs').insert(row).select().single();
-    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    if (error) return (console.error("[designs] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
     return NextResponse.json({ success: true, design: data });
   }
 
@@ -121,6 +121,6 @@ export async function POST(request: NextRequest) {
     })
     .select()
     .single();
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) return (console.error("[designs] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   return NextResponse.json({ success: true, design: data });
 }

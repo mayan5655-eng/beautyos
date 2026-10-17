@@ -34,7 +34,7 @@ export async function POST(request) {
       .select("id, contact_attempts, first_contacted_at")
       .eq("tenant_id", tenantId)
       .in("id", ids);
-    if (error) return Response.json({ success: false, error: error.message }, { status: 500 });
+    if (error) return (console.error("[leads/mark-contacted] failed:", error?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
 
     const nowIso = new Date().toISOString();
     const writes = await Promise.all(
@@ -54,6 +54,6 @@ export async function POST(request) {
     if (failed) return Response.json({ success: false, error: "לא הצלחנו לסמן את כל הפניות" }, { status: 500 });
     return Response.json({ success: true, marked: (rows || []).length, at: nowIso });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return (console.error("[leads/mark-contacted] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   }
 }

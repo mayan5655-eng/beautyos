@@ -58,4 +58,17 @@ assert.ok(src.includes('(clientTab==="history"||clientTab==="receipts")&&!histor
 assert.ok(src.includes('data-testid="history-strip"') && src.includes('onClick={loadHistory}'), 'a status strip says the history is loading, and offers a retry if it fails');
 assert.ok(/setDeferred\(prev => \(\{\s*\.\.\.prev,\s*forms:/.test(src), 'loadDeferred merges into the state, so it cannot erase the history and leads status');
 
+// second audit pass: the paths that read the whole history or the leads must not run on a partial one
+{
+  const csvAt = src.indexOf('const handleExportCSV = () => {');
+  assert.ok(csvAt > 0 && src.slice(csvAt, csvAt + 700).includes('if(!historyReady){toast('), 'the payments export refuses to run on a partial history, so the accountant file cannot stop at six months');
+  const impAt = src.indexOf('const importAppointments = async () => {');
+  assert.ok(impAt > 0 && src.slice(impAt, impAt + 200).includes('if (!historyReady)'), 'the appointment importer waits for the calendar it de-duplicates against');
+}
+assert.ok(src.includes('(!historyReady||deferred.leads!=="ok")return(') || src.includes('(!historyReady||deferred.leads!=="ok"))return('), 'the "everything is handled" queue message is not shown before the leads and history are known');
+assert.ok(src.includes('<option value="cold" disabled={!historyReady}>') && src.includes('disabled={!historyReady&&(a.k==="active"||a.k==="cold")}'), 'the cold/active filters and broadcast audiences wait for the history');
+assert.ok(src.includes('setLeads(prev => mergeById(prev, ld.data))'), 'the leads merge keeps what is on screen, like the other two');
+assert.ok(src.includes('readAllRows(supabase, "service_prices", { filter: (q) => q.eq("tenant_id", myTenantId) })') && /readAllRows\(supabase, "forms"\)/.test(src), 'reads that used to stop silently at 1,000 rows are paged');
+assert.ok(src.includes('setForms(prev=>prev.filter(f=>!same(f.client_id)))') && src.includes('setLeads(prev=>prev.filter(l=>!same(l.client_id)))'), 'after an erase the screen forgets her forms, waitlist rows, leads and package name too');
+
 console.log('history window: ok');

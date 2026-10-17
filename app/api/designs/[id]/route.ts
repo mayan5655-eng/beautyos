@@ -37,7 +37,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
   // Scoped in the query AND checked on the row: RLS is the first wall, not the only one.
   const { data: found, error } = await supabase.from('designs').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle();
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) return (console.error("[designs/[id]] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   const data = ownRow(found, tenantId);
   if (!data) return notFound();
   const template = getTemplate(data.template_key, data.template_version) || getReel(data.template_key, data.template_version);
@@ -96,7 +96,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     copyNotSaved = true;
     ({ data, error } = await supabase.from('designs').update(rest).eq('id', id).eq('tenant_id', tenantId).select().single());
   }
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) return (console.error("[designs/[id]] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   return NextResponse.json({ success: true, design: data, ...(copyNotSaved ? { copyNotSaved: true } : {}) });
 }
 
@@ -115,7 +115,7 @@ export async function DELETE(_request: NextRequest, ctx: Ctx) {
   if (!tenantId) return noTenant();
 
   const { data: gone, error } = await supabase.from('designs').delete().eq('id', id).eq('tenant_id', tenantId).select('id');
-  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (error) return (console.error("[designs/[id]] failed:", error?.message), NextResponse.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   if (!gone || gone.length === 0) return notFound();
   return NextResponse.json({ success: true });
 }

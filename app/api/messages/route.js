@@ -42,11 +42,11 @@ export async function GET() {
       .limit(100);
 
     if (error) {
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      return (console.error("[messages] failed:", error?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
     }
 
     return Response.json({ success: true, messages: data });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return (console.error("[messages] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   }
 }

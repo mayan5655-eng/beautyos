@@ -139,6 +139,6 @@ export async function POST(request) {
 
     return Response.json({ success: true, sent, failed: failedCount, candidates: candidates.length });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return (console.error("[clients/comeback] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   }
 }

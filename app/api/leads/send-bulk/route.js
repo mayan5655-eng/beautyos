@@ -189,6 +189,6 @@ export async function POST(request) {
       results,
     });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return (console.error("[leads/send-bulk] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   }
 }

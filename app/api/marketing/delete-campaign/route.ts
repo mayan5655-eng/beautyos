@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       .eq('tenant_id', tenantId)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return (console.error("[marketing/delete-campaign] failed:", error?.message), NextResponse.json({ error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }))
     }
     return NextResponse.json({ success: true })
   } catch (error) {

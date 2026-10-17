@@ -4,7 +4,7 @@
 -- one section at a time, reading each result. Nothing in the app needs this file to keep working: every code path that uses
 -- these objects degrades when they are absent. Safe to run more than once.
 --
--- ORDER: 1 (read only) -> 2 -> 3 -> 4. Section 5 is optional and needs a look at the duplicates first.
+-- ORDER: 1 (read only) -> 2 -> 3 -> 4 -> 6. Sections 5 and 7: 5 is optional and needs a look at the duplicates first; 7 is read only.
 
 -- ============================================================================================================
 -- 1. READ ONLY: what is really live. Paste the results to Claude if anything looks open.
@@ -75,8 +75,34 @@ create unique index if not exists receipts_grow_payment_uniq on public.receipts 
 -- create unique index if not exists clients_tenant_phone_uniq on public.clients (tenant_id, phone) where coalesce(phone, '') <> '';
 
 -- ============================================================================================================
+-- 6. Marketing opt-outs that survive. (a) A person who is only a LEAD can reply "הסר" now: the column below records it, and bulk send
+--    skips her. (b) When a client who opted out is erased, a HASH of her number is kept (never the number), so she is not messaged again if
+--    she is re-imported or books again. Both are optional: the code skips them cleanly while they are missing, and the nightly check lists the
+--    table until it exists.
+-- ============================================================================================================
+alter table public.leads add column if not exists marketing_opted_out_at timestamptz;
+
+create table if not exists public.marketing_suppressions (
+  tenant_id  uuid not null,
+  phone_hash text not null,
+  created_at timestamptz not null default now(),
+  primary key (tenant_id, phone_hash)
+);
+alter table public.marketing_suppressions enable row level security;
+revoke all on public.marketing_suppressions from anon, authenticated;   -- only the server (service role) reads and writes it
+
+-- ============================================================================================================
+-- 7. Read only, by you: what blocks deleting a client card? Any row here whose confdeltype is 'a' or 'r' (no action / restrict) would make
+--    the client erase stop at the last step. Expected: c (cascade) or n (set null). Send the result to Claude if anything is 'a' or 'r'.
+-- ============================================================================================================
+select conrelid::regclass as child_table, conname, confdeltype
+from pg_constraint
+where confrelid = 'public.clients'::regclass and contype = 'f';
+
+-- ============================================================================================================
 -- VERIFY after running 2 to 4
 -- ============================================================================================================
 -- select count(*) from pg_policies where schemaname = 'storage' and policyname = 'community-images authenticated read';   -- expect 0
 -- select indexname from pg_indexes where indexname = 'receipts_grow_payment_uniq';                                          -- expect 1 row
 -- select table_name from information_schema.role_table_grants where table_schema = 'public' and grantee = 'anon' and table_name in ('slot_offers','support_messages','push_subscriptions');  -- expect no rows
+-- select to_regclass('public.marketing_suppressions');   -- expect the table name, not null

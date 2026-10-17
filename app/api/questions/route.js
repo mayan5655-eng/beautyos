@@ -150,10 +150,10 @@ export async function POST(request) {
       .insert({ tenant_id: tenantId, kind, payload });
     if (error) {
       console.error("[questions] insert failed:", error.code || "", error.message);
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      return (console.error("[questions] failed:", error?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
     }
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    return (console.error("[questions] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
   }
 }
