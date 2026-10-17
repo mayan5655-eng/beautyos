@@ -16,6 +16,13 @@ for (let r = 0; r < runs; r++) {
     ? await browser.newContext({ storageState: who, viewport: { width: 430, height: 900 } })
     : await browser.newContext({ viewport: { width: 430, height: 900 } });
   const page = await ctx.newPage();
+  if (process.env.THROTTLE === '1') {
+    // a mid-range phone on 4G: 4x slower CPU, 150 ms latency, 9 Mbit/s down
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: (9 * 1024 * 1024) / 8, uploadThroughput: (3 * 1024 * 1024) / 8 });
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  }
   const rest = []; const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 200)); });
   page.on('pageerror', (e) => errors.push('PAGEERROR ' + String(e.message).slice(0, 200)));
