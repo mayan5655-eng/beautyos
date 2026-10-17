@@ -381,7 +381,9 @@ export default function FormPage() {
 
         <div style={{background:"var(--brand-cream, #FDFBF9)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-xs)",color:"var(--brand-muted, #7D8D87)",textAlign:"center",lineHeight:1.6}}>
           בחתימתי אני מאשרת שקראתי את השאלות, עניתי עליהן בכנות,<br/>
-          והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.
+          והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.<br/>
+          המידע הרפואי נשמר אצל העסק רק כדי לתת לי טיפול בטוח, ולא משמש לשיווק. אפשר לקרוא עוד במדיניות הפרטיות:{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"inherit",textDecoration:"underline"}}>kalmea.app/privacy</a>
         </div>
 
         <label data-testid="marketing-consent-checkbox" style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2, #E5E0EA)",background:"var(--brand-cream, #FDFBF9)",marginBottom:14,cursor:"pointer"}}>

@@ -24,7 +24,7 @@ import { buildSystemPrompt } from "@/lib/botPrompt";
 import { ACTIVE_OR_NULL } from "@/lib/serviceActive";
 import { hit } from "@/lib/rateLimit";
 import { isAuthorizedWebhook, webhookUnauthorized } from "../../../lib/webhookAuth";
-import { optOutFields } from "../../../lib/marketingConsent";
+import { optOutFields, isOptOutReply } from "../../../lib/marketingConsent";
 import { normalizeIsraeliMobile } from "../../../lib/phone";
 import { mapGreenApiDeliveryStatus } from "../../../lib/greenApi/deliveryStatus.ts";
 
@@ -232,7 +232,7 @@ export async function POST(request) {
     // "הסר": every promotional message we send says "reply הסר to be removed". That has to work on its own, before the bot
     // (which would answer it as a question) and whether or not the bot is on. Only an exact one-word request counts, so an
     // ordinary sentence that happens to contain the word is never read as an opt-out.
-    if (/^(הסר|הסירי|הסירו|הסרה|stop|unsubscribe)[\s.!]*$/i.test(text.trim())) {
+    if (isOptOutReply(text)) {
       try {
         const phoneNorm = normalizeIsraeliMobile(senderToPhone(senderChatId));
         if (phoneNorm.ok) {

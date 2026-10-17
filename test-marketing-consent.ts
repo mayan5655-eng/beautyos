@@ -2,7 +2,7 @@
 // booking checkbox is optional and unchecked, and that reminders/receipts were NOT put behind it.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from './lib/marketingConsent.js';
+import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, isOptOutReply, MARKETING_FOOTER } from './lib/marketingConsent.js';
 
 const src = (f: string) => fs.readFileSync(f, 'utf8');
 
@@ -74,5 +74,17 @@ assert.ok(/default false/.test(mig) && /if not exists/.test(mig), 'existing clie
   assert.deepEqual(consentFields('consent_form', 'x').marketing_consent_source, 'consent_form');
   const m2 = src('supabase/migrations/add_consent_form_source.sql');
   assert.ok(m2.includes("'booking_page', 'manual', 'consent_form'") && m2.includes('drop constraint if exists'), 'constraint widened, re-runnable');
+}
+
+// "reply הסר" really removes her (2026-10-18 audit): the footer promises it, so the webhook has to read it, only as an exact one-word request.
+{
+  for (const t of ['הסר', 'הסר.', ' הסירי ', 'הסר!', 'STOP', 'stop']) assert.equal(isOptOutReply(t), true, t);
+  for (const t of ['', 'אפשר להסיר אותי מהרשימה?', 'הסר את הלק הישן', 'תודה', null, undefined]) assert.equal(isOptOutReply(t as any), false, String(t));
+  const wh = src('app/api/whatsapp-webhook/route.js');
+  assert.ok(wh.includes('isOptOutReply(text)') && wh.includes('optOutFields()'), 'the webhook records the opt-out');
+  assert.ok(wh.indexOf('isOptOutReply(text)') < wh.indexOf('await shouldBotReply(tenantId)'), 'and does it before the bot, so it works with the bot off');
+  // a stranger typing a phone number into the public booking form must not be able to re-subscribe someone who opted out
+  const bk = src('app/api/book-appointment/route.js');
+  assert.ok(/consentFields\("booking_page"\)\)\.eq\("id", match\.id\)\.eq\("tenant_id", activeTenantId\)\.is\("marketing_opted_out_at", null\)/.test(bk), 'the public form cannot clear an opt-out');
 }
 console.log('marketing consent: ok');

@@ -397,14 +397,15 @@ export function hit(key: string, rule: RateRule): { ok: boolean; retryAfterSec: 
  * Caller IP, as far as it can be known behind Vercel's proxy.
  *
  * `request.ip` was removed in Next 15, so this reads the forwarding headers.
- * x-forwarded-for is a chain and the FIRST entry is the original client;
- * Vercel appends rather than replaces, so taking [0] is correct here. A caller
- * cannot forge it into someone else's bucket in a way that helps them - the
- * worst they achieve is limiting a stranger, and the per-tenant cap still
- * holds regardless.
+ * Vercel's own headers come first: x-real-ip and x-vercel-forwarded-for are set by the platform
+ * and a caller cannot supply them. x-forwarded-for is only a fallback, because a client can send its
+ * own and (depending on the proxy) have it appear first in the chain, which would let a script rotate
+ * its bucket on every request and walk around the per-IP cap.
  */
 export function clientIp(request: Request): string {
   const h = request.headers;
+  const platform = h.get('x-real-ip')?.trim() || h.get('x-vercel-forwarded-for')?.trim();
+  if (platform) return platform;
   const fwd = h.get('x-forwarded-for');
   if (fwd) {
     const first = fwd.split(',')[0]?.trim();
