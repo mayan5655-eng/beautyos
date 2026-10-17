@@ -22,6 +22,7 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialBanner from "./TrialBanner";
+import TrialNudge from "./TrialNudge";
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
@@ -8453,6 +8454,7 @@ ${MARKETING_FOOTER}`)}`;
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
  <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:appointments.length,clients:clients.length}} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
               account, and every screen should keep saying so. */}

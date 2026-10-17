@@ -21,10 +21,9 @@ import {
 import BrandImage from "@/app/BrandImage";
 
 export default function SignupPage() {
-  const [businessName, setBusinessName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   // Set once Supabase accepted the sign-up but is waiting for her to confirm her email (no session yet).
@@ -36,18 +35,8 @@ export default function SignupPage() {
     e.preventDefault()
     setError('')
 
-    if (password !== confirmPassword) {
-      setError('הסיסמאות לא תואמות')
-      return
-    }
-
     if (password.length < 8) {
       setError('הסיסמה חייבת להיות לפחות 8 תווים')
-      return
-    }
-
-    if (!businessName.trim()) {
-      setError('איך קוראים לעסק שלך? חסר שם')
       return
     }
 
@@ -65,8 +54,9 @@ export default function SignupPage() {
         // The confirmation link lands on /auth/callback, which trades the code for a session and continues to onboarding.
         // This URL must be in Supabase > Authentication > URL Configuration > Redirect URLs.
         emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        // Two fields only (email, password): the business name and everything else is asked in onboarding, where she is already
+        // inside and has a reason to answer.
         data: {
-          business_name: businessName.trim(),
           ...(attr ? { kl_attr: attr } : {}),
         },
       },
@@ -188,20 +178,6 @@ export default function SignupPage() {
           </div>
         ) : (
         <form onSubmit={handleSignup}>
-          <Field label="שם העסק" htmlFor="signup-business">
-            <input
-              className="signup-input"
-              id="signup-business"
-              autoComplete="organization"
-              type="text"
-              placeholder="למשל: סטודיו רונית"
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </Field>
-
           <Field label="אימייל" htmlFor="signup-email">
             <input
               className="signup-input"
@@ -221,28 +197,24 @@ export default function SignupPage() {
               className="signup-input"
               id="signup-password"
               autoComplete="new-password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="בחרי סיסמה"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               style={inputStyle}
             />
-          </Field>
-
-          <Field label="אישור סיסמה" htmlFor="signup-password2">
-            <input
-              className="signup-input"
-              id="signup-password2"
-              autoComplete="new-password"
-              type="password"
-              placeholder="הקלידי שוב את הסיסמה"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              style={inputStyle}
-            />
+            {/* One field instead of password + confirm: she can see what she typed. */}
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-pressed={showPassword}
+              className="signup-link"
+              style={{ ...linkStyle, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--t-sm)', padding: '10px 4px', minHeight: 44 }}
+            >
+              {showPassword ? 'הסתרת הסיסמה' : 'הצגת הסיסמה'}
+            </button>
           </Field>
 
           {error && <div role="alert" style={errorStyle}>{error}</div>}
