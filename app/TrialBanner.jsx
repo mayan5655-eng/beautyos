@@ -121,6 +121,9 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
             {title}
           </p>
           <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+          {!supportWhatsAppUrl() && (
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 4 }}>אפשר לכתוב לנו דרך הכפתור 'תקועה?' שבתחתית המסך.</p>
+          )}
         </div>
       </div>
 

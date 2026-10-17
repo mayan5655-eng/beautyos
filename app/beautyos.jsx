@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { parseDb } from "@/lib/dbTime";
 import { normalizeIsraeliMobile } from "@/lib/phone";
+import { APP_URL } from "@/lib/appUrl";
 import { displayName } from "@/lib/personName";
 import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import { useRouter } from "next/navigation";
@@ -6910,7 +6911,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (!t) { toast("חסר מזהה עסק — נסי לרענן", "error"); return; }
     // The origin the app is served on, so the copied link points at THIS
     // install (bloomos.com today) rather than a hardcoded vendor address.
-    const base = (typeof window !== "undefined" && window.location.origin) || "https://beautyos-theta.vercel.app";
+    const base = (typeof window !== "undefined" && window.location.origin) || APP_URL;
 
     if (kind === "scan") {
       // Always the signed link, on this origin - the one the QR is drawn from.
@@ -6934,6 +6935,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
+      // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
+      if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← העמוד שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
     } catch {
       toast(url, "info");
     }
