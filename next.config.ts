@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
   // navigation that a cached stylesheet would have saved a returning visitor.
   experimental: { inlineCss: true },
 
+  // Which deployment the browser code belongs to (lib/buildId.ts). The update banner compares it with /api/version.
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || 'dev' },
+
   turbopack: {
     resolveAlias: {
       // Next prepends a ~1 KB block to the main chunk that back-fills

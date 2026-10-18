@@ -5,6 +5,7 @@ import PWARegister from "./pwa-register";
 import AttributionCapture from "./AttributionCapture";
 import IOSInstallBanner from "./ios-install-banner";
 import InstallPromptBanner from "./install-prompt-banner";
+import UpdateBanner from "./UpdateBanner";
 import { APP_URL } from "@/lib/appUrl";
 import { preconnect } from "react-dom";
 
@@ -332,6 +333,7 @@ export default function RootLayout({
         <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col" style={{ outline: "none" }}>{children}</main>
         <IOSInstallBanner />
         <InstallPromptBanner />
+        <UpdateBanner />
       </body>
     </html>
   );
