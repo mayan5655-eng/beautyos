@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
+import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
 import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { detect } from '@/lib/grow/cancelFees';
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     const { data: appt, error: fetchError } = await supabase
       .from('appointments')
-      .select('confirmation_status, tenant_id, name, service, date, start_minute, hour, duration')
+      .select('id, client_id, confirmation_status, tenant_id, name, service, date, start_minute, hour, duration')
       .eq('id', appointmentId)
       .single();
 
@@ -171,6 +172,9 @@ export async function POST(request: NextRequest) {
           console.error('confirm: owner notify failed', e instanceof Error ? e.message : String(e));
         })
       );
+      // The freed slot goes to her one-question card ("offer it to who is waiting?"), never straight out:
+      // lib/ownerQuestions.js. Also under a fee policy: a fee does not stop the slot being free.
+      after(() => askGapFillAfterClientCancel(supabase, { tenantId: appt.tenant_id, appt }).then(() => undefined));
     }
 
     return okResponse(action, false, brand);

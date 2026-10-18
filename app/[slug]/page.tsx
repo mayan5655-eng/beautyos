@@ -33,6 +33,7 @@ import BookingPage from '../BookingPage';
 import PublicLandingPage from '../PublicLandingPage';
 import { cleanPublicResults } from '@/lib/results';
 import { ogVersion } from '@/lib/og/tenantOg';
+import { localBusinessJsonLd, jsonLdString } from '@/lib/localBusinessJsonLd';
 
 type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
@@ -201,8 +202,28 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   // v2: the landing page. It needs her settings and services from the server (it has no browser fallback); when a read
   // failed, the old page is rendered instead, since that one loads its data in the browser.
+  // schema.org for Google (lib/localBusinessJsonLd.ts). Never allowed to fail the page.
+  let jsonLd: string | null = null;
+  if (initialSettings) {
+    try {
+      const brand = resolveBranding(initialSettings);
+      const data = localBusinessJsonLd({
+        brand,
+        settings: initialSettings,
+        services: initialServices,
+        url: `${APP_URL}/${encodeURIComponent(slug)}`,
+        image: `${APP_URL}/og/${encodeURIComponent(slug)}?v=${ogVersion(brand, brand.businessName || tenant.name)}`,
+        fallbackName: tenant.name,
+      });
+      jsonLd = data ? jsonLdString(data) : null;
+    } catch { jsonLd = null; }
+  }
+  const ld = jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} /> : null;
+
   if (!useOld && initialSettings && initialServices) {
     return (
+      <>
+      {ld}
       <PublicLandingPage
         tenantId={tenant.id}
         settings={initialSettings}
@@ -210,14 +231,18 @@ export default async function SlugPage({ params, searchParams }: Props) {
         reviews={reviews}
         results={results}
       />
+      </>
     );
   }
 
   return (
+    <>
+    {ld}
     <BookingPage
       tenantId={tenant.id}
       initialSettings={initialSettings && initialServices ? initialSettings : null}
       initialServices={initialSettings && initialServices ? initialServices : null}
     />
+    </>
   );
 }

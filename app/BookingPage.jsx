@@ -33,10 +33,12 @@ import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPoli
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
+import { buildIcs, googleCalendarUrl } from "@/lib/calendarInvite";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
 import { Watermark, PoweredBy } from "./PublicChrome";
 import PublicFooterLinks from "./PublicFooterLinks";
+import WaitlistJoin from "./WaitlistJoin";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 
@@ -1297,6 +1299,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     )}
                   </>
                 )}
+                {/* Nothing fits: join the waiting list instead of leaving (app/WaitlistJoin.jsx). Open by default when no day or no hour is free. */}
+                {!availabilityPending && (
+                  <WaitlistJoin tenantId={tenantId} service={selectedService.name} preferredDate={selectedDate ? formatDate(selectedDate) : null}
+                    pc={pc} pcText={pcText} ink={ink} muted={muted}
+                    prominent={availableDays.length === 0 || (!!selectedDate && (visibleSlots.length === 0 || everySlotTaken))} />
+                )}
               </div>
             )}
 
@@ -1403,6 +1411,36 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח. {brand?.businessName || "העסק"} תיצור איתך קשר להשלמת {policyStep.kind === "deposit" ? "המקדמה" : "שמירת הכרטיס"}.
                   </div>
                 )}
+                {/* Add to her own calendar. Hidden while a deposit is still pending: that slot is only held, and may be released. */}
+                {!(policyStep && policyStep.kind === "deposit") && (() => {
+                  const invite = {
+                    date: formatDate(selectedDate),
+                    startMinute: selectedStart,
+                    duration: selectedService.duration || 60,
+                    title: `${selectedService.name} · ${brand?.businessName || "תור"}`,
+                    location: addr || undefined,
+                    details: wa ? `לשינוי או שאלה: https://wa.me/${wa}` : undefined,
+                  };
+                  const downloadIcs = () => {
+                    try {
+                      const url = URL.createObjectURL(new Blob([buildIcs(invite)], { type: "text/calendar;charset=utf-8" }));
+                      const a = document.createElement("a");
+                      a.href = url; a.download = "tor.ics";
+                      document.body.appendChild(a); a.click(); a.remove();
+                      setTimeout(() => URL.revokeObjectURL(url), 4000);
+                    } catch { /* the Google link below still works */ }
+                  };
+                  const chip = { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+                  return (
+                    <div data-testid="add-to-calendar" style={{ marginBottom: 18 }}>
+                      <p style={{ fontSize: "var(--t-sm)", color: muted, marginBottom: 8 }}>שמרי את התור ביומן שלך, כדי שהטלפון יזכיר לך</p>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                        <button type="button" onClick={downloadIcs} style={chip}>לאייפון / ליומן</button>
+                        <a href={googleCalendarUrl(invite)} target="_blank" rel="noreferrer" style={chip}>ליומן Google</a>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
                 <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>

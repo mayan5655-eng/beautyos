@@ -86,6 +86,7 @@ import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
+import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 import FieldPicker from "./FieldPicker";
@@ -616,12 +617,9 @@ function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
   );
 }
 
-function waBirthday(phone, name, businessName) {
-  // Drop the business-name clause when it's empty or the legacy placeholder, so
-  // "מהעסק שלי" / a dangling "מ" never reaches a real client.
-  const b = (businessName || "").trim();
-  const bs = b && b !== "העסק שלי" ? b : "";
-  return waMsg(phone, withMarketingFooter(`שלום ${name}! \nיום הולדת שמח! \n${bs ? `מ${bs} ` : ""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`));
+function waBirthday(phone, name, businessName, automations) {
+  // Her own birthday offer (lib/birthdayOffer.js); the business-name clause drops when empty or the legacy placeholder.
+  return waMsg(phone, withMarketingFooter(birthdayMessage(name, businessName, automations)));
 }
 
 function waReview(phone, name) {
@@ -8479,7 +8477,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -8691,7 +8689,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{c.name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:1}}>{bd.getDate()}/{bd.getMonth()+1}</p>
  </div>
-                          {c.phone&&(canMarket(c)?<a href={waBirthday(c.phone,c.name,settings.business_name)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>:<span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{marketingStatus(c)==="opted_out"?"ביקשה הסרה":"אין הסכמה לדיוור"}</span>)}
+                          {c.phone&&(canMarket(c)?<a href={waBirthday(c.phone,c.name,settings.business_name,settings.automations)} target="_blank" rel="noreferrer" className="pill" style={{padding:"6px 14px",background:"var(--pc-tint)",color:pc,textDecoration:"none"}}>ברכה</a>:<span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{marketingStatus(c)==="opted_out"?"ביקשה הסרה":"אין הסכמה לדיוור"}</span>)}
  </div>
                         );
                       })}
@@ -9304,7 +9302,7 @@ ${MARKETING_FOOTER}`)}`;
               if(bd<now)bd.setFullYear(now.getFullYear()+1);
               const days=Math.floor((bd-now)/(1000*60*60*24));
               return {clientId:c.id,name:c.name,phone:c.phone,days,
-                message:`שלום ${c.name}! \nיום הולדת שמח! \n${bizSafe?`מ${bizSafe} `:""}אנחנו שולחים לך ברכות חמות!\nלרגל היום המיוחד - 15% הנחה על הטיפול הבא שלך \nנחכה לך! ✦`.concat("\n\n",MARKETING_FOOTER)};
+                message:birthdayMessage(c.name,bizSafe,settings.automations).concat("\n\n",MARKETING_FOOTER)};
             });
             const coldTargets=coldClients.filter(canMarket).map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
               message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `.concat("\n\n",MARKETING_FOOTER)}));
@@ -11843,6 +11841,7 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="נשלחת אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל; אחרת מוכנה בתור השליחה הידנית שלך." />
  <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, בתור השליחה הידנית שלך." />
  </div>
 
@@ -12002,6 +12001,9 @@ ${MARKETING_FOOTER}`)}`;
  <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>החזרת לקוחה שלא ביקרה</span>
  <select aria-label="החזרת לקוחה שלא ביקרה" value={wb} onChange={e=>setT({winback_days:Number(e.target.value)})} style={sel}>{[[60,"אחרי 60 יום"],[90,"אחרי 90 יום"],[120,"אחרי 120 יום"],[180,"אחרי חצי שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מתנת יום הולדת בהודעה</span>
+ <input aria-label="מתנת יום הולדת בהודעה" maxLength={80} value={birthdayOfferOf(autos)} onChange={e=>setAutos({...autos,birthday_offer:e.target.value})} placeholder="למשל: 15% הנחה על הטיפול הבא שלך" style={{...sel,width:"100%",boxSizing:"border-box"}}/>
+ <span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>מה שתכתבי כאן יופיע בברכת יום ההולדת. השאירי ריק אם אין הנחה.</span></label>
  </div>
    );
  })()}
