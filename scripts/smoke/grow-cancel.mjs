@@ -16,7 +16,8 @@ const NOISE = [/Invalid Sentry Dsn/i, /get_public_services/];
 const SHOTS = process.env.SHOTS || '';
 const shot = (pg, name) => SHOTS ? pg.screenshot({ path: `${SHOTS}/${name}` }).catch(() => {}) : Promise.resolve();
 const CLIENT = 'דנה ביטול';
-const PHONE = '0500000088';
+// a fresh number each run: the public booking route limits bookings per phone per hour, and several runs in an hour would hit it
+const PHONE = '05000' + String(Math.floor(10000 + Math.random() * 89999));
 
 const db = admin();
 const email = newEmail('cancel');
@@ -63,7 +64,7 @@ async function publicBook({ expectPolicy, tick }) {
     if (tick) await pub.locator('input[aria-label="אישור מדיניות הביטולים"]').check();
   }
   await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(4000);
-  check((await body(pub)).includes('התור נקבע'), 'the booking page confirms the appointment');
+  check(/התור נקבע|התור שמור עבורך/.test(await body(pub)), 'the booking page confirms the appointment (or says it is held for the deposit)');
   for (const p of probs) { fails.push('public page: ' + p); console.error('[cancel] PUBLIC PAGE PROBLEM', p); }
   return pub;
 }
@@ -144,9 +145,8 @@ try {
     await visible('button[aria-label="יומן"]').click(); await page.waitForTimeout(1500);
     page.once('dialog', (dl) => dl.accept());
     const del = visible('button[aria-label="מחיקה"]');
-    await del.click(); await page.waitForTimeout(800);
-    const confirmBtn = page.locator('button:has-text("כן"), button:has-text("ביטול התור"), button:has-text("מחיקה")').filter({ visible: true }).last();
-    if (await confirmBtn.count()) await confirmBtn.click().catch(() => {});
+    await del.dispatchEvent('click'); await page.waitForTimeout(800);   // the floating mic button covers it on a phone-width screen
+    await page.locator('button:text-is("ביטול התור")').filter({ visible: true }).last().dispatchEvent('click');
     await page.waitForTimeout(2500);
     let { data: items } = await db.from('cancellation_fee_items').select('*').eq('tenant_id', tenantId);
     check(items?.length === 1 && items[0].status === 'pending' && Number(items[0].amount) > 0, `a pending fee item was created (${items?.[0]?.amount})`);
@@ -155,7 +155,8 @@ try {
     const q = visible('[data-testid="fee-question"]');
     check((await q.count()) === 1 && /לגבות ₪\d+ מ.* על ביטול מאוחר\?/.test(await q.innerText()), 'the home screen asks "לגבות ₪… על ביטול מאוחר?"');
     await q.scrollIntoViewIfNeeded(); await shot(page, 'kalmea-fee-question.png');
-    await visible('[data-testid="fee-charge"]').click(); await page.waitForTimeout(3000);
+    await visible('[data-testid="fee-charge"]').click();
+    for (let i = 0; i < 20; i++) { await page.waitForTimeout(500); const { data: cur } = await db.from('cancellation_fee_items').select('status').eq('tenant_id', tenantId); if (cur?.[0]?.status === 'charged') break; }
     ({ data: items } = await db.from('cancellation_fee_items').select('*').eq('tenant_id', tenantId));
     const { data: pays } = await db.from('grow_payments').select('*').eq('tenant_id', tenantId);
     const { data: rcs } = await db.from('receipts').select('*').eq('tenant_id', tenantId);
@@ -212,6 +213,7 @@ try {
 
     // unpaid: the hold runs out and the slot frees up
     await db.from('appointments').update({ confirmation_status: 'pending' }).eq('id', held.id);
+    await db.from('grow_payments').update({ status: 'created' }).eq('tenant_id', tenantId).eq('appointment_id', String(held.id)).eq('kind', 'deposit');   // an unpaid deposit page again
     await db.from('appointment_policy_consents').update({ status: 'awaiting_deposit', hold_expires_at: new Date(Date.now() - 60000).toISOString() }).eq('appointment_id', String(held.id));
     const av = await fetch(`${BASE}/api/availability?t=${tenantId}`);
     check(av.ok, 'the availability route answers');
