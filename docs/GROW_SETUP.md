@@ -7,7 +7,7 @@ below exist, `GROW_MODE=live` is set and a cosmetician opts in. Nothing here was
 
 | Variable | Meaning |
 |---|---|
-| `GROW_UI_ENABLED` | `true` shows every Grow screen and enables the signed-in Grow routes. **Default off** (everything answers 404 / renders nothing). The callback routes Grow itself calls are never behind it: a real payment is always recorded. |
+| `GROW_UI_ENABLED` | `true` shows every Grow screen and enables the signed-in Grow routes. **Default off** (everything answers {success:false, hidden:true} and renders nothing). The callback routes Grow itself calls are never behind it: a real payment is always recorded. |
 | `GROW_MODE` | `mock` (default): no network; the payment page is `/api/grow/mock-pay` on our own origin with "paid" / "failed" buttons, and it feeds the same callback logic as the real thing, including a sample receipt. `live`: the real API. Mock is **refused on the Vercel production deployment** (`VERCEL_ENV=production`). |
 | `GROW_API_KEY`, `GROW_PAGE_CODE` | Live only. The platform `apiKey` (sent as `x-api-key`) and the card payment-page code. |
 | `GROW_ENV`, `GROW_API_BASE` | Live only. `production` needs `GROW_API_BASE` (given by Grow, not in the public docs). The sandbox default is `https://sandbox.meshulam.co.il/api/light/server/1.0`. |

@@ -12,9 +12,10 @@ export const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, p
 export const tableMissing = (e: { code?: string; message?: string } | null) => !!e && (e.code === '42P01' || /does not exist|schema cache/i.test(e.message || ''));
 export const DEMO_NOTE = 'זו תצוגה - במערכת שלך זה נשמר באמת';
 
-/** Every Grow route a signed-in user can reach answers 404 until GROW_UI_ENABLED is switched on (the callback routes Grow calls are exempt). */
+/** Every Grow route a signed-in user can reach answers { success: false, hidden: true } until GROW_UI_ENABLED is switched on (the callback routes Grow calls are exempt). */
 export function uiOff() {
-  return growUiEnabled() ? null : NextResponse.json({ success: false, error: 'not found' }, { status: 404 });
+  // 200, not 404: while the screens are off a dashboard load asks these routes and must not leave a red "404" in every visitor's browser console. { success: false, hidden: true } is what every caller already treats as "not available".
+  return growUiEnabled() ? null : NextResponse.json({ success: false, hidden: true, error: 'off' });
 }
 
 export async function caller() {

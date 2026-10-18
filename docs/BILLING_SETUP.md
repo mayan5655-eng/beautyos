@@ -7,7 +7,7 @@ Status: **built in mock mode, no real provider.** Nothing can charge a real card
 
 | Variable | Meaning |
 |---|---|
-| `BILLING_UI_ENABLED` | `true` shows the billing screen and enables the signed-in billing routes and the cron. **Default off**: everything answers 404 or does nothing. |
+| `BILLING_UI_ENABLED` | `true` shows the billing screen and enables the signed-in billing routes and the cron. **Default off**: everything answers {success:false, hidden:true} or does nothing. |
 | `BILLING_MODE` | `mock` (default): no network; a test card page on our own origin (`/api/billing/mock-card`) with "valid card", "card refused when charged" and "card page failed" buttons, and sample invoices. `live`: placeholder, "not configured" until a provider is wired. Mock is **refused on the Vercel production deployment**. |
 | `CRON_SECRET` | Already used by the other crons. The daily run `/api/billing/charge-due` (05:00 UTC) needs it. |
 

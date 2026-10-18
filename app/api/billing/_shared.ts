@@ -16,9 +16,10 @@ export const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, p
 export const tableMissing = (e: { code?: string; message?: string } | null) => !!e && (e.code === '42P01' || /does not exist|schema cache/i.test(e.message || ''));
 export const billing = () => resolveBilling(process.env, APP_URL, signCardSession);
 
-/** Every signed-in billing route answers 404 until BILLING_UI_ENABLED is switched on. */
+/** Every signed-in billing route answers { success: false, hidden: true } until BILLING_UI_ENABLED is switched on. */
 export function uiOff() {
-  return billingUiEnabled() ? null : NextResponse.json({ success: false, error: 'not found' }, { status: 404 });
+  // 200, not 404: while the screens are off a dashboard load asks these routes and must not leave a red "404" in every visitor's browser console. { success: false, hidden: true } is what every caller already treats as "not available".
+  return billingUiEnabled() ? null : NextResponse.json({ success: false, hidden: true, error: 'off' });
 }
 
 export async function caller() {
