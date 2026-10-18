@@ -49,7 +49,7 @@ import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceD
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
-import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
+import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, MAX_UPLOAD_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
 import { historyCutoff, mergeById } from "@/lib/historyWindow";
 import { advisorWaitLine } from "@/lib/advisorWait";
@@ -4393,6 +4393,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // cannot run until the file has been read.
   const uploadOne = async (file, preset, tid, name) => {
     const blob = await resizeImage(file, preset);
+    // resizeImage fails open; a phone that could not decode the photo must not send the 20 MB original.
+    if (blob.size > MAX_UPLOAD_BYTES) { toast(COULD_NOT_SHRINK_HE, "error"); return { error: null, skipped: true }; }
     const ext = preset.type === "image/png" ? "png" : (/svg/i.test(file.type) ? "svg" : "jpg");
     const path = `${tid}/branding/${name}_${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || preset.type, cacheControl: "31536000" });
@@ -4407,7 +4409,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const uploadBrandAsset = async (file, key) => {
     if(!file) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
-    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    if(file.size > MAX_SOURCE_BYTES){ toast(TOO_LARGE_SOURCE_HE,"error"); return; }
     const tid = settings?.tenant_id;
     if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading(key);
@@ -4417,6 +4419,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         : IMAGE_PRESETS.hero;
       const main = await uploadOne(file, preset, tid, key);
       if (main.error) { handleDbError(main.error, "upload brand asset"); return; }
+      if (main.skipped || !main.url) return; // too large even after resizing: uploadOne already said so
       const patch = { [key]: main.url };
 
       // THE PORTRAIT IS ALSO THE LINK PREVIEW, so it is stored twice: once as
@@ -4428,7 +4431,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const og = await uploadOne(file, IMAGE_PRESETS.portraitOg, tid, "portrait_og");
         // A failed derivative costs the link preview, not the portrait. Keep
         // the photo she just uploaded rather than failing the whole action.
-        if (!og.error) patch.portrait_og_url = og.url;
+        if (!og.error && og.url) patch.portrait_og_url = og.url;
       }
 
       setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), ...patch }}));
@@ -4444,13 +4447,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const uploadClinicPhoto = async (file) => {
     if(!file) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
-    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    if(file.size > MAX_SOURCE_BYTES){ toast(TOO_LARGE_SOURCE_HE,"error"); return; }
     const tid = settings?.tenant_id;
     if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("clinic");
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "clinic");
       if(up.error){ handleDbError(up.error, "upload clinic photo"); return; }
+      if(up.skipped) return;
       const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות של העסק","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
       toast("התמונה נוספה — לחצי שמירה");
@@ -4463,13 +4467,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const uploadServicePhoto = async (serviceId, file) => {
     if(!file || !serviceId) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
-    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    if(file.size > MAX_SOURCE_BYTES){ toast(TOO_LARGE_SOURCE_HE,"error"); return; }
     const tid = settings?.tenant_id;
     if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("svc:"+serviceId);
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "service");
       if(up.error){ handleDbError(up.error, "upload service photo"); return; }
+      if(up.skipped) return;
       if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const m=(b.service_images&&typeof b.service_images==="object"&&!Array.isArray(b.service_images))?b.service_images:{}; return {...prev, branding:{...b, service_images:{...m,[serviceId]:up.url}}}; });
       toast("התמונה נוספה — לחצי שמירה");
     } finally { setBrandUploading(""); }
@@ -4478,13 +4483,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const uploadGalleryImage = async (file) => {
     if(!file) return;
     if(!/^image\//.test(file.type||"")){ toast("קובץ תמונה בלבד","error"); return; }
-    if(file.size > 3*1024*1024){ toast("התמונה גדולה מדי (עד 3MB)","error"); return; }
+    if(file.size > MAX_SOURCE_BYTES){ toast(TOO_LARGE_SOURCE_HE,"error"); return; }
     const tid = settings?.tenant_id;
     if(!tid){ toast(STUCK_HE,"error"); return; }
     setBrandUploading("gallery");
     try {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "gallery");
       if(up.error){ handleDbError(up.error, "upload gallery image"); return; }
+      if(up.skipped) return;
       const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const gal=Array.isArray(b.gallery)?b.gallery:[]; return {...prev, branding:{...b, gallery:[...gal, url]}}; });
       toast("התמונה נוספה לגלריה — לחצי שמירה");

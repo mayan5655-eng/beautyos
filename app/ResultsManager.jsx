@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
-import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
+import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, MAX_UPLOAD_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE } from "@/lib/imageResize";
 import { PUBLIC_BUCKET } from "@/lib/clientImages";
 import { consentComplete, publishBlockers } from "@/lib/results";
 import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
@@ -76,11 +76,12 @@ export default function ResultsManager({ tenantId, services }) {
   const upload = async (side, file) => {
     if (!file) return;
     if (!/^image\//.test(file.type || "")) { setMsg("קובץ תמונה בלבד"); return; }
-    if (file.size > 3 * 1024 * 1024) { setMsg("התמונה גדולה מדי (עד 3MB)"); return; }
+    if (file.size > MAX_SOURCE_BYTES) { setMsg(TOO_LARGE_SOURCE_HE); return; }
     if (!tenantId) { setMsg(STUCK_HE); return; }
     setMsg(""); setBusy("up:" + side);
     try {
       const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
+      if (blob.size > MAX_UPLOAD_BYTES) { setMsg(COULD_NOT_SHRINK_HE); return; }
       const path = `${tenantId}/results/${side}_${Date.now()}.jpg`;
       const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
       if (error) { setMsg("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע."); return; }

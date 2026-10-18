@@ -109,6 +109,19 @@ export async function resizeImage(file: File, opts: ResizeOptions): Promise<Blob
   }
 }
 
+/**
+ * Size limits for a photo she picks. Every upload is resized in the browser BEFORE it is sent (resizeImage), so the
+ * limit on the picked file only has to stop files a phone cannot decode, not "big" photos. It used to be 3 MB, which
+ * refused an ordinary phone camera photo (3-8 MB) with "התמונה גדולה מדי" although it would have gone up at a few
+ * hundred KB (found 2026-10-18, uploading treatment photos from her phone).
+ * MAX_UPLOAD_BYTES is checked on what is actually sent: resizeImage fails open (returns the original) when a phone
+ * cannot decode the file, and a 20 MB original must not go to storage.
+ */
+export const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const TOO_LARGE_SOURCE_HE = 'התמונה גדולה מדי (עד 25MB)';
+export const COULD_NOT_SHRINK_HE = 'לא הצלחנו להקטין את התמונה הזו. אפשר לנסות תמונה אחרת, או צילום מסך שלה.';
+
 /** What each branding asset is for, and therefore how it should be encoded. */
 export const IMAGE_PRESETS = {
   // A face, or the room. The largest thing on the booking page.
