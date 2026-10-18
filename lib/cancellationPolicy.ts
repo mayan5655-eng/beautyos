@@ -31,6 +31,8 @@ export type CancelPolicy = {
 };
 
 export const DEFAULT_WINDOW_HOURS = 24;
+/** In deposit mode a booking is held as pending for this long; unpaid by then it is released and the slot frees up. */
+export const DEPOSIT_HOLD_MINUTES = 30;
 export const MAX_WINDOW_HOURS = 168;
 export const MAX_FEE_AMOUNT = 5000;
 export const MAX_TEXT = 1200;
@@ -92,7 +94,7 @@ export function defaultPolicyText(p: Pick<CancelPolicy, 'mode' | 'windowHours' |
   const early = p.windowHours > 0 ? `אפשר לבטל או לשנות תור בלי עלות עד ${hours} לפני מועד התור.` : 'אפשר לבטל או לשנות תור בלי עלות בכל עת לפני התור.';
   if (p.mode === 'deposit') {
     return [
-      `בקביעת התור משלמים מקדמה של ${describeFee(p.deposit)}, והיא מנוכה מהתשלום ביום הטיפול.`,
+      `בקביעת התור משלמים מקדמה של ${describeFee(p.deposit)}, והיא מנוכה מהתשלום ביום הטיפול. התור שמור ל-${DEPOSIT_HOLD_MINUTES} דקות, ואם המקדמה לא שולמה בזמן הוא משתחרר.`,
       early,
       p.timelyCancel === 'credit' ? 'ביטול בזמן: המקדמה נשמרת לך כקרדיט לתור הבא.' : 'ביטול בזמן: המקדמה מוחזרת לכרטיס שלך.',
       'ביטול מאוחר יותר או אי הגעה בלי ביטול: המקדמה נשארת אצלי.',

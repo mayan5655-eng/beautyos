@@ -52,12 +52,21 @@ create table if not exists public.appointment_policy_consents (
   mode                       text not null check (mode in ('saved_card', 'deposit')),
   consented_at               timestamptz not null default now(),
   token_id                   uuid,
-  status                     text not null default 'awaiting_card' check (status in ('awaiting_card', 'card_saved', 'awaiting_deposit', 'deposit_paid', 'step_failed')),
+  status                     text not null default 'awaiting_card' check (status in ('awaiting_card', 'card_saved', 'awaiting_deposit', 'deposit_paid', 'step_failed', 'hold_expired')),
+  hold_expires_at            timestamptz,
   snapshot                   jsonb not null,
   deposit_applied_receipt_id text,
   created_at                 timestamptz not null default now(),
   unique (tenant_id, appointment_id)
 );
+
+-- Deposit holds: a deposit-mode booking is held as pending for 30 minutes (hold_expires_at); unpaid by then it is released and the slot frees up.
+-- Re-runnable on a database that already has the table from an earlier run of this file.
+alter table public.appointment_policy_consents add column if not exists hold_expires_at timestamptz;
+alter table public.appointment_policy_consents drop constraint if exists appointment_policy_consents_status_check;
+alter table public.appointment_policy_consents add constraint appointment_policy_consents_status_check
+  check (status in ('awaiting_card', 'card_saved', 'awaiting_deposit', 'deposit_paid', 'step_failed', 'hold_expired'));
+create index if not exists appointment_policy_consents_hold_idx on public.appointment_policy_consents (status, hold_expires_at) where status = 'awaiting_deposit';
 
 -- 4 ─────────────────────────────────────────────────────────────────────────
 create table if not exists public.grow_card_tokens (

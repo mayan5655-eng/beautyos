@@ -10,10 +10,10 @@ import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 import { createMockOps, newMockCardToken } from './lib/grow/ops.ts';
 import type { GrowOps } from './lib/grow/ops.ts';
 import {
-  activePolicy, recordConsentAndStart, saveToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion,
+  activePolicy, recordConsentAndStart, saveToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion, releaseExpiredHolds, onDepositPaid,
 } from './lib/grow/cancelFees.ts';
 import type { CancelRepo, ConsentRow, FeeItem, TokenRow, ApptRow, PaymentRow, Deps, FeeStatus } from './lib/grow/cancelFees.ts';
-import { sanitizePolicy, feeAmount, classify, defaultPolicyText, snapshotOf, DEFAULT_POLICY, feeQuestionHe } from './lib/cancellationPolicy.ts';
+import { sanitizePolicy, feeAmount, classify, defaultPolicyText, snapshotOf, DEFAULT_POLICY, feeQuestionHe, DEPOSIT_HOLD_MINUTES } from './lib/cancellationPolicy.ts';
 import type { CancelPolicy } from './lib/cancellationPolicy.ts';
 import { monthSummary, liveReceipts } from './lib/till.ts';
 import { signGrowSession, verifyGrowSession } from './lib/grow/mockSession.ts';
@@ -62,6 +62,15 @@ function world(startIso = '2026-11-10T06:00:00Z') {
     async updateConsent(id, patch) { Object.assign(consents.find((c) => c.id === id)!, patch); },
     async insertToken(row) { const t = { id: `t${++seq}`, ...row } as TokenRow; tokens.push(t); return t; },
     async getToken(id) { return tokens.find((t) => t.id === id) || null; },
+    async listExpiredHolds(nowIso, tenantId) { return consents.filter((c) => c.status === 'awaiting_deposit' && !!c.hold_expires_at && c.hold_expires_at < nowIso && (!tenantId || c.tenant_id === tenantId)); },
+    async releaseAppointment(_t, id) { const a = appts.get(id); if (!a || a.confirmation_status !== 'pending') return false; a.confirmation_status = 'cancelled'; return true; },
+    async confirmAppointment(_t, id) { const a = appts.get(id); if (!a) return false; if (a.confirmation_status === 'pending' || a.confirmation_status === 'confirmed') { a.confirmation_status = 'confirmed'; return true; } return false; },
+    async restoreAppointment(_t, id) {
+      const a = appts.get(id); if (!a) return 'missing'; if (a.confirmation_status !== 'cancelled') return 'restored';
+      const s = Number(a.start_minute), e = s + 60;
+      const clash = [...appts.values()].some((o) => o.id !== id && o.date === a.date && o.confirmation_status !== 'cancelled' && Number(o.start_minute) < e && s < Number(o.start_minute) + 60);
+      if (clash) return 'slot-taken'; a.confirmation_status = 'confirmed'; return 'restored';
+    },
     async insertFeeIfAbsent(row) { if (fees.some((f) => f.appointment_id === row.appointment_id && f.kind === row.kind)) return null; const f = { id: `f${++seq}`, created_at: now.toISOString(), grow_payment_id: null, receipt_id: null, error: null, ...row } as FeeItem; fees.push(f); return f; },
     async getFee(_t, id) { return fees.find((f) => f.id === id) || null; },
     async transitionFee(_t, id, from, patch) { const f = fees.find((x) => x.id === id); if (!f || !from.includes(f.status)) return null; Object.assign(f, patch); return f; },
@@ -111,7 +120,9 @@ function world(startIso = '2026-11-10T06:00:00Z') {
 }
 
 const book = async (w: ReturnType<typeof world>, id: string, policy: CancelPolicy, over: Partial<ApptRow> = {}) => {
-  const a = w.addAppt(id, over);
+  // The booking route inserts a deposit-mode booking as PENDING (a held slot); any other mode as confirmed.
+  const held = policy.mode === 'deposit' && feeAmount(policy.deposit, Number(over.price ?? 200)) > 0;
+  const a = w.addAppt(id, { confirmation_status: held ? 'pending' : 'confirmed', ...over });
   return recordConsentAndStart(w.deps(), { tenantId: TENANT, appointmentId: id, clientId: a.client_id, clientName: a.name || '', phone: '0501234567', servicePrice: Number(a.price), serviceName: a.service || '', policy, returnUrl: `${ORIGIN}/book?t=${TENANT}` });
 };
 const saveCard = (w: ReturnType<typeof world>, id: string, kind: 'ok' | 'decline' = 'ok') => saveToken(w.deps(), { tenantId: TENANT, appointmentId: id, tokenRef: newMockCardToken(kind), last4: '4242', brand: 'Visa' });
@@ -273,7 +284,8 @@ const payDeposit = async (w: ReturnType<typeof world>, id: string, policy: Cance
   const p = [...w.payments.values()].find((x) => x.appointment_id === id)!;
   assert.equal(p.kind, 'deposit'); assert.equal(p.status, 'created'); assert.equal(Number(p.amount), 100); assert.equal(p.description, 'מקדמה לטיפול פנים');
   const grow = w.grow;
-  const res = await applyNotificationByProcess(mockNotification(p as never, 'success'), w.deps().chargeDeps, (note) => approveTransaction(note, grow.creds!, grow.fetchImpl));
+  const afterPaid = async (pay: GrowPayment) => { if (/^מקדמה/.test(pay.description || '')) await onDepositPaid(w.deps(), { tenantId: pay.tenant_id, appointmentId: pay.appointment_id, paymentId: pay.id }); };
+  const res = await applyNotificationByProcess(mockNotification(p as never, 'success'), { ...w.deps().chargeDeps, afterPaid }, (note) => approveTransaction(note, grow.creds!, grow.fetchImpl));
   assert.equal(res.status, 'paid');
   return p;
 };
@@ -364,6 +376,95 @@ await ok('a booking whose Grow page cannot be opened still stands, with the fail
   assert.equal(step.url, null); assert.ok(step.error); assert.equal(consent.status, 'step_failed'); assert.equal(w.consents.length, 1);
 });
 
+
+// ── the 30-minute deposit hold ───────────────────────────────────────────────
+const payLater = async (w: ReturnType<typeof world>, p: GrowPayment & Record<string, unknown>) => {
+  const grow = w.grow;
+  const afterPaid = async (pay: GrowPayment) => { if (/^מקדמה/.test(pay.description || '')) await onDepositPaid(w.deps(), { tenantId: pay.tenant_id, appointmentId: pay.appointment_id, paymentId: pay.id }); };
+  return applyNotificationByProcess(mockNotification(p as never, 'success'), { ...w.deps().chargeDeps, afterPaid }, (note) => approveTransaction(note, grow.creds!, grow.fetchImpl));
+};
+
+await ok('deposit hold: booked as PENDING for 30 minutes, the slot stays blocked; unpaid -> released automatically and the slot frees up', async () => {
+  assert.equal(DEPOSIT_HOLD_MINUTES, 30);
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit' });
+  const { consent, step } = await book(w, 'a1', policy);
+  assert.ok(step.url); assert.equal(w.appts.get('a1')!.confirmation_status, 'pending');
+  assert.equal(consent.hold_expires_at, '2026-11-10T06:30:00.000Z'); assert.equal(consent.status, 'awaiting_deposit');
+
+  w.at('2026-11-10T06:29:00Z');                                           // 29 minutes: still held
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 });
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'pending', 'the slot is still blocked');
+
+  w.at('2026-11-10T06:31:00Z');                                           // 31 minutes: released
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0 });
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'cancelled', 'cancelled, so the calendar and the availability list show the slot free');
+  assert.equal(w.consents[0].status, 'hold_expired'); assert.equal(w.consents[0].hold_expires_at, null);
+  assert.equal([...w.payments.values()][0].status, 'cancelled', 'the unpaid payment page is closed');
+  assert.equal(w.fees.length, 0, 'no fee item, nothing to charge or refund'); assert.equal(w.calls.chargeToken, 0);
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 }, 'running it again changes nothing');
+});
+
+await ok('deposit hold: a paid deposit CONFIRMS the booking and ends the hold (a later release does nothing)', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit' });
+  await book(w, 'a1', policy);
+  w.at('2026-11-10T06:10:00Z');
+  const p = [...w.payments.values()][0];
+  assert.equal((await payLater(w, p)).status, 'paid');
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed'); assert.equal(w.consents[0].status, 'deposit_paid'); assert.equal(w.consents[0].hold_expires_at, null);
+  w.at('2026-11-10T07:00:00Z');
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 });
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed');
+});
+
+await ok('deposit hold: paid just before the end but not yet processed -> confirmed by the release run, not released', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit' });
+  await book(w, 'a1', policy);
+  const p = [...w.payments.values()][0];
+  Object.assign(p, { status: 'paid', transaction_id: 'tx1' });            // the callback has not run its confirm step yet
+  w.at('2026-11-10T06:31:00Z');
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 1 });
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed');
+});
+
+await ok('deposit hold: paid AFTER the release -> the booking is restored if the slot is still free; if it was taken the deposit is refunded automatically', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit' });
+  await book(w, 'a1', policy);
+  const p = [...w.payments.values()][0];
+  w.at('2026-11-10T06:45:00Z'); await releaseExpiredHolds(w.deps());
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'cancelled');
+  // the unpaid page was closed, but Grow reports the payment anyway (she paid in the last minute)
+  Object.assign(p, { status: 'created' });
+  assert.equal((await payLater(w, p)).status, 'paid');
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed', 'restored'); assert.equal(w.consents[0].status, 'deposit_paid');
+
+  const v = world('2026-11-10T06:00:00Z');
+  const p2 = v.setPolicy({ mode: 'deposit' });
+  await book(v, 'b1', p2);
+  const pay2 = [...v.payments.values()][0];
+  v.at('2026-11-10T06:45:00Z'); await releaseExpiredHolds(v.deps());
+  v.addAppt('other', { client_id: 'c-other', name: 'מישהי אחרת', confirmation_status: 'confirmed' });   // someone else took the same slot
+  Object.assign(pay2, { status: 'created' });
+  assert.equal((await payLater(v, pay2)).status, 'paid');
+  assert.equal(v.appts.get('b1')!.confirmation_status, 'cancelled', 'the slot is not hers any more');
+  assert.equal(v.calls.refund, 1); assert.equal(v.fees[0].kind, 'deposit_return'); assert.equal(v.fees[0].status, 'refunded'); assert.equal(v.voids.length, 1, 'her deposit went back and the receipt left the books');
+});
+
+await ok('deposit hold: other modes and a zero deposit are never held; a release run for one business leaves the others alone', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const sc = w.setPolicy({ mode: 'saved_card' });
+  const { consent } = await book(w, 'a1', sc);
+  assert.equal(consent.hold_expires_at, null); assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed');
+  const zero = w.setPolicy({ mode: 'deposit', deposit: { type: 'percent', value: 0 } });
+  const z = await book(w, 'a2', zero, { price: 0 });
+  assert.equal(z.consent.hold_expires_at, null); assert.equal(w.appts.get('a2')!.confirmation_status, 'confirmed', 'no real deposit: nothing to hold for');
+  w.at('2026-11-10T09:00:00Z');
+  assert.deepEqual(await releaseExpiredHolds(w.deps(), '99999999-9999-9999-9999-999999999999'), { released: 0, confirmed: 0 });
+});
+
 // ── wiring (source pins) ─────────────────────────────────────────────────────
 await ok('nothing is charged without her tap: only decide() charges a token, detection never does', () => {
   const src = read('lib/grow/cancelFees.ts');
@@ -419,6 +520,21 @@ await ok('new tables: in the trial gate, tenant-scoped RLS, the token reference 
   assert.ok(!/card_number|\bpan\b|cvv|cvc|exp_month|expiry/i.test(mig.replace(/^--.*$/gm, '')), 'no card data');
   assert.ok(!/drop table|truncate|delete from/i.test(mig.replace(/^--.*$/gm, '')));
   assert.ok(/unique \(appointment_id, kind\)/.test(mig), 'one fee item per appointment and kind');
+});
+
+await ok('the hold is wired: the booking route holds as pending and defers the confirmation, releases lazily, the cron and the availability route release too, a paid deposit confirms', () => {
+  const book = read('app/api/book-appointment/route.js');
+  assert.ok(/heldForDeposit \? "pending" : "confirmed"/.test(book), 'a held booking is inserted as pending');
+  assert.ok(/if \(!heldForDeposit\) after\(/.test(book), 'the client confirmation waits for the deposit');
+  assert.ok(book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') > 0 && book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') < book.indexOf('const [\n      { data: svcRows'), 'expired holds are released BEFORE the calendar is read');
+  const cron = read('app/api/grow/release-holds/route.ts');
+  assert.ok(cron.indexOf('isAuthorizedCron(request)') > 0 && cron.indexOf('isAuthorizedCron(request)') < cron.indexOf('growUiEnabled()'), 'the cron is protected');
+  assert.ok(/"path": "\/api\/grow\/release-holds",\n\s+"schedule": "\*\/5 \* \* \* \*"/.test(read('vercel.json')), 'every 5 minutes');
+  assert.ok(/releaseExpiredHolds\(deps, tenantId\)/.test(read('app/api/availability/route.ts')), 'availability frees an expired slot at once');
+  for (const f of ['notify', 'webhook', 'mock-pay']) assert.ok(/afterPaid: afterPaidHook\(\)/.test(read(`app/api/grow/${f}/route.ts`)), `${f} confirms the booking when the deposit is paid`);
+  assert.ok(/התור שמור עבורך ל-30 דקות/.test(read('app/BookingPage.jsx')), 'the client is told about the 30 minutes');
+  const mig = read('supabase/migrations/add_grow_cancellation.sql');
+  assert.ok(/hold_expires_at/.test(mig) && /hold_expired/.test(mig) && /add column if not exists hold_expires_at/.test(mig), 'the migration adds the hold and stays re-runnable');
 });
 
 await ok('every unverified live Grow field is marked TODO(grow-docs)', () => {

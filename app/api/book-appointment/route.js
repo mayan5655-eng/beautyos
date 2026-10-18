@@ -22,7 +22,8 @@ import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
 import { APP_URL } from "../../../lib/appUrl";
 import { growUiEnabled } from "../../../lib/grow/adapter";
-import { activePolicy, recordConsentAndStart } from "../../../lib/grow/cancelFees";
+import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
+import { feeAmount } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
 
 const supabase = createClient(
@@ -122,6 +123,22 @@ export async function POST(request) {
     // below in the same order and with the same error precedence the
     // sequential version had, so behaviour is unchanged - only the waiting
     // is parallel now.
+    // Her cancellation policy on top of Grow (lib/grow/cancelFees.ts). Read HERE, before the calendar is, because a deposit hold that ran out must be released
+    // first: otherwise a slot whose 30 minutes are over would still look taken. Any failure (Grow screens off, no table yet, not connected) means "no policy":
+    // the booking then works exactly as it always did. Never blocked by plan.
+    let policy = null;
+    let policyDeps = null;
+    try {
+      policyDeps = growUiEnabled() ? cancelDeps() : null;
+      if (policyDeps) {
+        await releaseExpiredHolds(policyDeps, activeTenantId);
+        policy = await activePolicy(policyDeps, activeTenantId);
+      }
+    } catch (policyErr) {
+      console.warn("[book-appointment] cancellation policy unreadable, booking without it:", policyErr?.message || String(policyErr));
+      policy = null;
+    }
+
     const [
       { data: svcRows, error: svcError },
       { data: settingsRows },
@@ -212,17 +229,7 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    // Her cancellation policy on top of Grow (lib/grow/cancelFees.ts): when it is on, the client must have ticked it. Any failure to READ it
-    // (Grow screens off, no table yet, not connected) means "no policy": the booking then works exactly as it always did. Never blocked by plan.
-    let policy = null;
-    let policyDeps = null;
-    try {
-      policyDeps = growUiEnabled() ? cancelDeps() : null;
-      if (policyDeps) policy = await activePolicy(policyDeps, activeTenantId);
-    } catch (policyErr) {
-      console.warn("[book-appointment] cancellation policy unreadable, booking without it:", policyErr?.message || String(policyErr));
-      policy = null;
-    }
+    // Her cancellation policy (read above, before the calendar was looked at). It was read there so that expired deposit holds were released first.
     if (policy && acceptedPolicy !== true) {
       return Response.json(
         { success: false, error: "כדי לקבוע תור צריך לאשר את מדיניות הביטולים" },
@@ -403,6 +410,7 @@ export async function POST(request) {
     }
 
     // 1. Save the appointment to Supabase
+    const heldForDeposit = !!(policy && policy.mode === "deposit" && feeAmount(policy.deposit, svcPrice) > 0);
     const { data: appt, error } = await supabase
       .from("appointments")
       .insert({
@@ -421,7 +429,8 @@ export async function POST(request) {
         price: svcPrice,
         color: svcColor,
         self_booked: true,
-        confirmation_status: "confirmed",
+        // Deposit mode with a real deposit: held as PENDING for 30 minutes (the slot stays blocked); a paid deposit confirms it, an unpaid one releases it.
+        confirmation_status: heldForDeposit ? "pending" : "confirmed",
         confirmation_sent: true,
       })
       .select()
@@ -470,7 +479,8 @@ export async function POST(request) {
     //      goes out at all. sendBookingNotifications already catches both
     //      its own halves internally (see that file); this .catch is only
     //      for a throw that somehow escapes both.
-    after(() =>
+    // A held booking is not confirmed yet: its confirmation goes out when the deposit is paid (app/api/grow/_cancel.ts afterPaidHook).
+    if (!heldForDeposit) after(() =>
       sendBookingNotifications({
         settingsRow,
         tenantId: activeTenantId,

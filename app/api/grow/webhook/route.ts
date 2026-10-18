@@ -22,6 +22,7 @@ import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseOnboardingRepo } from '@/lib/grow/onboardingRepo';
 import { applyOnboarding, classifyWebhook, clientIp, ipAllowed, ipCheckEnforced, parseWebhookBody, readOnboarding } from '@/lib/grow/webhook';
 import { admin } from '../_shared';
+import { afterPaidHook } from '../_cancel';
 
 export const maxDuration = 30;
 
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
       creds: resolveGrow(process.env, APP_URL).creds || { apiKey: '', pageCode: '', apiBase: '' },
       appUrl: APP_URL,
       newToken: () => randomBytes(24).toString('hex'),
+      afterPaid: afterPaidHook(),
     });
 
     if (kind === 'payment') {

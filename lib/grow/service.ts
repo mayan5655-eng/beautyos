@@ -63,7 +63,11 @@ export type ChargeInput = {
   returnUrl?: string;
 };
 
-type Deps = { repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date };
+type Deps = {
+  repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date;
+  /** Runs once, right after a payment flips to paid (a booking deposit confirms its booking here). A failure is logged and never undoes the payment. */
+  afterPaid?: (p: GrowPayment) => Promise<void>;
+};
 
 export type ChargeResult =
   | { ok: true; paymentId: string; url: string }
@@ -204,6 +208,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);
+  if (d.afterPaid) { try { await d.afterPaid(flipped); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
   if (approve) { try { await approve(n); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }

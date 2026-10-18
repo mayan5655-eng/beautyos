@@ -14,6 +14,7 @@ import { resolveGrow, mockNotification, mockInvoice } from '@/lib/grow/adapter';
 import { applyNotificationByProcess, applyInvoiceByProcess, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { admin } from '../_shared';
+import { afterPaidHook } from '../_cancel';
 
 const STYLE = `body{margin:0;background:#FBF8F1;color:#1F3A30;font-family:Assistant,Heebo,system-ui,sans-serif;display:flex;justify-content:center;padding:24px 16px}
 main{max-width:420px;width:100%;background:#fff;border:1px solid #E8E1D1;border-radius:16px;padding:22px}
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
     return page('<div class="test">מצב בדיקה</div><h1>התשלום נכשל</h1><p>לא נגבה כסף. אפשר לחזור ולנסות שוב מהקופה.</p>');
   }
   const creds = grow.creds;
-  const deps = { repo, creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') };
+  const deps = { repo, creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex'), afterPaid: afterPaidHook() };
   const r = await applyNotificationByProcess(mockNotification(data, 'success'), deps, (n) => approveTransaction(n, creds, grow.fetchImpl));
   await applyInvoiceByProcess(mockInvoice(data, APP_URL), deps);
   console.log('[grow] mock payment recorded', data.id, r.status);

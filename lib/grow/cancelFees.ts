@@ -13,7 +13,7 @@
 //
 // Money never passes through Kalmea; card numbers never touch it. Only Grow's token references are stored.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { classify, feeQuestionHe, snapshotOf } from '../cancellationPolicy.ts';
+import { classify, feeQuestionHe, snapshotOf, DEPOSIT_HOLD_MINUTES } from '../cancellationPolicy.ts';
 import type { CancelPolicy, ConsentSnapshot, Event, Verdict } from '../cancellationPolicy.ts';
 import { minutesUntilSlot } from '../bookingPolicy.ts';
 import { createCharge } from './service.ts';
@@ -31,7 +31,9 @@ export type ConsentRow = {
   mode: 'saved_card' | 'deposit';
   consented_at: string;
   token_id: string | null;
-  status: 'awaiting_card' | 'card_saved' | 'awaiting_deposit' | 'deposit_paid' | 'step_failed';
+  status: 'awaiting_card' | 'card_saved' | 'awaiting_deposit' | 'deposit_paid' | 'step_failed' | 'hold_expired';
+  /** Deposit mode: the booking is held as pending until this moment; unpaid by then it is released. Null otherwise and once paid. */
+  hold_expires_at: string | null;
   snapshot: ConsentSnapshot;
   deposit_applied_receipt_id: string | null;
 };
@@ -68,6 +70,14 @@ export type CancelRepo = {
   getConsent(tenantId: string, appointmentId: string): Promise<ConsentRow | null>;
   insertConsent(row: Omit<ConsentRow, 'id' | 'deposit_applied_receipt_id'>): Promise<ConsentRow>;
   updateConsent(id: string, patch: Partial<ConsentRow>): Promise<void>;
+  /** Deposit holds that ran out: consents still awaiting the deposit whose hold_expires_at is before `nowIso`. */
+  listExpiredHolds(nowIso: string, tenantId?: string): Promise<ConsentRow[]>;
+  /** pending -> cancelled (by the system) if the appointment is still pending; true when it was released. */
+  releaseAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
+  /** pending -> confirmed; true when it is confirmed after the call (already confirmed counts). */
+  confirmAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
+  /** A released booking whose deposit arrived late: confirm it again if its slot is still free. */
+  restoreAppointment(tenantId: string, appointmentId: string): Promise<'restored' | 'slot-taken' | 'missing'>;
   insertToken(row: Omit<TokenRow, 'id'>): Promise<TokenRow>;
   getToken(id: string): Promise<TokenRow | null>;
   /** Insert unless this appointment already has an item of this kind: returns null when it exists (detection is idempotent). */
@@ -124,10 +134,14 @@ export async function recordConsentAndStart(
   const snapshot = snapshotOf(i.policy, i.servicePrice);
   if (!snapshot) throw new Error('policy is off');
   const account = await d.repo.getAccount(i.tenantId);
+  const nowD = clock(d);
+  // Deposit mode with a real deposit: the booking is held as pending for 30 minutes (its slot stays blocked) and released if the deposit is not paid.
+  const holds = snapshot.mode === 'deposit' && snapshot.deposit_amount > 0;
   let consent = await d.repo.insertConsent({
     tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: i.clientId, client_name: i.clientName,
-    mode: snapshot.mode, consented_at: clock(d).toISOString(), token_id: null,
-    status: snapshot.mode === 'deposit' ? 'awaiting_deposit' : 'awaiting_card', snapshot,
+    mode: snapshot.mode, consented_at: nowD.toISOString(), token_id: null,
+    status: snapshot.mode === 'deposit' ? 'awaiting_deposit' : 'awaiting_card',
+    hold_expires_at: holds ? new Date(nowD.getTime() + DEPOSIT_HOLD_MINUTES * 60000).toISOString() : null, snapshot,
   });
 
   const fail = async (kind: BookingStep['kind'], error: string): Promise<{ consent: ConsentRow; step: BookingStep }> => {
@@ -317,6 +331,72 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
   return { ok: true, status: 'charged', receiptId };
 }
 
+// ── deposit holds ────────────────────────────────────────────────────────────
+
+/**
+ * Releases the bookings whose 30-minute deposit hold ran out: the appointment is cancelled (by the system), so its slot is free again, the unpaid
+ * payment page is closed, and the consent is marked. A deposit that was paid in the meantime confirms the booking instead. Safe to run often
+ * and from several places at once (the cron, the booking route and the availability route all call it); each release is a conditional update.
+ */
+export async function releaseExpiredHolds(d: Deps, tenantId?: string): Promise<{ released: number; confirmed: number }> {
+  const out = { released: 0, confirmed: 0 };
+  const expired = await d.repo.listExpiredHolds(clock(d).toISOString(), tenantId);
+  for (const c of expired) {
+    const dep = await d.repo.getDepositPayment(c.tenant_id, c.appointment_id);
+    if (dep && dep.status === 'paid') {
+      // Paid just before the hold ran out: the callback may not have been processed yet. Confirm now.
+      await d.repo.confirmAppointment(c.tenant_id, c.appointment_id);
+      await d.repo.updateConsent(c.id, { status: 'deposit_paid', hold_expires_at: null });
+      out.confirmed++;
+      continue;
+    }
+    const released = await d.repo.releaseAppointment(c.tenant_id, c.appointment_id);
+    if (released) out.released++;
+    // Whatever happened to the appointment (she may have cancelled it herself), the hold is over and the unpaid page must not take money later.
+    if (dep && dep.status === 'created') await d.grow.updatePayment(dep.id, { status: 'cancelled', error: 'deposit hold expired', updated_at: clock(d).toISOString() });
+    await d.repo.updateConsent(c.id, { status: 'hold_expired', hold_expires_at: null });
+  }
+  return out;
+}
+
+export type DepositPaidResult =
+  | { outcome: 'confirmed' | 'restored'; appointmentId: string }
+  | { outcome: 'refunded' | 'refund_failed'; appointmentId: string }
+  | { outcome: 'none' };
+
+/**
+ * A deposit payment came back paid (the Grow callback). A paid deposit CONFIRMS the booking. If the hold had already run out and the slot is still
+ * free, the booking is restored. If the slot was taken in the meantime the client's deposit is returned automatically, so she is never left
+ * paying for a slot that is not hers.
+ */
+export async function onDepositPaid(d: Deps, i: { tenantId: string; appointmentId: string | null; paymentId: string }): Promise<DepositPaidResult> {
+  if (!i.appointmentId) return { outcome: 'none' };
+  const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);
+  if (!consent || consent.mode !== 'deposit') return { outcome: 'none' };
+
+  if (consent.status === 'hold_expired') {
+    const r = await d.repo.restoreAppointment(i.tenantId, i.appointmentId);
+    if (r === 'restored') {
+      await d.repo.updateConsent(consent.id, { status: 'deposit_paid', hold_expires_at: null });
+      return { outcome: 'restored', appointmentId: i.appointmentId };
+    }
+    if (r === 'slot-taken') {
+      const dep = await d.repo.getPayment(i.tenantId, i.paymentId);
+      const appt = await d.repo.getAppointment(i.tenantId, i.appointmentId);
+      if (!dep) return { outcome: 'none' };
+      const item = await d.repo.insertFeeIfAbsent({ tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: consent.client_id, client_name: consent.client_name, service: appt?.service ?? null, kind: 'deposit_return', amount: round2(Number(dep.amount)), status: 'refund_failed' });
+      if (!item) return { outcome: 'none' };
+      const res = await doRefund(d, i.tenantId, item, dep);
+      return { outcome: res.status === 'refunded' ? 'refunded' : 'refund_failed', appointmentId: i.appointmentId };
+    }
+    return { outcome: 'none' };
+  }
+
+  await d.repo.confirmAppointment(i.tenantId, i.appointmentId);
+  await d.repo.updateConsent(consent.id, { status: 'deposit_paid', hold_expires_at: null });
+  return { outcome: 'confirmed', appointmentId: i.appointmentId };
+}
+
 // ── cashier: deposit and credit ──────────────────────────────────────────────
 
 /** What the cashier should deduct for this appointment: the deposit she already received, if it was not used yet. */
@@ -381,6 +461,43 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
     async updateConsent(id, patch) {
       const { error } = await db.from('appointment_policy_consents').update(patch).eq('id', id);
       if (error) fail(error, 'updateConsent');
+    },
+    async listExpiredHolds(nowIso, tenantId) {
+      let q = db.from('appointment_policy_consents').select('*').eq('status', 'awaiting_deposit').lt('hold_expires_at', nowIso).limit(200);
+      if (tenantId) q = q.eq('tenant_id', tenantId);
+      const { data, error } = await q;
+      if (error) fail(error, 'listExpiredHolds');
+      return (data || []).map(consentOf);
+    },
+    async releaseAppointment(tenantId, appointmentId) {
+      const patch = { confirmation_status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'system_hold' };
+      let res = await db.from('appointments').update(patch).eq('id', appointmentId).eq('tenant_id', tenantId).eq('confirmation_status', 'pending').select('id');
+      if (res.error && /cancelled_at|cancelled_by|schema cache|does not exist/i.test(res.error.message || '')) {
+        // The audit columns come from a hand-run migration: release without them rather than keep the slot blocked.
+        res = await db.from('appointments').update({ confirmation_status: 'cancelled' }).eq('id', appointmentId).eq('tenant_id', tenantId).eq('confirmation_status', 'pending').select('id');
+      }
+      if (res.error) fail(res.error, 'releaseAppointment');
+      return !!(res.data && res.data.length);
+    },
+    async confirmAppointment(tenantId, appointmentId) {
+      const { data, error } = await db.from('appointments').update({ confirmation_status: 'confirmed' }).eq('id', appointmentId).eq('tenant_id', tenantId).in('confirmation_status', ['pending', 'confirmed']).select('id');
+      if (error) fail(error, 'confirmAppointment');
+      return !!(data && data.length);
+    },
+    async restoreAppointment(tenantId, appointmentId) {
+      const { data: a, error } = await db.from('appointments').select('id, date, start_minute, hour, duration, confirmation_status').eq('id', appointmentId).eq('tenant_id', tenantId).maybeSingle();
+      if (error) fail(error, 'restoreAppointment');
+      if (!a) return 'missing';
+      if (a.confirmation_status !== 'cancelled') return 'restored';
+      const start = a.start_minute != null ? Number(a.start_minute) : Number(a.hour) * 60;
+      const end = start + (Number(a.duration) || 60);
+      const { data: others, error: e2 } = await db.from('appointments').select('id, start_minute, hour, duration').eq('tenant_id', tenantId).eq('date', a.date).neq('confirmation_status', 'cancelled').neq('id', appointmentId);
+      if (e2) fail(e2, 'restoreAppointment');
+      const clash = (others || []).some((o) => { const s = o.start_minute != null ? Number(o.start_minute) : Number(o.hour) * 60; return s < end && start < s + (Number(o.duration) || 60); });
+      if (clash) return 'slot-taken';
+      const { error: e3 } = await db.from('appointments').update({ confirmation_status: 'confirmed' }).eq('id', appointmentId).eq('tenant_id', tenantId).eq('confirmation_status', 'cancelled');
+      if (e3) fail(e3, 'restoreAppointment');
+      return 'restored';
     },
     async insertToken(row) {
       const { data, error } = await db.from('grow_card_tokens').insert(row).select('*').single();

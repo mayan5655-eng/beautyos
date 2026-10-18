@@ -37,6 +37,9 @@
 // there is no reason to hand out a history of when a business was busy.
 
 import { createClient } from '@supabase/supabase-js';
+import { growUiEnabled } from '@/lib/grow/adapter';
+import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
+import { cancelDeps } from '@/app/api/grow/_cancel';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { resolveLunch, lunchBusy } from '@/lib/lunchBreak';
 
@@ -87,6 +90,11 @@ export async function GET(request: Request) {
     const today = new Date();
     const horizon = new Date();
     horizon.setDate(horizon.getDate() + HORIZON_DAYS);
+
+    // A deposit hold that ran out frees its slot right here, not only when the cron next runs (lib/grow/cancelFees.releaseExpiredHolds). Best-effort.
+    if (growUiEnabled()) {
+      try { const deps = cancelDeps(); if (deps) await releaseExpiredHolds(deps, tenantId); } catch { /* the cron releases it, or the booking route does */ }
+    }
 
     const { data, error } = await supabase
       .from('appointments')

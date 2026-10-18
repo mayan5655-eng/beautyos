@@ -12,6 +12,7 @@ import { applyNotification, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { randomBytes } from 'node:crypto';
 import { admin } from '../_shared';
+import { afterPaidHook } from '../_cancel';
 
 export const maxDuration = 30;
 
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     const result = await applyNotification(
       raw,
       token,
-      { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+      { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex'), afterPaid: afterPaidHook() },
       creds ? (n) => approveTransaction(n, creds, grow.fetchImpl) : undefined,
     );
     if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
