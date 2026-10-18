@@ -472,6 +472,13 @@ h1, h2, h3 {
   opacity: 1;
   transform: translateY(0);
 }
+/* kl-rise: above-the-fold entrance (Reveal immediate). Moves only - opacity stays 1 - and needs no JavaScript, so the
+   hero headline is readable on first paint. `backwards` holds the start position during the stagger delay. */
+.kl-rise { animation: klRise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+@keyframes klRise {
+  from { transform: translateY(12px); }
+  to { transform: none; }
+}
 /* Visitors with scripting off never get the observer that reveals things: show the finished page. */
 @media (scripting: none) {
   .kl-reveal { opacity: 1; transform: none; transition: none; }
@@ -511,6 +518,7 @@ h1, h2, h3 {
   to { opacity: 0.6; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .kl-rise { animation: none !important; }
   .kl-reveal, .kl-reveal-in {
     opacity: 1 !important;
     transform: none !important;

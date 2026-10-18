@@ -92,18 +92,38 @@ try {
   logoSetting = OURS + '.jpg'; storage = img(opaque, 'image/jpeg');
   let res = await get();
   assert.equal(res.status, 200);
-  assert.equal(res.headers.get('content-type'), 'image/png', 'a knocked-out logo comes back as a PNG');
+  assert.equal(res.headers.get('content-type'), 'image/webp', 'a knocked-out logo comes back as a WebP (keeps the transparency, a fraction of a PNG)');
   const served = Buffer.from(await res.arrayBuffer());
   assert.equal((await px(served, 2, 2))[3], 0, 'the route\'s answer has a transparent corner');
   assert.equal((await px(served, 100, 40))[3], 255, 'and an untouched logo');
   assert.match(res.headers.get('cache-control') || '', /s-maxage=86400/, 'cached at the CDN for a day');
   assert.doesNotMatch(res.headers.get('cache-control') || '', /immutable/, 'never immutable: a new logo is a new URL (?v=), not a purge');
 
-  // already transparent: served byte for byte, not re-encoded
+  // already transparent: not knocked out again, but served at the drawn size as WebP with its transparency intact
   logoSetting = OURS + '.png'; storage = img(cutoutPng, 'image/png');
   res = await get();
   assert.equal(res.status, 200);
-  assert.ok(Buffer.from(await res.arrayBuffer()).equals(cutoutPng), 'a logo that is already a cut-out is served exactly as uploaded');
+  assert.equal(res.headers.get('content-type'), 'image/webp');
+  {
+    const b = Buffer.from(await res.arrayBuffer());
+    const m = await sharp(b).metadata();
+    assert.equal(m.width, 200, 'a small logo is never enlarged');
+    assert.equal((await px(b, 2, 2))[3], 0, 'its own transparency survives');
+    assert.equal((await px(b, 100, 100))[3], 255, 'and so does the logo');
+  }
+
+  // a big upload (found 2026-10-18: a 960 px PNG went out at 850 KB): resized to at most 600 px on its longest side
+  {
+    const big = await sharp({ create: { width: 1800, height: 1200, channels: 4, background: { r: 31, g: 58, b: 48, alpha: 1 } } }).png().toBuffer();
+    logoSetting = OURS + '.png'; storage = img(big, 'image/png');
+    res = await get();
+    assert.equal(res.status, 200);
+    const b = Buffer.from(await res.arrayBuffer());
+    const m = await sharp(b).metadata();
+    assert.equal(m.format, 'webp');
+    assert.deepEqual([m.width, m.height], [600, 400], 'longest side 600, proportions kept');
+    assert.ok(b.length < big.length, 'smaller than what was uploaded');
+  }
 
   // svg: not touched, handed back as a redirect
   logoSetting = OURS + '.svg'; storage = img(Buffer.from('<svg/>'), 'image/svg+xml');

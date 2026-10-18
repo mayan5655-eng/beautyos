@@ -219,7 +219,9 @@ export default function PublicLandingPage({
     // No hero buttons at all (no services, no phone): nothing to duplicate, so the bar shows from the start.
     if (!el) { setHeroCtaVisible(false); return; }
     if (typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setHeroCtaVisible(e.isIntersecting), { threshold: 0 });
+    // "Visible" also while the buttons are still BELOW the fold (a tall hero photo pushes them there on a phone):
+    // the bar is for after she has scrolled past them, not a second copy under them on first load.
+    const io = new IntersectionObserver(([e]) => setHeroCtaVisible(e.isIntersecting || e.boundingClientRect.top > 0), { threshold: 0 });
     io.observe(el);
     return () => io.disconnect();
   }, []);

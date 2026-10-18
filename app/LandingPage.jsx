@@ -126,21 +126,21 @@ export default function LandingPage() {
 
       {/* ── 2. HERO ───────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 720, margin: "0 auto", padding: "34px 20px 10px", textAlign: "center" }}>
-        <Reveal as="h1" className="serif" style={{ fontSize: "var(--t-display, 40px)", fontWeight: 900, color: "var(--brand-accent)", lineHeight: 1.15, letterSpacing: "-0.01em", marginBottom: 14 }}>
+        <Reveal immediate as="h1" className="serif" style={{ fontSize: "var(--t-display, 40px)", fontWeight: 900, color: "var(--brand-accent)", lineHeight: 1.15, letterSpacing: "-0.01em", marginBottom: 14 }}>
           במקום הקמפיינרית, המזכירה ומנהלת הסושיאל
         </Reveal>
-        <Reveal delay={80} style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 26 }}>
+        <Reveal immediate delay={80} style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 26 }}>
           <p>קלמיה עושה את זה בשבילך — תורים, תשלומים ותוכן שיווקי, במקום אחד.</p>
         </Reveal>
-        <Reveal delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+        <Reveal immediate delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
             חודש ראשון חינם <span aria-hidden>←</span>
           </Link>
         </Reveal>
-        <Reveal delay={200} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
+        <Reveal immediate delay={200} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
           <p>בלי כרטיס אשראי</p>
         </Reveal>
-        <Reveal delay={240} style={{ marginTop: 6 }}>
+        <Reveal immediate delay={240} style={{ marginTop: 6 }}>
           <Link href="/demo" className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "underline", textUnderlineOffset: 3 }}>
             רוצה להציץ קודם? כניסה לדמו
           </Link>

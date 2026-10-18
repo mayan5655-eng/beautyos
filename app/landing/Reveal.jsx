@@ -10,10 +10,17 @@
 //
 // prefers-reduced-motion: rendered fully visible immediately, no observer,
 // no class ever toggled - not a shortened animation, no animation at all.
+//
+// `immediate` (the hero, above the fold): never hidden. It used to start at
+// opacity 0 like everything else and wait for this component's JavaScript and
+// the observer, so the page's main headline was the LAST thing to appear on a
+// slow phone, and stayed faded wherever the transition did not run (found
+// 2026-10-18: the live headline measured opacity 0.26). Now it is a CSS-only
+// rise (transform, no opacity) that plays on first paint, with or without JS.
 
 import { useEffect, useRef, useState } from "react";
 
-export default function Reveal({ as: Tag = "div", delay = 0, className = "", style, children, ...rest }) {
+export default function Reveal({ as: Tag = "div", delay = 0, immediate = false, className = "", style, children, ...rest }) {
   const ref = useRef(null);
   const [shown, setShown] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -30,6 +37,7 @@ export default function Reveal({ as: Tag = "div", delay = 0, className = "", sty
       setShown(true);
       return;
     }
+    if (immediate) return; // visible from the server HTML on; nothing to observe
 
     const el = ref.current;
     if (!el) return;
@@ -47,6 +55,19 @@ export default function Reveal({ as: Tag = "div", delay = 0, className = "", sty
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  if (immediate) {
+    return (
+      <Tag
+        ref={ref}
+        className={`${className} kl-rise`.trim()}
+        style={{ ...style, animationDelay: `${delay}ms` }}
+        {...rest}
+      >
+        {children}
+      </Tag>
+    );
+  }
 
   return (
     <Tag
