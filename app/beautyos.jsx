@@ -21,9 +21,10 @@ import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
 import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
-import TrialBanner from "./TrialBanner";
 import TrialNudge from "./TrialNudge";
 import ClientPrivacyPanel from "./ClientPrivacyPanel";
+import BillingNotices from "./BillingNotices";
+const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
@@ -8109,7 +8110,7 @@ ${MARKETING_FOOTER}`)}`;
               property of the account, not of a screen, so it stays put and does
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
- <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
+ <BillingNotices plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenBilling={()=>{setSettingsGroup("business");openSettings();}}/>
  {((deferred.history==="loading"&&histSlow)||deferred.history==="error"||deferred.leads==="error")&&(
  <div role="status" data-testid="history-strip" style={{maxWidth:1180,margin:"0 auto 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>
  {(deferred.history==="error"||deferred.leads==="error")
@@ -11325,6 +11326,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{padding:"16px 24px",overflowY:"auto",flex:1}}>
               {inG("business","clients","connections","advanced")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+ {inG("business")&&(<BillingCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {inG("connections")&&(<>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>פייסבוק ואינסטגרם</p>

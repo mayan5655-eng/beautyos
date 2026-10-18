@@ -25,6 +25,7 @@ import AdminClient, { type AdminTenantRow } from './AdminClient'
 import OpsEvents from './OpsEvents'
 import GrowOnboarding from './GrowOnboarding'
 import GrowRequests from './GrowRequests'
+import BillingAdmin from './BillingAdmin'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -120,6 +121,7 @@ export default async function AdminPage() {
       {/* Grow merchant-onboarding updates from /api/grow/webhook: read-only, masked ids. */}
       <GrowOnboarding db={db} />
       <GrowRequests db={db} />
+      <BillingAdmin db={db} />
     </>
   )
 }
