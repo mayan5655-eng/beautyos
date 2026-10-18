@@ -59,7 +59,44 @@ const loadImage = (file: Blob): Promise<HTMLImageElement> =>
  * SVG is returned untouched: it is already small, it is resolution-independent,
  * and rasterising it would make it worse.
  */
+/**
+ * Second try, for the photos the <img> path cannot handle (a very large photo on a phone that runs out of memory
+ * decoding it at full size): createImageBitmap can decode straight to the target size. 'contain' only, and only where
+ * the browser supports it; anything else is null and the caller keeps the original, as before.
+ */
+async function resizeViaBitmap(file: Blob, maxWidth: number, maxHeight: number, type: string, quality: number): Promise<Blob | null> {
+  if (typeof createImageBitmap !== 'function') return null;
+  try {
+    const probe = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+    const scale = Math.min(1, maxWidth / probe.width, maxHeight / probe.height);
+    const dw = Math.max(1, Math.round(probe.width * scale)), dh = Math.max(1, Math.round(probe.height * scale));
+    probe.close?.();
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image', resizeWidth: dw, resizeHeight: dh, resizeQuality: 'high' } as ImageBitmapOptions);
+    const canvas = document.createElement('canvas');
+    canvas.width = dw; canvas.height = dh;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    if (type === 'image/jpeg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, dw, dh); }
+    ctx.drawImage(bmp, 0, 0, dw, dh);
+    bmp.close?.();
+    return await new Promise<Blob | null>((res) => canvas.toBlob(res, type, quality));
+  } catch {
+    return null;
+  }
+}
+
 export async function resizeImage(file: File, opts: ResizeOptions): Promise<Blob> {
+  const out = await resizeImageOnce(file, opts);
+  // The <img> path failed open (handed back the original) on a file that still needs shrinking: try the bitmap path.
+  if (out === file && (opts.mode ?? 'contain') === 'contain' && !/svg/i.test(file.type) && typeof document !== 'undefined'
+      && (file.size > 1_500_000 || !/^image\/(jpeg|png|webp)$/i.test(file.type))) {
+    const second = await resizeViaBitmap(file, opts.maxWidth, opts.maxHeight, opts.type ?? 'image/jpeg', opts.quality ?? 0.82);
+    if (second && second.size < file.size) return second;
+  }
+  return out;
+}
+
+async function resizeImageOnce(file: File, opts: ResizeOptions): Promise<Blob> {
   const { maxWidth, maxHeight, mode = 'contain', quality = 0.82, type = 'image/jpeg', focusY = 0.5 } = opts;
   if (typeof document === 'undefined') return file;
   if (/svg/i.test(file.type)) return file;

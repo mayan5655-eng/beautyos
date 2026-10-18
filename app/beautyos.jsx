@@ -4395,9 +4395,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // PNG, because flattening a transparent logo onto white JPEG gives her a
   // white rectangle everywhere the page is not white.
   //
-  // The 3MB check stays as an INPUT guard. It is about what her phone can
-  // decode without falling over, not about what leaves it, and the resize
-  // cannot run until the file has been read.
+  // The check on the picked file (MAX_SOURCE_BYTES, 25 MB) is an INPUT guard: it is about what her phone can
+  // decode without falling over, not about what leaves it. What leaves it is checked after resizing
+  // (notUploadable). It was 3 MB until 2026-10-18 and refused ordinary phone photos.
   const uploadOne = async (file, preset, tid, name) => {
     const blob = await resizeImage(file, preset);
     // resizeImage fails open; a phone that could not decode the photo must not send the 20 MB original.
@@ -11539,7 +11539,7 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setBrand(key,"")} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 12px",fontSize:"var(--t-xs)",fontWeight:600,color:"var(--danger)",cursor:"pointer",fontFamily:"inherit"}}>הסרה</button>
  </div>
                   ):(
- <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-sm)",padding:"14px",textAlign:"center",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading===key?<Spinner inline label="מעלה"/>:"העלאת תמונה (PNG/JPG, עד 3MB)"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
+ <label style={{display:"block",border:"1.5px dashed var(--line-2)",borderRadius:"var(--r-sm)",padding:"14px",textAlign:"center",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,background:"var(--surface-2)"}}>{brandUploading===key?<Spinner inline label="מעלה"/>:"העלאת תמונה"}<input type="file" accept="image/*" disabled={!!brandUploading} style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)uploadBrandAsset(f,key);e.target.value="";}}/></label>
                   )
                 );
                 return(
