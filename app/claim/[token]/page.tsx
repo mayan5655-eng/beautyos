@@ -15,7 +15,7 @@ import { PublicPage, BusinessHeader, LineIcon } from "../../PublicChrome";
 // tenant's colour is applied the whole page follows it.
 import { PC_SOFT, MUTED, ICON_CALENDAR, ICON_HEART, ICON_SPARKLE, ICON_QUESTION } from '@/lib/brand';
 
-const INK = 'var(--ink, #2A2233)';
+const INK = 'var(--ink, #1F3A30)';
 
 type Details = {
   service?: string | null;

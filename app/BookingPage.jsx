@@ -97,7 +97,7 @@ function Photo({ src, style, eager = false, sizes = "(max-width: 540px) 100vw, 5
   const [badSrc, setBadSrc] = useState(null);
   const bad = badSrc === src;
   if (!src || bad) {
-    return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #FDF6F6) 0%, var(--brand-cream, #FDFBF9) 100%)" }} />;
+    return <div aria-hidden="true" style={{ ...style, background: "linear-gradient(135deg, var(--pc-tint, #FDF6F6) 0%, var(--brand-cream, #FBF8F1) 100%)" }} />;
   }
   return (
     <div style={{ position: "relative", overflow: "hidden", ...style }}>
@@ -129,7 +129,7 @@ function SectionTitle({ children }) {
       </svg>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <span aria-hidden="true" style={{ flex: 1, height: 1, background: HAIR }} />
-        <h2 className="serif" style={{ margin: 0, fontSize: "var(--t-xl)", fontWeight: 600, color: "var(--ink, #2A2233)", lineHeight: 1.3 }}>{children}</h2>
+        <h2 className="serif" style={{ margin: 0, fontSize: "var(--t-xl)", fontWeight: 600, color: "var(--ink, #1F3A30)", lineHeight: 1.3 }}>{children}</h2>
         <span aria-hidden="true" style={{ flex: 1, height: 1, background: HAIR }} />
       </div>
     </div>
@@ -213,14 +213,14 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!r) return null;
-  const arrow = { background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--t-xl)", color: "var(--ink, #2A2233)", padding: "4px 14px" };
+  const arrow = { background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--t-xl)", color: "var(--ink, #1F3A30)", padding: "4px 14px" };
   return (
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(20,15,25,0.84)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FDFBF9)", borderRadius: "var(--r-card)", padding: 14 }}>
+        style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FBF8F1)", borderRadius: "var(--r-card)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
-          <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #2A2233)" }}>{title}</p>
+          <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #1F3A30)" }}>{title}</p>
           <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
         </div>
         <div style={{ width: "min(100%, calc(66vh * 0.75))", margin: "0 auto" }}>
@@ -234,7 +234,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
           )}
         </div>
         {(r.caption || r.sessions) && (
-          <p style={{ margin: "12px 0 0", fontSize: "var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.6, textAlign: "center" }}>
+          <p style={{ margin: "12px 0 0", fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.6, textAlign: "center" }}>
             {r.caption}
             {r.caption && r.sessions ? " · " : ""}
             {r.sessions ? r.sessions + " טיפולים" : ""}
@@ -595,7 +595,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Loading state
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FDFBF9)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pcText }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FBF8F1)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pcText }}>
         ✦ טוען
       </div>
     );
@@ -604,7 +604,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Invalid / missing tenant - show a friendly message instead of the wrong data
   if (tenantError) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FDFBF9) 0%, var(--brand-cream, #FDFBF9) 100%)", padding: 24, textAlign: "center" }}>
+      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FBF8F1) 0%, var(--brand-cream, #FBF8F1) 100%)", padding: 24, textAlign: "center" }}>
         {/* No valid tenant resolved here, so there is no "her" accent to
             preserve - this is Kalmea chrome, not her content, hence the
             flower mark instead of a pc-colored glyph. */}
@@ -715,13 +715,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   };
 
   // === refined style tokens (premium / luxury visual layer) ===
-  const ink = "var(--ink, #2A2233)";
+  const ink = "var(--ink, #1F3A30)";
   const muted = "var(--brand-muted, #7D8D87)";
   const faint = "var(--brand-muted, #7D8D87)";
   const hair = "rgba(233,169,161,0.14)";
   // One shape for every "here is why this is empty" line on the page.
-  const noticeBox = { background: "var(--brand-cream, #FDFBF9)", border: `1px solid ${hair}`, borderRadius:"var(--r-sm)", padding: "10px 13px", marginBottom: 12, fontSize:"var(--t-sm)", lineHeight: 1.6, color: ink };
-  const cream = "var(--brand-cream, #FDFBF9)";
+  const noticeBox = { background: "var(--brand-cream, #FBF8F1)", border: `1px solid ${hair}`, borderRadius:"var(--r-sm)", padding: "10px 13px", marginBottom: 12, fontSize:"var(--t-sm)", lineHeight: 1.6, color: ink };
+  const cream = "var(--brand-cream, #FBF8F1)";
   // ── type scale ───────────────────────────────────────────────────────────
   // display / body / meta. Nothing between them, because a size that is nearly
   // another size is just noise. Hebrew carries more leading than Latin at the
@@ -745,7 +745,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
 
   return (
-    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9) 0%,var(--brand-cream, #FDFBF9) 55%,var(--brand-cream, #FDFBF9) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FBF8F1) 0%,var(--brand-cream, #FBF8F1) 55%,var(--brand-cream, #FBF8F1) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
@@ -1030,7 +1030,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <div style={{ fontSize:"var(--t-md)", color: pcText, letterSpacing: 1.5, marginBottom: 10 }}>
                         {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= (Number(rv.rating) || 5) ? "★" : "☆"}</span>)}
                       </div>
-                      {rv.text && <p className="serif" style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
+                      {rv.text && <p className="serif" style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.75, marginBottom: 12, fontStyle: "italic" }}>“{rv.text}”</p>}
                       {rv.name && <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: muted, letterSpacing: "1px" }}>— {rv.name}</p>}
                     </div>
                   ))}
@@ -1058,7 +1058,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 return (
                   <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius:"var(--r-sm)", background: today ? "var(--pc-tint)" : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
                     <span style={{ fontSize:"var(--t-md)", color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
-                    <span style={{ fontSize:"var(--t-md)", color: v ? (today ? deep : "var(--ink, #2A2233)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: v ? (today ? deep : "var(--ink, #1F3A30)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
                   </div>
                 );
               })}
@@ -1070,7 +1070,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div style={{ ...section }}>
               <div>
                 {eyebrow("מיקום")}
-                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
                 {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--pc-tint)", color: deep, textDecoration: "none", padding: "11px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", border: "1px solid var(--pc-soft)" }}>ניווט במפות Google</a>}
               </div>
             </div>
@@ -1124,7 +1124,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                           </span>
                         </div>
                         {p.title && <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
-                        {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                        {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.75, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                         {p.cta_label && (
                           wa ? (
                             <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer"
@@ -1153,7 +1153,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       {step === 1 && barShown && (
         <div style={{ position: "fixed", insetInline: 0, bottom: 0, zIndex: 60,
           padding: "14px 20px calc(14px + env(safe-area-inset-bottom, 0px))",
-          background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FDFBF9) 38%)" }}>
+          background: "linear-gradient(180deg, rgba(254,250,247,0) 0%, var(--brand-cream, #FBF8F1) 38%)" }}>
           {wa ? (
             <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)", textDecoration: "none",
@@ -1267,7 +1267,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FDFBF9)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--brand-surface, #FDFBF9)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--brand-surface, #FDFBF9)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
                           </button>
                         );
@@ -1356,7 +1356,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div className="bk-card" style={{ textAlign: "center", paddingTop: 24 }}>
                 <div style={{ fontSize:"var(--t-hero)", marginBottom: 14, color: pcText }}>✦</div>
                 <h2 className="serif" style={{ fontSize:"var(--t-3xl)", fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>התור נקבע!</h2>
-                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.7, marginBottom: 22 }}>
+                <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.7, marginBottom: 22 }}>
                   נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}
                 </p>
                 <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>

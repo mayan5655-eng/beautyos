@@ -39,8 +39,13 @@ So, before calling anything verified:
 
 ## 2. Brand
 
-- Palette: deep green `#1F3A30`, petal pink `#E9A9A1`, cream `#FBF8F1`, pale
-  petal `#FBEDE9`, sage `#DCE4D5`.
+- Palette (the Kalmea Instagram look): cream `#FBF8F1` page background, deep
+  green `#1F3A30` for text and primary buttons, petal pink `#E9A9A1` for
+  accents, pale petal `#FBEDE9` and sage `#DCE4D5` for soft washes. The ONLY
+  place these are defined is the `--k-*` block at the top of `app/globals.css`;
+  `--bg`, `--ink`, `--brand-*` all derive from it. Change a colour there and
+  nowhere else. Contrast is checked: green on cream 11.6:1, `--ink-2` 7.1:1,
+  `--ink-3` 5.6:1 on cream, so any new text colour must stay at 4.5:1 or more.
 - Type: Frank Ruhl Libre for headings and numbers, Assistant for body, Gveret
   Levin for handwritten accents.
 - The cosmos flower is a quiet mark — watermark, divider, empty-state glyph, or

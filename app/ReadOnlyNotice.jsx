@@ -26,7 +26,7 @@ export default function ReadOnlyNotice({ plan }) {
       style={{
         maxWidth: 900,
         margin: "0 0 20px",
-        background: "var(--brand-cream, #FDFBF9)",
+        background: "var(--brand-cream, #FBF8F1)",
         border: "1px solid var(--line)",
         borderRadius:"var(--r-md)",
         padding: "16px 18px",

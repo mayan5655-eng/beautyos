@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import { buildAccentTokens, contrastRatio, readableAccentText, DEFAULT_ACCENT } from './lib/theme.ts';
 
 const WHITE = '#FFFFFF';
-const CREAM = '#F0EADE';
+const CREAM = '#FBF8F1';
 
 // The default, the swatches she is offered, and the worst cases: very light,
 // very saturated, near-white, mid-grey.

@@ -93,7 +93,7 @@ const hslToHex = (h: number, s: number, l: number): string => {
   return `#${[r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('')}`;
 };
 export function readableAccentText(accent: string, min = 4.6): string {
-  const surfaces = ['#FFFFFF', '#F0EADE'];
+  const surfaces = ['#FFFFFF', '#FBF8F1'];
   const ok = (hex: string) => surfaces.every((bg) => contrastRatio(hex, bg) >= min);
   const start = darken(accent, 0.16);
   if (ok(start)) return start;

@@ -24,7 +24,7 @@ import { Watermark, PoweredBy } from "../PublicChrome";
 const ACCENT = "var(--pc)";
 const DEEP = "var(--pc-deep)";
 const ON_ACCENT = "var(--pc-contrast, #FFFFFF)";
-const INK = "var(--ink, #2A2233)";
+const INK = "var(--ink, #1F3A30)";
 const INK2 = "var(--brand-muted, #7D8D87)";
 const LINE = "var(--pc-soft)";
 
@@ -240,7 +240,7 @@ export default function SkinScanPage() {
   );
 
   return (
-    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant),'Assistant',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FDFBF9) 0%,var(--brand-cream, #FDFBF9) 55%,var(--brand-cream, #FDFBF9) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant),'Assistant',sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FBF8F1) 0%,var(--brand-cream, #FBF8F1) 55%,var(--brand-cream, #FBF8F1) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 54px", color: INK, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank),'Frank Ruhl Libre',var(--font-assistant),serif; }
@@ -314,7 +314,7 @@ export default function SkinScanPage() {
                 { key: "left", label: "פרופיל שמאל", req: false, thumb: leftPreview, onPick: () => leftRef.current?.click() },
                 { key: "right", label: "פרופיל ימין", req: false, thumb: rightPreview, onPick: () => rightRef.current?.click() },
               ].map((a) => (
-                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius:"var(--r-md)", overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #FDF6F6)`, background: a.thumb ? "var(--brand-surface, #FDFBF9)" : "linear-gradient(180deg,var(--brand-cream, #FDFBF9),var(--brand-cream, #FDFBF9))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius:"var(--r-md)", overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #FDF6F6)`, background: a.thumb ? "var(--brand-surface, #FDFBF9)" : "linear-gradient(180deg,var(--brand-cream, #FBF8F1),var(--brand-cream, #FBF8F1))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                   {a.thumb ? (
                     <>
                       <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
@@ -339,7 +339,7 @@ export default function SkinScanPage() {
             <input ref={rightRef} type="file" accept="image/*" capture="user" onChange={(e) => handleSide(e, "right")} style={{ display: "none" }} />
 
             {!preview && !loading && (
-              <div style={{ background: "var(--brand-cream, #FDFBF9)", border: `1px solid ${LINE}`, borderRadius:"var(--r-md)", padding: "12px 14px", marginBottom: 16, textAlign: "right" }}>
+              <div style={{ background: "var(--brand-cream, #FBF8F1)", border: `1px solid ${LINE}`, borderRadius:"var(--r-md)", padding: "12px 14px", marginBottom: 16, textAlign: "right" }}>
                 <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: DEEP, marginBottom: 7 }}>לתוצאה הכי מדויקת</p>
                 {[["sun", "אור טבעי ורך, פנים אל מול האור"], ["smile", "פנים במרכז התמונה, מבט למצלמה"], ["drop", "ללא איפור, שיער אסוף"]].map(([ic, tx], i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: i < 2 ? 6 : 0 }}>
@@ -376,7 +376,7 @@ export default function SkinScanPage() {
           <div className="ss-card">
 
             {/* MEDICAL DISCLAIMER — clear + visible at the very top of the results */}
-            <div style={{ ...card, background: "var(--brand-cream, #FDFBF9)", border: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ ...card, background: "var(--brand-cream, #FBF8F1)", border: `1px solid ${LINE}`, display: "flex", gap: 10, alignItems: "flex-start" }}>
               <span style={{ fontSize:"var(--t-lg)", flexShrink: 0, marginTop: 1 }}>ℹ️</span>
               <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", lineHeight: 1.6, fontWeight: 500 }}>הסריקה נועדה להתרשמות ראשונית בלבד ואינה מחליפה ייעוץ או אבחון מקצועי. אין להסתמך על ההמלצות כאבחנה סופית.</p>
             </div>
@@ -392,7 +392,7 @@ export default function SkinScanPage() {
             </div>
 
             {/* 2) POSITIVE OBSERVATIONS — build confidence first (from the real score band) */}
-            <div style={{ ...card, background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FDFBF9))", border: "1px solid rgba(70,179,123,0.12)" }}>
+            <div style={{ ...card, background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FBF8F1))", border: "1px solid rgba(70,179,123,0.12)" }}>
               <p style={{ ...sectionLabel, color: "var(--success, #46B37B)" }}>החדשות הטובות</p>
               <p style={{ fontSize:"var(--t-md)", color: "var(--success, #46B37B)", lineHeight: 1.65, fontWeight: 500 }}>{positiveNote(report.score)}</p>
             </div>
@@ -403,7 +403,7 @@ export default function SkinScanPage() {
                 <p style={sectionLabel}>מה שכדאי לשים לב אליו</p>
                 {concerns.map((c, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "10px 0", borderTop: i > 0 ? `1px solid ${LINE}` : "none" }}>
-                    <span style={{ width: 24, height: 24, borderRadius:"var(--r-xs)", flexShrink: 0, background: "var(--brand-cream, #FDFBF9)", color: ACCENT, fontSize:"var(--t-sm)", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{i + 1}</span>
+                    <span style={{ width: 24, height: 24, borderRadius:"var(--r-xs)", flexShrink: 0, background: "var(--brand-cream, #FBF8F1)", color: ACCENT, fontSize:"var(--t-sm)", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>{i + 1}</span>
                     <div>
                       <p style={{ fontSize:"var(--t-md)", color: INK, lineHeight: 1.55, fontWeight: 500 }}>{c}</p>
                       <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", marginTop: 2 }}>ניתן לשיפור עם ליווי וטיפול מותאם</p>
@@ -415,7 +415,7 @@ export default function SkinScanPage() {
 
             {/* 4) PRIORITY — what to focus on first (the top concern) */}
             {priority && (
-              <div style={{ ...card, background: "var(--brand-cream, #FDFBF9)", borderColor: LINE }}>
+              <div style={{ ...card, background: "var(--brand-cream, #FBF8F1)", borderColor: LINE }}>
                 <p style={sectionLabel}>במה נתמקד קודם</p>
                 <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, lineHeight: 1.5 }}>{priority}</p>
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", lineHeight: 1.6, marginTop: 5 }}>מכאן הכי כדאי להתחיל. הטיפול שנמליץ עליו מטפל בדיוק בזה.</p>
@@ -435,7 +435,7 @@ export default function SkinScanPage() {
 
             {/* 6) EXPECTED BENEFIT — from clinic_plan.expected_results (real data) */}
             {plan.expected_results && (
-              <div style={{ ...card, borderColor: "rgba(70,179,123,0.12)", background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FDFBF9))" }}>
+              <div style={{ ...card, borderColor: "rgba(70,179,123,0.12)", background: "linear-gradient(180deg,rgba(70,179,123,0.12),var(--brand-cream, #FBF8F1))" }}>
                 <p style={{ ...sectionLabel, color: "var(--success, #46B37B)" }}>מה אפשר לצפות</p>
                 <p style={{ fontSize:"var(--t-md)", color: "var(--success, #46B37B)", lineHeight: 1.7 }}>{plan.expected_results}</p>
               </div>
@@ -465,7 +465,7 @@ export default function SkinScanPage() {
             )}
 
             {/* 7) NEXT STEP — Book (primary, always reachable) + WhatsApp (secondary) */}
-            <div style={{ ...card, background: "linear-gradient(140deg,var(--brand-cream, #FDFBF9),var(--brand-cream, #FDFBF9))", borderColor: LINE, textAlign: "center" }}>
+            <div style={{ ...card, background: "linear-gradient(140deg,var(--brand-cream, #FBF8F1),var(--brand-cream, #FBF8F1))", borderColor: LINE, textAlign: "center" }}>
               <p style={sectionLabel}>הצעד הבא</p>
               <p style={{ fontSize:"var(--t-md)", color: DEEP, fontWeight: 700, marginBottom: 4 }}>מוכנה להתחיל?</p>
               <p style={{ fontSize:"var(--t-sm)", color: "var(--brand-muted, #7D8D87)", lineHeight: 1.6, marginBottom: 14 }}>נשריין לך תור לטיפול המומלץ. הפרטים שלך כבר נשמרים.</p>
@@ -494,7 +494,7 @@ export default function SkinScanPage() {
             </div>
 
             {/* TRUST — reassuring, honest */}
-            <div style={{ ...card, background: "var(--brand-cream, #FDFBF9)", borderColor: LINE }}>
+            <div style={{ ...card, background: "var(--brand-cream, #FBF8F1)", borderColor: LINE }}>
               <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: DEEP, marginBottom: 6 }}>איך זה עובד</p>
               {["הניתוח מבוסס על התמונה והמידע שהעלית.", "התוצאות מיועדות כהכוונה קוסמטית מקצועית, לא כאבחון רפואי.", "פגישת ייעוץ בקליניקה תאפשר התאמה אישית מלאה עבורך."].map((t, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: i < 2 ? 5 : 0 }}>
@@ -509,11 +509,11 @@ export default function SkinScanPage() {
               <>
                 <button onClick={() => setShowPro(!showPro)} className="ss-btn" style={{ width: "100%", padding: "11px 0", borderRadius:"var(--r-sm)", background: "transparent", color: INK2, fontSize:"var(--t-sm)", fontWeight: 600, border: `1px solid ${LINE}`, marginBottom: 12 }}>{showPro ? "הסתרת החלק המקצועי" : "חלק מקצועי למטפלת"}</button>
                 {showPro && (
-                  <div className="ss-fade" style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-md)", padding: "18px", border: "1px solid var(--pc-tint, #FDF6F6)", marginBottom: 14 }}>
+                  <div className="ss-fade" style={{ background: "var(--brand-cream, #FBF8F1)", borderRadius:"var(--r-md)", padding: "18px", border: "1px solid var(--pc-tint, #FDF6F6)", marginBottom: 14 }}>
                     <p style={{ fontSize:"var(--t-md)", fontWeight: 800, color: "var(--pc, #E9A9A1)", marginBottom: 12 }}>הערות קליניות למטפלת</p>
-                    {pro.skin_assessment && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 3 }}>הערכת עור</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.skin_assessment}</p></div>)}
-                    {pro.active_ingredients?.length > 0 && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 5 }}>מרכיבים פעילים מומלצים</p>{pro.active_ingredients.map((a, i) => (<div key={i} style={{ display: "flex", gap: 7, marginBottom: 4 }}><span style={{ fontSize:"var(--t-sm)", color: "var(--pc, #E9A9A1)", flexShrink: 0 }}>•</span><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.5 }}>{a}</p></div>))}</div>)}
-                    {pro.protocol && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 3 }}>פרוטוקול טיפול</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.55 }}>{pro.protocol}</p></div>)}
+                    {pro.skin_assessment && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 3 }}>הערכת עור</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.55 }}>{pro.skin_assessment}</p></div>)}
+                    {pro.active_ingredients?.length > 0 && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 5 }}>מרכיבים פעילים מומלצים</p>{pro.active_ingredients.map((a, i) => (<div key={i} style={{ display: "flex", gap: 7, marginBottom: 4 }}><span style={{ fontSize:"var(--t-sm)", color: "var(--pc, #E9A9A1)", flexShrink: 0 }}>•</span><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.5 }}>{a}</p></div>))}</div>)}
+                    {pro.protocol && (<div style={{ marginBottom: 12 }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--pc, #E9A9A1)", marginBottom: 3 }}>פרוטוקול טיפול</p><p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.55 }}>{pro.protocol}</p></div>)}
                     {pro.cautions && (<div style={{ background: "rgba(224,91,111,0.10)", borderRadius:"var(--r-sm)", padding: "10px 12px", border: "1px solid rgba(224,91,111,0.10)" }}><p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: "var(--danger, #E05B6F)", marginBottom: 3 }}>אזהרות / תשומת לב</p><p style={{ fontSize:"var(--t-sm)", color: "var(--danger, #E05B6F)", lineHeight: 1.5 }}>{pro.cautions}</p></div>)}
                   </div>
                 )}

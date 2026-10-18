@@ -23,14 +23,21 @@ ok('the listed ranges add up to the figure on the page', () => {
   assert.equal(rows.reduce((s, r) => s + r[1], 0), 10068);
 });
 
-ok('Kalmea price is shown, with the first-members line and no promise of limited spots', () => {
+ok('Kalmea price is shown: launch price 349 with no end date, regular price 499, no promise of limited spots', () => {
   assert.match(page, /499 ₪/);
-  assert.match(page, /349 ₪ לחודש למצטרפות עד 20.10.2026/);
-  assert.match(page, /המחיר נשאר כל עוד המנוי פעיל ברציפות./);
-  assert.doesNotMatch(page, /לכל החיים/, 'the terms say the price holds while the subscription stays active, so the page must not say "for life"');
-  assert.match(page, /LAUNCH_PRICE_CUTOFF_ISO/, 'the launch price is only shown while it can still be had');
+  assert.match(page, /מחיר השקה 349 ₪/);
+  assert.doesNotMatch(page, /20\.10\.2026|LAUNCH_PRICE_CUTOFF_ISO|Date\.now\(\)\s*<=/, 'the launch price has no end date and no automatic expiry');
+  assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
   assert.doesNotMatch(page, /לחברות הראשונות/);
   assert.doesNotMatch(page, /מקומות|מוגבל|עד שיגמר|רק ל-\d+ /);
+});
+
+ok('the terms page matches the landing: launch price 349, regular 499, no end date', () => {
+  const terms = readFileSync('app/terms/page.tsx', 'utf8');
+  assert.match(terms, /349 ₪ לחודש/);
+  assert.match(terms, /499 ₪ לחודש/);
+  assert.doesNotMatch(terms, /20\.10\.2026/);
+  assert.doesNotMatch(terms, /לכל החיים/);
 });
 
 ok('"no credit card" sits next to both sign-up buttons', () => {

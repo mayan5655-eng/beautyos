@@ -479,13 +479,13 @@ export default function OnboardingPage() {
                   is not a legal receipt. The real disclosure text already lives
                   in Settings → תשלום and on every receipt/WhatsApp message - this
                   is just the first time she hears it, early enough to matter. */}
-              <div style={{ background: "var(--brand-cream, #FDFBF9)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
+              <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
                 שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
               </div>
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
-                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FDFBF9)" }} />
+                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FBF8F1)" }} />
                   <input
                     className="ob-input"
                     value={data.primary_color}
@@ -531,7 +531,7 @@ export default function OnboardingPage() {
               </div>
 
               {data.business_fields.length === 0 ? (
-                <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+                <div style={{ background: "var(--brand-cream, #FBF8F1)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                   בחרי את התחום שלך כדי שנציע לך טיפולים מתאימים.
                 </div>
               ) : (
@@ -617,7 +617,7 @@ export default function OnboardingPage() {
                   />
                 </Field>
               </div>
-              <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <div style={{ background: "var(--brand-cream, #FBF8F1)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
                 {`כמעט סיימנו, עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
               </div>
             </>
@@ -743,7 +743,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   outline: "none",
   direction: "rtl",
-  background: "var(--brand-cream, #FDFBF9)",
+  background: "var(--brand-cream, #FBF8F1)",
   color: "var(--ink)",
   transition: "border-color 0.15s, background 0.15s",
 };

@@ -18,16 +18,16 @@
 // large background — the ads have one dark layout and the app gets none of
 // it. --cream is the page background everywhere; --surface (white) is cards
 // only. See app/globals.css's :root for the full comment.
-export const ACCENT = 'var(--brand-accent, #183024)'
-export const DEEP = 'var(--brand-deep, #183024)'
-export const ROSE = 'var(--brand-rose, #F0CCC6)'
+export const ACCENT = 'var(--brand-accent, #1F3A30)'
+export const DEEP = 'var(--brand-deep, #1F3A30)'
+export const ROSE = 'var(--brand-rose, #E9A9A1)'
 export const LILAC = 'var(--brand-lilac, #DCE4D5)'
-export const CREAM = 'var(--brand-cream, #F0EADE)'
+export const CREAM = 'var(--brand-cream, #FBF8F1)'
 export const TINT = 'var(--brand-tint, #F0DDD3)'
 export const SURFACE = 'var(--brand-surface, #FFFFFF)'
 export const MUTED = 'var(--brand-muted, #656A56)'
 export const CONTRAST = 'var(--brand-contrast, #FFFFFF)'
-export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #183024 0%, #F0CCC6 100%))'
+export const GRAD = 'var(--brand-grad, linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%))'
 
 // Rose — "the one word that matters in a heading", and handwriting accents.
 // HIGHLIGHT is pixel-sampled from "פחות דברים לזכור" in ad-checklist.png,

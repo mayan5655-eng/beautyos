@@ -19,7 +19,6 @@ import {
 import BrandImage from "@/app/BrandImage";
 import PublicFooterLinks from "./PublicFooterLinks";
 import { supportWhatsAppUrl } from "@/lib/support";
-import { LAUNCH_PRICE_CUTOFF_ISO } from "@/lib/ownerControl";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -180,11 +179,8 @@ export default function LandingPage() {
           <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
             499 ₪ <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
           </p>
-          {/* The launch price is only advertised while it can still be had: after the cutoff the page shows the regular price alone. */}
-          {Date.now() <= Date.parse(LAUNCH_PRICE_CUTOFF_ISO) && (<>
-            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>349 ₪ לחודש למצטרפות עד 20.10.2026</p>
-            <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>המחיר נשאר כל עוד המנוי פעיל ברציפות.</p>
-          </>)}
+          {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה 349 ₪</p>
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
         </Reveal>
       </section>

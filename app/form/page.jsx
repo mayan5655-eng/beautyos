@@ -188,7 +188,7 @@ export default function FormPage() {
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(x, y);
-    ctx.strokeStyle = "var(--ink, #2A2233)";
+    ctx.strokeStyle = "var(--ink, #1F3A30)";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.stroke();
@@ -257,16 +257,16 @@ export default function FormPage() {
   // Conflating "could not load" with "does not exist" is what made this page's
   // failure invisible for months.
   if (loadError === "failed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FDFBF9)",padding:24,textAlign:"center"}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
       <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>לא הצלחנו לטעון את הטופס</h2>
+      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>לא הצלחנו לטעון את הטופס</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",marginBottom:20,maxWidth:320,lineHeight:1.7}}>
         הטופס קיים, פשוט לא הצלחנו להביא אותו כרגע. אפשר לנסות שוב.
       </p>
       <button
         type="button"
         onClick={() => formId && loadForm(formId)}
-        style={{padding:"12px 28px",borderRadius:"var(--r-full)",border:"none",background:"var(--ink, #2A2233)",color:"#fff",fontSize:"var(--t-lg)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
+        style={{padding:"12px 28px",borderRadius:"var(--r-full)",border:"none",background:"var(--ink, #1F3A30)",color:"#fff",fontSize:"var(--t-lg)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
       >
         נסי שוב
       </button>
@@ -283,9 +283,9 @@ export default function FormPage() {
   // and NOT the same as a missing form - saying "not found" here sends her
   // chasing a link that is perfectly fine.
   if (!formTemplate) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FDFBF9)",padding:24,textAlign:"center"}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
       <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>לא הצלחנו להציג את הטופס</h2>
+      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>לא הצלחנו להציג את הטופס</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",maxWidth:320,lineHeight:1.7}}>
         סוג הטופס אינו מוכר למערכת. כדאי לפנות לעסק ששלח לך את הקישור.
       </p>
@@ -293,17 +293,17 @@ export default function FormPage() {
   );
 
   if (submitted) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FDFBF9)",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
       <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #2A2233)",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
+      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)"}}>תודה {formData.client_name}, הטופס נשמר בכרטיס שלך</p>
     </div>
   );
 
   if (formData.status === "signed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FDFBF9)",padding:24}}>
+    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
       <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #2A2233)"}}>הטופס כבר נחתם</h2>
+      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)"}}>הטופס כבר נחתם</h2>
     </div>
   );
 
@@ -311,7 +311,7 @@ export default function FormPage() {
   const progress = Math.round((answeredCount / formTemplate.questions.length) * 100);
 
   return (
-    <div dir="rtl" style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FDFBF9)",minHeight:"100dvh",padding:"24px 16px"}}>
+    <div dir="rtl" style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FBF8F1)",minHeight:"100dvh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
 
         {/* Brand row: her logo at natural aspect (contain, capped, never
@@ -320,13 +320,13 @@ export default function FormPage() {
           <div style={{textAlign:"center",marginBottom:16}}>
             {brandInfo.logoUrl
               ? <img src={brandInfo.logoUrl} alt={brandInfo.businessName || "לוגו"} style={{maxHeight:56,maxWidth:180,width:"auto",height:"auto",objectFit:"contain",display:"block",margin:"0 auto"}}/>
-              : <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #2A2233)",margin:0}}>{brandInfo.businessName}</p>}
+              : <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",margin:0}}>{brandInfo.businessName}</p>}
           </div>
         )}
 
-        <div style={{background:"var(--ink, #2A2233)",borderRadius:"var(--r-md)",padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
+        <div style={{background:"var(--ink, #1F3A30)",borderRadius:"var(--r-md)",padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
           <div style={{marginBottom:4,color:"var(--pc-tint)"}}><Icon name="gem" size={24}/></div>
-          <h1 style={{color:"var(--brand-cream, #FDFBF9)",fontSize:"var(--t-xl)",fontWeight:800,margin:0}}>{formTemplate.title}</h1>
+          <h1 style={{color:"var(--brand-cream, #FBF8F1)",fontSize:"var(--t-xl)",fontWeight:800,margin:0}}>{formTemplate.title}</h1>
           <p style={{color:"var(--pc-tint)",fontSize:"var(--t-md)",marginTop:4}}>שלום {formData.client_name} 👋</p>
         </div>
 
@@ -340,19 +340,19 @@ export default function FormPage() {
           </div>
         </div>
 
-        <div style={{background:"var(--brand-cream, #FDFBF9)",border:"1px solid var(--warning, #F2B84B)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-md)",color:"var(--ink, #2A2233)"}}>
+        <div style={{background:"var(--brand-cream, #FBF8F1)",border:"1px solid var(--warning, #F2B84B)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)"}}>
           ⚠️ כדאי לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
-          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:16}}>שאלות רפואיות</h3>
+          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:16}}>שאלות רפואיות</h3>
           {formTemplate.questions.map((q, i) => (
-            <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid var(--brand-cream, #FDFBF9)":"none"}}>
-              <p style={{fontSize:"var(--t-md)",color:"var(--ink, #2A2233)",marginBottom:8,lineHeight:1.5}}>{i+1}. {q}</p>
+            <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid var(--brand-cream, #FBF8F1)":"none"}}>
+              <p style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",marginBottom:8,lineHeight:1.5}}>{i+1}. {q}</p>
               <div style={{display:"flex",gap:8}}>
                 {["כן","לא"].map(ans => (
                   <button key={ans} onClick={()=>setAnswers({...answers,[i]:ans})}
-                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #2A2233)":"var(--pc-soft)",borderRadius:"var(--r-sm)",background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #FDF6F6)":"var(--success, #46B37B)"):"var(--brand-cream, #FDFBF9)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #1F3A30)":"var(--pc-soft)",borderRadius:"var(--r-sm)",background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #FDF6F6)":"var(--success, #46B37B)"):"var(--brand-cream, #FBF8F1)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
                     {ans==="כן"?"✓ כן":"✗ לא"}
                   </button>
                 ))}
@@ -367,28 +367,28 @@ export default function FormPage() {
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
-          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #2A2233)",marginBottom:4}}><Icon name="pen" size={16}/> חתימה דיגיטלית</h3>
+          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:4}}><Icon name="pen" size={16}/> חתימה דיגיטלית</h3>
           <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",marginBottom:12}}>חתמי באצבע או בעכבר בתוך המסגרת</p>
           <canvas ref={canvasRef} width={460} height={130}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={()=>setDrawing(false)}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={()=>setDrawing(false)}
-            style={{width:"100%",height:130,border:"1.5px solid var(--pc-soft)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FDFBF9)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
+            style={{width:"100%",height:130,border:"1.5px solid var(--pc-soft)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FBF8F1)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
           <button onClick={clearSignature}
             style={{marginTop:8,background:"none",border:"none",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
             מחקי חתימה
           </button>
         </div>
 
-        <div style={{background:"var(--brand-cream, #FDFBF9)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-xs)",color:"var(--brand-muted, #7D8D87)",textAlign:"center",lineHeight:1.6}}>
+        <div style={{background:"var(--brand-cream, #FBF8F1)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-xs)",color:"var(--brand-muted, #7D8D87)",textAlign:"center",lineHeight:1.6}}>
           בחתימתי אני מאשרת שקראתי את השאלות, עניתי עליהן בכנות,<br/>
           והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.<br/>
           המידע הרפואי נשמר אצל העסק רק כדי לתת לי טיפול בטוח, ולא משמש לשיווק. אפשר לקרוא עוד במדיניות הפרטיות:{" "}
           <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"inherit",textDecoration:"underline"}}>kalmea.app/privacy</a>
         </div>
 
-        <label data-testid="marketing-consent-checkbox" style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2, #E5E0EA)",background:"var(--brand-cream, #FDFBF9)",marginBottom:14,cursor:"pointer"}}>
+        <label data-testid="marketing-consent-checkbox" style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2, #E5E0EA)",background:"var(--brand-cream, #FBF8F1)",marginBottom:14,cursor:"pointer"}}>
           <input type="checkbox" checked={marketingOk} onChange={(e)=>setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{width:20,height:20,marginTop:2,flexShrink:0,accentColor:"var(--pc)"}}/>
-          <span style={{fontSize:"var(--t-md)",color:"var(--ink, #2A2233)",lineHeight:1.6}}>אשמח לקבל עדכונים ומבצעים</span>
+          <span style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.6}}>אשמח לקבל עדכונים ומבצעים</span>
         </label>
 
         {submitError && (
