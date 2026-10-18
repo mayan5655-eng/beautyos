@@ -246,7 +246,8 @@ export default function PublicLandingPage({
           <div style={{ position: "relative", padding: "28px 16px 22px", textAlign: "center" }}>
             {brand.logoUrl && (
               <Image src={logoSrc(brand.logoUrl, tenantId)} alt="" width={240} height={84} sizes="240px"
-                unoptimized={/\.svg(\?|$)/i.test(brand.logoUrl) || brand.logoUrl.startsWith("/logo/")}
+                // logoSrc() rewrites to /logo/<tenant>?v=..., a query string next/image only accepts unoptimized.
+                unoptimized={/\.svg(\?|$)/i.test(brand.logoUrl) || logoSrc(brand.logoUrl, tenantId).startsWith("/logo/")}
                 style={{ display: "block", margin: "0 auto 12px", maxHeight: 84, maxWidth: "70%", width: "auto", height: "auto", objectFit: "contain" }} />
             )}
             <h1 className="serif" style={{ margin: 0, fontSize: "clamp(28px, 8vw, 38px)", fontWeight: 700, lineHeight: 1.15, color: ink }}>{bizName || " "}</h1>
