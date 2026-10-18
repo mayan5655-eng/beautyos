@@ -532,7 +532,7 @@ export default function PublicLandingPage({
             </div>
             {gallery.length > GALLERY_FIRST && (
               <button type="button" onClick={() => setGalleryOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
-                {galleryOpen ? "הצגת פחות" : `עוד ${gallery.length - GALLERY_FIRST} תמונות`}
+                {galleryOpen ? "הצגת פחות" : (gallery.length - GALLERY_FIRST === 1 ? "עוד תמונה אחת" : `עוד ${gallery.length - GALLERY_FIRST} תמונות`)}
               </button>
             )}
           </Section>
@@ -555,7 +555,7 @@ export default function PublicLandingPage({
             </div>
             {results.length > RESULTS_FIRST && (
               <button type="button" onClick={() => setResultsOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
-                {resultsOpen ? "הצגת פחות" : `עוד ${results.length - RESULTS_FIRST} תוצאות`}
+                {resultsOpen ? "הצגת פחות" : (results.length - RESULTS_FIRST === 1 ? "עוד תוצאה אחת" : `עוד ${results.length - RESULTS_FIRST} תוצאות`)}
               </button>
             )}
           </Section>
