@@ -611,7 +611,8 @@ await ok('the hold is wired: the booking route holds as pending and defers the c
   assert.ok(book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') > 0 && book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') < book.indexOf('const [\n      { data: svcRows'), 'expired holds are released BEFORE the calendar is read');
   const cron = read('app/api/grow/release-holds/route.ts');
   assert.ok(cron.indexOf('isAuthorizedCron(request)') > 0 && cron.indexOf('isAuthorizedCron(request)') < cron.indexOf('growUiEnabled()'), 'the cron is protected');
-  assert.ok(/"path": "\/api\/grow\/release-holds",\n\s+"schedule": "\*\/5 \* \* \* \*"/.test(read('vercel.json')), 'every 5 minutes');
+  // Parsed, not pattern-matched: Vercel rewrites vercel.json as minified JSON inside its build, so a formatting-sensitive pin fails there.
+  assert.equal(((JSON.parse(read('vercel.json')).crons || []) as { path: string; schedule: string }[]).find((c) => c.path === '/api/grow/release-holds')?.schedule, '*/5 * * * *', 'every 5 minutes');
   assert.ok(/releaseExpiredHolds\(deps, tenantId\)/.test(read('app/api/availability/route.ts')), 'availability frees an expired slot at once');
   for (const f of ['notify', 'webhook', 'mock-pay']) assert.ok(/afterPaid: afterPaidHook\(\)/.test(read(`app/api/grow/${f}/route.ts`)), `${f} confirms the booking when the deposit is paid`);
   assert.ok(/התור שמור עבורך ל-30 דקות/.test(read('app/BookingPage.jsx')), 'the client is told about the 30 minutes');

@@ -312,7 +312,9 @@ await ok('every signed-in billing route is behind the flag; the cron is protecte
   for (const f of ['status', 'card', 'cancel']) assert.ok(/caller\(\)/.test(read(`app/api/billing/${f}/route.ts`)));
   const cron = read('app/api/billing/charge-due/route.ts');
   assert.ok(cron.indexOf('isAuthorizedCron(request)') > 0 && cron.indexOf('isAuthorizedCron(request)') < cron.indexOf('billingUiEnabled()'), 'auth first, then the flag');
-  assert.ok(/"path": "\/api\/billing\/charge-due"/.test(read('vercel.json')), 'scheduled daily');
+  // Parsed, not pattern-matched: Vercel rewrites vercel.json as minified JSON inside its build, so a formatting-sensitive pin fails there.
+  const crons = (JSON.parse(read('vercel.json')).crons || []) as { path: string; schedule: string }[];
+  assert.equal(crons.find((c) => c.path === '/api/billing/charge-due')?.schedule, '0 5 * * *', 'scheduled daily');
   const mock = read('app/api/billing/mock-card/route.ts');
   assert.ok(/b\.mode !== 'mock' \|\| !b\.configured/.test(mock) && /verifyCardSession/.test(mock), 'the mock page is 404 unless mock is allowed, and needs a signed token');
 });
