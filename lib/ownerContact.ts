@@ -1,12 +1,13 @@
 // lib/ownerContact.ts
 //
-// Contact links for the owner's signups screen (/dashboard/owner/signups). Pure: it only turns what the server has already read
-// (behind requirePlatformAdmin) into a link. It sends nothing and stores nothing: a wa.me link opens her own WhatsApp with a message
-// typed for her to edit, a mailto link opens her own mail app. The numbers and addresses never leave the server except inside the
-// links rendered for a platform admin.
+// Contact details and links for the owner's signups screen (/dashboard/owner/signups). Pure: it only turns what the server has
+// already read (behind requirePlatformAdmin) into display values and a link. It sends nothing and stores nothing: a wa.me link opens
+// her own WhatsApp with a message typed for her to edit, a mailto link opens her own mail app. The numbers and addresses leave the
+// server only inside the page rendered for a platform admin (shown so she can copy them, at her request).
 
 import { isDemoTenantId } from './demoTenants.ts'
 import { normalizeIsraeliMobile } from './phone.ts'
+import { displayPhone } from './publicLanding.ts'
 
 /** The test runs create businesses named "... 1791063027140": a 13-digit number. Such names are never contacted or alerted about. */
 export function looksLikeTestName(name: unknown): boolean {
@@ -49,4 +50,20 @@ export function buildContactLink(o: { businessName: unknown; phone?: string | nu
     return { kind: 'email', href: `mailto:${email}?subject=${encodeURIComponent(CONTACT_MAIL_SUBJECT_HE)}&body=${encodeURIComponent(message)}` }
   }
   return null
+}
+
+/** What the signups screen shows for one business: her phone (Israeli local format) and account email, and the contact link. */
+export type SignupContact = { phone: string | null; email: string | null; link: ContactLink | null }
+
+/**
+ * The details for one row. The phone is shown in local format ("054-123-4567") whenever it is a plausible number, even a landline
+ * that cannot get a WhatsApp link; the email only when it is well formed. The link keeps buildContactLink's rule: WhatsApp first.
+ */
+export function buildSignupContact(o: { businessName: unknown; phone?: string | null; email?: string | null }): SignupContact {
+  const email = String(o.email ?? '').trim()
+  return {
+    phone: displayPhone(o.phone),
+    email: EMAIL_RE.test(email) ? email : null,
+    link: buildContactLink(o),
+  }
 }

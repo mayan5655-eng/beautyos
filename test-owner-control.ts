@@ -140,15 +140,20 @@ ok('every route is gated before any data is read: platform admin or the same pla
 // ── privacy ──────────────────────────────────────────────────────────────────
 ok('only tenant-level columns are selected, and the only tables and functions touched are the allowed ones', () => {
   assert.equal(OWNER_TENANT_COLUMNS, 'id, name, created_at, plan_status, trial_started_at, trial_ends_at, signup_source');
-  // signups/contacts.ts is the one file allowed to read a business phone / account email (for the contact links); it has its own pins in
-  // test-owner-signup-contact.ts. Every other owner file is held to the rule below.
-  const code = ownerFiles.filter((f) => !f.replace(/\\/g, '/').endsWith('signups/contacts.ts')).map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
+  // signups/contacts.ts is the one file allowed to READ a business phone / account email; it has its own pins in
+  // test-owner-signup-contact.ts. Since 2026-10-18 the signups page and its copy button also DISPLAY what that loader hands them
+  // (the owner asked to see and copy the details), so they are exempt from the word rule only - never from the table and function rule.
+  const norm = (f: string) => f.replace(/\\/g, '/');
+  const readers = ownerFiles.filter((f) => !norm(f).endsWith('signups/contacts.ts'));
+  const code = readers.map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
   const from = [...code.matchAll(/\.from\('([^']+)'\)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(from)], ['tenants']);
   const rpc = [...code.matchAll(/\.rpc\('([^']+)'\)/g)].map((m) => m[1]).sort();
   assert.deepEqual([...new Set(rpc)], ['get_user_tenant_id', 'platform_tenant_metrics']);
+  const display = /signups\/(page\.tsx|CopyButton\.tsx)$/;
+  const wordCode = readers.filter((f) => !display.test(norm(f))).map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
   for (const word of ['clients', 'appointments', 'receipts', 'leads', 'messages', 'client_name', 'email', 'phone', 'select\\(\'\\*\'\\)', 'select\\("\\*"\\)']) {
-    assert.doesNotMatch(code, new RegExp(`\\b${word}\\b`), word);
+    assert.doesNotMatch(wordCode, new RegExp(`\\b${word}\\b`), word);
   }
 });
 

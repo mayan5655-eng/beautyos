@@ -12,8 +12,8 @@ import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
 import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { OWNER_TENANT_COLUMNS, realTenants, activityRows, newestSignups } from '@/lib/ownerControl'
 import type { OwnerTenant, ActivityRow, NewestSignup } from '@/lib/ownerControl'
-import { loadContactLinks } from './signups/contacts'
-import type { ContactLink } from '@/lib/ownerContact'
+import { loadSignupContacts } from './signups/contacts'
+import type { SignupContact } from '@/lib/ownerContact'
 
 /** Gate every owner page with this first. */
 export async function requireOwner() {
@@ -45,15 +45,15 @@ export async function loadTenants(): Promise<{ ok: true; rows: OwnerTenant[] } |
 }
 
 /**
- * The signups screen: every real business, the 20 newest, and a contact link for those 20 where one can be built. The links are built
+ * The signups screen: every real business, the 20 newest, and for those 20 the phone, email and contact link. They are built
  * here, on the server, after requirePlatformAdmin() (inside requireOwner); a non-admin gets the 404 before anything is read.
  */
-export async function loadSignupsPage(): Promise<{ ok: true; rows: OwnerTenant[]; newest: NewestSignup[]; contacts: Record<string, ContactLink> } | { ok: false }> {
+export async function loadSignupsPage(): Promise<{ ok: true; rows: OwnerTenant[]; newest: NewestSignup[]; contacts: Record<string, SignupContact> } | { ok: false }> {
   const { db, ownTenantId } = await requireOwner()
   const rows = await readTenants(db, ownTenantId)
   if (!rows) return { ok: false }
   const newest = newestSignups(rows, 20)
-  const contacts = await loadContactLinks(db, newest, ownTenantId)
+  const contacts = await loadSignupContacts(db, newest, ownTenantId)
   return { ok: true, rows, newest, contacts }
 }
 

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildContactLink, contactEligible, contactMessageHe, looksLikeTestName, CONTACT_MAIL_SUBJECT_HE } from './lib/ownerContact.ts';
+import { buildContactLink, buildSignupContact, contactEligible, contactMessageHe, looksLikeTestName, CONTACT_MAIL_SUBJECT_HE } from './lib/ownerContact.ts';
 import { notifyOwnerOfSignup, safeBusinessName, signupAlertMessage, SIGNUP_ALERT_SOURCE, MAX_WHATSAPP_PER_HOUR } from './lib/ownerSignupAlert.ts';
 import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
 
@@ -183,9 +183,21 @@ await ok('the alert module sends only through the existing operator path and nev
   assert.doesNotMatch(a, /console\.(log|error|warn)/); // nothing of the business is logged by this module itself
 });
 
-await ok('contact links are built only on the server, only after the admin check, only for the 20 newest, and never logged', () => {
+await ok('signup details: local phone format, a valid email only, and the WhatsApp-first link', () => {
+  const both = buildSignupContact({ businessName: 'סטודיו', phone: '+972 54 123 4567', email: 'dana@example.com' });
+  assert.equal(both.phone, '054-123-4567');
+  assert.equal(both.email, 'dana@example.com');
+  assert.equal(both.link?.kind, 'whatsapp');
+  const landline = buildSignupContact({ businessName: 'סטודיו', phone: '03-1234567', email: 'dana@example.com' });
+  assert.equal(landline.phone, '03-123-4567', 'a landline is still shown');
+  assert.equal(landline.link?.kind, 'email', 'but the link falls back to email');
+  const none = buildSignupContact({ businessName: 'סטודיו', phone: 'לא ידוע', email: 'not-an-email' });
+  assert.deepEqual(none, { phone: null, email: null, link: null });
+});
+
+await ok('contact details are built only on the server, only after the admin check, only for the 20 newest, and never logged', () => {
   const loader = strip(rd('app/dashboard/owner/loader.ts'));
-  assert.match(loader, /export async function loadSignupsPage[\s\S]*await requireOwner\(\)[\s\S]*loadContactLinks\(db, newest, ownTenantId\)/);
+  assert.match(loader, /export async function loadSignupsPage[\s\S]*await requireOwner\(\)[\s\S]*loadSignupContacts\(db, newest, ownTenantId\)/);
   assert.match(loader, /newestSignups\(rows, 20\)/);
   const c = strip(rd('app/dashboard/owner/signups/contacts.ts'));
   assert.match(c, /contactEligible\(/);
@@ -198,12 +210,19 @@ await ok('contact links are built only on the server, only after the admin check
   assert.deepEqual(importers.map((f) => f.replace(/\\/g, '/')), ['app/dashboard/owner/loader.ts']);
 });
 
-await ok('the page shows the button only where a link exists and puts no raw phone or email in the page code; non-admins get the same 404 as before', () => {
+// 2026-10-18: the owner asked to SEE each new business's phone and email with copy buttons, not only a contact button. They are
+// still read only on the server behind the admin check; the page renders them for her and reads nothing itself.
+await ok('the page shows details and the button only where they exist, reads nothing itself, and non-admins get the same 404 as before', () => {
   const p = rd('app/dashboard/owner/signups/page.tsx');
-  assert.match(p, /contacts\[n\.id\] && \(/);
-  assert.match(p, /href=\{contacts\[n\.id\]\.href\}/);
-  assert.doesNotMatch(strip(p), /phone|email|getUserById|business_phone/i);
+  assert.match(p, /c\?\.link && \(/);
+  assert.match(p, /href=\{c\.link\.href\}/);
+  assert.match(p, /<CopyButton text=\{c\.phone\}/);
+  assert.match(p, /<CopyButton text=\{c\.email\}/);
+  assert.doesNotMatch(strip(p), /getUserById|business_phone|\.from\(|auth\.admin/);
   assert.doesNotMatch(p, /'use client'|"use client"/);
+  // the copy button is the only client piece, and it is handed text: it imports nothing that reads contact data
+  const btn = rd('app/dashboard/owner/signups/CopyButton.tsx');
+  assert.doesNotMatch(btn, /import .*(ownerContact|contacts|supabase|loader)/);
   assert.match(strip(rd('app/dashboard/owner/loader.ts')), /if \(!admin\.ok\) notFound\(\)/);
   // no contact data module is reachable from any client bundle or public route
   const clientish = walk('app').filter((f) => /\.(tsx|jsx)$/.test(f) && /['"]use client['"]/.test(rd(f)));
