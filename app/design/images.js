@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabase';
 import { PRIVATE_BUCKET, PUBLIC_BUCKET } from '@/lib/clientImages';
 import { isPrivateRef, privatePath } from '@/lib/design/design';
-import { resizeImage, IMAGE_PRESETS } from '@/lib/imageResize';
+import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, notUploadable } from '@/lib/imageResize';
 
 const cache = new Map(); // ref -> { url, until }
 
@@ -45,8 +45,10 @@ export function useResolvedImages(images) {
 export async function uploadDesignImage(file, tenantId) {
   if (!tenantId) throw new Error('חסר מזהה עסק');
   if (!/^image\//.test(file.type)) throw new Error('אפשר להעלות רק תמונות');
-  if (file.size > 12 * 1024 * 1024) throw new Error('התמונה גדולה מדי (עד 12MB)');
+  if (file.size > MAX_SOURCE_BYTES) throw new Error(TOO_LARGE_SOURCE_HE);
   const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
+  const why = notUploadable(blob);
+  if (why) throw new Error(why);
   const ext = /png/i.test(blob.type) ? 'png' : 'jpg';
   const path = `${tenantId}/designs/upload_${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || 'image/jpeg' });

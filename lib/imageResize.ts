@@ -122,6 +122,22 @@ export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const TOO_LARGE_SOURCE_HE = 'התמונה גדולה מדי (עד 25MB)';
 export const COULD_NOT_SHRINK_HE = 'לא הצלחנו להקטין את התמונה הזו. אפשר לנסות תמונה אחרת, או צילום מסך שלה.';
 
+/** The formats the public bucket accepts (community-images: allowed_mime_types). SVG is a logo-only exception. */
+const UPLOADABLE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+/**
+ * Why this resized blob cannot go up, in her words, or null when it can. resizeImage fails open (a phone that cannot
+ * decode a HEIC hands back the original), and the bucket refuses anything but JPEG, PNG and WebP with an error that
+ * reads like a network fault - so both cases are caught here, before the upload, with a message that says what to do.
+ */
+export function notUploadable(blob: Blob, { allowSvg = false }: { allowSvg?: boolean } = {}): string | null {
+  const type = String(blob.type || '').toLowerCase();
+  if (allowSvg && type === 'image/svg+xml') return null;
+  if (blob.size > MAX_UPLOAD_BYTES) return COULD_NOT_SHRINK_HE;
+  if (type && !UPLOADABLE_TYPES.has(type)) return COULD_NOT_SHRINK_HE;
+  return null;
+}
+
 /** What each branding asset is for, and therefore how it should be encoded. */
 export const IMAGE_PRESETS = {
   // A face, or the room. The largest thing on the booking page.

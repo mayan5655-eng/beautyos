@@ -49,7 +49,7 @@ import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceD
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
-import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, MAX_UPLOAD_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE } from "@/lib/imageResize";
+import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE, notUploadable } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
 import { historyCutoff, mergeById } from "@/lib/historyWindow";
 import { advisorWaitLine } from "@/lib/advisorWait";
@@ -4325,14 +4325,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleUploadImage = async (e,client) => {
     if (guardWrite()) return;
     const file=e.target.files[0];if(!file)return;
+    if(!/^image\//.test(file.type||"")){toast("קובץ תמונה בלבד","error");return;}
+    if(file.size>MAX_SOURCE_BYTES){toast(TOO_LARGE_SOURCE_HE,"error");return;}
     setUploading(true);
     try {
       const tid=settings?.tenant_id;
       if(!tid){toast(STUCK_HE,"error");return;}
+      // Resized like every other photo: this used to send the original (several MB from a phone camera, and a HEIC
+      // no browser can show), named after the phone's file name, which can carry characters a storage key refuses.
+      const blob=await resizeImage(file,IMAGE_PRESETS.gallery);
+      const why=notUploadable(blob);
+      if(why){toast(why,"error");return;}
       // Tenant-scoped, private path. We store the PATH (not a URL); display
       // resolves a signed URL on demand via <SignedImage>.
-      const fileName=clientImagePath(tid,client.id,`${Date.now()}_${file.name}`);
-      const {error:ue}=await supabase.storage.from(PRIVATE_BUCKET).upload(fileName,file);
+      const fileName=clientImagePath(tid,client.id,`${Date.now()}.${/png/i.test(blob.type)?"png":"jpg"}`);
+      const {error:ue}=await supabase.storage.from(PRIVATE_BUCKET).upload(fileName,blob,{contentType:blob.type||"image/jpeg"});
       if(ue){handleDbError(ue, "upload image"); return;}
       const newImages=[...(client.images||[]),fileName];
       const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
@@ -4394,7 +4401,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const uploadOne = async (file, preset, tid, name) => {
     const blob = await resizeImage(file, preset);
     // resizeImage fails open; a phone that could not decode the photo must not send the 20 MB original.
-    if (blob.size > MAX_UPLOAD_BYTES) { toast(COULD_NOT_SHRINK_HE, "error"); return { error: null, skipped: true }; }
+    const why = notUploadable(blob, { allowSvg: preset === IMAGE_PRESETS.logo });
+    if (why) { toast(why, "error"); return { error: null, skipped: true }; }
     const ext = preset.type === "image/png" ? "png" : (/svg/i.test(file.type) ? "svg" : "jpg");
     const path = `${tid}/branding/${name}_${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || preset.type, cacheControl: "31536000" });
@@ -6370,17 +6378,22 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (!tid) { toast("לא זוהה עסק — לא ניתן להעלות", "error"); return; }
       // Store tenant-scoped PATHS (private bucket); display signs them on demand.
       let beforeUrl = null, afterUrl = null;
-      if (beforeFile) {
-        const { blob } = await compressImage(beforeFile, 1280, 0.82);
-        const fn = clientImagePath(tid, clientId, `before-${Date.now()}.jpg`);
-        await supabase.storage.from(PRIVATE_BUCKET).upload(fn, blob, { contentType: "image/jpeg" });
-        beforeUrl = fn;
-      }
+      // An upload that failed used to be ignored, and the row was saved pointing at a photo that does not exist. Now
+      // each one is checked, and nothing is saved unless every chosen photo went up.
+      const putOne = async (file, side) => {
+        if (file.size > MAX_SOURCE_BYTES) { toast(TOO_LARGE_SOURCE_HE, "error"); return null; }
+        let blob;
+        try { ({ blob } = await compressImage(file, 1280, 0.82)); } catch { blob = null; }
+        if (!blob || notUploadable(blob)) { toast(COULD_NOT_SHRINK_HE, "error"); return null; }
+        const fn = clientImagePath(tid, clientId, `${side}-${Date.now()}.jpg`);
+        const { error: upErr } = await supabase.storage.from(PRIVATE_BUCKET).upload(fn, blob, { contentType: "image/jpeg" });
+        if (upErr) { handleDbError(upErr, "upload client photo"); return null; }
+        return fn;
+      };
+      if (beforeFile) { beforeUrl = await putOne(beforeFile, "before"); if (!beforeUrl) return; }
       if (afterFile) {
-        const { blob } = await compressImage(afterFile, 1280, 0.82);
-        const fn = clientImagePath(tid, clientId, `after-${Date.now()}.jpg`);
-        await supabase.storage.from(PRIVATE_BUCKET).upload(fn, blob, { contentType: "image/jpeg" });
-        afterUrl = fn;
+        afterUrl = await putOne(afterFile, "after");
+        if (!afterUrl) { if (beforeUrl) await supabase.storage.from(PRIVATE_BUCKET).remove([beforeUrl]); return; }
       }
       const { error } = await supabase.from("client_photos").insert([{
        tenant_id: settings.tenant_id,
@@ -6723,7 +6736,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setNewPost(p => ({ ...p, image_url: urlData.publicUrl }));
         toast("התמונה הועלתה");
       } else { toast("שגיאה בהעלאת תמונה", "error"); }
-    } catch { toast("שגיאה בהעלאת תמונה", "error"); }
+    } catch { toast(COULD_NOT_SHRINK_HE, "error"); } // compressImage rejects only when the phone cannot read the photo
     finally { setPostImageUploading(false); }
   };
 
