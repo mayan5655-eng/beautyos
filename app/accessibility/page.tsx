@@ -12,6 +12,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, BRAND_WASH_SOFT } from "@/lib/brand";
 import { ACCESSIBILITY_COORDINATOR as C, ACCESSIBILITY_UPDATED } from "@/lib/accessibilityContact";
 import PublicFooterLinks from "../PublicFooterLinks";
+import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 
 export const metadata: Metadata = {
   title: "הצהרת נגישות · Kalmea",
@@ -71,8 +72,8 @@ export default function AccessibilityPage() {
           <dl style={dlStyle} data-testid="accessibility-contact">
             <dt style={dtStyle}>שם</dt>
             <dd style={ddStyle}>{C.name}</dd>
-            <dt style={dtStyle}>טלפון</dt>
-            <dd style={ddStyle} dir="ltr"><a href={`tel:${C.phone.replace(/[^\d+]/g, "")}`} style={linkStyle}>{C.phone}</a></dd>
+            <dt style={dtStyle}>וואטסאפ (הודעות בלבד, ללא שיחות)</dt>
+            <dd style={ddStyle} dir="ltr"><a href={supportWhatsAppUrl("היי, יש לי פנייה בנושא נגישות") || undefined} target="_blank" rel="noopener noreferrer" style={linkStyle}>{KALMEA_SUPPORT_WHATSAPP_DISPLAY}</a></dd>
             <dt style={dtStyle}>אימייל</dt>
             <dd style={ddStyle} dir="ltr"><a href={`mailto:${C.email}`} style={linkStyle}>{C.email}</a></dd>
           </dl>

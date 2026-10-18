@@ -7,7 +7,7 @@
 // plus an invoicing service) and return configured: true when its keys are present:
 //   TODO(provider) createCardSession  open the provider's hosted card page; its webhook (or return call) must end in saveCard() in ./service.ts
 //   TODO(provider) charge             charge the saved token for `amount`; honour idempotencyKey; map a refusal to code 'declined'
-//   TODO(provider) issueInvoice       issue the tax invoice for providerPaymentId (or let the provider issue it and return its number and link)
+//   TODO(provider) issueInvoice       issue the document for providerPaymentId: i.docType says which (a receipt with no VAT line while Kalmea is an exempt dealer), (or let the provider issue it and return its number and link)
 // Keep secrets in environment variables read here; never in the database and never in the browser.
 import type { Env, PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 

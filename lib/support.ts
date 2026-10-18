@@ -1,21 +1,25 @@
 // lib/support.ts
 // How a cosmetician reaches a human when her plan needs attention.
 //
-// Kept in one place so the trial banner, the account-hold screen and the
-// "תקועה?" panel can never drift apart.
+// Kept in one place so the trial banner, the account-hold screen, the landing
+// page, the legal pages and the "תקועה?" panel can never drift apart.
 //
-// Nothing personal is hardcoded. The number and the name are read from the
-// environment, so whoever is running the product answers the phone, and a
-// forked or handed-over install does not quietly keep routing its customers to
-// whoever set it up first. Both are NEXT_PUBLIC_ because every caller is a
-// client component; neither is a secret — a wa.me link is public by definition.
+// Kalmea's support line is a WhatsApp-only number (it receives messages, NOT
+// calls), so it is ONE constant here and is only ever offered as a wa.me link,
+// never as a tel: link or a call button. It is a business line, not a personal
+// one, and a wa.me link is public by definition. To change it, change
+// KALMEA_SUPPORT_WHATSAPP below and nothing else.
 //
-// If no number is configured there is simply no WhatsApp route, and callers
-// fall back to the in-app support form (/api/support), which needs no config.
-// That is why supportWhatsAppUrl returns null rather than a broken link: an
-// <a href="undefined"> looks like a working button and is not one.
+// NEXT_PUBLIC_SUPPORT_WHATSAPP is no longer read for display. It still exists
+// as the operator's own alert destination in server code (outbound alerts), a
+// different thing from the number customers write to.
 
-const RAW_NUMBER = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').replace(/\D/g, '')
+/** Kalmea support, WhatsApp only (no calls), E.164 digits without '+'. */
+export const KALMEA_SUPPORT_WHATSAPP = '972507321978'
+/** The same number as written locally, for showing next to a link. */
+export const KALMEA_SUPPORT_WHATSAPP_DISPLAY = '050-7321978'
+
+const RAW_NUMBER = KALMEA_SUPPORT_WHATSAPP
 
 /**
  * Support WhatsApp in E.164, digits only, or null when unconfigured. wa.me

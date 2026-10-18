@@ -336,4 +336,16 @@ await ok('the UI: the card sits in settings, the banner invites a card from 5 da
   assert.ok(/supportWhatsAppUrl\(\)/.test(banner) && /CTA_WHATSAPP_HE/.test(banner), 'the WhatsApp renewal CTA is still there');
 });
 
+await ok('a subscription charge asks for a RECEIPT with no VAT (exempt dealer); the amount charged is the amount on the document', async () => {
+  const w = world('2026-11-01T08:00:00Z');
+  w.addTenant(T, { trial_ends_at: '2026-11-10T08:00:00Z', plan_price: 349 });
+  const seen: any[] = [];
+  const spy = { async issueInvoice(i: any) { seen.push(i); return createMockAdapters('https://preview.kalmea.test', (t) => t).invoicing.issueInvoice(i); } };
+  await saveCard(w.deps({ invoicing: spy }), T, OK());
+  w.at('2026-11-10T05:00:00Z');
+  await runDue(w.deps({ invoicing: spy }));
+  assert.equal(seen.length, 1); assert.equal(seen[0].docType, 'receipt'); assert.equal(seen[0].vatAmount, 0); assert.equal(seen[0].amount, 349);
+  assert.ok(/[?&]t=r(&|$)/.test(w.payments[0].invoice_url || ''), 'the mock document is a receipt');
+});
+
 console.log(`billing: ${n} ok`);

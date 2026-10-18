@@ -26,7 +26,7 @@ Life cycle, per business (`billing_subscriptions.status`):
 4. **canceled**: no more charges; she keeps what she paid for (`ends_at`), then the gate closes. Adding a card again resumes it.
 
 The price is stored per subscription (`price`), from `tenants.plan_price` when set (349 launch) otherwise 499. The owner can change it per business in the admin list.
-The charged amount is assumed to **include VAT** (decide with the accountant; the invoicing adapter receives the gross amount).
+Kalmea is an **exempt dealer (osek patur)**: each charge gets a **receipt (kabala) with no VAT line** and the price is final, nothing is added. The document type is decided in one place, `KALMEA_TAX_STATUS` in `lib/kalmeaBusiness.ts` (`exempt` today; `licensed` gives a tax invoice-receipt with VAT contained in the same price). The invoicing adapter receives `docType` and `vatAmount`.
 
 Billing is reachable while blocked: no billing route uses the plan guard, and the billing tables are **not** in the trial gate (a test pins both).
 
@@ -45,7 +45,7 @@ Implement the two interfaces in `lib/billing/adapter.ts` inside `lib/billing/liv
 
 1. **Hosted card page** (`createCardSession`): an address to send her to, where she types the card at the provider. On success the provider must call back (webhook) or redirect to a route that ends in `saveCard()` (`lib/billing/service.ts`) with: a **token reference**, the **last four digits** and the **brand**.
 2. **Charge a token** (`charge`): charge the saved token for an amount in ILS, honour an **idempotency key**, answer success with a provider payment id, or a refusal (declined, not retryable vs retryable).
-3. **Invoice per charge** (`issueInvoice`): a tax invoice-receipt for each successful charge (VAT included), returning its **number** and **link**; or the provider issues it itself and reports both.
+3. **Document per charge** (`issueInvoice`): a **receipt (kabala, no VAT)** for each successful charge while Kalmea is exempt (`docType` says which), returning its **number** and **link**; or the provider issues it itself and reports both.
 4. Keys as environment variables (never in the database), the **webhook URL** to register, the IP list or signature method of the webhook, and sandbox credentials for a test run.
 5. Business questions for the accountant: which entity bills (sole proprietor or company), VAT registration, whether prices include VAT, allocation numbers for business invoices.
 

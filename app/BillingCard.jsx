@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { trialEndDateHe } from '@/lib/planCopy';
+import { subscriptionDoc } from '@/lib/kalmeaBusiness';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -104,7 +105,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                   <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : ''}</span>
                   <span style={{ display: 'flex', gap: 8 }}>
                     <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : 'var(--danger)' }}>{p.status === 'succeeded' ? 'שולם' : 'נכשל'}</b>
-                    {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>חשבונית{p.invoice_number ? ` ${p.invoice_number}` : ''}</a>}
+                    {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>{subscriptionDoc(p.amount).labelHe}{p.invoice_number ? ` ${p.invoice_number}` : ''}</a>}
                   </span>
                 </div>
               ))}
