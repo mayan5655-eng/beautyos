@@ -22,6 +22,8 @@ export async function POST(request: Request) {
     console.log(`[billing] daily run: ${JSON.stringify(r)}`);
     return NextResponse.json({ success: true, ...r });
   } catch (e) {
+    // add_kalmea_billing.sql has not been run yet: nothing to charge, not an error.
+    if (/does not exist|schema cache/i.test((e as Error)?.message || '')) return NextResponse.json({ success: true, skipped: 'tables-missing' });
     console.error('[billing] daily run threw:', (e as Error)?.message);
     return NextResponse.json({ success: false, error: 'internal' }, { status: 500 });
   }
