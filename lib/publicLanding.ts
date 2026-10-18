@@ -157,6 +157,23 @@ export function instagramHandle(raw: string | null | undefined): string | null {
   return /^[A-Za-z0-9._]{1,30}$/.test(v) ? v : null;
 }
 
+/**
+ * A Facebook page link from what she typed: a facebook.com / fb.com URL, or a bare page name.
+ * Anything pointing elsewhere is dropped, so the "Facebook" label never links to another site.
+ */
+export function facebookHref(raw: string | null | undefined): string | null {
+  const v = String(raw || '').trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) {
+    try {
+      const u = new URL(v);
+      return u.protocol === 'https:' && /(^|\.)(facebook\.com|fb\.com)$/i.test(u.hostname) && u.pathname.length > 1 ? u.toString() : null;
+    } catch { return null; }
+  }
+  const name = v.replace(/^@/, '');
+  return /^[A-Za-z0-9.\-]{2,80}$/.test(name) ? `https://www.facebook.com/${name}` : null;
+}
+
 // ── Maps ─────────────────────────────────────────────────────────────────────
 
 export function mapsHref(address: string): string {

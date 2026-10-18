@@ -18,7 +18,7 @@
 // the root) and the shared ink / cream tokens. Nothing hardcoded except the nail
 // polish swatches, which are content (a colour to pick), not theme.
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Icon from "./Icon";
 import { PoweredBy } from "./PublicChrome";
@@ -31,11 +31,14 @@ import { normalizeBusinessHours } from "@/lib/businessHours";
 import {
   DAYS_HE, displayPhone, fmtHour, googleInfo, hasRealHours, instagramHandle, israelClock,
   mapsHref, openStatus, openStatusLabel, planMessage, telHref, todayHours, waHref, wazeHref,
-  type OpenStatus,
+  facebookHref, type OpenStatus,
 } from "@/lib/publicLanding";
 
 type Service = { id?: string | number; name?: string; price?: number | string | null; duration?: number | string | null; description?: string | null; field?: string | null; active?: boolean | null };
 type Review = { client_name?: string | null; rating?: number | null; body?: string | null; created_at?: string | null };
+// A published treatment result, already cleaned by lib/results.js's cleanPublicResults (consent-recorded rows only).
+export type PublicResult = { id: string; serviceId: string; serviceName: string; before: string; after: string; caption: string; sessions: number | null };
+type LightboxItem = { src: string; before?: string; caption?: string };
 
 // Classic salon shades. Shown only to a tenant that works in nails; the pick is
 // optional and only adds one line to the WhatsApp message.
@@ -85,6 +88,90 @@ function Photo({ src, eager = false, sizes, style }: { src: string; eager?: bool
   );
 }
 
+// Before/after: drag anywhere on the photo (pointer events, so touch and mouse both work; vertical scrolling stays
+// with the page), or use the arrow keys on the hidden range input.
+function BeforeAfter({ before, after }: { before: string; after: string }) {
+  const [pos, setPos] = useState(50);
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (r.width) setPos(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
+  };
+  const pill: CSSProperties = { position: "absolute", bottom: 8, padding: "2px 10px", borderRadius: 999, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 13, fontWeight: 700 };
+  return (
+    <div dir="ltr"
+      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); move(e); }}
+      onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) move(e); }}
+      style={{ position: "relative", width: "100%", height: "100%", touchAction: "pan-y", userSelect: "none" }}>
+      <Photo src={after} sizes="(max-width: 560px) 100vw, 520px" style={{ position: "absolute", inset: 0 }} />
+      <div style={{ position: "absolute", inset: 0, clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
+        <Photo src={before} sizes="(max-width: 560px) 100vw, 520px" style={{ position: "absolute", inset: 0 }} />
+      </div>
+      <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: pos + "%", width: 2, marginLeft: -1, background: "#fff" }}>
+        <span style={{ position: "absolute", top: "50%", left: "50%", width: 32, height: 32, margin: "-16px 0 0 -16px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#444", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}>‹›</span>
+      </div>
+      <span aria-hidden="true" style={{ ...pill, left: 8 }}>לפני</span>
+      <span aria-hidden="true" style={{ ...pill, right: 8 }}>אחרי</span>
+      <input type="range" min={0} max={100} value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label="השוואת לפני ואחרי"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, pointerEvents: "none", margin: 0 }} />
+    </div>
+  );
+}
+
+// Full-screen viewer for the gallery and the results. Arrows, swipe, Esc and the backdrop all work; the page behind
+// does not scroll while it is open. A swipe is ignored on a before/after item, where dragging moves the slider.
+function Lightbox({ items, index, title, onClose, onStep }: { items: LightboxItem[]; index: number; title: string; onClose: () => void; onStep: (d: number) => void }) {
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  const startX = useRef<number | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      // RTL: the left arrow goes forward, the right arrow goes back.
+      if (e.key === "ArrowLeft") onStep(1);
+      if (e.key === "ArrowRight") onStep(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose, onStep]);
+  const it = items[index];
+  if (!it) return null;
+  const arrow: CSSProperties = { width: 44, height: 44, borderRadius: "50%", border: "none", background: "rgba(255,255,255,.16)", color: "#fff", fontSize: 26, cursor: "pointer", fontFamily: "inherit" };
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,12,18,.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "56px 12px 20px" }}>
+      <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, position: "absolute", top: 10, left: 10 }}>×</button>
+      <div onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => { if (!it.before) startX.current = e.clientX; }}
+        onPointerUp={(e) => {
+          if (startX.current == null) return;
+          const dx = e.clientX - startX.current;
+          startX.current = null;
+          // RTL: a swipe to the right moves forward.
+          if (Math.abs(dx) > 40) onStep(dx > 0 ? 1 : -1);
+        }}
+        style={{ position: "relative", width: "min(100%, 520px)", aspectRatio: it.before ? "3 / 4" : "1 / 1", maxHeight: "72vh", borderRadius: 14, overflow: "hidden", background: "#000", touchAction: it.before ? "pan-y" : "none" }}>
+        {it.before
+          ? <BeforeAfter key={it.src} before={it.before} after={it.src} />
+          : (
+            <div style={{ position: "absolute", inset: 0 }}>
+              <Image src={it.src} alt="" fill sizes="(max-width: 560px) 100vw, 520px" quality={80} unoptimized={/\.svg(\?|$)/i.test(it.src)} style={{ objectFit: "contain" }} />
+            </div>
+          )}
+      </div>
+      {it.caption && <p onClick={(e) => e.stopPropagation()} style={{ margin: "12px 0 0", maxWidth: 520, color: "#fff", fontSize: 15, lineHeight: 1.6, textAlign: "center" }}>{it.caption}</p>}
+      {items.length > 1 && (
+        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12, color: "#fff" }}>
+          <button onClick={() => onStep(-1)} aria-label="הקודמת" style={arrow}>›</button>
+          <span style={{ fontSize: 14 }}>{index + 1} / {items.length}</span>
+          <button onClick={() => onStep(1)} aria-label="הבאה" style={arrow}>‹</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Section({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="lp-sec" aria-label={title}>
@@ -95,12 +182,13 @@ function Section({ id, title, children }: { id?: string; title: string; children
 }
 
 export default function PublicLandingPage({
-  tenantId, settings, services: servicesIn, reviews: reviewsIn,
+  tenantId, settings, services: servicesIn, reviews: reviewsIn, results: resultsIn,
 }: {
   tenantId: string;
   settings: Record<string, any> | null;
   services: Service[] | null;
   reviews: Review[] | null;
+  results?: PublicResult[] | null;
 }) {
   const brand = useMemo(() => resolveBranding(settings), [settings]);
   const rawBranding = (settings?.branding && typeof settings.branding === "object" ? settings.branding : {}) as Record<string, unknown>;
@@ -144,7 +232,16 @@ export default function PublicLandingPage({
   const bizName = brand.businessName || "";
   const person = [displayName(brand.therapistName || ""), brand.therapistTitle].filter(Boolean).join(" · ");
   const headline = brand.welcomeHeadline || "";
-  const description = brand.businessDescription || brand.welcomeMessage || "";
+  const personName = displayName(brand.therapistName || "");
+  // "Nice to meet you" needs her own photo: without one the section is hidden and her description stays in the hero.
+  // With it, the longer description moves to that section and the hero keeps the short welcome line, so the same
+  // paragraph is never on the page twice.
+  const aboutShown = !!brand.portraitUrl && !!(brand.businessDescription || personName);
+  const description = aboutShown
+    ? (brand.welcomeMessage && brand.welcomeMessage !== brand.businessDescription ? brand.welcomeMessage : "")
+    : brand.businessDescription || brand.welcomeMessage || "";
+  const arrivalNote = String(rawBranding.arrival_note || "").trim();
+  const fbHref = facebookHref(brand.facebook);
   const waPhone = brand.whatsappNumber || settings?.business_phone || "";
   const callPhone = settings?.business_phone || brand.whatsappNumber || "";
   const phoneShown = displayPhone(callPhone);
@@ -176,6 +273,32 @@ export default function PublicLandingPage({
   const [galleryOpen, setGalleryOpen] = useState(false);
   const GALLERY_FIRST = 6;
   const galleryShown = galleryOpen ? gallery : gallery.slice(0, GALLERY_FIRST);
+
+  // Treatment results: published with a consent record (the database serves nothing else).
+  const results = (resultsIn || []).filter((r) => r && r.after);
+  const RESULTS_FIRST = 4;
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const resultsShown = resultsOpen ? results : results.slice(0, RESULTS_FIRST);
+
+  // One viewer for both lists: which list and which item is open.
+  const [viewer, setViewer] = useState<{ kind: "gallery" | "results"; index: number } | null>(null);
+  const viewerItems: LightboxItem[] = viewer?.kind === "results"
+    ? results.map((r) => ({ src: r.after, before: r.before || undefined, caption: [r.serviceName, r.caption, r.sessions ? `${r.sessions} טיפולים` : ""].filter(Boolean).join(" · ") }))
+    : gallery.map((src) => ({ src }));
+  const closeViewer = useCallback(() => setViewer(null), []);
+  const resultsCount = results.length, galleryCount = gallery.length;
+  const stepViewer = useCallback((d: number) => setViewer((v) => {
+    if (!v) return v;
+    const n = v.kind === "results" ? resultsCount : galleryCount;
+    return n ? { ...v, index: (v.index + d + n) % n } : null;
+  }), [resultsCount, galleryCount]);
+
+  // Her own photo per treatment (Settings > treatment photos). Services without one stay in the plain list:
+  // a stock default photo would be someone else's work presented as hers.
+  const ownImage = (s: Service): string => {
+    const u = brand.serviceImages?.[String(s.id ?? "")];
+    return typeof u === "string" ? u.trim() : "";
+  };
 
   // Real reviews only (written by clients, published). Their own average.
   const reviewsAvg = reviews.length ? reviews.reduce((a, r) => a + Number(r.rating || 0), 0) / reviews.length : 0;
@@ -236,19 +359,27 @@ export default function PublicLandingPage({
 
       <div className="lp-wrap">
         {/* 1. HERO */}
-        <header style={{ position: "relative", overflow: "hidden", marginBottom: 20, background: brand.heroImageUrl ? undefined : "linear-gradient(180deg, var(--pc-tint) 0%, " + cream + " 100%)" }}>
+        {/* Her photo, shown as a photo: full width on top, fading into the page, with the text below it rather than
+            on it. With no photo of her own the hero is a wash of her accent colour - never a stock picture. */}
+        <header style={{ position: "relative", marginBottom: 20, background: brand.heroImageUrl ? undefined : "linear-gradient(180deg, var(--pc-tint) 0%, " + cream + " 100%)" }}>
           {brand.heroImageUrl && (
-            <>
+            <div style={{ position: "relative", height: "min(58vh, 440px)", minHeight: 260 }}>
               <Photo src={brand.heroImageUrl} eager sizes="(max-width: 560px) 100vw, 560px" style={{ position: "absolute", inset: 0 }} />
-              <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(253,251,249,.80) 0%, rgba(253,251,249,.90) 60%, " + cream + " 100%)" }} />
-            </>
+              <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 55%, " + cream + " 100%)" }} />
+            </div>
           )}
-          <div style={{ position: "relative", padding: "28px 16px 22px", textAlign: "center" }}>
+          <div style={{ position: "relative", padding: brand.heroImageUrl ? "0 16px 22px" : "28px 16px 22px", textAlign: "center" }}>
             {brand.logoUrl && (
-              <Image src={logoSrc(brand.logoUrl, tenantId)} alt="" width={240} height={84} sizes="240px"
-                // logoSrc() rewrites to /logo/<tenant>?v=..., a query string next/image only accepts unoptimized.
-                unoptimized={/\.svg(\?|$)/i.test(brand.logoUrl) || logoSrc(brand.logoUrl, tenantId).startsWith("/logo/")}
-                style={{ display: "block", margin: "0 auto 12px", maxHeight: 84, maxWidth: "70%", width: "auto", height: "auto", objectFit: "contain" }} />
+              <div style={brand.heroImageUrl
+                ? { position: "relative", width: 96, height: 96, margin: "-60px auto 12px", borderRadius: "50%", background: surface, boxShadow: "0 8px 24px -12px rgba(0,0,0,.35)", border: "3px solid " + surface, overflow: "hidden" }
+                : { margin: "0 auto 12px" }}>
+                <Image src={logoSrc(brand.logoUrl, tenantId)} alt="" width={240} height={84} sizes="240px"
+                  // logoSrc() rewrites to /logo/<tenant>?v=..., a query string next/image only accepts unoptimized.
+                  unoptimized={/\.svg(\?|$)/i.test(brand.logoUrl) || logoSrc(brand.logoUrl, tenantId).startsWith("/logo/")}
+                  style={brand.heroImageUrl
+                    ? { display: "block", width: "100%", height: "100%", objectFit: "cover" }
+                    : { display: "block", margin: "0 auto", maxHeight: 84, maxWidth: "70%", width: "auto", height: "auto", objectFit: "contain" }} />
+              </div>
             )}
             <h1 className="serif" style={{ margin: 0, fontSize: "clamp(28px, 8vw, 38px)", fontWeight: 700, lineHeight: 1.15, color: ink }}>{bizName || " "}</h1>
             {person && <p style={{ margin: "6px 0 0", fontSize: "var(--t-md, 16px)", color: ink2, fontWeight: 600 }}>{person}</p>}
@@ -370,21 +501,59 @@ export default function PublicLandingPage({
           </section>
         )}
 
+        {/* NICE TO MEET YOU - only with her own portrait. */}
+        {aboutShown && (
+          <Section title="נעים להכיר">
+            <div className="lp-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.25fr)", gap: 14, alignItems: "center" }}>
+              <Photo src={brand.portraitUrl} sizes="(max-width: 560px) 45vw, 230px" style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-md, 12px)" }} />
+              <div>
+                {personName && <p className="serif" style={{ margin: "0 0 6px", fontSize: "var(--t-lg, 18px)", fontWeight: 700, color: ink }}>נעים מאוד, אני {personName}</p>}
+                {brand.therapistTitle && <p style={{ margin: "0 0 6px", fontSize: "var(--t-sm, 15px)", fontWeight: 700, color: "var(--pc-text)" }}>{brand.therapistTitle}</p>}
+                {brand.businessDescription && <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", lineHeight: 1.75, color: ink2, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>}
+                {brand.aboutSignoff && <p className="serif" style={{ margin: "8px 0 0", fontSize: "var(--t-md, 16px)", fontWeight: 600, color: "var(--pc-text)" }}>{brand.aboutSignoff}</p>}
+              </div>
+            </div>
+          </Section>
+        )}
+
         {/* 5. GALLERY - her own uploads. */}
         {gallery.length > 0 && (
           <Section title="מהעבודות שלי">
             {/* As many columns as there are photos, up to three, so one or two never leave empty cells. */}
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(gallery.length, 3)}, minmax(0, 1fr))`, gap: 6, maxWidth: gallery.length === 1 ? 260 : undefined, margin: "0 auto" }}>
               {galleryShown.map((src, i) => (
-                <a key={src} href={src} target="_blank" rel="noreferrer" aria-label={`תמונה ${i + 1} מתוך ${gallery.length}`}
-                  style={{ display: "block", aspectRatio: "1 / 1", borderRadius: "var(--r-sm, 10px)", overflow: "hidden" }}>
+                <button key={src} type="button" onClick={() => setViewer({ kind: "gallery", index: i })} aria-label={`הגדלת תמונה ${i + 1} מתוך ${gallery.length}`}
+                  style={{ display: "block", width: "100%", padding: 0, border: "none", cursor: "zoom-in", aspectRatio: "1 / 1", borderRadius: "var(--r-sm, 10px)", overflow: "hidden", background: "none" }}>
                   <Photo src={src} sizes={gallery.length === 1 ? "260px" : "(max-width: 560px) 50vw, 280px"} style={{ width: "100%", height: "100%" }} />
-                </a>
+                </button>
               ))}
             </div>
             {gallery.length > GALLERY_FIRST && (
               <button type="button" onClick={() => setGalleryOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
                 {galleryOpen ? "הצגת פחות" : `עוד ${gallery.length - GALLERY_FIRST} תמונות`}
+              </button>
+            )}
+          </Section>
+        )}
+
+        {/* RESULTS - real client photos she published with consent. Tap to compare before and after. */}
+        {results.length > 0 && (
+          <Section title="תוצאות אמיתיות">
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(results.length, 2)}, minmax(0, 1fr))`, gap: 8, maxWidth: results.length === 1 ? 280 : undefined, margin: "0 auto" }}>
+              {resultsShown.map((r, i) => (
+                <button key={r.id || i} type="button" onClick={() => setViewer({ kind: "results", index: i })}
+                  aria-label={`תוצאה ${i + 1} מתוך ${results.length}${r.serviceName ? ": " + r.serviceName : ""}`}
+                  style={{ position: "relative", display: "block", width: "100%", padding: 0, border: "none", cursor: "zoom-in", aspectRatio: "1 / 1", borderRadius: "var(--r-sm, 10px)", overflow: "hidden", background: "none" }}>
+                  <Photo src={r.after} sizes="(max-width: 560px) 50vw, 280px" style={{ position: "absolute", inset: 0 }} />
+                  <span aria-hidden="true" style={{ position: "absolute", insetInline: 0, bottom: 0, padding: "18px 8px 6px", background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.55))", color: "#fff", fontSize: 13, fontWeight: 700, textAlign: "start" }}>
+                    {[r.serviceName, r.before ? "לפני · אחרי" : ""].filter(Boolean).join(" · ")}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {results.length > RESULTS_FIRST && (
+              <button type="button" onClick={() => setResultsOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
+                {resultsOpen ? "הצגת פחות" : `עוד ${results.length - RESULTS_FIRST} תוצאות`}
               </button>
             )}
           </Section>
@@ -406,8 +575,9 @@ export default function PublicLandingPage({
         )}
 
         {/* 7. INSTAGRAM - a real handle and a follow link. Nothing else. */}
-        {igHandle && (
-          <section className="lp-sec" aria-label="אינסטגרם">
+        {(igHandle || fbHref) && (
+          <section className="lp-sec" aria-label="רשתות חברתיות" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {igHandle && (
             <div className="lp-card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", color: ink2 }}>עקבי אחריי באינסטגרם</p>
@@ -415,20 +585,56 @@ export default function PublicLandingPage({
               </div>
               <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>מעקב</a>
             </div>
+            )}
+            {fbHref && (
+              <div className="lp-card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <p style={{ flex: 1, minWidth: 0, margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700, color: ink }}>העמוד שלי בפייסבוק</p>
+                <a href={fbHref} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>לעמוד</a>
+              </div>
+            )}
           </section>
         )}
 
         {/* 8. SERVICES - the full menu. */}
         {services.length > 0 && (
           <Section id="services" title="הטיפולים">
-            {groups.map((g) => (
-              <div key={g.key} className="lp-card" style={{ padding: "4px 16px", marginBottom: 10 }}>
-                {g.title && <p style={{ margin: "12px 0 0", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>{g.title}</p>}
-                {g.items.map((s, i) => {
+            {groups.map((g) => {
+              const withPhoto = g.items.filter((s) => ownImage(s));
+              const plain = g.items.filter((s) => !ownImage(s));
+              return (
+              <div key={g.key} style={{ marginBottom: 10 }}>
+                {withPhoto.length > 0 && (
+                  <div style={{ marginBottom: plain.length ? 10 : 0 }}>
+                    {g.title && <p style={{ margin: "0 0 8px", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>{g.title}</p>}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                      {withPhoto.map((s, i) => {
+                        const meta = [minutesOf(s) ? `${minutesOf(s)} דק׳` : "", priceOf(s) ? `₪${priceOf(s).toLocaleString("he-IL")}` : ""].filter(Boolean).join(" · ");
+                        // An odd last card spans both columns, so the grid never ends on an empty cell.
+                        const wide = withPhoto.length % 2 === 1 && i === withPhoto.length - 1;
+                        return (
+                          <a key={String(s.id ?? s.name)} href={`${bookBase}&service=${encodeURIComponent(String(s.name))}`} className="lp-card"
+                            style={{ gridColumn: wide ? "1 / -1" : undefined, padding: 0, overflow: "hidden", textDecoration: "none", color: ink, display: "flex", flexDirection: "column" }}>
+                            <Photo src={ownImage(s)} sizes={wide ? "(max-width: 560px) 100vw, 528px" : "(max-width: 560px) 50vw, 264px"} style={{ width: "100%", aspectRatio: wide ? "16 / 9" : "4 / 3" }} />
+                            <div style={{ padding: "10px 12px 12px", flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+                              <p style={{ margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700, lineHeight: 1.3 }}>{s.name}</p>
+                              {s.description && <p style={{ margin: 0, fontSize: "var(--t-xs, 13px)", color: ink2, lineHeight: 1.5 }}>{s.description}</p>}
+                              {meta && <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", color: ink2 }}>{meta}</p>}
+                              <span style={{ marginTop: "auto", paddingTop: 4, color: "var(--pc-text)", fontWeight: 700, fontSize: "var(--t-sm, 15px)" }}>לקביעה ‹</span>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {plain.length > 0 && (
+              <div className="lp-card" style={{ padding: "4px 16px" }}>
+                {g.title && !withPhoto.length && <p style={{ margin: "12px 0 0", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>{g.title}</p>}
+                {plain.map((s, i) => {
                   const meta = [minutesOf(s) ? `${minutesOf(s)} דק׳` : "", priceOf(s) ? `₪${priceOf(s).toLocaleString("he-IL")}` : ""].filter(Boolean).join(" · ");
                   return (
                     <a key={String(s.id ?? s.name)} href={`${bookBase}&service=${encodeURIComponent(String(s.name))}`}
-                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: i === 0 && !g.title ? "none" : "1px solid " + hair, textDecoration: "none", color: ink }}>
+                      style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: i === 0 && (!g.title || withPhoto.length > 0) ? "none" : "1px solid " + hair, textDecoration: "none", color: ink }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700 }}>{s.name}</p>
                         {s.description && <p style={{ margin: "2px 0 0", fontSize: "var(--t-sm, 15px)", color: ink2, lineHeight: 1.5 }}>{s.description}</p>}
@@ -439,7 +645,10 @@ export default function PublicLandingPage({
                   );
                 })}
               </div>
-            ))}
+                )}
+              </div>
+              );
+            })}
           </Section>
         )}
 
@@ -466,6 +675,11 @@ export default function PublicLandingPage({
               {address && (
                 <div style={{ marginTop: week ? 14 : 0, paddingTop: week ? 14 : 0, borderTop: week ? "1px solid " + hair : "none" }}>
                   <p style={{ margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 600, display: "flex", gap: 6, alignItems: "flex-start" }}><Icon name="pin" size={16} /> {address}</p>
+                  {arrivalNote && (
+                    <p style={{ margin: "8px 0 0", padding: "8px 12px", borderRadius: "var(--r-sm, 10px)", background: "var(--pc-tint)", fontSize: "var(--t-sm, 15px)", lineHeight: 1.6, color: ink }}>
+                      <strong>איך מגיעים: </strong>{arrivalNote}
+                    </p>
+                  )}
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <a href={mapsHref(address)} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ flex: 1, minHeight: 42 }}>Google Maps</a>
                     <a href={wazeHref(address)} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ flex: 1, minHeight: 42 }}>Waze</a>
@@ -488,6 +702,10 @@ export default function PublicLandingPage({
           <PublicFooterLinks />
         </footer>
       </div>
+
+      {viewer && viewerItems.length > 0 && (
+        <Lightbox items={viewerItems} index={viewer.index} title={viewer.kind === "results" ? "תוצאות" : "גלריה"} onClose={closeViewer} onStep={stepViewer} />
+      )}
 
       {/* 10. STICKY BAR - after the hero's buttons scroll away. */}
       {barItems.length > 0 && (

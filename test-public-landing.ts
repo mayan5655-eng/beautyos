@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   openStatus, openStatusLabel, hasRealHours, todayHours, israelClock, fmtHour,
-  displayPhone, telHref, waHref, googleInfo, instagramHandle, planMessage, wazeHref,
+  displayPhone, telHref, waHref, googleInfo, instagramHandle, planMessage, wazeHref, facebookHref,
 } from './lib/publicLanding.ts';
 
 // Sun-Thu 09-19, Fri 09-14, Sat closed.
@@ -76,6 +76,13 @@ assert.equal(instagramHandle('https://www.instagram.com/dana.beauty/?hl=he'), 'd
 assert.equal(instagramHandle('https://facebook.com/x'), null);
 assert.equal(instagramHandle('דנה'), null);
 assert.equal(instagramHandle(''), null);
+
+// Facebook
+assert.equal(facebookHref('https://www.facebook.com/maayanlaserbeauty/'), 'https://www.facebook.com/maayanlaserbeauty/');
+assert.equal(facebookHref('maayanlaserbeauty'), 'https://www.facebook.com/maayanlaserbeauty');
+assert.equal(facebookHref('https://evil.example/facebook.com'), null);
+assert.equal(facebookHref('https://www.facebook.com/'), null);
+assert.equal(facebookHref(''), null);
 
 // WhatsApp message
 assert.equal(planMessage('סטודיו דנה', []), 'היי סטודיו דנה! 🌸\nאשמח לקבוע תור.\nמתי יש לך מקום?');

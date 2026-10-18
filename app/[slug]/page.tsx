@@ -31,6 +31,7 @@ import { fetchPublicServices } from '@/lib/publicServices';
 import { fetchPublicPage } from '@/lib/publicPage';
 import BookingPage from '../BookingPage';
 import PublicLandingPage from '../PublicLandingPage';
+import { cleanPublicResults } from '@/lib/results';
 import { ogVersion } from '@/lib/og/tenantOg';
 
 type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> };
@@ -167,6 +168,17 @@ const loadReviews = cache(async (tenantId: string) => {
   }
 });
 
+// Client result photos she published WITH a consent record (get_public_results serves nothing else,
+// add_treatment_results.sql). An empty list on any failure: a result is never worth failing the page for.
+const loadResults = cache(async (tenantId: string) => {
+  try {
+    const { data, error } = await timed('results', publicClient().rpc('get_public_results', { p_tenant_id: tenantId }));
+    return error ? [] : cleanPublicResults(data);
+  } catch {
+    return [];
+  }
+});
+
 export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
   // ?v=old keeps the previous page (the full BookingPage mini-site) reachable as a fallback.
@@ -180,10 +192,11 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   // Both reads run together. If either fails the page gets null for it and
   // loads that part in the browser, as it did before this step existed.
-  const [initialSettings, initialServices, reviews] = await Promise.all([
+  const [initialSettings, initialServices, reviews, results] = await Promise.all([
     loadPublicSettings(slug, tenant.id),
     loadServices(slug, tenant.id),
     useOld ? Promise.resolve(null) : loadReviews(tenant.id),
+    useOld ? Promise.resolve([]) : loadResults(tenant.id),
   ]);
 
   // v2: the landing page. It needs her settings and services from the server (it has no browser fallback); when a read
@@ -195,6 +208,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
         settings={initialSettings}
         services={initialServices}
         reviews={reviews}
+        results={results}
       />
     );
   }
