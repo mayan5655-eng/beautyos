@@ -1,21 +1,22 @@
 // app/dashboard/owner/signups/page.tsx
-// Screen A, "הרשמות": signups today / 7 days / 30 days, by source, and the newest ones. Tenant-level metadata only.
-import { loadTenants } from '../loader'
+// Screen A, "הרשמות": signups today / 7 days / 30 days, by source, and the newest ones. Tenant-level metadata, plus (for platform admins
+// only, built on the server in ../loader.ts) one contact link per business. Nothing is sent from here: the link opens her own WhatsApp or mail.
+import { loadSignupsPage } from '../loader'
 import { OwnerShell, Unavailable, Row, card, muted, h2, bigNumber } from '../OwnerShell'
-import { signupWindows, signupsBySource, newestSignups, dateHe } from '@/lib/ownerControl'
+import { signupWindows, signupsBySource, dateHe } from '@/lib/ownerControl'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function OwnerSignupsPage() {
-  const r = await loadTenants()
+  const r = await loadSignupsPage()
   if (!r.ok) {
     return <OwnerShell title="הרשמות"><Unavailable>לא הצלחנו לטעון את הנתונים כרגע. אפשר לנסות שוב בעוד רגע.</Unavailable></OwnerShell>
   }
   const now = new Date()
   const w = signupWindows(r.rows, now)
   const sources = signupsBySource(r.rows, now)
-  const newest = newestSignups(r.rows, 20)
+  const { newest, contacts } = r
 
   return (
     <OwnerShell title="הרשמות">
@@ -42,9 +43,16 @@ export default async function OwnerSignupsPage() {
       <section style={card}>
         <h2 style={h2}>ההרשמות האחרונות</h2>
         {newest.length === 0 ? <p style={muted}>עוד אין הרשמות.</p> : newest.map((n) => (
-          <div key={n.id} style={{ padding: '9px 0', borderBottom: '1px solid #F1EBF4' }}>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{n.name}</div>
-            <div style={{ ...muted, fontSize: 13 }}>{dateHe(n.created_at)} · {n.source}</div>
+          <div key={n.id} style={{ padding: '9px 0', borderBottom: '1px solid #F1EBF4', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, overflowWrap: 'anywhere' }}>{n.name}</div>
+              <div style={{ ...muted, fontSize: 13 }}>{dateHe(n.created_at)} · {n.source}</div>
+            </div>
+            {contacts[n.id] && (
+              <a href={contacts[n.id].href} target="_blank" rel="noreferrer" style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 999, border: '1px solid #183024', color: '#183024', fontSize: 14, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                {contacts[n.id].kind === 'whatsapp' ? 'לכתוב בוואטסאפ' : 'לכתוב במייל'}
+              </a>
+            )}
           </div>
         ))}
       </section>
