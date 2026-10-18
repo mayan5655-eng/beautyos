@@ -20,6 +20,10 @@ import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
+import { APP_URL } from "../../../lib/appUrl";
+import { growUiEnabled } from "../../../lib/grow/adapter";
+import { activePolicy, recordConsentAndStart } from "../../../lib/grow/cancelFees";
+import { cancelDeps } from "../grow/_cancel";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -53,7 +57,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
+    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy } =
       await request.json();
 
     // Basic validation
@@ -205,6 +209,23 @@ export async function POST(request) {
     if (bookingTermsRequired(rules) && acceptedTerms !== true) {
       return Response.json(
         { success: false, error: "כדי לקבוע תור צריך לאשר את תנאי ההזמנה" },
+        { status: 400 }
+      );
+    }
+    // Her cancellation policy on top of Grow (lib/grow/cancelFees.ts): when it is on, the client must have ticked it. Any failure to READ it
+    // (Grow screens off, no table yet, not connected) means "no policy": the booking then works exactly as it always did. Never blocked by plan.
+    let policy = null;
+    let policyDeps = null;
+    try {
+      policyDeps = growUiEnabled() ? cancelDeps() : null;
+      if (policyDeps) policy = await activePolicy(policyDeps, activeTenantId);
+    } catch (policyErr) {
+      console.warn("[book-appointment] cancellation policy unreadable, booking without it:", policyErr?.message || String(policyErr));
+      policy = null;
+    }
+    if (policy && acceptedPolicy !== true) {
+      return Response.json(
+        { success: false, error: "כדי לקבוע תור צריך לאשר את מדיניות הביטולים" },
         { status: 400 }
       );
     }
@@ -466,9 +487,26 @@ export async function POST(request) {
       })
     );
 
+    // What she agreed to is stored, and the next step opens on Grow's hosted page (save a card, or pay the deposit). The booking stands whatever
+    // happens here: a step that could not start is reported to the page and stays visible to her.
+    let policyStep = null;
+    if (policy && policyDeps) {
+      try {
+        const r = await recordConsentAndStart(policyDeps, {
+          tenantId: activeTenantId, appointmentId: String(appt.id), clientId: clientId ? String(clientId) : null, clientName: name, phone,
+          servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`,
+        });
+        policyStep = r.step;
+      } catch (stepErr) {
+        console.error("[book-appointment] policy consent failed:", stepErr?.message || String(stepErr));
+        policyStep = { kind: policy.mode, url: null, error: "failed" };
+      }
+    }
+
     return Response.json({
       success: true,
       appointmentId: appt.id,
+      policyStep,
       // What she asked for up front, so the confirmation screen can say how to pay it.
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
     });

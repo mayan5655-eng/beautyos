@@ -57,6 +57,10 @@ export type ChargeInput = {
   clientId?: string | null;
   appointmentId?: string | null;
   email?: string;
+  /** 'deposit' for a booking deposit; omitted for an ordinary cashier charge (the column then keeps its default). */
+  kind?: string;
+  /** Where Grow's page sends the client afterwards, when it is not the dashboard (a client paying a deposit has no dashboard). */
+  returnUrl?: string;
 };
 
 type Deps = { repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date };
@@ -81,6 +85,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     appointment_id: i.appointmentId ?? null,
     payer_phone: phone,
     notify_token: d.newToken(),
+    ...(i.kind ? { kind: i.kind } : {}),
   });
 
   const base = d.appUrl.replace(/\/+$/, '');
@@ -92,8 +97,8 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     fullName: i.clientName,
     phone,
     email: i.email,
-    successUrl: `${base}/dashboard?grow=paid`,
-    cancelUrl: `${base}/dashboard?grow=cancelled`,
+    successUrl: i.returnUrl || `${base}/dashboard?grow=paid`,
+    cancelUrl: i.returnUrl || `${base}/dashboard?grow=cancelled`,
     notifyUrl: `${base}/api/grow/notify?t=${payment.notify_token}`,
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,
@@ -138,7 +143,9 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       tenant_id: p.tenant_id,
       client_id: p.client_id,
       client_name: p.client_name || 'לקוחה',
-      appointment_id: p.appointment_id,
+      // A booking deposit is money received BEFORE the visit: its receipt is deliberately not tied to the appointment, so the calendar does not
+      // show the visit as paid. The cashier deducts the deposit from the visit's own receipt (lib/grow/cancelFees.ts).
+      appointment_id: /^מקדמה/.test(p.description || '') ? null : p.appointment_id,
       service: p.description || 'טיפול',
       amount: Number(p.amount),
       payment_method: 'אשראי',

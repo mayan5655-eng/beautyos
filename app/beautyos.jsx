@@ -70,6 +70,9 @@ import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
+import GrowCashierCredit from "./GrowCashierCredit";
+import FeeQuestions from "./FeeQuestions";
+import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -1575,6 +1578,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // up front, and a session leaving her balance without being asked for is the
   // one thing this must never do.
   const [drawFromPackage, setDrawFromPackage] = useState(false);
+  // Grow cancellation policy in the cashier: a deposit already paid for this appointment and client credit (app/GrowCashierCredit.jsx).
+  const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -2092,7 +2097,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // handed, not what the treatment cost.
   const cashierSubtotal = cashierItems.reduce((s,item)=>s+(item.price*item.qty),0);
   const cashierDiscountIls = discountAmount(cashierSubtotal, cashierDiscountMode, Number(cashierDiscount||0));
-  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit) * 100) / 100);
+  // Deposit and credit come off AFTER the discount and the package: the deposit first (it was paid for this visit), then credit if she ticked it.
+  const growBase = Math.max(0, cashierSubtotal - cashierDiscountIls - packageCredit);
+  const growDepositUsed = Math.min(Number(growAdj.deposit) || 0, growBase);
+  const growCreditUsed = growAdj.creditOn ? Math.min(Number(growAdj.creditAvail) || 0, Math.max(0, growBase - growDepositUsed)) : 0;
+  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed) * 100) / 100);
   // Two lines: the first is what she types, the second is whatever is left.
   const splitResolved = useMemo(() => {
     const first = { method: splitLines[0]?.method || "ביט", amount: Number(splitLines[0]?.amount) || 0 };
@@ -3795,6 +3804,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // the columns do not exist, so a write naming them fails - and refusing to
   // cancel because an audit column is missing would be the worse failure. So
   // the write is retried without them, and the cancel still happens.
+  // Her cancellation policy on top of Grow (app/api/grow/fees/detect): after SHE cancels or marks a no-show, the server decides from what the client
+  // agreed to whether a fee question should appear. It only ever creates a question, never a charge, and it is silent when there is no policy.
+  const notifyFeeDetect = (appointmentId, event) => {
+    fetch("/api/grow/fees/detect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: String(appointmentId), event }) }).then(() => feesChanged()).catch(() => {});
+  };
+  // A fee was charged from a question: bring the new receipt into the lists (client card, cashier history, reports).
+  const feeCharged = async (receiptId) => {
+    if (!receiptId) return;
+    try {
+      const { data } = await supabase.from("receipts").select("*").eq("id", receiptId);
+      if (data && data[0]) setReceipts(prev => prev.some(x => String(x.id) === String(data[0].id)) ? prev : [...prev, data[0]]);
+    } catch { /* the receipt shows after the next reload */ }
+  };
+
   const softCancelAppointment = useCallback(async (appt, by = "business") => {
     const withAudit = {
       confirmation_status: "cancelled",
@@ -3809,6 +3832,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         .eq("id", appt.id)
         .select();
     }
+    if (!res.error) notifyFeeDetect(appt.id, "cancel");
     return res;
   }, []);
 
@@ -3836,10 +3860,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           handleDbError(error, "mark no-show"); return;
         }
         if (data && data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? data[0] : a));
+        notifyFeeDetect(appt.id, "no_show");
         toast("סומן: לא הגיעה", "success", { label: "החזרה", onClick: async () => {
           const r = await supabase.from("appointments").update({ confirmation_status: previousStatus }).eq("id", appt.id).select();
           if (r.error) { handleDbError(r.error, "restore appointment"); return; }
           if (r.data && r.data[0]) setAppointments(prev => prev.map(a => a.id === appt.id ? r.data[0] : a));
+          notifyFeeDetect(appt.id, "restore");
           toast("הסימון בוטל");
         }});
       },
@@ -5287,7 +5313,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setShowCashier(true);
+    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setShowCashier(true);
   };
 
   // Opens the new-appointment modal pre-filled with her first active service.
@@ -5367,7 +5393,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // in the wrong column of her breakdown. A split is the literal SPLIT
         // string, with the lines in `payments`.
         payment_method:coveredByPackage ? PACKAGE_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
-        note:cashierNote,
+        note:[cashierNote, growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
         items:JSON.stringify(cashierItems),
         discount:cashierDiscountIls,
         // The three new columns. Tip is never part of amount; discount_pct is
@@ -5393,6 +5419,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
+      // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used. Best-effort:
+      // the receipt is already saved and must never fail because of this.
+      if (growDepositUsed > 0 && cashierAppt?.id) fetch("/api/grow/deposit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({appointmentId:String(cashierAppt.id),receiptId:String(data[0].id),used:growDepositUsed})}).catch(()=>{});
+      if (growCreditUsed > 0 && cashierClient?.id) fetch("/api/grow/credit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clientId:String(cashierClient.id),amount:growCreditUsed,receiptId:String(data[0].id)})}).catch(()=>{});
 
       // The deduction, AFTER the receipt, ordered by which failure is
       // recoverable: a drawn session with no receipt is money she has to chase,
@@ -5416,7 +5446,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // failure. Uses the same sendReceiptToClient the manual button uses.
       afterPaymentRecorded(data[0], { autoSend: !!((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone) });
       setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);setConsentAskFor(data[0].id);
-      setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);
+      setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});
       toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`);
     } finally {
       setBusyKey("saveReceipt", false);
@@ -8427,6 +8457,7 @@ ${MARKETING_FOOTER}`)}`;
  </p>
               )}
  </div>
+ <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
@@ -10480,6 +10511,7 @@ ${MARKETING_FOOTER}`)}`;
       {showModal&&(
  <Sheet open onClose={closeApptModal} width={360} zIndex={1000} className="pop-in" title={editingAppointmentId?"עריכת תור":"קביעת תור חדש"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ {editingAppointmentId&&<FeeQuestions appointmentId={editingAppointmentId} pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>}
 
               {/* WHO. One control for one decision.
                   This was a native <select> of every client PLUS a separate
@@ -11047,6 +11079,7 @@ ${MARKETING_FOOTER}`)}`;
                   className="wa-btn" style={{display:"inline-flex",padding:"7px 12px",fontSize:"var(--t-sm)"}}>שלחי בקשת תשלום</a>
  </div>
             )}
+ {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
  {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
@@ -12654,6 +12687,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{padding:"16px 22px"}}>
                   {clientTab==="info"&&(
  <div style={{display:"flex",flexDirection:"column",gap:9,fontSize:"var(--t-sm)"}}>
+ <FeeQuestions clientId={selectedClient?.id} pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
                       {/* Where she came from. Always shown, including when the
                           answer is "we do not know" - a blank row would read as
                           "no source", and לא ידוע is the honest version for a

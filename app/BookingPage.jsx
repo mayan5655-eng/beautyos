@@ -324,6 +324,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [marketingOk, setMarketingOk] = useState(false);
   const [termsOk, setTermsOk] = useState(false);
   const [depositInfo, setDepositInfo] = useState(null);
+  // Her cancellation policy on top of Grow (/api/grow/policy/public): null unless she turned it on, and then the booking works as it always did.
+  const [growPolicy, setGrowPolicy] = useState(null);
+  const [policyOk, setPolicyOk] = useState(false);
+  const [policyStep, setPolicyStep] = useState(null);
+  useEffect(() => {
+    if (!tenantId) return undefined;
+    let alive = true;
+    fetch(`/api/grow/policy/public?t=${encodeURIComponent(tenantId)}`).then((r) => r.json()).then((j) => { if (alive && j && j.mode && j.mode !== "off") setGrowPolicy(j); }).catch(() => {});
+    return () => { alive = false; };
+  }, [tenantId]);
 
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
@@ -554,6 +564,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (phoneErr) { setErrorMsg(phoneErr); return; }
     if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
     if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
+    if (growPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -577,6 +588,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           tenantId: tenantId,
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
+          acceptedPolicy: growPolicy ? policyOk === true : undefined,
         }),
       });
       const result = await res.json();
@@ -584,6 +596,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // otherwise fall back to the generic error.
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
+      setPolicyStep(result.policyStep || null);
       setStep(4);
     } catch (err) {
       setErrorMsg(CLIENT_STUCK_HE);
@@ -1336,6 +1349,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     </span>
                   </label>
                 )}
+                {growPolicy && (
+                  <label data-testid="grow-policy" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${policyOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={policyOk} onChange={(e) => { setPolicyOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור מדיניות הביטולים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
+                      <b>מדיניות ביטולים</b><br />
+                      <span data-testid="grow-policy-text" style={{ whiteSpace: "pre-line" }}>{growPolicy.text}</span><br />
+                      קראתי ואני מאשרת.
+                    </span>
+                  </label>
+                )}
                 <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>
@@ -1364,6 +1387,19 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
+                {policyStep && policyStep.url && (
+                  <div data-testid="grow-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
+                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
+                      {policyStep.kind === "deposit" ? "כדי להשלים את ההזמנה, משלמים מקדמה בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
+                    </p>
+                    <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>
+                  </div>
+                )}
+                {policyStep && !policyStep.url && (
+                  <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
+                    התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח. {brand?.businessName || "העסק"} תיצור איתך קשר להשלמת {policyStep.kind === "deposit" ? "המקדמה" : "שמירת הכרטיס"}.
+                  </div>
+                )}
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
                 <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>

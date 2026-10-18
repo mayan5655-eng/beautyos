@@ -14,6 +14,7 @@
 // In mock mode (a test run) the card says so: nobody is ever charged.
 
 import { useCallback, useEffect, useState } from 'react';
+import CancelPolicyCard from './CancelPolicyCard';
 
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -85,6 +86,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         ) : (
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>עוד לא היו חיובים. בקופה יופיע כפתור &quot;חיוב בכרטיס אשראי&quot;.</p>
         )}
+        <CancelPolicyCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
         {!isDemo && (
           <div style={{ marginTop: 12 }}>
             {!confirmOff ? (

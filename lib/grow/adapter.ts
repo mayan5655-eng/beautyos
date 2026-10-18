@@ -17,6 +17,9 @@ import { growPlatformStatus, growCredentials } from './config.ts';
 import type { GrowEnv } from './config.ts';
 import type { Creds } from './service.ts';
 import { tenantRefOf } from './payload.ts';
+import { createMockOps, createLiveOps } from './ops.ts';
+import type { GrowOps } from './ops.ts';
+import { signGrowSession } from './mockSession.ts';
 
 export type GrowMode = 'mock' | 'live';
 
@@ -38,6 +41,8 @@ export type GrowAdapter = {
   creds: Creds | null;
   /** The fetch the service must use: the in-process mock, or undefined for the real network. */
   fetchImpl?: typeof fetch;
+  /** Card tokens, token charges and refunds (cancellation fees and deposits): the in-memory mock, or the real Grow calls. */
+  ops?: GrowOps;
   /** Why it is not configured, for the operator's logs (never shown to her). */
   reason?: string;
 };
@@ -45,12 +50,13 @@ export type GrowAdapter = {
 export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapter {
   if (growMode(env) === 'live') {
     const s = growPlatformStatus(env);
-    return { mode: 'live', configured: s.configured, env: s.env, creds: growCredentials(env), reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
+    const creds = growCredentials(env);
+    return { mode: 'live', configured: s.configured, env: s.env, creds, ops: creds ? createLiveOps(creds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };
   }
-  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE }, fetchImpl: createMockFetch(origin) };
+  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
 }
 
 const newId = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
