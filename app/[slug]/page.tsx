@@ -30,9 +30,10 @@ import { APP_URL } from '@/lib/appUrl';
 import { fetchPublicServices } from '@/lib/publicServices';
 import { fetchPublicPage } from '@/lib/publicPage';
 import BookingPage from '../BookingPage';
+import PublicLandingPage from '../PublicLandingPage';
 import { ogVersion } from '@/lib/og/tenantOg';
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
 // One line per database call on this page, with the region the function ran in. Her public page is the one
 // place a stranger on a phone waits for us, and the logs carry no durations of their own: this is how the
@@ -155,8 +156,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SlugPage({ params }: Props) {
+// Reviews clients wrote after a real visit, published rows only (get_public_reviews, SECURITY DEFINER, add_reviews.sql).
+// Null on any failure: the landing page then hides the section rather than showing a business with "no reviews".
+const loadReviews = cache(async (tenantId: string) => {
+  try {
+    const { data, error } = await timed('reviews', publicClient().rpc('get_public_reviews', { p_tenant_id: tenantId }));
+    return error || !Array.isArray(data) ? null : data;
+  } catch {
+    return null;
+  }
+});
+
+export default async function SlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  // ?v=old keeps the previous page (the full BookingPage mini-site) reachable as a fallback.
+  const v = (await searchParams)?.v;
+  const useOld = (Array.isArray(v) ? v[0] : v) === 'old';
   const tenant = await resolveTenant(slug);
 
   // No such business: a real 404 (see not-found.tsx for the Hebrew page and why it is not a 200). A FAILED lookup
@@ -165,10 +180,24 @@ export default async function SlugPage({ params }: Props) {
 
   // Both reads run together. If either fails the page gets null for it and
   // loads that part in the browser, as it did before this step existed.
-  const [initialSettings, initialServices] = await Promise.all([
+  const [initialSettings, initialServices, reviews] = await Promise.all([
     loadPublicSettings(slug, tenant.id),
     loadServices(slug, tenant.id),
+    useOld ? Promise.resolve(null) : loadReviews(tenant.id),
   ]);
+
+  // v2: the landing page. It needs her settings and services from the server (it has no browser fallback); when a read
+  // failed, the old page is rendered instead, since that one loads its data in the browser.
+  if (!useOld && initialSettings && initialServices) {
+    return (
+      <PublicLandingPage
+        tenantId={tenant.id}
+        settings={initialSettings}
+        services={initialServices}
+        reviews={reviews}
+      />
+    );
+  }
 
   return (
     <BookingPage

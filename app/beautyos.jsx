@@ -11920,6 +11920,17 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </div>
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ {/* Google Business values she copies from her own Google profile. Stored in the branding jsonb (no migration);
+     the public page shows the Google card and stats only when a rating between 1 and 5 is filled in (lib/publicLanding.ts). */}
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:10,display:"flex",flexDirection:"column",gap:8}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,margin:0}}>הדירוג שלך בגוגל (יוצג בדף רק אם מולא)</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:0}}>העתיקי את המספרים מהפרופיל העסקי שלך בגוגל, בדיוק כפי שהם מופיעים שם.</p>
+ <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+ <div><p style={lbl}>דירוג (1-5)</p><input inputMode="decimal" value={brand.google_rating??""} onChange={e=>setBrand("google_rating",e.target.value.replace(/[^0-9.,]/g,"").slice(0,3))} placeholder="4.9" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>מספר ביקורות</p><input inputMode="numeric" value={brand.google_reviews_count??""} onChange={e=>setBrand("google_reviews_count",e.target.value.replace(/\D/g,"").slice(0,6))} placeholder="120" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ </div>
+ <div><p style={lbl}>קישור לפרופיל בגוגל</p><input value={brand.google_place_url||""} onChange={e=>setBrand("google_place_url",e.target.value.trim())} placeholder="https://maps.app.goo.gl/..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ </div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="star" size={14}/> ביקורות מלקוחות</p>
