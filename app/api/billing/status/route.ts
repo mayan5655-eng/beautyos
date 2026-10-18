@@ -9,7 +9,7 @@
 //   tableReady               false while add_kalmea_billing.sql has not been run
 import { NextResponse } from 'next/server';
 import { REGULAR_PRICE, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
-import { billing, caller, tableMissing } from '../_shared';
+import { admin, billing, caller, tableMissing } from '../_shared';
 
 const SUB_COLS = 'id, tenant_id, price, currency, status, next_charge_at, card_last4, card_brand, failed_attempts, past_due_since, last_attempt_at, canceled_at, ends_at';
 
@@ -24,7 +24,9 @@ export async function GET() {
     payments: [] as unknown[],
   };
 
-  const t = await c.session.from('tenants').select('plan_status, trial_ends_at, plan_price').eq('id', c.tenantId).maybeSingle();
+  // The plan columns are not readable with her own session (the gate revoked them from the browser role), so they are read with the service role,
+  // for her own tenant only (c.tenantId comes from her session).
+  const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price').eq('id', c.tenantId).maybeSingle();
   if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: Number(t.data.plan_price) > 0 ? Number(t.data.plan_price) : REGULAR_PRICE };
 
   const s = await c.session.from('billing_subscriptions').select(SUB_COLS).eq('tenant_id', c.tenantId).maybeSingle();

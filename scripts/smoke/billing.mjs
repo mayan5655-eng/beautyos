@@ -11,6 +11,8 @@ import { launch, PASSWORD, BASE, admin, newEmail, tenantIdOf, REAL_TENANT } from
 const log = (...a) => console.log('[billing]', ...a);
 const fails = [];
 const check = (ok, msg) => { if (ok) log('ok  ', msg); else { fails.push(msg); console.error('[billing] FAIL', msg); } };
+const SHOTS = process.env.SHOTS || '';
+const shot = (pg, name) => SHOTS ? pg.screenshot({ path: `${SHOTS}/${name}` }).catch(() => {}) : Promise.resolve();
 const NOISE = [/Invalid Sentry Dsn/i, /get_public_services/, /billing\/status/];
 
 const db = admin();
@@ -82,7 +84,10 @@ try {
     await page.keyboard.press('Escape'); await home();
     check(await page.locator('[data-testid="billing-cta"]').filter({ visible: true }).count() === 1, 'the trial banner invites her to add a card (4 days before the end)');
     await visible('[data-testid="billing-cta"]').click(); await page.waitForTimeout(1200);
-    check(await page.locator('[data-testid="billing-card"]').count() === 1 && (await body()).includes('₪349'), 'the invitation opens her billing screen at her price (349)');
+    await page.waitForTimeout(800);
+    const cardText = await page.locator('[data-testid="billing-card"]').innerText().catch(() => '');
+    check(cardText.includes('349'), 'the invitation opens her billing screen at her price (349)');
+    if (!cardText.includes('349')) console.error('[billing] card text:', cardText.slice(0, 300));
     await addCardOnMockPage('ok');
     let { data: sub } = await db.from('billing_subscriptions').select('*').eq('tenant_id', tenantId).maybeSingle();
     check(sub?.status === 'trialing' && sub.card_last4 === '4242' && Number(sub.price) === 349 && !!sub.token_ref, 'the card is saved: trialing at 349 with a token reference and the last four digits');
@@ -96,13 +101,14 @@ try {
     let pays = (await db.from('billing_payments').select('*').eq('tenant_id', tenantId)).data || [];
     check(pays.length === 1 && pays[0].status === 'succeeded' && Number(pays[0].amount) === 349 && pays[0].invoice_status === 'issued' && !!pays[0].invoice_url, 'one successful payment of 349 with an invoice');
     check((await db.from('tenants').select('plan_status').eq('id', tenantId).single()).data.plan_status === 'active', 'the business is active');
-    await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1200); await skipTour();
+    await home();                                   // the mock card page is still open in this tab: go back to the dashboard
     await openBilling();
     check(await page.locator('[data-testid="billing-history"] a:has-text("חשבונית")').count() === 1, 'the history shows the invoice link');
+    await page.locator('[data-testid="billing-card"]').scrollIntoViewIfNeeded(); await shot(page, 'kalmea-billing-settings.png');
 
     // a refused card: failure, retry state, banner
     await addCardOnMockPage('decline');
-    await db.from('billing_subscriptions').update({ next_charge_at: new Date(Date.now() - 3600000).toISOString() }).eq('tenant_id', tenantId);
+    await db.from('billing_subscriptions').update({ next_charge_at: new Date(Date.now() - 40 * 86400000).toISOString() }).eq('tenant_id', tenantId);   // a month later: a different billing period from the one already paid
     c = await cron();
     check(c.json?.failed === 1, `a refused card fails the charge (${JSON.stringify(c.json)})`);
     ({ data: sub } = await db.from('billing_subscriptions').select('*').eq('tenant_id', tenantId).maybeSingle());
@@ -116,9 +122,13 @@ try {
     check(c.json?.blocked === 1, `after the grace period the business is blocked (${JSON.stringify(c.json)})`);
     check((await db.from('tenants').select('plan_status').eq('id', tenantId).single()).data.plan_status === 'expired', 'blocked through the existing plan_status gate');
     await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1800); await skipTour();
+    // this run compresses weeks into minutes: the first payment's billing period is moved back so the recovery payment is a different period, as it would be in real life
+    await db.from('billing_payments').update({ period_start: new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10), period_end: new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10) }).eq('tenant_id', tenantId).eq('status', 'succeeded');
+    await shot(page, 'kalmea-billing-blocked.png');
     const cta = visible('[data-testid="billing-cta"]');
     check((await cta.count()) === 1 && (await cta.innerText()).includes('תשלום וחזרה לעבודה'), 'the blocked banner offers "pay and return to work"');
-    await cta.click(); await page.waitForTimeout(1200);
+    await cta.click(); await page.locator('[data-testid="billing-card"]').waitFor({ timeout: 15000 }).catch(() => {}); await page.waitForTimeout(800);
+    if (!(await page.locator('[data-testid="billing-card"]').count())) await page.screenshot({ path: `${process.env.TEMP || '/tmp'}/billing-blocked-debug.png` }).catch(() => {});
     check(await page.locator('[data-testid="billing-card"]').count() === 1, 'the billing screen is reachable while blocked');
     await addCardOnMockPage('ok');
     check((await db.from('tenants').select('plan_status').eq('id', tenantId).single()).data.plan_status === 'active', 'a good card charges and unblocks at once');
