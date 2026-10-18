@@ -10,10 +10,10 @@ import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 import { createMockOps, newMockCardToken } from './lib/grow/ops.ts';
 import type { GrowOps } from './lib/grow/ops.ts';
 import {
-  activePolicy, recordConsentAndStart, saveToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion, releaseExpiredHolds, onDepositPaid,
+  activePolicy, recordConsentAndStart, saveToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion, releaseExpiredHolds, onDepositPaid, requestDepositForAppointment,
 } from './lib/grow/cancelFees.ts';
 import type { CancelRepo, ConsentRow, FeeItem, TokenRow, ApptRow, PaymentRow, Deps, FeeStatus } from './lib/grow/cancelFees.ts';
-import { sanitizePolicy, feeAmount, classify, defaultPolicyText, snapshotOf, DEFAULT_POLICY, feeQuestionHe, DEPOSIT_HOLD_MINUTES } from './lib/cancellationPolicy.ts';
+import { sanitizePolicy, feeAmount, classify, defaultPolicyText, snapshotOf, DEFAULT_POLICY, feeQuestionHe, DEPOSIT_HOLD_MINUTES, policyAppliesToService } from './lib/cancellationPolicy.ts';
 import type { CancelPolicy } from './lib/cancellationPolicy.ts';
 import { monthSummary, liveReceipts } from './lib/till.ts';
 import { signGrowSession, verifyGrowSession } from './lib/grow/mockSession.ts';
@@ -64,6 +64,7 @@ function world(startIso = '2026-11-10T06:00:00Z') {
     async getToken(id) { return tokens.find((t) => t.id === id) || null; },
     async listExpiredHolds(nowIso, tenantId) { return consents.filter((c) => c.status === 'awaiting_deposit' && !!c.hold_expires_at && c.hold_expires_at < nowIso && (!tenantId || c.tenant_id === tenantId)); },
     async releaseAppointment(_t, id) { const a = appts.get(id); if (!a || a.confirmation_status !== 'pending') return false; a.confirmation_status = 'cancelled'; return true; },
+    async holdAppointment(_t, id) { const a = appts.get(id); if (!a || a.confirmation_status === 'cancelled') return false; a.confirmation_status = 'pending'; return true; },
     async confirmAppointment(_t, id) { const a = appts.get(id); if (!a) return false; if (a.confirmation_status === 'pending' || a.confirmation_status === 'confirmed') { a.confirmation_status = 'confirmed'; return true; } return false; },
     async restoreAppointment(_t, id) {
       const a = appts.get(id); if (!a) return 'missing'; if (a.confirmation_status !== 'cancelled') return 'restored';
@@ -113,7 +114,7 @@ function world(startIso = '2026-11-10T06:00:00Z') {
     overrideOps: (o: Partial<GrowOps>) => { opsOverride = o; },
     at: (iso: string) => { now = new Date(iso); },
     now: () => now,
-    addAppt: (id: string, over: Partial<ApptRow> = {}) => { const a: ApptRow = { id, tenant_id: TENANT, client_id: 'c-dana', name: 'דנה', service: 'טיפול פנים', date: '2026-11-11', start_minute: 600, hour: 10, price: 200, confirmation_status: 'confirmed', ...over }; appts.set(id, a); return a; },
+    addAppt: (id: string, over: Partial<ApptRow> = {}) => { const a: ApptRow = { id, tenant_id: TENANT, client_id: 'c-dana', client_phone: '0501234567', name: 'דנה', service: 'טיפול פנים', date: '2026-11-11', start_minute: 600, hour: 10, price: 200, confirmation_status: 'confirmed', ...over }; appts.set(id, a); return a; },
     cancel: (id: string) => { appts.get(id)!.confirmation_status = 'cancelled'; },
     noShow: (id: string) => { appts.get(id)!.confirmation_status = 'no_show'; },
   };
@@ -465,6 +466,87 @@ await ok('deposit hold: other modes and a zero deposit are never held; a release
   assert.deepEqual(await releaseExpiredHolds(w.deps(), '99999999-9999-9999-9999-999999999999'), { released: 0, confirmed: 0 });
 });
 
+
+// ── deposit per service ──────────────────────────────────────────────────────
+await ok('per service: deposit mode covers only the services marked "requires deposit"; saved-card mode covers all; off covers none', () => {
+  assert.equal(policyAppliesToService('deposit', { requires_deposit: true }), true);
+  assert.equal(policyAppliesToService('deposit', { requires_deposit: false }), false);
+  assert.equal(policyAppliesToService('deposit', {}), false, 'default off');
+  assert.equal(policyAppliesToService('deposit', null), false);
+  assert.equal(policyAppliesToService('saved_card', {}), true);
+  assert.equal(policyAppliesToService('off', { requires_deposit: true }), false);
+});
+
+await ok('per service: the booking route and the page apply the policy only to a marked service; any other service books as today', () => {
+  const route = read('app/api/book-appointment/route.js');
+  assert.ok(/if \(policy && !policyAppliesToService\(policy\.mode, svcRow\)\) policy = null;/.test(route), 'an unmarked service drops the policy before the tick, the consent and the hold');
+  assert.ok(route.indexOf('policyAppliesToService(policy.mode, svcRow)') < route.indexOf('policy && acceptedPolicy !== true'), 'before the tick is required');
+  assert.ok(/\.select\("\*"\)\s+\.eq\("tenant_id", activeTenantId\)\s+\.eq\("name", service\)/.test(route), 'the service row is read whole, so a missing requires_deposit column cannot break booking');
+  const page = read('app/BookingPage.jsx');
+  assert.ok(/needsPolicy = !!growPolicy && policyAppliesToService\(growPolicy\.mode, selectedService\)/.test(page) && /needsPolicy && !policyOk/.test(page) && /\{needsPolicy && \(/.test(page) && /acceptedPolicy: needsPolicy/.test(page));
+});
+
+await ok('per service: the toggle is in the services settings (default off, degrades without the column), and the migration adds the column', () => {
+  const app = read('app/beautyos.jsx');
+  assert.ok(/SERVICE_FIELDS = \[[^\]]*"requires_deposit"\]/.test(app));
+  assert.ok(/<ServiceDepositToggle checked=\{svc\.requires_deposit===true\}/.test(app), 'off unless true');
+  assert.ok(/const \{ field, requires_deposit, \.\.\.reduced \} = row;/.test(app) && /"requires_deposit" in patch/.test(app) && /const \{ field, requires_deposit, \.\.\.reduced \} = patch;/.test(app), 'a service save still works before the migration');
+  assert.ok(/!state\.connected|!connected\) return null/.test(read('app/ServiceDepositToggle.jsx')), 'visible only when connected to Grow');
+  assert.ok(/alter table public\.service_prices add column if not exists requires_deposit boolean not null default false/.test(read('supabase/migrations/add_grow_cancellation.sql')));
+});
+
+await ok('manual booking: "request deposit?" is pre-set from the service; on -> the 30-minute pending hold and the Grow link; the same rules apply afterwards', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  w.setPolicy({ mode: 'deposit', deposit: { type: 'fixed', value: 100 } });
+  w.addAppt('m1');                                                        // she booked it by hand: confirmed
+  const r = await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm1', returnUrl: `${ORIGIN}/book?t=${TENANT}` });
+  assert.equal(r.ok, true);
+  if (!r.ok) return;
+  assert.equal(r.amount, 100); assert.equal(r.minutes, 30); assert.equal(r.phone, '0501234567'); assert.ok(r.url.startsWith(ORIGIN), 'the Grow payment link');
+  assert.equal(w.appts.get('m1')!.confirmation_status, 'pending', 'held');
+  assert.equal(w.consents[0].snapshot.via, 'owner'); assert.equal(w.consents[0].hold_expires_at, '2026-11-10T06:30:00.000Z');
+  const p = [...w.payments.values()][0];
+  assert.equal(p.kind, 'deposit'); assert.equal(Number(p.amount), 100);
+  assert.equal((await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm1', returnUrl: ORIGIN })).ok, false, 'asked once');
+  // unpaid -> released
+  w.at('2026-11-10T06:31:00Z');
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0 });
+  assert.equal(w.appts.get('m1')!.confirmation_status, 'cancelled');
+
+  // paid in time -> confirmed, and a later timely cancel refunds like any deposit
+  const v = world('2026-11-09T06:00:00Z');
+  v.setPolicy({ mode: 'deposit', timelyCancel: 'refund' });
+  v.addAppt('m2');
+  const r2 = await requestDepositForAppointment(v.deps(), { tenantId: TENANT, appointmentId: 'm2', returnUrl: ORIGIN });
+  assert.equal(r2.ok, true);
+  const p2 = [...v.payments.values()][0];
+  assert.equal((await payLater(v, p2)).status, 'paid');
+  assert.equal(v.appts.get('m2')!.confirmation_status, 'confirmed');
+  v.cancel('m2');
+  assert.equal((await detect(v.deps(), { tenantId: TENANT, appointmentId: 'm2', event: 'cancel', actor: 'client' })).status, 'refunded');
+});
+
+await ok('manual booking: refused without deposit mode, without a phone, or without Grow; a booking made by hand never needs the client to tick anything', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  w.setPolicy({ mode: 'saved_card' });
+  w.addAppt('m1');
+  const a = await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm1', returnUrl: ORIGIN });
+  assert.deepEqual([a.ok, !a.ok && a.code], [false, 'not-deposit']);
+  w.setPolicy({ mode: 'deposit' }); w.addAppt('m2', { client_phone: '' });
+  const b = await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm2', returnUrl: ORIGIN });
+  assert.deepEqual([b.ok, !b.ok && b.code], [false, 'no-phone']);
+  assert.equal(w.appts.get('m2')!.confirmation_status, 'confirmed', 'a refused request leaves the booking as it was');
+  w.setAccount(null);
+  const c = await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm1', returnUrl: ORIGIN });
+  assert.equal(c.ok, false);
+  const route = read('app/api/grow/deposit/request/route.ts');
+  assert.ok(/caller\(\)/.test(route) && /isDemoTenantId/.test(route));
+  const app = read('app/beautyos.jsx');
+  assert.ok(/<ApptDepositToggle serviceName=\{newAppt\.service\} serviceRequires=\{\(services\.find/.test(app) && /!editingAppointmentId&&!apptRepeat\.on&&<ApptDepositToggle/.test(app), 'only for a new single booking');
+  assert.ok(/\/api\/grow\/deposit\/request/.test(app) && /<DepositLinkSheet info=\{depositLink\}/.test(app));
+  assert.ok(/wa\.me\/\$\{waDigits/.test(read('app/DepositLinkSheet.jsx')), 'a wa.me link with the Grow payment link');
+});
+
 // ── wiring (source pins) ─────────────────────────────────────────────────────
 await ok('nothing is charged without her tap: only decide() charges a token, detection never does', () => {
   const src = read('lib/grow/cancelFees.ts');
@@ -491,8 +573,8 @@ await ok('public booking keeps working for blocked tenants and for mode off: no 
 
 await ok('the booking page shows the policy and a required tick only when a policy is on, and the cancel link lets her cancel under a policy', () => {
   const page = read('app/BookingPage.jsx');
-  assert.ok(/growPolicy && !policyOk/.test(page) && /data-testid="grow-policy"/.test(page) && /acceptedPolicy: growPolicy \? policyOk === true : undefined/.test(page));
-  assert.ok(/growPolicy &&\s*\(/.test(page), 'the block renders only when a policy is on');
+  assert.ok(/needsPolicy && !policyOk/.test(page) && /data-testid="grow-policy"/.test(page) && /acceptedPolicy: needsPolicy \? policyOk === true : undefined/.test(page));
+  assert.ok(/needsPolicy &&\s*\(/.test(page), 'the block renders only when a policy applies to the chosen service');
   const confirm = read('app/api/confirm/route.ts');
   assert.ok(/!underPolicy/.test(confirm) && /event: 'cancel', actor: 'client'/.test(confirm), 'the client link detects the fee and is not refused inside the window');
 });
@@ -535,6 +617,15 @@ await ok('the hold is wired: the booking route holds as pending and defers the c
   assert.ok(/התור שמור עבורך ל-30 דקות/.test(read('app/BookingPage.jsx')), 'the client is told about the 30 minutes');
   const mig = read('supabase/migrations/add_grow_cancellation.sql');
   assert.ok(/hold_expires_at/.test(mig) && /hold_expired/.test(mig) && /add column if not exists hold_expires_at/.test(mig), 'the migration adds the hold and stays re-runnable');
+});
+
+await ok('a held booking is labelled "ממתינה למקדמה" with the minutes left, in the calendar, the today list and the appointment card', () => {
+  const badge = read('app/HoldBadge.jsx');
+  assert.ok(/ממתינה למקדמה/.test(badge) && /נשארו \$\{m\} דקות/.test(badge) && /נשארה דקה/.test(badge));
+  const app = read('app/beautyos.jsx');
+  assert.equal((app.match(/<HoldBadge /g) || []).length, 3, 'today list, calendar card and appointment card');
+  const route = read('app/api/grow/holds/route.ts');
+  assert.ok(/\.eq\('status', 'awaiting_deposit'\)/.test(route) && /\.gt\('hold_expires_at'/.test(route) && /caller\(\)/.test(route), 'only live holds, only hers, behind the flag');
 });
 
 await ok('every unverified live Grow field is marked TODO(grow-docs)', () => {

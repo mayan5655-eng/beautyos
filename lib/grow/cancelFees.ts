@@ -58,7 +58,7 @@ export type FeeItem = {
   created_at: string;
 };
 
-export type ApptRow = { id: string; tenant_id: string; client_id: string | null; name: string | null; service: string | null; date: string; start_minute: number | null; hour: number | null; price: number | string | null; confirmation_status: string | null };
+export type ApptRow = { id: string; tenant_id: string; client_id: string | null; client_phone?: string | null; name: string | null; service: string | null; date: string; start_minute: number | null; hour: number | null; price: number | string | null; confirmation_status: string | null };
 
 export type PaymentRow = { id: string; tenant_id: string; status: string; amount: number; transaction_id: string | null; receipt_id: string | null; appointment_id: string | null };
 
@@ -74,6 +74,8 @@ export type CancelRepo = {
   listExpiredHolds(nowIso: string, tenantId?: string): Promise<ConsentRow[]>;
   /** pending -> cancelled (by the system) if the appointment is still pending; true when it was released. */
   releaseAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
+  /** Hold a booking the cosmetician made herself: confirmed or pending -> pending (never un-cancels). True when it is pending after the call. */
+  holdAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
   /** pending -> confirmed; true when it is confirmed after the call (already confirmed counts). */
   confirmAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
   /** A released booking whose deposit arrived late: confirm it again if its slot is still free. */
@@ -129,9 +131,9 @@ export type BookingStep = { kind: 'saved_card' | 'deposit'; url: string | null; 
  */
 export async function recordConsentAndStart(
   d: Deps,
-  i: { tenantId: string; appointmentId: string; clientId: string | null; clientName: string; phone: string; servicePrice: number; serviceName: string; policy: CancelPolicy; returnUrl: string },
+  i: { tenantId: string; appointmentId: string; clientId: string | null; clientName: string; phone: string; servicePrice: number; serviceName: string; policy: CancelPolicy; returnUrl: string; via?: 'booking_page' | 'owner' },
 ): Promise<{ consent: ConsentRow; step: BookingStep }> {
-  const snapshot = snapshotOf(i.policy, i.servicePrice);
+  const snapshot = snapshotOf(i.policy, i.servicePrice, i.via || 'booking_page');
   if (!snapshot) throw new Error('policy is off');
   const account = await d.repo.getAccount(i.tenantId);
   const nowD = clock(d);
@@ -162,6 +164,30 @@ export async function recordConsentAndStart(
     d.chargeDeps,
   );
   return charge.ok ? { consent, step: { kind: 'deposit', url: charge.url } } : fail('deposit', charge.message);
+}
+
+export type OwnerDepositResult =
+  | { ok: true; url: string; amount: number; minutes: number; clientName: string; phone: string }
+  | { ok: false; code: 'not-deposit' | 'no-appointment' | 'exists' | 'no-phone' | 'zero' | 'step-failed'; error: string };
+
+/**
+ * A booking the cosmetician made herself in the calendar, with "request deposit" on: the same 30-minute pending hold as a public booking, and the
+ * Grow payment link for her to send the client (a wa.me link in the app). The agreement is recorded as asked by the owner (snapshot.via = 'owner'),
+ * so every refund, keep and credit rule applies exactly as for a deposit taken on the booking page.
+ */
+export async function requestDepositForAppointment(d: Deps, i: { tenantId: string; appointmentId: string; returnUrl: string }): Promise<OwnerDepositResult> {
+  const policy = await activePolicy(d, i.tenantId);
+  if (!policy || policy.mode !== 'deposit') return { ok: false, code: 'not-deposit', error: 'מצב המקדמה לא פעיל' };
+  const appt = await d.repo.getAppointment(i.tenantId, i.appointmentId);
+  if (!appt) return { ok: false, code: 'no-appointment', error: 'התור לא נמצא' };
+  if (await d.repo.getConsent(i.tenantId, i.appointmentId)) return { ok: false, code: 'exists', error: 'כבר נשלחה בקשת מקדמה לתור הזה' };
+  const phone = String(appt.client_phone || '').trim();
+  if (!phone) return { ok: false, code: 'no-phone', error: 'צריך מספר נייד של הלקוחה כדי לשלוח לה את קישור התשלום' };
+  const price = priceOf(appt);
+  const r = await recordConsentAndStart(d, { tenantId: i.tenantId, appointmentId: i.appointmentId, clientId: appt.client_id, clientName: appt.name || '', phone, servicePrice: price, serviceName: appt.service || '', policy, returnUrl: i.returnUrl, via: 'owner' });
+  if (!r.step.url) return { ok: false, code: r.consent.snapshot.deposit_amount > 0 ? 'step-failed' : 'zero', error: 'לא הצלחנו לפתוח דף תשלום, נסי שוב' };
+  await d.repo.holdAppointment(i.tenantId, i.appointmentId);
+  return { ok: true, url: r.step.url, amount: r.consent.snapshot.deposit_amount, minutes: DEPOSIT_HOLD_MINUTES, clientName: appt.name || '', phone };
 }
 
 /** A card was saved on Grow's hosted page. Stores the token reference and links it to the booking. Idempotent for the same token. */
@@ -444,7 +470,7 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       if (error) fail(error, 'savePolicy');
     },
     async getAppointment(tenantId, appointmentId) {
-      const { data, error } = await db.from('appointments').select('id, tenant_id, client_id, name, service, date, start_minute, hour, price, confirmation_status').eq('id', appointmentId).eq('tenant_id', tenantId).maybeSingle();
+      const { data, error } = await db.from('appointments').select('id, tenant_id, client_id, client_phone, name, service, date, start_minute, hour, price, confirmation_status').eq('id', appointmentId).eq('tenant_id', tenantId).maybeSingle();
       if (error) fail(error, 'getAppointment');
       return (data || null) as ApptRow | null;
     },
@@ -478,6 +504,11 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       }
       if (res.error) fail(res.error, 'releaseAppointment');
       return !!(res.data && res.data.length);
+    },
+    async holdAppointment(tenantId, appointmentId) {
+      const { data, error } = await db.from('appointments').update({ confirmation_status: 'pending' }).eq('id', appointmentId).eq('tenant_id', tenantId).neq('confirmation_status', 'cancelled').select('id');
+      if (error) fail(error, 'holdAppointment');
+      return !!(data && data.length);
     },
     async confirmAppointment(tenantId, appointmentId) {
       const { data, error } = await db.from('appointments').update({ confirmation_status: 'confirmed' }).eq('id', appointmentId).eq('tenant_id', tenantId).in('confirmation_status', ['pending', 'confirmed']).select('id');

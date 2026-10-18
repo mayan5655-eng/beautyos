@@ -23,7 +23,7 @@ import { consentFields } from "../../../lib/marketingConsent.js";
 import { APP_URL } from "../../../lib/appUrl";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
-import { feeAmount } from "../../../lib/cancellationPolicy";
+import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
 
 const supabase = createClient(
@@ -147,7 +147,7 @@ export async function POST(request) {
     ] = await Promise.all([
       supabase
         .from("service_prices")
-        .select("name, price, duration, color, active")
+        .select("*")
         .eq("tenant_id", activeTenantId)
         .eq("name", service)
         .limit(1),
@@ -230,6 +230,8 @@ export async function POST(request) {
       );
     }
     // Her cancellation policy (read above, before the calendar was looked at). It was read there so that expired deposit holds were released first.
+    // Deposit mode covers only the services she marked "requires deposit": any other service books exactly as it always did (no consent, no deposit, no hold).
+    if (policy && !policyAppliesToService(policy.mode, svcRow)) policy = null;
     if (policy && acceptedPolicy !== true) {
       return Response.json(
         { success: false, error: "כדי לקבוע תור צריך לאשר את מדיניות הביטולים" },

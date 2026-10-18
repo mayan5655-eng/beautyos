@@ -72,6 +72,10 @@ const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
 import FeeQuestions from "./FeeQuestions";
+import HoldBadge from "./HoldBadge";
+import ServiceDepositToggle from "./ServiceDepositToggle";
+import ApptDepositToggle from "./ApptDepositToggle";
+import DepositLinkSheet from "./DepositLinkSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
@@ -1574,6 +1578,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [voidReason,      setVoidReason]      = useState("");
   // A recurring appointment: "every N weeks, M times", new appointments only.
   const [apptRepeat,      setApptRepeat]      = useState({on:false, everyWeeks:3, count:6});
+  // Grow deposit on a booking she makes by hand: the switch in the appointment sheet, and the link sheet that follows a save with it on.
+  const [apptDeposit,     setApptDeposit]     = useState(false);
+  const [depositLink,     setDepositLink]     = useState(null);
   // Whether this visit is drawn from a package. OFF until she taps it: she paid
   // up front, and a session leaving her balance without being asked for is the
   // one thing this must never do.
@@ -3556,8 +3563,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const {data,error}=await supabase.from("appointments").insert([appt]).select();
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
+        const wantDeposit = apptDeposit && data && data[0];
         setApptNote("");closeApptModal();
         toast("התור נשמר בהצלחה");
+        // "Request deposit": hold the booking for 30 minutes and hand her the Grow payment link to send (app/api/grow/deposit/request).
+        if (wantDeposit) {
+          try {
+            const r = await fetch("/api/grow/deposit/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: String(data[0].id) }) });
+            const j = await r.json().catch(() => null);
+            if (r.ok && j && j.success) { setDepositLink({ url: j.url, amount: j.amount, minutes: j.minutes, clientName: j.clientName, phone: j.phone }); setAppointments(prev => prev.map(a => String(a.id) === String(data[0].id) ? { ...a, confirmation_status: "pending" } : a)); window.dispatchEvent(new Event("kalmea:holds-changed")); }
+            else toast((j && j.error) || "התור נשמר, אבל לא הצלחנו לבקש מקדמה", "error");
+          } catch { toast("התור נשמר, אבל לא הצלחנו לבקש מקדמה", "error"); }
+        }
       }
     } finally {
       setBusyKey("saveAppt", false);
@@ -4862,7 +4879,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // whole row: the old per-row save passed `svc` straight to .update(), which
   // meant it also sent id, tenant_id and created_at back to the server on
   // every keystroke-driven save.
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active"];
+  // requires_deposit comes from add_grow_cancellation.sql (hand-run): like `field`, a missing column degrades the save instead of breaking it.
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit"];
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
     if (!draft) return { changed: 0, errors: [] };
@@ -4893,7 +4911,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // break a plain service save for every tenant over one new column.
         if (error && isMissingColumnError(error)) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-          const { field, ...reduced } = row;
+          const { field, requires_deposit, ...reduced } = row;
           ({ data, error } = await supabase.from("service_prices").insert([reduced]).select());
         }
         if (error || !data || !data[0]) { errors.push(`הוספת ${s.name}`); continue; }
@@ -4913,9 +4931,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (Object.keys(patch).length === 0) continue;
       let { data, error } = await supabase
         .from("service_prices").update(patch).eq("id", s.id).select();
-      if (error && isMissingColumnError(error) && "field" in patch) {
+      if (error && isMissingColumnError(error) && ("field" in patch || "requires_deposit" in patch)) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-        const { field, ...reduced } = patch;
+        const { field, requires_deposit, ...reduced } = patch;
         ({ data, error } = await supabase
           .from("service_prices").update(reduced).eq("id", s.id).select());
       }
@@ -8340,6 +8358,7 @@ ${MARKETING_FOOTER}`)}`;
                       one display site the minutes migration missed; found while
                       auditing type sizes here. */}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fmtApptTime(a)} · {a.service}</p>
+                  <HoldBadge appointmentId={a.id}/>
                   {a.confirmation_status==="confirmed"&&<span style={{fontSize:"var(--t-sm)",color:"var(--success)",fontWeight:700}}>אישרה</span>}
                   {a.confirmation_status==="cancelled"&&<span style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700}}>ביטלה</span>}
                   {a.confirmation_status===NO_SHOW&&<span style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700}}>לא הגיעה</span>}
@@ -9172,6 +9191,7 @@ ${MARKETING_FOOTER}`)}`;
  <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":appt.confirmation_status===NO_SHOW?" · לא הגיעה":""}</p>
  <p style={{fontSize:"var(--t-sm)",color:"rgba(255,255,255,0.92)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
+ {!isPersonal(appt)&&<HoldBadge appointmentId={appt.id} onDark/>}
                                 {/* Real vs. booked, once both ends of the treatment were logged -
                                     the same comparison the "finish" toast said, left visible on
                                     the card instead of gone the moment the toast fades. */}
@@ -10508,9 +10528,12 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
       {/* APPT MODAL */}
+      {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
  <Sheet open onClose={closeApptModal} width={360} zIndex={1000} className="pop-in" title={editingAppointmentId?"עריכת תור":"קביעת תור חדש"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+ {!editingAppointmentId&&!apptRepeat.on&&<ApptDepositToggle serviceName={newAppt.service} serviceRequires={(services.find(sv=>sv.name===newAppt.service)||{}).requires_deposit===true} value={apptDeposit} onChange={setApptDeposit}/>}
+ {editingAppointmentId&&<HoldBadge appointmentId={editingAppointmentId}/>}
  {editingAppointmentId&&<FeeQuestions appointmentId={editingAppointmentId} pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>}
 
               {/* WHO. One control for one decision.
@@ -12320,6 +12343,7 @@ ${MARKETING_FOOTER}`)}`;
      (lib/defaultImages.js) and whether it appears in a field-filtered view.
      Every service gets this, not only a multi-field tenant's: a hand-typed
      or hand-edited row on ANY tenant never got a field written otherwise. */}
+ <ServiceDepositToggle checked={svc.requires_deposit===true} onChange={v=>patchDraftService(idx,{requires_deposit:v})}/>
  <select value={svc.field||""} aria-label="תחום השירות" onChange={e=>patchDraftService(idx,{field:e.target.value||null})} style={{flexShrink:0,maxWidth:88,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 4px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface)",color:svc.field?"var(--ink)":"var(--ink-3)"}}>
  <option value="">לא מסומן</option>
                     {BUSINESS_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label.split(" ")[0]}</option>)}

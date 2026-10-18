@@ -128,6 +128,8 @@ export function classify(event: Event, minutesUntil: number | null, windowHours:
 /** What the client agreed to at booking, frozen. Stored per appointment (appointment_policy_consents). */
 export type ConsentSnapshot = {
   mode: Exclude<PolicyMode, 'off'>;
+  /** Where the agreement came from: the client ticked it on the booking page, or the cosmetician asked for the deposit on a booking she made herself. */
+  via?: 'booking_page' | 'owner';
   policy_text: string;
   window_hours: number;
   late_fee: FeeSpec;
@@ -141,10 +143,11 @@ export type ConsentSnapshot = {
   deposit_amount: number;
 };
 
-export function snapshotOf(p: CancelPolicy, servicePrice: number): ConsentSnapshot | null {
+export function snapshotOf(p: CancelPolicy, servicePrice: number, via: 'booking_page' | 'owner' = 'booking_page'): ConsentSnapshot | null {
   if (p.mode === 'off') return null;
   return {
     mode: p.mode,
+    via,
     policy_text: p.text,
     window_hours: p.windowHours,
     late_fee: p.lateFee,
@@ -156,6 +159,16 @@ export function snapshotOf(p: CancelPolicy, servicePrice: number): ConsentSnapsh
     noshow_fee_amount: feeAmount(p.noShowFee, servicePrice),
     deposit_amount: feeAmount(p.deposit, servicePrice),
   };
+}
+
+/**
+ * Does the policy apply to this service? Saved-card mode covers every service. Deposit mode covers only the services she marked "requires deposit"
+ * (service_prices.requires_deposit): any other service books exactly as it always did, with no deposit, no consent and no hold.
+ */
+export function policyAppliesToService(mode: PolicyMode, service: { requires_deposit?: unknown } | null | undefined): boolean {
+  if (mode === 'off') return false;
+  if (mode === 'deposit') return service?.requires_deposit === true;
+  return true;
 }
 
 /** The one-tap question, in Hebrew, for a pending fee. */

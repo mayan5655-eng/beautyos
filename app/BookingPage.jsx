@@ -30,6 +30,7 @@ import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPolicy";
+import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { accentStyle } from "@/lib/theme";
@@ -328,6 +329,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [growPolicy, setGrowPolicy] = useState(null);
   const [policyOk, setPolicyOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
+  // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
+  const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;
@@ -564,7 +567,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (phoneErr) { setErrorMsg(phoneErr); return; }
     if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
     if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
-    if (growPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
+    if (needsPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -588,7 +591,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           tenantId: tenantId,
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
-          acceptedPolicy: growPolicy ? policyOk === true : undefined,
+          acceptedPolicy: needsPolicy ? policyOk === true : undefined,
         }),
       });
       const result = await res.json();
@@ -1349,7 +1352,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     </span>
                   </label>
                 )}
-                {growPolicy && (
+                {needsPolicy && (
                   <label data-testid="grow-policy" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${policyOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
                     <input type="checkbox" checked={policyOk} onChange={(e) => { setPolicyOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור מדיניות הביטולים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>

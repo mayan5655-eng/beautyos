@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { defaultPolicyText, describeFee } from '@/lib/cancellationPolicy';
+import { growPolicyChanged } from './useGrowPolicy';
 
 const MODES = [
   { k: 'off', l: 'כבויה' },
@@ -64,6 +65,7 @@ export default function CancelPolicyCard({ pc, pcTint, toast, isDemo }) {
       if (!r.ok || !j?.success) { toast?.(j?.error || 'השמירה נכשלה, נסי שוב', 'error'); return; }
       toast?.('מדיניות הביטולים נשמרה');
       setDirty(false);
+      growPolicyChanged();
       await load();
     } finally { setBusy(false); }
   };

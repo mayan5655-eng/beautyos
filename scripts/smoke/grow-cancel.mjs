@@ -13,6 +13,8 @@ const log = (...a) => console.log('[cancel]', ...a);
 const fails = [];
 const check = (ok, msg) => { if (ok) log('ok  ', msg); else { fails.push(msg); console.error('[cancel] FAIL', msg); } };
 const NOISE = [/Invalid Sentry Dsn/i, /get_public_services/];
+const SHOTS = process.env.SHOTS || '';
+const shot = (pg, name) => SHOTS ? pg.screenshot({ path: `${SHOTS}/${name}` }).catch(() => {}) : Promise.resolve();
 const CLIENT = 'דנה ביטול';
 const PHONE = '0500000088';
 
@@ -152,6 +154,7 @@ try {
     await home();
     const q = visible('[data-testid="fee-question"]');
     check((await q.count()) === 1 && /לגבות ₪\d+ מ.* על ביטול מאוחר\?/.test(await q.innerText()), 'the home screen asks "לגבות ₪… על ביטול מאוחר?"');
+    await q.scrollIntoViewIfNeeded(); await shot(page, 'kalmea-fee-question.png');
     await visible('[data-testid="fee-charge"]').click(); await page.waitForTimeout(3000);
     ({ data: items } = await db.from('cancellation_fee_items').select('*').eq('tenant_id', tenantId));
     const { data: pays } = await db.from('grow_payments').select('*').eq('tenant_id', tenantId);
@@ -169,7 +172,53 @@ try {
     await visible('button:has-text("סיכום הכנסות")').click(); await page.waitForTimeout(1500);
     check(/מספר עסקאות 1/.test(await body()), 'and in the revenue report');
 
-    log('NOTE: the waive, no-show and deposit paths are covered by test-grow-cancel.ts; they were not clicked through here');
+    // ── part B: deposit mode, held for 30 minutes ──
+    await db.from('appointments').delete().eq('tenant_id', tenantId);
+    await db.from('grow_cancel_policies').upsert({ tenant_id: tenantId, policy: { mode: 'deposit', windowHours: 24, deposit: { type: 'fixed', value: 100 }, lateFee: { type: 'percent', value: 50 }, noShowFee: { type: 'percent', value: 100 }, timelyCancel: 'refund', text: '' } }, { onConflict: 'tenant_id' });
+    // per service: in deposit mode a service that does NOT require a deposit books exactly as before (no policy block, no consent, no hold)
+    await db.from('service_prices').update({ requires_deposit: false }).eq('tenant_id', tenantId);
+    pub = await publicBook({ expectPolicy: false });
+    await pub.close();
+    const { data: plain } = await db.from('appointments').select('id, confirmation_status').eq('tenant_id', tenantId).single();
+    check(plain.confirmation_status === 'confirmed', 'a service without "requires deposit" is confirmed at once, no hold');
+    check(((await db.from('appointment_policy_consents').select('id').eq('appointment_id', String(plain.id))).data || []).length === 0, 'and no consent or deposit was recorded');
+    await db.from('appointments').delete().eq('tenant_id', tenantId);
+    // now every service requires a deposit
+    await db.from('service_prices').update({ requires_deposit: true }).eq('tenant_id', tenantId);
+    pub = await publicBook({ expectPolicy: true, tick: true });
+    check(await pub.locator('[data-testid="grow-step"]').count() === 1 && (await body(pub)).includes('התור שמור עבורך ל-30 דקות'), 'the booking page says the slot is held for 30 minutes while the deposit is paid');
+    await shot(pub, 'kalmea-deposit-booking.png');
+    const { data: held } = await db.from('appointments').select('id, confirmation_status').eq('tenant_id', tenantId).single();
+    check(held.confirmation_status === 'pending', 'the booking is held as pending');
+    const { data: hc } = await db.from('appointment_policy_consents').select('*').eq('appointment_id', String(held.id)).single();
+    const holdLeft = Math.round((new Date(hc.hold_expires_at).getTime() - Date.now()) / 60000);
+    check(hc.status === 'awaiting_deposit' && holdLeft >= 28 && holdLeft <= 30, `the hold runs for 30 minutes (${holdLeft} left)`);
+    // today, so the "today" list on the home screen shows it
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    await db.from('appointments').update({ date: today }).eq('id', held.id);
+    await home();
+    const badge = page.locator('[data-testid="hold-badge"]').first();
+    await badge.waitFor({ timeout: 8000 }).catch(() => {});
+    check((await badge.count()) >= 1 && /ממתינה למקדמה · נשארו \d+ דקות/.test(await badge.innerText()), 'the home screen labels it "ממתינה למקדמה" with the minutes left');
+    // the deposit is paid on Grow's mock page: confirmed, and the label goes
+    await pub.locator('[data-testid="grow-step"] a').click();
+    await pub.waitForURL((u) => u.pathname.startsWith('/api/grow/mock-pay'), { timeout: 20000 });
+    await pub.locator('button:has-text("דמה תשלום מוצלח")').click(); await pub.waitForTimeout(3000);
+    await pub.close();
+    const { data: after } = await db.from('appointments').select('confirmation_status').eq('id', held.id).single();
+    check(after.confirmation_status === 'confirmed', 'a paid deposit confirms the booking');
+    await home();
+    check(await page.locator('[data-testid="hold-badge"]').count() === 0, 'and the label is gone');
+
+    // unpaid: the hold runs out and the slot frees up
+    await db.from('appointments').update({ confirmation_status: 'pending' }).eq('id', held.id);
+    await db.from('appointment_policy_consents').update({ status: 'awaiting_deposit', hold_expires_at: new Date(Date.now() - 60000).toISOString() }).eq('appointment_id', String(held.id));
+    const av = await fetch(`${BASE}/api/availability?t=${tenantId}`);
+    check(av.ok, 'the availability route answers');
+    const { data: rel } = await db.from('appointments').select('confirmation_status').eq('id', held.id).single();
+    check(rel.confirmation_status === 'cancelled', 'unpaid after 30 minutes: the booking is released and the slot is free');
+
+    log('NOTE: the waive, no-show and deposit refund paths are covered by test-grow-cancel.ts; they were not clicked through here');
   }
 
   const real = [...new Set(problems.filter((p) => !NOISE.some((n) => n.test(p))))];

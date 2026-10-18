@@ -35,6 +35,10 @@ end $$;
 create index if not exists grow_payments_appointment_kind_idx on public.grow_payments (tenant_id, appointment_id, kind);
 grant select (kind, refunded_at) on public.grow_payments to authenticated;
 
+-- Per-service deposit: in deposit mode only the services marked here ask the client for a deposit when booking on the public page; any other service books
+-- as before. Default off. (get_public_services returns the whole service row, so the public page sees the flag with no function change.)
+alter table public.service_prices add column if not exists requires_deposit boolean not null default false;
+
 -- 2 ─────────────────────────────────────────────────────────────────────────
 create table if not exists public.grow_cancel_policies (
   tenant_id  uuid primary key references public.tenants(id) on delete cascade,
