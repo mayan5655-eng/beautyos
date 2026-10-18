@@ -112,6 +112,16 @@ export async function POST(request) {
       name: client_name,
       type: "receipt",
       tenantId,
+      // The kalmea_payment_document template (lib/waCloud/templates.ts) needs a link, so it is offered only when there is
+      // an issued document to point at; a payment confirmation with no document stays on the existing path. Used only
+      // when WA_CLOUD_ENABLED.
+      ...(legal ? { cloudParams: [
+        String(client_name || "").trim() || "יקרה",
+        `${docNameHe(legal.legal_doc_type)}${legal.legal_doc_number ? " מספר " + legal.legal_doc_number : ""}`,
+        businessName,
+        String(amount),
+        legal.legal_doc_url,
+      ] } : {}),
     });
 
     // queued (manual mode, or the central number fell back) is not a

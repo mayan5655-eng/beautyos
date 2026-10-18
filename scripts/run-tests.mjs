@@ -48,6 +48,13 @@ const FAKE_ENV = {
   GREENAPI_API_URL: '',
   CRON_SECRET: '',
   FACEBOOK_APP_SECRET: '',
+  // WhatsApp Cloud API: off, mock, no token, whatever the machine has.
+  WA_CLOUD_ENABLED: '',
+  WA_CLOUD_MODE: '',
+  WA_CLOUD_ACCESS_TOKEN: '',
+  WA_CLOUD_PHONE_NUMBER_ID: '',
+  WA_CLOUD_APP_SECRET: '',
+  WA_CLOUD_VERIFY_TOKEN: '',
   NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
   SENTRY_AUTH_TOKEN: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
