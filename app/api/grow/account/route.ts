@@ -40,3 +40,18 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ success: true });
 }
+
+/** Disconnect: her Grow business id is removed, so the cashier option disappears. Her past payments and receipts are kept. */
+export async function DELETE() {
+  const c = await caller();
+  if ('error' in c) return c.error;
+  if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: DEMO_NOTE }, { status: 403 });
+  const { error } = await admin().from('grow_accounts').delete().eq('tenant_id', c.tenantId);
+  if (error) {
+    if (tableMissing(error)) return NextResponse.json({ success: true });
+    console.error('[grow] disconnect failed:', error.message);
+    return NextResponse.json({ success: false, error: 'הניתוק נכשל, נסי שוב' }, { status: 500 });
+  }
+  console.log('[grow] disconnected tenant', c.tenantId);
+  return NextResponse.json({ success: true });
+}

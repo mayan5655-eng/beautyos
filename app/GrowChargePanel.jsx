@@ -13,10 +13,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+// The client's number as a wa.me link (Israeli 05x becomes 9725x), with the payment link already typed in. She presses send herself.
+const waHref = (phone, name, amount, url) => {
+  const d = String(phone || '').replace(/\D/g, '');
+  if (d.length < 9) return null;
+  const intl = d.startsWith('0') ? '972' + d.slice(1) : d;
+  const msg = `שלום${name ? ' ' + name : ''}, הנה קישור מאובטח לתשלום ${money(amount)}: ${url}`;
+  return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
+};
+
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
 export default function GrowChargePanel({ amount, description, client, appointmentId, pc, pcTint, toast, onPaid }) {
   const [ready, setReady] = useState(false);
+  const [mock, setMock] = useState(false);
+  const [qr, setQr] = useState('');
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState(null); // { url, paymentId }
   const [state, setState] = useState('idle'); // idle | waiting | paid
@@ -25,7 +36,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
   useEffect(() => {
     let alive = true;
     fetch('/api/grow/status').then((r) => r.json()).then((j) => {
-      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) setReady(true);
+      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) { setReady(true); setMock(j.mode === 'mock'); }
     }).catch(() => {});
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, []);
@@ -63,6 +74,8 @@ export default function GrowChargePanel({ amount, description, client, appointme
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח דף תשלום', 'error'); return; }
       setLink({ url: j.url, paymentId: j.paymentId });
+      // Card details never touch Kalmea: the QR only encodes Grow's own payment page address.
+      import('qrcode').then((m) => m.toDataURL(j.url, { margin: 1, width: 180 })).then(setQr).catch(() => setQr(''));
       setState('waiting');
       poll(j.paymentId);
     } finally { setBusy(false); }
@@ -74,6 +87,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
 
   return (
     <div data-testid="grow-charge" style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
+      {mock && <p style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
       {state === 'idle' && (
         <button type="button" onClick={charge} disabled={busy || !(amount > 0)} className="primary-btn" style={{ width: '100%', padding: '10px 0', background: 'var(--surface)', color: pc, border: `1px solid ${pc}`, fontSize: 'var(--t-sm)', fontWeight: 700 }}>
           {busy ? 'פותחת דף תשלום…' : `חיוב בכרטיס אשראי ${money(amount)}`}
@@ -84,8 +98,10 @@ export default function GrowChargePanel({ amount, description, client, appointme
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600, marginBottom: 6 }}>דף התשלום מוכן. הלקוחה משלמת בו, ואת לא צריכה לעשות עוד כלום.</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <a href={link.url} target="_blank" rel="noreferrer" className="primary-btn" style={{ padding: '8px 12px', background: pc, color: 'var(--pc-contrast)', borderRadius: 'var(--r-sm)', textDecoration: 'none', fontSize: 'var(--t-sm)', fontWeight: 700 }}>פתיחת דף התשלום</a>
+            {waHref(client?.phone, client?.name, amount, link.url) && <a href={waHref(client?.phone, client?.name, amount, link.url)} target="_blank" rel="noreferrer" style={{ padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', fontSize: 'var(--t-sm)', color: 'var(--ink)', textDecoration: 'none', fontWeight: 700 }}>שליחה בוואטסאפ</a>}
             <button type="button" onClick={copy} style={{ padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>העתקת קישור</button>
           </div>
+          {qr && <img src={qr} alt="קוד QR לדף התשלום" width={140} height={140} style={{ display: 'block', margin: '10px auto 0', borderRadius: 'var(--r-sm)', background: '#fff' }} />}
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
             ברגע שהתשלום מתקבל, אישור התשלום נרשם בקופה אוטומטית. אל תלחצי &quot;רשמי תשלום&quot; על אותו טיפול, כדי לא לרשום פעמיים.
           </p>

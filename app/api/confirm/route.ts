@@ -4,6 +4,9 @@ import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
 import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
+import { growUiEnabled } from '@/lib/grow/adapter';
+import { detect } from '@/lib/grow/cancelFees';
+import { cancelDeps } from '@/app/api/grow/_cancel';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -112,7 +115,17 @@ export async function POST(request: NextRequest) {
 
     // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
     // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
-    if (action === 'cancel' && cancelWindowHours > 0) {
+    // A booking made under a Grow cancellation policy is different: the client agreed that a late cancel has a fee, so the link must let her
+    // cancel at any time (the fee, not a refusal, is the consequence) and the late cancel becomes a pending question for the cosmetician.
+    let growDeps: ReturnType<typeof cancelDeps> = null;
+    let underPolicy = false;
+    if (action === 'cancel' && growUiEnabled()) {
+      try {
+        growDeps = cancelDeps();
+        underPolicy = !!growDeps && !!(await growDeps.repo.getConsent(appt.tenant_id, appointmentId));
+      } catch { underPolicy = false; }
+    }
+    if (action === 'cancel' && cancelWindowHours > 0 && !underPolicy) {
       const startMin = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
       if (startMin !== null && isInsideCancelWindow(String(appt.date), Number(startMin), cancelWindowHours)) {
         return NextResponse.json({
@@ -146,6 +159,12 @@ export async function POST(request: NextRequest) {
     // error. Scheduled via after(), not awaited: the cancellation above is
     // already committed, so nothing past this point may delay or fail the
     // response the client's browser is waiting on.
+    if (newStatus === 'cancelled' && underPolicy && growDeps) {
+      const deps = growDeps;
+      after(() => detect(deps, { tenantId: appt.tenant_id, appointmentId, event: 'cancel', actor: 'client' }).then(() => undefined).catch((e) => {
+        console.warn('confirm: fee detection failed', e instanceof Error ? e.message : String(e));
+      }));
+    }
     if (newStatus === 'cancelled') {
       after(() =>
         notifyOwnerOfCancellation({ supabase, tenantId: appt.tenant_id, appt }).catch((e) => {

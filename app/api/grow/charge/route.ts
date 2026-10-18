@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
-import { growCredentials } from '@/lib/grow/config';
+import { resolveGrow } from '@/lib/grow/adapter';
 import { createCharge } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
@@ -20,7 +20,8 @@ export async function POST(request: Request) {
   if ('error' in c) return c.error;
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: DEMO_NOTE }, { status: 403 });
 
-  const creds = growCredentials();
+  const grow = resolveGrow(process.env, APP_URL);
+  const creds = grow.creds;
   if (!creds) return NextResponse.json({ success: false, code: 'platform-not-connected', error: 'הסליקה בכרטיס אשראי עוד לא פעילה במערכת. נעדכן כשהיא זמינה.' }, { status: 409 });
 
   const db = admin();
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
       clientId: b.clientId != null ? String(b.clientId) : null,
       appointmentId: b.appointmentId != null ? String(b.appointmentId) : null,
     },
-    { repo: supabaseGrowRepo(db), creds, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+    { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
   if (!result.ok) {
     const status = result.code === 'bad-amount' || result.code === 'bad-phone' ? 400 : 502;

@@ -16,7 +16,7 @@
 //
 // Money never passes through Kalmea: the payment page belongs to her Grow account.
 
-import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
+import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
 import type { Notification } from './payload.ts';
 
 export type GrowPayment = {
@@ -44,7 +44,7 @@ export type GrowRepo = {
   /** The one payment with this Grow process id; null when there is none or the id is ambiguous. Used by the platform webhook, whose URL carries no per-payment secret. */
   findByProcessId?(processId: string): Promise<GrowPayment | null>;
   insertReceipt(row: Record<string, unknown>): Promise<{ id: string }>;
-  setReceiptDocument(receiptId: string, url: string): Promise<void>;
+  setReceiptDocument(receiptId: string, url: string, number?: string): Promise<void>;
 };
 
 export type Creds = { apiKey: string; pageCode: string; apiBase: string };
@@ -59,9 +59,17 @@ export type ChargeInput = {
   clientId?: string | null;
   appointmentId?: string | null;
   email?: string;
+  /** 'deposit' for a booking deposit; omitted for an ordinary cashier charge (the column then keeps its default). */
+  kind?: string;
+  /** Where Grow's page sends the client afterwards, when it is not the dashboard (a client paying a deposit has no dashboard). */
+  returnUrl?: string;
 };
 
-type Deps = { repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date };
+type Deps = {
+  repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date;
+  /** Runs once, right after a payment flips to paid (a booking deposit confirms its booking here). A failure is logged and never undoes the payment. */
+  afterPaid?: (p: GrowPayment) => Promise<void>;
+};
 
 export type ChargeResult =
   | { ok: true; paymentId: string; url: string }
@@ -83,6 +91,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     appointment_id: i.appointmentId ?? null,
     payer_phone: phone,
     notify_token: d.newToken(),
+    ...(i.kind ? { kind: i.kind } : {}),
   });
 
   const base = d.appUrl.replace(/\/+$/, '');
@@ -94,8 +103,8 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     fullName: i.clientName,
     phone,
     email: i.email,
-    successUrl: `${base}/dashboard?grow=paid`,
-    cancelUrl: `${base}/dashboard?grow=cancelled`,
+    successUrl: i.returnUrl || `${base}/dashboard?grow=paid`,
+    cancelUrl: i.returnUrl || `${base}/dashboard?grow=cancelled`,
     notifyUrl: `${base}/api/grow/notify?t=${payment.notify_token}`,
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,
@@ -140,7 +149,9 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       tenant_id: p.tenant_id,
       client_id: p.client_id,
       client_name: p.client_name || 'לקוחה',
-      appointment_id: p.appointment_id,
+      // A booking deposit is money received BEFORE the visit: its receipt is deliberately not tied to the appointment, so the calendar does not
+      // show the visit as paid. The cashier deducts the deposit from the visit's own receipt (lib/grow/cancelFees.ts).
+      appointment_id: /^מקדמה/.test(p.description || '') ? null : p.appointment_id,
       service: p.description || 'טיפול',
       amount: Number(p.amount),
       payment_method: 'אשראי',
@@ -204,6 +215,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);
+  if (d.afterPaid) { try { await d.afterPaid(flipped); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
   if (approve) { try { await approve(n); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
@@ -217,7 +229,7 @@ export async function applyInvoice(raw: unknown, token: string, d: Deps): Promis
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
-  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url);
+  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);
   return { status: 'stored' };
 }
 
@@ -247,7 +259,7 @@ export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ st
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
-  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url);
+  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);
   return { status: 'stored' };
 }
 
