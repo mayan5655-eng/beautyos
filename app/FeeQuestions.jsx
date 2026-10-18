@@ -31,7 +31,8 @@ export default function FeeQuestions({ appointmentId, clientId, pc, pcTint, toas
     } finally { setBusy(''); }
   };
 
-  const btn = { minHeight: 44, borderRadius: 'var(--r-sm)', fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', padding: '0 16px', fontSize: 'var(--t-sm)' };
+  // nowrap and no shrinking: the full label stays on one line and never gets squeezed below its text width at 360px and 390px (checked by scripts/smoke/fee-button.mjs)
+  const btn = { minHeight: 44, borderRadius: 'var(--r-sm)', fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', padding: '0 20px', fontSize: 'var(--t-sm)', whiteSpace: 'nowrap', flexShrink: 0 };
   return (
     <div data-testid="fee-questions" data-variant={variant} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: variant === 'home' ? 14 : 8 }}>
       {mine.map((f) => (
