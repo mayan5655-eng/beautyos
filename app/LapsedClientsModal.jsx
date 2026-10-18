@@ -52,8 +52,12 @@ function waLink(phone, text) {
   return `https://wa.me/${digits}?text=${encodeURIComponent(withMarketingFooter(text))}`;
 }
 
-export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow }) {
-  const [days, setDays] = useState(90);
+export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow, initialDays = 90 }) {
+  // Opens on her own win-back period (Settings > automations), so the list matches the home card's count. A period
+  // that is not one of the presets gets its own chip first.
+  const startDays = Number(initialDays) >= 30 && Number(initialDays) <= 365 ? Number(initialDays) : 90;
+  const presets = PRESETS.some((p) => p.days === startDays) ? PRESETS : [{ days: startDays, label: `${startDays} יום` }, ...PRESETS];
+  const [days, setDays] = useState(startDays);
   const [loadError, setLoadError] = useState('');
   const [data, setData] = useState(null);
   // Bumped to force a refetch on "try again" without touching `days`.
@@ -156,7 +160,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {stage === 'list' && (
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', margin: '14px 0 10px', alignItems: 'center' }}>
             <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>לא הגיעו מעל</span>
-            {PRESETS.map((p) => (
+            {presets.map((p) => (
               <button key={p.days} type="button" onClick={() => { if (p.days === days) return; setData(null); setLoadError(''); setSelected(new Set()); setDays(p.days); }}
                 style={{
                   fontSize:"var(--t-sm)", padding: '6px 13px', borderRadius:"var(--r-lg)", cursor: 'pointer',
@@ -214,6 +218,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
             {data.noConsent > 0 && (
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
                 {data.noConsent} לקוחות נוספים לא ברשימה: הם לא הסכימו לקבל עדכונים ומבצעים, או ביקשו הסרה.
+                {' '}כדי שיופיעו כאן, אפשר לבקש מהן הסכמה בביקור הבא ולסמן אותה בכרטיס הלקוחה.
               </p>
             )}
 

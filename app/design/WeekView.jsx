@@ -13,26 +13,14 @@ import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
-import { getTemplate, TEMPLATES } from '@/lib/design/templates';
+import { getTemplate } from '@/lib/design/templates';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { suggestPosts } from '@/lib/design/suggestions';
 import { businessFieldsOf } from '@/lib/businessFields';
+import { holidayTemplates } from '@/lib/design/holidayTemplates';
 
 const card = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px' };
 const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 };
-
-/** occasion key -> the newest feed template that carries it, restricted to
- *  her own field(s) — otherwise a nails tenant could get pointed at the
- *  cosmetics version of the same occasion, or vice versa. */
-function holidayTemplates(fields) {
-  const out = {};
-  for (const t of TEMPLATES) {
-    if (!t.holiday || t.format !== 'feed45') continue;
-    if (!t.fields.some((f) => fields.includes(f))) continue;
-    if (!out[t.holiday] || t.version > getTemplate(out[t.holiday]).version) out[t.holiday] = t.key;
-  }
-  return out;
-}
 
 // part: 'posts' = the ready-made posts (no AI anywhere), 'ai' = the two AI cards (what to film, where to post).
 // Omitted = both, as before. DesignStudio places them apart so the AI sits in ONE marked block.

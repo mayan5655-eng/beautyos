@@ -39,8 +39,19 @@ export function isActiveClient(lastApptDate: string | null | undefined, now?: Da
   return d !== null && d <= 60;
 }
 
-/** Overdue for a visit by more than 60 days. A client with no visit yet is NOT cold. */
-export function isColdClient(lastApptDate: string | null | undefined, now?: Date): boolean {
+/**
+ * Overdue for a visit by more than `days` days (60 when not given). A client with no visit yet is NOT cold.
+ * The app passes her own win-back period (winbackDaysOf) so the home card, the client filter, the compose group and
+ * the win-back list all agree on who is "להתחדשות".
+ */
+export function isColdClient(lastApptDate: string | null | undefined, now?: Date, days = 60): boolean {
   const d = daysSinceLastVisit(lastApptDate, now);
-  return d !== null && d > 60;
+  return d !== null && d > days;
+}
+
+/** Her win-back period from settings.automations.timing.winback_days (30-365), else 90 - the same rule as Settings and the cron. */
+export function winbackDaysOf(automations: unknown): number {
+  const t = automations && typeof automations === 'object' ? (automations as { timing?: { winback_days?: unknown } }).timing : null;
+  const n = Number(t?.winback_days);
+  return n >= 30 && n <= 365 ? n : 90;
 }

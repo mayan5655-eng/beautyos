@@ -8,7 +8,7 @@ import { displayName } from "@/lib/personName";
 import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
-import { daysSinceLastVisit, isActiveClient, isColdClient } from "@/lib/clientActivity";
+import { daysSinceLastVisit, isActiveClient, isColdClient, winbackDaysOf } from "@/lib/clientActivity";
 import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
 import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
@@ -67,6 +67,8 @@ import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
 const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });
+// Loaded after the home screen is up: it pulls the template catalogue for today's post suggestion.
+const MarketingToday = dynamic(() => import("./MarketingToday"), { ssr: false });
 import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
 import { DEFAULT_LEAD_SOURCES, resolveLeadSources, sourceLabelHe } from "@/lib/leadSources";
 import { buildSourceReport } from "@/lib/sourceReport";
@@ -2446,7 +2448,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const activeClients = useMemo(() => historyReady ? clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
   // A client last seen before the recent window has NO last visit until the history is in, which would read as "new" instead of "lapsed":
   // so these two lists stay empty until it is (they are nudges, and arrive a moment later).
-  const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
+  const winbackDays   = winbackDaysOf(settings?.automations);
+  const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now, winbackDays)) : [], [clients, appointments, today, historyReady, winbackDays]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, liveRcpts]);
 
   // Per-service breakdown.
@@ -2596,7 +2599,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const filteredClients = useMemo(() => clients.filter(c=>{
     const matchSearch=matchesQuery(searchQuery,{text:[c.name],phones:[c.phone]});
-    const matchStatus=filterStatus==="all"||c.status===filterStatus||(filterStatus==="cold"&&isColdClient(getLastApptDate(c.id),now))||(filterStatus==="active"&&isActiveClient(getLastApptDate(c.id),now));
+    const matchStatus=filterStatus==="all"||c.status===filterStatus||(filterStatus==="cold"&&isColdClient(getLastApptDate(c.id),now,winbackDays))||(filterStatus==="active"&&isActiveClient(getLastApptDate(c.id),now));
     const matchSkin=filterSkin==="all"||c.skinType===filterSkin;
     return matchSearch&&matchStatus&&matchSkin;
   }), [clients, appointments, searchQuery, filterStatus, filterSkin, today]);
@@ -7479,6 +7482,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         pc={pc}
         pcGrad={pcGrad}
         pcShadow={pcShadow}
+        initialDays={winbackDays}
       />
       )}
 
@@ -8166,6 +8170,12 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
+ <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
+            coldCount={coldClients.length} winbackDays={winbackDays}
+            pageUrl={settings?.tenant_id?`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`:""}
+            pc={pc} pcTint={pcTint} toast={toast}
+            onOpenWinback={()=>setShowLapsed(true)}
+            onOpenContent={()=>{setActiveTab("campaigns");setAiPostsView("studio");}}/>
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
@@ -9281,11 +9291,14 @@ ${MARKETING_FOOTER}`)}`;
               message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `.concat("\n\n",MARKETING_FOOTER)}));
             const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
             const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
+            // Her Google review link when she set one: the ask used to give the client nowhere to write it. (The home
+            // card's review row uses the signed link to her own review form instead; see app/MarketingToday.jsx.)
+            const reviewUrlLine=/^https:\/\//i.test(String(settings.review_url||"").trim())?`\nאפשר לכתוב כאן: ${String(settings.review_url).trim()}`:"";
             const reviewTargets=reviewClientIds.map(cid=>{
               const c=clients.find(cl=>String(cl.id)===cid);
               if(!c)return null;
               return {clientId:c.id,name:c.name,phone:c.phone,
-                message:`שלום ${c.name}! \nתודה שביקרת אצלנו${bizSafe?` ב${bizSafe}`:""}!\nנשמח מאוד אם תשאירי לנו ביקורת \nזה לוקח רק דקה ועוזר לנו מאוד! `};
+                message:`שלום ${c.name}! \nתודה שביקרת אצלנו${bizSafe?` ב${bizSafe}`:""}!\nנשמח מאוד אם תשאירי לנו ביקורת \nזה לוקח רק דקה ועוזר לנו מאוד! ${reviewUrlLine}`};
             }).filter(Boolean);
 
             const audienceClients=clients.filter(c=>{
@@ -9293,7 +9306,7 @@ ${MARKETING_FOOTER}`)}`;
               if(waBroadcastAudience==="all")return true;
               if(waBroadcastAudience==="vip")return c.status==="VIP";
               if(waBroadcastAudience==="active")return isActiveClient(getLastApptDate(c.id),now);
-              if(waBroadcastAudience==="cold")return isColdClient(getLastApptDate(c.id),now);
+              if(waBroadcastAudience==="cold")return isColdClient(getLastApptDate(c.id),now,winbackDays);
               return true;
             });
 
@@ -9302,7 +9315,7 @@ ${MARKETING_FOOTER}`)}`;
               // another, so these are literal values rather than tokens.
               {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:"אין תורים מחר"},
               {key:"birthdays",icon:"🎀",title:"ברכות יום הולדת",color:pc,targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
-              {key:"cold",icon:"✦",title:"לקוחות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל הלקוחות פעילות! "},
+              {key:"cold",icon:"✦",title:`לקוחות להתחדשות (${winbackDays}+ יום)`,color:"#5580C4",targets:coldTargets,empty:"כל הלקוחות פעילות! "},
               {key:"review",icon:"⭐",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
             ];
 
