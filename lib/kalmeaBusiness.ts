@@ -16,8 +16,8 @@ export const KALMEA_TAX_STATUS: KalmeaTaxStatus = 'exempt';
 export const VAT_RATE = 0.18;
 
 /** The owner fills these in; they show in the public footer exactly as written until she does. */
-export const KALMEA_BUSINESS_NUMBER = '[BUSINESS NUMBER]';
-export const KALMEA_ADDRESS = '[ADDRESS]';
+export const KALMEA_BUSINESS_NUMBER = 'MY_NUMBER';
+export const KALMEA_ADDRESS = 'MY_ADDRESS';
 
 export type SubscriptionDoc = {
   docType: 'receipt' | 'tax_invoice_receipt';
