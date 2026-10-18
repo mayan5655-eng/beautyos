@@ -57,3 +57,30 @@ below exist, `GROW_MODE=live` is set and a cosmetician opts in. Nothing here was
 flow connect -> charge -> callback -> payment -> report, forged and repeated callbacks, no second legal receipt, gate and migrations).
 To walk it by hand on a preview: set `GROW_UI_ENABLED=true` (and leave `GROW_MODE` unset), run the four migrations, connect with any id such as `TESTUSER1`,
 charge from the cashier and press "דמה תשלום מוצלח" on the page that opens.
+
+## Cancellation policy, fees and deposits (feat/grow-payments)
+
+Settings > connections > Grow card, visible only while she is connected: a cancellation policy in three modes (`off`, `saved_card`, `deposit`), a free-cancellation window
+(default 24 hours), a late-cancel fee and a no-show fee (a fixed amount or a percent of the service price), a deposit with what happens on a timely cancel (refund or
+client credit), and an editable Hebrew policy text with a default template. It is stored in its own table, so the dashboard's whole-settings save cannot overwrite it.
+
+- **Public booking page**: with a policy on, the page shows the text with a required tick (the server refuses without it). The consent is frozen per appointment (text, mode,
+  amounts, time). `saved_card` opens Grow's hosted page to save a card (a token, no charge); `deposit` opens the hosted page to pay the deposit. Card numbers are never
+  stored. With the policy off, or without Grow connected, the booking is exactly as before; it never uses the plan guard, so blocked businesses keep taking bookings.
+- **Detection**: when she cancels or marks a no-show in the app, or the client cancels through her link inside the window, a PENDING fee item is created from what the client
+  agreed to. It becomes a one-tap question on the home screen, the appointment and the client card ("לגבות ₪100 מדנה על ביטול מאוחר?" with yes / waive). **Nothing is
+  charged without her tap.** Yes charges the saved token on HER Grow account and stores the payment, the receipt and Grow's document like any Grow payment.
+- **Deposit**: attended, the cashier deducts it once (anything above the visit becomes client credit); late cancel or no-show, she keeps it; timely cancel, it is refunded through
+  Grow (its receipt is voided) or kept as client credit, per her setting. When SHE cancels, the deposit returns whatever the window says.
+- **Migration** (run after the earlier Grow ones): `supabase/migrations/add_grow_cancellation.sql`.
+- **Tests**: `test-grow-cancel.ts` (all of the above), `scripts/smoke/grow-cancel.mjs` (browser: part A verified, part B needs the migration).
+
+### Questions for Grow about card tokens under a platform (the live calls are unverified, marked `TODO(grow-docs)` in `lib/grow/ops.ts`)
+
+1. Can a platform key save a card WITHOUT charging, for a merchant's `userId`? Which call and flag (J5 authorisation, a zero-sum page, a "save card" switch)?
+2. How is the token returned: a webhook (which payload and fields), or a redirect parameter? Is it tied to the merchant or to the platform?
+3. Can the platform charge a saved token on the merchant's behalf later (`createTransactionWithToken`?): fields, idempotency, and is the answer synchronous?
+4. Does the charge produce the merchant's receipt automatically, and does the response carry the document number and link?
+5. Refunds: endpoint, partial refunds, who may call it (platform or merchant), and what the merchant's receipt looks like afterwards.
+6. How long does a token live, what happens when the card expires, and what is the 3-D Secure rule for off-session charges in Israel?
+7. Is the client's consent to future charges something Grow needs (text, timestamp) in the token request?
