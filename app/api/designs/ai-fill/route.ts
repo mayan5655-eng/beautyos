@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) || {}; } catch { /* empty */ }
   const brief = String(body.brief || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-  if (brief.length < 3) return NextResponse.json({ success: false, error: 'כתבי מה הפוסט צריך להגיד, למשל: טיפול פנים קלאסי במבצע 249 ₪' }, { status: 400 });
+  if (brief.length < 3) return NextResponse.json({ success: false, error: 'כתבי מה הפוסט צריך להגיד, למשל: הטיפול הראשון במבצע 249 ₪' }, { status: 400 });
   const template = getTemplate(String(body.templateKey || ''), typeof body.templateVersion === 'number' ? body.templateVersion : null);
   if (!template) return NextResponse.json({ success: false, error: 'תבנית לא מוכרת' }, { status: 400 });
 

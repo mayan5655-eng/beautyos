@@ -117,8 +117,8 @@ const hand = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
-  title: "Kalmea — Beauty Business OS",
-  description: "Beauty Business OS",
+  title: "קלמיה: עסק פורח, חיים עם יותר שקט",
+  description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
   applicationName: "Kalmea",
   manifest: "/manifest.json",
   // No openGraph/twitter existed here before this rebrand - a share of the
@@ -126,8 +126,8 @@ export const metadata: Metadata = {
   // metadata in app/[slug]/page.tsx) previously had no preview image at all.
   openGraph: {
     type: "website",
-    title: "Kalmea — Beauty Business OS",
-    description: "Beauty Business OS",
+    title: "קלמיה: עסק פורח, חיים עם יותר שקט",
+    description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
     url: APP_URL,
     locale: "he_IL",
     siteName: "Kalmea",

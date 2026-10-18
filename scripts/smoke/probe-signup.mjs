@@ -1,0 +1,13 @@
+import { launch, newEmail, PASSWORD, BASE } from './lib.mjs';
+const email = process.argv[2] || newEmail('p');
+const { browser, page, problems } = await launch();
+const reqs = [];
+page.on('response', async (r) => { if (r.url().includes('/auth/v1/')) reqs.push(`${r.status()} ${r.url().split('/auth/v1/')[1].slice(0,60)} ${(await r.text().catch(()=>'')).slice(0,200)}`); });
+await page.goto(`${BASE}/signup`, { waitUntil: 'domcontentloaded' });
+await page.fill('#signup-email', email);
+await page.fill('#signup-password', PASSWORD);
+await page.click('button[type=submit]');
+await page.waitForTimeout(4000);
+console.log(reqs);
+console.log((await page.locator('[role=alert]').allInnerTexts()));
+await browser.close();

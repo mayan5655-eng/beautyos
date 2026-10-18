@@ -60,10 +60,10 @@ export async function GET() {
       .eq('tenant_id', r.tenantId)
       .order('created_at', { ascending: true })
       .limit(100)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return (console.error("[advisor] failed:", error?.message), NextResponse.json({ error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }))
     return NextResponse.json({ messages: data || [] })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return (console.error("[advisor] failed:", err?.message), NextResponse.json({ error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }))
   }
 }
 
@@ -184,7 +184,7 @@ ${servicesText}`
 function renderBrandIdentity(profile: BusinessProfile): string {
   const lines: string[] = []
   if (profile.business_description) lines.push(`תיאור ומיצוב: ${profile.business_description}`)
-  if (profile.region) lines.push(`אזור / כתובת הקליניקה: ${profile.region}`)
+  if (profile.region) lines.push(`אזור / כתובת העסק: ${profile.region}`)
   if (profile.welcome_headline) lines.push(`משפט המפתח של המותג ללקוחה: ${profile.welcome_headline}`)
   if (profile.welcome_message) lines.push(`טון הפנייה של המותג ללקוחות: ${profile.welcome_message}`)
   if (profile.brand_colors) lines.push(`צבעי המותג: ${profile.brand_colors}`)
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
       .reverse()
       .map((m: any) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
 
-    const systemPrompt = `את יועצת עסקית בכירה ומנוסה, מומחית לעסקי קוסמטיקה ויופי בישראל (תמחור, שימור והחזרת לקוחות, שיווק מקומי, ניהול יומן והכנסות).
+    const systemPrompt = `את יועצת עסקית בכירה ומנוסה, מומחית לעסקי יופי בישראל (קוסמטיקה וציפורניים) (תמחור, שימור והחזרת לקוחות, שיווק מקומי, ניהול יומן והכנסות).
 
 הנתונים האמיתיים של העסק של המשתמשת (מעודכנים, מסוננים לעסק שלה בלבד):
 ${snapshot}
@@ -255,7 +255,7 @@ ${identity ? `\nזהות ומיתוג העסק (מה שהיא בנתה במער�
 - תמיד התבססי על הנתונים האמיתיים למעלה. אם שואלים "איך אעלה הכנסות" — התייחסי למספרים הספציפיים (לקוחות רדומות, ממוצע עסקה, שירות מוביל וכו').
 - תני פתרונות קונקרטיים וברי-ביצוע, ולא כלליות. כשמתאים — בני תוכנית עבודה בצעדים ממוספרים.
 - הציעי טקסטים מוכנים (למשל הודעת וואטסאפ להחזרת לקוחה רדומה) כשזה עוזר.
-- כשאת מנסחת טקסט/הודעה שמיועדת ללקוחה של הקוסמטיקאית, חתמי והשתמשי תמיד בשם העסק של המשתמשת (שם העסק שמופיע בנתוני העסק למעלה) — לעולם לא "קלמיה" ולא שם המערכת. "קלמיה" הוא שם הפלטפורמה הפנימית בלבד ואסור שיופיע בתקשורת עם לקוחות. אם שם העסק לא הוגדר ("לא הוגדר") — השאירי מקום-שמור [שם העסק] במקום להמציא שם.
+- כשאת מנסחת טקסט/הודעה שמיועדת ללקוחה של בעלת העסק, חתמי והשתמשי תמיד בשם העסק של המשתמשת (שם העסק שמופיע בנתוני העסק למעלה) — לעולם לא "קלמיה" ולא שם המערכת. "קלמיה" הוא שם הפלטפורמה הפנימית בלבד ואסור שיופיע בתקשורת עם לקוחות. אם שם העסק לא הוגדר ("לא הוגדר") — השאירי מקום-שמור [שם העסק] במקום להמציא שם.
 - כשמתאים, התאימי את הסגנון, השפה והמסרים לזהות המותג של המשתמשת (תיאור העסק, משפט המפתח וטון הפנייה שהיא כתבה) — כך העצות והטקסטים יישמעו כמו המותג שלה.
 - אל תמציאי נתונים שאינם למעלה. אם חסר מידע — אמרי זאת והצעי מה לבדוק.
 - שמרי על תשובות ממוקדות; פסקאות קצרות או רשימות, לא קיר טקסט.

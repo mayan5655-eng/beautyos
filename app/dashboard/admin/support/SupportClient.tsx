@@ -14,6 +14,8 @@ export interface SupportMessageRow {
   id: string
   tenant_id: string
   tenant_name: string | null
+  /** Her business phone from settings, so a reply does not need a lookup. */
+  reply_phone?: string | null
   message: string
   tab: string | null
   app_version: string | null
@@ -146,6 +148,11 @@ export default function SupportClient({ initialMessages }: { initialMessages: Su
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
                   <div>
                     <span style={{ fontSize:"var(--t-md)", fontWeight: 700, color: ink }}>{m.tenant_name || 'עסק ללא שם'}</span>
+                    {m.reply_phone && (
+                      <a href={`https://wa.me/${String(m.reply_phone).replace(/\D/g, '').replace(/^0/, '972')}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--t-sm)', marginInlineStart: 8, color: ink }}>
+                        {m.reply_phone} · לענות בוואטסאפ
+                      </a>
+                    )}
                     <span style={{ fontSize:"var(--t-sm)", color: ink2, marginRight: 10 }}>{fmtDateTime(m.created_at)}</span>
                     {stale && (
                       <span style={{ fontSize:"var(--t-xs)", fontWeight: 700, color: '#9A5148', background: '#FAEDEB', border: '1px solid #EBD4D0', borderRadius:"var(--r-full)", padding: '2px 9px', marginRight: 8 }}>
@@ -164,7 +171,7 @@ export default function SupportClient({ initialMessages }: { initialMessages: Su
                       cursor: busy ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {m.handled_at ? `טופל ✓ (${fmtDateTime(m.handled_at)}) - בטל` : 'סמן כטופל'}
+                    {m.handled_at ? `טופל ✓ (${fmtDateTime(m.handled_at)}) - ביטול` : 'סימון כטופל'}
                   </button>
                 </div>
                 <p style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: m.tab || m.app_version ? 8 : 0 }}>

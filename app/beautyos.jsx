@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { parseDb } from "@/lib/dbTime";
+import { normalizeIsraeliMobile } from "@/lib/phone";
+import { APP_URL } from "@/lib/appUrl";
 import { displayName } from "@/lib/personName";
 import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import { useRouter } from "next/navigation";
@@ -20,6 +22,8 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialBanner from "./TrialBanner";
+import TrialNudge from "./TrialNudge";
+import ClientPrivacyPanel from "./ClientPrivacyPanel";
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
@@ -46,6 +50,7 @@ import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
 import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
 import { resizeImage, IMAGE_PRESETS } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
+import { historyCutoff, mergeById } from "@/lib/historyWindow";
 import { advisorWaitLine } from "@/lib/advisorWait";
 import { defaultHowIWork, defaultHeroHeadline, defaultValueProps } from "@/lib/branding";
 import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
@@ -102,7 +107,7 @@ function SignedImage({ value, alt = "", style, fallback = null }) {
     return () => { active = false; };
   }, [value]);
   if (!url) return fallback;
-  return <img alt={alt} src={url} style={style} />;
+  return <img alt={alt} src={url} loading="lazy" decoding="async" style={style} />;
 }
 
 // A single pill on/off switch. Extracted so every settings toggle shares one
@@ -206,94 +211,8 @@ const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","�
 // Reassuring steps cycled through while the AI skin scan is processing, so the
 // wait feels alive and progressing rather than frozen.
 const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
-// Help page (nav "עזרה"). The text of help-content.md, one entry per "##"
-// heading, embedded verbatim rather than fetched: the page must work offline
-// and cannot depend on a file the deploy may not carry. Body lines render by
-// prefix - "- " is a bullet, "### " a sub-heading, anything else a paragraph -
-// and **bold** inside a line renders bold. Nothing here rewrites the copy.
-const HELP_TITLE = "עזרה — איך המערכת עובדת";
-const HELP_INTRO = "מדריך קצר לכל מסך במערכת. אפשר לפתוח כל חלק בנפרד.";
-const HELP_SECTIONS = [
-  { key:"calendar", icon:"calendar", title:"יומן", body:[
-    "היומן הוא המסך הראשי שלך. כאן את רואה את כל התורים, קובעת חדשים, ומנהלת את הזמן שלך.",
-    "- מעבר בין תצוגת **יום** ל**שבוע**, וקפיצה מהירה ל**היום**",
-    "- **✦ תור חדש** — או פשוט לחיצה על משבצת ריקה ביומן, והשעה כבר מוכנה",
-    "- לחיצה על תור קיים פותחת אותו לעריכה",
-    "- **🔒 אירוע אישי** — חסימת זמן לעצמך, שלא ייקבע בו תור",
-    "- כל תור מסומן בצבע לפי הסטטוס: אישרה, ביטלה, ממתין, אישי",
-    "- מהתור אפשר לשלוח תזכורת, לסמן תשלום, ולפתוח את כרטיס הלקוחה",
-    "בחלון קביעת התור את מחפשת לקוחה לפי שם או טלפון (או מקלידה חדשה), בוחרת תאריך ושעה — שעות תפוסות מסומנות ⛔ — בוחרת טיפול ומשך (30, 45, 60 או 90 דקות), ושומרת.",
-  ]},
-  { key:"clients", icon:"people", title:"לקוחות", body:[
-    "כל הלקוחות שלך במקום אחד, עם כל ההיסטוריה שלהן.",
-    "- חיפוש לפי שם או טלפון, וסינון לפי סטטוס (פעילות, חמות, VIP, להתחדשות) או סוג עור",
-    "- **✦ מטופלת חדשה** להוספה ידנית, **⇪ ייבוא לקוחות** להעלאה מקובץ",
-    "- **⏱ מזמן לא הגיעו** — מוצא מי לא הגיעה מזמן ושולח לכולן הודעת חזרה בלחיצה אחת",
-    "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
-    "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
-  ]},
-  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", body:[
-    "לחיצה על לקוחה פותחת חלון צד עם הכל עליה. למעלה — שם, טלפון, סוג עור, וכמה הוציאה אצלך בסך הכל. לפעמים יופיע שם גם רמז אוטומטי, כמו \"לא ביקרה 60 ימים — שווה הודעת התחדשות\".",
-    "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.",
-    "### הלשוניות",
-    "- **פרטים** — סיכום לקריאה: יום הולדת, סוג עור, אלרגיות (צהוב), מידע רפואי (כחול), הערות. לעריכה — הכפתור ✎ למעלה",
-    "- **היסטוריה** — כל התורים מהחדש לישן, עם טיפול, תאריך ומחיר. לכל שורה כפתור **שלחי תזכורת**",
-    "- **סריקות עור** — כל הסריקות שנשמרו, עם ציון צבעוני. לחיצה פותחת את הדוח המלא מחדש",
-    "- **אישורי תשלום** — כל התשלומים, לחיצה פותחת את האישור. אם חיברת חשבון מורנינג, מופיעה כאן גם הקבלה או החשבונית שהונפקה.",
-    "- **חבילות** — חבילות פעילות עם פס התקדמות, וכפתור **✓ השתמשי** שמנצל טיפול",
-    "- **טפסים** — שליחת טופס לחתימה דיגיטלית לפי סוג טיפול (פלזמה, לייזר, פילינג ועוד). מתחת רואים מה נחתם ✓ ומה ממתין ⏳",
-    "- **לפני/אחרי** — העלאת זוג תמונות עם שם טיפול והערה",
-    "- **תמונות** — כל התמונות. הראשונה הופכת לתמונת הפרופיל",
-    "### ✦ סריקת עור AI — איך זה עובד",
-    "מצלמת פנים של הלקוחה (או מעלה תמונה), וממתינה כמה שניות. מקבלת דוח: ציון 0-100, סוג עור, ממצאים, טיפול מומלץ, תוכנית טיפול בקליניקה, תוכנית טיפוח לבית, והערות מקצועיות בשבילך.",
-    "אם הטיפול המומלץ קיים ברשימת השירותים שלך — יופיע כפתור לקביעת התור ישירות. הסריקה נשמרת אוטומטית בכרטיס הלקוחה.",
-    "⚠️ יש מכסת סריקות חודשית, מוצגת בהגדרות → כללי.",
-  ]},
-  { key:"leads", icon:"chat", title:"פניות", body:[
-    "כל מי שפנתה אליך ועדיין לא הפכה ללקוחה — מהאתר, מפייסבוק או שהזנת ידנית.",
-    "- סינון לפי סטטוס: חדש, אין מענה, ממתינה לתשובה, בטיפול, נשלח מחיר, נקבע תור, לא הגיע, למעקב בהמשך, נסגר, לא רלוונטי",
-    "- **✦ פנייה חדשה** להוספה ידנית, **⇪ ייבוא פניות** מקובץ",
-    "- **✆ שליחת וואטסאפ** לכל הפניות בסטטוס מסוים בבת אחת",
-    "- לחיצה על פנייה פותחת אותה: שינוי סטטוס, תזכורת מעקב, הודעות מוכנות, והמרה ללקוחה רשומה",
-    "- פניות מפייסבוק ומדף נחיתה נכנסות לכאן אוטומטית",
-  ]},
-  { key:"services", icon:"nails", title:"שירותים והיסטוריית טיפולים", body:[
-    "רשימת השירותים והמחירים נמצאת ב**הגדרות → שירותים**. שם את מוסיפה טיפול, קובעת מחיר, ומעדכנת מתי שרוצה. אפשר גם לבחור מרשימה מוכנה במקום להקליד הכל.",
-    "ההיסטוריה של כל טיפול שנתת נשמרת בכרטיס הלקוחה, בלשונית **היסטוריה** — יחד עם התמונות לפני/אחרי.",
-  ]},
-  { key:"marketing", icon:"megaphone", title:"שיווק", body:[
-    "ארבעה כלים בלשונית אחת:",
-    "### 🖊️ יצירת פוסטים",
-    "כותבת מה את רוצה לפרסם, ואם בא לך מוסיפה עוד פרטים. לוחצת **✦ צרי לי 5 פוסטים**. מקבלת אסטרטגיה קצרה וחמישה פוסטים מוכנים — כל אחד עם כותרת, טקסט, קריאה לפעולה והאשטגים.",
-    "מכל פוסט אפשר: **להעתיק**, **לשתף לפייסבוק**, או **להוריד תמונה**. לאינסטגרם — מורידים את התמונה ומדביקים את הטקסט ידנית.",
-    "כפתור **✦ שמרי את הקמפיין** שומר הכל תחת **הקמפיינים שלי**.",
-    "⚠️ טיפולים רפואיים כמו בוטוקס ומילויים מסוננים אוטומטית מהפוסטים.",
-    "### 📋 מה לצלם השבוע",
-    "לחיצה אחת, בלי להקליד כלום. מקבלת 3-5 רעיונות לצילום, מותאמים לשירותים שלך ולתורים של השבוע הקרוב. חלקם מסומנים \"בלי להצטלם\" אם את לא רוצה להיות בתמונה. מכל רעיון אפשר לעבור ישר ל**🎬 צרי ריל מזה**.",
-    "### 🎬 רילסים",
-    "כותבת על מה הריל, בוחרת אורך (15/30/60 שניות) ווייב (רגוע ומפנק, אנרגטי וקצבי). מקבלת תסריט מלא — סצנה־סצנה עם מה אומרים, מה כתוב על המסך, ואיך לצלם. בסוף: תיאור לפוסט וסגנון מוזיקה מומלץ.",
-    "ומתחת — **הפכי את התסריט לסרטון**: מוסיפה תמונה לכל סצנה, הכתוביות והתזמונים כבר מוכנים, אפשר להוסיף מוזיקה, ולוחצת **צרי סרטון**. הסרטון יורד למכשיר ואת מעלה אותו לאינסטגרם או לסטטוס.",
-    "### הקמפיינים שלי",
-    "כל קמפיין ששמרת, עם הפוסטים שלו. אפשר להעתיק או למחוק.",
-  ]},
-  { key:"advisor", icon:"robot", title:"יועץ AI", body:[
-    "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך — התורים, התשלומים, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
-    "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
-    "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת — אפשר לחזור אליה בכל זמן.",
-  ]},
-  { key:"settings", icon:"settings", title:"הגדרות", body:[
-    "כאן מגדירים את המערכת פעם אחת, ואחר כך כמעט לא נוגעים.",
-    "- **כללי** — שם העסק, שם המטפלת, צבע, קישור לביקורות גוגל, וקישורי ההזמנה שלך",
-    "- **מיתוג** — הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
-    "- **אוטומציות** — תזכורות, מצב שקט, בוט הוואטסאפ, ומפתח API לקליטת פניות מדף נחיתה",
-    "- **שירותים** — הטיפולים והמחירים שלך",
-    "- **ייבוא נתונים** — העלאת לקוחות ופניות מקובץ",
-    "- **שאלות ותשובות** — התשובות שהבוט נותן ללקוחות",
-    "- **שעות** — שעות פתיחה לכל יום",
-    "- **תשלום** — מספר הטלפון לביט",
-    "⚠️ אל תשכחי ללחוץ **✓ שמירה** בסוף.",
-  ]},
-];
+import { HELP_TITLE, HELP_INTRO, helpSectionsFor } from "@/lib/helpSections";
+
 // "**x**" -> <b>x</b>; everything else passes through untouched.
 const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
   part.startsWith("**") && part.endsWith("**") ? <b key={i}>{part.slice(2,-2)}</b> : part
@@ -328,7 +247,10 @@ const TOUR_STEPS = [
 ];
 
 // שיעור המע"מ — קבוע יחיד, קל לשינוי כשהשיעור משתנה.
+// Israel's VAT was 17% until the end of 2024 and 18% from 1 January 2025. The tax screen offers the last four years,
+// so the rate follows the year being looked at.
 const VAT_RATE = 0.18;
+const vatRateForYear = (y) => (Number(y) >= 2025 ? 0.18 : 0.17);
 // קטגוריות הוצאה (מפתח DB -> תווית בעברית)
 const EXPENSE_CATEGORIES = [
   {k:"materials",l:"חומרים"},
@@ -393,12 +315,15 @@ const planAllows = (plan, feature) => {
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
 const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--ink-3)","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
+// `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
 const FORM_TYPES = [
-  {key:"general",label:"הצהרת בריאות כללית"},
-  {key:"plasma",label:"טיפול פלזמה"},
-  {key:"device",label:"מכשור מתקדם"},
-  {key:"laser",label:"הסרת שיער בלייזר"},
-  {key:"peel",label:"פילינג כימי"},
+  {key:"general",label:"הצהרת בריאות כללית",only:["cosmetics"]},
+  {key:"plasma",label:"טיפול פלזמה",only:["cosmetics"]},
+  {key:"device",label:"מכשור מתקדם",only:["cosmetics"]},
+  {key:"laser",label:"הסרת שיער בלייזר",only:["cosmetics"]},
+  {key:"peel",label:"פילינג כימי",only:["cosmetics"]},
+  {key:"nails_general",label:"הצהרת בריאות ואישור טיפול (ציפורניים)",only:["nails"]},
+  {key:"nails_media",label:"אישור צילום עבודות",only:["nails"]},
 ];
 // The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
 const LEAD_SOURCES = [...DEFAULT_LEAD_SOURCES];
@@ -723,381 +648,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-const IMPORT_FIELDS = [
-  { id:"ignore",    label:"התעלם" },
-  { id:"name",      label:"שם" },
-  { id:"phone",     label:"טלפון" },
-  { id:"birthday",  label:"תאריך לידה" },
-  { id:"skinType",  label:"סוג עור" },
-  { id:"allergies", label:"אלרגיות" },
-  { id:"medical",   label:"מצב רפואי" },
-  { id:"notes",     label:"הערות" },
-];
-
-// The service_prices fields a pasted column can map onto. Colour is absent on
-// purpose: it is assigned round-robin below rather than asked for.
-const SERVICE_IMPORT_FIELDS = [
-  { id:"ignore",   label:"התעלם" },
-  { id:"name",     label:"שם הטיפול" },
-  { id:"price",    label:"מחיר" },
-  { id:"duration", label:"משך (דקות)" },
-];
-
-// The appointment fields a pasted column can map onto. The "time" column carries
-// the whole start time, minutes included: start_minute stores the real minute, so
-// an imported 14:30 stays 14:30. It used to be rounded to 15:00 and reported in
-// the preview, because appointments.hour could not represent anything else.
-const APPT_IMPORT_FIELDS = [
-  { id:"ignore",   label:"התעלם" },
-  { id:"date",     label:"תאריך" },
-  { id:"time",     label:"שעה" },
-  { id:"name",     label:"שם הלקוחה" },
-  { id:"phone",    label:"טלפון" },
-  { id:"service",  label:"טיפול" },
-  { id:"duration", label:"משך (דקות)" },
-  { id:"price",    label:"מחיר" },
-  { id:"notes",    label:"הערות" },
-];
-
-const looksLikePhone = (s) => /^[\d\-+() ]{6,}$/.test(String(s||"").trim());
-const looksLikeDate = (s) => /^\d{1,4}[./-]\d{1,2}[./-]\d{2,4}$/.test(String(s||"").trim());
-const looksLikeTime = (s) => /^\d{1,2}[:.]\d{2}$/.test(String(s||"").trim())
-                          || /^\d{1,2}\s*(am|pm)$/i.test(String(s||"").trim());
-
-// "₪ 1,200" -> 1200. Anything unparseable returns null so the caller can fall
-// back to the column default rather than writing a wrong number.
-const parseMoney = (s) => {
-  const n = parseFloat(String(s||"").replace(/[^\d.]/g,""));
-  return Number.isFinite(n) ? n : null;
-};
-// "45 דק׳" -> 45.
-const parseMinutes = (s) => {
-  const n = parseInt(String(s||"").replace(/[^\d]/g,""), 10);
-  return Number.isFinite(n) ? n : null;
-};
-const isNumericCell = (s) => /^[₪$\s]*[\d,.]+[\s֐-׿׳'"a-z.]*$/i.test(String(s||"").trim()) && /\d/.test(String(s||""));
-
-// Split one pasted line into cells. Tabs win when present (an Excel paste);
-// otherwise commas, but NOT commas inside quotes — "כהן, דנה" is one cell.
-const splitImportLine = (line) => {
-  if (line.includes("\t")) return line.split("\t").map(c=>c.trim());
-  const out=[]; let cur=""; let q=false;
-  for (const ch of line) {
-    if (ch === '"') { q = !q; continue; }
-    if (ch === "," && !q) { out.push(cur.trim()); cur=""; continue; }
-    cur += ch;
-  }
-  out.push(cur.trim());
-  return out;
-};
-
-// Pasted text -> a rectangular grid. Short rows are padded so every row has
-// the same width as the widest, which keeps the mapping dropdowns aligned.
-const parseImportGrid = (text) => {
-  // Filter blank lines WITHOUT trimming the kept ones: trimming a line would
-  // eat a leading tab, and with it the empty first cell. A row like
-  // "<tab>0541234567" - a client with a phone but no name - would otherwise
-  // collapse to one cell and import the phone AS the name.
-  const rows = String(text||"").split("\n").filter(l=>l.trim()).map(splitImportLine);
-  const width = rows.reduce((w,r)=>Math.max(w,r.length),0);
-  return { rows: rows.map(r=>{ const c=r.slice(); while(c.length<width) c.push(""); return c; }), width };
-};
-
-// Row 1 is a header when it contains a recognised heading AND no phone-shaped
-// cell. Requiring both avoids treating a real client named "שם" as a header.
-// Shared by both wizards, so it carries client AND price-list vocabulary. A
-// services paste headed "טיפול / מחיר / משך" is a header row too; without
-// these words it was imported as a service literally named "טיפול".
-const HEADER_WORDS = ["שם","טלפון","נייד","מייל","אימייל","הערות","כתובת","תאריך","לידה","עור","אלרגי","רפואי",
-                      "name","phone","mobile","email","notes","address","birthday","date","client","customer",
-                      "טיפול","שירות","מחיר","עלות","משך","דקות","זמן",
-                      "service","treatment","price","cost","duration","min",
-                      "שעה","לקוחה","hour","time"];
-const detectHeaderRow = (rows) => {
-  const first = rows[0]; if (!first) return false;
-  const hasHeaderWord = first.some(c => HEADER_WORDS.some(w => String(c).toLowerCase().includes(w)));
-  const hasPhone = first.some(looksLikePhone);
-  // A header row never carries a bare number. This is what stops a real
-  // service called "טיפול פנים" being eaten as a header just because it
-  // contains the word טיפול - its row also holds a price, so it is data.
-  const hasNumber = first.some(isNumericCell);
-  return hasHeaderWord && !hasPhone && !hasNumber;
-};
-
-// Pre-guess each column: by header text when there is one, otherwise by what
-// the cells look like. The first text-ish column becomes the name.
-const guessColumns = (rows, hasHeader) => {
-  const { length: width } = rows[0] || [];
-  const body = hasHeader ? rows.slice(1) : rows;
-  const guess = new Array(width).fill("ignore");
-  let nameTaken = false, phoneTaken = false;
-
-  for (let c = 0; c < width; c++) {
-    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
-    const cells = body.map(r=>r[c]).filter(Boolean);
-    const phoneish = cells.length && cells.filter(looksLikePhone).length >= cells.length*0.6;
-
-    if (!phoneTaken && (/טלפון|נייד|phone|mobile/.test(head) || (!head && phoneish))) { guess[c]="phone"; phoneTaken=true; continue; }
-    if (!nameTaken && (/שם|name|client|customer/.test(head) || (!head && !phoneish && cells.length))) { guess[c]="name"; nameTaken=true; continue; }
-    if (/לידה|birthday|תאריך|date/.test(head)) { guess[c]="birthday"; continue; }
-    if (/עור|skin/.test(head)) { guess[c]="skinType"; continue; }
-    if (/אלרגי|allerg/.test(head)) { guess[c]="allergies"; continue; }
-    if (/רפואי|medical/.test(head)) { guess[c]="medical"; continue; }
-    if (/הערות|notes|comment/.test(head)) { guess[c]="notes"; continue; }
-  }
-  return guess;
-};
-
-// Column guessing for a services paste. Headers win when present. Without
-// them, numbers are split by magnitude: a treatment is far more likely to cost
-// 250 than to last 250 minutes, and to last 45 than to cost 45.
-const guessServiceColumns = (rows, hasHeader) => {
-  const width = (rows[0] || []).length;
-  const body = hasHeader ? rows.slice(1) : rows;
-  const guess = new Array(width).fill("ignore");
-  let nameTaken = false, priceTaken = false, durTaken = false;
-
-  for (let c = 0; c < width; c++) {
-    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
-    const cells = body.map(r=>r[c]).filter(Boolean);
-    const numeric = cells.length && cells.filter(isNumericCell).length >= cells.length*0.6;
-    const nums = cells.map(parseMoney).filter(n=>n!==null);
-    const median = nums.length ? nums.slice().sort((a,b)=>a-b)[Math.floor(nums.length/2)] : 0;
-
-    if (!priceTaken && (/מחיר|price|₪|עלות|תשלום/.test(head))) { guess[c]="price"; priceTaken=true; continue; }
-    if (!durTaken && (/משך|דקות|duration|min|זמן/.test(head)))  { guess[c]="duration"; durTaken=true; continue; }
-    if (!nameTaken && (/שם|טיפול|שירות|name|service|treatment/.test(head))) { guess[c]="name"; nameTaken=true; continue; }
-    if (head) continue; // a labelled column we did not recognise stays ignored
-
-    if (numeric) {
-      // Durations cluster low and in round steps; prices sit higher.
-      if (!durTaken && median <= 200) { guess[c]="duration"; durTaken=true; continue; }
-      if (!priceTaken) { guess[c]="price"; priceTaken=true; continue; }
-      continue;
-    }
-    if (!nameTaken && cells.length) { guess[c]="name"; nameTaken=true; }
-  }
-  return guess;
-};
-
-// Apply a services mapping. Price and duration fall back to the column
-// defaults (0 and 60) rather than guessing, so a blank cell never invents a
-// number she would have to hunt down later.
-const buildServiceRows = (grid, cols, hasHeader) => {
-  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
-  const out = [];
-  let noName = 0;
-  for (const r of body) {
-    const rec = { name:"", price:0, duration:60, active:true };
-    let hasName = false;
-    cols.forEach((field, i) => {
-      const v = String(r[i]||"").trim();
-      if (field === "ignore" || !field || !v) return;
-      if (field === "name")     { rec.name = v; hasName = true; }
-      if (field === "price")    { const n = parseMoney(v);   if (n !== null) rec.price = n; }
-      if (field === "duration") { const n = parseMinutes(v); if (n !== null) rec.duration = n; }
-    });
-    if (!hasName) { noName++; continue; }
-    out.push(rec);
-  }
-  return { rows: out, noName };
-};
-
-// Apply the mapping. Rows with no name are dropped — a client record without
-// a name is not usable, and silently creating blanks is worse than skipping.
-const buildImportRows = (grid, cols, hasHeader) => {
-  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
-  const out = [];
-  let noName = 0;
-  for (const r of body) {
-    const rec = {};
-    cols.forEach((field, i) => {
-      if (field === "ignore" || !field) return;
-      const v = String(r[i]||"").trim();
-      if (!v) return;
-      rec[field] = field === "phone" ? v.replace(/[^\d+]/g,"") : v;
-    });
-    if (!rec.name) { noName++; continue; }
-    out.push(rec);
-  }
-  return { rows: out, noName };
-};
-// "12/08/2026", "12.8.26", "2026-08-12" -> "2026-08-12". Day-first, because
-// that is what Israeli exports produce. The wizard says so on screen rather
-// than sniffing per row, which would be right most of the time and silently
-// wrong for the rest - 03/04 is a real date either way round.
-const parseImportDate = (s) => {
-  const m = String(s||"").trim().match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{2,4})$/);
-  if (!m) return null;
-  let y, mo, d;
-  if (m[1].length === 4) { y = +m[1]; mo = +m[2]; d = +m[3]; }  // ISO, year first
-  else { d = +m[1]; mo = +m[2]; y = +m[3]; }
-  if (y < 100) y += 2000;
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  const dt = new Date(y, mo - 1, d);
-  // Rejects 31/02 and friends: the Date constructor rolls them into March
-  // instead of failing, so compare the parts back.
-  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
-  return formatDate(dt);
-};
-
-// "14:30" -> 870 minutes from midnight. Also reads "14.30", "14", "2pm", "2 am".
-// Returns null on anything it cannot parse, so the caller counts the row instead
-// of inventing a time for it.
-//
-// Nothing is rounded: start_minute holds the real minute. This used to return the
-// nearest whole hour plus a `rounded` flag, and the caller tallied how many rows
-// it had moved, because appointments.hour could not represent anything else.
-const parseImportTime = (s) => {
-  const t = String(s||"").trim().toLowerCase();
-  let h, min = 0;
-  let m = t.match(/^(\d{1,2})[:.](\d{2})$/);
-  if (m) { h = +m[1]; min = +m[2]; }
-  else {
-    m = t.match(/^(\d{1,2})\s*(am|pm)?$/);
-    if (!m) return null;
-    h = +m[1];
-    if (m[2] === "pm" && h < 12) h += 12;
-    if (m[2] === "am" && h === 12) h = 0;
-  }
-  if (h > 23 || min > 59) return null;
-  return { startMinute: h * 60 + min };
-};
-
-// Column guessing for an appointments paste. Headers win; without them the
-// shape of the cells decides, date and time before phone so a "12/08/2026"
-// column is never mistaken for something else.
-const guessApptColumns = (rows, hasHeader) => {
-  const width = (rows[0] || []).length;
-  const body = hasHeader ? rows.slice(1) : rows;
-  const guess = new Array(width).fill("ignore");
-  const taken = {};
-  const mostly = (cells, fn) => cells.length && cells.filter(fn).length >= cells.length * 0.6;
-
-  for (let c = 0; c < width; c++) {
-    const head = hasHeader ? String(rows[0][c]||"").toLowerCase() : "";
-    const cells = body.map(r=>r[c]).filter(Boolean);
-
-    if (!taken.date     && /תאריך|date/.test(head))                    { guess[c]="date";     taken.date=1;     continue; }
-    if (!taken.time     && /שעה|time|hour/.test(head))                 { guess[c]="time";     taken.time=1;     continue; }
-    if (!taken.phone    && /טלפון|נייד|phone|mobile/.test(head))       { guess[c]="phone";    taken.phone=1;    continue; }
-    if (!taken.name     && /שם|לקוח|name|client|customer/.test(head))  { guess[c]="name";     taken.name=1;     continue; }
-    if (!taken.service  && /טיפול|שירות|service|treatment/.test(head)) { guess[c]="service";  taken.service=1;  continue; }
-    if (!taken.duration && /משך|דקות|duration|min/.test(head))         { guess[c]="duration"; taken.duration=1; continue; }
-    if (!taken.price    && /מחיר|price|עלות|₪/.test(head))             { guess[c]="price";    taken.price=1;    continue; }
-    if (!taken.notes    && /הערות|notes|comment/.test(head))           { guess[c]="notes";    taken.notes=1;    continue; }
-    if (head) continue; // a labelled column we did not recognise stays ignored
-
-    if (!taken.date  && mostly(cells, looksLikeDate))  { guess[c]="date";  taken.date=1;  continue; }
-    if (!taken.time  && mostly(cells, looksLikeTime))  { guess[c]="time";  taken.time=1;  continue; }
-    if (!taken.phone && mostly(cells, looksLikePhone)) { guess[c]="phone"; taken.phone=1; continue; }
-    if (mostly(cells, isNumericCell)) {
-      // Same split as the price list: a treatment lasts 45 far more often than
-      // it costs 45, and costs 250 far more often than it lasts 250.
-      const nums = cells.map(parseMoney).filter(n=>n!==null);
-      const median = nums.length ? nums.slice().sort((a,b)=>a-b)[Math.floor(nums.length/2)] : 0;
-      if (!taken.duration && median <= 200) { guess[c]="duration"; taken.duration=1; continue; }
-      if (!taken.price) { guess[c]="price"; taken.price=1; continue; }
-      continue;
-    }
-    if (!cells.length) continue;
-    if (!taken.name)    { guess[c]="name";    taken.name=1;    continue; }
-    if (!taken.service) { guess[c]="service"; taken.service=1; continue; }
-  }
-  return guess;
-};
-
-// Apply an appointments mapping. Future only: anything already past is counted
-// and dropped, so a full export can be pasted as-is without back-filling a year
-// of history nobody asked for.
-//
-// Counters are committed only for rows that actually survive: tallying during
-// parsing would report on hundreds of skipped historical rows she never sees.
-//
-// nowMinute is minutes from midnight. Comparing on the hour would have dropped
-// a 14:30 booking as "past" at 14:05, and kept one at 14:00 that had already
-// started.
-const buildApptRows = (grid, cols, hasHeader, todayStr, nowMinute, knownServices) => {
-  const body = hasHeader ? grid.rows.slice(1) : grid.rows;
-  const out = [];
-  let noName = 0, noDate = 0, past = 0, noTime = 0, nameIsService = 0;
-  const nameIsServiceSamples = [];
-
-  for (const r of body) {
-    const rec = { date:"", startMinute:null, name:"", phone:"", service:"", duration:60, price:0, note:"" };
-    let badDate = false, timeSeen = false, timeBad = false;
-
-    cols.forEach((field, i) => {
-      const v = String(r[i]||"").trim();
-      if (field === "ignore" || !field || !v) return;
-      if (field === "date")     { const d = parseImportDate(v); if (d) rec.date = d; else badDate = true; }
-      if (field === "time")     { timeSeen = true; const t = parseImportTime(v);
-                                  if (t) rec.startMinute = t.startMinute;
-                                  else timeBad = true; }
-      if (field === "name")     rec.name = v;
-      if (field === "phone")    rec.phone = v.replace(/[^\d+]/g,"");
-      if (field === "service")  rec.service = v;
-      if (field === "duration") { const n = parseMinutes(v); if (n !== null) rec.duration = n; }
-      if (field === "price")    { const n = parseMoney(v);   if (n !== null) rec.price = n; }
-      if (field === "notes")    rec.note = v;
-    });
-
-    if (!rec.name) { noName++; continue; }
-
-    // A row whose "client name" is one of her own treatments is a mis-mapped
-    // column, not a booking. This really happened: a paste that led with the
-    // treatment put "עיצוב גבות" in the name column, which then created a
-    // CLIENT called עיצוב גבות and an appointment greeting her by treatment
-    // name. Rejecting the row also stops the bogus client being created,
-    // because clients are minted from these rows downstream.
-    if (knownServices && knownServices.has(rec.name.trim())) {
-      nameIsService++;
-      if (nameIsServiceSamples.length < 3) nameIsServiceSamples.push(rec.name.trim());
-      continue;
-    }
-
-    if (!rec.date || badDate) { noDate++; continue; }
-    // No time column, or one this cannot read: park it at the start of the day
-    // rather than dropping a real booking. Counted so the preview can say so.
-    // `hour` is not carried on the record: startFields() derives it from
-    // startMinute at insert time, so there is one source of truth for the start.
-    if (rec.startMinute === null) {
-      if (timeSeen && timeBad) noTime++;
-      rec.startMinute = 9 * 60;
-    }
-    if (rec.date < todayStr || (rec.date === todayStr && rec.startMinute < nowMinute)) { past++; continue; }
-
-    out.push(rec);
-  }
-  return { rows: out, noName, noDate, past, noTime, nameIsService, nameIsServiceSamples };
-};
-
-// Everything that differs between the three imports, in one place. The wizard
-// itself - paste box, mapping table, preview, result - is identical for all of
-// them, and was starting to grow a ternary per target.
-const IMPORT_SPEC = {
-  clients: {
-    fields: IMPORT_FIELDS, guess: guessColumns, requires: ["name"], unit: "לקוחות",
-    title: "ייבוא לקוחות",
-    blurb: "יש לך רשימת לקוחות בתוכנה אחרת? ייצאי אותה לאקסל, סמני את העמודות, העתיקי והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.",
-    rowLabel: "הדביקי כאן (שורה לכל לקוחה):",
-    placeholder: "דנה כהן\t0541234567\nמיכל לוי\t0529876543",
-  },
-  services: {
-    fields: SERVICE_IMPORT_FIELDS, guess: guessServiceColumns, requires: ["name"], unit: "טיפולים",
-    title: "ייבוא טיפולים ומחירים",
-    blurb: "יש לך מחירון בתוכנה אחרת או באקסל? העתיקי את העמודות והדביקי כאן. בשלב הבא תבחרי מה כל עמודה מייצגת.",
-    rowLabel: "הדביקי כאן (שורה לכל טיפול):",
-    placeholder: "טיפול פנים\t250\t60\nעיצוב גבות\t80\t30",
-  },
-  appts: {
-    fields: APPT_IMPORT_FIELDS, guess: guessApptColumns, requires: ["name","date"], unit: "תורים",
-    title: "ייבוא תורים עתידיים",
-    blurb: "מעבירים רק תורים שעוד לא היו — היסטוריה לא מיובאת. ייצאי את היומן לאקסל, העתיקי והדביקי כאן, ובשלב הבא תבחרי מה כל עמודה מייצגת.",
-    rowLabel: "הדביקי כאן (שורה לכל תור):",
-    placeholder: "12/08/2026\t14:30\tדנה כהן\t0541234567\tטיפול פנים",
-  },
-};
+import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC } from "@/lib/importMapping";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -1156,12 +707,24 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // client card. Until they arrive their lists are [] - which must never be
   // shown as "none" - so every screen that reads one is gated on its status
   // here ("loading" | "ok" | "error"), via <DeferredGate>.
-  const [deferred, setDeferred] = useState({ forms: "loading", expenses: "loading", waitlist: "loading" });
+  // history: appointments and payments older than the recent window, leads: the whole leads list. Both are read in the background after the
+  // first screen is on (loadHistory), so a business with years of data sees her day straight away. See lib/historyWindow.js.
+  const [deferred, setDeferred] = useState({ forms: "loading", expenses: "loading", waitlist: "loading", history: "loading", leads: "loading" });
+  const historyReady = deferred.history === "ok";
+  const [histSlow, setHistSlow] = useState(false);
+  useEffect(() => {
+    if (deferred.history !== "loading") { setHistSlow(false); return; }
+    const t = setTimeout(() => setHistSlow(true), 700);   // a small business gets it before this fires and never sees the strip
+    return () => clearTimeout(t);
+  }, [deferred.history]);
   // Re-render once a minute so the clock-driven cards on the dashboard (the next
   // client, the end-of-day list) appear and change on their own.
   const [, setMinuteTick] = useState(0);
   useEffect(() => { const t = setInterval(() => setMinuteTick((n) => n + 1), 60000); return () => clearInterval(t); }, []);
   const [settings,     setSettings]     = useState({business_name:"",therapist_name:"",primary_color:"#D98BA0",working_hours_start:8,working_hours_end:19,business_phone:""});
+  // Skin type is a facial concept: a nail technician is not asked for it (a value already saved still shows on the client card).
+  // Declared AFTER settings: it reads it while rendering.
+  const showSkinType = businessFieldsOf(settings).includes("cosmetics");
 
   // === UI STATES ===
   const [weekStart,         setWeekStart]         = useState(new Date());
@@ -1616,6 +1179,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   }, []);
 
+  // Onboarding sends her here with ?svc=failed when the treatments she ticked could not be saved, so she is told
+  // instead of finding an empty list and assuming she never did that step.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("svc") !== "failed") return;
+    toast("הטיפולים שבחרת לא נשמרו. לא נורא, אפשר לבחור אותם שוב בהגדרות ← שירותים.", "error");
+    p.delete("svc");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [toast]);
+
   // Keyboard activation for clickable elements that aren't native buttons:
   // Enter/Space triggers the element's own onClick (via .click()).
   const onKbdActivate = (e) => {
@@ -1916,6 +1491,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
+    { key:"link",     done: appointments.length>0||clients.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -2424,28 +2000,61 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const loadDeferred = async () => {
     try {
       const [f, ex, wl] = await Promise.all([
-        Promise.resolve(supabase.from("forms").select("*")),
-        Promise.resolve(supabase.from("expenses").select("*")),
-        Promise.resolve(supabase.from("waitlist").select("*")),
+        readAllRows(supabase, "forms"),
+        readAllRows(supabase, "expenses"),
+        readAllRows(supabase, "waitlist"),
       ]);
       const take = (name, res, set) => {
-        if (res?.error) {
-          console.error(`[BeautyOS] loadDeferred: ${name} failed`, res.error);
-          try { Sentry.captureException(new Error(`loadDeferred ${name} — ${res.error.message || "unknown"}`)); } catch {}
+        // A read that stopped short (complete:false) is an error, not a shorter list.
+        if (res?.error || res?.complete === false) {
+          console.error(`[BeautyOS] loadDeferred: ${name} failed`, res.error || `${res.fetched}/${res.total}`);
+          try { Sentry.captureException(new Error(`loadDeferred ${name} — ${res.error?.message || "incomplete"}`)); } catch {}
           return "error";
         }
         set(res?.data || []);
         return "ok";
       };
-      setDeferred({
+      setDeferred(prev => ({
+        ...prev,
         forms: take("forms", f, setForms),
         expenses: take("expenses", ex, setExpenses),
         waitlist: take("waitlist", wl, setWaitlist),
-      });
+      }));
     } catch (err) {
       console.error("[BeautyOS] loadDeferred threw:", err);
       try { Sentry.captureException(err); } catch {}
-      setDeferred({ forms: "error", expenses: "error", waitlist: "error" });
+      setDeferred(prev => ({ ...prev, forms: "error", expenses: "error", waitlist: "error" }));
+    }
+  };
+
+  // The older half of the data, read AFTER the first screen is on: appointments before the recent window, payments before it, and the leads.
+  // Each read is complete or it is an error: a partial history is never merged in and called done (same rule as the boot reads). Rows are
+  // merged by id, so one that was created while this ran is not duplicated. Safe to call again (the retry button does).
+  const historyCutoffRef = useRef(null);
+  const loadHistory = async () => {
+    const cut = historyCutoffRef.current || (historyCutoffRef.current = historyCutoff());
+    setDeferred(prev => ({ ...prev, history: "loading", leads: "loading" }));
+    try {
+      const [oa, orc, ld] = await Promise.all([
+        readAllRows(supabase, "appointments", { filter: (q) => q.lt("date", cut.date) }),
+        readAllRows(supabase, "receipts", { filter: (q) => q.lt("created_at", cut.iso) }),
+        readAllRows(supabase, "leads"),
+      ]);
+      const okRead = (r) => !r.error && r.data && r.complete !== false;
+      if (okRead(oa)) setAppointments(prev => mergeById(prev, oa.data));
+      if (okRead(orc)) setReceipts(prev => mergeById(prev, orc.data));
+      if (okRead(ld)) setLeads(prev => mergeById(prev, ld.data));
+      for (const [name, r] of [["appointments", oa], ["receipts", orc], ["leads", ld]]) {
+        if (!okRead(r)) {
+          console.error(`[BeautyOS] loadHistory: ${name} not fully read`, r.error || `${r.fetched}/${r.total}`);
+          try { Sentry.captureException(new Error(`loadHistory ${name} — ${r.error?.message || "incomplete"}`)); } catch {}
+        }
+      }
+      setDeferred(prev => ({ ...prev, history: okRead(oa) && okRead(orc) ? "ok" : "error", leads: okRead(ld) ? "ok" : "error" }));
+    } catch (err) {
+      console.error("[BeautyOS] loadHistory threw:", err);
+      try { Sentry.captureException(err); } catch {}
+      setDeferred(prev => ({ ...prev, history: "error", leads: "error" }));
     }
   };
 
@@ -2504,15 +2113,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // without a valid user), so the network check is not repeated on the
       // critical path; verifySession() below does it right after the core
       // load, with the same offline-is-not-logged-out rule.
+      const bootCut = historyCutoffRef.current = historyCutoff();
       const authP = Promise.resolve(supabase.auth.getSession());
       const rpcP = Promise.resolve(supabase.rpc("get_user_tenant_id"));
       const EARLY_READS = [
-        ["appointments",   readAllRows(supabase, "appointments")],
+        // Only the recent window here (lib/historyWindow.js): the rest of the history and the leads arrive in the background (loadHistory).
+        ["appointments",   readAllRows(supabase, "appointments", { filter: (q) => q.gte("date", bootCut.date) })],
         ["clients",        readAllRows(supabase, "clients")],
-        ["leads",          readAllRows(supabase, "leads")],
-        ["service_prices", supabase.from("service_prices").select("*")],
         ["settings",       supabase.from("settings").select("*")],
-        ["receipts",       readAllRows(supabase, "receipts")],
+        ["receipts",       readAllRows(supabase, "receipts", { filter: (q) => q.gte("created_at", bootCut.iso) })],
         // Not core: the table arrives with add_till_and_calendar_small_things.sql,
         // applied by hand, and a missing table must not stop the boot. Until it
         // exists no receipt can be voided, which the void button says.
@@ -2566,11 +2175,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         ...EARLY_READS,
         // Feature tier + trial/subscription state for this tenant.
         ["tenants", Promise.resolve(supabase.from("tenants").select("*").eq("id", myTenantId).maybeSingle())],
+        // Only her own rows, and paged: the table is readable across businesses, so an unfiltered read hit the 1,000-row cap once the platform had
+        // that many services and could return a list without hers (ownServices below still filters, as a second line).
+        ["service_prices", readAllRows(supabase, "service_prices", { filter: (q) => q.eq("tenant_id", myTenantId) })],
       ];
       const settled = await Promise.all(READS.map(([, q]) => q));
       const res = {};
       READS.forEach(([name], i) => { res[name] = settled[i] || {}; });
-      const { appointments: a, clients: c, leads: l, service_prices: sv, settings: st, receipts: r, receipt_voids: rv, packages: pk, tenants: tn, whatsapp_pending: wap, owner_notifs: onf } = res;
+      const { appointments: a, clients: c, service_prices: sv, settings: st, receipts: r, receipt_voids: rv, packages: pk, tenants: tn, whatsapp_pending: wap, owner_notifs: onf } = res;
 
       // ── A FAILED READ IS NOT AN EMPTY READ ────────────────────────────────
       // This used to be `if (a.data) setAppointments(a.data)` for all eleven.
@@ -2610,7 +2222,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return; // the `finally` still clears `loading`
       }
 
-      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", leads: "הלידים", receipts: "הקבלות", receipt_voids: "ביטולי הקבלות", packages: "החבילות" };
+      const PARTIAL_HE = { appointments: "התורים", clients: "הלקוחות", receipts: "אישורי התשלום", receipt_voids: "ביטולי אישורי התשלום", packages: "החבילות" };
       const partialReads = Object.keys(PARTIAL_HE).filter((n) => res[n] && res[n].data && res[n].complete === false);
       if (partialReads.length > 0) {
         console.error("[BeautyOS] loadAll: incomplete read", partialReads.map((n) => `${n} ${res[n].fetched}/${res[n].total}`).join(", "));
@@ -2638,7 +2250,6 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // is a real answer and can be trusted.
       setAppointments(a.data || []);
       setClients(c.data || []);
-      setLeads(l.data || []);
       // service_prices is the one table that is readable across tenants (the public booking page needs an
       // anonymous read), so unlike the others it is NOT scoped by RLS for her: keep only the rows that are hers.
       // A new tenant used to see 21 services from three other businesses here, and a checklist that called
@@ -2698,6 +2309,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Core load succeeded and is on screen's way; fetch the three lists no
       // first screen needs. Not awaited: nothing waits on them.
       loadDeferred();
+      loadHistory();
       verifySession();
     } catch (err) {
       // Anything unexpected is ALSO a failed load, not an empty one. This used
@@ -2814,9 +2426,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // actually been seen), never cold (she isn't overdue for anything; there
   // was never a first visit to lapse from). This is what keeps her out of
   // the needs-attention queue's win-back nudges. See lib/clientActivity.ts.
-  const activeClients = useMemo(() => clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
-  const coldClients   = useMemo(() => clients.filter(c=>isColdClient(getLastApptDate(c.id), now)), [clients, appointments, today]);
-  const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, receipts]);
+  const activeClients = useMemo(() => historyReady ? clients.filter(c=>isActiveClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
+  // A client last seen before the recent window has NO last visit until the history is in, which would read as "new" instead of "lapsed":
+  // so these two lists stay empty until it is (they are nudges, and arrive a moment later).
+  const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now)) : [], [clients, appointments, today, historyReady]);
+  const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, liveRcpts]);
 
   // Per-service breakdown.
   //
@@ -2852,7 +2466,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const avgTransaction = useMemo(() => liveRcpts.length>0?Math.round(liveRcpts.reduce((s,r)=>s+(Number(r.amount)||0),0)/liveRcpts.length):0, [liveRcpts]);
 
   const monthlyData = useMemo(() => Array.from({length:6},(_,i)=>{
-    const d=new Date(now);d.setMonth(now.getMonth()-(5-i));
+    const d=new Date(now.getFullYear(),now.getMonth()-(5-i),1);   // day 1: setMonth on the 29th to 31st rolled into the next month and doubled one month in the chart
     const m=d.getMonth(),y=d.getFullYear();
     const appts=appointments.filter(a=>{if(!a.date)return false;const ad=new Date(a.date);return ad.getMonth()===m&&ad.getFullYear()===y;});
     const rev=liveRcpts.filter(r=>{if(!r.created_at)return false;const rd=parseDb(r.created_at);return rd.getMonth()===m&&rd.getFullYear()===y;}).reduce((s,r)=>s+(Number(r.amount)||0),0);
@@ -3514,6 +3128,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField};
         const start = apptEffectiveStart, end = start + Number(newAppt.duration||0);
         const clashed = [], saved = [];
+        let seriesStopped = false;
         for (const date of dates) {
           const localClash = appointments.some(a=>{
             if(a.date!==date || a.confirmation_status==="cancelled") return false;
@@ -3526,7 +3141,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             // 23P01 is appointments_no_overlap, 23505 the active-slot index:
             // something landed there since the calendar loaded. Same answer.
             if (error.code==="23P01" || error.code==="23505") { clashed.push(date); continue; }
-            handleDbError(error, "create appointment"); break;
+            handleDbError(error, "create appointment"); seriesStopped = true; break;
           }
           if (data && data[0]) saved.push(data[0]);
         }
@@ -3539,6 +3154,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             confirmText: "הבנתי",
             cancelText: "סגירה",
           });
+        } else if (seriesStopped) {
+          // A database error ended the series part-way: never end on a success toast that overstates what was saved.
+          toast(`נקבעו ${saved.length} מתוך ${dates.length} תורים. השאר לא נשמרו, אפשר לנסות שוב.`, "error");
         } else {
           toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
         }
@@ -3971,35 +3589,60 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSendAllConfirmations = async () => {
     if (guardWrite()) return;
     const pending=tomorrowAppts.filter(a=>!a.confirmation_sent);
-    if(pending.length===0){toast("כבר נשלחו תזכורות לכל התורים מחר", "info");return;}
+    if(pending.length===0){toast("כבר הכנת תזכורות לכל התורים של מחר", "info");return;}
     askConfirm({
       title: "שליחת תזכורות",
-      message: `לשלוח תזכורת ל-${pending.length} לקוחות?`,
+      message: `${pending.length===1?"לשלוח תזכורת ללקוחה אחת?":`לשלוח תזכורת ל-${pending.length} לקוחות?`}`,
       confirmText: "שליחה",
       onConfirm: async () => {
         for(const appt of pending){
           await handleSendConfirmation(appt);
           await new Promise(r=>setTimeout(r,500));
         }
-        toast(`נשלחו תזכורות ל-${pending.length} לקוחות`);
+        toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
       },
     });
   };
 
+  // After her data was erased on the server: the same change here, so the screen does not show a client who no longer exists.
+  const handleClientErased = (clientId) => {
+    const same = (a) => String(a) === String(clientId);
+    setClients(prev=>prev.filter(c=>!same(c.id)));
+    setSelectedClient(null);
+    setAppointments(prev=>prev.map(a=>same(a.client_id)?{...a,client_id:null,name:"לקוחה שנמחקה",client_phone:null,note:null}:a));
+    setReceipts(prev=>prev.map(r=>same(r.client_id)?{...r,client_id:null,client_name:"לקוחה שנמחקה"}:r));
+    setForms(prev=>prev.filter(f=>!same(f.client_id)));
+    setWaitlist(prev=>prev.filter(w=>!same(w.client_id)));
+    setPackages(prev=>prev.map(k=>same(k.client_id)?{...k,client_id:null,client_name:"לקוחה שנמחקה"}:k));
+    setLeads(prev=>prev.filter(l=>!same(l.client_id)));
+  };
+  const saveClientDupOk = useRef(false);
   const handleSaveClient = async () => {
     if (guardWrite()) return;
     if(!newClient.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
+    // A phone she typed that WhatsApp cannot use used to be saved as typed, and her reminders to that client quietly never arrived.
+    const typedPhone = String(newClient.phone||"").trim();
+    const phoneInfo = typedPhone ? normalizeIsraeliMobile(typedPhone) : null;
+    if(phoneInfo && !phoneInfo.ok){toast("המספר לא נראה כמו נייד ישראלי. אפשר לבדוק אותו, או להשאיר ריק.","error");return;}
+    if(phoneInfo && !editingClient && !saveClientDupOk.current){
+      const dup = clients.find(c=>normalizeIsraeliMobile(c.phone).e164===phoneInfo.e164);
+      if(dup){
+        askConfirm({title:"המספר הזה כבר קיים",message:`יש כבר לקוחה עם המספר הזה: ${dup.name}. להוסיף בכל זאת כרטיס נוסף?`,confirmText:"להוסיף בכל זאת",onConfirm:()=>{saveClientDupOk.current=true;Promise.resolve(handleSaveClient()).finally(()=>{saveClientDupOk.current=false;});}});
+        return;
+      }
+    }
     if(isBusy("saveClient")) return;
     setBusyKey("saveClient", true);
     try {
+      const toSave = {...newClient, name:newClient.name.trim()};
       if(editingClient){
-        const {data,error}=await supabase.from("clients").update(newClient).eq("id",editingClient.id).select();
+        const {data,error}=await supabase.from("clients").update(toSave).eq("id",editingClient.id).select();
         if(error){handleDbError(error, "update client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>prev.map(c=>c.id===editingClient.id?data[0]:c));setSelectedClient(data[0]);
         toast("הלקוחה עודכנה");
       }else{
-        const {data,error}=await supabase.from("clients").insert([newClient]).select();
+        const {data,error}=await supabase.from("clients").insert([toSave]).select();
         if(error){handleDbError(error, "create client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>[...prev,data[0]]);
@@ -4192,6 +3835,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // have never seen is created first, so the appointment attaches to a real
   // record instead of being a loose name on the calendar.
   const importAppointments = async () => {
+    if (!historyReady) { toast("הלוח הישן עוד בדרך. כדי שלא ייווצרו תורים כפולים, אפשר לנסות שוב בעוד רגע.", "info"); return; }
     if (guardWrite()) return;
     if (importing) return;
 
@@ -4761,7 +4405,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const up = await uploadOne(file, IMAGE_PRESETS.gallery, tid, "clinic");
       if(up.error){ handleDbError(up.error, "upload clinic photo"); return; }
       const url = up.url;
-      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות קליניקה","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
+      if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות של העסק","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
       toast("התמונה נוספה — לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
@@ -5240,9 +4884,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   // Void: a row in receipt_voids naming the receipt and why. The receipt row
   // is not touched. The reason is required by the schema as well as the form.
+  const growVoidOk = useRef(false);
   const handleVoidReceipt = async (receipt) => {
     if (guardWrite()) return;
     if (!receipt || !voidReason.trim()) { toast("כתבי בקצרה למה מבטלים, זה נשמר ברישום", "error"); return; }
+    // A card payment taken through Grow is not undone by voiding it here: the charge and Grow's own document stay.
+    // Say so first, so the books and the bank do not quietly disagree.
+    if (receipt.legal_provider === "grow" && !growVoidOk.current) {
+      askConfirm({
+        title: "התשלום נגבה דרך Grow",
+        message: "ביטול כאן לא מחזיר את הכסף ללקוחה ולא מבטל את המסמך של Grow. את הזיכוי עושים בחשבון Grow. לבטל רק ברישום שלך?",
+        confirmText: "לבטל ברישום שלי",
+        onConfirm: () => { growVoidOk.current = true; Promise.resolve(handleVoidReceipt(receipt)).finally(() => { growVoidOk.current = false; }); },
+      });
+      return;
+    }
     if (isBusy("voidReceipt")) return;
     setBusyKey("voidReceipt", true);
     try {
@@ -5279,7 +4935,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     } finally { setBusyKey("voidReceipt", false); }
   };
 
+  const dupPayOk = useRef(false);
   const handleOpenCashier = (appt) => {
+    dupPayOk.current = false;
     setCashierAppt(appt||null);
     if(appt){
       const client=clients.find(c=>String(c.id)===String(appt.client_id));
@@ -5336,6 +4994,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
+    // Paying the same visit twice (from the calendar after the home list, or after a Grow payment) doubled her income.
+    if(cashierAppt && !dupPayOk.current && liveRcpts.some(r=>r.appointment_id && String(r.appointment_id)===String(cashierAppt.id))){
+      askConfirm({
+        title: "כבר יש תשלום לטיפול הזה",
+        message: "נרשם תשלום על הטיפול הזה. לרשום עוד אחד? זה יוסיף להכנסות.",
+        confirmText: "לרשום עוד אחד",
+        onConfirm: () => { dupPayOk.current = true; handleSaveReceipt(); },
+      });
+      return;
+    }
     if(isBusy("saveReceipt")) return;
     setBusyKey("saveReceipt", true);
     try {
@@ -5647,6 +5315,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     const amt = Number(newExpense.amount);
     if(!amt || amt<=0){ toast("חסר סכום, אפשר להקליד אותו","error"); return; }
+    if(!Number.isFinite(amt) || amt>=10000000){ toast("הסכום נראה גדול מדי, אפשר לבדוק אותו?","error"); return; }
     if(!newExpense.expense_date){ toast("חסר תאריך, אפשר לבחור אחד","error"); return; }
     if(isBusy("addExpense")) return;
     setBusyKey("addExpense", true);
@@ -5850,7 +5519,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית — אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
-      if (!silent) toast("נשלח ללקוחה ב-WhatsApp ✦");
+      if (!silent) toast("ההודעה הועברה לשליחה בוואטסאפ ✦");
       return true;
     } catch {
       if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית", "error");
@@ -5972,7 +5641,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         body: JSON.stringify({ tenantId: settings.tenant_id, appointmentId: appt.id }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success && !data.queued) { toast("התזכורת נשלחה ללקוחה ✦"); return; }
+      if (res.ok && data.success && !data.queued) { toast("התזכורת הועברה לשליחה ✦"); return; }
       if (res.ok && data.queued && data.waLink) {
         // Manual mode (or the central number fell back): this is still
         // success, just not automatic - the honest copy says so, and opens
@@ -6525,11 +6194,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   const handleExportCSV = () => {
-    const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום"]];
-    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,localDayKey(r.created_at)||"",r.amount,r.payment_method]);});
+    // Until the older payments are in, the file would silently stop at about six months back: say so instead of handing her an accountant's file that is short.
+    if(!historyReady){toast(deferred.history==="error"?"לא הצלחנו לטעון את כל ההיסטוריה, אז הקובץ היה חלקי. אפשר לנסות שוב מהסרגל שלמעלה.":"ההיסטוריה עוד בדרך. אפשר לנסות שוב בעוד רגע.","info");return;}
+    // Voided payments stay in the file but are marked, so the export agrees with the totals on screen instead of counting them as income.
+    const voidedIds=new Set(receiptVoids.map(v=>String(v.receipt_id)));
+    const rows=[["שם","טלפון","שירות","תאריך","סכום","אמצעי תשלום","טיפ","הנחה","מבוטל"]];
+    receipts.forEach(r=>{const client=clients.find(c=>String(c.id)===String(r.client_id));rows.push([r.client_name,client?.phone||"",r.service,localDayKey(r.created_at)||"",r.amount,r.payment_method,Number(r.tip)||0,Number(r.discount)||0,voidedIds.has(String(r.id))?"כן":""]);});
     // Quote every cell (escaping embedded quotes) so values containing commas
     // — e.g. a multi-item receipt service "פנים, עיסוי" — don't shift columns.
-    const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    // A client name comes from a public form: a cell starting with = + - @ would run as a formula in Excel. Numbers are left alone.
+    const esc=v=>{let t=String(v??"");if(typeof v!=="number"&&/^[=+\-@\t\r]/.test(t))t="'"+t;return `"${t.replace(/"/g,'""')}"`;};
     const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);
@@ -6841,10 +6515,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const copyPublicLink = async (kind) => {
     const t = settings.tenant_id;
-    if (!t) { toast("חסר מזהה עסק — נסי לרענן", "error"); return; }
+    if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
     // install (bloomos.com today) rather than a hardcoded vendor address.
-    const base = (typeof window !== "undefined" && window.location.origin) || "https://beautyos-theta.vercel.app";
+    const base = (typeof window !== "undefined" && window.location.origin) || APP_URL;
 
     if (kind === "scan") {
       // Always the signed link, on this origin - the one the QR is drawn from.
@@ -6867,9 +6541,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : `${base}/book?t=${t}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "קישור קביעת התור הועתק");
+      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
+      // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
+      if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← העמוד שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
+      return true;
     } catch {
       toast(url, "info");
+      return false;   // not copied: the day-1 nudge stays so she can try again
     }
   };
 
@@ -7691,7 +7369,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                 <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FLOWER} style={{width:52,height:52,margin:"0 auto 10px",display:"block"}}/>
                 <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,marginBottom:6,color:"var(--ink)"}}>ההודעה נשלחה</h3>
                 <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",lineHeight:1.7,marginBottom:18}}>
-                  {SUPPORT_TEAM_HE} יחזרו אליך. אפשר להמשיך לעבוד בינתיים.
+                  קיבלנו. {SUPPORT_TEAM_HE} יחזרו אלייך בוואטסאפ, בדרך כלל עד סוף היום הבא. אפשר להמשיך לעבוד בינתיים.
                 </p>
                 <button type="button" onClick={()=>{setShowHelp(false);setHelpText("");setHelpState("idle");}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-xl)",fontSize:"var(--t-md)"}}>סגירה</button>
               </div>
@@ -7713,7 +7391,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   style={{width:"100%",padding:"11px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",fontSize:"var(--t-md)",fontFamily:"inherit",resize:"vertical",lineHeight:1.6,boxSizing:"border-box",background:"var(--surface-2)",color:"var(--ink)"}}
                 />
                 {helpState === "failed" && (
-                  <div style={{marginTop:10,padding:"11px 12px",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FDFBF9)",border:"1px solid var(--line-2)"}}>
+                  <div style={{marginTop:10,padding:"11px 12px",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FBF8F1)",border:"1px solid var(--line-2)"}}>
                     <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)",marginBottom:4}}>ההודעה לא נשלחה</p>
                     <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:9}}>
                       לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן{supportWhatsAppUrl()?", ואפשר לשלוח אותו ישירות בוואטסאפ":" — אפשר לנסות שוב עוד רגע"}.
@@ -7903,14 +7581,14 @@ ${MARKETING_FOOTER}`)}`;
       )}
 
       {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
- <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית — Beauty Voice" title="Beauty Voice" className="fab-voice"
+ <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
         style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"var(--pc-contrast)",boxShadow:"var(--shadow-accent)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
  <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
  </button>
 
       {/* BEAUTY VOICE — modal */}
       {showVoice&&(
- <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="Beauty Voice">
+ <Sheet open onClose={closeVoice} width={430} zIndex={4200} className="pop-in" ariaLabel="שליטה קולית">
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_MICROPHONE} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
@@ -8339,7 +8017,7 @@ ${MARKETING_FOOTER}`)}`;
                     {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"3px 8px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
-                    {a.confirmation_sent&&<span style={{fontSize:"var(--t-sm)",color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נשלח"}</span>}
+                    {a.confirmation_sent&&<span style={{fontSize:"var(--t-sm)",color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נפתחה"}</span>}
  </div>
                 );
               })}
@@ -8383,6 +8061,14 @@ ${MARKETING_FOOTER}`)}`;
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
  <TrialBanner plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow}/>
+ {((deferred.history==="loading"&&histSlow)||deferred.history==="error"||deferred.leads==="error")&&(
+ <div role="status" data-testid="history-strip" style={{maxWidth:1180,margin:"0 auto 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>
+ {(deferred.history==="error"||deferred.leads==="error")
+   ?<><span>לא הצלחנו לטעון את כל ההיסטוריה והפניות, ומה שמוצג חלקי.</span><button type="button" onClick={loadHistory} style={{background:"none",border:"none",color:"var(--brand-accent)",fontWeight:700,textDecoration:"underline",cursor:"pointer",minHeight:44,padding:"0 6px"}}>נסי שוב</button></>
+   :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
+ </div>
+ )}
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
               account, and every screen should keep saying so. */}
@@ -8399,9 +8085,10 @@ ${MARKETING_FOOTER}`)}`;
                 user) is the literal spec for everything from here through
                 the appointment rows below - values copied from its CSS, not
                 re-derived from the earlier prose brief. Where this file and
-                that mockup disagree, the mockup wins. #8CA096/#5C6B63 are
-                its own literal muted-ink values (a slightly green-tinted
-                reading of "muted"), used here as plain literals rather than
+                that mockup disagree, the mockup wins, with ONE audited exception: the mockup's light
+                green #8CA096 for small text measured 2.3:1 on cream, so it is var(--brand-muted)
+                (#656A56, 4.7:1) here. The mockup's muted-ink values (a slightly green-tinted
+                reading of "muted") are used as green-tinted literals rather than
                 var(--ink-3)/var(--ink-2) - those shared tokens stay neutral,
                 since tenant-facing pages read them too (Stage 2's rule);
                 this is a Kalmea-chrome-only green reserved for this screen. */}
@@ -8418,10 +8105,10 @@ ${MARKETING_FOOTER}`)}`;
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
  <div className="glass-card card-boxed" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
- <p style={{fontSize:12.5,color:"#8CA096"}}>הכנסות היום</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
- <p style={{fontSize:13,color:"#8CA096",marginTop:3}}>
+ <p style={{fontSize:13,color:"var(--brand-muted)",marginTop:3}}>
                   {todayTotals.byMethod.map(m=>`${m.method} ${m.total.toLocaleString()}`).join(" · ")}
                   {todayTotals.tips>0&&` · טיפים ${todayTotals.tips.toLocaleString()}`}
  </p>
@@ -8456,9 +8143,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{position:"relative",fontSize:15,lineHeight:1.5,color:"var(--ink)",marginBottom:12}}>{questionText}</p>
  <div style={{position:"relative",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
  <button onClick={()=>answerQuestion(pendingQuestion,true)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:700,padding:"8px 17px",borderRadius:999,background:"#1F3A30",color:"#FBF8F1",border:"none",cursor:"pointer",fontFamily:"inherit",opacity:isBusy("ownerQuestion")?0.6:1}}>כן, שלחי</button>
- <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"#8CA096",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
+ <button onClick={()=>answerQuestion(pendingQuestion,false)} disabled={isBusy("ownerQuestion")} style={{display:"inline-block",fontSize:13.5,fontWeight:400,padding:"8px 17px",borderRadius:999,background:"transparent",color:"var(--brand-muted)",border:"1px solid rgba(31,58,48,.14)",cursor:"pointer",fontFamily:"inherit"}}>לא הפעם</button>
  <div style={{flex:1}}/>
- {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"#8CA096"}}>עניתן כן ל-{questionStats.yes} מתוך {answered}</p>}
+ {answered>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--brand-muted)"}}>ענית כן על {questionStats.yes} מתוך {answered}</p>}
  </div>
  </div>
               );
@@ -8470,7 +8157,7 @@ ${MARKETING_FOOTER}`)}`;
                 checked services at all. Once she has services, the rest of
                 this screen (today's appointments, needs-attention) already
                 carries an empty day fine on its own. */}
-            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
+            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
@@ -8480,12 +8167,12 @@ ${MARKETING_FOOTER}`)}`;
                   {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
                 ]}/>
             )}
-            {clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
+            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
               <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
-                  {label:"מטופלת חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                  {label:"לקוחה חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                   {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
                   {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
                 ]}/>
@@ -8509,7 +8196,7 @@ ${MARKETING_FOOTER}`)}`;
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
-                {label:"מטופלת חדשה",hint:"הוספה ל-CRM",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
+                {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
@@ -8629,10 +8316,10 @@ ${MARKETING_FOOTER}`)}`;
                           return(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 3px"}}>
  <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"transparent",border:"1px solid #C07A72",flexShrink:0}}/>
- <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{hh}:{mm}</span>
+ <span style={{fontSize:13,fontWeight:700,color:"var(--brand-muted)",flexShrink:0,width:40}}>{hh}:{mm}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:15,color:"#C07A72"}}>התפנה</p>
- <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>ממתין להחלטה שלך</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)",marginTop:1}}>ממתין להחלטה שלך</p>
  </div>
  </div>
                           );
@@ -8657,10 +8344,10 @@ ${MARKETING_FOOTER}`)}`;
                             ):(
  <span aria-hidden style={{width:7,height:7,borderRadius:"50%",background:"#DCE4D5",flexShrink:0}}/>
                             )}
- <span style={{fontSize:13,fontWeight:700,color:"#8CA096",flexShrink:0,width:40}}>{entryTime(a)}</span>
+ <span style={{fontSize:13,fontWeight:700,color:"var(--brand-muted)",flexShrink:0,width:40}}>{entryTime(a)}</span>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:15,color:open?"#C07A72":"var(--ink)"}}>{isPersonal(a)?"🔒 ":""}{a.name}</p>
- <p style={{fontSize:12.5,color:"#8CA096",marginTop:1}}>{sub}</p>
+ <p style={{fontSize:12.5,color:"var(--brand-muted)",marginTop:1}}>{sub}</p>
  </div>
  </div>
                         );
@@ -8763,6 +8450,10 @@ ${MARKETING_FOOTER}`)}`;
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
                       const paused=settings?.automations?.paused===true;
+                      if(visible.length===0&&!skinQueueLoading&&!skinQueueError&&(!historyReady||deferred.leads!=="ok"))return(
+ <div style={{textAlign:"center",padding:"18px 10px"}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>{(deferred.history==="error"||deferred.leads==="error")?"לא הצלחנו לטעון את כל הפניות וההיסטוריה, אז הרשימה הזו חלקית.":"בודקות מה מחכה לך. הרשימה תתמלא בעוד רגע."}</p>
+ </div>);
                       if(visible.length===0&&!skinQueueLoading&&!skinQueueError)return(
  <div style={{textAlign:"center",padding:"18px 10px"}}>
  <div style={{width:46,height:46,borderRadius:"var(--r-md)",margin:"0 auto 10px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xl)",background:"rgba(70,179,123,0.12)",color:"var(--success)"}}>✓</div>
@@ -8816,7 +8507,8 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
 
           {/* INSIGHTS / תובנות — overview & analytics (moved off the calm "היום" home) */}
-          {activeTab==="insights"&&(<>
+          {activeTab==="insights"&&!historyReady&&<div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/></div>}
+          {activeTab==="insights"&&historyReady&&(<>
             {(()=>{
               const revTrend=lastMonthRevenue>0?Math.round(((thisMonthRevenue-lastMonthRevenue)/lastMonthRevenue)*100):null;
               const stats=[
@@ -8931,7 +8623,10 @@ ${MARKETING_FOOTER}`)}`;
 
           {/* CALENDAR */}
           {activeTab==="calendar"&&(<>
-            {appointments.length===0&&(
+            {!historyReady&&historyCutoffRef.current&&formatDate(calView==="day"?calDay:weekSundayOf(weekStart))<historyCutoffRef.current.date&&(
+              <p role="status" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",textAlign:"center",marginBottom:10}}>{deferred.history==="error"?"לא הצלחנו לטעון את התורים הישנים. השבוע הזה עלול להיראות חלקי.":"התורים הישנים בדרך, והמסך הזה יתמלא בעוד רגע."}</p>
+            )}
+            {historyReady&&appointments.length===0&&(
               <EmptyState icon="calendar" accent={pc} accentTint={pcTint}
                 title="הלוח עדיין ריק"
                 body="אפשר לקבוע תור בלחיצה על שעה פנויה בלוח, או מהכפתור כאן. תורים שנקבעים מעמוד ההזמנות הציבורי שלך מופיעים כאן לבד."
@@ -9197,7 +8892,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button onClick={()=>setShowLapsed(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>מזמן לא הגיעו</button>
  <button onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
- <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ מטופלת חדשה</button>
+ <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
  </div>
  </div>
  <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
@@ -9206,11 +8901,11 @@ ${MARKETING_FOOTER}`)}`;
  <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="חיפוש לפי שם או טלפון..." style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 36px 10px 14px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",boxShadow:"var(--shadow-xs)"}}/>
  </div>
  <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
- <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active">✓ פעילות</option><option value="cold">להתחדשות</option>
+ <option value="all">כל הסטטוסים</option><option value="VIP">VIP</option><option value="hot">חמות</option><option value="active" disabled={!historyReady}>✓ פעילות</option><option value="cold" disabled={!historyReady}>להתחדשות</option>
  </select>
- <select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
+ {showSkinType&&(<select value={filterSkin} onChange={e=>setFilterSkin(e.target.value)} style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"10px 14px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",color:"var(--ink-2)",cursor:"pointer",boxShadow:"var(--shadow-xs)"}}>
  <option value="all">כל עור</option>{SKIN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
- </select>
+ </select>)}
  </div>
             {filteredClients.length===0?(
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-xl)",marginTop:6}}>
@@ -9227,7 +8922,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:340,margin:"0 auto 18px",lineHeight:1.6}}>{(searchQuery||filterStatus!=="all")?"נסי לשנות את החיפוש או הסינון.":"הוסיפי את הלקוחה הראשונה, או ייבאי רשימה שלמה בבת אחת."}</p>
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
- <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ מטופלת חדשה</button>
+ <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
  <button className="empty-cta" onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"11px 22px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
  </div>
  )}
@@ -9267,7 +8962,8 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
 
           {/* LEADS */}
-          {activeTab==="leads"&&(<>
+          {activeTab==="leads"&&deferred.leads!=="ok"&&<div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.leads} what="את הפניות" onRetry={loadHistory}/></div>}
+          {activeTab==="leads"&&deferred.leads==="ok"&&(<>
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  {peopleSegments()}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -9486,7 +9182,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:320,margin:"0 auto 18px",lineHeight:1.6}}>{receiptFilter!=="all"?"נסי לשנות את אופן התשלום בסינון.":"כל תשלום שתגבי יופיע כאן. אפשר לפתוח תשלום חדש עכשיו."}</p>
  {receiptFilter==="all"&&<button className="empty-cta primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>}
  </div>
-              ):filteredReceipts.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
+              ):[...filteredReceipts].sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).slice(0,20).map(r=>{
                 const pm=PAYMENT_METHODS.find(p=>p.key===r.payment_method);
                 const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
                 const voided=voidedIds(receiptVoids).has(String(r.id));
@@ -9553,7 +9249,7 @@ ${MARKETING_FOOTER}`)}`;
               // another, so these are literal values rather than tokens.
               {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:"אין תורים מחר"},
               {key:"birthdays",icon:"🎀",title:"ברכות יום הולדת",color:pc,targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
-              {key:"cold",icon:"✦",title:"מטופלות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל המטופלות פעילות! "},
+              {key:"cold",icon:"✦",title:"לקוחות להתחדשות (60+ יום)",color:"#5580C4",targets:coldTargets,empty:"כל הלקוחות פעילות! "},
               {key:"review",icon:"⭐",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
             ];
 
@@ -9621,12 +9317,12 @@ ${MARKETING_FOOTER}`)}`;
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>שליחת הודעה לקבוצה</h3>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:7}}>בחרי קהל יעד</p>
  <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-                  {[{k:"all",l:"כל המטופלות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
- <button key={a.k} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:"var(--r-lg)",background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?"var(--shadow-accent)":"var(--shadow-xs)"}}>{a.l}</button>
+                  {[{k:"all",l:"כל הלקוחות"},{k:"vip",l:"VIP"},{k:"active",l:"✓ פעילות"},{k:"cold",l:"להתחדשות"}].map(a=>(
+ <button key={a.k} disabled={!historyReady&&(a.k==="active"||a.k==="cold")} onClick={()=>setWaBroadcastAudience(a.k)} style={{padding:"7px 14px",border:`1px solid ${waBroadcastAudience===a.k?"transparent":"var(--line-2)"}`,borderRadius:"var(--r-lg)",background:waBroadcastAudience===a.k?pcGrad:"var(--surface)",color:waBroadcastAudience===a.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,boxShadow:waBroadcastAudience===a.k?"var(--shadow-accent)":"var(--shadow-xs)"}}>{a.l}</button>
                   ))}
  </div>
  <textarea value={waBroadcastMsg} onChange={e=>setWaBroadcastMsg(e.target.value)} rows={3}
-                  placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש מבצע מיוחד — 20% הנחה על טיפולי פנים "
+                  placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש יש מבצע מיוחד: 20% הנחה על הטיפול הראשון "
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון והסכמה לדיוור בקבוצה זו</p>
@@ -9638,7 +9334,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  <div className="glass-card" style={{padding:18}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>הודעה אישית למטופלת</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:12}}>הודעה אישית ללקוחה</h3>
  <div style={{position:"relative",marginBottom:10}}>
  <input value={waFreeSearch} onChange={e=>{setWaFreeSearch(e.target.value);if(!e.target.value)setWaFreeClient(null);}}
                     placeholder="חיפוש לקוחה לפי שם או טלפון..."
@@ -9870,7 +9566,7 @@ ${MARKETING_FOOTER}`)}`;
                 })}
  </div>
 
-  <SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>
+  {(!historyReady||deferred.leads!=="ok")?<DeferredGate status={(deferred.leads==="error"||deferred.history==="error")?"error":"loading"} what="את הפניות וההכנסות" onRetry={loadHistory}/>:<SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>}
  </>)}
 
  {marketingView==="posts"&&(<>
@@ -10002,6 +9698,8 @@ ${MARKETING_FOOTER}`)}`;
             // expenses arrive after first render (loadDeferred); zero expenses
             // and not-loaded-yet must not look the same on a tax screen.
             if (deferred.expenses !== "ok") return <div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.expenses} what="את ההוצאות" onRetry={loadDeferred}/></div>;
+            // Tax years reach back past the recent window: wait for the whole payment history rather than show a year with payments missing.
+            if (!historyReady) return <div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/></div>;
             // No registration chosen: say so and ask, instead of reporting her as an exempt dealer.
             if (!settings.business_tax_status) return (
               <div className="glass-card" style={{padding:18}}>
@@ -10011,6 +9709,7 @@ ${MARKETING_FOOTER}`)}`;
               </div>
             );
             const status = settings.business_tax_status;
+            const vatRate = vatRateForYear(taxYear);
             const statusLabel = status==="exempt"?"עוסק פטור":status==="licensed"?"עוסק מורשה":"חברה בע\"מ";
             const years = Array.from({length:4},(_,i)=>(new Date().getFullYear())-i);
             const inYear = liveRcpts.filter(r=>r.created_at && parseDb(r.created_at).getFullYear()===taxYear);
@@ -10021,8 +9720,8 @@ ${MARKETING_FOOTER}`)}`;
             const inPeriod = periodFilter({mode, idx:taxPeriodIdx});
             const periodReceipts = inYear.filter(r=>inPeriod(parseDb(r.created_at)));
             const rangeLabel = periodLabel({mode, idx:taxPeriodIdx, year:taxYear, monthNames:MONTHS_HE});
-            const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, VAT_RATE);
-            const yearGross = incomeTotals(inYear.map(r=>r.amount), status, VAT_RATE).gross;
+            const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, vatRate);
+            const yearGross = incomeTotals(inYear.map(r=>r.amount), status, vatRate).gross;
             // Expenses filtered to the SAME period (by expense_date) — used for the
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
@@ -10033,7 +9732,7 @@ ${MARKETING_FOOTER}`)}`;
                 : expenses.filter(e=>exYear(e)===taxYear && Math.floor(exMonth(e)/2)===taxPeriodIdx);
             const expensesTotal = periodExpenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
             // Input VAT extracted from expenses (same formula as output VAT).
-            const inputVat = expensesTotal*VAT_RATE/(1+VAT_RATE);
+            const inputVat = expensesTotal*vatRate/(1+vatRate);
             const finalVat = vatDue - inputVat;      // output VAT minus input VAT
             const isRefund = finalVat < 0;           // negative => refund from the authority
             const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
@@ -10115,11 +9814,11 @@ ${MARKETING_FOOTER}`)}`;
  <Stat label="מספר עסקאות" value={count}/>
  </div>
  <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-                        <Stat label={`מס עסקאות (מע\"מ ${Math.round(VAT_RATE*100)}%)`} value={nis(vatDue)}/>
+                        <Stat label={`מס עסקאות (מע\"מ ${Math.round(vatRate*100)}%)`} value={nis(vatDue)}/>
  <Stat label="מס תשומות (על הוצאות)" value={nis(inputVat)}/>
  <Stat label={isRefund?"החזר מע\"מ":"מע\"מ סופי לתשלום"} value={nis(Math.abs(finalVat))} big gold/>
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(VAT_RATE*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית — כלומר מגיע לך החזר מע\"מ מהרשויות.":"זהו הסכום לתשלום לרשויות בגין התקופה."}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(vatRate*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית, כלומר ייתכן שמגיע לך החזר מע\"מ.":"זו הערכה של הסכום לתשלום."} הסכום בפועל נקבע לפי חשבוניות המס שבידייך, לא כל הוצאה כוללת מע\"מ. כדאי לבדוק עם רואה החשבון לפני הדיווח.`}</p>
  </>
                   )}
 
@@ -10260,7 +9959,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:13,marginTop:14}}>
  {communityPosts.map(p=>(
  <div key={p.id} className="glass-card card-flush">
- {p.image_url&&<img alt="" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
+ {p.image_url&&<img alt="" loading="lazy" decoding="async" src={p.image_url} style={{width:"100%",maxHeight:280,objectFit:"cover",objectPosition:"center",display:"block"}}/>}
  <div style={{padding:"14px 16px"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
  <span className="pill" style={{fontSize:"var(--t-sm)",color:"var(--surface)",background:p.post_type==="offer"?pc:p.post_type==="tip"?"var(--success)":"var(--ink-3)",padding:"3px 10px"}}>{p.post_type==="offer"?"מבצע":p.post_type==="tip"?"טיפ":"עדכון"}</span>
@@ -10436,7 +10135,8 @@ ${MARKETING_FOOTER}`)}`;
             // the setup checklist: a collapsed line per section, the body
             // revealed on request. The first section is open on arrival so the
             // page never reads empty.
-            const openKey = expandedHelpKey ?? (HELP_SECTIONS[0]||{}).key;
+            const helpSections = helpSectionsFor(businessFieldsOf(settings));
+            const openKey = expandedHelpKey ?? (helpSections[0]||{}).key;
             return (
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{marginBottom:16}}>
@@ -10444,7 +10144,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>{HELP_INTRO}</p>
  </div>
  <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
-                {HELP_SECTIONS.map((sec,i)=>{
+                {helpSections.map((sec,i)=>{
                   const open = openKey===sec.key;
                   return (
  <div key={sec.key} style={{borderTop:i===0?"none":"1px solid var(--line)",background:open?pcTint:"transparent",transition:"background 0.18s"}}>
@@ -10818,12 +10518,12 @@ ${MARKETING_FOOTER}`)}`;
 
       {/* CLIENT MODAL */}
       {showClientModal&&(
- <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת מטופלת":"מטופלת חדשה"}>
+ <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
- <select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>
+ {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="משהו שכדאי לזכור עליה. למשל: מתחתנת בנובמבר, לא אוהבת ריח חזק" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
@@ -11513,7 +11213,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>כותרת (לא חובה)</p>
- <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב על טיפולי פנים" style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+ <input value={newPost.title} onChange={e=>setNewPost({...newPost,title:e.target.value})} placeholder="לדוגמה: מבצע אביב" style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>תוכן</p>
  <textarea value={newPost.body} onChange={e=>setNewPost({...newPost,body:e.target.value})} rows={4} placeholder="כתבי כאן את העדכון, המבצע או הטיפ..." style={{width:"100%",padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--pc-tint)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:12,boxSizing:"border-box",resize:"vertical"}}/>
@@ -11637,7 +11337,7 @@ ${MARKETING_FOOTER}`)}`;
      loads HER colour and details and the scan is attributed to her. Shown in
      full, copied from the same string, and the QR is drawn from that string -
      a printed code and a bio link can never drift apart. */}
- <div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
+ {skinScanVisible(editSettings)&&(<div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
    <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור — הקישור לשיתוף</p>
    {scanLink ? (
      <>
@@ -11650,7 +11350,7 @@ ${MARKETING_FOOTER}`)}`;
            {/* eslint-disable-next-line @next/next/no-img-element -- a data URL drawn on the client; next/image has nothing to optimise */}
            <img src={scanQr} alt="קוד QR לסורק העור" width={112} height={112} style={{width:112,height:112,borderRadius:"var(--r-xs)",border:"1px solid var(--line)",background:"#fff",flexShrink:0}}/>
            <div style={{flex:1,minWidth:0}}>
-             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד QR — לשלט בקליניקה, לכרטיס ביקור או לסטורי.</p>
+             <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5,marginBottom:8}}>אותו קישור בדיוק, כקוד לסריקה: לשלט בעסק, לכרטיס ביקור או לסטורי.</p>
              <button onClick={downloadScanQr} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 14px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="download" size={13}/> הורדת ה-QR (PNG)</button>
            </div>
          </div>
@@ -11665,7 +11365,7 @@ ${MARKETING_FOOTER}`)}`;
    ) : (
      <Spinner inline label="מפיקה את הקישור"/>
    )}
- </div>
+ </div>)}
  {/* The ceiling, shown BEFORE it is reached. When it is hit, the client sees
      the refusal and she is not in that request at all - so this is the only
      place she can find out, and it has to be visible early enough to act on. */}
@@ -11800,8 +11500,8 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;נעים להכיר&quot; בעמוד העסק שלך, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, החלק הזה לא מוצג בעמוד.</p>
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
- <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו הקליניקה</p>{uploader("logo_url",brand.logo_url)}</div>
+ <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: בעלת הסטודיו" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>לוגו העסק</p>{uploader("logo_url",brand.logo_url)}</div>
                     {colorRow("צבע ראשי",editSettings.primary_color,(c)=>setEditSettings({...editSettings,primary_color:c}))}
                     {colorRow("צבע משני (לעיצובים ולפוסטים)",brand.secondary_color,(c)=>setBrand("secondary_color",c))}
  {/* Named for where it appears, because the old name - "opening headline" -
@@ -11812,9 +11512,9 @@ ${MARKETING_FOOTER}`)}`;
  <div><p style={lbl}>כותרת ראשית בראש הדף</p><input value={brand.welcome_headline||""} onChange={e=>setBrand("welcome_headline",e.target.value)} placeholder={`למשל: ${defaultHeroHeadline(businessFieldsOf(editSettings)).replace(/\n/," ")}`} style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הטקסט הגדול על התמונה הראשית. כל משפט (עד נקודה) יורד לשורה חדשה, ומהמשפט השני הצבע הוא צבע המותג.</p></div>
  <div><p style={lbl}>משפט פתיחה קצר (מוצג אם לא מילאת שורת יתרונות)</p><textarea value={brand.welcome_message||""} onChange={e=>setBrand("welcome_message",e.target.value)} rows={2} placeholder="הזמנה חמה ללקוחה" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>לפני שמגיעים (חניה, קומה, אינטרקום)</p><input value={brand.arrival_note||""} onChange={e=>setBrand("arrival_note",e.target.value)} placeholder="למשל: חניה חופשית ברחוב, קומה 2" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>נשלח ללקוחה באישור התור. מונע את השיחה של &quot;איפה בדיוק?&quot; חמש דקות לפני.</p></div>
- <div><p style={lbl}>כתובת הקליניקה (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
+ <div><p style={lbl}>כתובת העסק (מוצגת ללקוחה)</p><input value={brand.public_address||""} onChange={e=>setBrand("public_address",e.target.value)} placeholder="רחוב, עיר" style={inp}/></div>
  <div><p style={lbl}>טקסט כפתור קביעת תור</p><input value={brand.booking_cta_label||""} onChange={e=>setBrand("booking_cta_label",e.target.value)} placeholder="קביעת תור" style={inp}/></div>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת פתיחה (רקע הדף הראשי)</p>{!brand.hero_image_url&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>כרגע מוצגת תמונת ברירת מחדל. העלי תמונה של הקליניקה או של טיפול והיא תחליף אותה.</p>}{uploader("hero_image_url",brand.hero_image_url)}</div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>תמונת פתיחה (רקע הדף הראשי)</p>{!brand.hero_image_url&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>כרגע מוצגת תמונת ברירת מחדל. העלי תמונה של העסק או של טיפול והיא תחליף אותה.</p>}{uploader("hero_image_url",brand.hero_image_url)}</div>
  <div><p style={lbl}>תיאור העסק (אודות)</p><textarea value={brand.business_description||""} onChange={e=>setBrand("business_description",e.target.value)} rows={3} placeholder="ספרי בקצרה על העסק, ההתמחות והגישה שלך" style={{...inp,resize:"none"}}/></div>
  <div>
  <p style={lbl}>איך אני עובדת (עד 4 שלבים)</p>
@@ -11829,7 +11529,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:10}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:0}}>טקסטים בדף הראשי</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כל שדה ריק מקבל טקסט ברירת מחדל, כך שהדף נראה שלם גם בלי למלא כלום.</p>
- <div><p style={lbl}>שורה מתחת ללוגו</p><input value={brand.logo_tagline||""} onChange={e=>setBrand("logo_tagline",e.target.value)} placeholder="למשל: קוסמטיקה מתקדמת לעור בריא ויפה" style={inp}/></div>
+ <div><p style={lbl}>שורה מתחת ללוגו</p><input value={brand.logo_tagline||""} onChange={e=>setBrand("logo_tagline",e.target.value)} placeholder="למשל: טיפוח שמתחיל בך" style={inp}/></div>
  <div><p style={lbl}>שורת יתרונות (מתחת לכותרת)</p><input value={brand.hero_benefits||""} onChange={e=>setBrand("hero_benefits",e.target.value)} placeholder="למשל: אבחון מקצועי · טיפול אישי · תוצאה שרואים" style={inp}/></div>
  <div><p style={lbl}>משפט בכתב יד (בתמונה הראשית)</p><input value={brand.script_accent||""} onChange={e=>setBrand("script_accent",e.target.value)} placeholder="למשל: טיפוח שמתחיל באהבה עצמית" style={inp}/></div>
  <div><p style={lbl}>חתימה בסוף &quot;אודותיי&quot; (בכתב יד)</p><input value={brand.about_signoff||""} onChange={e=>setBrand("about_signoff",e.target.value)} placeholder="למשל: מחכה לפגוש אותך" style={inp}/></div>
@@ -11854,7 +11554,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
  <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
- <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד הקליניקה\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
+ <div><p style={lbl}>מה מייחד אותך (שורה לכל יתרון)</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={"למשל:\nחניה חופשית ליד העסק\nמוצרים טבעיים בלבד\n12 שנות ניסיון"} style={{...inp,resize:"none"}}/></div>
  </div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
@@ -11865,7 +11565,7 @@ ${MARKETING_FOOTER}`)}`;
                       const img=serviceImage(sv,brand.service_images);
                       return (
  <div key={sv.id||sv.name} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface-2)"}}>
- <img src={img.url} alt="" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:52,height:52,borderRadius:"var(--r-xs)",objectFit:"cover",flexShrink:0,background:"var(--line)"}}/>
+ <img src={img.url} alt="" loading="lazy" decoding="async" onError={e=>{e.currentTarget.style.visibility="hidden";}} style={{width:52,height:52,borderRadius:"var(--r-xs)",objectFit:"cover",flexShrink:0,background:"var(--line)"}}/>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-md)",color:"var(--ink)",fontWeight:600,margin:0}}>{sv.name}</p>
  <p style={{fontSize:"var(--t-xs)",color:img.isDefault?"var(--ink-3)":pcDeep,margin:0}}>{img.isDefault?"תמונת ברירת מחדל":"התמונה שלך"}</p>
@@ -11879,12 +11579,12 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <ResultsManager tenantId={settings?.tenant_id} services={activeServices}/>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהקליניקה</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהעסק</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בגלריה בעמוד העסק.</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
- <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <img src={g} alt="" loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
  <button onClick={()=>setBrand("clinic_photos",(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).filter((_,j)=>j!==i))} aria-label="הסרת תמונה" style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"var(--surface)",border:"none",fontSize:"var(--t-sm)",cursor:"pointer",lineHeight:1}}>×</button>
  </div>
                     ))}
@@ -11897,7 +11597,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
- <img src={g} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+ <img src={g} alt="" loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
  <button onClick={()=>setBrand("gallery",(Array.isArray(brand.gallery)?brand.gallery:[]).filter((_,j)=>j!==i))} style={{position:"absolute",top:2,left:2,width:20,height:20,borderRadius:"50%",background:"rgba(0,0,0,0.55)",color:"var(--surface)",border:"none",fontSize:"var(--t-xs)",cursor:"pointer",lineHeight:1}}>✕</button>
  </div>
                     ))}
@@ -12022,7 +11722,7 @@ ${MARKETING_FOOTER}`)}`;
 
  {inG("messages")&&(<>
  <div style={{background:masterPaused?"rgba(242,184,75,0.12)":"var(--surface-2)",border:`1px solid ${masterPaused?"rgba(242,184,75,0.55)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"2px 12px"}}>
- <AutoToggleRow pc={pc} label="השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בקליניקה. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
+ <AutoToggleRow pc={pc} label="השהיית כל האוטומציות" on={masterPaused} onChange={()=>setPaused(!masterPaused)} desc="עצירה זמנית של כל התהליכים האוטומטיים בעסק. ההגדרות של כל אוטומציה נשמרות ויחזרו כשתבטלי את ההשהיה." />
  {/* Manual quiet mode. Turning it OFF stamps quiet_ended_at - that stamp is
      what makes the comeback question wait exactly a week (lib/quiet.js).
      Automatic quiet (a dark calendar) needs no toggle and shows no banner. */}
@@ -12074,6 +11774,7 @@ ${MARKETING_FOOTER}`)}`;
                         an actual tab id. */}
                     {(()=>{
                       const on = skinScanVisible(editSettings);
+                      if (!on && !businessFieldsOf(editSettings).includes("cosmetics")) return null;
                       return <AutoToggleRow pc={pc} label={SKIN_SCAN_LABEL} on={on} onChange={()=>{
                         const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
                         setAutos({...autos, screens:{...screens, skin_scan: !on}});
@@ -12108,7 +11809,7 @@ ${MARKETING_FOOTER}`)}`;
 
  </>)}
  {inG("clients")&&(<>
- <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
+ {skinScanVisible(editSettings)&&(<div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:8,fontWeight:600}}>מעקב עור חכם</p>
  <p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink-2)",marginBottom:2}}>הצעות מעקב לפי סריקות עור</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>הכנת הודעת המשך אישית ללקוחה לפי מגמת הסריקות שלה (למשל התקדמות שנעצרה או זמן להערכה מחדש). ההודעה תמיד ניתנת לעריכה לפני שליחה, ולעולם לא נשלח דבר ללא אישורך.</p>
@@ -12121,7 +11822,7 @@ ${MARKETING_FOOTER}`)}`;
                     ))}
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":"באישור — נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
- </div>
+ </div>)}
 
  </>)}
  {inG("connections")&&(<>
@@ -12706,9 +12407,11 @@ ${MARKETING_FOOTER}`)}`;
                       {c.allergies&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid rgba(242,184,75,0.16)"}}><p style={{color:"var(--warning)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>אלרגיות</p><p>{c.allergies}</p></div>}
                       {c.medical&&<div style={{padding:"8px 10px",background:"var(--surface-2)",borderRadius:"var(--r-sm)",border:"1px solid #A7C4F4"}}><p style={{color:"#5580C4",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>רפואי</p><p>{c.medical}</p></div>}
                       {c.notes&&<div style={{padding:"8px 10px",background:pcTint,borderRadius:"var(--r-sm)"}}><p style={{color:"var(--ink-2)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>הערות</p><p>{c.notes}</p></div>}
+                      <ClientPrivacyPanel client={c} toast={toast} historyReady={historyReady} upcomingCount={appts.filter(a=>a.date>=today&&a.confirmation_status!=="cancelled").length} onErased={handleClientErased}/>
  </div>
                   )}
-                  {clientTab==="history"&&(
+                  {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}
+                  {clientTab==="history"&&historyReady&&(
                     appts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין היסטוריית תורים</p>
                     :appts.map(a=>(
  <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
@@ -12733,7 +12436,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                     ))
                   )}
-                  {clientTab==="receipts"&&(
+                  {clientTab==="receipts"&&historyReady&&(
                     cReceipts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין תשלומים</p>
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
@@ -12758,7 +12461,7 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>שלחי טופס לחתימה דיגיטלית</p>
  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-                        {FORM_TYPES.map(ft=>(
+                        {FORM_TYPES.filter(ft=>!ft.only||ft.only.some(f=>businessFieldsOf(settings).includes(f))).map(ft=>(
  <button key={ft.key} onClick={()=>handleSendForm(c,ft.key)} style={{background:pcTint,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 11px",fontSize:"var(--t-sm)",color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>{ft.label}</button>
                         ))}
  </div>

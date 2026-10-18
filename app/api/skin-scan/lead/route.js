@@ -44,6 +44,7 @@ export async function POST(request) {
     return Response.json({ success: true });
   } catch (err) {
     console.error("skin-scan/lead error:", err);
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[lead] failed:", err?.message);
+    return Response.json({ success: false, error: "משהו נתקע אצלנו. אפשר לנסות שוב בעוד רגע." }, { status: 500 });
   }
 }

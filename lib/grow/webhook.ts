@@ -44,12 +44,13 @@ export function allowedIps(env: Env = process.env): Set<string> {
 
 /**
  * Enforced everywhere, including production. It can be relaxed only for testing: GROW_WEBHOOK_IP_CHECK=off AND
- * GROW_ENV is not "production", so the switch cannot weaken a live deployment by itself.
+ * GROW_ENV is explicitly a test environment (sandbox, test or development). An unset GROW_ENV counts as production, so a
+ * forgotten variable can never switch the check off on a live deployment.
  */
 export function ipCheckEnforced(env: Env = process.env): boolean {
   const off = (env.GROW_WEBHOOK_IP_CHECK || '').trim().toLowerCase() === 'off';
-  const production = (env.GROW_ENV || '').trim().toLowerCase() === 'production';
-  return !(off && !production);
+  const testEnv = ['sandbox', 'test', 'development'].includes((env.GROW_ENV || '').trim().toLowerCase());
+  return !(off && testEnv);
 }
 
 export function ipAllowed(ip: string, env: Env = process.env): boolean {

@@ -82,14 +82,21 @@ export default function PrivacyPage() {
             אלרגיות, מצב רפואי והצהרות בריאות הם מידע רגיש. הם נשמרים אך ורק כדי
             שתוכלי לתת טיפול בטוח, מוצגים רק לך בתוך כרטיס הלקוחה, ולעולם אינם
             נשלחים בהודעות, אינם משמשים לשיווק, ואינם משותפים עם אף גורם — למעט
-            ספקי האחסון המאובטחים שמפעילים את המערכת.
+            ספקי האחסון המאובטחים שמפעילים את המערכת. סריקת עור (כשהעסק מפעיל
+            אותה): תמונת פנים שהלקוחה מצלמת בעצמה, אחרי שאישרה, נשלחת לניתוח AI
+            אצל Anthropic, והדוח שמתקבל נשלח אליה בוואטסאפ ונשמר ביומן ההודעות
+            של העסק.
           </He>
           <En>
             Allergies, medical conditions and health declarations are sensitive
             data. They are stored solely so you can treat safely, are shown only to
             you inside the client&apos;s card, and are never sent in messages, never
             used for marketing, and never shared with anyone — except the secure
-            hosting providers that run the system.
+            hosting providers that run the system. Skin scan (when the business
+            turns it on): a face photo the client takes herself, after she
+            consents, is sent for AI analysis to Anthropic, and the resulting
+            report is sent to her on WhatsApp and kept in the business&apos;s
+            message log.
           </En>
         </Section>
 
@@ -131,15 +138,15 @@ export default function PrivacyPage() {
             והבידוד נאכף ברמת בסיס הנתונים. אנו נעזרים בספקי משנה לתפעול: אחסון
             ובסיס נתונים (Supabase), אירוח (Vercel), שליחת הודעות WhatsApp
             (Green API), הפקת קבלות וחשבוניות (Morning, רק כשהעסק מחבר את חשבון
-            המורנינג שלו והמסמכים מונפקים בחשבון שלו), קבלת לידים (Meta) ועיבוד AI (Anthropic). כל ספק מקבל רק את
+            המורנינג שלו והמסמכים מונפקים בחשבון שלו), סליקת תשלומים (Grow, רק כשהעסק מחבר אותה), קבלת לידים (Meta), עיבוד AI (Anthropic), יצירת תמונות (OpenAI) וניטור שגיאות (Sentry). כל ספק מקבל רק את
             המידע הדרוש לתפקידו. מעבר לכך נשתף מידע רק על פי דרישת חוק.
           </He>
           <En>
             Every business in the system is isolated: you see only your own clients,
             appointments and leads, enforced at the database level. We use
             sub-processors for operations: storage and database (Supabase), hosting
-            (Vercel), WhatsApp messaging (Green API), receipt and invoice issuing (Morning, only when the business connects its own Morning account; documents are issued in that account), lead delivery (Meta) and AI
-            processing (Anthropic). Each provider receives only what its role
+            (Vercel), WhatsApp messaging (Green API), receipt and invoice issuing (Morning, only when the business connects its own Morning account; documents are issued in that account), card payments (Grow, only when the business connects it), lead delivery (Meta), AI
+            processing (Anthropic), image generation (OpenAI) and error monitoring (Sentry). Each provider receives only what its role
             requires. Beyond that, we share data only when required by law.
           </En>
         </Section>
@@ -204,7 +211,7 @@ export default function PrivacyPage() {
         </Section>
 
         <footer style={footerStyle}>
-          עודכן לאחרונה: ספטמבר 2026 / Last updated: September 2026
+          עודכן לאחרונה: אוקטובר 2026 / Last updated: October 2026
         </footer>
         <PublicFooterLinks style={{ padding: "6px 0 0" }} />
       </article>

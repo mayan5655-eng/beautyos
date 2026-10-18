@@ -16,11 +16,11 @@ export default function DemoChooserPage() {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         minHeight: '100dvh', padding: '0 24px', textAlign: 'center', gap: 18,
         fontFamily: "'Heebo','Assistant',sans-serif",
-        background: 'var(--brand-cream, #FDFBF9)',
+        background: 'var(--brand-cream, #FBF8F1)',
       }}
     >
       <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: 'auto' }} />
-      <h1 style={{ fontSize: 30, fontWeight: 600, color: 'var(--ink, #2A2233)', margin: 0 }}>
+      <h1 style={{ fontSize: 30, fontWeight: 600, color: 'var(--ink, #1F3A30)', margin: 0 }}>
         רוצה לראות איך זה עובד?
       </h1>
       <p style={{ fontSize: 17, color: 'var(--brand-muted, #7D8D87)', lineHeight: 1.7, maxWidth: 420, margin: 0 }}>

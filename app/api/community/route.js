@@ -56,6 +56,7 @@ export async function GET(request) {
       },
     });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[community] failed:", err?.message);
+    return Response.json({ success: false, error: "משהו נתקע אצלנו. אפשר לנסות שוב בעוד רגע." }, { status: 500 });
   }
 }

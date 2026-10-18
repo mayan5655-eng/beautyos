@@ -30,7 +30,7 @@ eq(renderLeadTemplate(tpl, { name: 'רונית' }, settings), 'היי רונית
 eq(renderLeadTemplate(tpl, { name: '' }, settings), 'היי לקוחה יקרה! כאן קליניקת שירה 💕', 'empty name falls back');
 eq(renderLeadTemplate(tpl, null, settings), 'היי לקוחה יקרה! כאן קליניקת שירה 💕', 'null lead falls back');
 eq(renderLeadTemplate(tpl, { name: '  דנה  ' }, settings), 'היי דנה! כאן קליניקת שירה 💕', 'name is trimmed');
-eq(renderLeadTemplate(tpl, { name: 'דנה' }, {}), 'היי דנה! כאן הקליניקה 💕', 'no business name falls back to the neutral clinic');
+eq(renderLeadTemplate(tpl, { name: 'דנה' }, {}), 'היי דנה! כאן העסק 💕', 'no business name falls back to the neutral "the business" (a nail technician has no clinic)');
 eq(renderLeadTemplate('{name} {name}', { name: 'מיכל' }, settings), 'מיכל מיכל', 'every occurrence is replaced');
 eq(renderLeadTemplate('שלום, מחר בעשר', { name: 'מיכל' }, settings), 'שלום, מחר בעשר', 'a literal message passes through unchanged');
 eq(renderLeadTemplate('', { name: 'מיכל' }, settings), '', 'empty text stays empty');

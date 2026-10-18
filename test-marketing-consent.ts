@@ -2,7 +2,7 @@
 // booking checkbox is optional and unchecked, and that reminders/receipts were NOT put behind it.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from './lib/marketingConsent.js';
+import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, isOptOutReply, MARKETING_FOOTER } from './lib/marketingConsent.js';
 
 const src = (f: string) => fs.readFileSync(f, 'utf8');
 
@@ -74,5 +74,21 @@ assert.ok(/default false/.test(mig) && /if not exists/.test(mig), 'existing clie
   assert.deepEqual(consentFields('consent_form', 'x').marketing_consent_source, 'consent_form');
   const m2 = src('supabase/migrations/add_consent_form_source.sql');
   assert.ok(m2.includes("'booking_page', 'manual', 'consent_form'") && m2.includes('drop constraint if exists'), 'constraint widened, re-runnable');
+}
+
+// "reply הסר" really removes her (2026-10-18 audit): the footer promises it, so the webhook has to read it, only as an exact one-word request.
+{
+  for (const t of ['הסר', 'הסר.', ' הסירי ', 'הסר!', 'STOP', 'stop', 'תסירי אותי', 'הסר אותי מהרשימה', 'להסיר', 'תסירו אותנו מהדיוור', 'Unsubscribe', 'remove me']) assert.equal(isOptOutReply(t), true, t);
+  for (const t of ['', 'אפשר להסיר אותי מהרשימה?', 'הסר את הלק הישן', 'אל תסירו את התור', 'תודה', 'אני רוצה להסיר את הלק ולקבוע תור', null, undefined]) assert.equal(isOptOutReply(t as any), false, String(t));
+  const wh = src('app/api/whatsapp-webhook/route.js');
+  assert.ok(wh.includes('isOptOutReply(text)') && wh.includes('optOutFields()'), 'the webhook records the opt-out');
+  assert.ok(wh.includes('.in("phone", variants)') && !/from\("clients"\)\.select\("id, phone"\)\.eq\("tenant_id", tenantId\);/.test(wh), 'it looks up only the sender\'s cards, not every card in the business');
+  assert.ok(wh.includes('wa-optout:') && wh.includes('marketing_optout_ack') && wh.includes('fresh.length > 0'), 'rate limited, and acknowledged once');
+  assert.ok(wh.includes('from("leads").update(optOutFields())'), 'a lead can opt out too');
+  assert.ok(wh.indexOf('isOptOutReply(text)') < wh.indexOf('await shouldBotReply(tenantId)'), 'and does it before the bot, so it works with the bot off');
+  // a stranger typing a phone number into the public booking form must not be able to re-subscribe someone who opted out
+  const bk = src('app/api/book-appointment/route.js');
+  assert.ok(!/update\(consentFields\("booking_page"\)\)\.eq\("id", match\.id\)/.test(bk), 'the public form writes no consent onto an EXISTING card (a stranger can type any phone number)');
+  assert.ok(bk.includes('suppressionHash') && bk.includes('consentAllowed'), 'and a number suppressed after an erase gets no consent from a form either');
 }
 console.log('marketing consent: ok');

@@ -22,7 +22,9 @@ export default async function DeletionStatus({ searchParams }: { searchParams: P
         <>
           <p dir="ltr" style={{ textAlign: 'left' }}>
             Your request was received on <b>{when}</b> and has been processed. Kalmea removed the Facebook Page connections
-            and access tokens that were stored for your Facebook account.
+            and access tokens it could match to your Facebook account, if any were stored. Connections made before
+            September 2026 cannot be matched automatically: if you connected a Page back then, write to us from the
+            address in our privacy policy and we will remove it.
           </p>
           <p dir="ltr" style={{ textAlign: 'left' }}>
             Lead form submissions belong to the business whose ad you answered. To have those removed, contact that
@@ -31,7 +33,7 @@ export default async function DeletionStatus({ searchParams }: { searchParams: P
           </p>
           <div dir="rtl">
             <p>
-              הבקשה שלך התקבלה בתאריך <b>{when}</b> ובוצעה. חיבורי הדפים והטוקנים ששמרנו עבור חשבון הפייסבוק שלך נמחקו.
+              הבקשה שלך התקבלה בתאריך <b>{when}</b> ובוצעה. חיבורי הדפים והטוקנים שהצלחנו לשייך לחשבון הפייסבוק שלך נמחקו, אם היו כאלה. חיבורים שנעשו לפני ספטמבר 2026 לא ניתן לשייך אוטומטית: אם חיברת עמוד אז, כתבי לנו ונמחק אותו.
               פניות שהושארו בטופס מודעה שייכות לעסק שפרסם אותה; כדי למחוק אותן, פני לעסק או אלינו, לפי{' '}
               <a href="/privacy#data-deletion">מדיניות הפרטיות</a>.
             </p>

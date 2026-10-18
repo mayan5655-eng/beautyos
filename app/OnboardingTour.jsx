@@ -52,7 +52,9 @@ function useTargetRect(selector, enabled) {
     setRect(null);
 
     const measure = () => {
-      const el = document.querySelector(selector);
+      // The first match that is actually on screen: the bottom bar's buttons exist (hidden) on desktop too, and a hidden
+      // one measures 0x0 at the corner, which put the highlight in the wrong place.
+      const el = [...document.querySelectorAll(selector)].find((n) => { const b = n.getBoundingClientRect(); return b.width > 0 && b.height > 0; });
       if (el) {
         el.scrollIntoView({ block: "center", behavior: "instant" in document.documentElement.style ? "instant" : "auto" });
         const r = el.getBoundingClientRect();
@@ -69,6 +71,9 @@ function useTargetRect(selector, enabled) {
       // open animation plus a tab's data to render.
       if (triesRef.current < 120) {
         rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // Nothing visible to point at: show the card in the middle of the screen rather than a dim scrim with no way out.
+        setRect({ top: window.innerHeight * 0.4, left: window.innerWidth / 2, width: 0, height: 0 });
       }
     };
     tick();

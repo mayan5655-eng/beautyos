@@ -5,7 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
 
-const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token';
+const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at';
 const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column|schema cache/i.test(e.message || ''));
 
 export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
@@ -37,6 +37,11 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
     },
     async insertReceipt(row) {
       let { data, error } = await db.from('receipts').insert(row).select('id').single();
+      if (error && error.code === '23505' && row.grow_payment_id) {
+        // Two callbacks raced and the other one already wrote this payment's receipt: hand back that one instead of failing or doubling.
+        const { data: existing } = await db.from('receipts').select('id').eq('grow_payment_id', row.grow_payment_id as string).limit(1).maybeSingle();
+        if (existing) return { id: String((existing as { id: unknown }).id) };
+      }
       if (error && isMissingColumn(error)) {
         // A column from a hand-run migration is not there yet (legal_provider, tip, discount): record the
         // payment with the columns every deployment has rather than lose it.

@@ -118,15 +118,15 @@ export default function TermsPage() {
           </En>
         </Section>
 
-        <Section heHeading="מחיר למצטרפות עד 20.10.2026" enHeading="Launch Price">
+        <Section heHeading="מחיר השקה" enHeading="Launch Price">
           <He>
-            מי שנרשמה עד 20.10.2026 תשלם 349 ₪ לחודש כל עוד המנוי שלה פעיל
-            ברציפות. אם המנוי מסתיים וחוזר, יחול המחיר הרגיל.
+            מחיר ההשקה הוא 349 ₪ לחודש. מחיר ההשקה עשוי להשתנות בעתיד, ובמקרה
+            כזה תישלח הודעה מראש למנויות הקיימות.
           </He>
           <En>
-            Anyone who signs up by 20.10.2026 pays NIS 349 per month for as long
-            as her subscription stays continuously active. If the subscription
-            ends and later returns, the regular price applies.
+            The launch price is NIS 349 per month. The launch price may change
+            in the future, in which case existing subscribers will be given
+            advance notice.
           </En>
         </Section>
 

@@ -117,7 +117,7 @@ export function resolveBookingRules(branding: unknown): BookingRules {
   const days = Number(r.max_days_ahead);
   const dep = Number(r.deposit_amount);
   const win = Number(r.cancel_window_hours);
-  const note = typeof r.deposit_note === 'string' ? r.deposit_note.replace(/s+/g, ' ').trim().slice(0, MAX_DEPOSIT_NOTE) : '';
+  const note = typeof r.deposit_note === 'string' ? r.deposit_note.replace(/\s+/g, ' ').trim().slice(0, MAX_DEPOSIT_NOTE) : '';
   return {
     minLeadMinutes: Number.isFinite(hours) && hours >= 0 && hours <= 168 ? Math.round(hours * 60) : SELF_BOOKING_MIN_LEAD_MINUTES,
     maxDaysAhead: Number.isFinite(days) && days >= 1 && days <= MAX_DAYS_AHEAD_LIMIT ? Math.round(days) : DEFAULT_MAX_DAYS_AHEAD,

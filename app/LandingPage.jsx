@@ -32,10 +32,10 @@ const TOTAL_LOW = COST_ROWS.reduce((s, r) => s + r.low, 0);
 const TOTAL_HIGH = COST_ROWS.reduce((s, r) => s + r.high, 0);
 
 const BEFORE_AFTER = [
-  { before: "מחברת תורים שמתבלבלת", after: "יומן דיגיטלי שמזכיר לבד" },
+  { before: "מחברת תורים שמתבלבלת", after: "יומן דיגיטלי שמכין לך את התזכורות" },
   { before: "וואטסאפים שנשכחים בלי מענה", after: "תזכורות מוכנות לשליחה, יום לפני" },
   { before: "לקוחה כותבת ואת בטיפול", after: "היא קובעת תור לבד, מהדף שלך, גם בלילה" },
-  { before: "פנקס תשלומים ביד", after: "קופה שרושמת הכל אוטומטית" },
+  { before: "פנקס תשלומים ביד", after: "קופה שמסדרת את כל התשלומים במקום אחד" },
   { before: "שעות על עיצוב פוסט אחד", after: "פוסט מוכן בלחיצה, בצבעים שלך" },
   { before: "לקוחות שנעלמות ולא חוזרות", after: "הודעת חזרה מוכנה אחרי 90 יום, ואת קובעת את מספר הימים" },
 ];
@@ -58,7 +58,7 @@ const VOICE_LINES = [
 const FAQ = [
   {
     q: "צריך כרטיס אשראי כדי להתחיל?",
-    a: "לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש נסדר את ההמשך יחד, בהודעה קצרה.",
+    a: "לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש נסדר את ההמשך יחד. תראי הודעה בתוך האפליקציה, ואפשר לכתוב לנו בוואטסאפ.",
   },
   {
     q: "אפשר להפסיק מתי שרוצים?",
@@ -168,7 +168,8 @@ export default function LandingPage() {
       {/* ── 5. COST TABLE ─────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px" }}>
         <SectionEyebrow>כמה זה עולה בלי קלמיה</SectionEyebrow>
-        <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="הכל נכנס למערכת אחת." />
+        <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="קלמיה מרכזת את הכלים האלה במקום אחד." />
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textAlign: "center", marginTop: 10 }}>הסכומים הם הערכה לפי מחירי שוק.</p>
       </section>
 
       {/* ── 5b. KALMEA'S OWN PRICE ───────────────────────────────────────── */}
@@ -178,8 +179,8 @@ export default function LandingPage() {
           <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
             499 ₪ <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
           </p>
-          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>349 ₪ לחודש, לכל החיים, למצטרפות עד 20.10</p>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>המחיר נשאר כל עוד המנוי פעיל, בלי הפסקה.</p>
+          {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה 349 ₪</p>
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
         </Reveal>
       </section>

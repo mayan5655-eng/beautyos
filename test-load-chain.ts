@@ -44,7 +44,7 @@ const loadAll = src.slice(start, end);
 
 const iGetUserCall = loadAll.indexOf('supabase.auth.getSession()');
 const iRpcCall = loadAll.indexOf('supabase.rpc("get_user_tenant_id")');
-const iFirstRead = loadAll.indexOf('readAllRows(supabase, "appointments")');
+const iFirstRead = loadAll.indexOf('readAllRows(supabase, "appointments"');
 const iAwaitAuth = loadAll.indexOf('await authP');
 const iAwaitRpc = loadAll.indexOf('await rpcP');
 const iTenantsRead = loadAll.indexOf('supabase.from("tenants")');
@@ -87,11 +87,11 @@ const dStart = src.indexOf('const loadDeferred = async () => {');
 ok(dStart > 0 && dStart < start, 'loadDeferred exists, defined before loadAll');
 const deferredSrc = src.slice(dStart, start);
 for (const t of ['forms', 'expenses', 'waitlist']) {
-  ok(deferredSrc.includes(`supabase.from("${t}")`), `loadDeferred reads ${t}`);
+  ok(deferredSrc.includes(`readAllRows(supabase, "${t}")`), `loadDeferred reads ${t}, paged (a plain select would stop silently at 1,000 rows and say "ok")`);
 }
 ok(/"error"/.test(deferredSrc) && /Sentry\.captureException/.test(deferredSrc), 'a failed deferred read is recorded as "error" and reported to Sentry, never as an empty list');
 ok(loadAll.indexOf('loadDeferred();') > loadAll.indexOf('setLoadError(null);') && loadAll.indexOf('loadDeferred();') > 0, 'loadAll starts loadDeferred once the core load succeeded (so every refresh refreshes them too)');
-ok(/useState\(\{\s*forms:\s*"loading",\s*expenses:\s*"loading",\s*waitlist:\s*"loading"\s*\}\)/.test(src), 'deferred status starts as "loading", not "ok"');
+ok(/useState\(\{\s*forms:\s*"loading",\s*expenses:\s*"loading",\s*waitlist:\s*"loading",\s*history:\s*"loading",\s*leads:\s*"loading"\s*\}\)/.test(src), 'deferred status starts as "loading", not "ok" (forms, expenses, waitlist, and the older history and leads)');
 
 // ---- every consumer is gated ---------------------------------------------------
 // tax tab reads expenses

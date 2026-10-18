@@ -14,7 +14,7 @@ import Sheet from '../Sheet';
 import Spinner from '../Spinner';
 import { listClientPhotos, uploadDesignImage, useResolvedImages } from './images';
 
-const SOURCE_LABELS = { gallery: 'הגלריה', clinic: 'הקליניקה', portrait: 'תמונה שלי', hero: 'תמונת נושא', upload: 'מהמכשיר', before: 'לפני (לקוחה)', after: 'אחרי (לקוחה)', ai: 'AI', previous: 'מעיצובים קודמים' };
+const SOURCE_LABELS = { gallery: 'הגלריה', clinic: 'העסק', portrait: 'תמונה שלי', hero: 'תמונת נושא', upload: 'מהמכשיר', before: 'לפני (לקוחה)', after: 'אחרי (לקוחה)', ai: 'AI', previous: 'מעיצובים קודמים' };
 
 function Thumb({ src, selected, onClick, label }) {
   return (

@@ -19,7 +19,7 @@ export default async function OwnerActivityPage() {
       ) : (
         <section style={card}>
           <h2 style={h2}>פעילות אחרונה לפי עסק</h2>
-          <p style={{ ...muted, marginBottom: 8 }}>התאריך האחרון שבו נוצר בעסק תור, לקוחה או קבלה. זו לא כניסה למערכת.</p>
+          <p style={{ ...muted, marginBottom: 8 }}>התאריך האחרון שבו נוצר בעסק תור, לקוחה או אישור תשלום. זו לא כניסה למערכת.</p>
           {r.rows.length === 0 ? <p style={muted}>עוד אין עסקים.</p> : r.rows.map((a) => (
             <Row key={a.id} left={a.name} right={a.lastActivityAt ? dateHe(a.lastActivityAt) : 'עוד לא נוצר כלום'} />
           ))}

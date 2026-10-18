@@ -98,8 +98,8 @@ export default function CommunityPage() {
                     {new Date(p.created_at).toLocaleDateString("he-IL")}
                   </span>
                 </div>
-                {p.title && <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: "var(--ink, #2A2233)", margin: "0 0 5px" }}>{p.title}</p>}
-                {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #2A2233)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
+                {p.title && <p style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: "var(--ink, #1F3A30)", margin: "0 0 5px" }}>{p.title}</p>}
+                {p.body && <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.65, whiteSpace: "pre-wrap", margin: 0 }}>{p.body}</p>}
                 {p.cta_label && business.phone && (
                   <a href={`https://wa.me/972${business.phone.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noreferrer"
                      style={{ display: "inline-block", marginTop: 12, padding: "9px 20px", background: "linear-gradient(90deg,var(--pc, #E9A9A1),var(--pc-tint, #FDF6F6))", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-sm)", fontWeight: 600, borderRadius:"var(--r-lg)", textDecoration: "none" }}>

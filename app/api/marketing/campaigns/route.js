@@ -44,7 +44,7 @@ export async function GET(req) {
     }
 
     if (pErr) {
-      return NextResponse.json({ ok: false, error: pErr.message }, { status: 500 });
+      return (console.error("[marketing/campaigns] failed:", pErr?.message), NextResponse.json({ ok: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));
     }
     const pages = (pageRows || []).filter((r) => ownRow(r, tenantId));
     if (!pages || pages.length === 0) {

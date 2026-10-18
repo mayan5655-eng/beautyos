@@ -47,7 +47,7 @@ export function trialUrgentTitleHe(days: number): string {
     : `תקופת ההתנסות מסתיימת בעוד ${daysHe(days)}`
 }
 
-export const TRIAL_URGENT_BODY_HE = 'אפשר להמשיך לעבוד בלי הפסקה. כתבי לי ונסגור את זה בקלות. כל מה שיצרת נשאר שלך, גם אם תרצי לעצור.'
+export const TRIAL_URGENT_BODY_HE = 'אפשר להמשיך לעבוד בלי הפסקה. המחיר הרגיל הוא 499 ₪ לחודש. כתבי לי ונסגור את זה בקלות. כל מה שיצרת נשאר שלך, גם אם תרצי לעצור.'
 
 /** The urgent card's body, led by the date the trial ends when it is known. */
 export function trialUrgentBodyHe(endsAt?: Date | null): string {

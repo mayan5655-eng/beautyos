@@ -121,6 +121,9 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
             {title}
           </p>
           <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+          {!supportWhatsAppUrl() && (
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 4 }}>אפשר לכתוב לנו דרך הכפתור 'תקועה?' שבתחתית המסך.</p>
+          )}
         </div>
       </div>
 
@@ -134,10 +137,13 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         className="primary-btn"
         style={{
           background: pcGrad,
-          color: "var(--surface)",
+          color: "var(--pc-contrast)",
           fontSize:"var(--t-sm)",
           fontWeight: 600,
           padding: "10px 18px",
+          minHeight: 44,
+          display: "inline-flex",
+          alignItems: "center",
           borderRadius:"var(--r-sm)",
           textDecoration: "none",
           whiteSpace: "nowrap",

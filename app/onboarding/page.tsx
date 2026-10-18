@@ -141,12 +141,12 @@ export default function OnboardingPage() {
         );
         if (memberErr) {
           console.error("[onboarding] get_user_tenant_id failed", memberErr);
-          setError(`שגיאה בזיהוי העסק: ${memberErr.message}`);
+          setError("משהו נתקע אצלנו בטעינת העסק שלך. נסי לרענן את הדף בעוד רגע.");
           setLoading(false);
           return;
         }
         if (!rpcTenant) {
-          setError("לא נמצא חיבור לעסק. נסי לצאת ולהיכנס שוב.");
+          setError("העסק שלך עוד מתכונן. רענני את הדף בעוד כמה שניות, ואם זה נשאר, צאי והיכנסי שוב.");
           setLoading(false);
           return;
         }
@@ -212,7 +212,8 @@ export default function OnboardingPage() {
         setLoading(false);
       } catch (e: unknown) {
         const err = e as { message?: string };
-        setError(err.message || "שגיאה בטעינה");
+        console.error("[onboarding] init failed", err);
+        setError("משהו נתקע אצלנו בטעינה. נסי לרענן את הדף.");
         setLoading(false);
       }
     };
@@ -230,7 +231,21 @@ export default function OnboardingPage() {
 
   // Capped by the step list, not a literal: adding the import step left this at
   // 3 and made the last step unreachable from "הבא".
-  const next = () => setStep(s => Math.min(STEP_NAMES.length, s + 1));
+  const next = () => {
+    // The field decides the menu, the forms and the content she sees. Skipping it silently made a nail technician
+    // a facial cosmetician (businessFieldsOf falls back to cosmetics), so this step needs one pick.
+    if (step === 4 && data.business_fields.length === 0) {
+      setError("בחרי לפחות תחום אחד כדי שנתאים לך את התפריט והתכנים.");
+      return;
+    }
+    // A closing hour that is not after the opening hour used to be replaced by 9 to 19 without a word.
+    if (step === 3 && Number(data.working_hours_end) && Number(data.working_hours_start) && Number(data.working_hours_end) <= Number(data.working_hours_start)) {
+      setError("שעת הסיום צריכה להיות אחרי שעת ההתחלה.");
+      return;
+    }
+    setError("");
+    setStep(s => Math.min(STEP_NAMES.length, s + 1));
+  };
   const prev = () => setStep(s => Math.max(1, s - 1));
 
   // Saves onboarding, then lands her wherever she asked to go. importKind is
@@ -294,13 +309,15 @@ export default function OnboardingPage() {
       });
       const saveData = await saveRes.json().catch(() => ({}));
       if (!saveRes.ok || !saveData.success) {
-        throw new Error(saveData.error || `settings save failed (HTTP ${saveRes.status})`);
+        console.error("[Onboarding] settings save failed", saveRes.status, saveData.error);
+        throw new Error("משהו נתקע אצלנו בשמירה. הנתונים שמילאת נשארו כאן, נסי שוב בעוד רגע.");
       }
 
       // Her picked treatments, now that the settings row exists. A failure here
       // is reported but does NOT block the redirect: she has an account, and
       // the same picker is waiting in Settings → שירותים. Losing the menu is a
       // retry; losing the finished signup is not.
+      let svcFailed = false;
       if (pickedServices.length > 0) {
         const { error: svcErr } = await insertPickedServices(
           supabase,
@@ -309,6 +326,7 @@ export default function OnboardingPage() {
         );
         if (svcErr) {
           console.error("[Onboarding] service seed failed", svcErr);
+          svcFailed = true;
         }
       }
 
@@ -318,7 +336,8 @@ export default function OnboardingPage() {
       }
 
       clearDraft(tenantId);
-      router.replace(importKind ? `/?import=1&kind=${importKind}` : "/");
+      const dest = importKind ? `/?import=1&kind=${importKind}` : "/";
+      router.replace(svcFailed ? `${dest}${dest.includes("?") ? "&" : "?"}svc=failed` : dest);
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.error("[Onboarding save error]", err);
@@ -402,8 +421,8 @@ export default function OnboardingPage() {
           {step === 1 && (
             <>
               <h1 style={titleStyle}><Icon name="smile" size={22}/> ברוכה הבאה!</h1>
-              <p style={subtitleStyle}>שמחים שאת איתנו. בואי נכיר — נתחיל מהדברים הבסיסיים על העסק שלך. אפשר תמיד לדלג ולעדכן אחר כך.</p>
-              <Field label="שם העסק">
+              <p style={subtitleStyle}>שמחים שאת איתנו. נתחיל מהבסיס, ואת כל זה אפשר לשנות אחר כך.</p>
+              <Field label="שם העסק (יופיע ללקוחות שלך)">
                 <input
                   className="ob-input"
                   value={data.business_name}
@@ -412,7 +431,7 @@ export default function OnboardingPage() {
                   style={inputStyle}
                 />
               </Field>
-              <Field label="שם המטפלת">
+              <Field label="השם שלך">
                 <input
                   className="ob-input"
                   value={data.therapist_name}
@@ -460,13 +479,13 @@ export default function OnboardingPage() {
                   is not a legal receipt. The real disclosure text already lives
                   in Settings → תשלום and on every receipt/WhatsApp message - this
                   is just the first time she hears it, early enough to matter. */}
-              <div style={{ background: "var(--brand-cream, #FDFBF9)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
+              <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
                 שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
               </div>
               <Field label="צבע ראשי של המערכת">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
-                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FDFBF9)" }} />
+                    style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FBF8F1)" }} />
                   <input
                     className="ob-input"
                     value={data.primary_color}
@@ -512,8 +531,8 @@ export default function OnboardingPage() {
               </div>
 
               {data.business_fields.length === 0 ? (
-                <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                  בחרי תחום למעלה כדי לראות טיפולים מוצעים — או דלגי, ובני את המחירון מאפס בהגדרות ← שירותים.
+                <div style={{ background: "var(--brand-cream, #FBF8F1)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+                  בחרי את התחום שלך כדי שנציע לך טיפולים מתאימים.
                 </div>
               ) : (
                 <>
@@ -535,7 +554,7 @@ export default function OnboardingPage() {
                 <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
                   {pickedServices.length === 0
                     ? "לא נוסיף שום טיפול שלא סימנת. אפשר להוסיף הכל ידנית מאוחר יותר תחת הגדרות ← שירותים."
-                    : `${pickedServices.length} טיפולים ייווספו למחירון שלך. משם הם שלך לגמרי — לשנות שם, מחיר או משך בכל רגע.`}
+                    : `${pickedServices.length} טיפולים יתווספו למחירון שלך. משם הם שלך לגמרי. אפשר לשנות שם, מחיר או משך בכל רגע.`}
                 </p>
               </div>
               )}
@@ -544,7 +563,7 @@ export default function OnboardingPage() {
 
           {step === 5 && (
             <>
-              <h1 style={titleStyle}><Icon name="download" size={22}/> יש לך נתונים בתוכנה אחרת?</h1>
+              <h1 style={titleStyle}><Icon name="download" size={22}/> את רוצה להביא לקוחות ממקום אחר?</h1>
               {!showChooser ? (
                 <>
                   <p style={subtitleStyle}>
@@ -553,7 +572,7 @@ export default function OnboardingPage() {
                   </p>
                   <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "13px 15px", marginTop: 4 }}>
                     <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
-                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח — ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
+                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח. ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
                     </p>
                   </div>
                 </>
@@ -598,8 +617,8 @@ export default function OnboardingPage() {
                   />
                 </Field>
               </div>
-              <div style={{ background: "var(--brand-cream, #FDFBF9)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-                {`✨ כמעט סיימנו — עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
+              <div style={{ background: "var(--brand-cream, #FBF8F1)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
+                {`כמעט סיימנו, עוד ${STEP_NAMES.length - step === 1 ? "שלב אחד" : `${STEP_NAMES.length - step} שלבים קצרים`} ואנחנו בפנים.`}
               </div>
             </>
           )}
@@ -622,9 +641,11 @@ export default function OnboardingPage() {
 
           {step < STEP_NAMES.length ? (
             <>
-              <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                דלגי
-              </button>
+              {!(step === 4 && data.business_fields.length === 0) && (
+                <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
+                  דלגי
+                </button>
+              )}
               <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc }}>
                 הבא ←
               </button>
@@ -635,16 +656,16 @@ export default function OnboardingPage() {
             // broken: nothing happened until the round-trip came back. The save
             // now runs once she picks a kind, on her way into the wizard.
             <>
-              <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-secondary"
-                style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
-                {saving ?<Spinner inline label="שומר"/>: "לא עכשיו"}
-              </button>
               {!showChooser && (
-                <button onClick={()=>setShowChooser(true)} className="ob-btn-primary"
-                  style={{ ...btnPrimaryStyle, background: pc }}>
-                  ייבוא נתונים ←
+                <button onClick={()=>setShowChooser(true)} className="ob-btn-secondary"
+                  style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
+                  יש לי נתונים לייבוא
                 </button>
               )}
+              <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-primary"
+                style={{ ...btnPrimaryStyle, background: pc }}>
+                {saving ?<Spinner inline label="שומרת"/>: "סיום ופתיחת היומן ←"}
+              </button>
             </>
           )}
         </div>
@@ -722,7 +743,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   outline: "none",
   direction: "rtl",
-  background: "var(--brand-cream, #FDFBF9)",
+  background: "var(--brand-cream, #FBF8F1)",
   color: "var(--ink)",
   transition: "border-color 0.15s, background 0.15s",
 };

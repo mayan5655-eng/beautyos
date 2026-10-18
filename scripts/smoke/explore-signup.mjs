@@ -1,0 +1,30 @@
+// Exploration: sign up a NEW test account through the real form and report what happens, step by step (selectors, redirects, errors).
+import { launch, newEmail, PASSWORD, BASE, confirmUser, tenantIdOf } from './lib.mjs';
+import fs from 'node:fs';
+
+const label = process.argv[2] || 'a';
+const email = newEmail(label);
+const { browser, ctx, page, problems } = await launch();
+console.log('email', email);
+await page.goto(`${BASE}/signup`, { waitUntil: 'domcontentloaded' });
+console.log('inputs:', await page.$$eval('input', (els) => els.map((e) => `${e.id || e.name}:${e.type}`)));
+await page.fill('#signup-email', email);
+await page.fill('#signup-password', PASSWORD);
+await page.click('button[type=submit]');
+await page.waitForTimeout(4000);
+console.log('after signup url:', page.url());
+console.log('page text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 300));
+const u = await confirmUser(email);
+console.log('user confirmed:', !!u, u?.id);
+await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+console.log('login inputs:', await page.$$eval('input', (els) => els.map((e) => `${e.id || e.name}:${e.type}`)));
+await page.fill('input[type=email]', email);
+await page.fill('input[type=password]', PASSWORD);
+await page.click('button[type=submit]');
+await page.waitForTimeout(6000);
+console.log('after login url:', page.url());
+console.log('page text:', (await page.innerText('body')).replace(/\s+/g, ' ').slice(0, 400));
+if (u) console.log('tenant:', await tenantIdOf(u.id));
+await ctx.storageState({ path: `${process.env.TEMP || '/tmp'}/smoke-state-${label}.json` });
+console.log('problems:', problems);
+await browser.close();

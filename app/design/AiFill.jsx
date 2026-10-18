@@ -29,7 +29,7 @@ export default function AiFill({ template, designId, imageSlot, readOnly, onValu
 
   const fill = async () => {
     if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
-    if (brief.trim().length < 3) { setError('כתבי מה הפוסט צריך להגיד, למשל: טיפול פנים קלאסי במבצע 249 ₪'); return; }
+    if (brief.trim().length < 3) { setError('כתבי מה הפוסט צריך להגיד, למשל: הטיפול הראשון במבצע 249 ₪'); return; }
     setError(''); setState('filling');
     try {
       const res = await fetch('/api/designs/ai-fill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateKey: template.key, templateVersion: template.version, brief }) });
@@ -70,7 +70,7 @@ export default function AiFill({ template, designId, imageSlot, readOnly, onValu
       <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}><Icon name="sparkle" size={14} /> מילוי עם AI</p>
       <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>משפט אחד, וה-AI כותב את הטקסטים לתבנית, טקסט לפוסט ושלושה כיוונים לתמונה. דרך אחת למלא, לא היחידה.</p>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: טיפול פנים קלאסי במבצע 249 ₪" style={{ ...input, flex: 1 }} dir="rtl" maxLength={400} onKeyDown={(e) => { if (e.key === 'Enter') fill(); }} />
+        <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: הטיפול הראשון במבצע 249 ₪" style={{ ...input, flex: 1 }} dir="rtl" maxLength={400} onKeyDown={(e) => { if (e.key === 'Enter') fill(); }} />
         <button onClick={fill} disabled={state === 'filling' || readOnly} className="primary-btn" style={{ padding: '10px 16px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', whiteSpace: 'nowrap', opacity: state === 'filling' || readOnly ? 0.6 : 1 }}>
           {state === 'filling' ? <Spinner inline label="כותבת" /> : 'מלאי'}
         </button>

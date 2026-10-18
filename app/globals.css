@@ -8,22 +8,39 @@
    runtime via --pc (set in beautyos.jsx), so nothing is lost.
    ============================================================ */
 :root {
+  /* ============================================================
+     THE PALETTE — single source of truth (the Kalmea Instagram look).
+     Five colours. Every other colour in this file, and every
+     var(--brand-*) fallback in lib/brand.ts, is one of these or
+     derived from one. Change a colour here and nowhere else.
+       cream  = page background      green = text, primary buttons
+       pink   = accents              petal = soft pink wash
+       sage   = quiet secondary wash
+     Contrast (checked): green on cream 11.6:1, on white 12.3:1;
+     green on pink 6.2:1; --ink-2 on cream 7.1:1; --ink-3 5.6:1.
+     ============================================================ */
+  --k-green: #1F3A30;
+  --k-green-deep: #14261F;
+  --k-pink: #E9A9A1;
+  --k-cream: #FBF8F1;
+  --k-petal: #FBEDE9;
+  --k-sage: #DCE4D5;
+
   /* — Brand palette (fixed base) — */
-  --bg: #FDFBF9;            /* app background — "paper", continuous with the
-                               /login wash */
-  --primary: #DCE4D5;       /* soft sage — tints, accents, chart fills */
-  --dark: #1F3A30;          /* deep green — actions, headings, brand ink */
+  --bg: var(--k-cream);     /* app background: cream */
+  --primary: var(--k-sage); /* soft sage — tints, accents, chart fills */
+  --dark: var(--k-green);   /* deep green — actions, headings, brand ink */
   --success: #46B37B;
   --warning: #F2B84B;
   --danger: #E05B6F;
 
   /* — Derived brand tones — */
-  --plum-700: #14261F;
-  --plum-600: #1F3A30;
+  --plum-700: var(--k-green-deep);
+  --plum-600: var(--k-green);
   --plum-500: #576B64;
   --plum-400: #84938D;
   --lavender-200: #F0C3BD;
-  --lavender-100: #FBEDE9;
+  --lavender-100: var(--k-petal);
   --lavender-50:  #FDF4F2;
 
   /* — Neutral ink & surfaces —
@@ -33,18 +50,18 @@
      stays a neutral choice rather than following --brand-accent. Every
      shared class (.glass-card, .nav-item, .pill) already resolves to these,
      so the whole shell follows from here. */
-  --ink: #2A2233;          /* primary text — purple-tinted near-black */
-  --ink-2: #6B6275;        /* secondary text */
-  --ink-3: #98879B;        /* tertiary / muted — shared/neutral; intentionally
+  --ink: var(--k-green);   /* primary text — deep green */
+  --ink-2: #44594F;        /* secondary text — green-grey, 7.1:1 on cream */
+  --ink-3: #546860;        /* tertiary / muted — shared/neutral; intentionally
                                no longer matches --brand-muted (that one went
                                green with Stage 2, this one stays neutral
                                since tenant pages read it too) */
   --surface: #FFFFFF;
-  --surface-2: #FAF6FC;    /* tinted card / hover — shared/neutral, same
+  --surface-2: #F4EFE4;    /* tinted card / hover — shared/neutral, same
                                reason: stays as-is rather than following
                                --brand-surface onto a Kalmea-only tone */
-  --line: #ECE4F0;         /* hairline borders */
-  --line-2: #E2D6EA;
+  --line: #E8E1D1;         /* hairline borders */
+  --line-2: #DAD2BF;
 
   /* — Radii — */
   --r-xs: 8px;
@@ -65,11 +82,11 @@
   --s-8: 64px;
 
   /* — Premium layered shadows — */
-  --shadow-xs: 0 1px 2px rgba(43, 34, 51, 0.04);
-  --shadow-sm: 0 2px 8px rgba(43, 34, 51, 0.05), 0 1px 2px rgba(43, 34, 51, 0.04);
-  --shadow-md: 0 8px 24px rgba(43, 34, 51, 0.07), 0 2px 6px rgba(43, 34, 51, 0.04);
-  --shadow-lg: 0 18px 44px rgba(43, 34, 51, 0.10), 0 6px 14px rgba(43, 34, 51, 0.05);
-  --shadow-xl: 0 30px 70px rgba(43, 34, 51, 0.16), 0 10px 24px rgba(43, 34, 51, 0.07);
+  --shadow-xs: 0 1px 2px rgba(31, 58, 48, 0.04);
+  --shadow-sm: 0 2px 8px rgba(31, 58, 48, 0.05), 0 1px 2px rgba(31, 58, 48, 0.04);
+  --shadow-md: 0 8px 24px rgba(31, 58, 48, 0.07), 0 2px 6px rgba(31, 58, 48, 0.04);
+  --shadow-lg: 0 18px 44px rgba(31, 58, 48, 0.10), 0 6px 14px rgba(31, 58, 48, 0.05);
+  --shadow-xl: 0 30px 70px rgba(31, 58, 48, 0.16), 0 10px 24px rgba(31, 58, 48, 0.07);
   --shadow-glow: 0 14px 40px rgba(31, 58, 48, 0.26);
   /* The accent-tinted lift under primary buttons. One recipe, follows --pc. */
   --shadow-accent: 0 8px 18px var(--pc-shadow);
@@ -90,9 +107,9 @@
 
   /* — Signature gradients — */
   /* Green → petal pink, echoing the wordmark's flower. No consumers yet. */
-  --grad-brand: linear-gradient(135deg, #1F3A30 0%, #E9A9A1 100%);
+  --grad-brand: linear-gradient(135deg, var(--k-green) 0%, var(--k-pink) 100%);
   --grad-lav:   linear-gradient(135deg, #FBEDE9 0%, #F0C3BD 100%);
-  --grad-hero:  radial-gradient(120% 120% at 100% 0%, #FBEDE9 0%, #FDFBF9 46%, #FFFFFF 100%);
+  --grad-hero:  radial-gradient(120% 120% at 100% 0%, var(--k-petal) 0%, var(--k-cream) 46%, #FFFFFF 100%);
   --grad-sheen: linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
 
   /* ============================================================
@@ -130,19 +147,19 @@
      surfaces) nor the old --brand-lilac (pale decorative wash) was playing,
      so collapsing them onto an existing token would have erased a real
      distinction instead of just renaming one. */
-  --brand-accent: #183024;           /* deep green — text, buttons, pills, small marks ONLY */
-  --brand-deep: #183024;             /* same deep green; the ads sample one green, not two */
-  --brand-rose: #F0CCC6;             /* petal pink — soft surfaces + accents */
-  --brand-rose-2: #BB9F9A;           /* deeper petal pink — gradient end, derived (darken 22%) */
-  --brand-lilac: #DCE4D5;            /* pale sage wash — soft decorative tone (unrelated to --brand-sage below) */
-  --brand-cosmos: #F0CCC6;           /* same as --brand-rose; no separate cosmos hue */
-  --brand-tint: #F0DDD3;             /* pale petal — soft wash, derived from the new petal pink */
+  --brand-accent: var(--k-green);           /* deep green — text, buttons, pills, small marks ONLY */
+  --brand-deep: var(--k-green);             /* same deep green; the ads sample one green, not two */
+  --brand-rose: var(--k-pink);             /* petal pink — soft surfaces + accents */
+  --brand-rose-2: #C48E87;           /* deeper petal pink — gradient end, derived (darken 22%) */
+  --brand-lilac: var(--k-sage);            /* pale sage wash — soft decorative tone (unrelated to --brand-sage below) */
+  --brand-cosmos: var(--k-pink);           /* same as --brand-rose; no separate cosmos hue */
+  --brand-tint: var(--k-petal);             /* pale petal — soft wash, derived from the new petal pink */
   --brand-surface: #FFFFFF;          /* white — CARDS ONLY, per the ad palette */
-  --brand-blush: #F0E2D7;            /* pale petal — wash florals, derived (lighter than --brand-tint) */
-  --brand-cream: #F0EADE;            /* cream — PAGE BACKGROUND EVERYWHERE */
+  --brand-blush: #F7E4DE;            /* pale petal — wash florals, derived (lighter than --brand-tint) */
+  --brand-cream: var(--k-cream);            /* cream — PAGE BACKGROUND EVERYWHERE */
   --brand-muted: #656A56;            /* darkened sage, readable as body text (4.7:1 on cream) — see --brand-sage below for the vivid, large-text-only version */
   --brand-contrast: #FFFFFF;         /* readable ON --brand-accent */
-  --brand-grad: linear-gradient(135deg, #183024 0%, #F0CCC6 100%);
+  --brand-grad: linear-gradient(135deg, var(--k-green) 0%, var(--k-pink) 100%);
 
   /* Rose — "the one word that matters in a heading", and handwriting
      accents. #B26557 is pixel-sampled from "פחות דברים לזכור" in
@@ -192,7 +209,7 @@
   /* Her accent as TEXT on a light page: same hue, darkened to 4.6:1 against
      white and cream (lib/theme.ts readableAccentText). The pink above is 1.97:1
      as text; this is 5.6:1 / 4.7:1. */
-  --pc-text: #9A544B;
+  --pc-text: #A75C52;
   --pc-tint: #FDF6F6;
   --pc-tint-2: #FBF0EE;
   --pc-soft: rgba(233, 169, 161, 0.10);
@@ -205,7 +222,7 @@
      exactly what the new default petal pink is: pale. Its real contrastOn()
      result is --ink, not white; unthemed first paint has to match that or
      it fails its own stated purpose on day one. */
-  --pc-contrast: #2A2233;
+  --pc-contrast: var(--k-green-deep);
 
   /* — Font stacks (via next/font vars, with graceful fallbacks) — */
   --sans: var(--font-inter), var(--font-assistant), "Assistant", "Heebo", system-ui, sans-serif;
@@ -541,7 +558,7 @@ body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; 
    card on a desk; bottom sheet on a phone, pinned where the thumb is. */
 .sheet-backdrop {
   position: fixed; inset: 0;
-  background: rgba(43, 34, 51, 0.45);
+  background: rgba(31, 58, 48, 0.45);
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   padding: var(--s-2);
@@ -601,7 +618,7 @@ body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; 
   position: relative; box-sizing: border-box; min-height: 100dvh; width: 100%;
   display: flex; flex-direction: column; align-items: center;
   padding: 28px 18px calc(22px + env(safe-area-inset-bottom, 0px));
-  background: var(--brand-cream, #F0EADE); color: var(--ink);
+  background: var(--brand-cream, #FBF8F1); color: var(--ink);
   font-family: var(--sans, 'Assistant', system-ui, -apple-system, sans-serif); direction: rtl; overflow-x: hidden;
 }
 .pub-main { position: relative; z-index: 1; width: 100%; margin: auto 0; }
@@ -629,7 +646,7 @@ body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; 
 }
 .pub-pill:hover:not(:disabled) { transform: translateY(-1px); }
 .pub-pill:disabled { opacity: 0.55; cursor: not-allowed; }
-.pub-pill-quiet { background: var(--brand-surface, #fff); color: var(--ink-2); border: 1px solid var(--line-2, #E6DDE4); font-weight: 600; }
+.pub-pill-quiet { background: var(--brand-surface, #fff); color: var(--ink-2); border: 1px solid var(--line-2, #DAD2BF); font-weight: 600; }
 .pub-pill-danger { background: var(--danger, #C2557A); color: #fff; border-color: var(--danger, #C2557A); }
 /* Kalmea's small mark at the bottom of a business's page */
 .pub-powered { position: relative; z-index: 1; margin-top: 24px; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--brand-muted, #656A56); opacity: 0.85; }

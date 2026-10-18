@@ -84,7 +84,8 @@ await ok('the address comes from Vercel\'s headers: x-real-ip first, then the fi
 
 await ok('enforced by default and in production; relaxed only with the flag AND outside production; list overridable', () => {
   assert.equal(ipCheckEnforced({}), true);
-  assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off' }), false); // sandbox / test
+  assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off', GROW_ENV: 'sandbox' }), false); // sandbox / test
+  assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off' }), true); // GROW_ENV forgotten: counts as production
   assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off', GROW_ENV: 'production' }), true); // cannot weaken live
   assert.equal(ipCheckEnforced({ GROW_ENV: 'production' }), true);
   assert.deepEqual([...allowedIps({ GROW_WEBHOOK_IPS: '10.0.0.1, 10.0.0.2' })], ['10.0.0.1', '10.0.0.2']);

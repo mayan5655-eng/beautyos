@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:template": "node scripts/check-template-clean.mjs",
-    "test": "node scripts/check-hook-deps-order.mjs && node scripts/run-tests.mjs",
+    "test": "node scripts/check-hook-deps-order.mjs && node scripts/check-jsx-parse.mjs && node scripts/check-render-order.mjs && node scripts/run-tests.mjs",
     "migrations:status": "node --env-file=.env.local scripts/migration-status.mjs",
     "check:hooks": "node scripts/check-hook-deps-order.mjs"
   },

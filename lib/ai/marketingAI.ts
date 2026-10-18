@@ -106,7 +106,7 @@ export function buildBusinessContext(profile: BusinessProfile): string {
   if (profile.region) {
     // Only ever a complete address - loadBusinessProfile drops a half-typed one
     // rather than let it publish. So it can be quoted verbatim, and must be.
-    parts.push(`אזור / כתובת הקליניקה (לצטט במלואה או בכלל לא): ${profile.region}`)
+    parts.push(`אזור / כתובת העסק (לצטט במלואה או בכלל לא): ${profile.region}`)
   }
   if (profile.booking_url) {
     parts.push(`קישור לקביעת תור: ${profile.booking_url}`)

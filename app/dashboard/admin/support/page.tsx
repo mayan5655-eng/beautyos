@@ -57,15 +57,19 @@ export default async function AdminSupportPage() {
   const tenantIds = [...new Set(rows.map((r) => r.tenant_id).filter(Boolean))]
 
   let nameById = new Map<string, string | null>()
+  const phoneById = new Map<string, string | null>()
   if (tenantIds.length) {
     const { data: tenants } = await db.from('tenants').select('id, name').in('id', tenantIds)
     for (const t of tenants || []) nameById.set((t as { id: string }).id, (t as { name: string | null }).name)
+    const { data: phones } = await db.from('settings').select('tenant_id, business_phone').in('tenant_id', tenantIds)
+    for (const s of phones || []) phoneById.set((s as { tenant_id: string }).tenant_id, (s as { business_phone: string | null }).business_phone)
   }
 
   const messages: SupportMessageRow[] = rows.map((r) => ({
     id: r.id,
     tenant_id: r.tenant_id,
     tenant_name: nameById.get(r.tenant_id) ?? null,
+    reply_phone: phoneById.get(r.tenant_id) ?? null,
     message: r.message,
     tab: r.tab,
     app_version: r.app_version,

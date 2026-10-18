@@ -20,6 +20,7 @@ import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
+import { suppressionHash } from "../../../lib/clientData";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -53,8 +54,11 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms } =
       await request.json();
+    // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
+    // name cannot be stored or pasted into the owner's WhatsApp text.
+    const name = String(rawName ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 
     // Basic validation
     if (!name || !phone || !service || !date || (hour === undefined && startMinute === undefined)) {
@@ -62,6 +66,11 @@ export async function POST(request) {
         { success: false, error: "חסרים פרטים" },
         { status: 400 }
       );
+    }
+
+    // A real calendar day only: "2026-02-30" used to pass the day arithmetic and fail inside Postgres as a raw 500.
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || new Date(date + "T12:00:00Z").toISOString().slice(0, 10) !== date) {
+      return Response.json({ success: false, error: "התאריך לא תקין, אפשר לבחור שוב?" }, { status: 400 });
     }
 
     // The phone is the whole point of the booking: it is how she confirms it,
@@ -344,13 +353,18 @@ export async function POST(request) {
         // Her name is NOT overwritten from this form. The record is hers, and a
         // booking is not the place to rename a woman because she typed her name
         // differently this time.
-        // The optional "updates and offers" checkbox (unchecked by default). Only a literal true counts. A new explicit yes also clears an
-        // earlier opt-out. Best-effort: a booking never fails because this could not be recorded (e.g. the migration has not run).
-        if (marketingConsent === true) {
-          const { error: consentErr } = await supabase.from("clients").update(consentFields("booking_page")).eq("id", match.id).eq("tenant_id", activeTenantId);
-          if (consentErr) console.error("[book-appointment] marketing consent not recorded:", consentErr.message);
-        }
+        // The "updates and offers" checkbox changes NOTHING for a client who already has a card. Anyone can type any phone number into this public
+        // form, so ticking the box here would let a stranger write a consent record for someone else's number (and, before, clear her opt-out).
+        // Consent is recorded only when the form creates a NEW card (below); an existing client gives it on her card or in the consent form.
       } else {
+        // A number that asked to stop messages before her card was erased stays suppressed: no consent is recorded from a booking form for it.
+        let consentAllowed = marketingConsent === true;
+        if (consentAllowed) {
+          try {
+            const { data: sup } = await supabase.from("marketing_suppressions").select("phone_hash").eq("tenant_id", activeTenantId).eq("phone_hash", suppressionHash(activeTenantId, phoneCheck.e164)).limit(1);
+            if (sup && sup.length) consentAllowed = false;
+          } catch { /* table not created yet: nothing is suppressed */ }
+        }
         const baseRow = {
           tenant_id: activeTenantId,
           name,
@@ -360,10 +374,10 @@ export async function POST(request) {
         };
         let { data: created, error: createErr } = await supabase
           .from("clients")
-          .insert(marketingConsent === true ? { ...baseRow, ...consentFields("booking_page") } : baseRow)
+          .insert(consentAllowed ? { ...baseRow, ...consentFields("booking_page") } : baseRow)
           .select("id")
           .single();
-        if (createErr && marketingConsent === true) {
+        if (createErr && consentAllowed) {
           // Most likely the consent columns do not exist yet (migration pending): keep the booking, drop only the consent.
           console.error("[book-appointment] client create with consent failed, retrying without it:", createErr.message);
           ({ data: created, error: createErr } = await supabase.from("clients").insert(baseRow).select("id").single());
@@ -401,7 +415,8 @@ export async function POST(request) {
         color: svcColor,
         self_booked: true,
         confirmation_status: "confirmed",
-        confirmation_sent: true,
+        // True only after the WhatsApp message really went out (lib/bookingNotify.js sets it).
+        confirmation_sent: false,
       })
       .select()
       .single();
@@ -420,7 +435,8 @@ export async function POST(request) {
           { status: 409 }
         );
       }
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      console.error("[book-appointment] appointment insert failed:", error.message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
     }
 
     // 2. THIS tenant's business name + owner phone, from the row already read
@@ -473,6 +489,7 @@ export async function POST(request) {
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
     });
   } catch (err) {
-    return Response.json({ success: false, error: err.message }, { status: 500 });
+    console.error("[book-appointment] failed:", err?.message);
+    return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
   }
 }
