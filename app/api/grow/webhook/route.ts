@@ -16,7 +16,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { APP_URL } from '@/lib/appUrl';
-import { growCredentials } from '@/lib/grow/config';
+import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, applyNotificationByProcess, applyInvoice, applyInvoiceByProcess, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseOnboardingRepo } from '@/lib/grow/onboardingRepo';
@@ -56,14 +56,15 @@ export async function POST(request: Request) {
     const db = admin();
     const deps = () => ({
       repo: supabaseGrowRepo(db),
-      creds: growCredentials() || { apiKey: '', pageCode: '', apiBase: '' },
+      creds: resolveGrow(process.env, APP_URL).creds || { apiKey: '', pageCode: '', apiBase: '' },
       appUrl: APP_URL,
       newToken: () => randomBytes(24).toString('hex'),
     });
 
     if (kind === 'payment') {
-      const creds = growCredentials();
-      const approve = creds ? (n: Parameters<typeof approveTransaction>[0]) => approveTransaction(n, creds) : undefined;
+      const grow = resolveGrow(process.env, APP_URL);
+      const creds = grow.creds;
+      const approve = creds ? (n: Parameters<typeof approveTransaction>[0]) => approveTransaction(n, creds, grow.fetchImpl) : undefined;
       const r = token ? await applyNotification(raw, token, deps(), approve) : await applyNotificationByProcess(raw, deps(), approve);
       return NextResponse.json({ success: true, kind, status: r.status === 'unknown-token' ? 'ignored' : r.status });
     }

@@ -82,7 +82,9 @@ declare
     -- Client result photos + consent records (supabase/migrations/add_treatment_results.sql).
     'treatment_results',
     -- Messaging and automation state.
-    'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages'
+    'slot_offers', 'whatsapp_messages', 'auto_reminders_log', 'facebook_pages',
+    -- Card payments through Grow (add_grow_payments.sql, add_grow_signup_requests.sql): server-written today, listed so the gate stays right.
+    'grow_accounts', 'grow_payments', 'grow_signup_requests'
     -- NOTE: 'settings' is intentionally absent. See the header for why.
     --
     -- skin_scans, whatsapp_messages and auto_reminders_log are kept here on

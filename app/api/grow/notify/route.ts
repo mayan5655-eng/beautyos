@@ -7,7 +7,7 @@
 // the body says what happened, for the logs.
 import { NextResponse } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
-import { growCredentials } from '@/lib/grow/config';
+import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { randomBytes } from 'node:crypto';
@@ -31,13 +31,14 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export async function POST(request: Request) {
   const token = new URL(request.url).searchParams.get('t') || '';
   const raw = await readBody(request);
-  const creds = growCredentials();
+  const grow = resolveGrow(process.env, APP_URL);
+  const creds = grow.creds;
   try {
     const result = await applyNotification(
       raw,
       token,
-      { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
-      creds ? (n) => approveTransaction(n, creds) : undefined,
+      { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+      creds ? (n) => approveTransaction(n, creds, grow.fetchImpl) : undefined,
     );
     if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
     return NextResponse.json({ success: true, status: result.status });

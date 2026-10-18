@@ -233,7 +233,7 @@ await ok('approveTransaction echoes Grow\'s own fields with the platform key', a
 await ok('the charge route refuses the demo, an unconfigured platform and a disconnected business before Grow', () => {
   const src = readFileSync('app/api/grow/charge/route.ts', 'utf8').split('\r\n').join('\n');
   const demo = src.indexOf('isDemoTenantId(c.tenantId)');
-  const cfg = src.indexOf('growCredentials()');
+  const cfg = src.indexOf('resolveGrow(');
   const acct = src.indexOf("from('grow_accounts')");
   const create = src.indexOf('createCharge(');
   assert.ok(demo > -1 && cfg > demo && acct > cfg && create > acct, 'demo -> platform keys -> her account -> charge');

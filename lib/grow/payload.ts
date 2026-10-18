@@ -94,7 +94,8 @@ export function parseProcessResponse(body: unknown): ProcessResult {
     const err = typeof b.err === 'string' ? b.err : (b.err && typeof (b.err as { message?: unknown }).message === 'string' ? String((b.err as { message: string }).message) : '');
     return { ok: false, reason: err || 'no-url' };
   }
-  if (!/^https:\/\//i.test(url)) return { ok: false, reason: 'insecure-url' };
+  // https only; plain http is accepted for a local development server alone (the mock payment page on localhost).
+  if (!/^https:\/\//i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(url)) return { ok: false, reason: 'insecure-url' };
   return { ok: true, processId, url };
 }
 
@@ -177,6 +178,25 @@ export function findInvoiceUrl(raw: unknown): string | null {
       for (const x of Object.values(v as Record<string, unknown>)) { const r = walk(x, depth + 1); if (r) return r; }
     }
     return null;
+  };
+  return walk(raw, 0);
+}
+
+/**
+ * The document number in an invoice callback. TODO(grow-docs): the public docs show no sample of this payload, so the field name is a guess
+ * across the usual spellings; when Grow gives the real payload, pin the exact key here.
+ */
+export function findInvoiceNumber(raw: unknown): string {
+  const KEYS = /^(documentnumber|docnumber|invoicenumber|receiptnumber|document_number|invoice_number|number)$/i;
+  const seen = new Set<unknown>();
+  const walk = (v: unknown, depth: number): string => {
+    if (depth > 4 || !v || typeof v !== 'object' || seen.has(v)) return '';
+    seen.add(v);
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (x !== null && x !== undefined && typeof x !== 'object' && KEYS.test(k.replace(/^.*\[(.+)\]$/, '$1'))) return String(x).trim().slice(0, 40);
+    }
+    for (const x of Object.values(v as Record<string, unknown>)) { const r = walk(x, depth + 1); if (r) return r; }
+    return '';
   };
   return walk(raw, 0);
 }

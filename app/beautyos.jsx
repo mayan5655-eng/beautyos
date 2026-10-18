@@ -9501,6 +9501,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
+ {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-lg)",fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
  </div>
                 );
@@ -12728,6 +12729,7 @@ ${MARKETING_FOOTER}`)}`;
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
  <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{localDayKey(r.created_at)} · {r.payment_method}</p></div>
+ {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
                     ))

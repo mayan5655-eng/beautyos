@@ -16,7 +16,7 @@
 //
 // Money never passes through Kalmea: the payment page belongs to her Grow account.
 
-import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
+import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
 import type { Notification } from './payload.ts';
 
 export type GrowPayment = {
@@ -42,7 +42,7 @@ export type GrowRepo = {
   /** The one payment with this Grow process id; null when there is none or the id is ambiguous. Used by the platform webhook, whose URL carries no per-payment secret. */
   findByProcessId?(processId: string): Promise<GrowPayment | null>;
   insertReceipt(row: Record<string, unknown>): Promise<{ id: string }>;
-  setReceiptDocument(receiptId: string, url: string): Promise<void>;
+  setReceiptDocument(receiptId: string, url: string, number?: string): Promise<void>;
 };
 
 export type Creds = { apiKey: string; pageCode: string; apiBase: string };
@@ -210,7 +210,7 @@ export async function applyInvoice(raw: unknown, token: string, d: Deps): Promis
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
-  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url);
+  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);
   return { status: 'stored' };
 }
 
@@ -240,7 +240,7 @@ export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ st
   const url = findInvoiceUrl(raw);
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
-  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url);
+  if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);
   return { status: 'stored' };
 }
 

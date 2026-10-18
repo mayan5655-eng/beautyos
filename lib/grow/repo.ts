@@ -47,10 +47,15 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
       if (error || !data) throw new Error(error?.message || 'receipt insert failed');
       return { id: String((data as { id: unknown }).id) };
     },
-    async setReceiptDocument(receiptId, url) {
-      const { error } = await db.from('receipts').update({
-        legal_status: 'issued', legal_provider: 'grow', legal_doc_url: url, legal_issued_at: new Date().toISOString(),
-      }).eq('id', receiptId);
+    async setReceiptDocument(receiptId, url, number) {
+      const patch: Record<string, unknown> = { legal_status: 'issued', legal_provider: 'grow', legal_doc_url: url, legal_issued_at: new Date().toISOString() };
+      if (number) patch.legal_doc_number = number;
+      let { error } = await db.from('receipts').update(patch).eq('id', receiptId);
+      if (error && number && isMissingColumn(error)) {
+        // legal_doc_number is a column from a hand-run migration: keep the link even if only the number has nowhere to go.
+        delete patch.legal_doc_number;
+        ({ error } = await db.from('receipts').update(patch).eq('id', receiptId));
+      }
       if (error && !isMissingColumn(error)) throw new Error(error.message);
     },
   };
