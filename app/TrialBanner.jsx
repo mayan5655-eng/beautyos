@@ -32,7 +32,8 @@ import {
   CTA_WHATSAPP_HE,
 } from "@/lib/planCopy";
 
-export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow }) {
+// `cta` (optional) is a button node from BillingNotices: "add a card" or "pay and continue". The WhatsApp button below stays as the fallback.
+export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow, cta = null }) {
   // Covers 'active', a tenant whose row could not be read, and a trial with no
   // end date: all of them resolve to tone 'none' and show nothing at all.
   if (!plan || plan.tone === "none") return null;
@@ -123,6 +124,8 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
         </div>
       </div>
+
+      {cta}
 
       {/* No number configured means no WhatsApp route. The banner still says
           what is wrong; it just stops offering a link that goes nowhere. */}

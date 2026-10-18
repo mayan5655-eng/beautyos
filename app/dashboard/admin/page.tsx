@@ -24,6 +24,7 @@ import { checkInstanceState } from '@/lib/greenApi/health'
 import AdminClient, { type AdminTenantRow } from './AdminClient'
 import OpsEvents from './OpsEvents'
 import GrowOnboarding from './GrowOnboarding'
+import BillingAdmin from './BillingAdmin'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -118,6 +119,7 @@ export default async function AdminPage() {
       <OpsEvents db={db} />
       {/* Grow merchant-onboarding updates from /api/grow/webhook: read-only, masked ids. */}
       <GrowOnboarding db={db} />
+      <BillingAdmin db={db} />
     </>
   )
 }
