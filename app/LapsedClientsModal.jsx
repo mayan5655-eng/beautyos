@@ -34,6 +34,7 @@ import Spinner from "./Spinner";
 import Sheet from "./Sheet";
 import { toWhatsAppNumber } from '@/lib/phone';
 import { withMarketingFooter, MARKETING_FOOTER } from '@/lib/marketingConsent';
+import { personaliseWinback, splitByPhone } from '@/lib/winback';
 
 const PRESETS = [
   { days: 90, label: '3 חודשים' },
@@ -43,13 +44,6 @@ const PRESETS = [
 
 const DEFAULT_MESSAGE =
   'שלום! 💗\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊\n\n' + MARKETING_FOOTER;
-
-/** The message for one client: a leading "שלום!" becomes "שלום <name>!". */
-function personalise(message, name) {
-  const n = String(name || '').trim();
-  if (!n) return message;
-  return message.replace(/^שלום!/, `שלום ${n}!`);
-}
 
 function waLink(phone, text) {
   const digits = toWhatsAppNumber(phone);
@@ -101,9 +95,9 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   // `loading` flag is a third source of truth that can disagree with them.
   const loading = open && !data && !loadError;
 
-  const rows = useMemo(() => data?.clients ?? [], [data]);
-  // Only people we can actually reach are selectable.
-  const selectable = useMemo(() => rows.filter((r) => r.hasPhone), [rows]);
+  // Only people she can actually reach are listed; those with no phone number are counted in one quiet line instead.
+  const { reachable: rows, noPhone } = useMemo(() => splitByPhone(data?.clients ?? []), [data]);
+  const selectable = rows;
   const allSelected = selectable.length > 0 && selected.size === selectable.length;
   const chosen = useMemo(() => rows.filter((r) => selected.has(r.id)), [rows, selected]);
 
@@ -195,7 +189,9 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {!loading && !loadError && data && rows.length === 0 && (
           <div style={{ marginTop: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
             <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2)', lineHeight: 1.7 }}>
-              {data.noConsent > 0
+              {noPhone > 0 && data.noConsent === 0
+                ? `יש ${noPhone} לקוחות שלא הגיעו מעל ${days} ימים, אבל אין להן מספר טלפון בכרטיס, ולכן אין למי לשלוח מכאן.`
+                : data.noConsent > 0
                 ? `אין כרגע לקוחות להצעה: ${data.noConsent} לקוחות שלא הגיעו מעל ${days} ימים עוד לא הסכימו לקבל עדכונים ומבצעים (או ביקשו הסרה).`
                 : <>אין לקוחות שלא הגיעו מעל {days} ימים. 🎉</>}
             </p>
@@ -210,6 +206,11 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               <Stat label="כבר נשלחה פנייה" value={data.alreadyMessaged} />
               <Stat label="נבחרו" value={selected.size} tone={selected.size ? 'ok' : undefined} />
             </div>
+            {noPhone > 0 && (
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
+                {noPhone} לקוחות נוספות לא ברשימה: אין להן מספר טלפון בכרטיס.
+              </p>
+            )}
             {data.noConsent > 0 && (
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
                 {data.noConsent} לקוחות נוספים לא ברשימה: הם לא הסכימו לקבל עדכונים ומבצעים, או ביקשו הסרה.
@@ -263,6 +264,11 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               rows={4}
               style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", padding: '10px 12px', fontSize:"var(--t-sm)", fontFamily: 'inherit', lineHeight: 1.7, color: 'var(--ink)', background: 'var(--surface-2)', resize: 'vertical', outline: 'none' }}
             />
+            {(chosen[0] || rows[0]) && (
+              <p data-testid="winback-preview" style={{ fontSize:"var(--t-xs)", color: 'var(--ink-2)', background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius:"var(--r-sm)", padding: '8px 10px', marginTop: 8, lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                {'כך זה ייראה אצל ' + ((chosen[0] || rows[0]).name || 'הלקוחה') + ':\n'}{personaliseWinback(message.trim(), (chosen[0] || rows[0]).name)}
+              </p>
+            )}
             <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
               ההודעה נשלחת מהוואטסאפ שלך, לקוחה אחת בכל לחיצה. פתיחה ב&quot;שלום!&quot; מקבלת את שם הלקוחה.
               מי שתשלחי לה כאן לא תקבל גם את הפנייה האוטומטית.
@@ -278,7 +284,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
             </p>
             <div style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 12, maxHeight: 360, overflowY: 'auto' }}>
               {chosen.map((c, i) => {
-                const href = waLink(c.phone, personalise(message.trim(), c.name));
+                const href = waLink(c.phone, personaliseWinback(message.trim(), c.name));
                 const isDone = done.has(c.id);
                 return (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
