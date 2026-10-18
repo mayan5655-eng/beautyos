@@ -11797,7 +11797,7 @@ ${MARKETING_FOOTER}`)}`;
                     )}
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;אודותיי&quot; בדף ההזמנות, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, מוצגת תמונת ברירת מחדל.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;נעים להכיר&quot; בעמוד העסק שלך, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, החלק הזה לא מוצג בעמוד.</p>
                       {uploader("portrait_url",brand.portrait_url)}
  </div>
  <div><p style={lbl}>התפקיד שלך (מוצג ליד השם)</p><input value={brand.therapist_title||""} onChange={e=>setBrand("therapist_title",e.target.value)} placeholder="למשל: קוסמטיקאית פארה-רפואית" style={inp}/><p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>מוצג בדף ההזמנות מתחת לתמונה, לצד השם שהוזן ב״שם המטפלת״.</p></div>
@@ -11859,7 +11859,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות הטיפולים</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>כל טיפול מוצג בדף עם תמונה. כל עוד לא העלית תמונה משלך מוצגת תמונת ברירת מחדל, והיא מסומנת כאן. התמונה שלך תמיד מחליפה אותה.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>בעמוד העסק, טיפול שהעלית לו תמונה מוצג ככרטיס עם התמונה, וטיפול בלי תמונה מוצג ברשימה. בדף קביעת התור, טיפול בלי תמונה מקבל תמונת ברירת מחדל, והיא מסומנת כאן.</p>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                     {activeServices.map(sv=>{
                       const img=serviceImage(sv,brand.service_images);
@@ -11880,7 +11880,7 @@ ${MARKETING_FOOTER}`)}`;
  <ResultsManager tenantId={settings?.tenant_id} services={activeServices}/>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> תמונות אווירה מהקליניקה</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בדף ההזמנות.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>עד 3 תמונות של החדר והאווירה, לא של עבודות. מוצגות בגלריה בעמוד העסק.</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.clinic_photos)?brand.clinic_photos:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
@@ -11893,7 +11893,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="image" size={14}/> גלריית תמונות</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בעמוד העסק שלך (/book) כרשת תמונות</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>התמונות יוצגו בגלריה בעמוד העסק שלך. לחיצה על תמונה מגדילה אותה.</p>
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(70px,1fr))",gap:6,marginBottom:8}}>
                     {(Array.isArray(brand.gallery)?brand.gallery:[]).map((g,i)=>(
  <div key={i} style={{position:"relative",aspectRatio:"1 / 1",borderRadius:"var(--r-sm)",overflow:"hidden",border:"1px solid var(--line)"}}>
