@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { contrastRatio } from './lib/theme.ts';
 
 const css = fs.readFileSync('app/globals.css', 'utf8').replace(/\r\n/g, '\n');
-const tok = (name: string) => (css.match(new RegExp(`--${name}:\s*(#[0-9A-Fa-f]{6})`)) || [])[1];
+const tok = (name: string) => (css.match(new RegExp(String.raw`--${name}:\s*(#[0-9A-Fa-f]{6})`)) || [])[1];
 
 assert.equal(tok('k-green'), '#1F3A30');
 assert.equal(tok('k-pink'), '#E9A9A1');
@@ -14,7 +14,7 @@ assert.equal(tok('k-petal'), '#FBEDE9');
 assert.equal(tok('k-sage'), '#DCE4D5');
 
 for (const [name, want] of [['bg', 'k-cream'], ['ink', 'k-green'], ['dark', 'k-green'], ['brand-accent', 'k-green'], ['brand-cream', 'k-cream'], ['brand-rose', 'k-pink']]) {
-  assert.ok(new RegExp(`--${name}:\s*var\(--${want}\)`).test(css), `--${name} derives from --${want}`);
+  assert.ok(new RegExp(String.raw`--${name}:\s*var\(--${want}\)`).test(css), `--${name} derives from --${want}`);
 }
 
 const cream = tok('k-cream'), white = '#FFFFFF', green = tok('k-green');
