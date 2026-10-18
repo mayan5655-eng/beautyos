@@ -56,7 +56,7 @@ try {
   const picked = [];
   for (let i = 0; i < Math.min(2, nSvc); i++) { picked.push((await svcRows.nth(i).innerText()).split('\n')[0].trim()); await svcRows.nth(i).click(); await page.waitForTimeout(200); }
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(500);
-  await page.click('button:has-text("לא עכשיו")');
+  await page.click('button:has-text("סיום ופתיחת היומן")');
   await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
   await page.waitForTimeout(1500);
   const skipTour = async () => { for (let i = 0; i < 6; i++) { const sk = visible('button:has-text("דלגי")'); if (await sk.count()) { await sk.click().catch(() => {}); await page.waitForTimeout(300); } else break; } };
