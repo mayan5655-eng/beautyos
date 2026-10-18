@@ -77,6 +77,7 @@ const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
 import FeeQuestions from "./FeeQuestions";
@@ -86,6 +87,7 @@ import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
+import { accountantSheets, periodProfit } from "@/lib/accountantPack";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -6111,7 +6113,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const price = Number(newPackage.price) || 0;
       // payment_method belongs on the receipt, not on the package row - it is
       // how she was paid, not part of what she sold.
-      const { payment_method, ...packageRow } = newPackage;
+      // valid_months is a choice on the form, not a column: it becomes packages.expires_at (end of that day, Israel),
+      // which the smart reminders read to tell her client two weeks before unused sessions run out.
+      const { payment_method, valid_months, ...packageRow } = newPackage;
+      const months = Number(valid_months) || 0;
+      if (months > 0) {
+        const d = new Date(); d.setMonth(d.getMonth() + months);
+        packageRow.expires_at = `${formatDate(d)}T21:59:59Z`;
+      }
       // active: true, written explicitly. The packages list and the cashier's
       // "charge from package" card both filter on it, the sync trigger only
       // sets it once the first ledger entry lands, and the table's own default
@@ -8477,7 +8486,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -9809,13 +9818,35 @@ ${MARKETING_FOOTER}`)}`;
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
             const exMonth=(e)=>Number((e.expense_date||"").slice(5,7))-1;
-            const periodExpenses = status==="exempt" ? []
+            // Every registration records expenses now: an exempt dealer reclaims no VAT, but her annual income-tax
+            // report still deducts them, and "what did I actually earn" needs them (lib/accountantPack.js).
+            const periodExpenses = mode==="annual"
+              ? expenses.filter(e=>exYear(e)===taxYear)
               : taxPeriodMode==="monthly"
                 ? expenses.filter(e=>exYear(e)===taxYear && exMonth(e)===taxPeriodIdx)
                 : expenses.filter(e=>exYear(e)===taxYear && Math.floor(exMonth(e)/2)===taxPeriodIdx);
             const expensesTotal = periodExpenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
             // Input VAT extracted from expenses (same formula as output VAT).
-            const inputVat = expensesTotal*vatRate/(1+vatRate);
+            const inputVat = status==="exempt" ? 0 : expensesTotal*vatRate/(1+vatRate);
+            const profit = periodProfit({ net, expensesTotal, inputVat, status });
+            const exportForAccountant = async () => {
+              try {
+                const XLSX = await import("xlsx");
+                const sh = accountantSheets({ businessName: settings.business_name, statusLabel, rangeLabel, status,
+                  totals: { gross, net, vatDue, count }, expensesTotal, inputVat, receipts: periodReceipts, expenses: periodExpenses, parse: parseDb });
+                const wb = XLSX.utils.book_new();
+                for (const [name, rows] of [["סיכום", sh.summary], ["תשלומים", sh.receipts], ["הוצאות", sh.expenses]]) {
+                  const ws = XLSX.utils.aoa_to_sheet(rows);
+                  ws["!cols"] = rows[0] && rows[0].length > 2 ? rows[0].map(() => ({ wch: 18 })) : [{ wch: 34 }, { wch: 18 }];
+                  XLSX.utils.book_append_sheet(wb, ws, name);
+                }
+                wb.Workbook = { Views: [{ RTL: true }] };
+                XLSX.writeFile(wb, `לרואה-החשבון-${rangeLabel.replace(/[\s–]+/g, "-")}.xlsx`);
+              } catch (e) {
+                console.error("[tax] accountant export failed:", e?.message || String(e));
+                toast("לא הצלחנו להכין את הקובץ, אפשר לנסות שוב", "error");
+              }
+            };
             const finalVat = vatDue - inputVat;      // output VAT minus input VAT
             const isRefund = finalVat < 0;           // negative => refund from the authority
             const nis=(x)=>`₪${Math.round(x).toLocaleString()}`;
@@ -9867,6 +9898,9 @@ ${MARKETING_FOOTER}`)}`;
  <svg viewBox="0 0 24 24" width="16" height="16" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
                     הורדת PDF / הדפסה
  </button>
+ <button onClick={exportForAccountant} className="secondary-btn" style={{padding:"10px 18px",fontSize:"var(--t-sm)",marginInlineStart:8,border:`1px solid ${pc}`,background:"var(--surface)",color:"var(--ink)",borderRadius:"var(--r-full)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                    קובץ לרואה החשבון (Excel)
+ </button>
  </div>
 
                 {/* REPORT CARD */}
@@ -9887,6 +9921,10 @@ ${MARKETING_FOOTER}`)}`;
                         <Stat label={`מחזור שנתי ${taxYear} (ללא מע"מ)`} value={nis(yearGross)}/>
  </div>
                     )}
+ <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:12}}>
+ <Stat label="הוצאות בתקופה" value={nis(expensesTotal)}/>
+ <Stat label="רווח לפני מס הכנסה (הערכה)" value={nis(profit)}/>
+ </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>עוסק פטור לא גובה מע"מ, ולכן המחזור הוא הסכום שנגבה, בלי ניכוי. הדיווח שלך הוא שנתי; החיתוך לפי חודש כאן הוא לנוחותך.</p>
  </>
                   ):(
@@ -9901,6 +9939,9 @@ ${MARKETING_FOOTER}`)}`;
  <Stat label="מס תשומות (על הוצאות)" value={nis(inputVat)}/>
  <Stat label={isRefund?"החזר מע\"מ":"מע\"מ סופי לתשלום"} value={nis(Math.abs(finalVat))} big gold/>
  </div>
+ <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:12}}>
+ <Stat label="רווח לפני מס הכנסה (הערכה)" value={nis(profit)}/>
+ </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:14,lineHeight:1.6,textAlign:"center"}}>{`מע"מ סופי = מס עסקאות (מהמכירות) פחות מס תשומות (חילוץ ה-${Math.round(vatRate*100)}% מסך ההוצאות שנרשמו לתקופה). ${isRefund?"התוצאה שלילית, כלומר ייתכן שמגיע לך החזר מע\"מ.":"זו הערכה של הסכום לתשלום."} הסכום בפועל נקבע לפי חשבוניות המס שבידייך, לא כל הוצאה כוללת מע\"מ. כדאי לבדוק עם רואה החשבון לפני הדיווח.`}</p>
  </>
                   )}
@@ -9911,11 +9952,11 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </div>
 
-                {/* EXPENSES (licensed/company only) — outside #tax-report so it stays out of the PDF */}
-                {status!=="exempt"&&(
+                {/* EXPENSES (every registration) — outside #tax-report so it stays out of the PDF */}
+                {(
  <div style={{marginTop:22}}>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>הוצאות העסק — {rangeLabel}</h3>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>הוצאות (כולל מע"מ) משמשות לחישוב מס התשומות. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>{status==="exempt"?"ההוצאות מחושבות ברווח ובקובץ לרואה החשבון (לדוח השנתי). ההוצאות מסוננות לתקופה שנבחרה למעלה.":"הוצאות (כולל מע\"מ) משמשות לחישוב מס התשומות והרווח. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה."}</p>
 
                     {/* ADD FORM */}
  <div className="glass-card" style={{padding:"14px 16px",marginBottom:12}}>
@@ -11119,6 +11160,7 @@ ${MARKETING_FOOTER}`)}`;
  <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
+ <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>תוקף</p><select aria-label="תוקף החבילה" value={newPackage.valid_months||0} onChange={e=>setNewPackage({...newPackage,valid_months:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{[[0,"ללא"],[3,"3 חודשים"],[6,"חצי שנה"],[12,"שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מחיר חבילה ₪</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  </div>
                   {/* She is taking money here, so the receipt has to say how.
@@ -11405,6 +11447,7 @@ ${MARKETING_FOOTER}`)}`;
  {!editSettings.business_tax_status&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700,marginTop:6,lineHeight:1.5}}>עוד לא בחרת. בלי זה לא נפיק קבלה או חשבונית חוקית, וסיכום ההכנסות לא יחושב.</p>}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הבחירה קובעת איזה מסמך חוקי מופק ללקוחות (אם חיברת תוכנת חשבוניות), ואיך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. סיכום ההכנסות הוא לנוחותך, לא דוח להגשה.</p></div>
  </>)}
+ {inG("connections")&&(<CalendarFeedCard pc={pc} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {inG("connections")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4,fontWeight:700}}>התראות דפדפן</p>
@@ -11842,7 +11885,7 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
  <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
- <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, וגם שבועיים לפני שתוקף חבילה עם טיפולים שנותרו נגמר, בתור השליחה הידנית שלך." />
  </div>
 
  </>)}

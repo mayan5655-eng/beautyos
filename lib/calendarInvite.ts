@@ -116,3 +116,39 @@ function hash(s: string): number {
   for (let k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) | 0;
   return h;
 }
+
+export type FeedEvent = InviteInput & { uid: string };
+
+/**
+ * Her whole diary as one subscribed calendar (lib/calendarFeed.ts). No alarms: the phone
+ * would otherwise ring for every client, and her own reminders are Kalmea's job.
+ */
+export function buildIcsFeed(events: FeedEvent[], calendarName: string, now: Date = new Date()): string {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Kalmea//Diary//HE',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${esc(calendarName)}`,
+    'X-WR-TIMEZONE:Asia/Jerusalem',
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    'X-PUBLISHED-TTL:PT1H',
+  ];
+  for (const e of events) {
+    const { start, end } = range(e);
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${e.uid}@kalmea`,
+      `DTSTAMP:${stamp(now)}`,
+      `DTSTART:${stamp(start)}`,
+      `DTEND:${stamp(end)}`,
+      `SUMMARY:${esc(e.title)}`,
+      ...(e.location ? [`LOCATION:${esc(e.location)}`] : []),
+      ...(e.details ? [`DESCRIPTION:${esc(e.details)}`] : []),
+      'END:VEVENT',
+    );
+  }
+  lines.push('END:VCALENDAR');
+  return lines.map(fold).join('\r\n') + '\r\n';
+}

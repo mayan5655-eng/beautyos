@@ -34,5 +34,7 @@ assert.equal(due2[0].lastDate, '2026-09-25');
 
 assert.equal(sinceHe(21), '3 שבועות');
 assert.equal(sinceHe(14), 'שבועיים');
-assert.equal(sinceHe(10), '10 ימים');
+assert.equal(sinceHe(10), 'יותר משבוע');
+assert.equal(sinceHe(25), 'יותר מ-3 שבועות');
+assert.equal(sinceHe(5), '5 ימים');
 console.log('rebook: ok');
