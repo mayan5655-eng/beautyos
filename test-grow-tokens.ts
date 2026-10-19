@@ -315,4 +315,14 @@ await ok('GROW_ALLOWED_TENANTS limits the feature to the listed businesses; unse
   for (const f of ['app/api/availability/route.ts', 'app/api/confirm/route.ts', 'app/api/grow/policy/public/route.ts', 'app/api/book-appointment/route.js', 'app/api/grow/_shared.ts']) assert.ok(/growUiEnabled\(process\.env, /.test(read(f)), `${f} checks the business`);
 });
 
+await ok('live mode with only the sandbox token triple: configured, real ops, the token page serves the deposit page; mock is still refused in production', async () => {
+  const { resolveGrow } = await import('./lib/grow/adapter.ts');
+  const env = { GROW_MODE: 'live', GROW_TOKEN_USER_ID_TEST: 'U', GROW_TOKEN_API_KEY_TEST: 'K', GROW_TOKEN_PAGE_CODE_TEST: 'P', VERCEL_ENV: 'production' };
+  const g = resolveGrow(env, 'https://kalmea.app');
+  assert.equal(g.mode, 'live'); assert.equal(g.configured, true); assert.ok(g.ops && g.tokenCreds && g.creds);
+  assert.equal(g.creds!.pageCode, 'P'); assert.equal(g.env, 'sandbox');
+  assert.equal(resolveGrow({ ...env, GROW_TOKEN_API_KEY_TEST: '' }, 'https://kalmea.app').configured, false, 'a missing key is not configured');
+  assert.equal(resolveGrow({ VERCEL_ENV: 'production' }, 'https://kalmea.app').configured, false, 'mock is refused on production');
+});
+
 console.log(`grow tokens: ${n} ok`);
