@@ -20,6 +20,8 @@ import { tenantRefOf } from './payload.ts';
 import { createMockOps, createLiveOps } from './ops.ts';
 import type { GrowOps } from './ops.ts';
 import { signGrowSession } from './mockSession.ts';
+import { tokenCredentials } from './tokenFlow.ts';
+import type { TokenCreds } from './tokenFlow.ts';
 
 export type GrowMode = 'mock' | 'live';
 
@@ -43,6 +45,8 @@ export type GrowAdapter = {
   fetchImpl?: typeof fetch;
   /** Card tokens, token charges and refunds (cancellation fees and deposits): the in-memory mock, or the real Grow calls. */
   ops?: GrowOps;
+  /** Live only: the credentials of the saved-card (token) flows; sandbox uses the GROW_TOKEN_*_TEST triple. Null when they are not set. */
+  tokenCreds?: TokenCreds | null;
   /** Why it is not configured, for the operator's logs (never shown to her). */
   reason?: string;
 };
@@ -51,7 +55,8 @@ export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapte
   if (growMode(env) === 'live') {
     const s = growPlatformStatus(env);
     const creds = growCredentials(env);
-    return { mode: 'live', configured: s.configured, env: s.env, creds, ops: creds ? createLiveOps(creds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
+    const tokenCreds = tokenCredentials(env);
+    return { mode: 'live', configured: s.configured, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };

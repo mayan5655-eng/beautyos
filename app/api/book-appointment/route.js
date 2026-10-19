@@ -24,6 +24,7 @@ import { suppressionHash } from "../../../lib/clientData";
 import { APP_URL } from "../../../lib/appUrl";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
+import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
 
@@ -59,7 +60,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave } =
       await request.json();
     // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
     // name cannot be stored or pasted into the owner's WhatsApp text.
@@ -244,6 +245,13 @@ export async function POST(request) {
     if (policy && acceptedPolicy !== true) {
       return Response.json(
         { success: false, error: "כדי לקבוע תור צריך לאשר את מדיניות הביטולים" },
+        { status: 400 }
+      );
+    }
+    // Saving the card is its own required tick (Grow's rule): the policy tick is not enough. Refused here, whatever the page sent.
+    if (policy && policy.mode === "saved_card" && acceptedCardSave !== true) {
+      return Response.json(
+        { success: false, error: "כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי" },
         { status: 400 }
       );
     }
@@ -522,7 +530,7 @@ export async function POST(request) {
       try {
         const r = await recordConsentAndStart(policyDeps, {
           tenantId: activeTenantId, appointmentId: String(appt.id), clientId: clientId ? String(clientId) : null, clientName: name, phone,
-          servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`,
+          servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`, cardConsentText: CARD_CONSENT_TEXT_HE,
         });
         policyStep = r.step;
       } catch (stepErr) {

@@ -13,6 +13,7 @@ import type { Deps } from '@/lib/grow/cancelFees';
 import type { GrowPayment } from '@/lib/grow/service';
 import { sendBookingNotifications } from '@/lib/bookingNotify';
 import { sanitizePolicy } from '@/lib/cancellationPolicy';
+import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { admin } from './_shared';
 
 export function cancelDeps(): Deps | null {
@@ -24,6 +25,9 @@ export function cancelDeps(): Deps | null {
     repo: supabaseCancelRepo(db, sanitizePolicy),
     grow: growRepo,
     ops: grow.ops,
+    // Card tokens are stored sealed (AES-256-GCM with TOKEN_ENCRYPTION_KEY, like the other secrets) and Grow posts the first token to the platform webhook.
+    seal: { encrypt: encryptToken, decrypt: decryptToken },
+    notifyUrl: `${APP_URL.replace(/\/+$/, '')}/api/grow/webhook`,
     chargeDeps: { repo: growRepo, creds: grow.creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   };
 }

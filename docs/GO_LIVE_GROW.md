@@ -28,11 +28,15 @@ webhook field list; whether they sign webhooks.
 | Platform API key | `GROW_API_KEY` |
 | Platform card payment-page code (live) | `GROW_PAGE_CODE` |
 | Production API base URL (not in the public docs) | `GROW_API_BASE` |
+| Saved-card (token) API key, production | `GROW_TOKEN_API_KEY` |
+| Credit-card token page code, production | `GROW_TOKEN_PAGE_CODE` |
 | (you set) | `GROW_ENV` = `production` |
 | (you set) | `GROW_MODE` = `live` |
 | Only if Grow's IP list changes | `GROW_WEBHOOK_IPS` (optional) |
 
-Already set and not from Grow: `CRON_SECRET` (the crons), `SUPABASE_SERVICE_ROLE_KEY`.
+Already set and not from Grow: `CRON_SECRET` (the crons), `SUPABASE_SERVICE_ROLE_KEY`, `TOKEN_ENCRYPTION_KEY` (saved-card tokens are stored encrypted with it).
+
+Sandbox only (already in Vercel and `.env.local`, test values from Grow): `GROW_TOKEN_USER_ID_TEST`, `GROW_TOKEN_API_KEY_TEST`, `GROW_TOKEN_PAGE_CODE_TEST`. The token flows are described, and were checked against the sandbox, in `docs/GROW_SETUP.md` ("Saved cards"). Run `supabase/migrations/add_grow_tokens.sql` before turning the saved-card policy on.
 
 ## Webhook URLs to give Grow
 

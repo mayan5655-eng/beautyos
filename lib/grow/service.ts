@@ -111,13 +111,13 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     tenantRef: i.tenantId,
   });
   const form = new FormData();
+  form.append('apiKey', d.creds.apiKey);   // a body field: Grow refuses a header (error 701)
   for (const [k, v] of fields) form.append(k, v);
 
   let json: unknown = null;
   try {
     const res = await (d.fetchImpl || fetch)(`${d.creds.apiBase}/createPaymentProcess`, {
       method: 'POST',
-      headers: { 'x-api-key': d.creds.apiKey },
       body: form,
     });
     json = await res.json().catch(() => null);
@@ -266,7 +266,8 @@ export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ st
 /** approveTransaction: acknowledges the callback. Fields are echoed back exactly as Grow sent them. */
 export async function approveTransaction(n: Notification, creds: Creds, fetchImpl: typeof fetch = fetch): Promise<void> {
   const form = new FormData();
+  form.append('apiKey', creds.apiKey);   // a body field: Grow refuses a header (error 701)
   form.append('pageCode', creds.pageCode);
   for (const [k, v] of Object.entries(n.echo)) form.append(k, v);
-  await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', headers: { 'x-api-key': creds.apiKey }, body: form });
+  await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
 }

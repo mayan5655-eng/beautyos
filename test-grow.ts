@@ -122,7 +122,8 @@ await ok('createCharge: writes the row first, asks Grow for HER userId with the 
   assert.equal(r.ok, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://grow.test/api/createPaymentProcess');
-  assert.equal(calls[0].headers['x-api-key'], 'KEY');
+  assert.equal(calls[0].form.get('apiKey'), 'KEY', 'the key is a body field; Grow refuses a header');
+  assert.equal(calls[0].headers?.['x-api-key'], undefined);
   assert.equal(calls[0].form.get('userId'), 'her-user-1', 'the charge is for HER account');
   assert.equal(calls[0].form.get('pageCode'), 'PAGE');
   assert.equal(calls[0].form.get('notifyUrl'), `https://kalmea.test/api/grow/notify?t=${'a'.repeat(48)}`);
@@ -232,7 +233,8 @@ await ok('approveTransaction echoes Grow\'s own fields with the platform key', a
   assert.equal(calls[0].url, 'https://grow.test/api/approveTransaction');
   assert.equal(calls[0].form.get('transactionId'), '77');
   assert.equal(calls[0].form.get('pageCode'), 'PAGE');
-  assert.equal(calls[0].headers['x-api-key'], 'KEY');
+  assert.equal(calls[0].form.get('apiKey'), 'KEY', 'the key is a body field; Grow refuses a header');
+  assert.equal(calls[0].headers?.['x-api-key'], undefined);
 });
 
 // ── the routes keep their guards (source-level: they need a database to run) ───────────

@@ -41,6 +41,7 @@ import PublicFooterLinks from "./PublicFooterLinks";
 import WaitlistJoin from "./WaitlistJoin";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
+import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -330,9 +331,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Her cancellation policy on top of Grow (/api/grow/policy/public): null unless she turned it on, and then the booking works as it always did.
   const [growPolicy, setGrowPolicy] = useState(null);
   const [policyOk, setPolicyOk] = useState(false);
+  const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
+  // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
+  const needsCardTick = needsPolicy && growPolicy.mode === "saved_card";
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;
@@ -570,6 +574,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
     if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
     if (needsPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
+    if (needsCardTick && !cardOk) { setErrorMsg("כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -594,6 +599,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
           acceptedPolicy: needsPolicy ? policyOk === true : undefined,
+          acceptedCardSave: needsCardTick ? cardOk === true : undefined,
         }),
       });
       const result = await res.json();
@@ -1368,6 +1374,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <span data-testid="grow-policy-text" style={{ whiteSpace: "pre-line" }}>{growPolicy.text}</span><br />
                       קראתי ואני מאשרת.
                     </span>
+                  </label>
+                )}
+                {needsCardTick && (
+                  <label data-testid="grow-card-consent" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${cardOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={cardOk} onChange={(e) => { setCardOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת פרטי כרטיס האשראי" required style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>{CARD_CONSENT_TEXT_HE}</span>
                   </label>
                 )}
                 <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>

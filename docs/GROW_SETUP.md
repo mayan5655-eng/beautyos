@@ -84,3 +84,41 @@ client credit), and an editable Hebrew policy text with a default template. It i
 5. Refunds: endpoint, partial refunds, who may call it (platform or merchant), and what the merchant's receipt looks like afterwards.
 6. How long does a token live, what happens when the card expires, and what is the 3-D Secure rule for off-session charges in Israel?
 7. Is the client's consent to future charges something Grow needs (text, timestamp) in the token request?
+
+## Saved cards (Grow tokens): built and tested against Grow's sandbox
+
+Source: developers.grow.business, "Work with Token". The calls below were run against the **sandbox** with the test credentials Grow issued
+(`scripts/smoke/grow-token-sandbox.mjs`); production values still come from Grow.
+
+**Environment variables** (never in the repository; `.env.local` and Vercel only)
+
+| Variable | Meaning |
+|---|---|
+| `GROW_TOKEN_USER_ID_TEST`, `GROW_TOKEN_API_KEY_TEST`, `GROW_TOKEN_PAGE_CODE_TEST` | The sandbox test triple. In the sandbox every cosmetician is charged on this one test business. |
+| `GROW_TOKEN_API_KEY`, `GROW_TOKEN_PAGE_CODE` + `GROW_API_BASE` + `GROW_ENV=production` | Production: the platform key and the credit-card token page code Grow issues, with each cosmetician's own `userId`. |
+| `TOKEN_ENCRYPTION_KEY` | Already exists (Facebook tokens). Saved-card tokens are stored AES-256-GCM encrypted with it. |
+
+**Authentication.** `apiKey` is a **body field** of every call (a header is refused with error 701). It was a header before; fixed in `createCharge` and `approveTransaction` too.
+
+**The three modes** (`lib/grow/tokenFlow.ts`, `lib/grow/ops.ts`)
+
+1. *Save only*: `createPaymentProcess` with `chargeType=3`, `sum=1`, `saveCardToken=1`. The client types the card on Grow's hosted credit-card page; nothing is charged (the sandbox shows a held ₪1 authorisation, status 11).
+2. *Charge and save*: the same call with `chargeType=1`, the real `sum`, `saveCardToken=1`.
+3. *Charge a saved token*: `createTransactionWithToken` with `cardToken`, `sum`, `paymentType=2`, `transactionUniqueIdentifier` (required) and `transactionGroupIdentifier` (lookup only).
+
+**Rules that are enforced in code**
+
+- Credit card only: the token page code is Grow's credit-card page, no Bit / Apple Pay / Google Pay.
+- Consent: a separate required tick on the booking page, `CARD_CONSENT_TEXT_HE` in `lib/grow/tokenFlow.ts`. The server refuses a booking without `acceptedCardSave`. The exact words, the time, the client and the booking are stored in `grow_card_consents`.
+- `transactionUniqueIdentifier`: a whole number between 100,000,000 and 4,294,967,000 (Grow refuses anything above 32 bits, error 1013), drawn on the server, **saved in `grow_token_charges` before the call**, unique across all rows, never reused, not even after a refusal.
+- Error **1010** (identifier already seen) is not retried. The transaction is looked up with `getTokenTransactionsByExternalIdentifiers`, sending only the unique identifier (both together is an error), and the real result is recorded. If the lookup cannot settle it, the row is `unknown` and the fee item stays "charging" so nobody can charge twice by tapping again.
+- A token is bound to `tenant_id` + `client_id`. Before every charge the server checks, from the database, that the token belongs to the same business and the same client as the appointment. A token or client id from the browser is never accepted (`/api/grow/fees/decide` takes only the fee id and the decision).
+- The first transaction of a token sends a server-to-server callback to `https://kalmea.app/api/grow/webhook` and needs `approveTransaction`; it is handled in `onCardTokenNotification` (`lib/grow/cancelFees.ts`). Later token charges send no callback and need no approve: their result is the API response.
+- New tables (`grow_card_consents`, `grow_token_charges`) are in the trial gate with tenant-scoped RLS; the token and Grow's process token are never granted to the browser.
+
+**Migration (run by hand, after `add_grow_cancellation.sql`):** `supabase/migrations/add_grow_tokens.sql`.
+
+**What the sandbox run proved** (`node --env-file=.env.local scripts/smoke/grow-token-sandbox.mjs`): save only returns a token, charge-and-save returns a paid transaction and a token,
+a token charge succeeds once, the same identifier again answers 1010, the lookup by that one identifier finds the paid transaction, and an identifier never used is "not found".
+
+**Not wired:** the deposit payment page (a regular payment page, `createCharge`) does not save a card yet; charge-and-save exists in `ops.createTokenSession` and is tested, but deposit mode still takes the deposit and nothing else.
