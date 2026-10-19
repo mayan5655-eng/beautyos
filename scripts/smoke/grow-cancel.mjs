@@ -62,6 +62,13 @@ async function publicBook({ expectPolicy, tick }) {
     await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(800);
     check((await body(pub)).includes('מדיניות הביטולים') && !(await body(pub)).includes('התור נקבע'), 'booking is refused until the policy is ticked');
     if (tick) await pub.locator('input[aria-label="אישור מדיניות הביטולים"]').check();
+    const cardBox = pub.locator('[data-testid="grow-card-consent"]');
+    if (tick && (await cardBox.count()) === 1) {
+      check((await cardBox.innerText()).includes('כרטיס האשראי'), 'the card-save tick shows its own text');
+      await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(800);
+      check((await body(pub)).includes('לאשר את שמירת פרטי האשראי') && !(await body(pub)).includes('התור נקבע'), 'booking is refused until the card-save tick is ticked');
+      await pub.locator('input[aria-label="אישור שמירת פרטי כרטיס האשראי"]').check();
+    }
   }
   await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(4000);
   check(/התור נקבע|התור שמור עבורך/.test(await body(pub)), 'the booking page confirms the appointment (or says it is held for the deposit)');
