@@ -77,6 +77,7 @@ const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const GrowPaymentRequests = dynamic(() => import("./GrowPaymentRequests"), { ssr: false });
 const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
@@ -9186,6 +9187,8 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא לאקסל</button>
  </div>
  </div>
+ {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
+ {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's

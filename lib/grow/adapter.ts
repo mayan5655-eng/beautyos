@@ -20,6 +20,7 @@ import { tenantRefOf } from './payload.ts';
 import { createMockOps, createLiveOps } from './ops.ts';
 import type { GrowOps } from './ops.ts';
 import { signGrowSession } from './mockSession.ts';
+import { pageCodesFromEnv } from './methods.ts';
 import { tokenCredentials } from './tokenFlow.ts';
 import type { TokenCreds } from './tokenFlow.ts';
 
@@ -63,13 +64,14 @@ export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapte
     const s = growPlatformStatus(env);
     const tokenCreds = tokenCredentials(env);
     // Until the platform keys are issued, the saved-card page (credit card only) also serves the booking deposit page: the same apiKey, page code and base.
-    const creds = growCredentials(env) || (tokenCreds ? { apiKey: tokenCreds.apiKey, pageCode: tokenCreds.pageCode, apiBase: tokenCreds.apiBase } : null);
+    const platform = growCredentials(env);
+    const creds = platform ? { ...platform, pageCodes: pageCodesFromEnv(env) } : (tokenCreds ? { apiKey: tokenCreds.apiKey, pageCode: tokenCreds.pageCode, apiBase: tokenCreds.apiBase } : null);
     return { mode: 'live', configured: s.configured || !!tokenCreds, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };
   }
-  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
+  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE, pageCodes: { card: 'mock', bit: 'mock-bit', apple_pay: 'mock-apple', google_pay: 'mock-google' } }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
 }
 
 const newId = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;

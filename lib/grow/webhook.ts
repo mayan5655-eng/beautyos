@@ -20,6 +20,8 @@
 
 import { findInvoiceUrl, readNotification, USER_ID_RE } from './payload.ts';
 import { GROW_IPS } from './growIps.ts';
+import { registrationStatusOf } from './registration.ts';
+import type { RegistrationStatus } from './registration.ts';
 
 export { GROW_IPS };
 
@@ -67,8 +69,10 @@ function onboardingData(raw: Record<string, unknown>): Record<string, unknown> |
   const d = raw.data;
   if (!isObj(d)) return null;
   const has = (k: string) => d[k] !== undefined && d[k] !== null && d[k] !== '';
-  // user_id alone could be anything; require one more field that only an onboarding update carries.
+  // user_id alone could be anything; require one more field that only an onboarding update carries. A registration that was
+  // REJECTED (or is still in review) carries no user_id yet, only our tracking code and Grow's status: that is an update too.
   if (has('user_id') && (has('tracking_code') || has('tracking_status') || has('package_id') || has('api_key') || has('business_title'))) return d;
+  if (has('tracking_code') && (has('tracking_status') || raw.status !== undefined)) return d;
   return null;
 }
 
@@ -134,9 +138,11 @@ export type OnboardingRepo = {
   saveAccount(tenantId: string, userId: string, enabled: boolean): Promise<void>;
   setMatch(updateId: string, state: MatchState, tenantId: string | null): Promise<void>;
   clearPending(tenantId: string): Promise<void>;
+  /** The registration's status as she sees it on her card (waiting / approved / rejected, with Grow's words). Optional. */
+  setPendingStatus?(tenantId: string, status: RegistrationStatus, message: string): Promise<void>;
 };
 
-export type OnboardingResult = { status: 'matched' | 'unmatched' | 'conflict'; updateId: string };
+export type OnboardingResult = { status: 'matched' | 'unmatched' | 'conflict'; updateId: string; registration?: RegistrationStatus };
 
 export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo, now: () => Date = () => new Date()): Promise<OnboardingResult> {
   const updateId = await repo.insertUpdate({
@@ -155,20 +161,33 @@ export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo,
     match_state: 'unmatched',
   });
   // No correlation field means no match: we never pick a tenant by name, phone or timing.
-  if (!u.userId || !u.trackingCode) return { status: 'unmatched', updateId };
+  if (!u.trackingCode) return { status: 'unmatched', updateId };
   const pending = await repo.findPendingByTrackingCode(u.trackingCode);
   if (!pending) return { status: 'unmatched', updateId };
+  const tenantId = pending.tenant_id;
+  const registration = registrationStatusOf(u);
+  const why = u.trackingStatusMessage || u.err || '';
 
-  const existing = await repo.getAccount(pending.tenant_id);
+  // Rejected, or still in review: her card says so. Nothing is connected or switched on.
+  if (registration !== 'approved' || !u.userId) {
+    if (repo.setPendingStatus) await repo.setPendingStatus(tenantId, registration, why);
+    await repo.setMatch(updateId, 'matched', tenantId);
+    return { status: 'matched', updateId, registration };
+  }
+
+  const existing = await repo.getAccount(tenantId);
   if (existing && existing.user_id !== u.userId) {
     // She already connected a different Grow business: a person decides which one is right.
-    await repo.setMatch(updateId, 'conflict', pending.tenant_id);
+    await repo.setMatch(updateId, 'conflict', tenantId);
     return { status: 'conflict', updateId };
   }
-  await repo.saveAccount(pending.tenant_id, u.userId, existing ? existing.enabled : false);
-  await repo.setMatch(updateId, 'matched', pending.tenant_id);
-  await repo.clearPending(pending.tenant_id);
-  return { status: 'matched', updateId };
+  // Approved through HER registration link (only our tracking code proves that): store her userId and switch clearing ON,
+  // for her business only. She opted in by starting the registration, and can switch it off on the same card.
+  await repo.saveAccount(tenantId, u.userId, true);
+  if (repo.setPendingStatus) await repo.setPendingStatus(tenantId, 'approved', why);
+  await repo.setMatch(updateId, 'matched', tenantId);
+  await repo.clearPending(tenantId);
+  return { status: 'matched', updateId, registration: 'approved' };
 }
 
 /** Reads a webhook body whatever it was sent as: JSON, or a form. Bounded, never throws. */

@@ -9,12 +9,16 @@
 // answers 404 and nothing renders. When it is on, the honest states are:
 //   - the payment tables are not created yet: says so, offers nothing to press;
 //   - not connected: two doors. (a) "I have a Grow account": she pastes her Grow business id (only when the platform can charge).
-//     (b) "I don't have Grow yet": she leaves her name, phone, business name and business id, and we pass them on to Grow;
+//     (b) "I don't have Grow yet": she opens Grow's own registration form from here (app/GrowRegistration.jsx), and the card
+//         shows waiting / rejected until Grow approves; then it turns connected with clearing on. Where that link is not
+//         available, she leaves her name, phone, business name and business id, and we pass them on to Grow;
 //   - connected: on/off, a disconnect button, and her last Grow payments with the Grow receipt link inside Kalmea.
 // In mock mode (a test run) the card says so: nobody is ever charged.
 
 import { useCallback, useEffect, useState } from 'react';
 import CancelPolicyCard from './CancelPolicyCard';
+import GrowRegistration from './GrowRegistration';
+import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
@@ -23,7 +27,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   const [s, setS] = useState(null);
   const [userId, setUserId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [door, setDoor] = useState(null); // null | 'have' | 'need'
+  const [door, setDoor] = useState(null); // null | 'have' | 'register' | 'need'
   const [form, setForm] = useState({ name: '', phone: '', businessName: '', businessId: '' });
   const [confirmOff, setConfirmOff] = useState(false);
 
@@ -49,6 +53,21 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
+  // Opens Grow's registration form in a new tab and shows "waiting" here.
+  const startRegistration = async (form) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/grow/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את טופס ההרשמה, נסי שוב', 'error'); return; }
+      window.open(j.url, '_blank', 'noopener');
+      toast?.('טופס ההרשמה של Grow נפתח בלשונית חדשה');
+      setDoor(null);
+      await load();
+    } finally { setBusy(false); }
+  };
+
   // Nothing until we know the Grow screens are on for this deployment (a 404 or a failed read both mean "hidden").
   if (!s || s.hidden) return null;
 
@@ -71,6 +90,9 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
           <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>חיוב בכרטיס אשראי מהקופה <span style={{ color: 'var(--ink-3)' }}>({s.account.userIdMasked})</span></span>
         </label>
         {!s.platform.configured && <p style={{ ...text, marginTop: 6 }}>החיבור שלך שמור. הסליקה עצמה תתחיל לעבוד ברגע שהיא תופעל במערכת.</p>}
+        {s.platform.configured && Array.isArray(s.methods) && s.methods.length > 0 && (
+          <p data-testid="grow-methods" style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לקוחות יכולות לשלם ב: {s.methods.map((m) => METHOD_LABEL_HE[m] || m).join(' · ')}</p>
+        )}
         {s.payments.length > 0 ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {s.payments.map((p) => (
@@ -100,6 +122,13 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
             )}
           </div>
         )}
+      </>
+    );
+  } else if ((s.registration && door !== 'need') || door === 'register') {
+    body = (
+      <>
+        <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} />
+        {door === 'register' && <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button></div>}
       </>
     );
   } else if (s.request?.sent && door !== 'need') {
@@ -153,7 +182,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         <p style={{ ...text, marginBottom: 10 }}>את סולקת לחשבון ה-Grow שלך, ו-Grow מפיקה את הקבלה החוקית. הקבלות והתשלומים יופיעו גם כאן.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" style={primary} onClick={() => setDoor('have')}>יש לי חשבון Grow</button>
-          <button type="button" style={ghost} onClick={() => setDoor('need')}>אין לי עדיין Grow</button>
+          <button type="button" style={ghost} onClick={() => setDoor(s.registrationAvailable ? 'register' : 'need')}>אין לי עדיין Grow</button>
         </div>
       </>
     );

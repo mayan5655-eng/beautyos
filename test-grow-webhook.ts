@@ -201,13 +201,39 @@ await ok('a tracking code with no correlation field at all is never matched by n
   assert.deepEqual(f.accounts, {});
 });
 
-await ok('an exact tracking-code match saves the userId on that tenant, switched OFF, and consumes the pending row', async () => {
-  const f = fakeOnboardingRepo({ pending: { 'TRK-1001': 'ten-1' } });
+await ok('an approved registration matched by its tracking code saves the userId, switches clearing ON for that tenant only, and consumes the pending row', async () => {
+  const f = fakeOnboardingRepo({ pending: { 'TRK-1001': 'ten-1' }, accounts: { 'ten-2': { user_id: 'other22', enabled: false } } });
   const r = await applyOnboarding(readOnboarding(ONBOARDING)!, f.repo);
   assert.equal(r.status, 'matched');
-  assert.deepEqual(f.accounts['ten-1'], { user_id: 'u8f3a91c2', enabled: false });
+  assert.equal(r.registration, 'approved');
+  assert.deepEqual(f.accounts['ten-1'], { user_id: 'u8f3a91c2', enabled: true });
+  assert.deepEqual(f.accounts['ten-2'], { user_id: 'other22', enabled: false }, 'nobody else is touched');
   assert.deepEqual(f.matches, [['up-1', 'matched', 'ten-1']]);
   assert.deepEqual(f.consumed, ['ten-1']);
+});
+
+await ok('a REJECTED registration (no userId) is recognised, matched by tracking code, and switches nothing on', async () => {
+  const statuses: string[] = [];
+  const f = fakeOnboardingRepo({ pending: { 'TRK-2002': 'ten-1' } });
+  f.repo.setPendingStatus = async (t, st, msg) => { statuses.push(`${t}:${st}:${msg}`); };
+  const raw = { status: '0', data: { tracking_code: 'TRK-2002', tracking_status: { id: '9', message: 'הבקשה נדחתה' } } };
+  assert.equal(classifyWebhook(raw), 'onboarding');
+  const r = await applyOnboarding(readOnboarding(raw)!, f.repo);
+  assert.equal(r.registration, 'rejected');
+  assert.deepEqual(f.accounts, {});
+  assert.deepEqual(statuses, ['ten-1:rejected:הבקשה נדחתה']);
+  assert.deepEqual(f.consumed, [], 'the pending row stays, so her card can show the answer');
+});
+
+await ok('an update still in review keeps her waiting', async () => {
+  const statuses: string[] = [];
+  const f = fakeOnboardingRepo({ pending: { 'TRK-3003': 'ten-1' } });
+  f.repo.setPendingStatus = async (t, st) => { statuses.push(`${t}:${st}`); };
+  const raw = { status: '1', data: { tracking_code: 'TRK-3003', tracking_status: { id: '2', message: 'בבדיקה' } } };
+  const r = await applyOnboarding(readOnboarding(raw)!, f.repo);
+  assert.equal(r.registration, 'waiting');
+  assert.deepEqual(statuses, ['ten-1:waiting']);
+  assert.deepEqual(f.accounts, {});
 });
 
 await ok('a tenant already connected to a different Grow business is a conflict for a person to resolve', async () => {

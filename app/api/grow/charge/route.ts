@@ -1,6 +1,7 @@
 // app/api/grow/charge/route.ts
 //
-// POST { amount, description, clientName, phone, clientId?, appointmentId? } -> { url, paymentId }
+// POST { amount, description, clientName, phone, clientId?, appointmentId?, method? } -> { url, paymentId }
+// method: card (default) | bit | apple_pay | google_pay, each Grow page code from the environment (lib/grow/methods.ts).
 //
 // She asks, from the cashier, for a card payment page for a client. This does NOT charge anyone: it asks Grow
 // for a payment page on HER Grow account and returns the link; the client pays there. Refused, with a plain
@@ -12,6 +13,7 @@ import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { createCharge } from '@/lib/grow/service';
+import { isPayMethod } from '@/lib/grow/methods';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
 
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
       phone: b.phone,
       clientId: b.clientId != null ? String(b.clientId) : null,
       appointmentId: b.appointmentId != null ? String(b.appointmentId) : null,
+      method: isPayMethod(b.method) ? b.method : undefined,
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );

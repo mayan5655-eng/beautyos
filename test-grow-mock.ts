@@ -65,7 +65,9 @@ await ok('live mode: not configured without keys, real network (no fetch overrid
   assert.equal(none.configured, false); assert.equal(none.creds, null);
   const live = resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p' }, ORIGIN);
   assert.equal(live.configured, true); assert.equal(live.fetchImpl, undefined); assert.equal(live.creds?.apiKey, 'k');
-  assert.equal(resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production' }, ORIGIN).configured, false, 'live production needs the API base from Grow');
+  const prod = resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production' }, ORIGIN);
+  assert.equal(prod.configured, true, 'live production uses the documented Grow base (secure.meshulam.co.il)');
+  assert.equal(prod.creds?.apiBase, 'https://secure.meshulam.co.il/api/light/server/1.0');
 });
 
 // ── the whole flow ──────────────────────────────────────────────────────────

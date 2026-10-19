@@ -33,6 +33,12 @@ export function supabaseOnboardingRepo(db: SupabaseClient): OnboardingRepo {
       const { error } = await db.from('grow_onboarding_updates').update({ match_state: state, matched_tenant_id: tenantId }).eq('id', updateId);
       if (error) throw new Error(error.message);
     },
+    async setPendingStatus(tenantId, status, message) {
+      const patch = { status, status_message: message ? message.slice(0, 200) : null, updated_at: new Date().toISOString() };
+      const { error } = await db.from('grow_onboarding_pending').update(patch).eq('tenant_id', tenantId);
+      // The status columns come from add_grow_cashier.sql (run by hand): without them this is a no-op, never a failure.
+      if (error && !/column|schema cache|42703|PGRST204/i.test(`${error.code} ${error.message}`)) throw new Error(error.message);
+    },
     async clearPending(tenantId) {
       const { error } = await db.from('grow_onboarding_pending').update({ consumed_at: new Date().toISOString() }).eq('tenant_id', tenantId).is('consumed_at', null);
       if (error) throw new Error(error.message);

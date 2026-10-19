@@ -16,6 +16,7 @@ import { sendBookingNotifications } from '@/lib/bookingNotify';
 import { sanitizePolicy } from '@/lib/cancellationPolicy';
 import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { admin } from './_shared';
+import { isDepositRequest } from '@/lib/grow/paymentRequest';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
@@ -40,6 +41,13 @@ export function cancelDeps(): Deps | null {
  */
 export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void> {
   return async (p, raw) => {
+    // A deposit she asked for with a payment link (lib/grow/paymentRequest.ts): no booking to confirm. The money becomes the
+    // client's credit, which the cashier deducts at the visit, so the visit is never counted twice.
+    if (isDepositRequest(p.description) && p.client_id) {
+      const { error } = await admin().from('client_credits').insert({ tenant_id: p.tenant_id, client_id: p.client_id, amount: Number(p.amount), source: 'deposit_request' });
+      if (error) console.error('[grow] deposit request credit failed for payment', p.id, error.message);
+      return;
+    }
     if (!/^מקדמה/.test(p.description || '')) return;
     const deps = cancelDeps();
     if (!deps) return;
