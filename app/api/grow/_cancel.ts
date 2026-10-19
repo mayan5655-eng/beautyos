@@ -8,7 +8,8 @@ import { after } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { supabaseCancelRepo, onDepositPaid } from '@/lib/grow/cancelFees';
+import { supabaseCancelRepo, onDepositPaid, onDepositCardToken } from '@/lib/grow/cancelFees';
+import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
 import type { Deps } from '@/lib/grow/cancelFees';
 import type { GrowPayment } from '@/lib/grow/service';
 import { sendBookingNotifications } from '@/lib/bookingNotify';
@@ -37,11 +38,14 @@ export function cancelDeps(): Deps | null {
  * confirmed (lib/grow/cancelFees.onDepositPaid), and only then does the client get her confirmation message: while the hold was open the booking
  * was not confirmed, so none was sent. Every failure is logged and never undoes the payment.
  */
-export function afterPaidHook(): (p: GrowPayment) => Promise<void> {
-  return async (p) => {
+export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void> {
+  return async (p, raw) => {
     if (!/^מקדמה/.test(p.description || '')) return;
     const deps = cancelDeps();
     if (!deps) return;
+    // The deposit page also saved the card (the client gave the card-save tick): store the sealed token for this booking's business and client.
+    const ct = raw ? readCardTokenNotification(raw) : null;
+    if (ct) { try { await onDepositCardToken(deps, ct, p); } catch (e) { console.error('[grow] deposit card token failed:', (e as Error)?.message); } }
     const r = await onDepositPaid(deps, { tenantId: p.tenant_id, appointmentId: p.appointment_id, paymentId: p.id });
     if (r.outcome !== 'confirmed' && r.outcome !== 'restored') return;
     after(async () => {

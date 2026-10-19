@@ -26,5 +26,7 @@ export async function caller() {
   if (!user) return { error: NextResponse.json({ success: false, error: 'לא מחוברת' }, { status: 401 }) } as const;
   const tenantId = await callerTenantId(session);
   if (!tenantId) return { error: NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 403 }) } as const;
+  // GROW_ALLOWED_TENANTS: a business that is not on the list sees the same "hidden" answer as when the switch is off.
+  if (!growUiEnabled(process.env, tenantId)) return { error: NextResponse.json({ success: false, hidden: true, error: 'off' }) } as const;
   return { session, tenantId } as const;
 }

@@ -31,9 +31,16 @@ export function growMode(env: GrowEnv = process.env): GrowMode {
   return (env.GROW_MODE || '').trim().toLowerCase() === 'live' ? 'live' : 'mock';
 }
 
-/** The Grow screens and signed-in routes are hidden unless this is switched on. Default: off. */
-export function growUiEnabled(env: GrowEnv = process.env): boolean {
-  return /^(1|true|on|yes)$/i.test((env.GROW_UI_ENABLED || '').trim());
+/**
+ * The Grow screens and signed-in routes are hidden unless this is switched on. Default: off.
+ * GROW_ALLOWED_TENANTS (optional, comma-separated tenant ids) narrows it to those businesses: with it set, every other business sees nothing,
+ * exactly as if the switch were off. Without it, the switch applies to everyone. Callers that know the business pass its id.
+ */
+export function growUiEnabled(env: GrowEnv = process.env, tenantId?: string | null): boolean {
+  if (!/^(1|true|on|yes)$/i.test((env.GROW_UI_ENABLED || '').trim())) return false;
+  const allowed = (env.GROW_ALLOWED_TENANTS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!allowed.length || tenantId === undefined) return true;
+  return !!tenantId && allowed.includes(String(tenantId).toLowerCase());
 }
 
 export type GrowAdapter = {
@@ -54,9 +61,10 @@ export type GrowAdapter = {
 export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapter {
   if (growMode(env) === 'live') {
     const s = growPlatformStatus(env);
-    const creds = growCredentials(env);
     const tokenCreds = tokenCredentials(env);
-    return { mode: 'live', configured: s.configured, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
+    // Until the platform keys are issued, the saved-card page (credit card only) also serves the booking deposit page: the same apiKey, page code and base.
+    const creds = growCredentials(env) || (tokenCreds ? { apiKey: tokenCreds.apiKey, pageCode: tokenCreds.pageCode, apiBase: tokenCreds.apiBase } : null);
+    return { mode: 'live', configured: s.configured || !!tokenCreds, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };

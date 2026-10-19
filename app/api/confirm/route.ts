@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     // cancel at any time (the fee, not a refusal, is the consequence) and the late cancel becomes a pending question for the cosmetician.
     let growDeps: ReturnType<typeof cancelDeps> = null;
     let underPolicy = false;
-    if (action === 'cancel' && growUiEnabled()) {
+    if (action === 'cancel' && growUiEnabled(process.env, appt.tenant_id)) {
       try {
         growDeps = cancelDeps();
         underPolicy = !!growDeps && !!(await growDeps.repo.getConsent(appt.tenant_id, appointmentId));

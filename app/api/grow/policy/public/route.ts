@@ -15,7 +15,7 @@ const off = () => NextResponse.json({ mode: 'off' }, { headers: { 'Cache-Control
 export async function GET(request: Request) {
   if (!growUiEnabled()) return off();
   const t = new URL(request.url).searchParams.get('t') || '';
-  if (!UUID_RE.test(t)) return off();
+  if (!UUID_RE.test(t) || !growUiEnabled(process.env, t)) return off();
   try {
     const db = admin();
     const [acc, row] = await Promise.all([

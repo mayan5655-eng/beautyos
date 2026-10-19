@@ -54,6 +54,8 @@ export type ProcessInput = {
   paymentRef: string;
   /** Our tenant id (tenantRefOf), echoed back in customFields.cField2: the notification says whose payment it is. */
   tenantRef?: string;
+  /** Charge now AND keep the card as a token (saveCardToken=1): the deposit that also saves the card. */
+  saveCardToken?: boolean;
 };
 
 /** A tenant id as it travels in cField2: lower-case letters and digits only (Grow refuses special characters). */
@@ -78,6 +80,7 @@ export function buildProcessFields(i: ProcessInput): [string, string][] {
   if (i.tenantRef) f.push(['cField2', tenantRefOf(i.tenantRef)]);
   if (i.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email)) f.push(['pageField[email]', i.email]);
   if (i.invoiceNotifyUrl) f.push(['invoiceNotifyUrl', i.invoiceNotifyUrl]);
+  if (i.saveCardToken) f.push(['saveCardToken', '1']);
   return f;
 }
 

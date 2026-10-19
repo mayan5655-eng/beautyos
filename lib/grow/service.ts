@@ -63,12 +63,14 @@ export type ChargeInput = {
   kind?: string;
   /** Where Grow's page sends the client afterwards, when it is not the dashboard (a client paying a deposit has no dashboard). */
   returnUrl?: string;
+  /** The client ticked the card-save consent: the page charges AND saves the card (charge and save). */
+  saveCard?: boolean;
 };
 
 type Deps = {
   repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date;
   /** Runs once, right after a payment flips to paid (a booking deposit confirms its booking here). A failure is logged and never undoes the payment. */
-  afterPaid?: (p: GrowPayment) => Promise<void>;
+  afterPaid?: (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void>;
 };
 
 export type ChargeResult =
@@ -109,6 +111,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,
     tenantRef: i.tenantId,
+    saveCardToken: i.saveCard === true,
   });
   const form = new FormData();
   form.append('apiKey', d.creds.apiKey);   // a body field: Grow refuses a header (error 701)
@@ -215,7 +218,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);
-  if (d.afterPaid) { try { await d.afterPaid(flipped); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
+  if (d.afterPaid) { try { await d.afterPaid(flipped, raw); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
   if (approve) { try { await approve(n); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }

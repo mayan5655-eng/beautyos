@@ -336,7 +336,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
   // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
-  const needsCardTick = needsPolicy && growPolicy.mode === "saved_card";
+  const needsCardTick = needsPolicy && (growPolicy.mode === "saved_card" || growPolicy.mode === "deposit");
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;

@@ -139,7 +139,7 @@ export async function POST(request) {
     let policy = null;
     let policyDeps = null;
     try {
-      policyDeps = growUiEnabled() ? cancelDeps() : null;
+      policyDeps = growUiEnabled(process.env, activeTenantId) ? cancelDeps() : null;
       if (policyDeps) {
         await releaseExpiredHolds(policyDeps, activeTenantId);
         policy = await activePolicy(policyDeps, activeTenantId);
@@ -249,7 +249,7 @@ export async function POST(request) {
       );
     }
     // Saving the card is its own required tick (Grow's rule): the policy tick is not enough. Refused here, whatever the page sent.
-    if (policy && policy.mode === "saved_card" && acceptedCardSave !== true) {
+    if (policy && (policy.mode === "saved_card" || policy.mode === "deposit") && acceptedCardSave !== true) {
       return Response.json(
         { success: false, error: "כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי" },
         { status: 400 }

@@ -13,6 +13,8 @@ import {
   CARD_CONSENT_TEXT_HE, GROW_ERR_DUPLICATE,
 } from './lib/grow/tokenFlow.ts';
 import { chargeSavedCard } from './lib/grow/tokenCharge.ts';
+import { growUiEnabled } from './lib/grow/adapter.ts';
+import { DEFAULT_POLICY, sanitizePolicy } from './lib/cancellationPolicy.ts';
 import type { LedgerRepo, LedgerRow, SavedCard } from './lib/grow/tokenCharge.ts';
 import { createMockOps, newMockCardToken } from './lib/grow/ops.ts';
 import type { GrowOps } from './lib/grow/ops.ts';
@@ -250,11 +252,11 @@ await ok('a callback for a process we never opened, or naming another business o
 await ok('the booking page asks for the card tick in plain Hebrew, blocks submission until it is ticked, and the server refuses without it', () => {
   assert.ok(CARD_CONSENT_TEXT_HE.length > 60 && /כרטיס האשראי/.test(CARD_CONSENT_TEXT_HE) && /לחייב אותו בעתיד/.test(CARD_CONSENT_TEXT_HE));
   const page = read('app/BookingPage.jsx');
-  assert.ok(/needsCardTick = needsPolicy && growPolicy\.mode === "saved_card"/.test(page));
+  assert.ok(/needsCardTick = needsPolicy && \(growPolicy\.mode === "saved_card" \|\| growPolicy\.mode === "deposit"\)/.test(page), 'the tick is asked in both modes that keep a card');
   assert.ok(/needsCardTick && !cardOk/.test(page) && /acceptedCardSave: needsCardTick/.test(page));
   assert.ok(/data-testid="grow-card-consent"/.test(page) && /CARD_CONSENT_TEXT_HE/.test(page));
   const route = read('app/api/book-appointment/route.js');
-  assert.ok(/policy\.mode === "saved_card" && acceptedCardSave !== true/.test(route), 'server side');
+  assert.ok(/\(policy\.mode === "saved_card" \|\| policy\.mode === "deposit"\) && acceptedCardSave !== true/.test(route), 'server side, in both modes');
   assert.ok(/cardConsentText: CARD_CONSENT_TEXT_HE/.test(route), 'the exact words are stored with the consent');
   const cf = read('lib/grow/cancelFees.ts');
   assert.ok(/insertCardConsent\(\{[\s\S]*consent_text: i\.cardConsentText \|\| CARD_CONSENT_TEXT_HE[\s\S]*consented_at/.test(cf), 'words, time, tenant and client are stored');
@@ -291,6 +293,26 @@ await ok('the new tables: tenant-scoped RLS, in the trial gate, the token and pr
   assert.ok(!/token_ref/.test(tokenGrant[1]), 'the token is not granted');
   assert.ok(!/drop table|truncate|delete from|drop column/i.test(code), 'only adds');
   assert.ok(!/card_number|\bpan\b|cvv|cvc/i.test(code), 'no card data');
+});
+
+await ok('OFF by default for every business: the switch, the policy, the service deposit; they turn on only from her own Settings', () => {
+  assert.equal(growUiEnabled({}), false, 'no switch, nothing shows');
+  assert.equal(DEFAULT_POLICY.mode, 'off'); assert.equal(sanitizePolicy(undefined).mode, 'off'); assert.equal(sanitizePolicy({ mode: 'nonsense' }).mode, 'off'); assert.equal(sanitizePolicy({}).mode, 'off');
+  assert.match(read('supabase/migrations/add_grow_cancellation.sql'), /requires_deposit boolean not null default false/);
+  assert.ok(/mode: 'off'/.test(read('lib/cancellationPolicy.ts').slice(read('lib/cancellationPolicy.ts').indexOf('export const DEFAULT_POLICY'))), 'new businesses start with the policy off');
+  const cf = read('lib/grow/cancelFees.ts');
+  assert.ok(/if \(!policy \|\| policy\.mode === 'off'\) return null;[\s\S]*?if \(!account \|\| account\.enabled !== true\) return null;/.test(cf), 'no policy row, a policy that is off, or a business without an enabled Grow account: nothing applies');
+});
+
+await ok('GROW_ALLOWED_TENANTS limits the feature to the listed businesses; unset it applies to everyone the switch allows', () => {
+  const on = { GROW_UI_ENABLED: 'true' };
+  assert.equal(growUiEnabled(on, T1), true); assert.equal(growUiEnabled(on), true);
+  const only = { ...on, GROW_ALLOWED_TENANTS: ` ${T1.toUpperCase()} , ${T2}` };
+  assert.equal(growUiEnabled(only, T1), true); assert.equal(growUiEnabled(only, T2), true);
+  assert.equal(growUiEnabled(only, '33333333-3333-3333-3333-333333333333'), false, 'another business sees nothing');
+  assert.equal(growUiEnabled(only, null), false, 'an unknown business sees nothing');
+  assert.equal(growUiEnabled({ GROW_ALLOWED_TENANTS: T1 }, T1), false, 'the list never turns the switch on');
+  for (const f of ['app/api/availability/route.ts', 'app/api/confirm/route.ts', 'app/api/grow/policy/public/route.ts', 'app/api/book-appointment/route.js', 'app/api/grow/_shared.ts']) assert.ok(/growUiEnabled\(process\.env, /.test(read(f)), `${f} checks the business`);
 });
 
 console.log(`grow tokens: ${n} ok`);

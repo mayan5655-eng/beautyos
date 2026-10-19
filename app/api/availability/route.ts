@@ -92,7 +92,7 @@ export async function GET(request: Request) {
     horizon.setDate(horizon.getDate() + HORIZON_DAYS);
 
     // A deposit hold that ran out frees its slot right here, not only when the cron next runs (lib/grow/cancelFees.releaseExpiredHolds). Best-effort.
-    if (growUiEnabled()) {
+    if (growUiEnabled(process.env, tenantId)) {
       try { const deps = cancelDeps(); if (deps) await releaseExpiredHolds(deps, tenantId); } catch { /* the cron releases it, or the booking route does */ }
     }
 

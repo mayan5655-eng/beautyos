@@ -105,6 +105,8 @@ export type CancelRepo = LedgerRepo & {
   insertCardConsent(row: Omit<CardConsentRow, 'id'>): Promise<CardConsentRow>;
   /** The card consent whose Grow process is `processId` (the callback carries only the process id); null when there is none. */
   findCardConsentByProcess(processId: string): Promise<CardConsentRow | null>;
+  /** The card consent of one booking (its deposit page saves the card too); null when the client gave none. */
+  getCardConsent(tenantId: string, appointmentId: string): Promise<CardConsentRow | null>;
   updateCardConsent(id: string, patch: Partial<CardConsentRow>): Promise<void>;
   insertToken(row: Omit<TokenRow, 'id'>): Promise<TokenRow>;
   getToken(id: string): Promise<TokenRow | null>;
@@ -197,11 +199,21 @@ export async function recordConsentAndStart(
   }
 
   if (!(snapshot.deposit_amount > 0)) return fail('deposit', 'deposit amount is zero');
+  // A deposit the CLIENT pays on the booking page also keeps her card (charge and save), under the same required tick as saved_card mode. A deposit the
+  // cosmetician asked for herself (via 'owner') has no tick to give, so it saves nothing.
+  const saveCard = (i.via || 'booking_page') !== 'owner' && !!i.cardConsentText;
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl },
+    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard },
     d.chargeDeps,
   );
-  return charge.ok ? { consent, step: { kind: 'deposit', url: charge.url } } : fail('deposit', charge.message);
+  if (!charge.ok) return fail('deposit', charge.message);
+  if (saveCard) {
+    await d.repo.insertCardConsent({
+      tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: i.clientId, consent_text: i.cardConsentText || CARD_CONSENT_TEXT_HE, consent_version: CARD_CONSENT_VERSION,
+      consented_at: nowD.toISOString(), mode: 'charge_and_save', process_id: null, process_token: null, status: 'awaiting', token_id: null,
+    });
+  }
+  return { consent, step: { kind: 'deposit', url: charge.url } };
 }
 
 export type OwnerDepositResult =
@@ -229,9 +241,9 @@ export async function requestDepositForAppointment(d: Deps, i: { tenantId: strin
 }
 
 /** A card was saved on Grow's hosted page. Stores the token reference and links it to the booking. Idempotent for the same token. */
-export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: string; tokenRef: string; last4?: string; brand?: string }): Promise<{ ok: boolean; tokenId?: string }> {
+export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: string; tokenRef: string; last4?: string; brand?: string; fromDeposit?: boolean }): Promise<{ ok: boolean; tokenId?: string }> {
   const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);
-  if (!consent || consent.mode !== 'saved_card') return { ok: false };
+  if (!consent || (consent.mode !== 'saved_card' && !(i.fromDeposit && consent.mode === 'deposit'))) return { ok: false };
   if (consent.token_id) return { ok: true, tokenId: consent.token_id };
   // The token is stored sealed, bound to THIS business and THIS booking's client (from the consent row we wrote, never from the request).
   const sealed = d.seal ? d.seal.encrypt(i.tokenRef) : i.tokenRef;
@@ -239,8 +251,29 @@ export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: s
     tenant_id: i.tenantId, client_id: consent.client_id, appointment_id: i.appointmentId, token_ref: sealed, token_encrypted: !!d.seal,
     card_last4: i.last4 || null, card_brand: i.brand || null,
   });
-  await d.repo.updateConsent(consent.id, { token_id: token.id, status: 'card_saved' });
+  // In deposit mode the booking's own status (awaiting / paid deposit) must not change: only the card is linked.
+  await d.repo.updateConsent(consent.id, consent.mode === 'saved_card' ? { token_id: token.id, status: 'card_saved' } : { token_id: token.id });
   return { ok: true, tokenId: token.id };
+}
+
+/**
+ * A deposit that was paid on a charge-and-save page: the notification carries the card token (the first transaction of that token). Stored sealed for
+ * the business and client of THAT booking, but only when the client gave the card-save tick for it (a card consent in charge_and_save mode).
+ */
+export async function onDepositCardToken(d: Deps, n: CardTokenNotification, p: { tenant_id: string; appointment_id: string | null }): Promise<TokenCallbackResult> {
+  if (!p.appointment_id) return { status: 'unknown-process' };
+  const consent = await d.repo.getCardConsent(p.tenant_id, p.appointment_id);
+  if (!consent || consent.mode !== 'charge_and_save') return { status: 'unknown-process' };
+  if (consent.status === 'saved') return { status: 'already-saved' };
+  try {
+    const saved = await saveToken(d, { tenantId: consent.tenant_id, appointmentId: consent.appointment_id, tokenRef: n.cardToken, last4: n.last4, brand: n.brand, fromDeposit: true });
+    if (!saved.ok) { await d.repo.updateCardConsent(consent.id, { status: 'failed' }); return { status: 'failed' }; }
+    await d.repo.updateCardConsent(consent.id, { status: 'saved', token_id: saved.tokenId || null });
+    return { status: 'saved' };
+  } catch (e) {
+    console.error('[grow-token] could not store the deposit card token:', (e as Error)?.message);
+    return { status: 'failed' };
+  }
 }
 
 export type TokenCallbackResult = { status: 'saved' | 'already-saved' | 'unknown-process' | 'mismatch' | 'failed' };
@@ -632,6 +665,11 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       const { data, error } = await db.from('grow_card_consents').select('*').eq('process_id', processId).limit(2);
       if (error) fail(error, 'findCardConsentByProcess');
       return data && data.length === 1 ? (data[0] as unknown as CardConsentRow) : null;
+    },
+    async getCardConsent(tenantId, appointmentId) {
+      const { data, error } = await db.from('grow_card_consents').select('*').eq('tenant_id', tenantId).eq('appointment_id', appointmentId).maybeSingle();
+      if (error) fail(error, 'getCardConsent');
+      return (data || null) as unknown as CardConsentRow | null;
     },
     async updateCardConsent(id, patch) {
       const { error } = await db.from('grow_card_consents').update(patch).eq('id', id);
