@@ -77,8 +77,6 @@ const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
-const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
-const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
@@ -94,6 +92,9 @@ import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
+// Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
+const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
+const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
