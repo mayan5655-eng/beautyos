@@ -11,6 +11,7 @@
 // This mirrors the pattern the reel route already uses successfully, so every
 // marketing AI function is grounded in the salon's real services, branding and voice.
 
+import { withSource } from '../bookingSource.ts';
 import type { createClient } from '@/lib/supabase/server'
 import type { BusinessProfile } from './marketingAI.ts'
 import {
@@ -156,7 +157,8 @@ export async function loadBusinessProfile(
     // The one link that turns a post into a booking. Every generated CTA used
     // to be "write to me", which routes a customer into her DMs and leaves the
     // calendar to be filled by hand.
-    booking_url: tenantId ? `${APP_URL}/book?t=${tenantId}` : undefined,
+    // Posts the AI writes carry ?src=post, so a booking from one shows up under "פוסט" in the source report (lib/bookingSource.ts).
+    booking_url: tenantId ? withSource(`${APP_URL}/book?t=${tenantId}`, 'post') : undefined,
     booking_cta_label: clean(brand.booking_cta_label),
     // Brand-voice hints she wrote for her own customers.
     welcome_headline: clean(brand.welcome_headline),

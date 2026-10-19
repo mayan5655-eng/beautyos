@@ -77,6 +77,8 @@ const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
+const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
@@ -89,6 +91,7 @@ import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
+import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 import FieldPicker from "./FieldPicker";
@@ -6591,7 +6594,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   };
 
-  const copyPublicLink = async (kind) => {
+  // channel: where she is about to paste it (lib/bookingSource.ts), so a booking from it is counted under that channel.
+  const copyPublicLink = async (kind, channel = "link") => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
@@ -6615,8 +6619,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // resolve to the same page - /book?t= has to keep working forever, because
     // it is in every link she has already sent.
     const url = kind === "community" ? `${base}/community?t=${t}`
-      : mySlug ? `${base}/${encodeURIComponent(mySlug)}`
-      : `${base}/book?t=${t}`;
+      : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
@@ -8198,7 +8201,7 @@ ${MARKETING_FOOTER}`)}`;
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
-            pageUrl={settings?.tenant_id?`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`:""}
+            pageUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}
             pc={pc} pcTint={pcTint} toast={toast}
             onOpenWinback={()=>setShowLapsed(true)}
             onOpenContent={()=>{setActiveTab("campaigns");setAiPostsView("studio");}}/>
@@ -9659,6 +9662,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
   {(!historyReady||deferred.leads!=="ok")?<DeferredGate status={(deferred.leads==="error"||deferred.history==="error")?"error":"loading"} what="את הפניות וההכנסות" onRetry={loadHistory}/>:<SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>}
+ {historyReady&&<BookingSourceReport appointments={appointments} receipts={liveRcpts} clients={clients} pc={pc} pcTint={pcTint}/>}
  </>)}
 
  {marketingView==="posts"&&(<>
@@ -11750,6 +11754,13 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>סורק העור</button>
                     {isTabVisible(settings,"community")&&<button onClick={()=>copyPublicLink("community")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>הקהילה</button>}
  </div>
+ {/* The same booking link, tagged with where she pastes it (lib/bookingSource.ts): the source report then shows which channel brings bookings. */}
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"10px 0 6px"}}>קישור לקביעת תור לפי המקום שבו תדביקי אותו, כדי לדעת מה מביא תורים:</p>
+ <div data-testid="tagged-links" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+ {[["bio","לביו באינסטגרם"],["story","לסטורי"],["whatsapp","לסטטוס בוואטסאפ"],["facebook","לפייסבוק"],["tiktok","לטיקטוק"],["google","לגוגל"]].map(([ch,l])=>(
+ <button key={ch} type="button" onClick={()=>copyPublicLink("book",ch)} style={{padding:"7px 12px",minHeight:36,background:"var(--surface)",color:"var(--ink)",border:"1px solid var(--line-2)",borderRadius:"var(--r-full)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+ ))}
+ </div>
  </div>
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  {/* Google Business values she copies from her own Google profile. Stored in the branding jsonb (no migration);
@@ -12456,6 +12467,9 @@ ${MARKETING_FOOTER}`)}`;
                     {c.phone&&<a href={waLink(c.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"var(--surface)",color:pc,borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditClient(c)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><Icon name="edit" size={13}/> עריכה</button>
  </div>
+ {/* Where she came from, who she brought, and her "bring a friend" link (lib/bookingSource.ts). */}
+ <ClientReferral client={c} clients={clients} businessName={settings?.business_name} pc={pc} pcTint={pcTint} toast={toast}
+   publicUrl={settings?.tenant_id?`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`:""}/>
  {/* Book an appointment for THIS client — opens the existing new-appointment
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}

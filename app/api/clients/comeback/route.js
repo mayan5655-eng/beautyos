@@ -8,6 +8,7 @@
 // AUTHENTICATED session, candidate selection entirely server-side, dryRun
 // returns who-and-what without sending.
 
+import { withSource } from "../../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../../lib/planGuard";
@@ -91,7 +92,7 @@ export async function POST(request) {
       candidates.push({ id: String(c.id), name: c.name || null, phone: ph });
     }
 
-    const bookingUrl = `${APP_URL}/book?t=${tenantId}`;
+    const bookingUrl = withSource(`${APP_URL}/book?t=${tenantId}`, 'whatsapp');
     const messageFor = (name) =>
       `שלום${name ? ` ${name}` : ""}! ✦\n` +
       `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫\n` +

@@ -33,6 +33,7 @@ import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPoli
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
+import { rememberSource, recalledSource } from "@/lib/bookingSource";
 import { buildIcs, googleCalendarUrl } from "@/lib/calendarInvite";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
@@ -337,6 +338,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
   // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
   const needsCardTick = needsPolicy && (growPolicy.mode === "saved_card" || growPolicy.mode === "deposit");
+  // Where this visit came from (?src= / ?ref=, lib/bookingSource.ts): remembered for the visit and sent with the booking.
+  useEffect(() => {
+    if (tenantId && typeof window !== "undefined") rememberSource(tenantId, window.location.search);
+  }, [tenantId]);
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;
@@ -596,6 +601,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           price: selectedService.price || 0,
           color: selectedService.color || pc,
           tenantId: tenantId,
+          ...(() => { const r = recalledSource(tenantId, typeof window !== "undefined" ? window.location.search : ""); return { src: r.src || undefined, ref: r.ref || undefined }; })(),
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
           acceptedPolicy: needsPolicy ? policyOk === true : undefined,
