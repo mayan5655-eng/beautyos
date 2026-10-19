@@ -20,6 +20,7 @@
 // Money never touches Kalmea's database beyond amounts and provider references: no card number is ever stored, only a token reference.
 import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
+import { subscriptionDoc } from '../kalmeaBusiness.ts';
 
 export const REGULAR_PRICE = 499;
 export const RETRY_OFFSETS_DAYS = [1, 3, 5] as const;
@@ -166,7 +167,8 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
 
 async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | null) {
   try {
-    const inv = await d.invoicing.issueInvoice({ tenantId: pay.tenant_id, businessName: tenant?.name || '', amount: pay.amount, currency: pay.currency, description: 'מנוי קלמיה', providerPaymentId: pay.provider_payment_id || pay.id });
+    const doc = subscriptionDoc(pay.amount);
+    const inv = await d.invoicing.issueInvoice({ docType: doc.docType, vatAmount: doc.vatAmount, tenantId: pay.tenant_id, businessName: tenant?.name || '', amount: pay.amount, currency: pay.currency, description: 'מנוי קלמיה', providerPaymentId: pay.provider_payment_id || pay.id });
     if (inv.ok) await d.repo.updatePayment(pay.id, { invoice_status: 'issued', invoice_number: inv.number, invoice_url: inv.url });
     else { console.warn('[billing] invoice not issued for payment', pay.id, inv.error); await d.repo.updatePayment(pay.id, { invoice_status: 'pending' }); }
   } catch (e) {

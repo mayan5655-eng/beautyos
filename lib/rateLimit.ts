@@ -77,6 +77,17 @@ export const RATE_POLICIES = {
       `הדמו עמוס כרגע בפקודות קוליות. אפשר לנסות שוב ${m}.`,
   },
 
+  // Public "join the waiting list" on her booking page (app/api/waitlist/join). One entry per phone and
+  // treatment is enforced in the route; these stop a script filling her list. perTenant is also the per-phone cap.
+  'waitlist-join': {
+    perIp: { limit: 5, windowMs: HOUR },
+    perTenant: { limit: 20, windowMs: HOUR },
+    ipMessage: (m: string) =>
+      `נשלחו כבר כמה בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}, או לשלוח הודעה לעסק.`,
+    tenantMessage: (m: string) =>
+      `רשימת ההמתנה של העסק מקבלת הרבה בקשות כרגע. אפשר לנסות שוב ${m}, או לשלוח הודעה לעסק.`,
+  },
+
   // The same public booking route, over an HOUR. The ten-minute caps above stop a burst; these stop a slow script that stays just
   // under them all day. perIp: one device. perTenant is reused as the PER-PHONE cap (checkPhoneLimit): one woman is not booking
   // more than a handful of times an hour, and a script filling a calendar with one number is exactly what this refuses.

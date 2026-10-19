@@ -57,6 +57,10 @@ export interface PaymentsAdapter {
 }
 
 export type InvoiceInput = {
+  /** 'receipt' for an exempt dealer (no VAT line, the amount is final); 'tax_invoice_receipt' for a licensed dealer (VAT contained in the amount). From lib/kalmeaBusiness.ts. */
+  docType: 'receipt' | 'tax_invoice_receipt';
+  /** VAT contained in `amount`: always 0 for a receipt. The amount is never increased by it. */
+  vatAmount: number;
   tenantId: string;
   businessName: string;
   email?: string;
@@ -104,7 +108,7 @@ export function createMockAdapters(origin: string, signSession: (tenantId: strin
   const invoicing: InvoicingAdapter = {
     async issueInvoice(i) {
       const number = String(Math.floor(Math.random() * 90000) + 10000);
-      const url = /^https:\/\//i.test(base) ? `${base}/api/billing/mock-card?doc=${encodeURIComponent(i.providerPaymentId)}&n=${number}` : `https://mock.billing.invalid/invoice/${number}`;
+      const url = /^https:\/\//i.test(base) ? `${base}/api/billing/mock-card?doc=${encodeURIComponent(i.providerPaymentId)}&n=${number}&t=${i.docType === 'receipt' ? 'r' : 'i'}` : `https://mock.billing.invalid/invoice/${number}`;
       return { ok: true, number, url };
     },
   };

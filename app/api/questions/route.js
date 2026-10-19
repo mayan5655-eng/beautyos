@@ -1,5 +1,7 @@
 // app/api/questions/route.js
-// Creates owner_questions rows - the ONLY insert path for them.
+// Creates owner_questions rows from the app - one of two insert paths (the
+// other is lib/ownerQuestions.js askGapFillAfterClientCancel, for a client's
+// own cancel link; it shares the who-would-this-reach check).
 //
 // These were client-side inserts under an RLS insert policy. Moved here so
 // the browser holds no INSERT on the table at all: tenant comes from the
@@ -11,8 +13,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { checkTenantLimit } from "../../../lib/rateLimit";
-import { readAllRows } from "../../../lib/pagedRead.js";
-import { canMarket } from "../../../lib/marketingConsent.js";
+import { hasCandidates } from "../../../lib/ownerQuestions.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -20,65 +21,7 @@ const admin = createClient(
 );
 
 const KINDS = new Set(["gap_fill", "comeback"]);
-
-// Would a YES on this question reach anyone? Checked BEFORE the question is
-// created - an empty compose window is worse than no question at all, and
-// because this route is the ONLY insert path, every caller (the UI today, a
-// morning cron tomorrow) inherits the check. The filters mirror the yes-path
-// routes; if those change, change these with them:
-//   gap_fill  -> app/api/slots/offer   (waitlist match / lapsed 30d+ / had this service)
-//   comeback  -> app/api/clients/comeback (last visit before the break, within 240d)
-async function hasCandidates(tenantId, kind, payload) {
-  const today = new Date().toISOString().slice(0, 10);
-  // Paged: a plain select returns at most max_rows (1,000) without saying so, so a
-  // tenant with a long history had her "last visit" worked out from a fragment and
-  // was offered questions that reach nobody (or none that do). lib/pagedRead.js.
-  const [cl, ap] = await Promise.all([
-    readAllRows(admin, "clients", { columns: "*", filter: (q) => q.eq("tenant_id", tenantId) }),
-    readAllRows(admin, "appointments", { columns: "id, client_id, service, date", filter: (q) => q.eq("tenant_id", tenantId) }),
-  ]);
-  // A read that could not be finished is an unknown answer, not an empty one.
-  if (cl.error || ap.error || !cl.complete || !ap.complete) throw new Error("could not read the history needed to check who a question would reach");
-  const clients = cl.data;
-  const appts = ap.data;
-  const lastVisit = new Map();
-  const hadService = new Set();
-  for (const a of appts || []) {
-    if (!a.client_id || !a.date || a.date > today) continue;
-    const k = String(a.client_id);
-    if (!lastVisit.has(k) || a.date > lastVisit.get(k)) lastVisit.set(k, a.date);
-    if (kind === "gap_fill" && payload.service && a.service === payload.service) hadService.add(k);
-  }
-  const daysSince = (d) => d ? Math.floor((Date.now() - new Date(`${d}T00:00:00`).getTime()) / 86400000) : Infinity;
-
-  if (kind === "gap_fill") {
-    const { data: waitlist } = await admin
-      .from("waitlist").select("client_id, phone, service")
-      .eq("tenant_id", tenantId).eq("status", "waiting");
-    const excluded = payload.cancelledClientId ? String(payload.cancelledClientId) : null;
-    for (const w of waitlist || []) {
-      if (payload.service && w.service && w.service !== payload.service) continue;
-      if (w.phone || (w.client_id && (clients || []).some((c) => String(c.id) === String(w.client_id) && c.phone))) return true;
-    }
-    // Waitlist entries above asked to be told, so they stay. Everyone else is marketing: consent required (lib/marketingConsent.js).
-    return (clients || []).some((c) => {
-      if (!c.phone || String(c.id) === excluded || !canMarket(c)) return false;
-      const cid = String(c.id);
-      return daysSince(lastVisit.get(cid)) >= 30 || hadService.has(cid);
-    });
-  }
-
-  // comeback: someone whose last visit predates the break, within 240 days of it.
-  const quietStart = payload.quiet_start;
-  if (!quietStart) return false;
-  const floorMs = new Date(`${quietStart}T00:00:00`).getTime() - 240 * 86400000;
-  return (clients || []).some((c) => {
-    if (c.status === "archived" || !c.phone || !canMarket(c)) return false;
-    const lv = lastVisit.get(String(c.id));
-    if (!lv || lv > quietStart) return false;
-    return new Date(`${lv}T00:00:00`).getTime() >= floorMs;
-  });
-}
+// Who a yes would reach: lib/ownerQuestions.js (shared with the client-cancel path in app/api/confirm).
 
 export async function POST(request) {
   try {
@@ -140,7 +83,7 @@ export async function POST(request) {
 
     // No candidates, no question. success:true because nothing went wrong -
     // there is simply nobody a yes would reach.
-    const anyone = await hasCandidates(tenantId, kind, payload);
+    const anyone = await hasCandidates(admin, tenantId, kind, payload);
     if (!anyone) {
       return Response.json({ success: true, skipped: "no_candidates" });
     }

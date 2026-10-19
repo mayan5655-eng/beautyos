@@ -29,7 +29,7 @@ assert.equal(withMarketingFooter(once), once, 'never doubled');
 
 // every marketing path asks the rule
 for (const [file, n] of [
-  ['app/api/clients/comeback/route.js', 1], ['app/api/slots/offer/route.js', 2], ['app/api/questions/route.js', 2],
+  ['app/api/clients/comeback/route.js', 1], ['app/api/slots/offer/route.js', 2], ['lib/ownerQuestions.js', 2],
   ['app/api/clients/lapsed/route.js', 1], ['lib/reminders/smartReminders.js', 2],
 ] as [string, number][]) {
   const hits = (src(file).match(/canMarket\(/g) || []).length;

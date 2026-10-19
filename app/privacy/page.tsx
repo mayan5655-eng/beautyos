@@ -6,6 +6,8 @@
 import type { Metadata } from "next";
 import type { CSSProperties, ReactNode } from "react";
 import PublicFooterLinks from "../PublicFooterLinks";
+import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
+import KalmeaLegalFooter from "../KalmeaLegalFooter";
 
 // Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
@@ -196,7 +198,7 @@ export default function PrivacyPage() {
         <Section heHeading="זכויות המשתמש" enHeading="User Rights">
           <He>
             יש לך זכות לגשת למידע שלך, לתקנו, או לבקש את מחיקתו, בהתאם לחוק הגנת
-            הפרטיות. לפניות: <Email />
+            הפרטיות. לפניות: <Email /> או בוואטסאפ <SupportWhatsApp />
           </He>
           <En>
             You have the right to access, correct, or request deletion of your data,
@@ -214,6 +216,7 @@ export default function PrivacyPage() {
           עודכן לאחרונה: אוקטובר 2026 / Last updated: October 2026
         </footer>
         <PublicFooterLinks style={{ padding: "6px 0 0" }} />
+        <KalmeaLegalFooter style={{ marginTop: 8 }} />
       </article>
     </div>
   );
@@ -252,6 +255,15 @@ function Email() {
   return (
     <a href={`mailto:${CONTACT_EMAIL}`} style={emailStyle} dir="ltr">
       {CONTACT_EMAIL}
+    </a>
+  );
+}
+
+/** Kalmea support is WhatsApp only (no calls): a wa.me link, never tel:. */
+function SupportWhatsApp() {
+  return (
+    <a href={supportWhatsAppUrl("היי, יש לי שאלה על קלמיה") || undefined} target="_blank" rel="noopener noreferrer" style={emailStyle} dir="ltr" data-testid="support-whatsapp">
+      WhatsApp {KALMEA_SUPPORT_WHATSAPP_DISPLAY}
     </a>
   );
 }

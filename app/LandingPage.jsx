@@ -18,6 +18,7 @@ import {
 } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import PublicFooterLinks from "./PublicFooterLinks";
+import KalmeaLegalFooter from "./KalmeaLegalFooter";
 import { supportWhatsAppUrl } from "@/lib/support";
 
 const COST_ROWS = [
@@ -314,6 +315,7 @@ export default function LandingPage() {
       <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
         <PublicFooterLinks style={{ padding: "0 0 8px" }} />
         <p>© {new Date().getFullYear()} קלמיה</p>
+        <KalmeaLegalFooter style={{ marginTop: 6 }} />
       </footer>
     </div>
   );

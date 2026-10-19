@@ -40,7 +40,8 @@ export async function GET(request: Request) {
   const u = new URL(request.url);
   const doc = u.searchParams.get('doc');
   if (doc) {
-    return page(`<div class="test">חשבונית לדוגמה, מצב בדיקה</div><h1>חשבונית ${esc(u.searchParams.get('n') || '')}</h1><p>זה מסמך דמה. חשבונית אמיתית תופק על ידי ספק החשבוניות.</p>`);
+    const label = u.searchParams.get('t') === 'i' ? 'חשבונית מס קבלה' : 'קבלה';
+    return page(`<div class="test">${label} לדוגמה, מצב בדיקה</div><h1>${label} ${esc(u.searchParams.get('n') || '')}</h1><p>זה מסמך דמה. מסמך אמיתי יופק על ידי ספק החשבוניות.</p>`);
   }
   const s = u.searchParams.get('s') || '';
   if (!verifyCardSession(s)) return page('<div class="test">מצב בדיקה</div><h1>הקישור פג תוקף</h1><p>חזרי למערכת ופתחי את הדף מחדש.</p>', 410);

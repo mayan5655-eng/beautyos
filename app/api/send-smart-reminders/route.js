@@ -1,10 +1,11 @@
 // app/api/send-smart-reminders/route.js
 //
-// Sends FOUR kinds of automated WhatsApp reminders, for ALL tenants:
+// Sends FIVE kinds of automated WhatsApp reminders, for ALL tenants:
 //   1. winback      - clients whose last visit was 90+ days ago
 //   2. package_done - clients who finished a treatment package
 //   3. review       - clients who had a treatment ~2 days ago
 //   4. birthday     - clients whose birthday is today
+//   5. rebook       - no future booking and her usual interval has passed (opt-in, lib/reminders/rebook.js)
 //
 // Anti-spam: every send is logged to auto_reminders_log so the same client
 // never gets the same reminder twice.
