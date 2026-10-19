@@ -63,6 +63,16 @@ export function nudgeCopy(key: NudgeKey, counts: { appointments: number; clients
   const appts = Math.max(0, Math.floor(counts.appointments || 0))
   const clients = Math.max(0, Math.floor(counts.clients || 0))
   if (key === 'day1') {
+    // The first booking can arrive on day 1 (the new-tenant walk got one within minutes). Then "get your first
+    // booking" is stale advice on every screen: congratulate, and ask for the next one instead.
+    if (appts > 0) {
+      return {
+        title: 'התור הראשון כבר ביומן 🌸',
+        body: 'איזו התחלה! עכשיו שלחי את הקישור לקביעת תור לעוד לקוחה או שתיים, וככה היומן מתמלא בלי להרים טלפון.',
+        action: 'copy_link',
+        actionLabel: 'העתקת הקישור לקביעת תור',
+      }
+    }
     return {
       title: 'היום הראשון שלך בקלמיה',
       body: 'הצעד הכי שווה עכשיו: לשלוח ללקוחה אחת את הקישור לקביעת תור, אפשר להדביק אותו בוואטסאפ. כך תקבלי את התור הראשון בלי להרים טלפון.',

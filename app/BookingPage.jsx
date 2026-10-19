@@ -1379,9 +1379,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
-                  {submitting ?<Spinner inline label="קובע תור"/>: (brand?.ctaLabel || "קביעת תור")}
+                  {submitting ?<Spinner inline label="קובעת את התור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
-                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור נקבע. אישור אמור להגיע אלייך בוואטסאפ, ואם לא הגיע אפשר לפנות אלינו</p>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>אחרי הקביעה יגיע אלייך אישור בוואטסאפ. אם לא הגיע, אפשר לפנות אלינו</p>
               </div>
             )}
 
