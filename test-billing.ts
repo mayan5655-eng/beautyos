@@ -37,7 +37,14 @@ function world(start: string) {
       if (row.status === 'succeeded' && row.kind === 'subscription' && payments.some((p) => p.subscription_id === row.subscription_id && p.period_start === row.period_start && p.status === 'succeeded' && p.kind === 'subscription')) throw new Error('unique violation: one success per period');
       const p = { id: `p${++seq}`, created_at: now.toISOString(), ...row } as PaymentRecord; payments.push(p); return p;
     },
-    async updatePayment(id, patch) { Object.assign(payments.find((p) => p.id === id)!, patch); },
+    async updatePayment(id, patch) {
+      // The same partial unique index as the real table (billing_payments_one_success_per_period), on update too: a row turns 'succeeded'
+      // only if no other row of its subscription and period already is.
+      const row = payments.find((p) => p.id === id)!;
+      if (patch.status === 'succeeded' && row.kind === 'subscription' && payments.some((p) => p.id !== id && p.subscription_id === row.subscription_id && p.period_start === row.period_start && p.status === 'succeeded' && p.kind === 'subscription')) throw new Error('unique violation: one success per period');
+      Object.assign(row, patch);
+    },
+    async findOpenAttempt(subId, period) { return [...payments].reverse().find((p) => p.subscription_id === subId && p.period_start === period && (p.status === 'pending' || p.status === 'unknown')) || null; },
     async pendingInvoices() { return payments.filter((p) => p.status === 'succeeded' && p.kind === 'subscription' && p.invoice_status === 'pending'); },
     async getTenant(id) { return tenants.get(id) || null; },
     async setPlanStatus(id, status) { tenants.get(id)!.plan_status = status; },
@@ -63,7 +70,7 @@ await ok('mock is the default mode; the billing screens are OFF unless BILLING_U
   assert.equal(billingUiEnabled({}), false); assert.equal(billingUiEnabled({ BILLING_UI_ENABLED: 'false' }), false); assert.equal(billingUiEnabled({ BILLING_UI_ENABLED: 'true' }), true);
 });
 
-await ok('mock needs no keys and no network; it is refused on Vercel production; live is a placeholder that is never configured', () => {
+await ok('mock needs no keys and no network; it is refused on Vercel production; live is not configured without the GROW_BILLING_* keys', () => {
   const m = resolveBilling({}, 'https://x.test', () => 's');
   assert.equal(m.configured, true); assert.ok(m.payments && m.invoicing);
   assert.equal(resolveBilling({ VERCEL_ENV: 'production' }, 'https://x.test').configured, false);
