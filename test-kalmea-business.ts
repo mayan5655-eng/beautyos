@@ -20,7 +20,7 @@ assert.equal(Math.round((li.netAmount + li.vatAmount) * 100) / 100, 499, 'net + 
 assert.ok(Math.abs(li.vatAmount - 499 * VAT_RATE / (1 + VAT_RATE)) < 0.01);
 
 // The footer line.
-assert.ok(footerBusinessLine().includes('עוסק פטור') && footerBusinessLine().includes('MY_NUMBER') && footerBusinessLine().includes('MY_ADDRESS'));
+assert.ok(footerBusinessLine().includes('עוסק פטור') && footerBusinessLine().includes('308577139') && footerBusinessLine().includes('רמת גן'));
 assert.ok(footerBusinessLine('licensed').includes('עוסק מורשה'));
 for (const f of ['app/LandingPage.jsx', 'app/terms/page.tsx', 'app/privacy/page.tsx']) assert.ok(/<KalmeaLegalFooter/.test(read(`./${f}`)), `${f} carries Kalmea's seller line`);
 assert.ok(!/Kalmea|KalmeaLegalFooter/.test(read('./app/PublicFooterLinks.tsx').replace(/^\/\/.*$/gm, '')), "a cosmetician's own pages do not carry Kalmea's registration");

@@ -15,9 +15,9 @@ export const KALMEA_TAX_STATUS: KalmeaTaxStatus = 'exempt';
 /** Israeli VAT since 1 January 2025. Only used while KALMEA_TAX_STATUS is 'licensed'. */
 export const VAT_RATE = 0.18;
 
-/** The owner fills these in; they show in the public footer exactly as written until she does. */
-export const KALMEA_BUSINESS_NUMBER = 'MY_NUMBER';
-export const KALMEA_ADDRESS = 'MY_ADDRESS';
+/** Shown in the public Kalmea footer (landing, terms, privacy). */
+export const KALMEA_BUSINESS_NUMBER = '308577139';
+export const KALMEA_ADDRESS = 'רמת גן';
 
 export type SubscriptionDoc = {
   docType: 'receipt' | 'tax_invoice_receipt';

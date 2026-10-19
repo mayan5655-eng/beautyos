@@ -15,7 +15,8 @@ assert.ok(page.includes('ACCESSIBILITY_COORDINATOR') && !/\d{2,3}-?\d{7}/.test(p
 
 // the one place she fills in
 const contact = src('lib/accessibilityContact.ts');
-for (const k of ['name', 'phone', 'email']) assert.ok(new RegExp(`${k}: '\\[`).test(contact), `placeholder for ${k} in lib/accessibilityContact.ts`);
+for (const k of ['name', 'phone', 'email']) assert.ok(new RegExp(`${k}: '[^\\[']`).test(contact), `${k} in lib/accessibilityContact.ts is a real value, not a bracketed placeholder`);
+assert.ok(/name: 'מעין בבאי'/.test(contact) && /email: 'kalmea\.app@gmail\.com'/.test(contact), 'the coordinator is Maayan Babai, kalmea.app@gmail.com');
 
 // every public page links it
 for (const f of ['app/LandingPage.jsx', 'app/BookingPage.jsx', 'app/signup/page.tsx', 'app/terms/page.tsx', 'app/privacy/page.tsx']) {
