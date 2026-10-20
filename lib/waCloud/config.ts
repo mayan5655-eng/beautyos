@@ -11,8 +11,9 @@
 //                             claims a client received anything.
 //   WA_CLOUD_PHONE_NUMBER_ID  the business number's Phone Number ID in WhatsApp Manager (not the phone number itself)
 //   WA_CLOUD_ACCESS_TOKEN     a System User permanent token with whatsapp_business_messaging
-//   WA_CLOUD_APP_SECRET       the Meta app's App Secret, for X-Hub-Signature-256. Falls back to FACEBOOK_APP_SECRET (same
-//                             Meta app, 950953347958539).
+//   WA_CLOUD_APP_SECRET       App Secret of the Meta app that carries WhatsApp (BeautyOS, 1464769648086912), for
+//                             X-Hub-Signature-256. Required: it is NOT the Facebook leads app (950953347958539), so there is
+//                             no fallback to FACEBOOK_APP_SECRET - the wrong secret would refuse every delivery.
 //   WA_CLOUD_VERIFY_TOKEN     any long random string, typed into the webhook setup in the Meta app
 //   WA_CLOUD_API_VERSION      Graph API version, default below
 //   WA_CLOUD_TENANT_DAILY_CAP template sends per business per Israel calendar day, default below
@@ -38,7 +39,7 @@ export function waCloudMode(env: WaCloudEnv = process.env): 'live' | 'mock' {
 }
 
 export function waCloudAppSecret(env: WaCloudEnv = process.env): string {
-  return s(env.WA_CLOUD_APP_SECRET) || s(env.FACEBOOK_APP_SECRET);
+  return s(env.WA_CLOUD_APP_SECRET);
 }
 
 export function tenantDailyCap(env: WaCloudEnv = process.env): number {

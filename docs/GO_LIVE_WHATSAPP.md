@@ -1,7 +1,7 @@
 # Going live on the official WhatsApp Business Platform (Meta Cloud API)
 
-Meta app: **950953347958539** (the same app as the Facebook leads integration).
-Business number: **050-7321978**, which is **+972 50 732 1978** (`972507321978`).
+Meta app: **BeautyOS, 1464769648086912** (type Business, business portfolio "Maayan laser beauty", 108969401998987). WhatsApp is already added to it. The Facebook leads app (950953347958539) cannot take the WhatsApp use case, which Meta refuses next to its existing use cases, so it stays as it is.
+Sending number: **050-7321978**, which is **+972 50 732 1978** (`972507321978`). It is used only for automatic messages. Kalmea's support line moved to 054-2845655 (`lib/support.ts`) on 2026-10-20, until a dedicated support SIM replaces it, because a number on the Cloud API no longer opens in the WhatsApp app.
 
 The code is on branch `feat/wa-cloud`, and all of it is **off** until `WA_CLOUD_ENABLED=true`. While it is off, every message goes exactly as it does today: GreenAPI from the central number for utility messages when the admin "automatic sending" switch is on, the manual queue otherwise, and wa.me from her own phone for marketing, deposits and cancellation fees.
 
@@ -27,11 +27,12 @@ When she runs live, every refusal lands in her **manual queue**, the same queue 
 ### 1. Database (her, in the Supabase SQL editor)
 Run `supabase/migrations/add_wa_cloud.sql` (a copy is on the Desktop as `kalmea-sql-wa-cloud.txt`). It creates `wa_cloud_messages` and adds it to the trial gate. The verify queries are at the bottom of the file. **In live mode the route refuses to send while this table is missing.**
 
-### 2. In Meta (business.facebook.com / developers.facebook.com, app 950953347958539)
+### 2. In Meta (business.facebook.com / developers.facebook.com, app BeautyOS 1464769648086912)
 1. **Business verification** of the business portfolio that owns the app. Until it is verified, the number is limited to 250 business-initiated conversations a day and the display name is restricted.
 2. App dashboard → **Add product → WhatsApp**. Create or link the **WhatsApp Business Account (WABA)** under the same business portfolio.
 3. WhatsApp Manager → **Phone numbers → Add**: 050-7321978, with display name "Kalmea" (Meta reviews the name). Verify the number by SMS or voice call.
-   - **Important:** a number registered on the Cloud API cannot also stay connected to the WhatsApp app or to GreenAPI the usual way. If this number is the one GreenAPI uses today, decide first: either move it (and GreenAPI stops for it), or keep GreenAPI on its number and use 050-7321978 only for the Cloud API. If the number is on the WhatsApp Business **app** today, Meta's "coexistence" onboarding can keep the app working. Check that this option is offered for the number before migrating.
+   - **Important:** a number registered on the Cloud API cannot also stay open in the WhatsApp app. On 2026-10-20 Meta refused 050-7321978 with "this number is already registered on a WhatsApp account". It was open in the regular WhatsApp app (it was the support line). Before adding it: move support off it (done: 054-2845655), then delete the WhatsApp account on that phone (WhatsApp → Settings → Account → Delete my account), wait about 3 minutes, and add it again. Its chat history is lost, so back it up first if it matters.
+   - The way in: app → WhatsApp → "Step 2. Production setup" → "Register your WhatsApp phone number" → **Add new number** → IL +972, 507321978, SMS.
 4. **Register** the number (Cloud API, with a two-step-verification PIN). Note the **Phone Number ID**. It is not the phone number.
 5. Business settings → **System users** → create an admin system user, assign it the app and the WABA (full control), and generate a **permanent token** with `whatsapp_business_messaging` and `whatsapp_business_management`.
 6. WhatsApp Manager → **Payment method**: add a card for the WABA. **This costs money and needs her approval.** Utility templates are charged per delivered message at Meta's rate for +972 (the admin estimate uses `WA_CLOUD_UTILITY_COST_USD`). A utility template sent inside an open 24-hour customer-service window is free.
@@ -48,7 +49,7 @@ Run `supabase/migrations/add_wa_cloud.sql` (a copy is on the Desktop as `kalmea-
 ```
 WA_CLOUD_PHONE_NUMBER_ID=<from step 4>
 WA_CLOUD_ACCESS_TOKEN=<from step 5>
-WA_CLOUD_APP_SECRET=<App Secret of 950953347958539>   (or leave empty to use FACEBOOK_APP_SECRET, which is the same app)
+WA_CLOUD_APP_SECRET=<App Secret of BeautyOS 1464769648086912: App settings -> Basic -> App secret>   (required; NOT FACEBOOK_APP_SECRET, which belongs to the other app)
 WA_CLOUD_VERIFY_TOKEN=<long random string, also typed in step 8>
 WA_CLOUD_API_VERSION=v21.0
 WA_CLOUD_TENANT_DAILY_CAP=150
@@ -73,7 +74,7 @@ Set `WA_CLOUD_ENABLED=false` and redeploy. Every send immediately goes back to t
 
 ## What is needed from Meta (summary)
 1. Business verification of the portfolio.
-2. A WABA linked to app 950953347958539, with 050-7321978 added, verified, registered and its display name approved.
+2. A WABA linked to app BeautyOS 1464769648086912, with 050-7321978 added, verified, registered and its display name approved.
 3. A System User permanent token (`whatsapp_business_messaging`, `whatsapp_business_management`) and the Phone Number ID.
 4. A payment method on the WABA (her approval: this is paid).
 5. The five utility templates approved under the exact names in `docs/WA_TEMPLATES.md`.
