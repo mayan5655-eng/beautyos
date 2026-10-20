@@ -5,6 +5,7 @@
 // (which reads it from the ?t= URL param). Owner phone + business name are
 // looked up per-tenant from settings.
 
+import { cleanSource, cleanRef } from "../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
@@ -60,7 +61,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave, src: rawSrc, ref: rawRef } =
       await request.json();
     // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
     // name cannot be stored or pasted into the owner's WhatsApp text.
@@ -377,6 +378,8 @@ export async function POST(request) {
     // ("052-123-4567"). Comparing raw would create a second client for a woman
     // who is already in her book, which is worse than not matching at all.
     let clientId = null;
+    // Set only when THIS booking created the client card: only a new client is credited to a source or a referrer.
+    let createdClient = false;
     let isReturningClient = false;
     try {
       // Fetched above, alongside the service/settings/same-day rows.
@@ -427,6 +430,7 @@ export async function POST(request) {
           console.error("[book-appointment] client create failed:", createErr.message);
         } else {
           clientId = created?.id || null;
+          createdClient = !!clientId;
         }
       }
     } catch (linkErr) {
@@ -477,6 +481,32 @@ export async function POST(request) {
       }
       console.error("[book-appointment] appointment insert failed:", error.message);
       return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
+    }
+
+    // Where this booking came from (lib/bookingSource.ts): the link's ?src= and, for a "bring a friend" link, the referring client.
+    // A label only, written AFTER the booking is saved and best-effort: a missing column (add_booking_source.sql not run yet) or any
+    // failure here never touches the booking. The referrer must be a client of THIS business and not the booker herself.
+    const bookingSrc = cleanSource(rawSrc);
+    const bookingRef = cleanRef(rawRef);
+    if (bookingSrc || bookingRef) {
+      after(async () => {
+        try {
+          let referrer = null;
+          if (bookingRef && bookingRef !== String(clientId || "")) {
+            const { data: rc } = await supabase.from("clients").select("id, phone").eq("tenant_id", activeTenantId).eq("id", bookingRef).maybeSingle();
+            if (rc && String(rc.phone || "") !== phoneCheck.e164) referrer = String(rc.id);
+          }
+          const tag = { source: bookingSrc || (referrer ? "referral" : null), referred_by: referrer };
+          const a = await supabase.from("appointments").update(tag).eq("id", appt.id).eq("tenant_id", activeTenantId);
+          if (a.error) console.warn("[book-appointment] source not stored:", a.error.message);
+          if (createdClient && clientId) {
+            const cu = await supabase.from("clients").update(tag).eq("id", clientId).eq("tenant_id", activeTenantId);
+            if (cu.error) console.warn("[book-appointment] client source not stored:", cu.error.message);
+          }
+        } catch (e) {
+          console.warn("[book-appointment] source tagging threw:", e?.message || String(e));
+        }
+      });
     }
 
     // 2. THIS tenant's business name + owner phone, from the row already read
