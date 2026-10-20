@@ -13,6 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { isAuthorizedCron, cronUnauthorized } from '@/lib/cronAuth';
+import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { decryptToken } from '@/lib/facebook/encryption';
 import { getAdAccounts } from '@/lib/facebook/insights';
 import { getDailyAccountSpend } from '@/lib/facebook/dailySpend';
@@ -22,6 +23,7 @@ export const maxDuration = 120;
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('facebook-ad-spend');
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
   const out = { tenants: 0, written: 0, skippedNoPermission: 0, skippedNoAccount: 0, failed: 0, skipped: '' as string };
   try {

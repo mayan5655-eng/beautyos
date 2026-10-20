@@ -6,6 +6,7 @@
 // Does nothing while the Grow screens are off.
 import { NextResponse } from 'next/server';
 import { isAuthorizedCron, cronUnauthorized } from '../../../../lib/cronAuth';
+import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '../_cancel';
@@ -14,6 +15,7 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('grow-release-holds');
   if (!growUiEnabled()) return NextResponse.json({ success: true, skipped: 'grow-off' });
   const deps = cancelDeps();
   if (!deps) return NextResponse.json({ success: true, skipped: 'not-configured' });

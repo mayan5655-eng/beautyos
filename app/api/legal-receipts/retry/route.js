@@ -5,6 +5,7 @@
 // after looking in her Morning account. See lib/legalReceipts/service.retryDue.
 
 import { isAuthorizedCron, cronUnauthorized } from "../../../../lib/cronAuth";
+import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { raiseOpsAlert } from "../../../../lib/opsAlert.js";
 import { adminDb } from "../../../../lib/legalReceipts/routeAuth";
@@ -15,6 +16,7 @@ export const maxDuration = 120;
 
 export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('legal-receipts-retry');
   try {
     const r = await retryDue({ db: adminDb(), adapter: createMorning() });
     console.log(`[legal-receipts] retry: ${JSON.stringify(r)}`);

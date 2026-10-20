@@ -5,6 +5,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { startMinute, endMinute } from "../../../lib/apptTime";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
@@ -38,6 +39,7 @@ async function alertOperator(text, severity = "error", details = null) {
 
 export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('send-owner-evening');
   try {
     if (isQuietEvening()) return Response.json({ success: true, sent: 0, message: "ערב שבת, לא שולחים" });
 

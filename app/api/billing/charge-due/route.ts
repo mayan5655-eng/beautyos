@@ -5,6 +5,7 @@
 // BILLING_UI_ENABLED is off or while no provider is configured, so deploying it changes nothing until billing is switched on.
 import { NextResponse } from 'next/server';
 import { isAuthorizedCron, cronUnauthorized } from '../../../../lib/cronAuth';
+import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { billingUiEnabled } from '@/lib/billing/adapter';
 import { runDue } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
@@ -14,6 +15,7 @@ export const maxDuration = 120;
 
 export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('billing-charge-due');
   if (!billingUiEnabled()) return NextResponse.json({ success: true, skipped: 'billing-off' });
   const b = billing();
   if (!b.configured || !b.payments || !b.invoicing) return NextResponse.json({ success: true, skipped: 'not-configured' });

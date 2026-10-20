@@ -12,8 +12,10 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
+import { opsPush } from "../../../lib/opsPush.js";
 import { runInvariants, formatInvariantReport } from "../../../lib/invariants.js";
 import { staleSupportMessages, formatStaleSupportLine } from "../../../lib/supportInbox.ts";
 import { checkInstanceState } from "../../../lib/greenApi/health.ts";
@@ -29,12 +31,14 @@ export async function POST(request) {
   // Same gate as the other crons: this reads across every tenant on the
   // service key, so it is not something an anonymous caller gets to trigger.
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('invariants');
   return run();
 }
 
 // GET so it can be opened by hand while investigating, behind the same gate.
 export async function GET(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('invariants');
   return run();
 }
 
@@ -83,6 +87,8 @@ async function run() {
         source: "invariants", severity: failures.length || errors.length || greenApiDown ? "error" : "warning",
         message: `בדיקת נתונים יומית\n\n${report}`,
         details: { failures, errors, greenApiDown },
+        // A push to her own devices for anything serious: it still arrives when WhatsApp is the thing that is down.
+        push: opsPush(admin),
       });
       notified = raised.delivery === "handed_to_greenapi";
     }

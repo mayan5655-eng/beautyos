@@ -15,6 +15,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isAuthorizedCron, cronUnauthorized } from '@/lib/cronAuth'
+import { markCronRun } from '@/lib/cronHeartbeat'
 import { raiseOpsAlert } from '@/lib/opsAlert.js'
 import { sendWhatsApp } from '@/lib/whatsapp'
 import { APP_URL } from '@/lib/appUrl'
@@ -36,11 +37,13 @@ function admin() {
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized()
+  await markCronRun('owner-digest')
   return run(request)
 }
 
 export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized()
+  await markCronRun('owner-digest')
   return run(request)
 }
 

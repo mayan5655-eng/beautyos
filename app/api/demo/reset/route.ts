@@ -7,6 +7,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { isAuthorizedCron, cronUnauthorized } from '@/lib/cronAuth';
+import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { resetDemoTenant } from '@/lib/demoSeed';
 import type { DemoField } from '@/lib/demoTenants';
 
@@ -34,10 +35,12 @@ async function run() {
 
 export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('demo-reset');
   return run();
 }
 
 export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('demo-reset');
   return run();
 }

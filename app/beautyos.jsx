@@ -970,6 +970,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
   const [loadError,         setLoadError]          = useState(null);
+  // Which account this browser is signed in to, shown where she signs out: a page that answers "not found" because she is in
+  // another account (a test one) must not look like a bug.
+  const [authEmail,         setAuthEmail]          = useState("");
   // No per-tenant WhatsApp connection state. Per-tenant GreenAPI instances
   // were retired (lib/whatsapp.js): every automated message leaves from the
   // platform number, marketing goes through wa.me from her own phone. The
@@ -1310,7 +1313,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleLogout = useCallback(() => {
     askConfirm({
       title: "התנתקות",
-      message: "האם להתנתק מהמערכת?",
+      message: authEmail ? `את מחוברת כ-${authEmail}. להתנתק?` : "האם להתנתק מהמערכת?",
       confirmText: "התנתקי",
       onConfirm: async () => {
         try {
@@ -1324,7 +1327,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }
       },
     });
-  }, [askConfirm, handleDbError, router, setBusyKey]);
+  }, [askConfirm, handleDbError, router, setBusyKey, authEmail]);
 
   // === COMPUTED ===
   const weekDates = getWeekDates(weekStart);
@@ -2188,6 +2191,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return; // the `finally` still clears `loading`
       }
       if (!user) { router.replace("/login"); return; }
+      setAuthEmail(user.email || "");
       // Resolve the tenant with the SAME function the RLS policies use.
       // Reading tenant_members directly from the client is itself gated by
       // RLS and often returns null, which then mis-selects the settings row.
@@ -8037,7 +8041,7 @@ ${MARKETING_FOOTER}`)}`;
                 {/* Same reason as the gear above: U+23FB renders as a colour
                     emoji on iOS. Fixing one and leaving its neighbour is worse
                     than leaving both. */}
- <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title="התנתקות" aria-label="התנתקות מהמערכת">
+ <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title={authEmail ? `התנתקות (מחוברת כ-${authEmail})` : "התנתקות"} aria-label="התנתקות מהמערכת">
  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
  <path d="M12 3.2v8.4"/>
  <path d="M17.4 6.1a7.5 7.5 0 1 1-10.8 0"/>

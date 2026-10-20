@@ -13,22 +13,35 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 
 // המפתח מגיע ממשתנה הסביבה
-function getKey(): Buffer {
-  const keyHex = process.env.TOKEN_ENCRYPTION_KEY;
-  
+//
+// Rotation (2026-10-20): every secret in the product (Grow, Facebook, GreenAPI, receipt providers) is sealed with this ONE key,
+// so changing it used to mean losing them all. To rotate: put the new key in TOKEN_ENCRYPTION_KEY and the old one in
+// TOKEN_ENCRYPTION_KEY_PREVIOUS. New values are sealed with the new key; decryptToken still opens values sealed with the old
+// one, so nothing breaks while rows are re-saved. Remove _PREVIOUS once every row has been re-sealed.
+function keyFrom(keyHex: string | undefined, name: string): Buffer {
   if (!keyHex) {
-    throw new Error('TOKEN_ENCRYPTION_KEY environment variable is not set');
+    throw new Error(`${name} environment variable is not set`);
   }
-  
+
   const key = Buffer.from(keyHex, 'hex');
-  
+
   if (key.length !== 32) {
     throw new Error(
-      `TOKEN_ENCRYPTION_KEY must be 32 bytes (64 hex chars). Got ${key.length} bytes.`
+      `${name} must be 32 bytes (64 hex chars). Got ${key.length} bytes.`
     );
   }
-  
+
   return key;
+}
+
+function getKey(): Buffer {
+  return keyFrom(process.env.TOKEN_ENCRYPTION_KEY, 'TOKEN_ENCRYPTION_KEY');
+}
+
+/** The previous key during a rotation, or null. */
+function getPreviousKey(): Buffer | null {
+  const hex = process.env.TOKEN_ENCRYPTION_KEY_PREVIOUS;
+  return hex ? keyFrom(hex, 'TOKEN_ENCRYPTION_KEY_PREVIOUS') : null;
 }
 
 /**
@@ -78,19 +91,26 @@ export function decryptToken(encrypted: string): string {
   
   const [ivHex, authTagHex, encryptedHex] = parts;
   
-  const key = getKey();
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
   const encryptedBuffer = Buffer.from(encryptedHex, 'hex');
-  
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-  
-  const decrypted = Buffer.concat([
-    decipher.update(encryptedBuffer),
-    decipher.final()
-  ]);
-  
+
+  const open = (key: Buffer) => {
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+  };
+
+  let decrypted: Buffer;
+  try {
+    decrypted = open(getKey());
+  } catch (e) {
+    // Sealed before a rotation: the previous key opens it. Anything else (tampered, wrong key) still throws.
+    const previous = getPreviousKey();
+    if (!previous) throw e;
+    decrypted = open(previous);
+  }
+
   return decrypted.toString('utf8');
 }
 

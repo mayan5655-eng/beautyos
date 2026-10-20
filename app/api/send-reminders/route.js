@@ -15,6 +15,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
 import { isPersonal } from "../../../lib/calendarKind";
@@ -52,6 +53,7 @@ export async function POST(request) {
   // Guard: only Vercel Cron (or a caller holding CRON_SECRET) may trigger this
   // all-tenant WhatsApp blast.
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('send-reminders');
 
   try {
     const tomorrow = getTomorrowDate();

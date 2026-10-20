@@ -23,6 +23,7 @@ import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { checkInstanceState } from '@/lib/greenApi/health'
 import AdminClient, { type AdminTenantRow } from './AdminClient'
 import OpsEvents from './OpsEvents'
+import SystemHealth from './SystemHealth'
 import GrowOnboarding from './GrowOnboarding'
 import GrowRequests from './GrowRequests'
 import BillingAdmin from './BillingAdmin'
@@ -116,6 +117,8 @@ export default async function AdminPage() {
         metricsAvailable={!rich.error}
         greenApiState={greenApiState}
       />
+      {/* Is everything working: scheduled jobs, missing SQL, recent errors. */}
+      <SystemHealth db={db} />
       {/* The alert log: written before WhatsApp is attempted, so it still exists
           when WhatsApp is the thing that is down. */}
       <OpsEvents db={db} />

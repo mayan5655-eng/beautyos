@@ -9,6 +9,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
+import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { fanOut } from "../../../lib/cronFanout.js";
 import { readAllRows } from "../../../lib/pagedRead.js";
 import { liveReceipts } from "../../../lib/till";
@@ -85,6 +86,7 @@ async function reportFor(row, now) {
 
 export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
+  await markCronRun('send-weekly-report');
   try {
     const s = await readAllRows(supabase, "settings", { columns: "tenant_id, business_phone, branding, automations", order: "tenant_id" });
     if (s.error) throw new Error(`settings read failed: ${s.error.message}`);
