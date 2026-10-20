@@ -36,7 +36,9 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       dir: "rtl",
-      tag: data.notificationId ? String(data.notificationId) : undefined,
+      tag: data.notificationId ? String(data.notificationId) : data.tag ? String(data.tag) : undefined,
+      // A same-site path to open on click (the owner's morning digest opens her subscribers screen).
+      data: { url: typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/" },
     })
   );
 });
@@ -48,10 +50,14 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const url = (event.notification.data && event.notification.data.url) || "/";
       for (const client of clients) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          if (url !== "/" && "navigate" in client) return client.navigate(url).then((c) => (c || client).focus());
+          return client.focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });

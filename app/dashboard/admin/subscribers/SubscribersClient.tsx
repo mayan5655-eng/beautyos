@@ -15,6 +15,7 @@ import {
 } from '@/lib/subscribers'
 import type { SubscriberRow, Filter, Segment, ContactStatus } from '@/lib/subscribers'
 import { dateHe } from '@/lib/ownerControl'
+import { buildDigest } from '@/lib/subscriberDigest'
 import { daysHe } from '@/lib/planCopy'
 import CopyButton from '../../owner/signups/CopyButton'
 
@@ -59,6 +60,8 @@ export default function SubscribersClient({ rows: initialRows, notesAvailable, m
   const counts = useMemo(() => segmentCounts(rows), [rows])
   const visible = useMemo(() => filterSubscribers(rows, filter, query), [rows, filter, query])
   const waiting = useMemo(() => rows.filter((r) => needsFirstContact(r, now)).length, [rows, now])
+  // The same summary as her morning digest (/api/owner-digest), live: what is due today besides the new signups.
+  const today = useMemo(() => buildDigest(rows, now), [rows, now])
 
   const onSaved = (id: string, contact: SubscriberRow['contact']) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, contact } : r)))
@@ -96,6 +99,29 @@ export default function SubscribersClient({ rows: initialRows, notesAvailable, m
           </span>
           <span style={{ ...muted, display: 'block' }}>הן מופיעות ראשונות ברשימה.</span>
         </button>
+      )}
+
+      {(today.followUps.length > 0 || today.trialsEnding.length > 0 || today.pastDue.length > 0) && (
+        <section aria-label="מה מחכה היום" style={{ ...card, background: '#FBF9F8' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>מה מחכה לך היום</div>
+          {([
+            ['לחזור אליהן', today.followUps.map((x) => ({ id: x.id, name: x.name, note: x.overdueDays > 0 ? `באיחור ${x.overdueDays === 1 ? 'יום' : `${x.overdueDays} ימים`}` : '' }))],
+            ['הניסיון מסתיים בקרוב', today.trialsEnding.map((x) => ({ id: x.id, name: x.name, note: x.daysLeft <= 0 ? 'היום' : `עוד ${daysHe(x.daysLeft)}` }))],
+            ['תשלום שלא עבר', today.pastDue.map((x) => ({ id: x.id, name: x.name, note: '' }))],
+          ] as Array<[string, Array<{ id: string; name: string; note: string }>]>).filter(([, items]) => items.length > 0).map(([label, items]) => (
+            <div key={label} style={{ marginTop: 6 }}>
+              <div style={{ ...muted, fontWeight: 600 }}>{label} · {items.length}</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                {items.map((x) => (
+                  <button key={x.id} type="button" onClick={() => { setFilter('all'); setQuery(x.name) }}
+                    style={{ padding: '5px 10px', borderRadius: 999, border: `1px solid ${line}`, background: '#fff', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', color: ink }}>
+                    {x.name}{x.note ? <span style={{ color: ink2 }}> · {x.note}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
       <input
