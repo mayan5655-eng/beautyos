@@ -99,6 +99,7 @@ const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), {
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
 const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
 const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
+const MonthValueCard = dynamic(() => import("./MonthValueCard"), { ssr: false });
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
@@ -840,6 +841,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [editingClient,     setEditingClient]      = useState(null);
   const [editingLead,       setEditingLead]        = useState(null);
   const [selectedClient,    setSelectedClient]     = useState(null);
+  // Which agenda card has its "עוד" actions open (the day view shows one main action per card).
+  const [apptMenuId, setApptMenuId] = useState(null);
   const [selectedLead,      setSelectedLead]       = useState(null);
   // Facebook campaigns (live ad performance)
   const [fbCampaigns,    setFbCampaigns]    = useState(null);
@@ -7118,8 +7121,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         .nav-item.active{background:linear-gradient(100deg,var(--pc-tint),var(--pc-tint-2));color:var(--pc-deep);font-weight:700}
         .nav-item.active .nav-ico{opacity:1;color:var(--pc)}
         .nav-item.active::before{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:3.5px;height:20px;border-radius:4px;background:var(--pc);box-shadow:0 0 10px var(--pc-shadow)}
-        .wa-btn{background:#25D366;color:#fff;border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
-        .wa-btn:hover{background:var(--success);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,211,102,0.3)}
+        /* 2026-10-20 design pass: WhatsApp buttons in the brand's calm language (white, WhatsApp-green text and hairline,
+           AA on white) instead of a saturated green pill repeated down every list. */
+        .wa-btn{background:var(--surface);color:#0F7A3E;border:1px solid rgba(18,140,74,0.45);border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
+        .wa-btn:hover{background:#EEF8F1;transform:translateY(-1px);box-shadow:0 4px 12px rgba(18,140,74,0.15)}
         .call-btn{background:var(--pc);color:var(--surface);border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
         .icon-btn{background:var(--pc-tint);border:none;border-radius:50%;width:32px;height:32px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.12s;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
         /* The compact variant, for buttons that sit inside a dense row. Below
@@ -7142,6 +7147,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         .fm-grow{transform-origin:bottom;animation:fmGrow .6s cubic-bezier(.2,.7,.3,1) both}
         .fm-pulse{animation:fmPulse 1.6s ease-in-out infinite}
         @media (prefers-reduced-motion:reduce){.fm-in,.fm-grow,.fm-pulse{animation:none!important}}
+        /* width:100%: the cards centre themselves with margin-inline:auto, which in a flex column stops them stretching. */
+        .today-stack>*{order:8;width:100%;box-sizing:border-box}
         /* Reusable premium primitives for the redesign */
         .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;box-shadow:0 1px 2px rgba(31,58,48,.05), 0 8px 20px rgba(31,58,48,.06);position:relative;overflow:hidden}
         /* .card-boxed, translucent variant: the petal-pink page under היום's
@@ -7223,7 +7230,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
              Zero side padding: content runs edge to edge like a native app, and
              the cards' own internal padding keeps text off the glass. Vertical
              padding stays, including the clearance for the bottom bar. */
-          .app-main{padding:12px 0 calc(74px + env(safe-area-inset-bottom, 0px))!important}
+          /* 2026-10-20 design pass: a 12px side gutter after all. Edge to edge left buttons, selects and the
+             agenda's actions touching (and, with wrapping rows, crossing) the screen edge on a 375px phone,
+             and the rounded היום cards met the edge with their corners. */
+          .app-main{padding:12px 12px calc(74px + 62px + env(safe-area-inset-bottom, 0px))!important}
           /* Phase 4 — tap targets: round icon buttons up to a touch-friendly ~40px. */
           .icon-btn{width:44px!important;height:44px!important;font-size:15px!important}
           /* Floating buttons must clear the bottom bar, which only exists below
@@ -7235,7 +7245,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           .fab-help{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
           .fab-voice{bottom:calc(74px + env(safe-area-inset-bottom, 0px) + 14px)!important}
           .fab-help{font-size:0!important;gap:0!important;padding:6px!important;width:44px;height:44px;justify-content:center}
-          .fab-voice{width:48px!important;height:48px!important}
+          .fab-voice{width:44px!important;height:44px!important}
+          /* The two floating buttons sit over the content's lower edge; .app-main reserves 62px more at the bottom
+             (above) so the last card, row or button can always be scrolled clear of them. */
           .wa-btn,.call-btn{padding:9px 14px!important;min-height:44px!important}
           /* Header fit — the desktop logo (30px, 6px letter-spacing, no shrink) pushed
              the left-side action icons off the viewport in RTL. Shrink the wordmark,
@@ -7396,7 +7408,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
              section from the next.
              .sheet is a different class and keeps its radius: a
              centred sheet should still look like a sheet. */
-          .glass-card,.hero-card{border-radius:0!important;border-left:0!important;border-right:0!important}
+          /* With the gutter back, a card is a card again: rounded, framed (was: squared and borderless for full bleed). */
+          .glass-card,.hero-card{border-radius:16px!important}
 
           /* ── Richness. The wash and the blossoms were already identical to
              /login - BRAND_WASH, same two-hue florals, opacity 1 on the sparse
@@ -8207,7 +8220,11 @@ ${MARKETING_FOOTER}`)}`;
           )}
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
-          {activeTab==="dashboard"&&(<>
+          {activeTab==="dashboard"&&(<div className="today-stack" style={{display:"flex",flexDirection:"column"}}>
+            {/* 2026-10-20 design pass: what she needs at 9am first. Cards keep their place in the source (and in every
+                test that reads it); the ORDER below is visual only: greeting, today's revenue, the next client, today's
+                appointments with "needs attention", then the question, setup, marketing and the rest. Children without
+                an order (fees, goals, marketing) take .today-stack>* below = 8. */}
             {/* TARGET MOCKUP (design/target-today.html, handed over by the
                 user) is the literal spec for everything from here through
                 the appointment rows below - values copied from its CSS, not
@@ -8219,7 +8236,7 @@ ${MARKETING_FOOTER}`)}`;
                 var(--ink-3)/var(--ink-2) - those shared tokens stay neutral,
                 since tenant-facing pages read them too (Stage 2's rule);
                 this is a Kalmea-chrome-only green reserved for this screen. */}
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingInline:17}}>
+ <div style={{order:1,display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingInline:17}}>
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
@@ -8231,7 +8248,7 @@ ${MARKETING_FOOTER}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- <div className="glass-card card-boxed" style={{padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ <div className="glass-card card-boxed" style={{order:2,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
  <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
@@ -8243,6 +8260,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
+ {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
+ <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
  <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
             pageUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}
@@ -8264,7 +8283,7 @@ ${MARKETING_FOOTER}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card card-boxed card-boxed-rose" style={{position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
+ <div className="glass-card card-boxed card-boxed-rose" style={{order:6,position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
                   {/* Ad-aligned pass: the new question line-icon is this
                       card's real header mark now, in place of the old faint
                       13%-opacity corner flower - large enough to actually
@@ -8292,24 +8311,24 @@ ${MARKETING_FOOTER}`)}`;
                 this screen (today's appointments, needs-attention) already
                 carries an empty day fine on its own. */}
             {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
-              <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
+              <div style={{order:3}}><EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
                 actions={[
                   {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
                   {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
                   {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
-                ]}/>
+                ]}/></div>
             )}
             {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
-              <EmptyState icon="home" moment accent={pc} accentTint={pcTint}
+              <div style={{order:3}}><EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
                 body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
                   {label:"לקוחה חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                   {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
                   {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
-                ]}/>
+                ]}/></div>
             )}
             {(()=>{
               const hour=now.getHours();
@@ -8352,7 +8371,7 @@ ${MARKETING_FOOTER}`)}`;
                     Once every item is done it disappears from here and lives compactly
                     inside Settings (+ the always-on header ☑ button / modal). */}
                 {setupDone < setupTotal && (
- <div className="glass-card card-boxed card-boxed-accent" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{order:7,maxWidth:1180,margin:"0 auto 12px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
  <h3 className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700}}>{setupDone}/{setupTotal}</span>
@@ -8367,7 +8386,7 @@ ${MARKETING_FOOTER}`)}`;
                   if(!brief) return null;
                   const {appt,client,minutesUntil,lastVisit,allergies,note,isNew}=brief;
                   return(
- <div className="glass-card card-boxed card-boxed-accent" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{order:3,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,margin:"0 0 2px"}}>{untilHe(minutesUntil)}</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>{appt.name}{appt.service?" · "+appt.service:""}</p>
  <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -8390,7 +8409,7 @@ ${MARKETING_FOOTER}`)}`;
                   if(!(now.getHours()>=17||allEnded)) return null;
                   const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
                   return(
- <div className="glass-card card-boxed" style={{maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
+ <div className="glass-card card-boxed" style={{order:9,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>לפני שהולכים הביתה</p>
                       {allClear?(
  <p style={{fontSize:"var(--t-md)",color:"var(--ink-2)",margin:0}}>{ALL_CLEAR_HE}</p>
@@ -8409,7 +8428,7 @@ ${MARKETING_FOOTER}`)}`;
                 })()}
 
                 {/* ── TIER 1b: FOCAL — Today (primary) + Needs attention ── */}
- <div style={{maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
+ <div style={{order:4,maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
  <div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
@@ -8638,7 +8657,7 @@ ${MARKETING_FOOTER}`)}`;
 
  </>);
             })()}
- </>)}
+ </div>)}
 
           {/* INSIGHTS / תובנות — overview & analytics (moved off the calm "היום" home) */}
           {activeTab==="insights"&&!historyReady&&<div className="glass-card" style={{padding:18}}><DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/></div>}
@@ -8967,39 +8986,52 @@ ${MARKETING_FOOTER}`)}`;
  <div key={row.key} style={{display:"flex",alignItems:"stretch",gap:10}}>
  <div style={{width:48,flexShrink:0,textAlign:"center",paddingTop:appt?12:15,fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink-3)"}}>{appt&&isAllDay(appt)?"—":fmtTime(row.min)}</div>
                             {appt?(
- <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:apptColor,borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"2px solid var(--success)":appt.confirmation_status==="cancelled"?"2px solid var(--danger)":"2px solid rgba(255,255,255,0.35)"}}>
- <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2}}>{isPersonal(appt)?"🔒 ":""}{appt.name}{isPersonal(appt)?"":appt.confirmation_status==="confirmed"?" ✓":appt.confirmation_status==="cancelled"?" ✕":appt.confirmation_status===NO_SHOW?" · לא הגיעה":""}</p>
- <p style={{fontSize:"var(--t-sm)",color:"rgba(255,255,255,0.92)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
- {!isPersonal(appt)&&<HoldBadge appointmentId={appt.id} onDark/>}
-                                {/* Real vs. booked, once both ends of the treatment were logged -
-                                    the same comparison the "finish" toast said, left visible on
-                                    the card instead of gone the moment the toast fades. */}
+ <div onClick={()=>handleApptClick(appt)} style={{flex:1,minWidth:0,background:appt.confirmation_status==="cancelled"?"var(--surface-2)":"var(--surface)",borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",boxShadow:"var(--shadow-xs)",border:"1px solid var(--line)",borderInlineStart:`5px solid ${apptColor}`,opacity:appt.confirmation_status==="cancelled"?0.78:1}}>
+                                {/* 2026-10-20 design pass: a calm card (her surface, a status stripe on the start side, dark text)
+                                    instead of a saturated block, and ONE main action with the rest behind "עוד" so nothing is
+                                    clipped at phone width. Every action is the same handler as before. */}
+ <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+ <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",lineHeight:1.25,minWidth:0,overflowWrap:"anywhere",textDecoration:appt.confirmation_status==="cancelled"?"line-through":"none"}}>{isPersonal(appt)?"🔒 ":""}{appt.name}</p>
+ {(()=>{const st=isPersonal(appt)?{l:"אישי",c:"var(--ink-3)"}:appt.confirmation_status==="confirmed"?{l:"אישרה",c:"var(--success)"}:appt.confirmation_status==="cancelled"?{l:"בוטל",c:"var(--ink-3)"}:appt.confirmation_status===NO_SHOW?{l:"לא הגיעה",c:"var(--danger)"}:{l:"ממתין לאישור",c:"var(--warning)"};return <span style={{flexShrink:0,fontSize:"var(--t-xs)",fontWeight:700,color:st.c,border:`1px solid ${st.c}`,borderRadius:"var(--r-full)",padding:"2px 8px",whiteSpace:"nowrap"}}>{st.l}</span>;})()}
+ </div>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
+ {!isPersonal(appt)&&<HoldBadge appointmentId={appt.id}/>}
                                 {appt.actual_start_at&&appt.actual_end_at&&(()=>{
                                   const o=durationOutcome(appt.actual_start_at,appt.actual_end_at,Number(appt.duration)||0);
                                   if(!o) return null;
                                   const sign=o.driftMinutes>4?` (+${o.driftMinutes})`:o.driftMinutes<-4?` (${o.driftMinutes})`:"";
-                                  return <p style={{fontSize:"var(--t-xs)",color:"rgba(255,255,255,0.85)",marginTop:2}}>בפועל: {o.actualMinutes} דק׳{sign}</p>;
+                                  return <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>בפועל: {o.actualMinutes} דק׳{sign}</p>;
                                 })()}
-                                {/* No time to reset the station: this appointment starts less than
-                                    TIGHT_GAP_MINUTES after the previous one ends. */}
                                 {!isPersonal(appt)&&tightGapIds.has(appt.id)&&(
- <p style={{fontSize:"var(--t-xs)",fontWeight:700,color:"#5A3A10",background:"rgba(255,255,255,0.55)",borderRadius:"var(--r-xs)",padding:"2px 6px",display:"inline-block",marginTop:4}}>⏱ אין רווח מהתור הקודם</p>
+ <p style={{fontSize:"var(--t-xs)",fontWeight:700,color:"#5A3A10",background:"#FBF0DC",borderRadius:"var(--r-xs)",padding:"2px 6px",display:"inline-block",marginTop:4}}>⏱ אין רווח מהתור הקודם</p>
                                 )}
- <div style={{display:"flex",gap:8,marginTop:10}}>
-                                  {!isPersonal(appt)&&appt.client_id&&<button aria-label="כרטיס לקוחה" onClick={e=>{e.stopPropagation();setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");}} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M12 20.3s-7.4-4.6-7.4-9.6a4.3 4.3 0 0 1 7.4-3 4.3 4.3 0 0 1 7.4 3c0 5-7.4 9.6-7.4 9.6z"/></svg></button>}
-                                  {!isPersonal(appt)&&hasPhone&&<button aria-label="שליחת תזכורת" onClick={e=>{e.stopPropagation();sendReminderToClient(appt);}} disabled={isBusy("sendReminder")} style={agBtn}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg></button>}
-                                  {!isPersonal(appt)&&<button aria-label="תשלום" onClick={e=>{e.stopPropagation();handleOpenCashier(appt);}} style={agBtn}>₪</button>}
-                                  {/* Real start/finish: only a real, non-cancelled visit, only on or
-                                      before today - logging a future appointment's actual time makes
-                                      no sense. One slot, two states: not started yet offers "started",
-                                      started-but-not-finished offers "finished". */}
-                                  {!isPersonal(appt)&&appt.confirmation_status!=="cancelled"&&appt.confirmation_status!==NO_SHOW&&appt.date<=today&&!appt.actual_end_at&&(
- <button aria-label={appt.actual_start_at?"סיימתי":"התחלתי"} title={appt.actual_start_at?"סיימתי":"התחלתי"} onClick={e=>{e.stopPropagation();appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt);}} style={{...agBtn,fontSize:"var(--t-xs)",fontWeight:700,width:"auto",padding:"0 10px"}}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
-                                  )}
-                                  {/* No-show: only a client visit, only on or after its day. */}
-                                  {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button aria-label="לא הגיעה" title="לא הגיעה" onClick={e=>{e.stopPropagation();markNoShow(appt);}} style={{...agBtn,fontSize:"var(--t-xs)",fontWeight:700,width:"auto",padding:"0 10px"}}>לא הגיעה</button>}
- <button aria-label={isPersonal(appt)?"מחיקת האירוע":"מחיקה"} onClick={e=>{e.stopPropagation();if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}}} style={{...agBtn,marginRight:"auto",background:"rgba(0,0,0,0.24)",color:"var(--surface)"}}>✕</button>
+                                {(()=>{
+                                  const live=!isPersonal(appt)&&appt.confirmation_status!=="cancelled"&&appt.confirmation_status!==NO_SHOW;
+                                  const canTime=live&&appt.date<=today&&!appt.actual_end_at;
+                                  const open=apptMenuId===appt.id;
+                                  const ghost={...agBtn,background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:600,width:"auto",padding:"0 12px",gap:6};
+                                  const main={...ghost,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))",fontWeight:700};
+                                  const stop=fn=>e=>{e.stopPropagation();setApptMenuId(null);fn();};
+                                  return (<>
+ <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
+                                    {canTime?(
+ <button onClick={stop(()=>appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt))} style={main}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+                                    ):live?(
+ <button onClick={stop(()=>handleOpenCashier(appt))} style={main}>₪ לתשלום</button>
+                                    ):null}
+ <button aria-expanded={open} aria-label="עוד פעולות" onClick={e=>{e.stopPropagation();setApptMenuId(open?null:appt.id);}} style={ghost}>{open?"סגירה":"עוד ⋯"}</button>
  </div>
+                                  {open&&(
+ <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                                    {!isPersonal(appt)&&appt.client_id&&<button onClick={stop(()=>{setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");})} style={ghost}>כרטיס לקוחה</button>}
+                                    {!isPersonal(appt)&&hasPhone&&<button onClick={stop(()=>sendReminderToClient(appt))} disabled={isBusy("sendReminder")} style={ghost}>תזכורת</button>}
+                                    {canTime&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
+                                    {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button onClick={stop(()=>markNoShow(appt))} style={ghost}>לא הגיעה</button>}
+ <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"מחיקה"}</button>
+ </div>
+                                  )}
+                                  </>);
+                                })()}
  </div>
                             ):(
  <button onClick={()=>handleSlotAtMinute(calDay,row.min)} style={{flex:1,background:"var(--surface)",border:"1px dashed var(--line-2)",borderRadius:"var(--r-md)",padding:14,fontSize:"var(--t-md)",color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>+ פנוי</button>
@@ -9712,11 +9744,8 @@ ${MARKETING_FOOTER}`)}`;
  </>)}
 
  {marketingView==="posts"&&(<>
- <div style={{textAlign:"center",marginBottom:18}}>
- <BrandImage width={52} height={52} aria-hidden alt="" src={ICON_FRAME} style={{width:52,height:52,objectFit:"contain",marginBottom:4}}/>
- <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:6}}>פוסטים ותבניות</h2>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע</p>
- </div>
+ {/* The tab already says "תוכן" and the switch says "פוסטים ותבניות": one line of explanation is enough here. */}
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14}}>תבניות מוכנות בצבעים שלך, העיצובים שלך ופוסטים לשבוע</p>
 
  {aiPostsView==="reels"&&(
  <div style={{display:"flex",justifyContent:"center",marginBottom:18}}>
