@@ -12,6 +12,7 @@
 // "record payment" button for the same visit.
 
 import { useEffect, useRef, useState } from 'react';
+import { METHOD_LABEL_HE, methodProblem } from '@/lib/grow/methods';
 
 // The client's number as a wa.me link (Israeli 05x becomes 9725x), with the payment link already typed in. She presses send herself.
 const waHref = (phone, name, amount, url) => {
@@ -31,12 +32,15 @@ export default function GrowChargePanel({ amount, description, client, appointme
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState(null); // { url, paymentId }
   const [state, setState] = useState('idle'); // idle | waiting | paid
+  // How the client pays: one chip per method this deployment has a Grow page code for (lib/grow/methods.ts). One method, no chips.
+  const [methods, setMethods] = useState(['card']);
+  const [method, setMethod] = useState('card');
   const timer = useRef(null);
 
   useEffect(() => {
     let alive = true;
     fetch('/api/grow/status').then((r) => r.json()).then((j) => {
-      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) { setReady(true); setMock(j.mode === 'mock'); }
+      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) { setReady(true); setMock(j.mode === 'mock'); if (Array.isArray(j.methods) && j.methods.length) setMethods(j.methods); }
     }).catch(() => {});
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, []);
@@ -69,7 +73,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
       const r = await fetch('/api/grow/charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, description, clientName: client?.name || '', phone: client?.phone || '', clientId: client?.id ?? null, appointmentId: appointmentId ?? null }),
+        body: JSON.stringify({ amount, description, clientName: client?.name || '', phone: client?.phone || '', clientId: client?.id ?? null, appointmentId: appointmentId ?? null, method }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח דף תשלום', 'error'); return; }
@@ -88,9 +92,22 @@ export default function GrowChargePanel({ amount, description, client, appointme
   return (
     <div data-testid="grow-charge" style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
       {mock && <p style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
+      {state === 'idle' && methods.length > 1 && (
+        <div role="radiogroup" aria-label="איך הלקוחה משלמת" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {methods.map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={method === m} onClick={() => setMethod(m)}
+              style={{ padding: '7px 12px', minHeight: 40, borderRadius: 'var(--r-full)', border: `1px solid ${method === m ? pc : 'var(--line-2)'}`, background: method === m ? 'var(--surface)' : 'transparent', color: 'var(--ink)', fontWeight: method === m ? 700 : 500, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {METHOD_LABEL_HE[m] || m}
+            </button>
+          ))}
+        </div>
+      )}
+      {state === 'idle' && methodProblem(method, Number(amount) || 0) && (
+        <p style={{ fontSize: 'var(--t-xs)', color: 'var(--danger)', marginBottom: 6 }}>{methodProblem(method, Number(amount) || 0)}</p>
+      )}
       {state === 'idle' && (
         <button type="button" onClick={charge} disabled={busy || !(amount > 0)} className="primary-btn" style={{ width: '100%', padding: '10px 0', background: 'var(--surface)', color: pc, border: `1px solid ${pc}`, fontSize: 'var(--t-sm)', fontWeight: 700 }}>
-          {busy ? 'פותחת דף תשלום…' : `חיוב בכרטיס אשראי ${money(amount)}`}
+          {busy ? 'פותחת דף תשלום…' : method === 'card' ? `חיוב בכרטיס אשראי ${money(amount)}` : method === 'bit' ? `דף תשלום בביט ${money(amount)}` : `דף תשלום ב-${METHOD_LABEL_HE[method]} ${money(amount)}`}
         </button>
       )}
       {state === 'waiting' && link && (

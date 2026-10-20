@@ -122,3 +122,28 @@ Source: developers.grow.business, "Work with Token". The calls below were run ag
 a token charge succeeds once, the same identifier again answers 1010, the lookup by that one identifier finds the paid transaction, and an identifier never used is "not found".
 
 **Not wired:** the deposit payment page (a regular payment page, `createCharge`) does not save a card yet; charge-and-save exists in `ops.createTokenSession` and is tested, but deposit mode still takes the deposit and nothing else.
+
+## The rest of clearing (feat/grow-cashier, mock mode)
+
+Built in mock mode, ready to switch to the real API. Source for every call: developers.grow.business (grow-il.readme.io redirects there), read 2026-10-20.
+
+**1. Cashier charge, any method Grow allows.** Grow chooses the payment method by the **page code**, not by a field. Each method is one optional variable:
+
+| Variable | Method |
+|---|---|
+| `GROW_PAGE_CODE` | credit card, or Grow's generic "card or Bit" page (required) |
+| `GROW_PAGE_CODE_BIT` | Bit (up to ₪5,000, one payment: refused before asking) |
+| `GROW_PAGE_CODE_APPLE_PAY` | Apple Pay |
+| `GROW_PAGE_CODE_GOOGLE_PAY` | Google Pay (Chrome on Android only) |
+
+Only methods with a page code appear in the cashier (chips above the charge button). `approveTransaction` is sent with the page code of the method the client actually paid with (`transactionTypeId` 1 card, 6 Bit, 13 Apple Pay, 14 Google Pay). **Bit, Apple Pay and Google Pay have no sandbox at Grow: they are real money.** The receipt is Grow's (`invoiceNotifyUrl`), shown in the cashier history, the client card and the Grow card, as before. The production API base now defaults to Grow's documented `https://secure.meshulam.co.il/api/light/server/1.0` (`GROW_API_BASE` still overrides it).
+
+**2. Payment requests** (cashier screen, "בקשת תשלום בקישור"): a Grow link for a **deposit** or the **full amount** for one of her clients (name and phone read from her client list on the server). She sends it from her own WhatsApp (wa.me with a ready message); the list turns "שולמה" when Grow's callback arrives. A paid deposit request is a receipt (income now) plus the same amount as client credit, which the cashier deducts at the visit, so nothing is counted twice. Route: `app/api/grow/payment-request`; rules: `lib/grow/paymentRequest.ts`. Grow's payment link is valid for 10 minutes after it is created (Grow's docs); a late client gets a new link.
+
+**3. Opening a Grow account from Kalmea** (Grow card > "אין לי עדיין Grow" > "פתיחת חשבון ב-Grow"): the server asks Grow for a registration link with a tracking code only we know, stores `{ tracking_code, encrypted_lead, link_url, status: 'waiting' }`, and opens Grow's form. When Grow posts the result to `/api/grow/webhook`, it is matched ONLY by that tracking code: **approved** stores her `userId` and switches clearing **on for her business only**; **rejected** shows Grow's reason on her card; anything else stays "waiting". **Grow's registration API ("GetLink") is not in the public docs**, so live mode stays off until you set `GROW_REGISTRATION_PATH` (the endpoint path Grow gives you) and replace the field names marked `TODO(grow-docs)` in `lib/grow/registration.ts`. Mock mode works end to end through `/api/grow/mock-register` (approve / reject buttons). Without it, the card keeps the old "leave your details" form.
+
+**Migration (run by hand, after the earlier Grow ones):** `supabase/migrations/add_grow_cashier.sql` (registration status columns; the two onboarding tables into the trial gate; still server-only). Desktop copy: `kalmea-sql-grow-cashier.txt`.
+
+**To switch from mock to real:** `GROW_MODE=live`, `GROW_API_KEY`, `GROW_PAGE_CODE` (the regular-payment page code Grow sends), optionally the three method page codes, `GROW_ENV=production`, and `GROW_UI_ENABLED=true`. For registration also `GROW_REGISTRATION_PATH` and the field names from Grow.
+
+**Tests:** `test-grow-cashier.ts` (methods, page codes, approve page code, Bit limit, requests, credit, registration mock/live/status, route guards, migration), `test-grow-webhook.ts` (approved / rejected / waiting registration updates).
