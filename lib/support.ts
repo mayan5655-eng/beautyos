@@ -14,13 +14,13 @@
 // as the operator's own alert destination in server code (outbound alerts), a
 // different thing from the number customers write to.
 
-// 2026-10-20: moved off 050-7321978, which is being registered on Meta's WhatsApp Cloud API as the sending number. A
-// number on the Cloud API no longer opens in the WhatsApp app, so support chats sent there would reach nobody. This line
-// is temporary until a dedicated support SIM replaces it.
+// 050-7321978 stays the support line (it lives in the WhatsApp app). The WhatsApp Cloud API sending number is a
+// separate SIM that never had WhatsApp on it (docs/GO_LIVE_WHATSAPP.md): a number on the Cloud API no longer opens in
+// the app, so it must never be this one.
 /** Kalmea support, WhatsApp only (no calls), E.164 digits without '+'. */
-export const KALMEA_SUPPORT_WHATSAPP = '972542845655'
+export const KALMEA_SUPPORT_WHATSAPP = '972507321978'
 /** The same number as written locally, for showing next to a link. */
-export const KALMEA_SUPPORT_WHATSAPP_DISPLAY = '054-2845655'
+export const KALMEA_SUPPORT_WHATSAPP_DISPLAY = '050-7321978'
 
 const RAW_NUMBER = KALMEA_SUPPORT_WHATSAPP
 

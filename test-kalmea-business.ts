@@ -35,9 +35,9 @@ console.log('test-kalmea-business: ok');
 
 // Kalmea support: ONE WhatsApp-only constant, offered as wa.me, never as a call.
 const { KALMEA_SUPPORT_WHATSAPP, supportWhatsAppUrl } = await import('./lib/support.ts');
-assert.equal(KALMEA_SUPPORT_WHATSAPP, '972542845655');
-assert.equal(supportWhatsAppUrl('x'), 'https://wa.me/972542845655?text=x');
-assert.ok(supportWhatsAppUrl()!.startsWith('https://wa.me/972542845655?text='), 'the default renewal message goes to the support line');
+assert.equal(KALMEA_SUPPORT_WHATSAPP, '972507321978');
+assert.equal(supportWhatsAppUrl('x'), 'https://wa.me/972507321978?text=x');
+assert.ok(supportWhatsAppUrl()!.startsWith('https://wa.me/972507321978?text='), 'the default renewal message goes to the support line');
 for (const f of ['app/LandingPage.jsx', 'app/TrialBanner.jsx', 'app/ReadOnlyNotice.jsx', 'app/TrialNudge.jsx', 'app/terms/page.tsx', 'app/privacy/page.tsx', 'app/accessibility/page.tsx', 'app/BillingNotices.jsx', 'app/BillingCard.jsx']) {
   const src = read(`./${f}`);
   assert.ok(!/tel:/.test(src.replace(/^\s*(\/\/|\/\*).*$/gm, '')), `${f}: no tel: link for Kalmea`);
