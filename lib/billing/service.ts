@@ -21,6 +21,7 @@
 import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
 import { subscriptionDoc } from '../kalmeaBusiness.ts';
+import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
 
 export const REGULAR_PRICE = 499;
 export const RETRY_OFFSETS_DAYS = [1, 3, 5] as const;
@@ -56,7 +57,10 @@ export type PaymentRecord = {
   tenant_id: string;
   subscription_id: string | null;
   kind: 'subscription' | 'manual';
-  status: 'succeeded' | 'failed';
+  /** pending: saved before the provider was called. unknown: the provider's answer never settled (looked up again before any new charge). */
+  status: 'succeeded' | 'failed' | 'pending' | 'unknown';
+  /** Grow's transactionUniqueIdentifier for this charge (null on manual payments and on rows from before it existed). */
+  unique_identifier?: number | null;
   amount: number;
   currency: string;
   period_start: string | null;
@@ -80,6 +84,9 @@ export type BillingRepo = {
   /** Take the right to try this subscription now: true for exactly one of two concurrent runs. */
   claimAttempt(id: string, previous: string | null, now: string): Promise<boolean>;
   hasSucceeded(subId: string, periodStart: string): Promise<boolean>;
+  /** The newest pending / unknown subscription charge of this period, if any. Optional: an older repo has none. */
+  /** periodStart null: an open attempt of ANY period. */
+  findOpenAttempt?(subId: string, periodStart: string | null): Promise<PaymentRecord | null>;
   insertPayment(row: Omit<PaymentRecord, 'id' | 'created_at'>): Promise<PaymentRecord>;
   updatePayment(id: string, patch: Partial<PaymentRecord>): Promise<void>;
   pendingInvoices(): Promise<PaymentRecord[]>;
@@ -87,7 +94,7 @@ export type BillingRepo = {
   setPlanStatus(tenantId: string, status: 'active' | 'expired'): Promise<void>;
 };
 
-export type Deps = { repo: BillingRepo; payments: PaymentsAdapter; invoicing: InvoicingAdapter; now?: () => Date };
+export type Deps = { repo: BillingRepo; payments: PaymentsAdapter; invoicing: InvoicingAdapter; now?: () => Date; /** Draws a charge identifier (tests pin it). */ newIdentifier?: () => number };
 
 const clock = (d: Deps) => (d.now || (() => new Date()))();
 const iso = (d: Date) => d.toISOString();
@@ -141,28 +148,84 @@ export type Outcome = 'charged' | 'failed' | 'skipped' | 'no-card';
 async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, periodStart: Date, now: Date): Promise<Outcome> {
   const periodKey = iso(periodStart).slice(0, 10);
   if (await d.repo.hasSucceeded(sub.id, periodKey)) return 'skipped';
+  // A charge for this period whose answer we never got (Grow did not reply, or answered "identifier already used"): ask Grow about THAT
+  // identifier before anything else. Paid -> it counts; failed or never seen -> the next attempt may run; still unknown -> nothing is charged
+  // again until it is settled, because a second identifier would be a second real charge.
+  const open = d.repo.findOpenAttempt ? ((await d.repo.findOpenAttempt(sub.id, periodKey)) || (await d.repo.findOpenAttempt(sub.id, null))) : null;
+  if (open) {
+    const settled = await settleOpen(d, sub, tenant, open, periodStart, now);
+    if (settled !== 'cleared') return settled;
+  }
   if (!(await d.repo.claimAttempt(sub.id, sub.last_attempt_at, iso(now)))) return 'skipped';
-
   const periodEnd = addMonths(periodStart, 1);
   const attemptNo = sub.failed_attempts + 1;
   const base = { tenant_id: sub.tenant_id, subscription_id: sub.id, kind: 'subscription' as const, amount: sub.price, currency: CURRENCY, period_start: periodKey, period_end: iso(periodEnd).slice(0, 10), attempt: attemptNo, provider: 'card', note: null };
 
-  const res = sub.token_ref
-    ? await d.payments.charge({ tokenRef: sub.token_ref, amount: sub.price, currency: CURRENCY, description: 'מנוי קלמיה', idempotencyKey: `${sub.id}:${periodKey}` }).catch((e) => ({ ok: false as const, code: 'unreachable' as const, error: String(e?.message || e) }))
-    : { ok: false as const, code: 'not-configured' as const, error: 'no card on file' };
-
-  if (res.ok) {
-    const pay = await d.repo.insertPayment({ ...base, status: 'succeeded', provider_payment_id: res.providerPaymentId, error: null, invoice_status: 'pending', invoice_number: null, invoice_url: null });
-    await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(periodEnd), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
-    await makeActive(d, sub.tenant_id);
-    await issueInvoice(d, pay, tenant);
-    return 'charged';
+  if (!sub.token_ref) {
+    await d.repo.insertPayment({ ...base, status: 'failed', provider_payment_id: null, error: 'no card on file', invoice_status: 'none', invoice_number: null, invoice_url: null });
+    await d.repo.updateSub(sub.id, { status: 'past_due', failed_attempts: attemptNo, past_due_since: sub.past_due_since || iso(now), last_attempt_at: iso(now) });
+    return 'no-card';
   }
 
-  await d.repo.insertPayment({ ...base, status: 'failed', provider_payment_id: null, error: String(res.error).slice(0, 200), invoice_status: 'none', invoice_number: null, invoice_url: null });
+  // The ledger row FIRST, with the identifier this charge will carry. A collision on the unique index draws another BEFORE Grow is called.
+  let pay: PaymentRecord | null = null;
+  let uid = 0;
+  for (let tries = 0; tries < 5 && !pay; tries++) {
+    uid = (d.newIdentifier || newUniqueIdentifier)();
+    try {
+      pay = await d.repo.insertPayment({ ...base, status: 'pending', provider_payment_id: null, error: null, invoice_status: 'none', invoice_number: null, invoice_url: null, unique_identifier: uid });
+    } catch (e) {
+      if (!/unique|duplicate|23505/i.test(String((e as Error)?.message))) throw e;
+    }
+  }
+  if (!pay) throw new Error('could not draw a free charge identifier');
+
+  const res = await d.payments.charge({
+    tokenRef: sub.token_ref, amount: sub.price, currency: CURRENCY, description: 'מנוי קלמיה', idempotencyKey: `${sub.id}:${periodKey}`,
+    uniqueIdentifier: uid, groupIdentifier: groupIdentifierOf(sub.id), fullName: tenant?.name || undefined,
+  }).catch((e) => ({ ok: false as const, code: 'unreachable' as const, error: String(e?.message || e) }));
+
+  if (res.ok) return succeed(d, sub, tenant, pay, res.providerPaymentId, periodEnd, now, res.invoiceNumber, res.invoiceUrl);
+
+  if (res.code === 'duplicate' || (res.code === 'unreachable' && d.payments.lookup)) {
+    // Grow saw this identifier already, or we lost its reply: the money may have moved. Look it up; never charge a new identifier blindly.
+    const r = d.payments.lookup ? await d.payments.lookup(sub.token_ref, uid).catch(() => null) : null;
+    if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, pay, r.providerPaymentId || `uid:${uid}`, periodEnd, now);
+    if (!(r && r.ok && (r.status === 'failed' || !r.found))) {
+      await d.repo.updatePayment(pay.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
+      await d.repo.updateSub(sub.id, { last_attempt_at: iso(now) });
+      console.warn('[billing] charge outcome unknown for tenant', sub.tenant_id, 'identifier', uid);
+      return 'skipped';
+    }
+  }
+
+  await d.repo.updatePayment(pay.id, { status: 'failed', error: String(res.error).slice(0, 200) });
   await d.repo.updateSub(sub.id, { status: 'past_due', failed_attempts: attemptNo, past_due_since: sub.past_due_since || iso(now), last_attempt_at: iso(now) });
   console.warn('[billing] charge failed for tenant', sub.tenant_id, 'attempt', attemptNo, res.code);
-  return sub.token_ref ? 'failed' : 'no-card';
+  return 'failed';
+}
+
+async function succeed(d: Deps, sub: Subscription, tenant: TenantRow | null, pay: PaymentRecord, providerPaymentId: string, periodEnd: Date, now: Date, invoiceNumber?: string, invoiceUrl?: string): Promise<Outcome> {
+  // The provider issued its own document with the charge (Grow): keep it, and skip our invoicing call.
+  const hasDoc = !!invoiceUrl && /^https:\/\//i.test(invoiceUrl);
+  await d.repo.updatePayment(pay.id, { status: 'succeeded', provider_payment_id: providerPaymentId, error: null, ...(hasDoc ? { invoice_status: 'issued', invoice_number: invoiceNumber || null, invoice_url: invoiceUrl } : { invoice_status: 'pending' }) });
+  await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(periodEnd), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
+  await makeActive(d, sub.tenant_id);
+  if (!hasDoc) await issueInvoice(d, { ...pay, status: 'succeeded', provider_payment_id: providerPaymentId }, tenant);
+  return 'charged';
+}
+
+/** An earlier attempt for this period with no settled answer. 'cleared' lets a new attempt run. */
+async function settleOpen(d: Deps, sub: Subscription, tenant: TenantRow | null, open: PaymentRecord, periodStart: Date, now: Date): Promise<Outcome | 'cleared'> {
+  const uid = Number(open.unique_identifier);
+  if (!sub.token_ref || !d.payments.lookup || !Number.isFinite(uid)) return 'skipped';
+  const r = await d.payments.lookup(sub.token_ref, uid).catch(() => null);
+  if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, open, r.providerPaymentId || `uid:${uid}`, addMonths(periodStart, 1), now);
+  if (r && r.ok && (r.status === 'failed' || !r.found)) {
+    await d.repo.updatePayment(open.id, { status: 'failed', error: 'settled: the provider has no successful charge' });
+    return 'cleared';
+  }
+  return 'skipped';
 }
 
 async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | null) {

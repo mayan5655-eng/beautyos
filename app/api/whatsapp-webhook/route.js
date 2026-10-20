@@ -164,6 +164,29 @@ async function generateReply({ message, clientName, tenantId }) {
     .trim();
 }
 
+// Records "הסר" for one business: her client cards and leads with this phone stop getting marketing. With ack, a short "removed"
+// message goes back once (not again if she was already removed).
+async function recordOptOut(tenantId, senderChatId, senderName, ack) {
+  try {
+    const variants = phoneVariants(senderToPhone(senderChatId));
+    if (!variants.length) return;
+    // Only this sender's cards, by phone (not every card in the business), in any shape the phone was stored.
+    const { data: cards } = await supabase.from("clients").select("id, marketing_opted_out_at").eq("tenant_id", tenantId).in("phone", variants);
+    const fresh = (cards || []).filter(c => !c.marketing_opted_out_at);
+    if (fresh.length) {
+      const { error: optErr } = await supabase.from("clients").update(optOutFields()).in("id", fresh.map(c => c.id)).eq("tenant_id", tenantId);
+      if (optErr) console.error("[whatsapp-webhook] opt-out not recorded:", optErr.message);
+    }
+    // A person who is only a LEAD (a Facebook form, the skin scan) can ask to stop too. The column arrives with
+    // add_audit_hardening_2026-10-18.sql; until then this is skipped.
+    const { error: leadErr } = await supabase.from("leads").update(optOutFields()).eq("tenant_id", tenantId).in("phone", variants);
+    if (leadErr && !/marketing_opted_out_at|schema cache|does not exist/i.test(leadErr.message || "")) console.error("[whatsapp-webhook] lead opt-out not recorded:", leadErr.message);
+    if (ack && ((cards || []).length === 0 || fresh.length > 0)) {
+      await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId });
+    }
+  } catch (e) { console.error("[whatsapp-webhook] opt-out failed:", e?.message); }
+}
+
 export async function POST(request) {
   // The gate, before anything is parsed. A 401 rather than a silent 200:
   // GreenAPI retries a non-200 for a while and then stops, and the retries are
@@ -223,6 +246,31 @@ export async function POST(request) {
       } catch (_) { /* no tenant -> skip below */ }
     }
 
+    // The CENTRAL number (lib/whatsapp.js sends every business's messages from it) belongs to no single settings row, so a reply
+    // to it resolved to nobody and was dropped - "הסר" included, so opt-outs were never recorded (2026-10-20 audit). For the
+    // central instance the business is the one that actually wrote to this phone recently, from our own outbound log:
+    //   exactly one business -> it gets the reply (bot and opt-out), as before;
+    //   several businesses   -> an opt-out is honoured for EACH of them (it is her wish, and it only ever removes messages);
+    //                           anything else is not answered, because we cannot tell whose conversation it is.
+    let centralTenants = [];
+    const centralId = String(process.env.GREENAPI_ID_INSTANCE || "").trim();
+    if (!tenantId && idInstance && centralId && String(idInstance) === centralId) {
+      try {
+        const variants = phoneVariants(senderToPhone(senderChatId));
+        if (variants.length) {
+          const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+          const { data: sent } = await supabase.from("whatsapp_messages").select("tenant_id").in("recipient_phone", variants).gte("created_at", since).not("tenant_id", "is", null).limit(200);
+          centralTenants = [...new Set((sent || []).map((r) => String(r.tenant_id)))];
+          if (centralTenants.length === 1) tenantId = centralTenants[0];
+        }
+      } catch (e) { console.error("[whatsapp-webhook] central routing failed:", e?.message); }
+    }
+    if (!tenantId && centralTenants.length > 1 && isOptOutReply(text)) {
+      for (const t of centralTenants) await recordOptOut(t, senderChatId, senderName, false);
+      await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId: centralTenants[0] });
+      return Response.json({ ok: true, optOut: true, tenants: centralTenants.length });
+    }
+
     // Unknown instance / no matching tenant: acknowledge the webhook (so it is
     // not retried) but do NOT reply under anyone else's account.
     if (!tenantId) {
@@ -236,26 +284,7 @@ export async function POST(request) {
       // The same cap as the bot below: a loop of "הסר" must not become a loop of lookups and acknowledgements.
       const optBurst = hit(`wa-optout:${tenantId}:${senderToPhone(senderChatId) || senderChatId}`, { limit: 5, windowMs: 10 * 60_000 });
       if (!optBurst.ok) return Response.json({ ok: true, optOut: "rate-limited" });
-      try {
-        const variants = phoneVariants(senderToPhone(senderChatId));
-        if (variants.length) {
-          // Only this sender's cards, by phone (not every card in the business), in any shape the phone was stored.
-          const { data: cards } = await supabase.from("clients").select("id, marketing_opted_out_at").eq("tenant_id", tenantId).in("phone", variants);
-          const fresh = (cards || []).filter(c => !c.marketing_opted_out_at);
-          if (fresh.length) {
-            const { error: optErr } = await supabase.from("clients").update(optOutFields()).in("id", fresh.map(c => c.id)).eq("tenant_id", tenantId);
-            if (optErr) console.error("[whatsapp-webhook] opt-out not recorded:", optErr.message);
-          }
-          // A person who is only a LEAD (a Facebook form, the skin scan) can ask to stop too. The column arrives with
-          // add_audit_hardening_2026-10-18.sql; until then this is skipped.
-          const { error: leadErr } = await supabase.from("leads").update(optOutFields()).eq("tenant_id", tenantId).in("phone", variants);
-          if (leadErr && !/marketing_opted_out_at|schema cache|does not exist/i.test(leadErr.message || "")) console.error("[whatsapp-webhook] lead opt-out not recorded:", leadErr.message);
-          // Acknowledge once: not again if she was already removed (a second "הסר" would otherwise get a second message).
-          if ((cards || []).length === 0 || fresh.length > 0) {
-            await sendWhatsApp(senderToPhone(senderChatId), "הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק. תזכורות לתורים ימשיכו להגיע.", { name: senderName || "לקוחה", type: "marketing_optout_ack", tenantId });
-          }
-        }
-      } catch (e) { console.error("[whatsapp-webhook] opt-out failed:", e?.message); }
+      await recordOptOut(tenantId, senderChatId, senderName, true);
       return Response.json({ ok: true, optOut: true });
     }
 

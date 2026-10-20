@@ -69,8 +69,10 @@ export async function POST(request) {
     }
 
     // The client card, when this phone is already hers. Gap-fill reaches a waitlist entry by its phone either way.
-    const { data: clientRows } = await admin.from("clients").select("id, phone").eq("tenant_id", tenantId);
-    const client = (clientRows || []).find((c) => digits(c.phone) === mine) || null;
+    // By her phone, in the forms it may be stored in, instead of scanning (only) the first 1,000 clients.
+    const variants = [...new Set([mine, phoneCheck.e164, `972${mine.slice(1)}`, `+972${mine.slice(1)}`])];
+    const { data: clientRows } = await admin.from("clients").select("id, phone").eq("tenant_id", tenantId).in("phone", variants).limit(1);
+    const client = (clientRows || [])[0] || null;
 
     const notes = ["נרשמה דרך דף ההזמנה", note].filter(Boolean).join(" · ");
     const { error } = await admin.from("waitlist").insert({
@@ -83,6 +85,8 @@ export async function POST(request) {
       notes,
       status: "waiting",
     });
+    // 23505: a double tap raced the duplicate check above; the unique index (add_audit_fixes_2026-10-20.sql) kept one row.
+    if (error && error.code === "23505") return Response.json({ success: true, already: true });
     if (error) { console.error("[waitlist/join] insert failed:", error.code || "", error.message); return Response.json({ success: false, error: STUCK }, { status: 500 }); }
 
     const when = preferredDate ? ` (מעדיפה ${preferredDate.split("-").reverse().join("/")})` : "";

@@ -54,6 +54,8 @@ export type ProcessInput = {
   paymentRef: string;
   /** Our tenant id (tenantRefOf), echoed back in customFields.cField2: the notification says whose payment it is. */
   tenantRef?: string;
+  /** Charge now AND keep the card as a token (saveCardToken=1): the deposit that also saves the card. */
+  saveCardToken?: boolean;
 };
 
 /** A tenant id as it travels in cField2: lower-case letters and digits only (Grow refuses special characters). */
@@ -78,6 +80,7 @@ export function buildProcessFields(i: ProcessInput): [string, string][] {
   if (i.tenantRef) f.push(['cField2', tenantRefOf(i.tenantRef)]);
   if (i.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email)) f.push(['pageField[email]', i.email]);
   if (i.invoiceNotifyUrl) f.push(['invoiceNotifyUrl', i.invoiceNotifyUrl]);
+  if (i.saveCardToken) f.push(['saveCardToken', '1']);
   return f;
 }
 
@@ -187,7 +190,8 @@ export function findInvoiceUrl(raw: unknown): string | null {
  * across the usual spellings; when Grow gives the real payload, pin the exact key here.
  */
 export function findInvoiceNumber(raw: unknown): string {
-  const KEYS = /^(documentnumber|docnumber|invoicenumber|receiptnumber|document_number|invoice_number|number)$/i;
+  // No bare "number": any field of that name in the callback would have been stored as the legal document number (2026-10-20 audit).
+  const KEYS = /^(documentnumber|docnumber|invoicenumber|receiptnumber|document_number|invoice_number)$/i;
   const seen = new Set<unknown>();
   const walk = (v: unknown, depth: number): string => {
     if (depth > 4 || !v || typeof v !== 'object' || seen.has(v)) return '';

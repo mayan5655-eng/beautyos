@@ -7,6 +7,7 @@
 // GET  /api/claim?token=...  -> details + this recipient's current outcome
 // POST /api/claim { token }  -> race-safe claim ("first valid click wins")
 
+import { minutesUntilIsrael } from "@/lib/ownerQuestions";
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
@@ -86,6 +87,19 @@ export async function POST(request: NextRequest) {
 
   const supabase = admin();
   const nowIso = new Date().toISOString();
+
+  // A link lives 4 hours but a slot does not wait: once its start has passed it cannot be claimed (2026-10-20 audit: a 14:00 slot
+  // offered at 11:30 was still bookable at 14:40).
+  {
+    const pre = await loadOffer(supabase, token);
+    if (pre && pre.offer.status === "sent") {
+      const sm = startMinute({ start_minute: pre.offer.slot_start_minute, hour: pre.offer.slot_hour });
+      if (sm !== null && minutesUntilIsrael(String(pre.offer.slot_date), Number(sm)) <= 0) {
+        await supabase.from("slot_offers").update({ status: "expired" }).eq("token", token).eq("status", "sent");
+        return NextResponse.json({ state: "expired" });
+      }
+    }
+  }
 
   // Race-safe claim: only a still-'sent', not-yet-expired row flips to 'claimed'.
   // If two recipients of the SAME slot click together, both pass this WHERE (they

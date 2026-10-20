@@ -33,6 +33,7 @@ import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPoli
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
+import { rememberSource, recalledSource } from "@/lib/bookingSource";
 import { buildIcs, googleCalendarUrl } from "@/lib/calendarInvite";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
@@ -41,6 +42,7 @@ import PublicFooterLinks from "./PublicFooterLinks";
 import WaitlistJoin from "./WaitlistJoin";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
+import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -330,9 +332,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Her cancellation policy on top of Grow (/api/grow/policy/public): null unless she turned it on, and then the booking works as it always did.
   const [growPolicy, setGrowPolicy] = useState(null);
   const [policyOk, setPolicyOk] = useState(false);
+  const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
+  // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
+  const needsCardTick = needsPolicy && (growPolicy.mode === "saved_card" || growPolicy.mode === "deposit");
+  // Where this visit came from (?src= / ?ref=, lib/bookingSource.ts): remembered for the visit and sent with the booking.
+  useEffect(() => {
+    if (tenantId && typeof window !== "undefined") rememberSource(tenantId, window.location.search);
+  }, [tenantId]);
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;
@@ -570,6 +579,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
     if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
     if (needsPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
+    if (needsCardTick && !cardOk) { setErrorMsg("כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי"); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -591,9 +601,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           price: selectedService.price || 0,
           color: selectedService.color || pc,
           tenantId: tenantId,
+          ...(() => { const r = recalledSource(tenantId, typeof window !== "undefined" ? window.location.search : ""); return { src: r.src || undefined, ref: r.ref || undefined }; })(),
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
           acceptedPolicy: needsPolicy ? policyOk === true : undefined,
+          acceptedCardSave: needsCardTick ? cardOk === true : undefined,
         }),
       });
       const result = await res.json();
@@ -1246,7 +1258,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={"יום " + DAYS_HE[d.getDay()] + " " + d.getDate() + " " + MONTHS_HE[d.getMonth()]}
                         onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(d); setSelectedStart(null); } }}
-                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--brand-surface, #FDFBF9)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--pc-contrast, #FFFFFF)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
                         <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
@@ -1285,7 +1297,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--brand-surface, #FDFBF9)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--pc-contrast, #FFFFFF)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
                           </button>
                         );
@@ -1370,6 +1382,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     </span>
                   </label>
                 )}
+                {needsCardTick && (
+                  <label data-testid="grow-card-consent" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${cardOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={cardOk} onChange={(e) => { setCardOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת פרטי כרטיס האשראי" required style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>{CARD_CONSENT_TEXT_HE}</span>
+                  </label>
+                )}
                 <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
                   <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>
@@ -1379,9 +1397,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
-                  {submitting ?<Spinner inline label="קובע תור"/>: (brand?.ctaLabel || "קביעת תור")}
+                  {submitting ?<Spinner inline label="קובעת את התור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
-                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>התור נקבע. אישור אמור להגיע אלייך בוואטסאפ, ואם לא הגיע אפשר לפנות אלינו</p>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>אחרי הקביעה יגיע אלייך אישור בוואטסאפ. אם לא הגיע, אפשר לפנות אלינו</p>
               </div>
             )}
 

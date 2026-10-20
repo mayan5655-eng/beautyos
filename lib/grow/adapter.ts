@@ -20,6 +20,9 @@ import { tenantRefOf } from './payload.ts';
 import { createMockOps, createLiveOps } from './ops.ts';
 import type { GrowOps } from './ops.ts';
 import { signGrowSession } from './mockSession.ts';
+import { pageCodesFromEnv } from './methods.ts';
+import { tokenCredentials } from './tokenFlow.ts';
+import type { TokenCreds } from './tokenFlow.ts';
 
 export type GrowMode = 'mock' | 'live';
 
@@ -29,9 +32,16 @@ export function growMode(env: GrowEnv = process.env): GrowMode {
   return (env.GROW_MODE || '').trim().toLowerCase() === 'live' ? 'live' : 'mock';
 }
 
-/** The Grow screens and signed-in routes are hidden unless this is switched on. Default: off. */
-export function growUiEnabled(env: GrowEnv = process.env): boolean {
-  return /^(1|true|on|yes)$/i.test((env.GROW_UI_ENABLED || '').trim());
+/**
+ * The Grow screens and signed-in routes are hidden unless this is switched on. Default: off.
+ * GROW_ALLOWED_TENANTS (optional, comma-separated tenant ids) narrows it to those businesses: with it set, every other business sees nothing,
+ * exactly as if the switch were off. Without it, the switch applies to everyone. Callers that know the business pass its id.
+ */
+export function growUiEnabled(env: GrowEnv = process.env, tenantId?: string | null): boolean {
+  if (!/^(1|true|on|yes)$/i.test((env.GROW_UI_ENABLED || '').trim())) return false;
+  const allowed = (env.GROW_ALLOWED_TENANTS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!allowed.length || tenantId === undefined) return true;
+  return !!tenantId && allowed.includes(String(tenantId).toLowerCase());
 }
 
 export type GrowAdapter = {
@@ -43,6 +53,8 @@ export type GrowAdapter = {
   fetchImpl?: typeof fetch;
   /** Card tokens, token charges and refunds (cancellation fees and deposits): the in-memory mock, or the real Grow calls. */
   ops?: GrowOps;
+  /** Live only: the credentials of the saved-card (token) flows; sandbox uses the GROW_TOKEN_*_TEST triple. Null when they are not set. */
+  tokenCreds?: TokenCreds | null;
   /** Why it is not configured, for the operator's logs (never shown to her). */
   reason?: string;
 };
@@ -50,13 +62,21 @@ export type GrowAdapter = {
 export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapter {
   if (growMode(env) === 'live') {
     const s = growPlatformStatus(env);
-    const creds = growCredentials(env);
-    return { mode: 'live', configured: s.configured, env: s.env, creds, ops: creds ? createLiveOps(creds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
+    const tokenCreds = tokenCredentials(env);
+    // Until the platform keys are issued, the saved-card page (credit card only) also serves the booking deposit page: the same apiKey, page code and base.
+    const platform = growCredentials(env);
+    const creds = platform ? { ...platform, pageCodes: pageCodesFromEnv(env) } : (tokenCreds ? { apiKey: tokenCreds.apiKey, pageCode: tokenCreds.pageCode, apiBase: tokenCreds.apiBase } : null);
+    return { mode: 'live', configured: s.configured || !!tokenCreds, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };
   }
-  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
+  // Preview deployments use the PRODUCTION database: a "paid" button there would mark real rows paid. Mock runs on a Vercel
+  // deployment only when it is explicitly allowed for that deployment (GROW_MOCK_ALLOWED=true); locally it is the default.
+  if (env.VERCEL_ENV && !/^(1|true|on|yes)$/i.test((env.GROW_MOCK_ALLOWED || '').trim())) {
+    return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode needs GROW_MOCK_ALLOWED=true on a Vercel deployment' };
+  }
+  return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE, pageCodes: { card: 'mock', bit: 'mock-bit', apple_pay: 'mock-apple', google_pay: 'mock-google' } }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
 }
 
 const newId = (prefix: string) => `${prefix}${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;

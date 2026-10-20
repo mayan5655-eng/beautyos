@@ -84,3 +84,66 @@ client credit), and an editable Hebrew policy text with a default template. It i
 5. Refunds: endpoint, partial refunds, who may call it (platform or merchant), and what the merchant's receipt looks like afterwards.
 6. How long does a token live, what happens when the card expires, and what is the 3-D Secure rule for off-session charges in Israel?
 7. Is the client's consent to future charges something Grow needs (text, timestamp) in the token request?
+
+## Saved cards (Grow tokens): built and tested against Grow's sandbox
+
+Source: developers.grow.business, "Work with Token". The calls below were run against the **sandbox** with the test credentials Grow issued
+(`scripts/smoke/grow-token-sandbox.mjs`); production values still come from Grow.
+
+**Environment variables** (never in the repository; `.env.local` and Vercel only)
+
+| Variable | Meaning |
+|---|---|
+| `GROW_TOKEN_USER_ID_TEST`, `GROW_TOKEN_API_KEY_TEST`, `GROW_TOKEN_PAGE_CODE_TEST` | The sandbox test triple. In the sandbox every cosmetician is charged on this one test business. |
+| `GROW_TOKEN_API_KEY`, `GROW_TOKEN_PAGE_CODE` + `GROW_API_BASE` + `GROW_ENV=production` | Production: the platform key and the credit-card token page code Grow issues, with each cosmetician's own `userId`. |
+| `TOKEN_ENCRYPTION_KEY` | Already exists (Facebook tokens). Saved-card tokens are stored AES-256-GCM encrypted with it. |
+
+**Authentication.** `apiKey` is a **body field** of every call (a header is refused with error 701). It was a header before; fixed in `createCharge` and `approveTransaction` too.
+
+**The three modes** (`lib/grow/tokenFlow.ts`, `lib/grow/ops.ts`)
+
+1. *Save only*: `createPaymentProcess` with `chargeType=3`, `sum=1`, `saveCardToken=1`. The client types the card on Grow's hosted credit-card page; nothing is charged (the sandbox shows a held ₪1 authorisation, status 11).
+2. *Charge and save*: the same call with `chargeType=1`, the real `sum`, `saveCardToken=1`.
+3. *Charge a saved token*: `createTransactionWithToken` with `cardToken`, `sum`, `paymentType=2`, `transactionUniqueIdentifier` (required) and `transactionGroupIdentifier` (lookup only).
+
+**Rules that are enforced in code**
+
+- Credit card only: the token page code is Grow's credit-card page, no Bit / Apple Pay / Google Pay.
+- Consent: a separate required tick on the booking page, `CARD_CONSENT_TEXT_HE` in `lib/grow/tokenFlow.ts`. The server refuses a booking without `acceptedCardSave`. The exact words, the time, the client and the booking are stored in `grow_card_consents`.
+- `transactionUniqueIdentifier`: a whole number between 100,000,000 and 4,294,967,000 (Grow refuses anything above 32 bits, error 1013), drawn on the server, **saved in `grow_token_charges` before the call**, unique across all rows, never reused, not even after a refusal.
+- Error **1010** (identifier already seen) is not retried. The transaction is looked up with `getTokenTransactionsByExternalIdentifiers`, sending only the unique identifier (both together is an error), and the real result is recorded. If the lookup cannot settle it, the row is `unknown` and the fee item stays "charging" so nobody can charge twice by tapping again.
+- A token is bound to `tenant_id` + `client_id`. Before every charge the server checks, from the database, that the token belongs to the same business and the same client as the appointment. A token or client id from the browser is never accepted (`/api/grow/fees/decide` takes only the fee id and the decision).
+- The first transaction of a token sends a server-to-server callback to `https://kalmea.app/api/grow/webhook` and needs `approveTransaction`; it is handled in `onCardTokenNotification` (`lib/grow/cancelFees.ts`). Later token charges send no callback and need no approve: their result is the API response.
+- New tables (`grow_card_consents`, `grow_token_charges`) are in the trial gate with tenant-scoped RLS; the token and Grow's process token are never granted to the browser.
+
+**Migration (run by hand, after `add_grow_cancellation.sql`):** `supabase/migrations/add_grow_tokens.sql`.
+
+**What the sandbox run proved** (`node --env-file=.env.local scripts/smoke/grow-token-sandbox.mjs`): save only returns a token, charge-and-save returns a paid transaction and a token,
+a token charge succeeds once, the same identifier again answers 1010, the lookup by that one identifier finds the paid transaction, and an identifier never used is "not found".
+
+**Not wired:** the deposit payment page (a regular payment page, `createCharge`) does not save a card yet; charge-and-save exists in `ops.createTokenSession` and is tested, but deposit mode still takes the deposit and nothing else.
+
+## The rest of clearing (feat/grow-cashier, mock mode)
+
+Built in mock mode, ready to switch to the real API. Source for every call: developers.grow.business (grow-il.readme.io redirects there), read 2026-10-20.
+
+**1. Cashier charge, any method Grow allows.** Grow chooses the payment method by the **page code**, not by a field. Each method is one optional variable:
+
+| Variable | Method |
+|---|---|
+| `GROW_PAGE_CODE` | credit card, or Grow's generic "card or Bit" page (required) |
+| `GROW_PAGE_CODE_BIT` | Bit (up to ₪5,000, one payment: refused before asking) |
+| `GROW_PAGE_CODE_APPLE_PAY` | Apple Pay |
+| `GROW_PAGE_CODE_GOOGLE_PAY` | Google Pay (Chrome on Android only) |
+
+Only methods with a page code appear in the cashier (chips above the charge button). `approveTransaction` is sent with the page code of the method the client actually paid with (`transactionTypeId` 1 card, 6 Bit, 13 Apple Pay, 14 Google Pay). **Bit, Apple Pay and Google Pay have no sandbox at Grow: they are real money.** The receipt is Grow's (`invoiceNotifyUrl`), shown in the cashier history, the client card and the Grow card, as before. The production API base now defaults to Grow's documented `https://secure.meshulam.co.il/api/light/server/1.0` (`GROW_API_BASE` still overrides it).
+
+**2. Payment requests** (cashier screen, "בקשת תשלום בקישור"): a Grow link for a **deposit** or the **full amount** for one of her clients (name and phone read from her client list on the server). She sends it from her own WhatsApp (wa.me with a ready message); the list turns "שולמה" when Grow's callback arrives. A paid deposit request is a receipt (income now) plus the same amount as client credit, which the cashier deducts at the visit, so nothing is counted twice. Route: `app/api/grow/payment-request`; rules: `lib/grow/paymentRequest.ts`. Grow's payment link is valid for 10 minutes after it is created (Grow's docs); a late client gets a new link.
+
+**3. Opening a Grow account from Kalmea** (Grow card > "אין לי עדיין Grow" > "פתיחת חשבון ב-Grow"): the server asks Grow for a registration link with a tracking code only we know, stores `{ tracking_code, encrypted_lead, link_url, status: 'waiting' }`, and opens Grow's form. When Grow posts the result to `/api/grow/webhook`, it is matched ONLY by that tracking code: **approved** stores her `userId` and switches clearing **on for her business only**; **rejected** shows Grow's reason on her card; anything else stays "waiting". **Grow's registration API ("GetLink") is not in the public docs**, so live mode stays off until you set `GROW_REGISTRATION_PATH` (the endpoint path Grow gives you) and replace the field names marked `TODO(grow-docs)` in `lib/grow/registration.ts`. Mock mode works end to end through `/api/grow/mock-register` (approve / reject buttons). Without it, the card keeps the old "leave your details" form.
+
+**Migration (run by hand, after the earlier Grow ones):** `supabase/migrations/add_grow_cashier.sql` (registration status columns; the two onboarding tables into the trial gate; still server-only). Desktop copy: `kalmea-sql-grow-cashier.txt`.
+
+**To switch from mock to real:** `GROW_MODE=live`, `GROW_API_KEY`, `GROW_PAGE_CODE` (the regular-payment page code Grow sends), optionally the three method page codes, `GROW_ENV=production`, and `GROW_UI_ENABLED=true`. For registration also `GROW_REGISTRATION_PATH` and the field names from Grow.
+
+**Tests:** `test-grow-cashier.ts` (methods, page codes, approve page code, Bit limit, requests, credit, registration mock/live/status, route guards, migration), `test-grow-webhook.ts` (approved / rejected / waiting registration updates).

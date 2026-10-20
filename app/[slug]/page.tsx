@@ -62,6 +62,12 @@ const publicClient = () =>
  * three calls in two serial stages cost 1.5-2.1 s of server time). 'unavailable' means the function is not
  * there yet and the three loaders below use the old reads. Throws on a real failure.
  */
+// The page receives a Hebrew slug still percent-encoded ("%D7%A1..."), while generateMetadata gets it decoded, so a business
+// whose slug came from a Hebrew name had a working title and a 404 page (found 2026-10-20 on the preview). Both decode here.
+function decodeSlug(raw: string): string {
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 const loadPage = cache((slug: string) => timed('page', fetchPublicPage(publicClient(), slug)));
 
 /**
@@ -112,7 +118,7 @@ const loadServices = cache(async (slug: string, tenantId: string) => {
 });
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
+  const slug = decodeSlug((await params).slug);
   const tenant = await resolveTenant(slug);
   if (!tenant) return { title: 'Kalmea', robots: { index: false, follow: false } };
 
@@ -181,7 +187,7 @@ const loadResults = cache(async (tenantId: string) => {
 });
 
 export default async function SlugPage({ params, searchParams }: Props) {
-  const { slug } = await params;
+  const slug = decodeSlug((await params).slug);
   // ?v=old keeps the previous page (the full BookingPage mini-site) reachable as a fallback.
   const v = (await searchParams)?.v;
   const useOld = (Array.isArray(v) ? v[0] : v) === 'old';

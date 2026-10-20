@@ -5,6 +5,8 @@
 // (which reads it from the ?t= URL param). Owner phone + business name are
 // looked up per-tenant from settings.
 
+import { ACTIVE_OR_NULL } from "../../../lib/serviceActive";
+import { cleanSource, cleanRef } from "../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 
@@ -24,6 +26,7 @@ import { suppressionHash } from "../../../lib/clientData";
 import { APP_URL } from "../../../lib/appUrl";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
+import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
 
@@ -59,7 +62,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave, src: rawSrc, ref: rawRef } =
       await request.json();
     // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
     // name cannot be stored or pasted into the owner's WhatsApp text.
@@ -138,7 +141,7 @@ export async function POST(request) {
     let policy = null;
     let policyDeps = null;
     try {
-      policyDeps = growUiEnabled() ? cancelDeps() : null;
+      policyDeps = growUiEnabled(process.env, activeTenantId) ? cancelDeps() : null;
       if (policyDeps) {
         await releaseExpiredHolds(policyDeps, activeTenantId);
         policy = await activePolicy(policyDeps, activeTenantId);
@@ -150,7 +153,7 @@ export async function POST(request) {
 
     const [
       { data: svcRows, error: svcError },
-      { data: settingsRows },
+      { data: settingsRows, error: settingsErr },
       { data: sameDay },
       { data: existing },
     ] = await Promise.all([
@@ -159,6 +162,8 @@ export async function POST(request) {
         .select("*")
         .eq("tenant_id", activeTenantId)
         .eq("name", service)
+        // Active rows only: an archived row with the same name used to come back first and refuse a service the page shows.
+        .or(ACTIVE_OR_NULL)
         .limit(1),
       supabase
         .from("settings")
@@ -247,6 +252,13 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+    // Saving the card is its own required tick (Grow's rule): the policy tick is not enough. Refused here, whatever the page sent.
+    if (policy && (policy.mode === "saved_card" || policy.mode === "deposit") && acceptedCardSave !== true) {
+      return Response.json(
+        { success: false, error: "כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי" },
+        { status: 400 }
+      );
+    }
     if (isTooSoonForSelfBooking(date, newStart, new Date(), rules.minLeadMinutes)) {
       const lead = rules.minLeadMinutes >= 60
         ? `${Math.round(rules.minLeadMinutes / 60)} שעות`
@@ -288,6 +300,12 @@ export async function POST(request) {
     //     notification messages below.
     const settingsRow =
       settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    // Her hours, lunch and booking rules come from this row. A failed read must not fall back to the defaults (9-18, no lunch,
+    // default rules), which would accept bookings her real settings refuse (2026-10-20 audit).
+    if (settingsErr) {
+      console.error("[book-appointment] settings read failed:", settingsErr.message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 503 });
+    }
 
     {
       // Midday, not midnight: the weekday of a plain date is what is wanted,
@@ -369,6 +387,8 @@ export async function POST(request) {
     // ("052-123-4567"). Comparing raw would create a second client for a woman
     // who is already in her book, which is worse than not matching at all.
     let clientId = null;
+    // Set only when THIS booking created the client card: only a new client is credited to a source or a referrer.
+    let createdClient = false;
     let isReturningClient = false;
     try {
       // Fetched above, alongside the service/settings/same-day rows.
@@ -419,6 +439,7 @@ export async function POST(request) {
           console.error("[book-appointment] client create failed:", createErr.message);
         } else {
           clientId = created?.id || null;
+          createdClient = !!clientId;
         }
       }
     } catch (linkErr) {
@@ -469,6 +490,32 @@ export async function POST(request) {
       }
       console.error("[book-appointment] appointment insert failed:", error.message);
       return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 500 });
+    }
+
+    // Where this booking came from (lib/bookingSource.ts): the link's ?src= and, for a "bring a friend" link, the referring client.
+    // A label only, written AFTER the booking is saved and best-effort: a missing column (add_booking_source.sql not run yet) or any
+    // failure here never touches the booking. The referrer must be a client of THIS business and not the booker herself.
+    const bookingSrc = cleanSource(rawSrc);
+    const bookingRef = cleanRef(rawRef);
+    if (bookingSrc || bookingRef) {
+      after(async () => {
+        try {
+          let referrer = null;
+          if (bookingRef && bookingRef !== String(clientId || "")) {
+            const { data: rc } = await supabase.from("clients").select("id, phone").eq("tenant_id", activeTenantId).eq("id", bookingRef).maybeSingle();
+            if (rc && String(rc.phone || "") !== phoneCheck.e164) referrer = String(rc.id);
+          }
+          const tag = { source: bookingSrc || (referrer ? "referral" : null), referred_by: referrer };
+          const a = await supabase.from("appointments").update(tag).eq("id", appt.id).eq("tenant_id", activeTenantId);
+          if (a.error) console.warn("[book-appointment] source not stored:", a.error.message);
+          if (createdClient && clientId) {
+            const cu = await supabase.from("clients").update(tag).eq("id", clientId).eq("tenant_id", activeTenantId);
+            if (cu.error) console.warn("[book-appointment] client source not stored:", cu.error.message);
+          }
+        } catch (e) {
+          console.warn("[book-appointment] source tagging threw:", e?.message || String(e));
+        }
+      });
     }
 
     // 2. THIS tenant's business name + owner phone, from the row already read
@@ -522,7 +569,7 @@ export async function POST(request) {
       try {
         const r = await recordConsentAndStart(policyDeps, {
           tenantId: activeTenantId, appointmentId: String(appt.id), clientId: clientId ? String(clientId) : null, clientName: name, phone,
-          servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`,
+          servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`, cardConsentText: CARD_CONSENT_TEXT_HE,
         });
         policyStep = r.step;
       } catch (stepErr) {

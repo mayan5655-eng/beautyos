@@ -8,6 +8,8 @@
 // AUTHENTICATED session, candidate selection entirely server-side, dryRun
 // returns who-and-what without sending.
 
+import { readAllRows } from "../../../../lib/pagedRead.js";
+import { withSource } from "../../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../../lib/planGuard";
@@ -60,10 +62,16 @@ export async function POST(request) {
     }
     const clinic = clinicName(settingsRows);
 
-    const [{ data: clients }, { data: appts }] = await Promise.all([
-      admin.from("clients").select("*").eq("tenant_id", tenantId),
-      admin.from("appointments").select("client_id, date").eq("tenant_id", tenantId),
+    // Paged (lib/pagedRead.js): a plain select stops at 1,000 rows, so "last visit" came from a fragment of the history (2026-10-20 audit).
+    const [cl, ap] = await Promise.all([
+      readAllRows(admin, "clients", { columns: "*", filter: (q) => q.eq("tenant_id", tenantId) }),
+      readAllRows(admin, "appointments", { columns: "client_id, date, confirmation_status", filter: (q) => q.eq("tenant_id", tenantId) }),
     ]);
+    if (cl.error || ap.error || !cl.complete || !ap.complete) {
+      return Response.json({ success: false, error: "לא הצלחנו לקרוא את כל ההיסטוריה, נסי שוב בעוד רגע" }, { status: 503 });
+    }
+    const clients = cl.data;
+    const appts = (ap.data || []).filter((a) => a.confirmation_status !== "cancelled");
 
     // Last visit per client, from appointments up to today.
     const today = new Date().toISOString().slice(0, 10);
@@ -91,7 +99,7 @@ export async function POST(request) {
       candidates.push({ id: String(c.id), name: c.name || null, phone: ph });
     }
 
-    const bookingUrl = `${APP_URL}/book?t=${tenantId}`;
+    const bookingUrl = withSource(`${APP_URL}/book?t=${tenantId}`, 'whatsapp');
     const messageFor = (name) =>
       `שלום${name ? ` ${name}` : ""}! ✦\n` +
       `כאן ${clinic} — חזרנו לפעילות והתגעגענו 💫\n` +

@@ -8,12 +8,15 @@ import { after } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { supabaseCancelRepo, onDepositPaid } from '@/lib/grow/cancelFees';
+import { supabaseCancelRepo, onDepositPaid, onDepositCardToken } from '@/lib/grow/cancelFees';
+import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
 import type { Deps } from '@/lib/grow/cancelFees';
 import type { GrowPayment } from '@/lib/grow/service';
 import { sendBookingNotifications } from '@/lib/bookingNotify';
 import { sanitizePolicy } from '@/lib/cancellationPolicy';
+import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { admin } from './_shared';
+import { isDepositRequest } from '@/lib/grow/paymentRequest';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
@@ -24,6 +27,9 @@ export function cancelDeps(): Deps | null {
     repo: supabaseCancelRepo(db, sanitizePolicy),
     grow: growRepo,
     ops: grow.ops,
+    // Card tokens are stored sealed (AES-256-GCM with TOKEN_ENCRYPTION_KEY, like the other secrets) and Grow posts the first token to the platform webhook.
+    seal: { encrypt: encryptToken, decrypt: decryptToken },
+    notifyUrl: `${APP_URL.replace(/\/+$/, '')}/api/grow/webhook`,
     chargeDeps: { repo: growRepo, creds: grow.creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   };
 }
@@ -33,11 +39,21 @@ export function cancelDeps(): Deps | null {
  * confirmed (lib/grow/cancelFees.onDepositPaid), and only then does the client get her confirmation message: while the hold was open the booking
  * was not confirmed, so none was sent. Every failure is logged and never undoes the payment.
  */
-export function afterPaidHook(): (p: GrowPayment) => Promise<void> {
-  return async (p) => {
+export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void> {
+  return async (p, raw) => {
+    // A deposit she asked for with a payment link (lib/grow/paymentRequest.ts): no booking to confirm. The money becomes the
+    // client's credit, which the cashier deducts at the visit, so the visit is never counted twice.
+    if (isDepositRequest(p.description) && p.client_id) {
+      const { error } = await admin().from('client_credits').insert({ tenant_id: p.tenant_id, client_id: p.client_id, amount: Number(p.amount), source: 'deposit_request' });
+      if (error) console.error('[grow] deposit request credit failed for payment', p.id, error.message);
+      return;
+    }
     if (!/^מקדמה/.test(p.description || '')) return;
     const deps = cancelDeps();
     if (!deps) return;
+    // The deposit page also saved the card (the client gave the card-save tick): store the sealed token for this booking's business and client.
+    const ct = raw ? readCardTokenNotification(raw) : null;
+    if (ct) { try { await onDepositCardToken(deps, ct, p); } catch (e) { console.error('[grow] deposit card token failed:', (e as Error)?.message); } }
     const r = await onDepositPaid(deps, { tenantId: p.tenant_id, appointmentId: p.appointment_id, paymentId: p.id });
     if (r.outcome !== 'confirmed' && r.outcome !== 'restored') return;
     after(async () => {

@@ -42,15 +42,15 @@ export const LEAD_STATUS_KEYS: LeadStatusKey[] = [
 ];
 
 export const LEAD_STATUS_LABELS: Record<string, string> = {
-  new: 'חדש',
+  new: 'חדשה',
   no_answer: 'אין מענה',
   awaiting_reply: 'ממתינה לתשובה',
   in_progress: 'בטיפול',
   quote_sent: 'נשלח מחיר',
   scheduled: 'נקבע תור',
-  no_show: 'לא הגיע',
+  no_show: 'לא הגיעה',
   follow_up_later: 'למעקב בהמשך',
-  closed: 'נסגר',
+  closed: 'נסגרה',
   irrelevant: 'לא רלוונטי',
 };
 
@@ -63,6 +63,6 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
 // a valid bulk-send target.
 export const LEGACY_LEAD_STATUS_LABELS: Record<string, string> = {
   contacted: 'יצרתי קשר',
-  converted: 'מומר ✓',
+  converted: 'הפכה ללקוחה ✓',
   lost: 'לא רלוונטי',
 };

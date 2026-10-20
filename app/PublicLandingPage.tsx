@@ -19,6 +19,7 @@
 // polish swatches, which are content (a colour to pick), not theme.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { rememberSource } from "@/lib/bookingSource";
 import Image from "next/image";
 import Icon from "./Icon";
 import { PoweredBy } from "./PublicChrome";
@@ -191,6 +192,8 @@ export default function PublicLandingPage({
   results?: PublicResult[] | null;
 }) {
   const brand = useMemo(() => resolveBranding(settings), [settings]);
+  // The visit's source (?src= / ?ref=), remembered so the booking page it leads to can record it (lib/bookingSource.ts).
+  useEffect(() => { if (typeof window !== "undefined") rememberSource(tenantId, window.location.search); }, [tenantId]);
   const rawBranding = (settings?.branding && typeof settings.branding === "object" ? settings.branding : {}) as Record<string, unknown>;
   const services = useMemo(
     () => (servicesIn || []).filter((s) => s && s.active !== false && String(s.name || "").trim()),
@@ -433,7 +436,7 @@ export default function PublicLandingPage({
           <Section id="plan" title="מתכננות טיפול?">
             <div className="lp-card">
               <p style={{ margin: "0 0 12px", fontSize: "var(--t-sm, 15px)", color: ink2, lineHeight: 1.6 }}>
-                בחרי את הטיפולים שמעניינים אותך{waBase ? " ונשלח לך הודעה מוכנה בוואטסאפ" : ""}.
+                בחרי את הטיפולים שמעניינים אותך{waBase ? ", ונכין לך הודעה מוכנה לשלוח לנו בוואטסאפ" : ""}.
               </p>
               {groups.map((g) => (
                 <div key={g.key} style={{ marginBottom: 10 }}>

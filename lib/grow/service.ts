@@ -16,6 +16,8 @@
 //
 // Money never passes through Kalmea: the payment page belongs to her Grow account.
 
+import { isPayMethod, methodProblem, pageCodeFor, pageCodeForTypeId } from './methods.ts';
+import type { PayMethod, PageCodes } from './methods.ts';
 import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
 import type { Notification } from './payload.ts';
 
@@ -47,7 +49,7 @@ export type GrowRepo = {
   setReceiptDocument(receiptId: string, url: string, number?: string): Promise<void>;
 };
 
-export type Creds = { apiKey: string; pageCode: string; apiBase: string };
+export type Creds = { apiKey: string; pageCode: string; apiBase: string; pageCodes?: PageCodes };
 
 export type ChargeInput = {
   tenantId: string;
@@ -63,12 +65,16 @@ export type ChargeInput = {
   kind?: string;
   /** Where Grow's page sends the client afterwards, when it is not the dashboard (a client paying a deposit has no dashboard). */
   returnUrl?: string;
+  /** The client ticked the card-save consent: the page charges AND saves the card (charge and save). */
+  saveCard?: boolean;
+  /** card (default) | bit | apple_pay | google_pay: picks Grow's page code (lib/grow/methods.ts). */
+  method?: PayMethod;
 };
 
 type Deps = {
   repo: GrowRepo; creds: Creds; fetchImpl?: typeof fetch; appUrl: string; newToken: () => string; now?: () => Date;
   /** Runs once, right after a payment flips to paid (a booking deposit confirms its booking here). A failure is logged and never undoes the payment. */
-  afterPaid?: (p: GrowPayment) => Promise<void>;
+  afterPaid?: (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void>;
 };
 
 export type ChargeResult =
@@ -80,6 +86,9 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
   if (amount === null) return { ok: false, code: 'bad-amount', message: 'הסכום לחיוב לא תקין' };
   const phone = growPhone(i.phone);
   if (!phone) return { ok: false, code: 'bad-phone', message: 'צריך מספר נייד תקין של הלקוחה כדי לשלוח לה את דף התשלום' };
+  const method: PayMethod = isPayMethod(i.method) ? i.method : 'card';
+  const methodErr = methodProblem(method, amount);
+  if (methodErr) return { ok: false, code: 'bad-amount', message: methodErr };
 
   const payment = await d.repo.insertPayment({
     tenant_id: i.tenantId,
@@ -97,7 +106,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
   const base = d.appUrl.replace(/\/+$/, '');
   const fields = buildProcessFields({
     userId: i.userId,
-    pageCode: d.creds.pageCode,
+    pageCode: pageCodeFor(method, d.creds.pageCodes || {}, d.creds.pageCode),
     sum: amount,
     description: i.description,
     fullName: i.clientName,
@@ -109,15 +118,16 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,
     tenantRef: i.tenantId,
+    saveCardToken: i.saveCard === true,
   });
   const form = new FormData();
+  form.append('apiKey', d.creds.apiKey);   // a body field: Grow refuses a header (error 701)
   for (const [k, v] of fields) form.append(k, v);
 
   let json: unknown = null;
   try {
     const res = await (d.fetchImpl || fetch)(`${d.creds.apiBase}/createPaymentProcess`, {
       method: 'POST',
-      headers: { 'x-api-key': d.creds.apiKey },
       body: form,
     });
     json = await res.json().catch(() => null);
@@ -215,7 +225,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);
-  if (d.afterPaid) { try { await d.afterPaid(flipped); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
+  if (d.afterPaid) { try { await d.afterPaid(flipped, raw); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
   if (approve) { try { await approve(n); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
@@ -266,7 +276,9 @@ export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ st
 /** approveTransaction: acknowledges the callback. Fields are echoed back exactly as Grow sent them. */
 export async function approveTransaction(n: Notification, creds: Creds, fetchImpl: typeof fetch = fetch): Promise<void> {
   const form = new FormData();
-  form.append('pageCode', creds.pageCode);
+  form.append('apiKey', creds.apiKey);   // a body field: Grow refuses a header (error 701)
+  // The page the client paid on: a Bit or Apple Pay payment is approved with ITS page code (lib/grow/methods.ts).
+  form.append('pageCode', pageCodeForTypeId(n.echo.transactionTypeId, creds.pageCodes || {}, creds.pageCode));
   for (const [k, v] of Object.entries(n.echo)) form.append(k, v);
-  await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', headers: { 'x-api-key': creds.apiKey }, body: form });
+  await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
 }

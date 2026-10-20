@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
-import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
+import { askGapFillAfterClientCancel, minutesUntilIsrael } from '@/lib/ownerQuestions';
 import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { detect } from '@/lib/grow/cancelFees';
@@ -114,13 +114,32 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
+    // A link only moves a booking that is still ahead and still open (2026-10-20 audit): a no-show stays a no-show, a visit that
+    // already happened is not cancelled afterwards (which also opened a gap-fill question for a slot in the past), and a booking
+    // held for an unpaid deposit is confirmed by paying, not by tapping "confirm".
+    if (appt.confirmation_status && !['pending', 'confirmed'].includes(String(appt.confirmation_status))) {
+      return NextResponse.json({ success: false, businessName: brand.businessName || '', error: `התור הזה כבר עודכן אצל ${brand.businessName || 'העסק'}. לכל שינוי אפשר ליצור קשר ישירות.` }, { status: 409 });
+    }
+    {
+      const sm = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
+      if (sm !== null && minutesUntilIsrael(String(appt.date), Number(sm)) <= 0) {
+        return NextResponse.json({ success: false, businessName: brand.businessName || '', error: 'מועד התור כבר עבר, אז אי אפשר לשנות אותו דרך הקישור.' }, { status: 409 });
+      }
+    }
+    if (action === 'confirm' && appt.confirmation_status === 'pending') {
+      const { data: hold } = await supabase.from('appointment_policy_consents').select('status').eq('appointment_id', appointmentId).eq('tenant_id', appt.tenant_id).maybeSingle();
+      if (hold && hold.status === 'awaiting_deposit') {
+        return NextResponse.json({ success: false, businessName: brand.businessName || '', error: 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.' }, { status: 409 });
+      }
+    }
+
     // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
     // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
     // A booking made under a Grow cancellation policy is different: the client agreed that a late cancel has a fee, so the link must let her
     // cancel at any time (the fee, not a refusal, is the consequence) and the late cancel becomes a pending question for the cosmetician.
     let growDeps: ReturnType<typeof cancelDeps> = null;
     let underPolicy = false;
-    if (action === 'cancel' && growUiEnabled()) {
+    if (action === 'cancel' && growUiEnabled(process.env, appt.tenant_id)) {
       try {
         growDeps = cancelDeps();
         underPolicy = !!growDeps && !!(await growDeps.repo.getConsent(appt.tenant_id, appointmentId));

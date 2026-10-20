@@ -22,13 +22,14 @@ await ok('nothing configured: not connected, and the missing variables are named
   assert.equal(growCredentials({}), null);
 });
 
-await ok('sandbox is the default base; production never guesses a base URL', () => {
+await ok('sandbox is the default base; production uses the documented live base', () => {
   const sb = growPlatformStatus({ GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p' });
   assert.equal(sb.configured, true);
   assert.equal(sb.apiBase, GROW_SANDBOX_BASE);
   const prod = growPlatformStatus({ GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production' });
-  assert.equal(prod.configured, false);
-  assert.ok(prod.missing.includes('GROW_API_BASE'));
+  assert.equal(prod.configured, true);
+  assert.ok(!prod.missing.includes('GROW_API_BASE'), 'production has a documented default base');
+  assert.equal(prod.apiBase, 'https://secure.meshulam.co.il/api/light/server/1.0');
   const prodOk = growPlatformStatus({ GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production', GROW_API_BASE: 'https://api.example.test/v1/' });
   assert.equal(prodOk.configured, true);
   assert.equal(prodOk.apiBase, 'https://api.example.test/v1');
@@ -122,7 +123,8 @@ await ok('createCharge: writes the row first, asks Grow for HER userId with the 
   assert.equal(r.ok, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://grow.test/api/createPaymentProcess');
-  assert.equal(calls[0].headers['x-api-key'], 'KEY');
+  assert.equal(calls[0].form.get('apiKey'), 'KEY', 'the key is a body field; Grow refuses a header');
+  assert.equal(calls[0].headers?.['x-api-key'], undefined);
   assert.equal(calls[0].form.get('userId'), 'her-user-1', 'the charge is for HER account');
   assert.equal(calls[0].form.get('pageCode'), 'PAGE');
   assert.equal(calls[0].form.get('notifyUrl'), `https://kalmea.test/api/grow/notify?t=${'a'.repeat(48)}`);
@@ -232,7 +234,8 @@ await ok('approveTransaction echoes Grow\'s own fields with the platform key', a
   assert.equal(calls[0].url, 'https://grow.test/api/approveTransaction');
   assert.equal(calls[0].form.get('transactionId'), '77');
   assert.equal(calls[0].form.get('pageCode'), 'PAGE');
-  assert.equal(calls[0].headers['x-api-key'], 'KEY');
+  assert.equal(calls[0].form.get('apiKey'), 'KEY', 'the key is a body field; Grow refuses a header');
+  assert.equal(calls[0].headers?.['x-api-key'], undefined);
 });
 
 // ── the routes keep their guards (source-level: they need a database to run) ───────────

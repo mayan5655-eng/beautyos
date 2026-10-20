@@ -57,7 +57,8 @@ await ok('mock mode needs no keys and has no network; it is refused on Vercel pr
   assert.equal(m.mode, 'mock'); assert.equal(m.configured, true); assert.equal(m.creds?.apiBase, MOCK_API_BASE); assert.ok(m.fetchImpl);
   const prod = resolveGrow({ VERCEL_ENV: 'production' }, ORIGIN);
   assert.equal(prod.configured, false); assert.equal(prod.creds, null); assert.equal(prod.fetchImpl, undefined);
-  assert.equal(resolveGrow({ VERCEL_ENV: 'preview' }, ORIGIN).configured, true, 'previews can run the mock');
+  assert.equal(resolveGrow({ VERCEL_ENV: 'preview' }, ORIGIN).configured, false, 'previews share the production database: no mock unless allowed');
+  assert.equal(resolveGrow({ VERCEL_ENV: 'preview', GROW_MOCK_ALLOWED: 'true' }, ORIGIN).configured, true);
 });
 
 await ok('live mode: not configured without keys, real network (no fetch override) with them', () => {
@@ -65,7 +66,9 @@ await ok('live mode: not configured without keys, real network (no fetch overrid
   assert.equal(none.configured, false); assert.equal(none.creds, null);
   const live = resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p' }, ORIGIN);
   assert.equal(live.configured, true); assert.equal(live.fetchImpl, undefined); assert.equal(live.creds?.apiKey, 'k');
-  assert.equal(resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production' }, ORIGIN).configured, false, 'live production needs the API base from Grow');
+  const prod = resolveGrow({ GROW_MODE: 'live', GROW_API_KEY: 'k', GROW_PAGE_CODE: 'p', GROW_ENV: 'production' }, ORIGIN);
+  assert.equal(prod.configured, true, 'live production uses the documented Grow base (secure.meshulam.co.il)');
+  assert.equal(prod.creds?.apiBase, 'https://secure.meshulam.co.il/api/light/server/1.0');
 });
 
 // ── the whole flow ──────────────────────────────────────────────────────────

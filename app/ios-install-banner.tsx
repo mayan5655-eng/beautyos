@@ -33,7 +33,10 @@ export default function IOSInstallBanner() {
       window.matchMedia("(display-mode: standalone)").matches ||
       // iOS Safari exposes standalone here rather than via display-mode.
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    const dismissed = window.localStorage.getItem(DISMISS_KEY) === "1";
+    // Safari with storage blocked throws on any localStorage access. Mounted in the root layout, an uncaught throw here took
+    // down every page, the public booking page included (2026-10-20 audit). A failed read counts as "not dismissed".
+    let dismissed = false;
+    try { dismissed = window.localStorage.getItem(DISMISS_KEY) === "1"; } catch { /* storage blocked */ }
 
     if (isIOS && isSafari && !isStandalone && !dismissed) {
       setRender(true);

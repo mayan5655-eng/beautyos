@@ -22,7 +22,10 @@ import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseOnboardingRepo } from '@/lib/grow/onboardingRepo';
 import { applyOnboarding, classifyWebhook, clientIp, ipAllowed, ipCheckEnforced, parseWebhookBody, readOnboarding } from '@/lib/grow/webhook';
 import { admin } from '../_shared';
-import { afterPaidHook } from '../_cancel';
+import { afterPaidHook, cancelDeps } from '../_cancel';
+import { onCardTokenNotification } from '@/lib/grow/cancelFees';
+import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
+import { readNotification } from '@/lib/grow/payload';
 
 export const maxDuration = 30;
 
@@ -64,6 +67,20 @@ export async function POST(request: Request) {
     });
 
     if (kind === 'payment') {
+      // The first transaction of a saved card (the client typed the card on the hosted page): store the sealed token for the business and client
+      // that opened that page, then approveTransaction. Later charges of a token send no callback at all. A payment that is not a card page of ours
+      // (a regular charge or a deposit) is not recognised here and goes on to the normal payment logic below.
+      const tokenCb = readCardTokenNotification(raw);
+      if (tokenCb) {
+        const cd = cancelDeps();
+        const tokenCreds = resolveGrow(process.env, APP_URL).tokenCreds;
+        if (cd) {
+          const first = readNotification(raw);
+          const approve = tokenCreds && first ? () => approveTransaction(first, tokenCreds) : undefined;
+          const tr = await onCardTokenNotification(cd, tokenCb, approve);
+          if (tr.status !== 'unknown-process') return NextResponse.json({ success: tr.status !== 'failed', kind: 'card-token', status: tr.status }, { status: tr.status === 'failed' ? 503 : 200 });
+        }
+      }
       const grow = resolveGrow(process.env, APP_URL);
       const creds = grow.creds;
       const approve = creds ? (n: Parameters<typeof approveTransaction>[0]) => approveTransaction(n, creds, grow.fetchImpl) : undefined;

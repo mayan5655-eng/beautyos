@@ -33,7 +33,7 @@ export type SuggestionInput = {
   /** field, when present, is service_prices.field — which seed menu this
    *  service came from. Absent (a legacy or hand-typed row) is treated as
    *  cosmetics, same as everywhere else field is read defensively. */
-  services?: { name?: string | null; field?: string | null }[] | null;
+  services?: { name?: string | null; field?: string | null; description?: string | null; duration?: number | string | null }[] | null;
   /** Her saved designs: what she already posted about. */
   designs?: { template_key?: string | null; values?: Record<string, unknown> | null; created_at?: string | null }[] | null;
   reviews?: unknown[] | null;
@@ -173,7 +173,9 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
     const match = (input.services || []).find((s) => clean(s?.name) === service);
     const field = isFieldKey(match?.field) ? match!.field! : 'cosmetics';
     const fallback = UNPOSTED_FALLBACK_BY_FIELD[field] || UNPOSTED_FALLBACK_BY_FIELD.cosmetics;
-    out.push({ key: `service:${service}`, reason: `עוד לא פרסמת על ${service}.`, templateKey: fallback.templateKey, values: { headline: service, kicker: fallback.kicker } });
+    // The template's own subline describes ITS treatment ("ניקוי, אידוי, מסכה והזנה" is a facial), so under any
+    // other service's name it was wrong - a chemical peel, a gel manicure. Her service's own words, or its length.
+    out.push({ key: `service:${service}`, reason: `עוד לא פרסמת על ${service}.`, templateKey: fallback.templateKey, values: { headline: service, kicker: fallback.kicker, subline: serviceSubline(match) } });
   }
   const reviews = input.reviews || [];
   // Every field's review template shares the 'review' stem in its slug
@@ -199,5 +201,31 @@ export function suggestPosts(input: SuggestionInput, max = 5): Suggestion[] {
       values: {},
     });
   });
-  return out.slice(0, max);
+  return dedupeSuggestions(out).slice(0, max);
+}
+
+/** One short line about a service for a post: the first clause of her description, else its length. */
+export function serviceSubline(s: { description?: string | null; duration?: number | string | null } | null | undefined): string {
+  const d = String(s?.description || '').replace(/\s+/g, ' ').trim();
+  if (d) {
+    const first = d.split(/\s[—–-]\s|[.!?]/)[0].trim();
+    if (first && first.length <= 40) return first;
+    if (first) return first.slice(0, 39).replace(/\s+\S*$/, '') + '…';
+  }
+  const min = Number(s?.duration);
+  return Number.isFinite(min) && min > 0 ? `טיפול של ${min} דקות` : '';
+}
+
+/**
+ * The same post offered twice reads as a glitch: an occasion and the design idea can both land on one autumn
+ * template with no values of their own (found on a nails tenant, 2026-10-20). First one wins.
+ */
+export function dedupeSuggestions(list: Suggestion[]): Suggestion[] {
+  const seen = new Set<string>();
+  return list.filter((sg) => {
+    const k = `${sg.templateKey}|${JSON.stringify(sg.values || {})}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }

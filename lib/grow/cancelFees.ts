@@ -19,6 +19,11 @@ import { minutesUntilSlot } from '../bookingPolicy.ts';
 import { createCharge } from './service.ts';
 import type { GrowRepo } from './service.ts';
 import type { GrowOps } from './ops.ts';
+import { chargeSavedCard } from './tokenCharge.ts';
+import type { LedgerRepo, LedgerRow, SavedCard } from './tokenCharge.ts';
+import { CARD_CONSENT_TEXT_HE, CARD_CONSENT_VERSION } from './tokenFlow.ts';
+import type { CardTokenNotification } from './tokenFlow.ts';
+import { growText } from './payload.ts';
 
 export type Account = { user_id: string; enabled: boolean };
 
@@ -38,7 +43,24 @@ export type ConsentRow = {
   deposit_applied_receipt_id: string | null;
 };
 
-export type TokenRow = { id: string; tenant_id: string; client_id: string | null; appointment_id: string; token_ref: string; card_last4: string | null; card_brand: string | null };
+/** The saved card. token_ref holds the token ENCRYPTED when token_encrypted is true (every real token); only the mock tokens are stored plain. */
+export type TokenRow = { id: string; tenant_id: string; client_id: string | null; appointment_id: string; token_ref: string; token_encrypted?: boolean; card_last4: string | null; card_brand: string | null };
+
+/** The required tick on the booking page, as stored: the exact words, the client and the booking, the moment, and the Grow process that followed. */
+export type CardConsentRow = {
+  id: string;
+  tenant_id: string;
+  appointment_id: string;
+  client_id: string | null;
+  consent_text: string;
+  consent_version: string;
+  consented_at: string;
+  mode: 'save_only' | 'charge_and_save';
+  process_id: string | null;
+  process_token: string | null;
+  status: 'awaiting' | 'saved' | 'failed';
+  token_id: string | null;
+};
 
 export type FeeKind = 'late_cancel' | 'no_show' | 'deposit_return';
 export type FeeStatus = 'pending' | 'charging' | 'charged' | 'waived' | 'retained' | 'refunded' | 'credited' | 'refund_failed' | 'voided';
@@ -62,7 +84,7 @@ export type ApptRow = { id: string; tenant_id: string; client_id: string | null;
 
 export type PaymentRow = { id: string; tenant_id: string; status: string; amount: number; transaction_id: string | null; receipt_id: string | null; appointment_id: string | null };
 
-export type CancelRepo = {
+export type CancelRepo = LedgerRepo & {
   getAccount(tenantId: string): Promise<Account | null>;
   getPolicy(tenantId: string): Promise<CancelPolicy | null>;
   savePolicy(tenantId: string, policy: CancelPolicy): Promise<void>;
@@ -80,6 +102,12 @@ export type CancelRepo = {
   confirmAppointment(tenantId: string, appointmentId: string): Promise<boolean>;
   /** A released booking whose deposit arrived late: confirm it again if its slot is still free. */
   restoreAppointment(tenantId: string, appointmentId: string): Promise<'restored' | 'slot-taken' | 'missing'>;
+  insertCardConsent(row: Omit<CardConsentRow, 'id'>): Promise<CardConsentRow>;
+  /** The card consent whose Grow process is `processId` (the callback carries only the process id); null when there is none. */
+  findCardConsentByProcess(processId: string): Promise<CardConsentRow | null>;
+  /** The card consent of one booking (its deposit page saves the card too); null when the client gave none. */
+  getCardConsent(tenantId: string, appointmentId: string): Promise<CardConsentRow | null>;
+  updateCardConsent(id: string, patch: Partial<CardConsentRow>): Promise<void>;
   insertToken(row: Omit<TokenRow, 'id'>): Promise<TokenRow>;
   getToken(id: string): Promise<TokenRow | null>;
   /** Insert unless this appointment already has an item of this kind: returns null when it exists (detection is idempotent). */
@@ -105,6 +133,12 @@ export type Deps = {
   ops: GrowOps;
   /** Everything createCharge needs (platform credentials, fetch, public origin, token generator): used for the deposit payment page. */
   chargeDeps: Parameters<typeof createCharge>[1];
+  /** Seals a card token before it is stored and opens it before it is charged (AES-256-GCM, like the other secrets). */
+  seal?: { encrypt(plain: string): string; decrypt(sealed: string): string };
+  /** Where Grow posts the token after the client types the card (our /api/grow/webhook). */
+  notifyUrl?: string;
+  /** Test hook: the identifier generator for token charges. */
+  newChargeId?: () => number;
   now?: () => Date;
 };
 
@@ -131,7 +165,7 @@ export type BookingStep = { kind: 'saved_card' | 'deposit'; url: string | null; 
  */
 export async function recordConsentAndStart(
   d: Deps,
-  i: { tenantId: string; appointmentId: string; clientId: string | null; clientName: string; phone: string; servicePrice: number; serviceName: string; policy: CancelPolicy; returnUrl: string; via?: 'booking_page' | 'owner' },
+  i: { tenantId: string; appointmentId: string; clientId: string | null; clientName: string; phone: string; servicePrice: number; serviceName: string; policy: CancelPolicy; returnUrl: string; cardConsentText?: string; via?: 'booking_page' | 'owner' },
 ): Promise<{ consent: ConsentRow; step: BookingStep }> {
   const snapshot = snapshotOf(i.policy, i.servicePrice, i.via || 'booking_page');
   if (!snapshot) throw new Error('policy is off');
@@ -154,16 +188,32 @@ export async function recordConsentAndStart(
   if (!account || !account.enabled) return fail(snapshot.mode, 'not connected');
 
   if (snapshot.mode === 'saved_card') {
-    const r = await d.ops.createTokenSession({ tenantId: i.tenantId, userId: account.user_id, appointmentId: i.appointmentId, returnUrl: i.returnUrl });
-    return r.ok ? { consent, step: { kind: 'saved_card', url: r.url } } : fail('saved_card', r.error);
+    const r = await d.ops.createTokenSession({ tenantId: i.tenantId, userId: account.user_id, appointmentId: i.appointmentId, returnUrl: i.returnUrl, mode: 'save_only', fullName: i.clientName, phone: i.phone, notifyUrl: d.notifyUrl });
+    if (!r.ok) return fail('saved_card', r.error);
+    // The tick she gave, with its exact words and the Grow process that follows (the callback finds this row by that process id).
+    await d.repo.insertCardConsent({
+      tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: i.clientId, consent_text: i.cardConsentText || CARD_CONSENT_TEXT_HE, consent_version: CARD_CONSENT_VERSION,
+      consented_at: nowD.toISOString(), mode: 'save_only', process_id: r.processId || null, process_token: r.processToken || null, status: 'awaiting', token_id: null,
+    });
+    return { consent, step: { kind: 'saved_card', url: r.url } };
   }
 
   if (!(snapshot.deposit_amount > 0)) return fail('deposit', 'deposit amount is zero');
+  // A deposit the CLIENT pays on the booking page also keeps her card (charge and save), under the same required tick as saved_card mode. A deposit the
+  // cosmetician asked for herself (via 'owner') has no tick to give, so it saves nothing.
+  const saveCard = (i.via || 'booking_page') !== 'owner' && !!i.cardConsentText;
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl },
+    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard },
     d.chargeDeps,
   );
-  return charge.ok ? { consent, step: { kind: 'deposit', url: charge.url } } : fail('deposit', charge.message);
+  if (!charge.ok) return fail('deposit', charge.message);
+  if (saveCard) {
+    await d.repo.insertCardConsent({
+      tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: i.clientId, consent_text: i.cardConsentText || CARD_CONSENT_TEXT_HE, consent_version: CARD_CONSENT_VERSION,
+      consented_at: nowD.toISOString(), mode: 'charge_and_save', process_id: null, process_token: null, status: 'awaiting', token_id: null,
+    });
+  }
+  return { consent, step: { kind: 'deposit', url: charge.url } };
 }
 
 export type OwnerDepositResult =
@@ -191,13 +241,75 @@ export async function requestDepositForAppointment(d: Deps, i: { tenantId: strin
 }
 
 /** A card was saved on Grow's hosted page. Stores the token reference and links it to the booking. Idempotent for the same token. */
-export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: string; tokenRef: string; last4?: string; brand?: string }): Promise<{ ok: boolean }> {
+export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: string; tokenRef: string; last4?: string; brand?: string; fromDeposit?: boolean }): Promise<{ ok: boolean; tokenId?: string }> {
   const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);
-  if (!consent || consent.mode !== 'saved_card') return { ok: false };
-  if (consent.token_id) return { ok: true };
-  const token = await d.repo.insertToken({ tenant_id: i.tenantId, client_id: consent.client_id, appointment_id: i.appointmentId, token_ref: i.tokenRef, card_last4: i.last4 || null, card_brand: i.brand || null });
-  await d.repo.updateConsent(consent.id, { token_id: token.id, status: 'card_saved' });
-  return { ok: true };
+  if (!consent || (consent.mode !== 'saved_card' && !(i.fromDeposit && consent.mode === 'deposit'))) return { ok: false };
+  if (consent.token_id) return { ok: true, tokenId: consent.token_id };
+  // The token is stored sealed, bound to THIS business and THIS booking's client (from the consent row we wrote, never from the request).
+  const sealed = d.seal ? d.seal.encrypt(i.tokenRef) : i.tokenRef;
+  const token = await d.repo.insertToken({
+    tenant_id: i.tenantId, client_id: consent.client_id, appointment_id: i.appointmentId, token_ref: sealed, token_encrypted: !!d.seal,
+    card_last4: i.last4 || null, card_brand: i.brand || null,
+  });
+  // In deposit mode the booking's own status (awaiting / paid deposit) must not change: only the card is linked.
+  await d.repo.updateConsent(consent.id, consent.mode === 'saved_card' ? { token_id: token.id, status: 'card_saved' } : { token_id: token.id });
+  return { ok: true, tokenId: token.id };
+}
+
+/**
+ * A deposit that was paid on a charge-and-save page: the notification carries the card token (the first transaction of that token). Stored sealed for
+ * the business and client of THAT booking, but only when the client gave the card-save tick for it (a card consent in charge_and_save mode).
+ */
+export async function onDepositCardToken(d: Deps, n: CardTokenNotification, p: { tenant_id: string; appointment_id: string | null }): Promise<TokenCallbackResult> {
+  if (!p.appointment_id) return { status: 'unknown-process' };
+  const consent = await d.repo.getCardConsent(p.tenant_id, p.appointment_id);
+  if (!consent || consent.mode !== 'charge_and_save') return { status: 'unknown-process' };
+  if (consent.status === 'saved') return { status: 'already-saved' };
+  try {
+    const saved = await saveToken(d, { tenantId: consent.tenant_id, appointmentId: consent.appointment_id, tokenRef: n.cardToken, last4: n.last4, brand: n.brand, fromDeposit: true });
+    if (!saved.ok) { await d.repo.updateCardConsent(consent.id, { status: 'failed' }); return { status: 'failed' }; }
+    await d.repo.updateCardConsent(consent.id, { status: 'saved', token_id: saved.tokenId || null });
+    return { status: 'saved' };
+  } catch (e) {
+    console.error('[grow-token] could not store the deposit card token:', (e as Error)?.message);
+    return { status: 'failed' };
+  }
+}
+
+export type TokenCallbackResult = { status: 'saved' | 'already-saved' | 'unknown-process' | 'mismatch' | 'failed' };
+
+/**
+ * Grow's callback after the client typed the card on the hosted page: the first transaction of a token. Trusted only when the process id is
+ * one we opened (grow_card_consents) AND the tenant and booking we echoed in cField2 / cField1 are the ones on that row. Stores the sealed token
+ * for that row's business and client, then acknowledges with approveTransaction (needed for the first transaction of a token only).
+ */
+export async function onCardTokenNotification(d: Deps, n: CardTokenNotification, approve?: () => Promise<void>): Promise<TokenCallbackResult> {
+  const consent = await d.repo.findCardConsentByProcess(n.processId);
+  if (!consent) return { status: 'unknown-process' };
+  const tenantRef = consent.tenant_id.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+  const apptRef = growText(String(consent.appointment_id).replace(/-/g, ''), 60);
+  if ((n.tenantRef && n.tenantRef !== tenantRef) || (n.appointmentRef && n.appointmentRef !== apptRef)) return { status: 'mismatch' };
+  if (consent.status === 'saved') { if (approve) await approve().catch(() => {}); return { status: 'already-saved' }; }
+  try {
+    const saved = await saveToken(d, { tenantId: consent.tenant_id, appointmentId: consent.appointment_id, tokenRef: n.cardToken, last4: n.last4, brand: n.brand });
+    if (!saved.ok) { await d.repo.updateCardConsent(consent.id, { status: 'failed' }); return { status: 'failed' }; }
+    await d.repo.updateCardConsent(consent.id, { status: 'saved', token_id: saved.tokenId || null });
+  } catch (e) {
+    console.error('[grow-token] could not store the card token:', (e as Error)?.message);
+    return { status: 'failed' };
+  }
+  if (approve) await approve().catch((e) => console.warn('[grow-token] approveTransaction failed:', (e as Error)?.message));
+  return { status: 'saved' };
+}
+
+/** Opens a stored token for use. Null when it cannot be opened (sealed but no key): the charge then does not happen. */
+function openCard(d: Deps, t: TokenRow): SavedCard | null {
+  try {
+    const token = t.token_encrypted ? (d.seal ? d.seal.decrypt(t.token_ref) : '') : t.token_ref;
+    return token ? { id: t.id, tenant_id: t.tenant_id, client_id: t.client_id, token } : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── detection ────────────────────────────────────────────────────────────────
@@ -275,16 +387,27 @@ async function doRefund(d: Deps, tenantId: string, item: FeeItem, dep: PaymentRo
     await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refund_failed', error: 'no Grow transaction to refund' });
     return { status: 'refund_failed', item: { ...item, error: 'no Grow transaction to refund' } };
   }
+  // The claim, as for a fee charge: exactly one caller may send this refund to Grow. A second tap, or the same retry from another
+  // device, finds it already 'charging' and stops. (Grow's live refund call has no idempotency key, so this is the only guard.)
+  const claimed = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'charging', error: null });
+  if (!claimed) return { status: 'exists' };
   const r = await d.ops.refund({ userId: account.user_id, transactionId: dep.transaction_id, amount: Number(dep.amount), idempotencyKey: `refund:${item.id}` });
   if (!r.ok) {
-    await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refund_failed', error: r.error.slice(0, 160) });
+    if (r.code === 'unreachable') {
+      // No answer: the money may already be on its way back. Never retried automatically, and the button stays away until a person
+      // checks Grow's dashboard (the item stays 'charging' with this note).
+      await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'charging', error: 'unknown: no answer from Grow, check the dashboard before retrying' });
+      console.warn('[grow] deposit refund outcome unknown for payment', dep.id);
+      return { status: 'refund_failed', item: { ...item, error: 'unknown' } };
+    }
+    await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'refund_failed', error: r.error.slice(0, 160) });
     console.warn('[grow] deposit refund failed for payment', dep.id, r.code);
     return { status: 'refund_failed', item: { ...item, error: r.error } };
   }
   await d.repo.markRefunded(dep.id, r.refundId);
   // The deposit receipt no longer stands: the money went back, so it leaves her takings through the normal void.
   if (dep.receipt_id) await d.repo.voidReceipt(tenantId, dep.receipt_id, 'מקדמה הוחזרה ללקוחה (ביטול בזמן)').catch((e) => console.warn('[grow] void of the refunded deposit receipt failed:', (e as Error)?.message));
-  const done = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refunded', grow_payment_id: dep.id });
+  const done = await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'refunded', grow_payment_id: dep.id });
   return { status: 'refunded', item: done || item };
 }
 
@@ -322,6 +445,10 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
   if (!account || !account.enabled) { await back('not connected'); return { ok: false, code: 'not-connected', error: 'כדי לחייב צריך שחיבור ה-Grow יהיה פעיל' }; }
   const token = consent?.token_id ? await d.repo.getToken(consent.token_id) : null;
   if (!token) { await back('no saved card'); return { ok: false, code: 'no-card', error: 'אין כרטיס שמור ללקוחה הזו' }; }
+  const card = openCard(d, token);
+  if (!card) { await back('card cannot be opened'); return { ok: false, code: 'no-card', error: 'אין כרטיס שמור ללקוחה הזו' }; }
+  // The client comes from the appointment in OUR database; the saved card must belong to this business and this very client.
+  const appt = await d.repo.getAppointment(i.tenantId, item.appointment_id);
 
   const label = item.kind === 'no_show' ? 'אי הגעה' : 'ביטול מאוחר';
   const payment = await d.grow.insertPayment({
@@ -329,11 +456,21 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
     client_id: item.client_id, client_name: item.client_name, appointment_id: item.appointment_id, notify_token: d.chargeDeps.newToken(),
   });
 
-  const r = await d.ops.chargeToken({ userId: account.user_id, tokenRef: token.token_ref, amount: item.amount, description: `${label}${item.service ? ` - ${item.service}` : ''}`.slice(0, 100), idempotencyKey: `fee:${item.id}` });
+  const r = await chargeSavedCard({ ops: d.ops, ledger: d.repo, newId: d.newChargeId }, {
+    tenantId: i.tenantId, clientId: appt?.client_id ?? null, appointmentId: item.appointment_id, card, userId: account.user_id, amount: item.amount,
+    description: `${label}${item.service ? ` - ${item.service}` : ''}`.slice(0, 100), purpose: 'fee', feeItemId: item.id,
+    fullName: item.client_name || appt?.name || '', phone: String(appt?.client_phone || ''),
+  });
   if (!r.ok) {
     await d.grow.updatePayment(payment.id, { status: 'failed', error: r.error.slice(0, 120) });
+    console.warn('[grow] fee charge not completed for item', item.id, r.code);
+    if (r.code === 'unknown') {
+      // Grow may or may not have taken the money. The item stays "charging" so a second tap cannot charge twice; she checks Grow first.
+      await d.repo.transitionFee(i.tenantId, i.feeId, ['charging'], { status: 'charging', error: 'check-grow' });
+      return { ok: false, code: 'declined', error: 'לא הצלחנו לוודא אם החיוב עבר. בדקי ב-Grow לפני שמנסים שוב, כדי שלא יחויב פעמיים.' };
+    }
     await back(r.error);
-    console.warn('[grow] fee charge refused for item', item.id, r.code);
+    if (r.code === 'wrong-owner') return { ok: false, code: 'no-card', error: 'הכרטיס השמור לא שייך ללקוחה של התור הזה, ולכן לא חויב.' };
     return { ok: false, code: 'declined', error: 'החיוב לא עבר. הכרטיס סורב או שיש תקלה, אפשר לנסות שוב או לוותר.' };
   }
 
@@ -530,6 +667,34 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       if (e3) fail(e3, 'restoreAppointment');
       return 'restored';
     },
+    async insertCardConsent(row) {
+      const { data, error } = await db.from('grow_card_consents').upsert(row, { onConflict: 'tenant_id,appointment_id' }).select('*').single();
+      if (error || !data) fail(error, 'insertCardConsent');
+      return data as unknown as CardConsentRow;
+    },
+    async findCardConsentByProcess(processId) {
+      const { data, error } = await db.from('grow_card_consents').select('*').eq('process_id', processId).limit(2);
+      if (error) fail(error, 'findCardConsentByProcess');
+      return data && data.length === 1 ? (data[0] as unknown as CardConsentRow) : null;
+    },
+    async getCardConsent(tenantId, appointmentId) {
+      const { data, error } = await db.from('grow_card_consents').select('*').eq('tenant_id', tenantId).eq('appointment_id', appointmentId).maybeSingle();
+      if (error) fail(error, 'getCardConsent');
+      return (data || null) as unknown as CardConsentRow | null;
+    },
+    async updateCardConsent(id, patch) {
+      const { error } = await db.from('grow_card_consents').update(patch).eq('id', id);
+      if (error) fail(error, 'updateCardConsent');
+    },
+    async insertCharge(row) {
+      const { data, error } = await db.from('grow_token_charges').insert(row).select('*').single();
+      if (error) { if (error.code === '23505') return null; fail(error, 'insertCharge'); }
+      return data ? ({ ...(data as Record<string, unknown>), amount: Number((data as { amount: unknown }).amount), unique_identifier: Number((data as { unique_identifier: unknown }).unique_identifier) } as unknown as LedgerRow) : null;
+    },
+    async updateCharge(id, patch) {
+      const { error } = await db.from('grow_token_charges').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) fail(error, 'updateCharge');
+    },
     async insertToken(row) {
       const { data, error } = await db.from('grow_card_tokens').insert(row).select('*').single();
       if (error || !data) fail(error, 'insertToken');
@@ -592,6 +757,10 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       return round2((data || []).reduce((s, r) => s + Number(r.amount), 0));
     },
     async useCredit(tenantId, clientId, amount, receiptId) {
+      // Once per receipt: a retried request for the same receipt reports what was already used and uses nothing more.
+      const prior = await db.from('client_credits').select('amount').eq('tenant_id', tenantId).eq('client_id', clientId).eq('used_receipt_id', receiptId).not('used_at', 'is', null);
+      if (prior.error) fail(prior.error, 'useCredit');
+      if (prior.data && prior.data.length) return round2(prior.data.reduce((s, r) => s + Number(r.amount), 0));
       const { data, error } = await db.from('client_credits').select('id, amount').eq('tenant_id', tenantId).eq('client_id', clientId).is('used_at', null).order('created_at', { ascending: true });
       if (error) fail(error, 'useCredit');
       let left = amount, used = 0;
@@ -599,16 +768,21 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
         if (left <= 0) break;
         const a = Number(c.amount);
         const now = new Date().toISOString();
+        // Every write is compare-and-set (still unused AND still this amount) and checks that it changed a row: another device
+        // that used this credit a moment earlier makes the write change nothing, and that credit is skipped instead of used twice
+        // (2026-10-20 audit).
         if (a > left) {
           // Only part of this credit is needed: the rest stays available as a smaller credit, the used part is recorded on its own.
-          const { error: e1 } = await db.from('client_credits').update({ amount: round2(a - left) }).eq('id', c.id).is('used_at', null);
+          const { data: u1, error: e1 } = await db.from('client_credits').update({ amount: round2(a - left) }).eq('id', c.id).is('used_at', null).eq('amount', c.amount).select('id');
           if (e1) fail(e1, 'useCredit');
+          if (!u1 || !u1.length) continue;
           const { error: e2 } = await db.from('client_credits').insert({ tenant_id: tenantId, client_id: clientId, amount: round2(left), source: 'split_used', used_at: now, used_receipt_id: receiptId });
           if (e2) fail(e2, 'useCredit');
           used += left; left = 0;
         } else {
-          const { error: e3 } = await db.from('client_credits').update({ used_at: now, used_receipt_id: receiptId }).eq('id', c.id).is('used_at', null);
+          const { data: u3, error: e3 } = await db.from('client_credits').update({ used_at: now, used_receipt_id: receiptId }).eq('id', c.id).is('used_at', null).select('id');
           if (e3) fail(e3, 'useCredit');
+          if (!u3 || !u3.length) continue;
           used += a; left -= a;
         }
       }

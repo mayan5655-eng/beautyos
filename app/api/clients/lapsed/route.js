@@ -24,6 +24,7 @@
 // the row tells her the truth about whether anyone - the automation, or she
 // herself last month - has already reached out about this particular absence.
 
+import { readAllRows } from "../../../../lib/pagedRead.js";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import {
@@ -68,13 +69,14 @@ export async function GET(request) {
 
     console.log(`[clients/lapsed] TENANT FILTER: tenant_id = ${tenantId} (read only, days=${days})`);
 
-    const [{ data: clients, error: cErr }, { data: appts, error: aErr }] = await Promise.all([
-      admin.from("clients").select("*").eq("tenant_id", tenantId),
-      admin
-        .from("appointments")
-        .select("client_id, date, confirmation_status")
-        .eq("tenant_id", tenantId),
+    // Paged (lib/pagedRead.js): a plain select stops at 1,000 rows, so "last visit" came from a fragment of the history (2026-10-20 audit).
+    const [cl, ap] = await Promise.all([
+      readAllRows(admin, "clients", { columns: "*", filter: (q) => q.eq("tenant_id", tenantId) }),
+      readAllRows(admin, "appointments", { columns: "client_id, date, confirmation_status", filter: (q) => q.eq("tenant_id", tenantId) }),
     ]);
+    const clients = cl.data, appts = ap.data;
+    const cErr = cl.error || (!cl.complete ? { message: "clients read incomplete" } : null);
+    const aErr = ap.error || (!ap.complete ? { message: "appointments read incomplete" } : null);
     if (cErr || aErr) {
       console.error("[clients/lapsed] read failed:", (cErr || aErr).message);
       // "couldn't load" must never render as "no lapsed clients".

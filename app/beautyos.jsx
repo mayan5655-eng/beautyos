@@ -77,6 +77,7 @@ const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const GrowPaymentRequests = dynamic(() => import("./GrowPaymentRequests"), { ssr: false });
 const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import GrowChargePanel from "./GrowChargePanel";
 import GrowCashierCredit from "./GrowCashierCredit";
@@ -88,9 +89,16 @@ import DepositLinkSheet from "./DepositLinkSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
+import { displayPhone } from "@/lib/publicLanding";
+import { countHe } from "@/lib/hebrewCount";
+import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
+import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
+// Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
+const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
+const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
@@ -325,6 +333,8 @@ const planAllows = (plan, feature) => {
   if (plan === "premium" || plan === "trial") return true;
   return (PLAN_FEATURES[plan] || []).includes(feature);
 };
+// A stored phone the way she writes it ("052-111-1111"), not the e164 digits bookings store ("972521111111").
+const fmtPhone = (p) => displayPhone(p) || p || "";
 const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
 const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--ink-3)","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
@@ -1233,6 +1243,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   }, []);
 
   const isBusy = useCallback((key) => !!busy[key], [busy]);
+  // Synchronous in-flight guard for one-tap actions: `busy` is React state, so two taps inside the same frame both see it
+  // false. A ref is already set when the second tap arrives (2026-10-20 audit: a double tap drew two package sessions).
+  const inFlightRef = useRef(new Set());
+  const runOnce = async (key, fn) => {
+    if (inFlightRef.current.has(key)) return undefined;
+    inFlightRef.current.add(key);
+    try { return await fn(); } finally { inFlightRef.current.delete(key); }
+  };
 
   // Is this a lost connection rather than a database refusal? The two look
   // nothing alike to her and must never be reported the same way.
@@ -1776,9 +1794,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Guarded on length, because a day too short to fit the treatment at all
   // offers no slots, and snapping to apptSlotOptions[0] there wrote NaN.
   const apptTimeTouched = useRef(false); // true once she has picked a time in the sheet herself
+  // The appointment as it was when she opened it for editing: its time is kept exactly, unless she changes the day or the length.
+  const editOrigRef = useRef(null);
   useEffect(()=>{ if(showModal) apptTimeTouched.current=false; },[showModal]);
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
+    // Opening an existing appointment to add a note must never move it (2026-10-20 audit: a 10:15 from voice or an import snapped to
+    // 09:00 and was saved there without the client being told). It moves only if she changes its day or its length.
+    const orig=editOrigRef.current;
+    if(editingAppointmentId && orig && newAppt.date===orig.date && Number(newAppt.duration)===orig.duration) return;
     if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) {
       // The first slot is now an hour or two BEFORE she opens, and snapping
       // onto it would hand her an out-of-hours default she never asked for.
@@ -2831,6 +2855,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleApptClick = (appt) => {
     if (isPersonal(appt)) { openPersonalEditor(appt); return; }
     setEditingAppointmentId(appt.id);
+    editOrigRef.current={date:appt.date,duration:Number(appt.duration)||60,start:startMinute(appt)};
     setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),startMinute:startMinute(appt),price:appt.price||0});
     setApptNote(appt.note||"");
     setShowModal(true);
@@ -2983,7 +3008,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           setAppointments(prev => prev.filter(a => !ownIds.has(String(a.id))));
         }
         const { data, error } = await supabase.from("appointments").insert(dates.map(row)).select();
-        if (error) { handleDbError(error, "create personal event"); return; }
+        if (error) {
+          // The old rows are already gone: put them back, or the block disappears and the time opens on her booking page
+          // (2026-10-20 audit: an insert refused by a booking made meanwhile left nothing blocked).
+          if (existing.length) {
+            const { data: back, error: backErr } = await supabase.from("appointments").insert(existing).select();
+            if (!backErr && back) setAppointments(prev => [...prev, ...back]);
+            else if (backErr) console.error("[personal event] restore failed:", backErr.message);
+          }
+          handleDbError(error, "create personal event"); return;
+        }
         if (data) setAppointments(prev => [...prev, ...data]);
       }
       closePersonalEditor();
@@ -3127,10 +3161,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
       const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||DEFAULT_SERVICE_COLOR;
       if(editingAppointmentId){
-        // EDIT/reschedule: update only the editable fields on the existing row.
-        // confirmation_status/confirmation_sent are intentionally left untouched
-        // (no change to unrelated confirmation logic).
-        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0};
+        // EDIT/reschedule: update only the editable fields on the existing row. A NEW day or time is a time the client has not
+        // agreed to: the "confirmed" mark and the sent reminder belong to the old one, so both are reset and the next reminder asks
+        // again (2026-10-20 audit). A note, price or name change keeps them.
+        const orig=editOrigRef.current;
+        const moved=!!orig && (orig.date!==newAppt.date || orig.start!==apptEffectiveStart);
+        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{})};
         const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
         if(error){handleDbError(error, "update appointment"); return;}
         if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
@@ -3610,27 +3646,32 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     });
   };
 
-  const handleSendConfirmation = async (appt) => {
-    if (guardWrite()) return;
+  const handleSendConfirmation = (appt) => runOnce(`sendConfirm:${appt.id}`, () => sendConfirmationNow(appt));
+  // Returns true only when a WhatsApp window actually opened. A blocked popup is not a sent reminder, so it is not marked sent
+  // (2026-10-20 audit: the bulk loop marked every client after the first as handled while nothing had opened for them).
+  const sendConfirmationNow = async (appt) => {
+    if (guardWrite()) return false;
     const client=clients.find(c=>String(c.id)===String(appt.client_id));
-    if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return;}
+    if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return false;}
     // The window is opened synchronously, inside the click, and only then
     // pointed at the link. Awaiting the signed links first and opening
     // afterwards would put window.open outside the user gesture, which Safari
     // and Chrome block as a popup.
     const w = window.open("", "_blank");
     const links = await fetchConfirmLinks(appt.id);
-    if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return; }
+    if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return false; }
     const brandJson = settings.branding && typeof settings.branding === "object" ? settings.branding : {};
     const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, fmtApptTime(appt), links, {
       businessName: settings.business_name,
       address: brandJson.public_address || brandJson.address,
       arrivalNote: brandJson.arrival_note,
     });
-    if (w) w.location.href = link; else window.open(link, "_blank");
+    const opened = w ? (w.location.href = link, true) : !!window.open(link, "_blank");
+    if (!opened) { toast("הדפדפן חסם את פתיחת וואטסאפ, אפשר לנסות שוב", "info"); return false; }
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
-    if (error) { handleDbError(error, "mark confirmation_sent"); return; }
+    if (error) { handleDbError(error, "mark confirmation_sent"); return true; }
     if(data)setAppointments(prev=>prev.map(a=>a.id===appt.id?data[0]:a));
+    return true;
   };
 
   const handleSendAllConfirmations = async () => {
@@ -3642,11 +3683,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       message: `${pending.length===1?"לשלוח תזכורת ללקוחה אחת?":`לשלוח תזכורת ל-${pending.length} לקוחות?`}`,
       confirmText: "שליחה",
       onConfirm: async () => {
+        // The browser lets a page open a window only from a tap, so after the first one the rest may be blocked. Those stay
+        // unmarked and she is told how many are left, instead of a toast that says all of them were opened.
+        let opened = 0;
         for(const appt of pending){
-          await handleSendConfirmation(appt);
+          const ok = await handleSendConfirmation(appt);
+          if (!ok) break;
+          opened++;
           await new Promise(r=>setTimeout(r,500));
         }
-        toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
+        const left = pending.length - opened;
+        if (left > 0) toast(opened ? `פתחנו וואטסאפ ל-${opened} מתוך ${pending.length}. הדפדפן חסם את השאר, אפשר ללחוץ על כל תור בנפרד.` : "הדפדפן חסם את פתיחת וואטסאפ. אפשר ללחוץ על כל תור בנפרד.", "info");
+        else toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
       },
     });
   };
@@ -4505,7 +4553,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     } finally { setBrandUploading(""); }
   };
 
-  const handleSendForm = async (client,formType) => {
+  const handleSendForm = (client,formType) => runOnce(`sendForm:${client.id}:${formType}`, () => sendFormNow(client, formType));
+  const sendFormNow = async (client,formType) => {
     if (guardWrite()) return;
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
@@ -6211,7 +6260,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return fresh || null;
   };
 
-  const handleUsePackageSession = async (pkg, opts) => {
+  const handleUsePackageSession = (pkg, opts) => runOnce(`pkg:${pkg.id}`, () => usePackageSessionNow(pkg, opts));
+  const usePackageSessionNow = async (pkg, opts) => {
     if (guardWrite()) return;
     if (Number(pkg.used_sessions) >= Number(pkg.total_sessions)) { toast("החבילה כבר נוצלה במלואה", "error"); return; }
     const fresh = await writePackageEntry(pkg, -1, opts);
@@ -6223,7 +6273,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The reversal. Not a delete: the mistaken draw stays in the ledger and the
   // correction sits beside it, so the history explains itself instead of
   // quietly no longer containing the error.
-  const handleUndoPackageSession = async (pkg) => {
+  const handleUndoPackageSession = (pkg) => runOnce(`pkg:${pkg.id}`, () => undoPackageSessionNow(pkg));
+  const undoPackageSessionNow = async (pkg) => {
     if (guardWrite()) return;
     if (Number(pkg.used_sessions) <= 0) { toast("אין טיפול לבטל", "error"); return; }
     const fresh = await writePackageEntry(pkg, 1, { reason: "ביטול ניכוי" });
@@ -6591,7 +6642,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   };
 
-  const copyPublicLink = async (kind) => {
+  // channel: where she is about to paste it (lib/bookingSource.ts), so a booking from it is counted under that channel.
+  const copyPublicLink = async (kind, channel = "link") => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
@@ -6615,8 +6667,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // resolve to the same page - /book?t= has to keep working forever, because
     // it is in every link she has already sent.
     const url = kind === "community" ? `${base}/community?t=${t}`
-      : mySlug ? `${base}/${encodeURIComponent(mySlug)}`
-      : `${base}/book?t=${t}`;
+      : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
@@ -6831,12 +6882,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   },[activeTab]);
   // Hebrew labels for the message_type column. slot_offer and lead_bulk are
   // written by the gap-fill and lead-template send paths.
-  const WA_TYPE_LABELS = {
-    reminder:"תזכורת", confirmation:"אישור הגעה", booking_confirm:"אישור תור",
-    owner_alert:"התראת תור", reminder_failure:"דוח תזכורות", receipt:PAYMENT_NOTICE_HE, skin_report:"דוח עור",
-    skin_lead_alert:"ליד מהסורק", slot_offer:"הצעת תור", lead_bulk:"הודעה ללידים",
-    general:"כללי",
-  };
+  // Hebrew labels for message_type, and the status column: lib/waStatusLabel.js.
+  const WA_TYPE_LABELS = { ...WA_TYPE_LABELS_BASE, receipt:PAYMENT_NOTICE_HE };
+
 
   // What "status" has always meant versus what actually happened: "sent"
   // (lib/whatsapp.js) only ever meant GreenAPI's API accepted the call - its
@@ -6846,13 +6894,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // confirms it (app/api/whatsapp-webhook/route.js) - null means exactly
   // "handed off, nothing has confirmed it arrived yet", not "delivered".
   // See supabase/migrations/pending/whatsapp-delivery-status.sql.
-  function waDeliveryLabel(m){
-    if(m.status!=="sent") return {text:"✕ נכשל",color:"var(--danger)"};
-    if(m.delivery_status==="read") return {text:"✓✓ נקראה",color:"var(--success)"};
-    if(m.delivery_status==="delivered") return {text:"✓✓ הגיעה",color:"var(--success)"};
-    if(m.delivery_status==="undelivered") return {text:"⚠ לא הגיעה",color:"var(--danger)"};
-    return {text:"✓ נמסרה לוואטסאפ · אין אישור הגעה",color:"var(--ink-3)"};
-  }
+  const waDeliveryLabel = waStatusLabel;
+
 
 
   if(loading) return (
@@ -7579,7 +7622,7 @@ ${MARKETING_FOOTER}`)}`;
  <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||"(ללא שם)"}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",direction:"ltr",textAlign:"right"}}>{c.phone}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",direction:"ltr",textAlign:"right"}}>{fmtPhone(c.phone)}</p>
  </div>
  <a href={waHref(c)} target="_blank" rel="noreferrer" onClick={()=>setComposeDone(prev=>({...prev,[c.phone]:true}))} className="primary-btn" style={{background:composeDone[c.phone]?"var(--surface-2)":"#25D366",color:composeDone[c.phone]?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{composeDone[c.phone]?"✓ נפתח":"שליחה בוואטסאפ"}</a>
  </div>
@@ -7847,7 +7890,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{textAlign:"center",background:pcTint,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"20px 16px",marginBottom:14}}>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)"}}>{voiceCall.selected.name}</p>
                       {voiceCall.selected.phone
-                        ? <p style={{fontSize:"var(--t-lg)",color:pc,marginTop:6,direction:"ltr",fontWeight:600}}>{voiceCall.selected.phone}</p>
+                        ? <p style={{fontSize:"var(--t-lg)",color:pc,marginTop:6,direction:"ltr",fontWeight:600}}>{fmtPhone(voiceCall.selected.phone)}</p>
                         : <p style={{fontSize:"var(--t-sm)",color:"var(--warning)",marginTop:8}}>אין מספר טלפון שמור ל{voiceCall.selected.name}</p>}
  </div>
  <div style={{display:"flex",gap:8}}>
@@ -8172,7 +8215,7 @@ ${MARKETING_FOOTER}`)}`;
                 var(--ink-3)/var(--ink-2) - those shared tokens stay neutral,
                 since tenant-facing pages read them too (Stage 2's rule);
                 this is a Kalmea-chrome-only green reserved for this screen. */}
- <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,paddingInline:17}}>
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
@@ -8198,7 +8241,7 @@ ${MARKETING_FOOTER}`)}`;
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
-            pageUrl={settings?.tenant_id?`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`:""}
+            pageUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}
             pc={pc} pcTint={pcTint} toast={toast}
             onOpenWinback={()=>setShowLapsed(true)}
             onOpenContent={()=>{setActiveTab("campaigns");setAiPostsView("studio");}}/>
@@ -8474,7 +8517,7 @@ ${MARKETING_FOOTER}`)}`;
                       if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
-                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:`${tomorrowNotSent.length} תורים`,why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
+                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
                       (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
                       // Automated sends that FAILED in the last day, from the same log the
@@ -9038,7 +9081,7 @@ ${MARKETING_FOOTER}`)}`;
                         {days>90&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
                         {total>0&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${client.phone} · `}{appts.length} תורים{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
  </div>
                     {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:"var(--t-sm)"}}>✆ הודעה</a>}
  <span style={{fontSize:"var(--t-md)",color:pc}}>←</span>
@@ -9158,7 +9201,7 @@ ${MARKETING_FOOTER}`)}`;
  <span className="pill" style={{fontSize:"var(--t-sm)",background:st.bg,color:st.color,padding:"3px 8px"}}>{st.label}</span>
                         {hasReminder&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>◴ תזכורת</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${lead.phone} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${fmtPhone(lead.phone)} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
  </div>
                     {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:"var(--t-sm)"}}>✆</a>}
                     {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"5px 11px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>המר ✓</button>}
@@ -9186,6 +9229,8 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא לאקסל</button>
  </div>
  </div>
+ {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
+ {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's
@@ -9377,7 +9422,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",color:g.color,background:"rgba(255,255,255,0.7)"}}>{g.icon}</span>
  <div style={{minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{g.title}</p>
- <p style={{fontSize:"var(--t-sm)",color:g.color,fontWeight:700}}>{withPhone.length} נמענים</p>
+ <p style={{fontSize:"var(--t-sm)",color:g.color,fontWeight:700}}>{countHe(withPhone.length,"נמענת אחת","נמענות","אין נמענות")}</p>
  </div>
  </div>
                         {withPhone.length>0&&(
@@ -9392,7 +9437,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {waSentToday[t.clientId]&&<span style={{color:"var(--success)"}}>✓ </span>}{t.name}
  </p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{t.phone||"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>{t.phone?fmtPhone(t.phone):"אין טלפון"}{t.days!==undefined?` · ${t.days} ימים`:""}</p>
  </div>
                               {t.phone?(
  <button onClick={()=>waSendOne(t.clientId,t.phone,t.message)} className="wa-btn" style={{padding:"4px 10px",fontSize:"var(--t-sm)"}}>שלחי</button>
@@ -9417,7 +9462,7 @@ ${MARKETING_FOOTER}`)}`;
                   placeholder="כתבי כאן את ההודעה... למשל: שלום! החודש יש מבצע מיוחד: 20% הנחה על הטיפול הראשון "
                   style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 13px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:10}}/>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{audienceClients.length} לקוחות עם טלפון והסכמה לדיוור בקבוצה זו</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{countHe(audienceClients.length,"לקוחה אחת","לקוחות","אין לקוחות")} עם טלפון והסכמה לדיוור בקבוצה זו</p>
  <button onClick={()=>{
                     if(!waBroadcastMsg.trim()){toast("עוד לא כתבת הודעה","error");return;}
                     waSendGroup(audienceClients.map(c=>({clientId:c.id,name:c.name,phone:c.phone,message:withMarketingFooter(`שלום ${c.name}! ${waBroadcastMsg}`)})));
@@ -9659,6 +9704,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
   {(!historyReady||deferred.leads!=="ok")?<DeferredGate status={(deferred.leads==="error"||deferred.history==="error")?"error":"loading"} what="את הפניות וההכנסות" onRetry={loadHistory}/>:<SourceReport leads={leads} receipts={liveRcpts} sourceList={leadSourceList} pc={pc} pcGrad={pcGrad} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>}
+ {historyReady&&<BookingSourceReport appointments={appointments} receipts={liveRcpts} clients={clients} pc={pc} pcTint={pcTint}/>}
  </>)}
 
  {marketingView==="posts"&&(<>
@@ -10352,7 +10398,7 @@ ${MARKETING_FOOTER}`)}`;
                   {apptClientMatches.map(c=>(
  <button key={c.id} onClick={()=>{handleClientSelect(String(c.id));setApptClientQuery("");}} style={{display:"block",width:"100%",textAlign:"right",background:"var(--surface)",border:"none",borderBottom:"1px solid var(--line)",padding:"10px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",cursor:"pointer",color:"var(--ink)"}}>
  <span style={{fontWeight:600}}>{c.name}</span>
-                    {c.phone&&<span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginRight:8,direction:"ltr",display:"inline-block"}}>{c.phone}</span>}
+                    {c.phone&&<span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginRight:8,direction:"ltr",display:"inline-block"}}>{fmtPhone(c.phone)}</span>}
  </button>
                   ))}
  <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:apptClientQuery.trim()});setApptClientQuery("");}} style={{display:"block",width:"100%",textAlign:"right",background:pcTint,border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",cursor:"pointer",color:pcDeep,fontWeight:700}}>
@@ -10649,7 +10695,7 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
  <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
  {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
@@ -10669,7 +10715,7 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowLeadModal(false)} width={370} zIndex={1000} title={editingLead?"עריכת פנייה":"פנייה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{leadSourceList.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
  <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>
@@ -10737,7 +10783,7 @@ ${MARKETING_FOOTER}`)}`;
               {bulkError&&<p style={{color:"var(--danger)",fontSize:"var(--t-xs)",marginBottom:10}}>{bulkError}</p>}
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>{setBulkStep("compose");setBulkError("");}} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>חזרה לעריכה</button>
- <button onClick={confirmBulkSend} className="primary-btn" style={{flex:2,padding:"11px 0",background:"var(--success)",color:"var(--surface)",fontSize:"var(--t-sm)"}}>שלחי ל-{withPhone} נמענים ✓</button>
+ <button onClick={confirmBulkSend} className="primary-btn" style={{flex:2,padding:"11px 0",background:"var(--success)",color:"var(--surface)",fontSize:"var(--t-sm)"}}>שלחי ל{withPhone===1?"נמענת אחת":`-${withPhone} נמענות`} ✓</button>
  </div>
             </>)}
 
@@ -11744,11 +11790,18 @@ ${MARKETING_FOOTER}`)}`;
  <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div style={{gridColumn:"1 / -1",marginTop:6,padding:"12px 14px",border:"1px solid var(--line)",borderRadius:"var(--r-md)",background:"var(--surface-2)"}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>הקישורים שלך</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>העמודים הפומבניים שלך, בצבעים שלך. העתיקי ושלחי.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>העמודים הציבוריים שלך, בצבעים שלך. העתיקי ושלחי.</p>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button onClick={()=>copyPublicLink("book")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>עמוד ההזמנות</button>
  <button onClick={()=>copyPublicLink("scan")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>סורק העור</button>
                     {isTabVisible(settings,"community")&&<button onClick={()=>copyPublicLink("community")} className="primary-btn" style={{padding:"8px 14px",background:"var(--surface)",color:"var(--pc-deep)",border:"1px solid var(--line-2)",fontSize:"var(--t-sm)"}}>הקהילה</button>}
+ </div>
+ {/* The same booking link, tagged with where she pastes it (lib/bookingSource.ts): the source report then shows which channel brings bookings. */}
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"10px 0 6px"}}>קישור לקביעת תור לפי המקום שבו תדביקי אותו, כדי לדעת מה מביא תורים:</p>
+ <div data-testid="tagged-links" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+ {[["bio","לביו באינסטגרם"],["story","לסטורי"],["whatsapp","לסטטוס בוואטסאפ"],["facebook","לפייסבוק"],["tiktok","לטיקטוק"],["google","לגוגל"]].map(([ch,l])=>(
+ <button key={ch} type="button" onClick={()=>copyPublicLink("book",ch)} style={{padding:"7px 12px",minHeight:36,background:"var(--surface)",color:"var(--ink)",border:"1px solid var(--line-2)",borderRadius:"var(--r-full)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+ ))}
  </div>
  </div>
  <div><p style={lbl}>אתר אינטרנט</p><input value={brand.website||""} onChange={e=>setBrand("website",e.target.value)} placeholder="https://..." style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
@@ -11771,7 +11824,7 @@ ${MARKETING_FOOTER}`)}`;
                     {!clientReviewsError&&clientReviews.length===0&&(
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_HEART} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. הן יגיעו מעצמן — הבקשה נשלחת יומיים אחרי כל טיפול.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. יומיים אחרי כל טיפול מוכנה בשבילך בקשת ביקורת בתור ההודעות, ושולחים אותה בלחיצה.</p>
  </div>
                     )}
                     {clientReviews.map(rv=>(
@@ -12456,6 +12509,9 @@ ${MARKETING_FOOTER}`)}`;
                     {c.phone&&<a href={waLink(c.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"var(--surface)",color:pc,borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",textDecoration:"none"}}>וואטסאפ</a>}
  <button onClick={()=>openEditClient(c)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><Icon name="edit" size={13}/> עריכה</button>
  </div>
+ {/* Where she came from, who she brought, and her "bring a friend" link (lib/bookingSource.ts). */}
+ <ClientReferral client={c} clients={clients} businessName={settings?.business_name} pc={pc} pcTint={pcTint} toast={toast}
+   publicUrl={settings?.tenant_id?`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`:""}/>
  {/* Book an appointment for THIS client — opens the existing new-appointment
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}

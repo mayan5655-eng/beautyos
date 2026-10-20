@@ -33,7 +33,13 @@ export function billingUiEnabled(env: Env = process.env): boolean {
 
 // ── the two interfaces ───────────────────────────────────────────────────────
 
-export type CardSessionInput = { tenantId: string; businessName: string; email?: string; returnUrl: string };
+export type CardSessionInput = {
+  tenantId: string; businessName: string; email?: string; returnUrl: string;
+  /** The payer as Grow's page asks for her: full name (two words) and an Israeli mobile. */
+  fullName?: string; phone?: string;
+  /** Where the provider posts the saved card (Grow: /api/billing/grow-notify, signed per tenant). */
+  notifyUrl?: string;
+};
 export type CardSession = { url: string };
 
 /** What the provider hands back once the client has saved a card on its hosted page. Never a card number. */
@@ -46,14 +52,31 @@ export type ChargeInput = {
   description: string;
   /** The same key for the same billing period: a provider that honours it cannot charge twice. */
   idempotencyKey: string;
+  /**
+   * Grow's transactionUniqueIdentifier: a whole number drawn on our server, SAVED in billing_payments before this call, never reused
+   * (not even after a refusal). The same rules as the client token flow (lib/grow/tokenFlow.ts newUniqueIdentifier).
+   */
+  uniqueIdentifier?: number;
+  /** Not unique: one per subscription, for looking charges up later. */
+  groupIdentifier?: number;
+  /** The payer, as Grow wants her on every token charge. */
+  fullName?: string;
+  phone?: string;
 };
 export type ChargeResult =
-  | { ok: true; providerPaymentId: string }
-  | { ok: false; error: string; code: 'declined' | 'not-configured' | 'unreachable' };
+  | { ok: true; providerPaymentId: string; invoiceNumber?: string; invoiceUrl?: string }
+  | { ok: false; error: string; code: 'declined' | 'not-configured' | 'unreachable' | 'duplicate'; final?: boolean };
+
+/** What the provider knows about one charge, by its unique identifier (after a duplicate answer or a lost reply). */
+export type LookupResult =
+  | { ok: true; found: boolean; status: 'paid' | 'failed' | 'pending' | 'unknown'; providerPaymentId?: string }
+  | { ok: false; error: string };
 
 export interface PaymentsAdapter {
   createCardSession(i: CardSessionInput): Promise<CardSession>;
   charge(i: ChargeInput): Promise<ChargeResult>;
+  /** Optional: a provider that can be asked "did charge N go through?" (Grow: getTokenTransactionsByExternalIdentifiers). */
+  lookup?(tokenRef: string, uniqueIdentifier: number): Promise<LookupResult>;
 }
 
 export type InvoiceInput = {
@@ -95,14 +118,26 @@ export const newMockToken = (kind: 'ok' | 'decline') => (kind === 'ok' ? MOCK_TO
 
 export function createMockAdapters(origin: string, signSession: (tenantId: string) => string): { payments: PaymentsAdapter; invoicing: InvoicingAdapter } {
   const base = origin.replace(/\/+$/, '');
+  const seen = new Map<number, { status: 'paid' | 'failed'; id?: string }>();
   const payments: PaymentsAdapter = {
     async createCardSession(i) {
       return { url: `${base}/api/billing/mock-card?s=${encodeURIComponent(signSession(i.tenantId))}` };
     },
     async charge(i) {
-      if (i.tokenRef.startsWith(MOCK_TOKEN_OK)) return { ok: true, providerPaymentId: `mockpay_${rid()}` };
-      if (i.tokenRef.startsWith(MOCK_TOKEN_DECLINE)) return { ok: false, code: 'declined', error: 'mock: card declined' };
-      return { ok: false, code: 'declined', error: 'mock: unknown token' };
+      // Like Grow: an identifier seen before is refused outright (error 1010), whatever happened the first time.
+      if (i.uniqueIdentifier !== undefined) {
+        if (seen.has(i.uniqueIdentifier)) return { ok: false, code: 'duplicate', error: 'mock: identifier already used' };
+      }
+      let out: ChargeResult;
+      if (i.tokenRef.startsWith(MOCK_TOKEN_OK)) out = { ok: true, providerPaymentId: `mockpay_${rid()}` };
+      else if (i.tokenRef.startsWith(MOCK_TOKEN_DECLINE)) out = { ok: false, code: 'declined', error: 'mock: card declined' };
+      else out = { ok: false, code: 'declined', error: 'mock: unknown token' };
+      if (i.uniqueIdentifier !== undefined) seen.set(i.uniqueIdentifier, out.ok ? { status: 'paid', id: out.providerPaymentId } : { status: 'failed' });
+      return out;
+    },
+    async lookup(_tokenRef, uniqueIdentifier) {
+      const r = seen.get(uniqueIdentifier);
+      return r ? { ok: true, found: true, status: r.status, providerPaymentId: r.id } : { ok: true, found: false, status: 'unknown' };
     },
   };
   const invoicing: InvoicingAdapter = {
@@ -122,6 +157,10 @@ export function resolveBilling(env: Env = process.env, origin = '', signSession:
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, payments: null, invoicing: null, reason: 'mock mode is not allowed on the production deployment' };
+  }
+  // Previews share the production database: mock billing there only when explicitly allowed (BILLING_MOCK_ALLOWED=true).
+  if (env.VERCEL_ENV && !/^(1|true|on|yes)$/i.test((env.BILLING_MOCK_ALLOWED || '').trim())) {
+    return { mode: 'mock', configured: false, payments: null, invoicing: null, reason: 'mock mode needs BILLING_MOCK_ALLOWED=true on a Vercel deployment' };
   }
   const m = createMockAdapters(origin, signSession);
   return { mode: 'mock', configured: true, payments: m.payments, invoicing: m.invoicing };

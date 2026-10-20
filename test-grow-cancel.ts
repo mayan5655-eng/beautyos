@@ -8,11 +8,13 @@ import { resolveGrow, mockNotification } from './lib/grow/adapter.ts';
 import { applyNotificationByProcess, approveTransaction } from './lib/grow/service.ts';
 import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 import { createMockOps, newMockCardToken } from './lib/grow/ops.ts';
+import { readCardTokenNotification } from './lib/grow/tokenFlow.ts';
 import type { GrowOps } from './lib/grow/ops.ts';
 import {
-  activePolicy, recordConsentAndStart, saveToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion, releaseExpiredHolds, onDepositPaid, requestDepositForAppointment,
+  activePolicy, recordConsentAndStart, saveToken, onDepositCardToken, detect, decide, retryRefund, depositForCashier, applyDeposit, feeQuestion, releaseExpiredHolds, onDepositPaid, requestDepositForAppointment,
 } from './lib/grow/cancelFees.ts';
-import type { CancelRepo, ConsentRow, FeeItem, TokenRow, ApptRow, PaymentRow, Deps, FeeStatus } from './lib/grow/cancelFees.ts';
+import type { CancelRepo, ConsentRow, CardConsentRow, FeeItem, TokenRow, ApptRow, PaymentRow, Deps, FeeStatus } from './lib/grow/cancelFees.ts';
+import type { LedgerRow } from './lib/grow/tokenCharge.ts';
 import { sanitizePolicy, feeAmount, classify, defaultPolicyText, snapshotOf, DEFAULT_POLICY, feeQuestionHe, DEPOSIT_HOLD_MINUTES, policyAppliesToService } from './lib/cancellationPolicy.ts';
 import type { CancelPolicy } from './lib/cancellationPolicy.ts';
 import { monthSummary, liveReceipts } from './lib/till.ts';
@@ -32,6 +34,8 @@ function world(startIso = '2026-11-10T06:00:00Z') {
   const appts = new Map<string, ApptRow>();
   const consents: ConsentRow[] = [];
   const tokens: TokenRow[] = [];
+  const cardConsents: CardConsentRow[] = [];
+  const ledger: LedgerRow[] = [];
   const fees: FeeItem[] = [];
   const credits: { id: number; tenant_id: string; client_id: string; amount: number; used_at: string | null; source: string }[] = [];
   const payments = new Map<string, GrowPayment & Record<string, unknown>>();
@@ -62,6 +66,12 @@ function world(startIso = '2026-11-10T06:00:00Z') {
     async updateConsent(id, patch) { Object.assign(consents.find((c) => c.id === id)!, patch); },
     async insertToken(row) { const t = { id: `t${++seq}`, ...row } as TokenRow; tokens.push(t); return t; },
     async getToken(id) { return tokens.find((t) => t.id === id) || null; },
+    async insertCardConsent(row) { const c = { id: `cc${++seq}`, ...row } as CardConsentRow; cardConsents.push(c); return c; },
+    async findCardConsentByProcess(pid) { return cardConsents.find((c) => c.process_id === pid) || null; },
+    async updateCardConsent(id, patch) { Object.assign(cardConsents.find((c) => c.id === id)!, patch); },
+    async getCardConsent(_t, a) { return cardConsents.find((c) => c.appointment_id === a) || null; },
+    async insertCharge(row) { if (ledger.some((l) => l.unique_identifier === row.unique_identifier)) return null; const l = { id: `l${++seq}`, status: 'initiated', grow_error_id: null, error: null, transaction_id: null, transaction_token: null, asmachta: null, looked_up: false, ...row } as LedgerRow; ledger.push(l); return l; },
+    async updateCharge(id, patch) { Object.assign(ledger.find((l) => l.id === id)!, patch); },
     async listExpiredHolds(nowIso, tenantId) { return consents.filter((c) => c.status === 'awaiting_deposit' && !!c.hold_expires_at && c.hold_expires_at < nowIso && (!tenantId || c.tenant_id === tenantId)); },
     async releaseAppointment(_t, id) { const a = appts.get(id); if (!a || a.confirmation_status !== 'pending') return false; a.confirmation_status = 'cancelled'; return true; },
     async holdAppointment(_t, id) { const a = appts.get(id); if (!a || a.confirmation_status === 'cancelled') return false; a.confirmation_status = 'pending'; return true; },
@@ -99,15 +109,18 @@ function world(startIso = '2026-11-10T06:00:00Z') {
   const ops: GrowOps = {
     createTokenSession: (i) => (opsOverride.createTokenSession || baseOps.createTokenSession)(i),
     async chargeToken(i) { calls.chargeToken++; return (opsOverride.chargeToken || baseOps.chargeToken)(i); },
+    lookupToken: (i) => (opsOverride.lookupToken || baseOps.lookupToken)(i),
     async refund(i) { calls.refund++; return (opsOverride.refund || baseOps.refund)(i); },
   };
   const deps = (): Deps => ({
     repo, grow: growRepo, ops, now: () => now,
+    seal: { encrypt: (s: string) => 'sealed:' + s.split('').reverse().join(''), decrypt: (s: string) => s.slice(7).split('').reverse().join('') },
+    newChargeId: () => 100000000 + Math.floor(Math.random() * 4000000000),
     chargeDeps: { repo: growRepo, creds: grow.creds!, fetchImpl: grow.fetchImpl, appUrl: ORIGIN, newToken: () => Math.random().toString(36).slice(2).padEnd(24, 'x') + Date.now().toString(36) },
   });
 
   return {
-    repo, deps, appts, consents, tokens, fees, credits, payments, receipts, voids, calls, growRepo, grow,
+    repo, deps, appts, consents, tokens, cardConsents, ledger, fees, credits, payments, receipts, voids, calls, growRepo, grow,
     setPolicy: (p: Partial<CancelPolicy>) => { policy = sanitizePolicy({ ...DEFAULT_POLICY, ...p, text: '' }); return policy; },
     clearPolicy: () => { policy = null; },
     setAccount: (a: typeof account) => { account = a; },
@@ -200,6 +213,58 @@ await ok('saved_card: consent snapshot -> hosted card page -> token (no card num
   assert.equal(w.fees[0].status, 'charged'); assert.equal(w.fees[0].receipt_id, 'r1');
   const sum = monthSummary(liveReceipts(w.receipts as never[], []), 10, 2026);
   assert.equal(sum.total, 100); assert.deepEqual(sum.byMethod.map((b) => [b.method, b.total]), [['אשראי', 100]]);
+});
+
+await ok('saved_card: the charge goes through the ledger (identifier saved first), and the stored token is sealed', async () => {
+  const w = world('2026-11-11T03:00:00Z');
+  const policy = w.setPolicy({ mode: 'saved_card' });
+  await book(w, 'a1', policy); await saveCard(w, 'a1'); w.cancel('a1');
+  assert.equal(w.tokens[0].token_encrypted, true); assert.ok(w.tokens[0].token_ref.startsWith('sealed:'), 'the token is not stored in the clear');
+  assert.equal(w.cardConsents.length, 1, 'the consent with its exact words is stored'); assert.ok(w.cardConsents[0].consent_text.length > 60); assert.equal(w.cardConsents[0].client_id, 'c-dana');
+  const r = await detect(w.deps(), { tenantId: TENANT, appointmentId: 'a1', event: 'cancel', actor: 'client' });
+  if (r.status !== 'pending') throw new Error('expected a pending item');
+  assert.equal((await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' })).ok, true);
+  assert.equal(w.ledger.length, 1); assert.equal(w.ledger[0].status, 'succeeded'); assert.ok(Number.isInteger(w.ledger[0].unique_identifier)); assert.equal(w.ledger[0].client_id, 'c-dana');
+});
+
+await ok('saved_card: a card saved for one client is never charged for another client\'s appointment (checked on the server)', async () => {
+  const w = world('2026-11-11T03:00:00Z');
+  const policy = w.setPolicy({ mode: 'saved_card' });
+  await book(w, 'a1', policy); await saveCard(w, 'a1'); w.cancel('a1');
+  const r = await detect(w.deps(), { tenantId: TENANT, appointmentId: 'a1', event: 'cancel', actor: 'client' });
+  if (r.status !== 'pending') throw new Error('expected a pending item');
+  w.appts.get('a1')!.client_id = 'c-someone-else';
+  const d = await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' });
+  assert.equal(d.ok, false); assert.equal((d as { code: string }).code, 'no-card');
+  assert.equal(w.calls.chargeToken, 0, 'Grow was never called'); assert.equal(w.ledger.length, 0); assert.equal(w.fees[0].status, 'pending', 'the question is still there');
+});
+
+await ok('saved_card: error 1010 is not retried; the fee stays "charging" so a second tap cannot charge twice', async () => {
+  const w = world('2026-11-11T03:00:00Z');
+  const policy = w.setPolicy({ mode: 'saved_card' });
+  await book(w, 'a1', policy); await saveCard(w, 'a1'); w.cancel('a1');
+  w.overrideOps({ chargeToken: async () => ({ ok: false, code: 'duplicate', errId: 1010, error: 'dup' }), lookupToken: async () => ({ ok: true, found: false, status: 'unknown' }) });
+  const r = await detect(w.deps(), { tenantId: TENANT, appointmentId: 'a1', event: 'cancel', actor: 'client' });
+  if (r.status !== 'pending') throw new Error('expected a pending item');
+  const d = await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' });
+  assert.equal(d.ok, false); assert.match((d as { error: string }).error, /Grow/);
+  assert.equal(w.calls.chargeToken, 1, 'one attempt'); assert.equal(w.ledger[0].status, 'unknown'); assert.equal(w.fees[0].status, 'charging');
+  assert.equal((await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' })).ok, false, 'a second tap finds it already claimed');
+  assert.equal(w.calls.chargeToken, 1);
+});
+
+await ok('saved_card: a refused charge then a retry uses a NEW identifier', async () => {
+  const w = world('2026-11-11T03:00:00Z');
+  const policy = w.setPolicy({ mode: 'saved_card' });
+  await book(w, 'a1', policy); await saveCard(w, 'a1'); w.cancel('a1');
+  let first = true;
+  w.overrideOps({ chargeToken: async (i) => { if (first) { first = false; return { ok: false, code: 'declined', error: 'no funds', errId: 103 }; } return w.grow.ops!.chargeToken(i); } });
+  const r = await detect(w.deps(), { tenantId: TENANT, appointmentId: 'a1', event: 'cancel', actor: 'client' });
+  if (r.status !== 'pending') throw new Error('expected a pending item');
+  assert.equal((await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' })).ok, false);
+  assert.equal(w.fees[0].status, 'pending');
+  assert.equal((await decide(w.deps(), { tenantId: TENANT, feeId: r.item.id, decision: 'charge' })).ok, true);
+  assert.equal(w.ledger.length, 2); assert.notEqual(w.ledger[0].unique_identifier, w.ledger[1].unique_identifier); assert.deepEqual(w.ledger.map((l) => l.status), ['failed', 'succeeded']);
 });
 
 await ok('saved_card: the same question cannot charge twice (a second tap, a second device, a repeated detection)', async () => {
@@ -338,13 +403,26 @@ await ok('deposit: timely cancel -> REFUND through Grow (the deposit receipt lea
   const v = world('2026-11-09T06:00:00Z');
   const p2 = v.setPolicy({ mode: 'deposit', timelyCancel: 'refund' });
   await payDeposit(v, 'b1', p2); v.cancel('b1');
-  v.overrideOps({ refund: async () => ({ ok: false, code: 'unreachable', error: 'Grow is down' }) });
+  // A clear refusal: the item is open again and ONE retry may send it.
+  v.overrideOps({ refund: async () => ({ ok: false, code: 'declined', error: 'refused' }) });
   const bad = await detect(v.deps(), { tenantId: TENANT, appointmentId: 'b1', event: 'cancel', actor: 'client' });
   assert.equal(bad.status, 'refund_failed'); assert.equal(v.voids.length, 0);
   v.overrideOps({});
   const again = await retryRefund(v.deps(), TENANT, v.fees[0].id);
   assert.equal(again.ok, true); assert.equal(v.fees[0].status, 'refunded'); assert.equal(v.voids.length, 1);
   assert.equal((await retryRefund(v.deps(), TENANT, v.fees[0].id)).ok, false, 'not refunded twice');
+
+  // No answer from Grow: the money may already be back. It is NOT retried (2026-10-20 audit: a retry refunded twice).
+  const u = world('2026-11-09T06:00:00Z');
+  const p3 = u.setPolicy({ mode: 'deposit', timelyCancel: 'refund' });
+  await payDeposit(u, 'c1', p3); u.cancel('c1');
+  let refunds = 0;
+  u.overrideOps({ refund: async () => { refunds++; return { ok: false, code: 'unreachable', error: 'Grow is down' }; } });
+  await detect(u.deps(), { tenantId: TENANT, appointmentId: 'c1', event: 'cancel', actor: 'client' });
+  assert.equal(u.fees[0].status, 'charging'); assert.match(String(u.fees[0].error), /unknown/);
+  u.overrideOps({});
+  assert.equal((await retryRefund(u.deps(), TENANT, u.fees[0].id)).ok, false, 'an unknown refund is never sent again by a tap');
+  assert.equal(refunds, 1);
 });
 
 await ok('deposit: timely cancel -> CREDIT when she chose credit; credit is used in part and the rest stays; she cancelling herself returns the deposit whatever the window', async () => {
@@ -547,14 +625,64 @@ await ok('manual booking: refused without deposit mode, without a phone, or with
   assert.ok(/wa\.me\/\$\{waDigits/.test(read('app/DepositLinkSheet.jsx')), 'a wa.me link with the Grow payment link');
 });
 
+// ── deposit mode also saves the card (charge and save) ───────────────────────
+await ok('deposit + card tick: the page is a charge-and-save page; the paid callback stores a SEALED token for this booking\'s business and client; the booking status is untouched', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit', deposit: { type: 'fixed', value: 100 } });
+  const a = w.addAppt('d1', { confirmation_status: 'pending' });
+  const d = w.deps();
+  let sent: FormData | null = null;
+  const inner = d.chargeDeps.fetchImpl!;
+  d.chargeDeps = { ...d.chargeDeps, fetchImpl: (async (u: RequestInfo | URL, init?: RequestInit) => { sent = init?.body as FormData; return inner(u, init); }) as typeof fetch };
+  const { step } = await recordConsentAndStart(d, { tenantId: TENANT, appointmentId: 'd1', clientId: a.client_id, clientName: 'דנה כהן', phone: '0501234567', servicePrice: 200, serviceName: 'טיפול פנים', policy, returnUrl: `${ORIGIN}/book?t=${TENANT}`, cardConsentText: 'הסכמה לשמירת כרטיס' });
+  assert.equal(step.kind, 'deposit'); assert.ok(step.url);
+  assert.equal((sent as FormData | null)?.get('saveCardToken'), '1', 'charge and save: the page is asked to keep the token');
+  assert.equal(w.cardConsents.length, 1); assert.equal(w.cardConsents[0].mode, 'charge_and_save'); assert.equal(w.cardConsents[0].consent_text, 'הסכמה לשמירת כרטיס'); assert.equal(w.cardConsents[0].client_id, 'c-dana');
+
+  const p = [...w.payments.values()].find((x) => x.appointment_id === 'd1')!;
+  const raw = { ...mockNotification(p as never, 'success'), 'data[cardToken]': 'DEPOSITTOKEN123', 'data[cardSuffix]': '4580', 'data[cardBrand]': 'Visa' };
+  const afterPaid = async (pay: GrowPayment, body?: Record<string, unknown>) => {
+    await onDepositPaid(w.deps(), { tenantId: pay.tenant_id, appointmentId: pay.appointment_id, paymentId: pay.id });
+    const ct = body ? readCardTokenNotification(body) : null;
+    if (ct) await onDepositCardToken(w.deps(), ct, pay);
+  };
+  const res = await applyNotificationByProcess(raw, { ...w.deps().chargeDeps, afterPaid }, async () => {});
+  assert.equal(res.status, 'paid');
+  assert.equal(w.tokens.length, 1); assert.equal(w.tokens[0].tenant_id, TENANT); assert.equal(w.tokens[0].client_id, 'c-dana'); assert.equal(w.tokens[0].token_encrypted, true); assert.ok(!w.tokens[0].token_ref.includes('DEPOSITTOKEN'), 'sealed');
+  assert.equal(w.cardConsents[0].status, 'saved');
+  assert.equal(w.consents[0].token_id, w.tokens[0].id); assert.equal(w.consents[0].status, 'deposit_paid', 'the deposit status is not overwritten by the card');
+  assert.equal(w.appts.get('d1')!.confirmation_status, 'confirmed', 'the paid deposit still confirms the booking');
+  const again = await onDepositCardToken(w.deps(), readCardTokenNotification(raw)!, p);
+  assert.equal(again.status, 'already-saved'); assert.equal(w.tokens.length, 1);
+});
+
+await ok('deposit without the tick (a deposit she asked for herself), or a callback for a booking with no card consent: no card is saved', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit', deposit: { type: 'fixed', value: 100 } });
+  const a = w.addAppt('d2', { confirmation_status: 'pending' });
+  const d = w.deps();
+  let sent: FormData | null = null;
+  const inner = d.chargeDeps.fetchImpl!;
+  d.chargeDeps = { ...d.chargeDeps, fetchImpl: (async (u: RequestInfo | URL, init?: RequestInit) => { sent = init?.body as FormData; return inner(u, init); }) as typeof fetch };
+  await recordConsentAndStart(d, { tenantId: TENANT, appointmentId: 'd2', clientId: a.client_id, clientName: 'דנה כהן', phone: '0501234567', servicePrice: 200, serviceName: 'טיפול פנים', policy, returnUrl: `${ORIGIN}/book?t=${TENANT}`, via: 'owner' });
+  assert.equal((sent as FormData | null)?.get('saveCardToken'), null, 'her own deposit request never asks the client to keep a card');
+  assert.equal(w.cardConsents.length, 0);
+  const p = [...w.payments.values()].find((x) => x.appointment_id === 'd2')!;
+  const r = await onDepositCardToken(w.deps(), readCardTokenNotification({ ...mockNotification(p as never, 'success'), 'data[cardToken]': 'X1' })!, p);
+  assert.equal(r.status, 'unknown-process'); assert.equal(w.tokens.length, 0);
+});
+
 // ── wiring (source pins) ─────────────────────────────────────────────────────
 await ok('nothing is charged without her tap: only decide() charges a token, detection never does', () => {
   const src = read('lib/grow/cancelFees.ts');
   const detectBody = src.slice(src.indexOf('export async function detect('), src.indexOf('async function returnDeposit('));
   assert.ok(!/chargeToken/.test(detectBody), 'detect() does not charge');
-  const callers = [...src.matchAll(/ops\.chargeToken/g)].length;
+  assert.ok(!/ops\.chargeToken/.test(src), 'cancelFees never talks to Grow about a charge directly');
+  const callers = [...src.matchAll(/chargeSavedCard\(/g)].length;
   assert.equal(callers, 1, 'one call site');
-  assert.ok(src.indexOf('ops.chargeToken') > src.indexOf('export async function decide('), 'and it is inside decide()');
+  assert.ok(src.indexOf('chargeSavedCard(') > src.indexOf('export async function decide('), 'and it is inside decide()');
+  const tc = read('lib/grow/tokenCharge.ts');
+  assert.equal([...tc.matchAll(/ops\.chargeToken/g)].length, 1, 'and the one Grow charge call lives in tokenCharge.ts');
   const route = read('app/api/grow/fees/decide/route.ts');
   assert.ok(/caller\(\)/.test(route) && /decision/.test(route));
 });
@@ -564,7 +692,7 @@ await ok('public booking keeps working for blocked tenants and for mode off: no 
   assert.ok(!/planGuard|requireActiveTenant|is_tenant_active/.test(book), 'the public booking route has no plan guard');
   assert.ok(/policy = null;/.test(book) && /booking without it/.test(book), 'an unreadable policy means "no policy"');
   assert.ok(/policy && acceptedPolicy !== true/.test(book), 'a policy requires the tick on the server too');
-  assert.ok(/growUiEnabled\(\) \? cancelDeps\(\) : null/.test(book), 'behind the Grow flag');
+  assert.ok(/growUiEnabled\(process\.env, activeTenantId\) \? cancelDeps\(\) : null/.test(book), 'behind the Grow flag');
   for (const f of ['policy/public/route.ts', 'mock-token/route.ts']) assert.ok(!/planGuard|requireActiveTenant|is_tenant_active/.test(read(`app/api/grow/${f}`)), `${f} has no plan guard`);
   const pub = read('app/api/grow/policy/public/route.ts');
   assert.ok(/if \(!growUiEnabled\(\)\) return off\(\)/.test(pub) && /acc\.data\.enabled !== true/.test(pub), 'off when the flag is off or Grow is not connected');
@@ -629,10 +757,11 @@ await ok('a held booking is labelled "ממתינה למקדמה" with the minute
   assert.ok(/\.eq\('status', 'awaiting_deposit'\)/.test(route) && /\.gt\('hold_expires_at'/.test(route) && /caller\(\)/.test(route), 'only live holds, only hers, behind the flag');
 });
 
-await ok('every unverified live Grow field is marked TODO(grow-docs)', () => {
+await ok('the live token calls are the documented ones, checked against Grow sandbox (scripts/smoke/grow-token-sandbox.mjs)', () => {
   const live = read('lib/grow/ops.ts').split('// ── live')[1];
-  assert.ok((live.match(/TODO\(grow-docs\)/g) || []).length >= 8);
-  for (const op of ['createTokenSession', 'chargeToken', 'refund']) assert.ok(new RegExp(`async ${op}\\(i\\) \\{\\n\\s+//[^\\n]*TODO\\(grow-docs\\)`).test(live), `${op} is flagged`);
+  for (const call of ['createPaymentProcess', 'createTransactionWithToken', 'getTokenTransactionsByExternalIdentifiers', 'refundTransaction']) assert.ok(live.includes(call), `${call} is called`);
+  assert.ok(!/TODO\(grow-docs\)/.test(read('lib/grow/ops.ts')), 'no guessed field is left in the token operations');
+  assert.ok(/apiKey/.test(read('lib/grow/tokenFlow.ts')) && !/x-api-key/.test(live), 'the apiKey is a body field, never a header');
 });
 
 console.log(`grow cancel: ${n} ok`);

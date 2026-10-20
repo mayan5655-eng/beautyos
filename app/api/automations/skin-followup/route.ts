@@ -20,6 +20,8 @@
 // Default is OFF — no queue is produced until the clinic explicitly opts in, and
 // even 'automatic' never sends from this route (auto-send is a later increment).
 
+import { readAllRows } from '@/lib/pagedRead'
+import { canMarket } from '@/lib/marketingConsent.js'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { buildSkinFollowupSuggestions } from '@/lib/skinFollowup'
@@ -68,13 +70,21 @@ export async function GET() {
       return NextResponse.json({ mode: 'off', paused: false, disabled: true, reason: 'off', queue: [] })
     }
 
+    // Paged (lib/pagedRead.js): a plain select stops at 1,000 rows. A read that could not finish shows no suggestions rather than
+    // wrong ones (2026-10-20 audit).
+    const mine = (q: any) => q.eq('tenant_id', tenantId)
     const [clientsRes, scansRes, apptsRes] = await Promise.all([
-      supabase.from('clients').select('id, name, phone').eq('tenant_id', tenantId),
-      supabase.from('skin_scans').select('client_id, score, skin_type, created_at').eq('tenant_id', tenantId),
-      supabase.from('appointments').select('client_id, date').eq('tenant_id', tenantId),
+      readAllRows(supabase, 'clients', { columns: '*', filter: mine }),
+      readAllRows(supabase, 'skin_scans', { columns: 'client_id, score, skin_type, created_at', filter: mine }),
+      readAllRows(supabase, 'appointments', { columns: 'client_id, date', filter: mine }),
     ])
-    const clients = clientsRes.data || []
-    const scans = scansRes.data || []
+    if ([clientsRes, scansRes, apptsRes].some((r: any) => r.error || !r.complete)) {
+      return NextResponse.json({ error: 'לא הצלחנו לקרוא את כל ההיסטוריה, נסי שוב בעוד רגע' }, { status: 503 })
+    }
+    // "Time for maintenance" invites her to book: a marketing message, so only clients who agreed and did not ask to stop, and
+    // not archived cards (2026-10-20 audit).
+    const clients = ((clientsRes.data || []) as any[]).filter((c) => c.status !== 'archived' && canMarket(c))
+    const scans = (scansRes.data || []) as any[]
     const appts = (apptsRes.data || []) as Array<{ client_id?: string; date?: string }>
 
     // Days since each client's last visit (for the "maintenance due" trigger).

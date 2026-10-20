@@ -31,10 +31,13 @@ async function reportFor(row, now) {
   const prevStart = dayKey(new Date(now.getTime() - 14 * 864e5));
   const monthStart = today.slice(0, 8) + "01";
   const earliest = monthStart < prevStart ? monthStart : prevStart;
+  // Appointments from the week's start too: read only from the 1st, "this week" early in a month counted just the days since
+  // the 1st (2026-10-20 audit).
+  const apptFrom = monthStart < weekStart ? monthStart : weekStart;
 
   const [rc, ap, ld, cl] = await Promise.all([
     supabase.from("receipts").select("id, amount, created_at").eq("tenant_id", tenantId).gte("created_at", earliest),
-    supabase.from("appointments").select("date, kind, confirmation_status").eq("tenant_id", tenantId).gte("date", monthStart).lte("date", today),
+    supabase.from("appointments").select("date, kind, confirmation_status").eq("tenant_id", tenantId).gte("date", apptFrom).lte("date", today),
     supabase.from("leads").select("source, created_at").eq("tenant_id", tenantId).gte("created_at", weekStart),
     supabase.from("clients").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", weekStart),
   ]);
@@ -44,6 +47,8 @@ async function reportFor(row, now) {
   let voids = [];
   if (ids.length) {
     const v = await supabase.from("receipt_voids").select("receipt_id, credit_status").in("receipt_id", ids);
+    // A failed read is not "nothing voided": voided receipts would count as income in her numbers.
+    if (v.error) throw new Error(`voids read failed: ${v.error.message}`);
     voids = v.data || [];
   }
   const live = liveReceipts(rc.data || [], voids);
@@ -52,9 +57,10 @@ async function reportFor(row, now) {
   const prevWeekRevenue = sumAmount(live.filter((r) => inRange(r, prevStart, weekStart)));
   const monthRevenue = sumAmount(live.filter((r) => inRange(r, monthStart, null)));
 
-  const monthAppts = (ap.data || []).filter((a) => !isPersonal(a));
+  const readAppts = (ap.data || []).filter((a) => !isPersonal(a));
+  const monthAppts = readAppts.filter((a) => a.date >= monthStart);
   const cancelled = monthAppts.filter((a) => a.confirmation_status === "cancelled");
-  const weekAppts = monthAppts.filter((a) => a.date >= weekStart);
+  const weekAppts = readAppts.filter((a) => a.date >= weekStart);
   const bySource = new Map();
   for (const l of ld.data || []) {
     const k = sourceLabelHe(l.source);
