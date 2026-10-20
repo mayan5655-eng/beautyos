@@ -5,6 +5,7 @@
 // (which reads it from the ?t= URL param). Owner phone + business name are
 // looked up per-tenant from settings.
 
+import { ACTIVE_OR_NULL } from "../../../lib/serviceActive";
 import { cleanSource, cleanRef } from "../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
@@ -152,7 +153,7 @@ export async function POST(request) {
 
     const [
       { data: svcRows, error: svcError },
-      { data: settingsRows },
+      { data: settingsRows, error: settingsErr },
       { data: sameDay },
       { data: existing },
     ] = await Promise.all([
@@ -161,6 +162,8 @@ export async function POST(request) {
         .select("*")
         .eq("tenant_id", activeTenantId)
         .eq("name", service)
+        // Active rows only: an archived row with the same name used to come back first and refuse a service the page shows.
+        .or(ACTIVE_OR_NULL)
         .limit(1),
       supabase
         .from("settings")
@@ -297,6 +300,12 @@ export async function POST(request) {
     //     notification messages below.
     const settingsRow =
       settingsRows && settingsRows.length > 0 ? settingsRows[0] : null;
+    // Her hours, lunch and booking rules come from this row. A failed read must not fall back to the defaults (9-18, no lunch,
+    // default rules), which would accept bookings her real settings refuse (2026-10-20 audit).
+    if (settingsErr) {
+      console.error("[book-appointment] settings read failed:", settingsErr.message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 503 });
+    }
 
     {
       // Midday, not midnight: the weekday of a plain date is what is wanted,

@@ -17,6 +17,7 @@ import { sendWhatsApp } from "../../../../lib/whatsapp";
 import { clinicName } from "../../../../lib/clinicName";
 import { canMarket, MARKETING_FOOTER } from "../../../../lib/marketingConsent.js";
 import { toMinutes, fmtTime, startMinute as apptStart, overlaps } from "../../../../lib/apptTime";
+import { readAllRows } from "../../../../lib/pagedRead.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -167,17 +168,34 @@ export async function POST(request) {
       }
     }
 
+    // The slot is free again (checked just above), so any earlier offer of it that was CLAIMED belongs to a booking that no longer
+    // stands. Left as 'claimed' it held the unique index forever, and every new claim of this slot answered "taken" (2026-10-20
+    // audit). Released here, before the new offers go out.
+    {
+      const { error: relErr } = await admin.from("slot_offers").update({ status: "cancelled" })
+        .eq("tenant_id", tenantId).eq("slot_date", slotDate).eq("status", "claimed")
+        .or(`slot_start_minute.eq.${slotStartMinute},and(slot_start_minute.is.null,slot_hour.eq.${Math.floor(slotStartMinute / 60)})`);
+      if (relErr) console.warn("[slots/offer] could not release earlier claims:", relErr.message);
+    }
+
     // Attribution: a lapsed client receiving an unattributed link from an
     // unknown number cannot tell this apart from spam. Falls back to a neutral
     // word rather than leaking the product name on an unconfigured tenant.
     const clinic = clinicName(settingsRow);
 
     // 4. Load this tenant's clients, appointment history, and active waitlist.
-    const [{ data: clients }, { data: appts }, { data: waitlistRows }] = await Promise.all([
-      admin.from("clients").select("*").eq("tenant_id", tenantId),
-      admin.from("appointments").select("client_id, service, date").eq("tenant_id", tenantId),
+    // Paged (lib/pagedRead.js): a plain select stops at 1,000 rows, and "last visit" from a fragment offered the slot to the wrong
+    // people. A read that could not be finished sends nothing, the same rule as the question that led here (lib/ownerQuestions.js).
+    const [cl, ap, { data: waitlistRows }] = await Promise.all([
+      readAllRows(admin, "clients", { columns: "*", filter: (q) => q.eq("tenant_id", tenantId) }),
+      readAllRows(admin, "appointments", { columns: "client_id, service, date, confirmation_status", filter: (q) => q.eq("tenant_id", tenantId) }),
       admin.from("waitlist").select("client_id, client_name, phone, service").eq("tenant_id", tenantId).eq("status", "waiting"),
     ]);
+    if (cl.error || ap.error || !cl.complete || !ap.complete) {
+      return Response.json({ success: false, error: "לא הצלחנו לקרוא את כל ההיסטוריה, נסי שוב בעוד רגע" }, { status: 503 });
+    }
+    const clients = cl.data;
+    const appts = (ap.data || []).filter((a) => a.confirmation_status !== "cancelled");
     const clientById = new Map((clients || []).map((c) => [String(c.id), c]));
 
     // Last visit per client + who has had the freed service before.

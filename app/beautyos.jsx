@@ -1786,9 +1786,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Guarded on length, because a day too short to fit the treatment at all
   // offers no slots, and snapping to apptSlotOptions[0] there wrote NaN.
   const apptTimeTouched = useRef(false); // true once she has picked a time in the sheet herself
+  // The appointment as it was when she opened it for editing: its time is kept exactly, unless she changes the day or the length.
+  const editOrigRef = useRef(null);
   useEffect(()=>{ if(showModal) apptTimeTouched.current=false; },[showModal]);
   useEffect(()=>{
     if(!showModal||!apptDayHours) return;
+    // Opening an existing appointment to add a note must never move it (2026-10-20 audit: a 10:15 from voice or an import snapped to
+    // 09:00 and was saved there without the client being told). It moves only if she changes its day or its length.
+    const orig=editOrigRef.current;
+    if(editingAppointmentId && orig && newAppt.date===orig.date && Number(newAppt.duration)===orig.duration) return;
     if(apptSlotOptions.length && !apptSlotOptions.includes(apptRequestedStart)) {
       // The first slot is now an hour or two BEFORE she opens, and snapping
       // onto it would hand her an out-of-hours default she never asked for.
@@ -2841,6 +2847,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleApptClick = (appt) => {
     if (isPersonal(appt)) { openPersonalEditor(appt); return; }
     setEditingAppointmentId(appt.id);
+    editOrigRef.current={date:appt.date,duration:Number(appt.duration)||60,start:startMinute(appt)};
     setNewAppt({clientId:appt.client_id||"",name:appt.name||"",service:appt.service||"",duration:Number(appt.duration)||60,date:appt.date,hour:Number(appt.hour),startMinute:startMinute(appt),price:appt.price||0});
     setApptNote(appt.note||"");
     setShowModal(true);
@@ -3137,10 +3144,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
       const svcColor=activeServices.find(s=>s.name===newAppt.service)?.color||DEFAULT_SERVICE_COLOR;
       if(editingAppointmentId){
-        // EDIT/reschedule: update only the editable fields on the existing row.
-        // confirmation_status/confirmation_sent are intentionally left untouched
-        // (no change to unrelated confirmation logic).
-        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0};
+        // EDIT/reschedule: update only the editable fields on the existing row. A NEW day or time is a time the client has not
+        // agreed to: the "confirmed" mark and the sent reminder belong to the old one, so both are reset and the next reminder asks
+        // again (2026-10-20 audit). A note, price or name change keeps them.
+        const orig=editOrigRef.current;
+        const moved=!!orig && (orig.date!==newAppt.date || orig.start!==apptEffectiveStart);
+        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{})};
         const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
         if(error){handleDbError(error, "update appointment"); return;}
         if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
