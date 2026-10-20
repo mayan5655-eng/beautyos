@@ -5,7 +5,7 @@
 // so the page shows that instead of `phone`, which is kept only as the local form of the same number.
 export const ACCESSIBILITY_COORDINATOR = {
   name: 'מעין בבאי',
-  phone: '050-7321978',
+  phone: '054-2845655',
   email: 'kalmea.app@gmail.com',
 } as const;
 
