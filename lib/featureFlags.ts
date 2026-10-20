@@ -165,6 +165,14 @@ export function skinScanVisible(
  * Not a nav tab, and not a screen she switches in Settings: an explicit stored `true` under
  * automations.screens.legacy_campaign_texts (or feature_flags) shows it. Absent, false or malformed: hidden.
  */
+/**
+ * The weekly content plan in the Content tab (docs/specs/content-publishing.md, stage 1). Off by default: an explicit
+ * stored `true` under automations.feature_flags.content_plan (or screens, or the settings.feature_flags column) shows it.
+ */
+export function contentPlanVisible(settings: SettingsLike): boolean {
+  return tenantFlags(settings).content_plan === true;
+}
+
 export function legacyCampaignTextsVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).legacy_campaign_texts === true;
 }

@@ -43,6 +43,10 @@
     {
       "path": "/api/owner-digest",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/content/remind",
+      "schedule": "30 5 * * *"
     }
   ]
 }
