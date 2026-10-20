@@ -106,4 +106,7 @@ assert.equal((src('./app/BookingPage.jsx').match(/isSel \? "var\(--pc-contrast, 
   assert.ok(!/console\.error\("skin-scan\/send error:", err\)/.test(src('./app/api/skin-scan/send/route.js')));
 }
 
+// A Hebrew slug reaches the page percent-encoded: both the page and its metadata decode it.
+assert.equal((src('./app/[slug]/page.tsx').match(/const slug = decodeSlug\(\(await params\)\.slug\);/g) || []).length, 2);
+
 console.log('audit 2026-10-20: all checks passed');
