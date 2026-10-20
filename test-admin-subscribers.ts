@@ -127,9 +127,10 @@ ok('the page and the note route are gated first; non-admins get a plain 404', ()
 });
 
 ok('the loader never reads a cosmetician\'s clients; the route writes only the notes table and never deletes', () => {
-  const loader = strip(rd('app/dashboard/admin/subscribers/loader.ts'));
+  // Since 2026-10-20 the reads live in lib/subscribersData.ts (shared with the morning digest); the loader only gates and sorts.
+  const loader = strip(rd('app/dashboard/admin/subscribers/loader.ts')) + '\n' + strip(rd('lib/subscribersData.ts'));
   const from = [...loader.matchAll(/\.from\('([^']+)'\)/g)].map((m) => m[1]).sort();
-  assert.deepEqual([...new Set(from)], ['admin_tenant_contacts', 'billing_subscriptions', 'settings', 'tenants']);
+  assert.deepEqual([...new Set(from)], ['admin_tenant_contacts', 'billing_subscriptions', 'platform_admins', 'settings', 'tenants']);
   assert.doesNotMatch(loader, /select\('\*'\)|\.insert\(|\.update\(|\.upsert\(|\.delete\(/);
   for (const line of loader.split('\n').filter((l) => /console\./.test(l))) assert.doesNotMatch(line, /phone|email|\$\{/, line);
   const route = strip(rd('app/api/admin/tenant-contact/route.ts'));

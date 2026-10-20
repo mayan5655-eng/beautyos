@@ -200,7 +200,7 @@ await ok("GetLink: JSON body per Grow's spec, x-api-key and a User-Agent header,
 await ok('GetLink errors: every documented id in plain Hebrew; 149 offers "I have Grow"; the real 149 answer shape parses', () => {
   const real = readRegisterResponse({ status: 0, err: { id: 149, message: 'עסק קיים במשולם' }, data: '' });
   assert.equal(real.ok, false);
-  if (!real.ok) { assert.equal(real.growId, '149'); assert.equal(real.kind, 'exists'); assert.match(real.messageHe, /יש לי חשבון Grow/); assert.equal(real.error, 'עסק קיים במשולם'); }
+  if (!real.ok) { assert.equal(real.growId, '149'); assert.equal(real.kind, 'exists'); assert.match(real.messageHe, /לחבר אותו כאן/); assert.equal(real.error, 'עסק קיים במשולם'); }
   const kinds: Record<string, string> = { '17': 'open-lead', '145': 'not-approved', '149': 'exists', '115': 'platform', '143': 'platform', '117': 'platform', '142': 'platform', '121': 'platform', '13': 'bad-phone', '120': 'bad-business-number', '165': 'general' };
   for (const [id, kind] of Object.entries(kinds)) {
     const e = getLinkError(id, '');
