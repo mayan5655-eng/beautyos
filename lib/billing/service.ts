@@ -85,7 +85,8 @@ export type BillingRepo = {
   claimAttempt(id: string, previous: string | null, now: string): Promise<boolean>;
   hasSucceeded(subId: string, periodStart: string): Promise<boolean>;
   /** The newest pending / unknown subscription charge of this period, if any. Optional: an older repo has none. */
-  findOpenAttempt?(subId: string, periodStart: string): Promise<PaymentRecord | null>;
+  /** periodStart null: an open attempt of ANY period. */
+  findOpenAttempt?(subId: string, periodStart: string | null): Promise<PaymentRecord | null>;
   insertPayment(row: Omit<PaymentRecord, 'id' | 'created_at'>): Promise<PaymentRecord>;
   updatePayment(id: string, patch: Partial<PaymentRecord>): Promise<void>;
   pendingInvoices(): Promise<PaymentRecord[]>;
@@ -150,7 +151,7 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   // A charge for this period whose answer we never got (Grow did not reply, or answered "identifier already used"): ask Grow about THAT
   // identifier before anything else. Paid -> it counts; failed or never seen -> the next attempt may run; still unknown -> nothing is charged
   // again until it is settled, because a second identifier would be a second real charge.
-  const open = d.repo.findOpenAttempt ? await d.repo.findOpenAttempt(sub.id, periodKey) : null;
+  const open = d.repo.findOpenAttempt ? ((await d.repo.findOpenAttempt(sub.id, periodKey)) || (await d.repo.findOpenAttempt(sub.id, null))) : null;
   if (open) {
     const settled = await settleOpen(d, sub, tenant, open, periodStart, now);
     if (settled !== 'cleared') return settled;

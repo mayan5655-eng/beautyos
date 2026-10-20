@@ -44,7 +44,9 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       return !!(data && data.length);
     },
     async findOpenAttempt(subId, periodStart) {
-      const { data, error } = await db.from('billing_payments').select('*').eq('subscription_id', subId).eq('period_start', periodStart).eq('kind', 'subscription').in('status', ['pending', 'unknown']).order('created_at', { ascending: false }).limit(1);
+      let q = db.from('billing_payments').select('*').eq('subscription_id', subId).eq('kind', 'subscription').in('status', ['pending', 'unknown']);
+      if (periodStart) q = q.eq('period_start', periodStart);
+      const { data, error } = await q.order('created_at', { ascending: false }).limit(1);
       // Before add_kalmea_billing_grow.sql the statuses do not exist: nothing is open.
       if (error) return null;
       return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;

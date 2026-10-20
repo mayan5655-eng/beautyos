@@ -21,6 +21,12 @@ import type { Env, PaymentsAdapter, InvoicingAdapter, CardSessionInput, ChargeIn
 import { createLiveOps } from '../grow/ops.ts';
 import type { GrowOps } from '../grow/ops.ts';
 import type { TokenCreds } from '../grow/tokenFlow.ts';
+import { decryptToken } from '../facebook/encryption.ts';
+
+/** A token saved by /api/billing/grow-notify is sealed (iv:tag:data, hex); an older plain one passes through unchanged. */
+export function openToken(ref: string, open: (s: string) => string = decryptToken): string {
+  return /^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i.test(ref) ? open(ref) : ref;
+}
 
 export const GROW_BILLING_SANDBOX_BASE = 'https://sandbox.meshulam.co.il/api/light/server/1.0';
 export const GROW_BILLING_PRODUCTION_BASE = 'https://secure.meshulam.co.il/api/light/server/1.0';
@@ -46,7 +52,7 @@ const payerName = (s?: string) => {
   return parts.length >= 2 ? parts.slice(0, 4).join(' ') : parts.length === 1 ? `${parts[0]} ${parts[0]}` : 'לקוחת קלמיה';
 };
 
-export function createGrowBillingAdapters(creds: GrowBillingCreds, ops: GrowOps = createLiveOps(creds)): { payments: PaymentsAdapter; invoicing: InvoicingAdapter } {
+export function createGrowBillingAdapters(creds: GrowBillingCreds, ops: GrowOps = createLiveOps(creds), open: (s: string) => string = decryptToken): { payments: PaymentsAdapter; invoicing: InvoicingAdapter } {
   const payments: PaymentsAdapter = {
     async createCardSession(i: CardSessionInput) {
       const r = await ops.createTokenSession({
@@ -59,7 +65,7 @@ export function createGrowBillingAdapters(creds: GrowBillingCreds, ops: GrowOps 
     async charge(i: ChargeInput): Promise<ChargeResult> {
       if (!Number.isFinite(i.uniqueIdentifier)) return { ok: false, code: 'declined', error: 'no unique identifier' };
       const r = await ops.chargeToken({
-        userId: creds.userId, tokenRef: i.tokenRef, amount: i.amount, description: i.description,
+        userId: creds.userId, tokenRef: openToken(i.tokenRef, open), amount: i.amount, description: i.description,
         uniqueIdentifier: Number(i.uniqueIdentifier), groupIdentifier: i.groupIdentifier, fullName: payerName(i.fullName), phone: i.phone || '',
       });
       if (r.ok) return { ok: true, providerPaymentId: r.transactionId, invoiceNumber: r.invoiceNumber, invoiceUrl: r.invoiceUrl };
@@ -68,7 +74,7 @@ export function createGrowBillingAdapters(creds: GrowBillingCreds, ops: GrowOps 
       return { ok: false, code: 'declined', error: r.error, final: r.final };
     },
     async lookup(tokenRef: string, uniqueIdentifier: number): Promise<LookupResult> {
-      const r = await ops.lookupToken({ userId: creds.userId, tokenRef, uniqueIdentifier });
+      const r = await ops.lookupToken({ userId: creds.userId, tokenRef: openToken(tokenRef, open), uniqueIdentifier });
       if (!r.ok) return { ok: false, error: r.error };
       return { ok: true, found: r.found, status: r.status, providerPaymentId: r.transactionId };
     },

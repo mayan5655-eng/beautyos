@@ -158,6 +158,10 @@ export function resolveBilling(env: Env = process.env, origin = '', signSession:
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, payments: null, invoicing: null, reason: 'mock mode is not allowed on the production deployment' };
   }
+  // Previews share the production database: mock billing there only when explicitly allowed (BILLING_MOCK_ALLOWED=true).
+  if (env.VERCEL_ENV && !/^(1|true|on|yes)$/i.test((env.BILLING_MOCK_ALLOWED || '').trim())) {
+    return { mode: 'mock', configured: false, payments: null, invoicing: null, reason: 'mock mode needs BILLING_MOCK_ALLOWED=true on a Vercel deployment' };
+  }
   const m = createMockAdapters(origin, signSession);
   return { mode: 'mock', configured: true, payments: m.payments, invoicing: m.invoicing };
 }

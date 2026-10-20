@@ -22,7 +22,13 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
     async markPaid(id, patch) {
       const { data, error } = await db.from('grow_payments').update(patch).eq('id', id).eq('status', 'created').select(SELECT);
       if (error) throw new Error(error.message);
-      return (data && data[0] ? data[0] : null) as unknown as GrowPayment | null;
+      if (data && data[0]) return data[0] as unknown as GrowPayment;
+      // A deposit page whose 30-minute hold ran out is marked cancelled (lib/grow/cancelFees.ts releaseExpiredHolds), but Grow's page
+      // stays open: a client who pays late HAS paid. Flip that row too, once, so the payment and its receipt are recorded and
+      // onDepositPaid restores the booking or refunds the deposit. Nothing else that was cancelled is ever reopened.
+      const late = await db.from('grow_payments').update(patch).eq('id', id).eq('status', 'cancelled').eq('error', 'deposit hold expired').select(SELECT);
+      if (late.error) throw new Error(late.error.message);
+      return (late.data && late.data[0] ? late.data[0] : null) as unknown as GrowPayment | null;
     },
     async findByToken(token) {
       const { data, error } = await db.from('grow_payments').select(SELECT).eq('notify_token', token).maybeSingle();

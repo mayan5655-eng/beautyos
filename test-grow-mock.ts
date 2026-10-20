@@ -57,7 +57,8 @@ await ok('mock mode needs no keys and has no network; it is refused on Vercel pr
   assert.equal(m.mode, 'mock'); assert.equal(m.configured, true); assert.equal(m.creds?.apiBase, MOCK_API_BASE); assert.ok(m.fetchImpl);
   const prod = resolveGrow({ VERCEL_ENV: 'production' }, ORIGIN);
   assert.equal(prod.configured, false); assert.equal(prod.creds, null); assert.equal(prod.fetchImpl, undefined);
-  assert.equal(resolveGrow({ VERCEL_ENV: 'preview' }, ORIGIN).configured, true, 'previews can run the mock');
+  assert.equal(resolveGrow({ VERCEL_ENV: 'preview' }, ORIGIN).configured, false, 'previews share the production database: no mock unless allowed');
+  assert.equal(resolveGrow({ VERCEL_ENV: 'preview', GROW_MOCK_ALLOWED: 'true' }, ORIGIN).configured, true);
 });
 
 await ok('live mode: not configured without keys, real network (no fetch override) with them', () => {

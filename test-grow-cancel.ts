@@ -403,13 +403,26 @@ await ok('deposit: timely cancel -> REFUND through Grow (the deposit receipt lea
   const v = world('2026-11-09T06:00:00Z');
   const p2 = v.setPolicy({ mode: 'deposit', timelyCancel: 'refund' });
   await payDeposit(v, 'b1', p2); v.cancel('b1');
-  v.overrideOps({ refund: async () => ({ ok: false, code: 'unreachable', error: 'Grow is down' }) });
+  // A clear refusal: the item is open again and ONE retry may send it.
+  v.overrideOps({ refund: async () => ({ ok: false, code: 'declined', error: 'refused' }) });
   const bad = await detect(v.deps(), { tenantId: TENANT, appointmentId: 'b1', event: 'cancel', actor: 'client' });
   assert.equal(bad.status, 'refund_failed'); assert.equal(v.voids.length, 0);
   v.overrideOps({});
   const again = await retryRefund(v.deps(), TENANT, v.fees[0].id);
   assert.equal(again.ok, true); assert.equal(v.fees[0].status, 'refunded'); assert.equal(v.voids.length, 1);
   assert.equal((await retryRefund(v.deps(), TENANT, v.fees[0].id)).ok, false, 'not refunded twice');
+
+  // No answer from Grow: the money may already be back. It is NOT retried (2026-10-20 audit: a retry refunded twice).
+  const u = world('2026-11-09T06:00:00Z');
+  const p3 = u.setPolicy({ mode: 'deposit', timelyCancel: 'refund' });
+  await payDeposit(u, 'c1', p3); u.cancel('c1');
+  let refunds = 0;
+  u.overrideOps({ refund: async () => { refunds++; return { ok: false, code: 'unreachable', error: 'Grow is down' }; } });
+  await detect(u.deps(), { tenantId: TENANT, appointmentId: 'c1', event: 'cancel', actor: 'client' });
+  assert.equal(u.fees[0].status, 'charging'); assert.match(String(u.fees[0].error), /unknown/);
+  u.overrideOps({});
+  assert.equal((await retryRefund(u.deps(), TENANT, u.fees[0].id)).ok, false, 'an unknown refund is never sent again by a tap');
+  assert.equal(refunds, 1);
 });
 
 await ok('deposit: timely cancel -> CREDIT when she chose credit; credit is used in part and the rest stays; she cancelling herself returns the deposit whatever the window', async () => {

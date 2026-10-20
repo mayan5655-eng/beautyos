@@ -17,6 +17,7 @@ import { tenantRefOf } from '@/lib/grow/payload';
 import { verifyCardSession } from '@/lib/billing/session';
 import { growBillingCreds } from '@/lib/billing/growBilling';
 import { saveCard } from '@/lib/billing/service';
+import { encryptToken } from '@/lib/facebook/encryption';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 import { admin, billing } from '../_shared';
 
@@ -50,7 +51,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const r = await saveCard({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, tenantId, { tokenRef: n.cardToken, last4: n.last4, brand: n.brand });
+    // Stored sealed (AES-256-GCM, TOKEN_ENCRYPTION_KEY), like the clients' card tokens; lib/billing/growBilling.ts opens it for each call.
+    const r = await saveCard({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, tenantId, { tokenRef: encryptToken(n.cardToken), last4: n.last4, brand: n.brand });
     console.log('[billing] card saved through Grow for tenant', tenantId, 'charged:', r.charged);
   } catch (e) {
     console.error('[billing] saveCard after Grow token failed:', (e as Error)?.message);

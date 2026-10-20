@@ -387,16 +387,27 @@ async function doRefund(d: Deps, tenantId: string, item: FeeItem, dep: PaymentRo
     await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refund_failed', error: 'no Grow transaction to refund' });
     return { status: 'refund_failed', item: { ...item, error: 'no Grow transaction to refund' } };
   }
+  // The claim, as for a fee charge: exactly one caller may send this refund to Grow. A second tap, or the same retry from another
+  // device, finds it already 'charging' and stops. (Grow's live refund call has no idempotency key, so this is the only guard.)
+  const claimed = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'charging', error: null });
+  if (!claimed) return { status: 'exists' };
   const r = await d.ops.refund({ userId: account.user_id, transactionId: dep.transaction_id, amount: Number(dep.amount), idempotencyKey: `refund:${item.id}` });
   if (!r.ok) {
-    await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refund_failed', error: r.error.slice(0, 160) });
+    if (r.code === 'unreachable') {
+      // No answer: the money may already be on its way back. Never retried automatically, and the button stays away until a person
+      // checks Grow's dashboard (the item stays 'charging' with this note).
+      await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'charging', error: 'unknown: no answer from Grow, check the dashboard before retrying' });
+      console.warn('[grow] deposit refund outcome unknown for payment', dep.id);
+      return { status: 'refund_failed', item: { ...item, error: 'unknown' } };
+    }
+    await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'refund_failed', error: r.error.slice(0, 160) });
     console.warn('[grow] deposit refund failed for payment', dep.id, r.code);
     return { status: 'refund_failed', item: { ...item, error: r.error } };
   }
   await d.repo.markRefunded(dep.id, r.refundId);
   // The deposit receipt no longer stands: the money went back, so it leaves her takings through the normal void.
   if (dep.receipt_id) await d.repo.voidReceipt(tenantId, dep.receipt_id, 'מקדמה הוחזרה ללקוחה (ביטול בזמן)').catch((e) => console.warn('[grow] void of the refunded deposit receipt failed:', (e as Error)?.message));
-  const done = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'refunded', grow_payment_id: dep.id });
+  const done = await d.repo.transitionFee(tenantId, item.id, ['charging'], { status: 'refunded', grow_payment_id: dep.id });
   return { status: 'refunded', item: done || item };
 }
 
@@ -746,6 +757,10 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       return round2((data || []).reduce((s, r) => s + Number(r.amount), 0));
     },
     async useCredit(tenantId, clientId, amount, receiptId) {
+      // Once per receipt: a retried request for the same receipt reports what was already used and uses nothing more.
+      const prior = await db.from('client_credits').select('amount').eq('tenant_id', tenantId).eq('client_id', clientId).eq('used_receipt_id', receiptId).not('used_at', 'is', null);
+      if (prior.error) fail(prior.error, 'useCredit');
+      if (prior.data && prior.data.length) return round2(prior.data.reduce((s, r) => s + Number(r.amount), 0));
       const { data, error } = await db.from('client_credits').select('id, amount').eq('tenant_id', tenantId).eq('client_id', clientId).is('used_at', null).order('created_at', { ascending: true });
       if (error) fail(error, 'useCredit');
       let left = amount, used = 0;
@@ -753,16 +768,21 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
         if (left <= 0) break;
         const a = Number(c.amount);
         const now = new Date().toISOString();
+        // Every write is compare-and-set (still unused AND still this amount) and checks that it changed a row: another device
+        // that used this credit a moment earlier makes the write change nothing, and that credit is skipped instead of used twice
+        // (2026-10-20 audit).
         if (a > left) {
           // Only part of this credit is needed: the rest stays available as a smaller credit, the used part is recorded on its own.
-          const { error: e1 } = await db.from('client_credits').update({ amount: round2(a - left) }).eq('id', c.id).is('used_at', null);
+          const { data: u1, error: e1 } = await db.from('client_credits').update({ amount: round2(a - left) }).eq('id', c.id).is('used_at', null).eq('amount', c.amount).select('id');
           if (e1) fail(e1, 'useCredit');
+          if (!u1 || !u1.length) continue;
           const { error: e2 } = await db.from('client_credits').insert({ tenant_id: tenantId, client_id: clientId, amount: round2(left), source: 'split_used', used_at: now, used_receipt_id: receiptId });
           if (e2) fail(e2, 'useCredit');
           used += left; left = 0;
         } else {
-          const { error: e3 } = await db.from('client_credits').update({ used_at: now, used_receipt_id: receiptId }).eq('id', c.id).is('used_at', null);
+          const { data: u3, error: e3 } = await db.from('client_credits').update({ used_at: now, used_receipt_id: receiptId }).eq('id', c.id).is('used_at', null).select('id');
           if (e3) fail(e3, 'useCredit');
+          if (!u3 || !u3.length) continue;
           used += a; left -= a;
         }
       }

@@ -31,13 +31,18 @@ export function requestDescription(kind: RequestKind, note?: string | null): str
   return n ? `${head} · ${n}` : head;
 }
 
+// The stored description went through growText (lib/grow/payload.ts), which turns every special character, the "·" included,
+// into a space. Both sides are compared in that same cleaned form, or a paid deposit request is never recognised (and never
+// becomes the client's credit). Found in the 2026-10-20 code audit.
+const asStored = (s: unknown) => String(s ?? '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
 export function isDepositRequest(description: string | null | undefined): boolean {
-  return String(description || '').startsWith(REQUEST_DEPOSIT_PREFIX);
+  return asStored(description).startsWith(asStored(REQUEST_DEPOSIT_PREFIX));
 }
 
 export function isPaymentRequest(description: string | null | undefined): boolean {
-  const d = String(description || '');
-  return d.startsWith(REQUEST_FULL_PREFIX) || d.startsWith(REQUEST_DEPOSIT_PREFIX);
+  const d = asStored(description);
+  return d.startsWith(asStored(REQUEST_FULL_PREFIX)) || d.startsWith(asStored(REQUEST_DEPOSIT_PREFIX));
 }
 
 /** The message she sends from her own WhatsApp: warm, short, the amount glued to the shekel sign. */

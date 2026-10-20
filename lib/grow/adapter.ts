@@ -71,6 +71,11 @@ export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapte
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };
   }
+  // Preview deployments use the PRODUCTION database: a "paid" button there would mark real rows paid. Mock runs on a Vercel
+  // deployment only when it is explicitly allowed for that deployment (GROW_MOCK_ALLOWED=true); locally it is the default.
+  if (env.VERCEL_ENV && !/^(1|true|on|yes)$/i.test((env.GROW_MOCK_ALLOWED || '').trim())) {
+    return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode needs GROW_MOCK_ALLOWED=true on a Vercel deployment' };
+  }
   return { mode: 'mock', configured: true, env: 'sandbox', creds: { apiKey: 'mock', pageCode: 'mock', apiBase: MOCK_API_BASE, pageCodes: { card: 'mock', bit: 'mock-bit', apple_pay: 'mock-apple', google_pay: 'mock-google' } }, fetchImpl: createMockFetch(origin), ops: createMockOps(origin, signGrowSession) };
 }
 
