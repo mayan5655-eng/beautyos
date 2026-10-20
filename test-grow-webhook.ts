@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  GROW_IPS, clientIp, ipAllowed, ipCheckEnforced, allowedIps, classifyWebhook, readOnboarding, applyOnboarding, parseWebhookBody,
+  GROW_IPS, clientIp, ipAllowed, ipCheckEnforced, allowedIps, classifyWebhook, readOnboarding, readOnboardingApiKey, applyOnboarding, parseWebhookBody,
 } from './lib/grow/webhook.ts';
 import type { OnboardingRepo, MatchState } from './lib/grow/webhook.ts';
 import { GROW_IPS as GROW_IPS_CFG, GROW_IPS_SOURCE } from './lib/grow/growIps.ts';
@@ -336,6 +336,70 @@ await ok('the address list lives in its config file with its source, and the web
   assert.deepEqual([...GROW_IPS], [...GROW_IPS_CFG]);
   assert.match(GROW_IPS_SOURCE, /developers\.grow\.business\/reference\/ip-address/);
   assert.doesNotMatch(rd('lib/grow/webhook.ts'), /'3\.123\.194\.128'/); // not duplicated there
+});
+
+// ── 2026-10-20: Grow's registration webhook (GetLink spec) ──────────────────────
+// { err: null, status: "1", data: { name, phone, api_key, user_id, package_id, package_name, tracking_code, business_title,
+//   bank_account, tracking_status: { id, message } } }; tracking_code equals the encrypted_lead GetLink returned.
+const REG = {
+  err: null, status: '1',
+  data: {
+    name: 'דנה כהן', phone: '0501234567', api_key: 'GROW-MERCHANT-KEY-1', user_id: 'u77aa21', package_id: 3, package_name: 'Light',
+    tracking_code: 'ENC+LEAD/123==', business_title: 'סטודיו דנה', bank_account: { bank: 12, branch: 345, account: '987654' },
+    tracking_status: { id: 2, message: 'approved' },
+  },
+};
+
+await ok('registration webhook: matched by the encrypted_lead, her user_id stored, clearing ON, api_key sealed; bank_account never kept', async () => {
+  assert.equal(classifyWebhook(REG), 'onboarding');
+  const f = fakeOnboardingRepo({ pending: { 'ENC+LEAD/123==': 'ten-7' } });
+  const sealedKeys: Array<[string, string]> = [];
+  f.repo.saveApiKey = async (t, sealed) => { sealedKeys.push([t, sealed]); };
+  const r = await applyOnboarding(readOnboarding(REG)!, f.repo, undefined, () => `sealed(${readOnboardingApiKey(REG)})`);
+  assert.equal(r.status, 'matched');
+  assert.equal(r.registration, 'approved');
+  assert.deepEqual(f.accounts['ten-7'], { user_id: 'u77aa21', enabled: true });
+  assert.deepEqual(sealedKeys, [['ten-7', 'sealed(GROW-MERCHANT-KEY-1)']]);
+  const stored = JSON.stringify(f.updates);
+  for (const secret of ['GROW-MERCHANT-KEY-1', '987654', 'bank', '0501234567']) assert.ok(!stored.includes(secret), secret);
+  assert.deepEqual(Object.keys(readOnboarding(REG)!).filter((k) => /bank|api_key|phone/i.test(k)), []);
+});
+
+await ok('the api_key is never sealed for an unmatched, rejected or waiting update', async () => {
+  let sealed = 0;
+  const seal = () => { sealed++; return 'x'; };
+  const none = fakeOnboardingRepo({ pending: {} });
+  none.repo.saveApiKey = async () => { throw new Error('must not store'); };
+  await applyOnboarding(readOnboarding(REG)!, none.repo, undefined, seal);
+  const rej = fakeOnboardingRepo({ pending: { 'ENC+LEAD/123==': 'ten-7' } });
+  rej.repo.saveApiKey = async () => { throw new Error('must not store'); };
+  const rejected = { ...REG, status: '0', data: { ...REG.data, user_id: '', api_key: '', tracking_status: { id: 9, message: 'rejected' } } };
+  const rr = await applyOnboarding(readOnboarding(rejected)!, rej.repo, undefined, seal);
+  assert.equal(rr.registration, 'rejected');
+  assert.equal(sealed, 0);
+  assert.deepEqual(rej.accounts, {});
+});
+
+await ok('a failing secret store never blocks the approval (the key is just not kept, and is not logged)', async () => {
+  const f = fakeOnboardingRepo({ pending: { 'ENC+LEAD/123==': 'ten-7' } });
+  f.repo.saveApiKey = async () => { throw new Error('grow_account_secrets missing'); };
+  const r = await applyOnboarding(readOnboarding(REG)!, f.repo, undefined, () => 'sealed');
+  assert.equal(r.registration, 'approved');
+  assert.deepEqual(f.accounts['ten-7'], { user_id: 'u77aa21', enabled: true });
+  const w = rd('lib/grow/webhook.ts');
+  for (const line of w.split('\n').filter((l) => /console\./.test(l))) assert.doesNotMatch(line, /sealed|apiKey|api_key\b(?! not)/, line);
+});
+
+await ok('the webhook route keeps the Grow address check first, and seals the key with the shared encryption', () => {
+  const r = rd('app/api/grow/webhook/route.ts');
+  assert.ok(r.indexOf('ipCheckEnforced() && !ipAllowed(ip)') < r.indexOf('readBody(request)'));
+  assert.match(r, /encryptToken\(k\)/);
+  assert.doesNotMatch(r.replace(/\/\/.*$/gm, ''), /bank_account/, 'no code reads it');
+  const sql = rd('supabase/migrations/add_grow_register.sql');
+  assert.match(sql, /create table if not exists public\.grow_account_secrets/);
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /revoke all on public\.grow_account_secrets from anon, authenticated/);
+  assert.doesNotMatch(sql, /bank_account\s+(text|jsonb)/i);
 });
 
 console.log(`${n} passed`);

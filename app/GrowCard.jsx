@@ -9,7 +9,7 @@
 // answers 404 and nothing renders. When it is on, the honest states are:
 //   - the payment tables are not created yet: says so, offers nothing to press;
 //   - not connected: two doors. (a) "I have a Grow account": she pastes her Grow business id (only when the platform can charge).
-//     (b) "I don't have Grow yet": she opens Grow's own registration form from here (app/GrowRegistration.jsx), and the card
+//     (b) "I don't have Grow yet": Grow texts her its registration form (GetLink, app/GrowRegistration.jsx), and the card
 //         shows waiting / rejected until Grow approves; then it turns connected with clearing on. Where that link is not
 //         available, she leaves her name, phone, business name and business id, and we pass them on to Grow;
 //   - connected: on/off, a disconnect button, and her last Grow payments with the Grow receipt link inside Kalmea.
@@ -54,18 +54,20 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
-  // Opens Grow's registration form in a new tab and shows "waiting" here.
+  // Asks Grow (GetLink) to text her the registration form. Returns the answer to GrowRegistration, which shows Grow's error in
+  // plain Hebrew next to the fields (and "I have Grow" for an existing account), or the "SMS sent" state.
   const startRegistration = async (form) => {
-    if (busy) return;
+    if (busy) return null;
     setBusy(true);
     try {
       const r = await fetch('/api/grow/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את טופס ההרשמה, נסי שוב', 'error'); return; }
-      window.open(j.url, '_blank', 'noopener');
-      toast?.('טופס ההרשמה של Grow נפתח בלשונית חדשה');
-      setDoor(null);
+      if (!r.ok || !j?.success) return { success: false, code: j?.code || '', growId: j?.growId || '', error: j?.error || 'לא הצלחנו לפתוח את ההרשמה, נסי שוב' };
+      toast?.('Grow שולחת לך SMS עם קישור לטופס');
       await load();
+      return j;
+    } catch {
+      return { success: false, error: 'לא הצלחנו להתחבר, נסי שוב' };
     } finally { setBusy(false); }
   };
 
@@ -136,7 +138,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   } else if ((s.registration && door !== 'need') || door === 'register') {
     body = (
       <>
-        <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} />
+        <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} onHaveAccount={() => setDoor('have')} frameOrigin={s.registrationFrame || null} onFormDone={() => { toast?.('הטופס נשלח ל-Grow. נעדכן כאן כשהחשבון יאושר'); load(); }} />
         {door === 'register' && <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button></div>}
       </>
     );

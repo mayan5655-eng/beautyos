@@ -15,8 +15,10 @@
 //               -> stored in grow_onboarding_updates; attached to a tenant ONLY when its tracking code equals a
 //                  pending onboarding we recorded for that tenant. Nothing is ever matched by guesswork.
 //
-// The merchant's api_key and phone are never stored or logged; user_id is stored server-side only and is masked
-// (lib/grow/payload.maskUserId) wherever a person sees it.
+// The merchant's phone and bank_account are never stored or logged. Her api_key is read separately (readOnboardingApiKey), only
+// once an update is matched and approved, and is stored ENCRYPTED in the server-only grow_account_secrets table; it never
+// reaches grow_onboarding_updates or a log. user_id is stored server-side only and is masked (lib/grow/payload.maskUserId)
+// wherever a person sees it.
 
 import { findInvoiceUrl, readNotification, USER_ID_RE } from './payload.ts';
 import { GROW_IPS } from './growIps.ts';
@@ -124,6 +126,14 @@ export function readOnboarding(raw: unknown): OnboardingUpdate | null {
   };
 }
 
+/** Her api_key from an onboarding update, for sealing and storing only. Never put into the update row or a log. */
+export function readOnboardingApiKey(raw: unknown): string | null {
+  if (!isObj(raw)) return null;
+  const d = onboardingData(raw);
+  const k = d && typeof d.api_key === 'string' ? d.api_key.trim() : '';
+  return k && k.length <= 200 && !/\s/.test(k) ? k : null;
+}
+
 // ── onboarding handler ──────────────────────────────────────────────────────
 
 export type MatchState = 'unmatched' | 'matched' | 'conflict';
@@ -140,11 +150,14 @@ export type OnboardingRepo = {
   clearPending(tenantId: string): Promise<void>;
   /** The registration's status as she sees it on her card (waiting / approved / rejected, with Grow's words). Optional. */
   setPendingStatus?(tenantId: string, status: RegistrationStatus, message: string): Promise<void>;
+  /** Stores her sealed api_key (server-only table). Optional; a failure here never blocks the approval. */
+  saveApiKey?(tenantId: string, sealed: string): Promise<void>;
 };
 
 export type OnboardingResult = { status: 'matched' | 'unmatched' | 'conflict'; updateId: string; registration?: RegistrationStatus };
 
-export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo, now: () => Date = () => new Date()): Promise<OnboardingResult> {
+/** sealApiKey: returns her api_key encrypted, or null; called only after an approved, matched update. */
+export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo, now: () => Date = () => new Date(), sealApiKey?: () => string | null): Promise<OnboardingResult> {
   const updateId = await repo.insertUpdate({
     received_at: now().toISOString(),
     user_id: u.userId,
@@ -184,6 +197,15 @@ export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo,
   // Approved through HER registration link (only our tracking code proves that): store her userId and switch clearing ON,
   // for her business only. She opted in by starting the registration, and can switch it off on the same card.
   await repo.saveAccount(tenantId, u.userId, true);
+  if (sealApiKey && repo.saveApiKey) {
+    try {
+      const sealed = sealApiKey();
+      if (sealed) await repo.saveApiKey(tenantId, sealed);
+    } catch (e) {
+      // Her account is connected either way; only the key is not kept (logged without it).
+      console.error('[grow] api_key not stored:', (e as Error)?.message || 'error');
+    }
+  }
   if (repo.setPendingStatus) await repo.setPendingStatus(tenantId, 'approved', why);
   await repo.setMatch(updateId, 'matched', tenantId);
   await repo.clearPending(tenantId);

@@ -31,7 +31,9 @@
 //   worker-src   'self' for the service worker, blob: for anything a library
 //                spins up.
 //   frame-src    'none': nothing on this product is embedded. The Facebook
-//                share is a popup, not a frame.
+//                share is a popup, not a frame. One opt-in exception: Grow's
+//                registration form inside the Grow card, ONLY when
+//                GROW_REGISTER_FRAME_ORIGIN names one Grow host (growRegisterFrameOrigin).
 //   frame-ancestors 'none': the point. Also sent as X-Frame-Options DENY for
 //                the browsers that still read it.
 //
@@ -60,6 +62,16 @@ export const GROW_WALLET_ORIGINS = ['https://*.meshulam.co.il', 'https://*.grow.
 const GROW_WALLET_CONNECT_EXTRA = ['https://google.com'];
 /** The card form itself is Grow's card processor's page (sandbox ppsuat., live pps.), drawn in a frame. */
 const GROW_WALLET_FRAME_EXTRA = ['https://*.creditguard.co.il'];
+
+/**
+ * Grow's registration form may be shown inside the Grow card (it posts { action, source: 'growRegister' } back). Off unless
+ * GROW_REGISTER_FRAME_ORIGIN is set to ONE https origin on a Grow domain; anything else is ignored, so a typo cannot open
+ * frame-src wide. Without it the card sends her to the form by SMS / a new tab instead.
+ */
+export function growRegisterFrameOrigin(env: Record<string, string | undefined> = process.env): string | null {
+  const v = String(env.GROW_REGISTER_FRAME_ORIGIN || '').trim().toLowerCase().replace(/\/+$/, '');
+  return /^https:\/\/([a-z0-9-]+\.)+(meshulam\.co\.il|grow\.business|grow\.link)$/.test(v) ? v : null;
+}
 
 export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean } = {}): string {
   const dev = !!opts.dev;
@@ -98,7 +110,7 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     'connect-src': connect as string[],
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],
-    'frame-src': opts.grow ? ["'self'", ...GROW_WALLET_ORIGINS, ...GROW_WALLET_FRAME_EXTRA] : ["'none'"],
+    'frame-src': opts.grow ? ["'self'", ...GROW_WALLET_ORIGINS, ...GROW_WALLET_FRAME_EXTRA] : growRegisterFrameOrigin(env) ? [growRegisterFrameOrigin(env) as string] : ["'none'"],
     'frame-ancestors': ["'none'"],
     'form-action': ["'self'"],
     'base-uri': ["'self'"],

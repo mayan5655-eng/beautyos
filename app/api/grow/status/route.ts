@@ -8,7 +8,8 @@
 //   request   { sent, at }          she asked us to open a Grow account for her (the older, manual way)
 //   registration { status, message, url, at } | null   her own Grow registration link (lib/grow/registration.ts)
 //   methods   ['card', 'bit', ...]  the ways a client can pay on this deployment (lib/grow/methods.ts)
-//   registrationAvailable           the registration link can be opened here (mock, or live with GROW_REGISTRATION_PATH)
+//   registrationAvailable           the registration link can be opened here (live when GROW_REGISTER_API_KEY_TEST/_LIVE is set, else the mock)
+//   registrationFrame               the one Grow origin whose form may be shown inside the card, or null (then: SMS / new tab)
 //   payments  her last 20 Grow payments (status, amount, receipt link) - read through her session, so RLS applies
 //   tableReady false while add_grow_payments.sql has not been run
 import { NextResponse } from 'next/server';
@@ -17,6 +18,7 @@ import { resolveGrow } from '@/lib/grow/adapter';
 import { maskUserId } from '@/lib/grow/payload';
 import { availableMethods } from '@/lib/grow/methods';
 import { registrationOps } from '@/lib/grow/registration';
+import { growRegisterFrameOrigin } from '@/lib/securityHeaders';
 import { admin, caller, tableMissing } from '../_shared';
 
 export async function GET() {
@@ -34,7 +36,9 @@ export async function GET() {
     registration: null as null | { status: string; message: string | null; url: string | null; at: string | null },
     wallet: !!grow.wallet,
     methods: grow.wallet ? ['wallet'] : availableMethods(grow.creds?.pageCodes || (grow.creds ? { card: grow.creds.pageCode } : {})),
-    registrationAvailable: !!registrationOps(process.env, grow.mode, grow.configured, grow.creds, APP_URL),
+    registrationAvailable: !!registrationOps(process.env, grow.mode, grow.configured, APP_URL),
+    // Grow's form may be shown inside the card only where the CSP lets that one Grow origin be framed (lib/securityHeaders.ts).
+    registrationFrame: growRegisterFrameOrigin(process.env),
     payments: [] as unknown[],
   };
   const acc = await c.session.from('grow_accounts').select('user_id, enabled').eq('tenant_id', c.tenantId).maybeSingle();
