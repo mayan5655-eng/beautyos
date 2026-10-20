@@ -13,10 +13,12 @@ export default async function SubscribersPage() {
   const r = await loadSubscribers()
   if (!r.ok) {
     return (
-      <div dir="rtl" style={{ maxWidth: 640, margin: '0 auto', padding: '16px', fontFamily: "'Heebo','Assistant',sans-serif" }}>
-        <a href="/dashboard/admin" style={{ fontSize: 15, fontWeight: 600, color: '#183024', textDecoration: 'none' }}>← חזרה לניהול מנויים</a>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '8px 0 12px' }}>מעקב מנויות</h1>
-        <p style={{ fontSize: 15, color: '#9A5148' }}>לא הצלחנו לטעון את הנתונים כרגע. אפשר לנסות שוב בעוד רגע.</p>
+      <div dir="rtl" style={{ maxWidth: 640, margin: '0 auto', padding: '16px', fontFamily: 'var(--sans)', color: 'var(--ink)' }}>
+        <a href="/dashboard/admin" style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-2)', textDecoration: 'none' }}>→ ניהול מנויים</a>
+        <h1 style={{ fontFamily: 'var(--display-heavy)', fontSize: 30, fontWeight: 800, color: 'var(--brand-accent)', margin: '8px 0 12px' }}>מעקב מנויות</h1>
+        <p style={{ fontSize: 15, color: 'var(--brand-highlight-text)', background: 'var(--k-petal)', borderRadius: 'var(--r-lg)', padding: '12px 14px', margin: 0 }}>
+          לא הצלחנו לטעון את הנתונים כרגע. אפשר לנסות שוב בעוד רגע.
+        </p>
       </div>
     )
   }
