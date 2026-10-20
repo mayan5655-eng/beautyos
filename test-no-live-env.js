@@ -24,7 +24,7 @@ const ok = (label, cond) => { if (cond) passed++; else { failed++; console.log(`
 ok('Supabase URL is the placeholder', process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://placeholder.supabase.co');
 ok('Supabase service key is the placeholder', process.env.SUPABASE_SERVICE_ROLE_KEY === 'placeholder-service-key');
 ok('Supabase anon key is the placeholder', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY === 'placeholder-anon-key');
-for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GREENAPI_ID_INSTANCE', 'GREENAPI_API_TOKEN', 'CRON_SECRET', 'FACEBOOK_APP_SECRET', 'NEXT_PUBLIC_SUPPORT_WHATSAPP', 'SENTRY_AUTH_TOKEN']) {
+for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GREENAPI_ID_INSTANCE', 'GREENAPI_API_TOKEN', 'CRON_SECRET', 'FACEBOOK_APP_SECRET', 'WA_CLOUD_ACCESS_TOKEN', 'WA_CLOUD_APP_SECRET', 'WA_CLOUD_ENABLED', 'NEXT_PUBLIC_SUPPORT_WHATSAPP', 'SENTRY_AUTH_TOKEN']) {
   ok(`${k} is empty - no test can spend, send or authenticate with it`, !process.env[k]);
 }
 

@@ -26,6 +26,7 @@ import OpsEvents from './OpsEvents'
 import GrowOnboarding from './GrowOnboarding'
 import GrowRequests from './GrowRequests'
 import BillingAdmin from './BillingAdmin'
+import WaCloudCosts from './WaCloudCosts'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -122,6 +123,8 @@ export default async function AdminPage() {
       <GrowOnboarding db={db} />
       <GrowRequests db={db} />
       <BillingAdmin db={db} />
+      {/* WhatsApp Cloud API (Meta) cost log: read-only; the route itself is behind WA_CLOUD_ENABLED. */}
+      <WaCloudCosts db={db} />
     </>
   )
 }

@@ -88,7 +88,9 @@ declare
     -- Cancellation policy and fees on top of Grow (supabase/migrations/add_grow_cancellation.sql): server-written, listed so the gate stays right.
     'grow_cancel_policies', 'appointment_policy_consents', 'grow_card_tokens', 'cancellation_fee_items', 'client_credits',
     -- Saved cards (supabase/migrations/add_grow_tokens.sql): the consent a client gave and the ledger of every token charge.
-    'grow_card_consents', 'grow_token_charges'
+    'grow_card_consents', 'grow_token_charges',
+    -- The WhatsApp Cloud API cost log (supabase/migrations/add_wa_cloud.sql): server-written, listed so the gate stays right.
+    'wa_cloud_messages'
     -- NOTE: 'settings' is intentionally absent. See the header for why.
     --
     -- skin_scans, whatsapp_messages and auto_reminders_log are kept here on
