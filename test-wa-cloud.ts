@@ -50,7 +50,8 @@ await ok('default: OFF and mock, whatever is unset or junk', () => {
   assert.equal(tenantDailyCap({}), 150);
   assert.equal(tenantDailyCap({ WA_CLOUD_TENANT_DAILY_CAP: '-3' }), 150);
   assert.equal(utilityCostUsd({ WA_CLOUD_UTILITY_COST_USD: '0.01' }), 0.01);
-  assert.equal(waCloudAppSecret({ FACEBOOK_APP_SECRET: 'fb' }), 'fb', 'same Meta app: falls back to the Facebook app secret');
+  assert.equal(waCloudAppSecret({ FACEBOOK_APP_SECRET: 'fb' }), '', 'a different Meta app: never the Facebook leads app secret');
+  assert.equal(waCloudAppSecret({ WA_CLOUD_APP_SECRET: 'wa', FACEBOOK_APP_SECRET: 'fb' }), 'wa');
   assert.deepEqual(waCloudStatus({}).missing, ['WA_CLOUD_PHONE_NUMBER_ID', 'WA_CLOUD_ACCESS_TOKEN', 'WA_CLOUD_APP_SECRET', 'WA_CLOUD_VERIFY_TOKEN']);
 });
 
@@ -270,7 +271,7 @@ await ok('the new table is in the trial gate, the migration only adds, the brows
   assert.ok(read('lib/referencedTables.js').includes("'wa_cloud_messages'"));
   assert.ok(read('app/dashboard/admin/page.tsx').includes('<WaCloudCosts db={db} />'));
   const go = read('docs/GO_LIVE_WHATSAPP.md');
-  assert.ok(go.includes('950953347958539') && go.includes('050-7321978') && go.includes('X-Hub-Signature-256'));
+  assert.ok(go.includes('1464769648086912') && go.includes('050-7321978') && go.includes('X-Hub-Signature-256'));
 });
 
 console.log(`\n${n} passed 0 failed`);
