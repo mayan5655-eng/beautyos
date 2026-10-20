@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { trialEndDateHe } from '@/lib/planCopy';
 import { subscriptionDoc } from '@/lib/kalmeaBusiness';
+import { billingConsentTextHe } from '@/lib/billing/consent';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -20,6 +21,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   const [s, setS] = useState(null);
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // The required tick before the card page opens (lib/billing/consent.ts); the server refuses without it too.
+  const [consentOk, setConsentOk] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -42,7 +45,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch('/api/billing/card', { method: 'POST' });
+      const r = await fetch('/api/billing/card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consent: consentOk === true }) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את דף הכרטיס', 'error'); return; }
       window.location.assign(j.url);
@@ -88,11 +91,17 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         <p data-testid="billing-line" style={{ ...text, marginBottom: 10 }}>{line}</p>
 
         {hasCard && <p style={{ ...text, marginBottom: 8 }}>כרטיס שמור: <b dir="ltr">•••• {sub.card_last4}</b></p>}
+        {!isDemo && s.configured && (
+          <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
+            <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
+            <span>{billingConsentTextHe(s.plan.price)}</span>
+          </label>
+        )}
         {!isDemo && s.configured && sub?.status !== 'canceled' && (
-          <button type="button" style={primary} disabled={busy} onClick={openCardPage}>{hasCard ? 'עדכון כרטיס' : 'הוספת כרטיס אשראי'}</button>
+          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>{hasCard ? 'עדכון כרטיס' : 'הוספת כרטיס אשראי'}</button>
         )}
         {!isDemo && s.configured && sub?.status === 'canceled' && (
-          <button type="button" style={primary} disabled={busy} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
+          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
         )}
         {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
 
@@ -104,7 +113,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
                   <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : ''}</span>
                   <span style={{ display: 'flex', gap: 8 }}>
-                    <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : 'var(--danger)' }}>{p.status === 'succeeded' ? 'שולם' : 'נכשל'}</b>
+                    <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--ink-3)' }}>{p.status === 'succeeded' ? 'שולם' : p.status === 'failed' ? 'נכשל' : 'בבדיקה מול Grow'}</b>
+                    {p.status === 'succeeded' && !p.invoice_url && p.invoice_status === 'pending' && <span style={{ color: 'var(--ink-3)' }}>הקבלה בדרך</span>}
                     {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>{subscriptionDoc(p.amount).labelHe}{p.invoice_number ? ` ${p.invoice_number}` : ''}</a>}
                   </span>
                 </div>

@@ -55,3 +55,48 @@ Grow specifically: ask whether the platform account can charge a **saved token o
 
 `test-billing.ts` walks the whole life cycle with an in-memory database and a fake clock. `scripts/smoke/billing.mjs` is the browser run on a smoke tenant: part A (no migration) is
 verified; **part B (the full charge / retry / block / unblock / cancel / admin flow) needs the migration and has not been run in a browser yet.**
+
+## Grow (feat/kalmea-billing, mock until Grow confirms)
+
+Kalmea charges cosmeticians through Kalmea's **own, separate** Grow account (Grow Light, Maayan's osek patur: receipts, no VAT line). Built in
+`lib/billing/growBilling.ts` on the same token calls already checked against Grow's sandbox for the client flow (`lib/grow/ops.ts`).
+**Keep `BILLING_MODE=mock` until Grow confirms that a Grow Light account may use the token APIs.**
+
+| Variable (billing account ONLY) | Meaning |
+|---|---|
+| `GROW_BILLING_USER_ID` | Kalmea's own Grow business id |
+| `GROW_BILLING_API_KEY` | the API key of that account (a body field, like every Grow call) |
+| `GROW_BILLING_PAGE_CODE` | the credit-card TOKEN page code of that account |
+| `GROW_BILLING_ENV` | `production`, otherwise sandbox |
+| `GROW_BILLING_API_BASE` | optional; defaults to `https://sandbox.meshulam.co.il/...` or `https://secure.meshulam.co.il/api/light/server/1.0` |
+
+None of the platform variables (`GROW_API_KEY`, `GROW_PAGE_CODE`, `GROW_TOKEN_*`) is read by billing, and the platform code never reads `GROW_BILLING_*` (a test pins both).
+
+**Flow.** Settings > "המנוי שלי בקלמיה": a required tick (`lib/billing/consent.ts`, with her price) -> the server stores the exact words, version and time
+(`billing_card_consents`) -> Grow's hosted card page, save only (no charge) -> Grow posts the token to `/api/billing/grow-notify?s=<signed session>`
+(Grow's addresses only, the session names one business, `cField2` must match) -> `saveCard()` and `approveTransaction` with the BILLING keys.
+At the end of the free month the daily run (`/api/billing/charge-due`) charges the token monthly.
+
+**Ledger and duplicates (the client token rules).** Each charge draws a numeric `transactionUniqueIdentifier` (100,000,000 to 4,294,967,000) on the
+server, saved in `billing_payments` as `pending` BEFORE Grow is called, unique across all rows (a collision redraws before calling), never reused, not
+even after a refusal (a retry draws a new one). Grow's 1010 ("already seen") or a lost reply -> look up THAT identifier: paid counts once; failed or
+never seen closes the row and lets the next attempt run; unsettled stays `unknown` and the month is NOT charged again until it is settled. On top,
+one success per subscription and month stays enforced by the database.
+
+**Failed charge.** Unchanged: retries on days 1, 3 and 5, the in-app banner "החיוב החודשי נכשל" with "עדכון כרטיס", and after 7 days the existing trial
+gate (read stays open, writes blocked). A successful card unblocks at once. Billing routes never use the plan guard.
+
+**Receipts.** Grow issues the receipt for each charge on Kalmea's account. When the token-charge answer carries the document link (and number), it is
+stored with the payment at once and shown in her billing history; otherwise the row says "הקבלה בדרך".
+
+**Migration (run by hand, after add_kalmea_billing.sql):** `supabase/migrations/add_kalmea_billing_grow.sql`. Desktop copy: `kalmea-sql-kalmea-billing-grow.txt`.
+
+**What Grow must confirm before `BILLING_MODE=live`:**
+1. A Grow Light account may save a card (chargeType 3, saveCardToken 1) and charge it later with `createTransactionWithToken`, with Kalmea's own key.
+2. Which key a Light account uses for API calls (`GROW_BILLING_API_KEY`) and the token page code for that account.
+3. Whether the token-charge answer includes the receipt (`invoiceUrl`, `invoiceNumber`), or which webhook delivers it for token charges.
+4. That the first token transaction posts to the `notifyUrl` we send and needs `approveTransaction` (as in the client sandbox run), and the IP list.
+5. That the receipt is a kabala with no VAT line (osek patur), and the wording/business details on it.
+
+**Tests:** `test-billing-grow.ts` (credentials separation, adapters, ledger-first identifiers, refusal / collision / 1010 / lost reply, consent, the
+callback route, migration) and `test-billing.ts` (the whole life cycle, unchanged rules).

@@ -1,17 +1,16 @@
 // lib/billing/live.ts
 //
-// SERVER ONLY. The placeholder for the real provider. Nothing here talks to a network: every call says "not configured", so choosing
-// BILLING_MODE=live before a provider is wired can never charge anyone, only show an honest message.
+// SERVER ONLY. The real provider for Kalmea's own subscription: Kalmea's own Grow account (lib/billing/growBilling.ts), configured ONLY by
+// the GROW_BILLING_* variables. With any of them missing every call answers "not configured", so BILLING_MODE=live can never charge anyone
+// by accident, only show an honest message. Secrets live in environment variables read here; never in the database, never in the browser.
 //
-// To go live, implement the two interfaces from ./adapter.ts against the chosen provider (a Grow-style hosted page, or a card provider
-// plus an invoicing service) and return configured: true when its keys are present:
-//   TODO(provider) createCardSession  open the provider's hosted card page; its webhook (or return call) must end in saveCard() in ./service.ts
-//   TODO(provider) charge             charge the saved token for `amount`; honour idempotencyKey; map a refusal to code 'declined'
-//   TODO(provider) issueInvoice       issue the document for providerPaymentId: i.docType says which (a receipt with no VAT line while Kalmea is an exempt dealer), (or let the provider issue it and return its number and link)
-// Keep secrets in environment variables read here; never in the database and never in the browser.
+// Keep BILLING_MODE=mock until Grow confirms that a Grow Light account may use the token APIs (docs/BILLING_SETUP.md).
 import type { Env, PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
+import { growBillingCreds, createGrowBillingAdapters } from './growBilling.ts';
 
-export function createLiveAdapters(_env: Env): { configured: boolean; payments: PaymentsAdapter | null; invoicing: InvoicingAdapter | null } {
-  // Not wired yet: report "not configured" so no route offers a card form that leads nowhere.
-  return { configured: false, payments: null, invoicing: null };
+export function createLiveAdapters(env: Env): { configured: boolean; payments: PaymentsAdapter | null; invoicing: InvoicingAdapter | null; missing?: string[] } {
+  const { creds, missing } = growBillingCreds(env);
+  if (!creds) return { configured: false, payments: null, invoicing: null, missing };
+  const a = createGrowBillingAdapters(creds);
+  return { configured: true, payments: a.payments, invoicing: a.invoicing };
 }
