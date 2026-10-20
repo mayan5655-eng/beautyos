@@ -7117,8 +7117,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         .nav-item.active{background:linear-gradient(100deg,var(--pc-tint),var(--pc-tint-2));color:var(--pc-deep);font-weight:700}
         .nav-item.active .nav-ico{opacity:1;color:var(--pc)}
         .nav-item.active::before{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:3.5px;height:20px;border-radius:4px;background:var(--pc);box-shadow:0 0 10px var(--pc-shadow)}
-        .wa-btn{background:#25D366;color:#fff;border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
-        .wa-btn:hover{background:var(--success);transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,211,102,0.3)}
+        /* 2026-10-20 design pass: WhatsApp buttons in the brand's calm language (white, WhatsApp-green text and hairline,
+           AA on white) instead of a saturated green pill repeated down every list. */
+        .wa-btn{background:var(--surface);color:#0F7A3E;border:1px solid rgba(18,140,74,0.45);border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none;transition:transform 0.12s,box-shadow 0.2s}
+        .wa-btn:hover{background:#EEF8F1;transform:translateY(-1px);box-shadow:0 4px 12px rgba(18,140,74,0.15)}
         .call-btn{background:var(--pc);color:var(--surface);border:none;border-radius:var(--r-full);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;text-decoration:none}
         .icon-btn{background:var(--pc-tint);border:none;border-radius:50%;width:32px;height:32px;color:var(--pc);font-size:13px;cursor:pointer;font-family:inherit;transition:background 0.2s,transform 0.12s;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
         /* The compact variant, for buttons that sit inside a dense row. Below
@@ -7141,7 +7143,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         .fm-grow{transform-origin:bottom;animation:fmGrow .6s cubic-bezier(.2,.7,.3,1) both}
         .fm-pulse{animation:fmPulse 1.6s ease-in-out infinite}
         @media (prefers-reduced-motion:reduce){.fm-in,.fm-grow,.fm-pulse{animation:none!important}}
-        .today-stack>*{order:8}
+        /* width:100%: the cards centre themselves with margin-inline:auto, which in a flex column stops them stretching. */
+        .today-stack>*{order:8;width:100%;box-sizing:border-box}
         /* Reusable premium primitives for the redesign */
         .glass-card{background:var(--surface);border:1px solid var(--line);border-radius:19px;box-shadow:0 1px 2px rgba(31,58,48,.05), 0 8px 20px rgba(31,58,48,.06);position:relative;overflow:hidden}
         /* .card-boxed, translucent variant: the petal-pink page under היום's

@@ -62,7 +62,7 @@ ok('agenda card: calm surface with a status stripe, one main action, the rest be
 
 ok('היום order: today and "needs attention" right after the revenue line; the rest after', () => {
   assert.match(app, /activeTab==="dashboard"&&\(<div className="today-stack" style=\{\{display:"flex",flexDirection:"column"\}\}>/);
-  assert.match(app, /\.today-stack>\*\{order:8\}/);
+  assert.match(app, /\.today-stack>\*\{order:8;width:100%;box-sizing:border-box\}/);
   const order = (re: RegExp) => Number((app.match(re) || [])[1]);
   assert.equal(order(/className="glass-card card-boxed" style=\{\{order:(\d+),padding:"16px 17px",marginBottom:12/), 2);
   assert.equal(order(/<div style=\{\{order:(\d+),maxWidth:1180,margin:"0 auto",display:"flex",gap:12/), 4);
