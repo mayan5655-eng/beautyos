@@ -98,14 +98,17 @@ export async function POST(request) {
     // add_audit_hardening_2026-10-18.sql; until then this part is skipped), and not a number whose client card is opted out.
     const optedOutPhones = new Set();
     const optedOutLeadIds = new Set();
-    try {
-      const { data: oc } = await admin.from("clients").select("phone").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null);
-      for (const c of oc || []) for (const v of phoneVariants(c.phone)) optedOutPhones.add(v);
-    } catch { /* column not there yet: nobody is opted out */ }
-    try {
-      const { data: ol, error: oe } = await admin.from("leads").select("id").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null);
-      if (!oe) for (const l of ol || []) optedOutLeadIds.add(l.id);
-    } catch { /* same */ }
+    // A read that FAILED is not "nobody opted out": the batch stops instead of reaching people who asked to stop (2026-10-20 audit).
+    // Only a column that does not exist yet counts as an empty list.
+    const missingCol = (e) => /marketing_opted_out_at|schema cache|does not exist/i.test(e?.message || "");
+    const { data: oc, error: ocErr } = await admin.from("clients").select("phone").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null).limit(10000);
+    const { data: ol, error: olErr } = await admin.from("leads").select("id").eq("tenant_id", tenantId).not("marketing_opted_out_at", "is", null).limit(10000);
+    if ((ocErr && !missingCol(ocErr)) || (olErr && !missingCol(olErr))) {
+      console.error("[leads/send-bulk] opt-out read failed:", (ocErr || olErr).message);
+      return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 503 });
+    }
+    for (const c of ocErr ? [] : oc || []) for (const v of phoneVariants(c.phone)) optedOutPhones.add(v);
+    for (const l of olErr ? [] : ol || []) optedOutLeadIds.add(l.id);
     const leadList = (leads || []).filter((l) => !optedOutLeadIds.has(l.id) && !phoneVariants(l.phone).some((v) => optedOutPhones.has(v)));
     const optedOutCount = (leads || []).length - leadList.length;
 

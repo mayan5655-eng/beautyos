@@ -61,7 +61,7 @@ export async function POST(request) {
     // Load the appointment scoped to THIS tenant (never cross-tenant).
     // kind is optional for the same reason as in the cron: the column may not
     // exist yet, and a manual reminder must not start failing because of it.
-    const COLS = "id, name, service, date, hour, start_minute, client_id, client_phone, tenant_id, confirmation_status";
+    const COLS = "id, name, service, date, hour, start_minute, duration, client_id, client_phone, tenant_id, confirmation_status";
     const loadAppt = (cols) => supabase
       .from("appointments")
       .select(cols)
@@ -142,9 +142,13 @@ export async function POST(request) {
     // Character-for-character the cron's message. They were two hand-written
     // copies that had already drifted apart in wording; now they drift only if
     // someone edits lib/messages, which changes both.
+    // She can send this one for any day, so the day word comes from the date (it always said "מחר", 2026-10-20 audit).
+    const todayIL = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+    const dayDiff = Math.round((Date.parse(String(appt.date).slice(0, 10)) - Date.parse(todayIL)) / 86_400_000);
+    const dayWord = dayDiff === 0 ? " היום" : dayDiff === 1 ? " מחר" : "";
     const message = lines(
       greet(appt.name),
-      `תזכורת לתור שלך ב${businessName} מחר.`,
+      `תזכורת לתור שלך ב${businessName}${dayWord}.`,
       "",
       durationText ? `${appt.service} · ${durationText}` : appt.service,
       `${hebrewDate(appt.date)}, ${timeRange(startMinute(appt), appt.duration)}`,

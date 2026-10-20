@@ -29,6 +29,12 @@ export async function POST(request) {
     if (!endpoint || !p256dh || !auth) {
       return Response.json({ success: false, error: "מנוי לא תקין" }, { status: 400 });
     }
+    // web-push POSTs to this URL, so only a real https push endpoint is kept (2026-10-20 audit: any URL was accepted).
+    let host = "";
+    try { const u = new URL(String(endpoint)); host = u.protocol === "https:" ? u.hostname : ""; } catch { /* not a URL */ }
+    if (!host || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[)/i.test(host)) {
+      return Response.json({ success: false, error: "מנוי לא תקין" }, { status: 400 });
+    }
 
     const { error } = await admin
       .from("push_subscriptions")
@@ -51,7 +57,10 @@ export async function DELETE(request) {
     const { endpoint } = await request.json().catch(() => ({}));
     if (!endpoint) return Response.json({ success: false, error: "חסר endpoint" }, { status: 400 });
 
-    await admin.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    // Only this business's own subscription: the endpoint alone removed anyone's (2026-10-20 audit).
+    const { data: tenantId } = await session.rpc("get_user_tenant_id");
+    if (!tenantId) return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+    await admin.from("push_subscriptions").delete().eq("endpoint", endpoint).eq("tenant_id", tenantId);
     return Response.json({ success: true });
   } catch (err) {
     return (console.error("[push/subscribe] failed:", err?.message), Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 }));

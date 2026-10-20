@@ -28,6 +28,7 @@
 // tenant-filtered read; a forged id for another tenant's client matches
 // nothing.
 
+import { readAllRows } from "../../../../../lib/pagedRead.js";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../../lib/supabase/server";
 import {
@@ -63,11 +64,14 @@ export async function POST(request) {
       return Response.json({ success: false, error: "לא נבחרו לקוחות" }, { status: 400 });
     }
 
-    const [{ data: clients, error: cErr }, { data: appts, error: aErr }, { data: logRows }] = await Promise.all([
+    // Paged (lib/pagedRead.js): a plain select stops at 1,000 rows, so "last visit" came from a fragment of the history (2026-10-20 audit).
+    const [{ data: clients, error: cErr }, apR, { data: logRows }] = await Promise.all([
       admin.from("clients").select("id").eq("tenant_id", tenantId).in("id", clientIds),
-      admin.from("appointments").select("client_id, date, confirmation_status").eq("tenant_id", tenantId),
+      readAllRows(admin, "appointments", { columns: "client_id, date, confirmation_status", filter: (q) => q.eq("tenant_id", tenantId).in("client_id", clientIds) }),
       admin.from("auto_reminders_log").select("client_id, reference_id").eq("tenant_id", tenantId).eq("reminder_type", WINBACK_TYPE),
     ]);
+    const appts = apR.data;
+    const aErr = apR.error || (!apR.complete ? { message: "appointments read incomplete" } : null);
     if (cErr || aErr) {
       console.error("[clients/lapsed/mark] read failed:", (cErr || aErr).message);
       return Response.json({ success: false, error: "לא הצלחנו לטעון את הלקוחות" }, { status: 500 });

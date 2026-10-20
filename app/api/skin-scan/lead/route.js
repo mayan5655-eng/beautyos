@@ -43,7 +43,7 @@ export async function POST(request) {
     await upsertScanLead(supabase, { tenantId, name, phone, report });
     return Response.json({ success: true });
   } catch (err) {
-    console.error("skin-scan/lead error:", err);
+    console.error("skin-scan/lead error:", err?.message);
     console.error("[lead] failed:", err?.message);
     return Response.json({ success: false, error: "משהו נתקע אצלנו. אפשר לנסות שוב בעוד רגע." }, { status: 500 });
   }

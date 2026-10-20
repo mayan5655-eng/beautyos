@@ -123,7 +123,8 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Server configuration error', { status: 500 });
   }
 
-  if (mode === 'subscribe' && token === verifyToken && challenge) {
+  const tokenOk = typeof token === 'string' && token.length === verifyToken.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(verifyToken));
+  if (mode === 'subscribe' && tokenOk && challenge) {
     console.log('Facebook webhook verified successfully');
     return new NextResponse(challenge, { status: 200 });
   }

@@ -1258,7 +1258,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={"יום " + DAYS_HE[d.getDay()] + " " + d.getDate() + " " + MONTHS_HE[d.getMonth()]}
                         onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(d); setSelectedStart(null); } }}
-                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--brand-surface, #FDFBF9)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                        style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--pc-contrast, #FFFFFF)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
                         <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
                         <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
@@ -1297,7 +1297,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         return (
                           <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
                             className="bk-btn"
-                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--brand-surface, #FDFBF9)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
+                            style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--pc-contrast, #FFFFFF)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
                           </button>
                         );

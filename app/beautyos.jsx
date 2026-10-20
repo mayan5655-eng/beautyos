@@ -1243,6 +1243,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   }, []);
 
   const isBusy = useCallback((key) => !!busy[key], [busy]);
+  // Synchronous in-flight guard for one-tap actions: `busy` is React state, so two taps inside the same frame both see it
+  // false. A ref is already set when the second tap arrives (2026-10-20 audit: a double tap drew two package sessions).
+  const inFlightRef = useRef(new Set());
+  const runOnce = async (key, fn) => {
+    if (inFlightRef.current.has(key)) return undefined;
+    inFlightRef.current.add(key);
+    try { return await fn(); } finally { inFlightRef.current.delete(key); }
+  };
 
   // Is this a lost connection rather than a database refusal? The two look
   // nothing alike to her and must never be reported the same way.
@@ -3000,7 +3008,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           setAppointments(prev => prev.filter(a => !ownIds.has(String(a.id))));
         }
         const { data, error } = await supabase.from("appointments").insert(dates.map(row)).select();
-        if (error) { handleDbError(error, "create personal event"); return; }
+        if (error) {
+          // The old rows are already gone: put them back, or the block disappears and the time opens on her booking page
+          // (2026-10-20 audit: an insert refused by a booking made meanwhile left nothing blocked).
+          if (existing.length) {
+            const { data: back, error: backErr } = await supabase.from("appointments").insert(existing).select();
+            if (!backErr && back) setAppointments(prev => [...prev, ...back]);
+            else if (backErr) console.error("[personal event] restore failed:", backErr.message);
+          }
+          handleDbError(error, "create personal event"); return;
+        }
         if (data) setAppointments(prev => [...prev, ...data]);
       }
       closePersonalEditor();
@@ -3629,27 +3646,32 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     });
   };
 
-  const handleSendConfirmation = async (appt) => {
-    if (guardWrite()) return;
+  const handleSendConfirmation = (appt) => runOnce(`sendConfirm:${appt.id}`, () => sendConfirmationNow(appt));
+  // Returns true only when a WhatsApp window actually opened. A blocked popup is not a sent reminder, so it is not marked sent
+  // (2026-10-20 audit: the bulk loop marked every client after the first as handled while nothing had opened for them).
+  const sendConfirmationNow = async (appt) => {
+    if (guardWrite()) return false;
     const client=clients.find(c=>String(c.id)===String(appt.client_id));
-    if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return;}
+    if(!client?.phone){toast("אין מספר טלפון ללקוחה","error");return false;}
     // The window is opened synchronously, inside the click, and only then
     // pointed at the link. Awaiting the signed links first and opening
     // afterwards would put window.open outside the user gesture, which Safari
     // and Chrome block as a popup.
     const w = window.open("", "_blank");
     const links = await fetchConfirmLinks(appt.id);
-    if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return; }
+    if (!links) { if (w) w.close(); toast("לא הצלחנו להכין את קישורי האישור", "error"); return false; }
     const brandJson = settings.branding && typeof settings.branding === "object" ? settings.branding : {};
     const link = waConfirmLink(client.phone, appt.name, appt.service, appt.date, fmtApptTime(appt), links, {
       businessName: settings.business_name,
       address: brandJson.public_address || brandJson.address,
       arrivalNote: brandJson.arrival_note,
     });
-    if (w) w.location.href = link; else window.open(link, "_blank");
+    const opened = w ? (w.location.href = link, true) : !!window.open(link, "_blank");
+    if (!opened) { toast("הדפדפן חסם את פתיחת וואטסאפ, אפשר לנסות שוב", "info"); return false; }
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
-    if (error) { handleDbError(error, "mark confirmation_sent"); return; }
+    if (error) { handleDbError(error, "mark confirmation_sent"); return true; }
     if(data)setAppointments(prev=>prev.map(a=>a.id===appt.id?data[0]:a));
+    return true;
   };
 
   const handleSendAllConfirmations = async () => {
@@ -3661,11 +3683,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       message: `${pending.length===1?"לשלוח תזכורת ללקוחה אחת?":`לשלוח תזכורת ל-${pending.length} לקוחות?`}`,
       confirmText: "שליחה",
       onConfirm: async () => {
+        // The browser lets a page open a window only from a tap, so after the first one the rest may be blocked. Those stay
+        // unmarked and she is told how many are left, instead of a toast that says all of them were opened.
+        let opened = 0;
         for(const appt of pending){
-          await handleSendConfirmation(appt);
+          const ok = await handleSendConfirmation(appt);
+          if (!ok) break;
+          opened++;
           await new Promise(r=>setTimeout(r,500));
         }
-        toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
+        const left = pending.length - opened;
+        if (left > 0) toast(opened ? `פתחנו וואטסאפ ל-${opened} מתוך ${pending.length}. הדפדפן חסם את השאר, אפשר ללחוץ על כל תור בנפרד.` : "הדפדפן חסם את פתיחת וואטסאפ. אפשר ללחוץ על כל תור בנפרד.", "info");
+        else toast(pending.length===1?"פתחנו וואטסאפ עם תזכורת מוכנה ללקוחה אחת. נשאר ללחוץ שליחה.":`פתחנו וואטסאפ עם תזכורת מוכנה ל-${pending.length} לקוחות. נשאר ללחוץ שליחה בכל שיחה.`);
       },
     });
   };
@@ -4524,7 +4553,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     } finally { setBrandUploading(""); }
   };
 
-  const handleSendForm = async (client,formType) => {
+  const handleSendForm = (client,formType) => runOnce(`sendForm:${client.id}:${formType}`, () => sendFormNow(client, formType));
+  const sendFormNow = async (client,formType) => {
     if (guardWrite()) return;
     const {data,error}=await supabase.from("forms").insert([{client_id:client.id,client_name:client.name,form_type:formType,status:"pending"}]).select();
     if(error){handleDbError(error, "create form"); return;}
@@ -6230,7 +6260,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return fresh || null;
   };
 
-  const handleUsePackageSession = async (pkg, opts) => {
+  const handleUsePackageSession = (pkg, opts) => runOnce(`pkg:${pkg.id}`, () => usePackageSessionNow(pkg, opts));
+  const usePackageSessionNow = async (pkg, opts) => {
     if (guardWrite()) return;
     if (Number(pkg.used_sessions) >= Number(pkg.total_sessions)) { toast("החבילה כבר נוצלה במלואה", "error"); return; }
     const fresh = await writePackageEntry(pkg, -1, opts);
@@ -6242,7 +6273,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The reversal. Not a delete: the mistaken draw stays in the ledger and the
   // correction sits beside it, so the history explains itself instead of
   // quietly no longer containing the error.
-  const handleUndoPackageSession = async (pkg) => {
+  const handleUndoPackageSession = (pkg) => runOnce(`pkg:${pkg.id}`, () => undoPackageSessionNow(pkg));
+  const undoPackageSessionNow = async (pkg) => {
     if (guardWrite()) return;
     if (Number(pkg.used_sessions) <= 0) { toast("אין טיפול לבטל", "error"); return; }
     const fresh = await writePackageEntry(pkg, 1, { reason: "ביטול ניכוי" });
@@ -10663,7 +10695,7 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
  <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
  {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
@@ -10683,7 +10715,7 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowLeadModal(false)} width={370} zIndex={1000} title={editingLead?"עריכת פנייה":"פנייה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <input value={newLead.name} onChange={e=>setNewLead({...newLead,name:e.target.value})} placeholder="שם *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newLead.phone} onChange={e=>setNewLead({...newLead,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מקור</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{leadSourceList.map(s=><button key={s} onClick={()=>setNewLead({...newLead,source:s})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.source===s?pc:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.source===s?pcGrad:pcTint,color:newLead.source===s?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>{SOURCE_ICONS[s]} {s}</button>)}</div></div>
  <select value={newLead.service_interest} onChange={e=>setNewLead({...newLead,service_interest:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">תחום עניין</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>סטטוס</p><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{Object.entries(LEAD_STATUSES).map(([key,s])=><button key={key} onClick={()=>setNewLead({...newLead,status:key})} style={{padding:"6px 9px",border:"1px solid",borderColor:newLead.status===key?s.color:"var(--line)",borderRadius:"var(--r-lg)",background:newLead.status===key?s.bg:pcTint,color:newLead.status===key?s.color:"var(--ink-2)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:newLead.status===key?700:400}}>{s.label}</button>)}</div></div>

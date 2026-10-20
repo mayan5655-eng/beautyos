@@ -190,7 +190,8 @@ export function findInvoiceUrl(raw: unknown): string | null {
  * across the usual spellings; when Grow gives the real payload, pin the exact key here.
  */
 export function findInvoiceNumber(raw: unknown): string {
-  const KEYS = /^(documentnumber|docnumber|invoicenumber|receiptnumber|document_number|invoice_number|number)$/i;
+  // No bare "number": any field of that name in the callback would have been stored as the legal document number (2026-10-20 audit).
+  const KEYS = /^(documentnumber|docnumber|invoicenumber|receiptnumber|document_number|invoice_number)$/i;
   const seen = new Set<unknown>();
   const walk = (v: unknown, depth: number): string => {
     if (depth > 4 || !v || typeof v !== 'object' || seen.has(v)) return '';
