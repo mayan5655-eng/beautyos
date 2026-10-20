@@ -99,6 +99,9 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   // The pictures inside a generation have their own ceiling as a backstop.
   'designs/generate': 9,
   'designs/generate-image': 30,
+  // The weekly content plan (lib/content/pack.ts): ONE Claude call writes every caption of a week's plan. Plans are
+  // unlimited by decision (spec decision 5); this ceiling only stops a runaway (about 6 regenerations a week).
+  'content/pack': 24,
 };
 
 /**

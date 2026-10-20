@@ -20,6 +20,7 @@ import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
 import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
+import ContentPlan from './ContentPlan';
 import Archive from './Archive';
 import { latestReels, getReel } from '@/lib/design/reels';
 import { fillReel } from '@/lib/design/reel';
@@ -307,6 +308,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
 
       {view === 'week' && (
         <>
+          {/* Her weekly content plan (behind the content_plan flag: renders nothing when the server says it is off). */}
+          <ContentPlan settings={settings} readOnly={readOnly} toast={toast} onCreate={(t, values) => create(t, values)} />
           {lastDesign && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
               <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', flex: 1, minWidth: 160 }}><Icon name="refresh" size={13} /> כמו בפעם הקודמת: <b style={{ color: 'var(--ink)' }}>{lastDesign.name || 'העיצוב האחרון שלך'}</b></p>
