@@ -236,7 +236,7 @@ export default function LoginPage() {
 
             <button type="submit" disabled={loading} className="brand-pill-btn" style={btnStyle()}>
               {mode === 'login'
-                ? (loading ? <Spinner inline label="מתחבר" /> : <>כניסה<span className="chevron" aria-hidden> ←</span></>)
+                ? (loading ? <Spinner inline label="מתחברת" /> : <>כניסה<span className="chevron" aria-hidden> ←</span></>)
                 : (loading ? <Spinner inline label="שולח" /> : <>שליחת קישור לאיפוס<span className="chevron" aria-hidden> ←</span></>)}
             </button>
           </form>

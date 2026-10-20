@@ -11,7 +11,8 @@ import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
 import ServiceTemplatePicker from "../ServiceTemplatePicker";
 import FieldPicker from "../FieldPicker";
-import { lighten } from "@/lib/theme";
+import { lighten, contrastOn } from "@/lib/theme";
+import { isPlaceholderSlug, claimNameSlug } from "@/lib/autoSlug";
 import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
@@ -333,6 +334,17 @@ export default function OnboardingPage() {
       // Update tenant.name only if user actually filled it in
       if (data.business_name.trim()) {
         await supabase.from("tenants").update({ name: data.business_name.trim() }).eq("id", tenantId);
+        // Her booking link from her business name, while it is still the signup placeholder built from her
+        // email (lib/autoSlug.ts). Best-effort: a refusal keeps the placeholder, which still works.
+        try {
+          const { data: tRow } = await supabase.from("tenants").select("slug").eq("id", tenantId).maybeSingle();
+          const { data: { user: me } } = await supabase.auth.getUser();
+          if (isPlaceholderSlug(tRow?.slug, [me?.id, tenantId])) {
+            await claimNameSlug((fn, args) => supabase.rpc(fn, args), data.business_name.trim());
+          }
+        } catch (e) {
+          console.warn("[Onboarding] slug from business name skipped", e);
+        }
       }
 
       clearDraft(tenantId);
@@ -482,7 +494,7 @@ export default function OnboardingPage() {
               <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
                 שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
               </div>
-              <Field label="צבע ראשי של המערכת">
+              <Field label="הצבע של העסק שלך (בדף ההזמנות ובעיצובים)">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
                   <input type="color" value={data.primary_color} onChange={e => setData({ ...data, primary_color: e.target.value })}
                     style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FBF8F1)" }} />
@@ -646,7 +658,7 @@ export default function OnboardingPage() {
                   דלגי
                 </button>
               )}
-              <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc }}>
+              <button onClick={next} className="ob-btn-primary" style={{ ...btnPrimaryStyle, background: pc, color: contrastOn(pc) }}>
                 הבא ←
               </button>
             </>
@@ -663,7 +675,7 @@ export default function OnboardingPage() {
                 </button>
               )}
               <button onClick={()=>finish(null)} disabled={saving} className="ob-btn-primary"
-                style={{ ...btnPrimaryStyle, background: pc }}>
+                style={{ ...btnPrimaryStyle, background: pc, color: contrastOn(pc) }}>
                 {saving ?<Spinner inline label="שומרת"/>: "סיום ופתיחת היומן ←"}
               </button>
             </>

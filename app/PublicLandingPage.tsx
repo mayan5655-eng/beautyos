@@ -433,7 +433,7 @@ export default function PublicLandingPage({
           <Section id="plan" title="מתכננות טיפול?">
             <div className="lp-card">
               <p style={{ margin: "0 0 12px", fontSize: "var(--t-sm, 15px)", color: ink2, lineHeight: 1.6 }}>
-                בחרי את הטיפולים שמעניינים אותך{waBase ? " ונשלח לך הודעה מוכנה בוואטסאפ" : ""}.
+                בחרי את הטיפולים שמעניינים אותך{waBase ? ", ונכין לך הודעה מוכנה לשלוח לנו בוואטסאפ" : ""}.
               </p>
               {groups.map((g) => (
                 <div key={g.key} style={{ marginBottom: 10 }}>
