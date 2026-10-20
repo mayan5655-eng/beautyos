@@ -53,7 +53,7 @@ const GENERAL_HE = 'Grow לא הצליחה לפתוח את ההרשמה כרגע
 export const GETLINK_ERRORS: Record<string, { kind: RegisterErrorKind; he: string }> = {
   '17': { kind: 'open-lead', he: 'כבר יש ב-Grow בקשת הרשמה פתוחה לעסק הזה. כדי להמשיך צריך לפנות לשירות הלקוחות של Grow.' },
   '145': { kind: 'not-approved', he: 'Grow לא מאשרת פתיחת חשבון לעסק הזה. לבירור אפשר לפנות לשירות הלקוחות של Grow.' },
-  '149': { kind: 'exists', he: 'לעסק הזה כבר יש חשבון ב-Grow. אפשר לחבר אותו כאן, ב"יש לי חשבון Grow".' },
+  '149': { kind: 'exists', he: 'לעסק הזה כבר יש חשבון ב-Grow, אז אין צורך לפתוח חדש. אפשר לחבר אותו כאן.' },
   '115': { kind: 'platform', he: PLATFORM_HE },
   '143': { kind: 'platform', he: PLATFORM_HE },
   '117': { kind: 'platform', he: PLATFORM_HE },
