@@ -262,11 +262,18 @@ export default function AdminClient({
             מה שהעסק יכול לעשות. שום פעולה כאן לא מוחקת נתונים.
           </p>
         </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <a href="/dashboard/admin/subscribers" style={{
+          fontSize:"var(--t-sm)", fontWeight: 600, color: '#fff', background: '#183024',
+          border: '1px solid #183024', borderRadius:"var(--r-full)", padding: '9px 16px',
+          textDecoration: 'none', whiteSpace: 'nowrap',
+        }}>מעקב מנויות ויצירת קשר ←</a>
         <a href="/dashboard/admin/support" style={{
           fontSize:"var(--t-sm)", fontWeight: 600, color: ink, background: surface,
           border: `1px solid ${line}`, borderRadius:"var(--r-full)", padding: '9px 16px',
           textDecoration: 'none', whiteSpace: 'nowrap',
         }}>פניות תמיכה ←</a>
+        </div>
       </div>
 
       {!metricsAvailable && (

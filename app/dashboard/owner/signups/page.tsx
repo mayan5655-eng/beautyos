@@ -44,6 +44,9 @@ export default async function OwnerSignupsPage() {
 
       <section style={card}>
         <h2 style={h2}>ההרשמות האחרונות</h2>
+        <p style={{ ...muted, fontSize: 13, marginBottom: 6 }}>
+          כל העסקים, עם סינון, הערות ו"דיברנו": <a href="/dashboard/admin/subscribers" style={{ color: '#183024', fontWeight: 600 }}>מעקב מנויות</a>
+        </p>
         {newest.length === 0 ? <p style={muted}>עוד אין הרשמות.</p> : newest.map((n) => {
           const c = contacts[n.id]
           // One line with everything, for pasting into a note or a spreadsheet.

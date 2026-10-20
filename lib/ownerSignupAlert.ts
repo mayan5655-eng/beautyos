@@ -16,6 +16,10 @@
 
 import { isDemoTenantId } from './demoTenants.ts'
 import { looksLikeTestName } from './ownerContact.ts'
+import { APP_URL } from './appUrl.ts'
+
+/** Where the owner reaches the new business from: the subscribers screen, with her contact buttons. */
+export const SUBSCRIBERS_PATH = '/dashboard/admin/subscribers'
 
 export const SIGNUP_ALERT_SOURCE = 'new-signup'
 export const MAX_WHATSAPP_PER_HOUR = 10
@@ -44,7 +48,8 @@ export function timeHe(now: Date): string {
 }
 
 export function signupAlertMessage(o: { businessName: unknown; source: unknown; at: Date }): string {
-  return `עסק חדש סיים הרשמה בקלמיה: ${safeBusinessName(o.businessName)}. מקור: ${safeSourceLabel(o.source)}. ${timeHe(o.at)}`
+  return `עסק חדש סיים הרשמה בקלמיה: ${safeBusinessName(o.businessName)}. מקור: ${safeSourceLabel(o.source)}. ${timeHe(o.at)}
+ליצירת קשר: ${APP_URL}${SUBSCRIBERS_PATH}`
 }
 
 type Db = {

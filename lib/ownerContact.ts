@@ -7,7 +7,8 @@
 
 import { isDemoTenantId } from './demoTenants.ts'
 import { normalizeIsraeliMobile } from './phone.ts'
-import { displayPhone } from './publicLanding.ts'
+import { displayPhone, telHref } from './publicLanding.ts'
+import type { Segment } from './subscribers.ts'
 
 /** The test runs create businesses named "... 1791063027140": a 13-digit number. Such names are never contacted or alerted about. */
 export function looksLikeTestName(name: unknown): boolean {
@@ -66,4 +67,48 @@ export function buildSignupContact(o: { businessName: unknown; phone?: string | 
     email: EMAIL_RE.test(email) ? email : null,
     link: buildContactLink(o),
   }
+}
+
+// ── The subscribers screen (/dashboard/admin/subscribers, 2026-10-20) ────────────────────────────────────────────────────────
+// The owner asked for a one-tap way to reach every business that signs up. Same rule as above: these are links she taps, the
+// message is typed for her to read and edit, and nothing is ever sent by the app.
+
+/** The prefilled message for her stage: a welcome for a new signup, a check-in during the trial, help for a payment, a hello back. */
+export function subscriberMessageHe(segment: Segment, businessName: unknown): string {
+  const name = cleanName(businessName)
+  const at = name ? ` ב${name}` : ''
+  switch (segment) {
+    case 'new':
+      return contactMessageHe(businessName)
+    case 'trial':
+      return `היי 🌸 כאן מעיין מקלמיה. רציתי לבדוק איך הולך לך עם קלמיה${at}. יש משהו שאפשר לעזור בו או לסדר יחד?`
+    case 'paying':
+      return `היי 🌸 כאן מעיין מקלמיה. רק רציתי להגיד תודה שאת איתנו${at}, ולשאול אם יש משהו שהיית רוצה שנשפר.`
+    case 'past_due':
+      return `היי 🌸 כאן מעיין מקלמיה. ראיתי שהחיוב האחרון של המנוי${at} לא עבר. אם נוח לך, אשמח לעזור לעדכן את פרטי התשלום.`
+    case 'churned':
+      return `היי 🌸 כאן מעיין מקלמיה. שמתי לב שהחשבון${at} לא פעיל כרגע. אשמח לשמוע מה היה חסר לך, ואם תרצי לחזור, אסדר לך את זה.`
+  }
+}
+
+export type SubscriberLinks = { whatsapp: string | null; call: string | null; email: string | null }
+
+/** All three ways to reach her, each only when it can work: WhatsApp for a valid Israeli mobile, a call for any plausible number. */
+export function buildSubscriberLinks(o: { segment: Segment; businessName: unknown; phone?: string | null; email?: string | null }): SubscriberLinks {
+  const message = subscriberMessageHe(o.segment, o.businessName)
+  const p = normalizeIsraeliMobile(o.phone)
+  const email = String(o.email ?? '').trim()
+  return {
+    whatsapp: p.ok ? `https://wa.me/${p.e164}?text=${encodeURIComponent(message)}` : null,
+    call: telHref(o.phone),
+    email: EMAIL_RE.test(email)
+      ? `mailto:${email}?subject=${encodeURIComponent(CONTACT_MAIL_SUBJECT_HE)}&body=${encodeURIComponent(message)}`
+      : null,
+  }
+}
+
+/** A well-formed account email, or null. */
+export function cleanEmail(email: unknown): string | null {
+  const e = String(email ?? '').trim()
+  return EMAIL_RE.test(e) ? e : null
 }
