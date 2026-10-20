@@ -5,7 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
 
-const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at';
+const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at';
 const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column|schema cache/i.test(e.message || ''));
 
 export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
@@ -20,7 +20,12 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
       if (error) throw new Error(error.message);
     },
     async markPaid(id, patch) {
-      const { data, error } = await db.from('grow_payments').update(patch).eq('id', id).eq('status', 'created').select(SELECT);
+      let { data, error } = await db.from('grow_payments').update(patch).eq('id', id).eq('status', 'created').select(SELECT);
+      if (error && isMissingColumn(error) && 'transaction_token' in patch) {
+        // transaction_token is a column of add_grow_wallet.sql (what a refund needs): until it runs, the payment is still recorded without it.
+        const { transaction_token: _t, ...rest } = patch;
+        ({ data, error } = await db.from('grow_payments').update(rest).eq('id', id).eq('status', 'created').select(SELECT));
+      }
       if (error) throw new Error(error.message);
       if (data && data[0]) return data[0] as unknown as GrowPayment;
       // A deposit page whose 30-minute hold ran out is marked cancelled (lib/grow/cancelFees.ts releaseExpiredHolds), but Grow's page

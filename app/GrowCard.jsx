@@ -9,7 +9,7 @@
 // answers 404 and nothing renders. When it is on, the honest states are:
 //   - the payment tables are not created yet: says so, offers nothing to press;
 //   - not connected: two doors. (a) "I have a Grow account": she pastes her Grow business id (only when the platform can charge).
-//     (b) "I don't have Grow yet": she opens Grow's own registration form from here (app/GrowRegistration.jsx), and the card
+//     (b) "I don't have Grow yet": Grow texts her its registration form (GetLink, app/GrowRegistration.jsx), and the card
 //         shows waiting / rejected until Grow approves; then it turns connected with clearing on. Where that link is not
 //         available, she leaves her name, phone, business name and business id, and we pass them on to Grow;
 //   - connected: on/off, a disconnect button, and her last Grow payments with the Grow receipt link inside Kalmea.
@@ -20,7 +20,7 @@ import CancelPolicyCard from './CancelPolicyCard';
 import GrowRegistration from './GrowRegistration';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
-const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל' };
+const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
 export default function GrowCard({ pc, pcTint, toast, isDemo }) {
@@ -30,6 +30,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   const [door, setDoor] = useState(null); // null | 'have' | 'register' | 'need'
   const [form, setForm] = useState({ name: '', phone: '', businessName: '', businessId: '' });
   const [confirmOff, setConfirmOff] = useState(false);
+  const [refunding, setRefunding] = useState(null); // the payment she is about to refund (asked once more before any money moves)
 
   const load = useCallback(async () => {
     try {
@@ -53,18 +54,20 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
-  // Opens Grow's registration form in a new tab and shows "waiting" here.
+  // Asks Grow (GetLink) to text her the registration form. Returns the answer to GrowRegistration, which shows Grow's error in
+  // plain Hebrew next to the fields (and "I have Grow" for an existing account), or the "SMS sent" state.
   const startRegistration = async (form) => {
-    if (busy) return;
+    if (busy) return null;
     setBusy(true);
     try {
       const r = await fetch('/api/grow/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את טופס ההרשמה, נסי שוב', 'error'); return; }
-      window.open(j.url, '_blank', 'noopener');
-      toast?.('טופס ההרשמה של Grow נפתח בלשונית חדשה');
-      setDoor(null);
+      if (!r.ok || !j?.success) return { success: false, code: j?.code || '', growId: j?.growId || '', error: j?.error || 'לא הצלחנו לפתוח את ההרשמה, נסי שוב' };
+      toast?.('Grow שולחת לך SMS עם קישור לטופס');
       await load();
+      return j;
+    } catch {
+      return { success: false, error: 'לא הצלחנו להתחבר, נסי שוב' };
     } finally { setBusy(false); }
   };
 
@@ -101,6 +104,14 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
                 <span style={{ display: 'flex', gap: 8 }}>
                   <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{STATUS_HE[p.status] || p.status}</b>
                   {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>קבלה</a>}
+                  {p.status === 'paid' && s.wallet && !isDemo && !/^מקדמה/.test(p.description || '') && (refunding === p.id ? (
+                    <>
+                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה')) setRefunding(null); }}>כן, להחזיר {money(p.amount)}</button>
+                      <button type="button" style={ghost} onClick={() => setRefunding(null)}>ביטול</button>
+                    </>
+                  ) : (
+                    <button type="button" data-testid="grow-refund" style={ghost} onClick={() => setRefunding(p.id)}>החזר</button>
+                  ))}
                 </span>
               </div>
             ))}
@@ -127,7 +138,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   } else if ((s.registration && door !== 'need') || door === 'register') {
     body = (
       <>
-        <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} />
+        <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} onHaveAccount={() => setDoor('have')} frameOrigin={s.registrationFrame || null} onFormDone={() => { toast?.('הטופס נשלח ל-Grow. נעדכן כאן כשהחשבון יאושר'); load(); }} />
         {door === 'register' && <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button></div>}
       </>
     );

@@ -40,7 +40,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
   useEffect(() => {
     let alive = true;
     fetch('/api/grow/status').then((r) => r.json()).then((j) => {
-      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) { setReady(true); setMock(j.mode === 'mock'); if (Array.isArray(j.methods) && j.methods.length) setMethods(j.methods); }
+      if (alive && j?.success && j.platform?.configured && j.account?.connected && j.account.enabled) { setReady(true); setMock(j.mode === 'mock'); if (Array.isArray(j.methods) && j.methods.length) { setMethods(j.methods); setMethod(j.methods[0]); } }
     }).catch(() => {});
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, []);
@@ -107,7 +107,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
       )}
       {state === 'idle' && (
         <button type="button" onClick={charge} disabled={busy || !(amount > 0)} className="primary-btn" style={{ width: '100%', padding: '10px 0', background: 'var(--surface)', color: pc, border: `1px solid ${pc}`, fontSize: 'var(--t-sm)', fontWeight: 700 }}>
-          {busy ? 'פותחת דף תשלום…' : method === 'card' ? `חיוב בכרטיס אשראי ${money(amount)}` : method === 'bit' ? `דף תשלום בביט ${money(amount)}` : `דף תשלום ב-${METHOD_LABEL_HE[method]} ${money(amount)}`}
+          {busy ? 'פותחת דף תשלום…' : method === 'wallet' ? `בקשת תשלום ${money(amount)} (כרטיס, ביט, Apple Pay, Google Pay)` : method === 'card' ? `חיוב בכרטיס אשראי ${money(amount)}` : method === 'bit' ? `דף תשלום בביט ${money(amount)}` : `דף תשלום ב-${METHOD_LABEL_HE[method]} ${money(amount)}`}
         </button>
       )}
       {state === 'waiting' && link && (

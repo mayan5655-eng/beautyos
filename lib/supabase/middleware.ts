@@ -15,6 +15,7 @@ const PUBLIC_PREFIXES = [
   '/auth',
   '/signup',
   '/book',
+  '/pay', // /pay/<token>: the Grow payment page a client opens from a link she sent (lib/grow/wallet.ts); the token in the link is the authorisation
   '/skin-scan',
   '/form',
   '/confirm',

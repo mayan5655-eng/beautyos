@@ -12,6 +12,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { createCharge } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
+import { walletAsCreds } from '@/lib/grow/wallet';
 import { isPayMethod } from '@/lib/grow/methods';
 import { isRequestKind, requestDescription, requestMessageHe, requestWaLink } from '@/lib/grow/paymentRequest';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
@@ -22,7 +23,8 @@ export async function POST(request: Request) {
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: DEMO_NOTE }, { status: 403 });
 
   const grow = resolveGrow(process.env, APP_URL);
-  if (!grow.creds) return NextResponse.json({ success: false, code: 'platform-not-connected', error: 'הסליקה דרך Grow עוד לא פעילה במערכת.' }, { status: 409 });
+  const creds = grow.creds || walletAsCreds(grow.wallet);
+  if (!creds) return NextResponse.json({ success: false, code: 'platform-not-connected', error: 'הסליקה דרך Grow עוד לא פעילה במערכת.' }, { status: 409 });
 
   const db = admin();
   const acc = await db.from('grow_accounts').select('user_id, enabled').eq('tenant_id', c.tenantId).maybeSingle();
@@ -56,10 +58,11 @@ export async function POST(request: Request) {
       appointmentId: null,
       kind: b.kind === 'deposit' ? 'deposit' : undefined,
       method: isPayMethod(b.method) ? b.method : undefined,
+      wallet: !!grow.wallet,
       // Back to HER booking page, as a booking deposit does: the client has no dashboard.
       returnUrl: `${APP_URL.replace(/\/+$/, '')}/book?t=${c.tenantId}`,
     },
-    { repo: supabaseGrowRepo(db), creds: grow.creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+    { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
   if (!result.ok) {
     const status = result.code === 'bad-amount' || result.code === 'bad-phone' ? 400 : 502;

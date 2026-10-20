@@ -11,7 +11,9 @@ import { readNotification } from './lib/grow/payload.ts';
 import { resolveGrow } from './lib/grow/adapter.ts';
 import {
   newTrackingCode, createMockRegistration, readRegisterResponse, registrationOps, registrationStatusOf, createLiveRegistration,
+  registerConfig, getLinkError, GETLINK_ERRORS, growBusinessNumber, israeliIdValid, GROW_REGISTER_TEST_URL,
 } from './lib/grow/registration.ts';
+import { growRegisterFrameOrigin, buildCsp } from './lib/securityHeaders.ts';
 import {
   requestDescription, isDepositRequest, isPaymentRequest, requestMessageHe, requestWaLink, isRequestKind, REQUEST_DEPOSIT_PREFIX,
 } from './lib/grow/paymentRequest.ts';
@@ -151,32 +153,77 @@ await ok('the tracking code is ours: 24 hex characters, never short', () => {
   assert.throws(() => newTrackingCode(() => 'abc'));
 });
 
-await ok('mock registration answers with our stand-in form and a lead id; a bad code is refused', async () => {
+await ok('mock registration answers with our stand-in form; its lead id is the tracking code; a bad code is refused', async () => {
   const ops = createMockRegistration('https://k.test/');
-  const r = await ops.createLink({ trackingCode: 'a'.repeat(24), businessName: 'x', fullName: 'דנה כהן', phone: '0501234567', notifyUrl: '', returnUrl: '' });
+  const r = await ops.createLink({ trackingCode: 'a'.repeat(24), businessNumber: '308577139', phone: '0501234567' });
   assert.equal(r.ok, true);
-  if (r.ok) { assert.equal(r.url, `https://k.test/api/grow/mock-register?c=${'a'.repeat(24)}`); assert.match(String(r.encryptedLead), /^mocklead_/); }
-  assert.equal((await ops.createLink({ trackingCode: 'xyz', businessName: 'x', fullName: 'a b', phone: '1', notifyUrl: '', returnUrl: '' })).ok, false);
+  if (r.ok) { assert.equal(r.url, `https://k.test/api/grow/mock-register?c=${'a'.repeat(24)}`); assert.equal(r.encryptedLead, 'a'.repeat(24)); }
+  assert.equal((await ops.createLink({ trackingCode: 'xyz', businessNumber: '308577139', phone: '1' })).ok, false);
 });
 
-await ok('live registration exists only with GROW_REGISTRATION_PATH (the spec is not public yet), and only on a configured platform', () => {
-  const c = { apiKey: 'k', apiBase: 'https://g.test/api' };
-  assert.notEqual(registrationOps({}, 'mock', true, c, 'https://k.test'), null);
-  assert.equal(registrationOps({}, 'live', true, c, 'https://k.test'), null);
-  assert.notEqual(registrationOps({ GROW_REGISTRATION_PATH: 'getLink' }, 'live', true, c, 'https://k.test'), null);
-  assert.equal(registrationOps({ GROW_REGISTRATION_PATH: 'getLink' }, 'live', false, c, 'https://k.test'), null);
+await ok('registration is live whenever its test (or live) key is set; the mock only in mock mode on a configured platform', () => {
+  assert.notEqual(registrationOps({}, 'mock', true, 'https://k.test'), null);
+  assert.equal(registrationOps({}, 'mock', true, 'https://k.test')!.kind, 'mock');
+  assert.equal(registrationOps({}, 'live', true, 'https://k.test'), null);
+  assert.equal(registrationOps({}, 'mock', false, 'https://k.test'), null);
+  assert.equal(registrationOps({ GROW_REGISTER_API_KEY_TEST: 'k' }, 'live', false, 'https://k.test')!.kind, 'live');
+  // live needs its own key AND its own URL (Grow gives it separately); no test default leaks into live
+  assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_TEST: 'k' }), null);
+  assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k' }), null);
+  const live = registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink' })!;
+  assert.equal(live.isDirectDebit, 0);
+  const test = registerConfig({ GROW_REGISTER_API_KEY_TEST: 'k' })!;
+  assert.deepEqual([test.url, test.marketer, test.priceQuote, test.isDirectDebit], [GROW_REGISTER_TEST_URL, 'b4f38969f705', '1997', 1]);
+  assert.equal(registerConfig({ GROW_REGISTER_API_KEY_TEST: 'k', GROW_REGISTER_URL_TEST: 'http://insecure' }), null);
 });
 
-await ok('live registration: apiKey in the body, the answer read defensively, https only', async () => {
-  const forms: FormData[] = [];
-  const f = (async (_u: string, init: RequestInit) => { forms.push(init.body as FormData); return new Response(JSON.stringify({ status: 1, data: { url: 'https://grow.test/reg/1', encrypted_lead: 'LEAD9' } })); }) as unknown as typeof fetch;
-  const ops = createLiveRegistration({ apiKey: 'K', apiBase: 'https://g.test/api', path: 'getLink' }, f);
-  const r = await ops.createLink({ trackingCode: 'a'.repeat(24), businessName: 'b', fullName: 'דנה כהן', phone: '0501234567', notifyUrl: 'https://k/api/grow/webhook', returnUrl: 'https://k/' });
-  assert.deepEqual(r, { ok: true, url: 'https://grow.test/reg/1', encryptedLead: 'LEAD9' });
-  assert.equal(forms[0].get('apiKey'), 'K');
-  assert.equal(readRegisterResponse({ status: 1, data: { url: 'http://insecure' } }).ok, false);
-  assert.equal(readRegisterResponse({ status: 0, err: { message: 'no' } }).ok, false);
+await ok("GetLink: JSON body per Grow's spec, x-api-key and a User-Agent header, encrypted_lead kept", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const f = (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response(JSON.stringify({ status: 1, err: '', data: { url: 'https://reg.grow.test/f/1', encrypted_lead: 'LEAD9==' } })); }) as unknown as typeof fetch;
+  const cfg = registerConfig({ GROW_REGISTER_API_KEY_TEST: 'K' })!;
+  const r = await createLiveRegistration(cfg, f).createLink({ trackingCode: 'a'.repeat(24), businessNumber: '308577139', phone: '0542845655' });
+  assert.deepEqual(r, { ok: true, url: 'https://reg.grow.test/f/1', encryptedLead: 'LEAD9==' });
+  assert.equal(calls[0].url, 'https://devregisterapi.meshulam.co.il/GetLink');
+  const h = calls[0].init.headers as Record<string, string>;
+  assert.equal(h['x-api-key'], 'K');
+  assert.match(h['User-Agent'], /\S/);
+  assert.equal(h['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+    marketer: 'b4f38969f705', business_number: '308577139', phone: '0542845655', price_quote: '1997', is_direct_debit: 1, website: '', is_send_sms: 1,
+  });
+  // unreachable: plain Hebrew, never a throw
+  const down = (async () => { throw new Error('ECONNRESET'); }) as unknown as typeof fetch;
+  const d = await createLiveRegistration(cfg, down).createLink({ trackingCode: 'a'.repeat(24), businessNumber: '308577139', phone: '0542845655' });
+  assert.equal(d.ok === false && d.code, 'unreachable');
+});
+
+await ok('GetLink errors: every documented id in plain Hebrew; 149 offers "I have Grow"; the real 149 answer shape parses', () => {
+  const real = readRegisterResponse({ status: 0, err: { id: 149, message: 'עסק קיים במשולם' }, data: '' });
+  assert.equal(real.ok, false);
+  if (!real.ok) { assert.equal(real.growId, '149'); assert.equal(real.kind, 'exists'); assert.match(real.messageHe, /יש לי חשבון Grow/); assert.equal(real.error, 'עסק קיים במשולם'); }
+  const kinds: Record<string, string> = { '17': 'open-lead', '145': 'not-approved', '149': 'exists', '115': 'platform', '143': 'platform', '117': 'platform', '142': 'platform', '121': 'platform', '13': 'bad-phone', '120': 'bad-business-number', '165': 'general' };
+  for (const [id, kind] of Object.entries(kinds)) {
+    const e = getLinkError(id, '');
+    assert.equal(e.kind, kind, id);
+    assert.match(e.messageHe, /[א-ת]/, id);
+    assert.doesNotMatch(e.messageHe, /—/, id);
+    assert.ok(GETLINK_ERRORS[id], id);
+  }
+  assert.match(getLinkError('17', '').messageHe, /שירות הלקוחות של Grow/);
+  assert.equal(getLinkError('999', 'x').kind, 'general');
+  const s13 = readRegisterResponse({ status: 0, err: '13' });
+  assert.equal(!s13.ok && s13.growId, '13');
+  assert.equal(readRegisterResponse({ status: 1, data: { url: 'http://insecure', encrypted_lead: 'x' } }).ok, false);
+  assert.equal(readRegisterResponse({ status: 1, data: { url: 'https://ok.test' } }).ok, false, 'no encrypted_lead, nothing to match the webhook by');
   assert.equal(readRegisterResponse(null).ok, false);
+});
+
+await ok('business number: digits, padded to 9, Israeli check digit', () => {
+  assert.equal(growBusinessNumber('308577139'), '308577139');
+  assert.equal(growBusinessNumber('30857713-9'), '308577139');
+  assert.equal(growBusinessNumber('308577138'), null);
+  assert.equal(growBusinessNumber('123'), null);
+  assert.equal(israeliIdValid('000000018'), true);
 });
 
 await ok('a registration update means approved, rejected or still waiting', () => {
@@ -188,13 +235,31 @@ await ok('a registration update means approved, rejected or still waiting', () =
   assert.equal(u({ trackingStatusMessage: 'בבדיקה' }), 'waiting');
 });
 
-await ok('the register route: signed-in only, never for a connected or demo business, tracking code from the server', () => {
+await ok("the register route: signed-in only, never for a connected or demo business, matched by Grow's encrypted_lead only", () => {
   const r = src('app/api/grow/register/route.ts');
   assert.ok(r.includes('await caller()'));
   assert.ok(r.includes('isDemoTenantId(c.tenantId)'));
   assert.ok(r.includes("'already-connected'"));
   assert.ok(r.includes("newTrackingCode(() => randomBytes(12).toString('hex'))"));
-  assert.ok(!/b\.trackingCode|b\.tenantId/.test(r));
+  assert.ok(r.includes('tracking_code: r.encryptedLead'));
+  assert.ok(!/b\.trackingCode|b\.tenantId|b\.encryptedLead/.test(r));
+  // the log carries Grow's id and words, never her phone or business number
+  for (const line of r.split('\n').filter((l) => /console\./.test(l))) assert.doesNotMatch(line, /phone|businessNumber/, line);
+});
+
+await ok("the card: Grow's form in an iframe only from its own origin and only where the CSP allows it; strict frame-src by default", () => {
+  const g = src('app/GrowRegistration.jsx');
+  assert.ok(g.includes("e.origin !== origin"));
+  assert.ok(g.includes("d.source !== 'growRegister'"));
+  assert.ok(g.includes("d.action === 'success'") && g.includes("d.action === 'close'"));
+  assert.ok(g.includes('new URL(url).origin === frameOrigin'));
+  assert.ok(g.includes("failure.code === 'exists'"), '149 offers the "I have Grow" door');
+  assert.equal(growRegisterFrameOrigin({}), null);
+  assert.equal(growRegisterFrameOrigin({ GROW_REGISTER_FRAME_ORIGIN: 'https://evil.example' }), null);
+  assert.equal(growRegisterFrameOrigin({ GROW_REGISTER_FRAME_ORIGIN: 'https://*.meshulam.co.il' }), null, 'no wildcard');
+  assert.equal(growRegisterFrameOrigin({ GROW_REGISTER_FRAME_ORIGIN: 'https://devregister.meshulam.co.il/' }), 'https://devregister.meshulam.co.il');
+  assert.match(buildCsp({ env: {} }), /frame-src 'none'/);
+  assert.match(buildCsp({ env: { GROW_REGISTER_FRAME_ORIGIN: 'https://devregister.meshulam.co.il' } }), /frame-src https:\/\/devregister\.meshulam\.co\.il;/);
 });
 
 await ok('the mock registration page cannot exist next to real payments', () => {

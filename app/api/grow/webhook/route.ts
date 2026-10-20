@@ -20,7 +20,8 @@ import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, applyNotificationByProcess, applyInvoice, applyInvoiceByProcess, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseOnboardingRepo } from '@/lib/grow/onboardingRepo';
-import { applyOnboarding, classifyWebhook, clientIp, ipAllowed, ipCheckEnforced, parseWebhookBody, readOnboarding } from '@/lib/grow/webhook';
+import { applyOnboarding, classifyWebhook, clientIp, ipAllowed, ipCheckEnforced, parseWebhookBody, readOnboarding, readOnboardingApiKey } from '@/lib/grow/webhook';
+import { encryptToken } from '@/lib/facebook/encryption';
 import { admin } from '../_shared';
 import { afterPaidHook, cancelDeps } from '../_cancel';
 import { onCardTokenNotification } from '@/lib/grow/cancelFees';
@@ -96,7 +97,9 @@ export async function POST(request: Request) {
     if (kind === 'onboarding') {
       const update = readOnboarding(raw);
       if (!update) return NextResponse.json({ success: true, kind, status: 'ignored' });
-      const r = await applyOnboarding(update, supabaseOnboardingRepo(db));
+      // Her api_key is sealed only if this update is matched and approved (applyOnboarding decides); bank_account is never read.
+      const seal = () => { const k = readOnboardingApiKey(raw); return k ? encryptToken(k) : null; };
+      const r = await applyOnboarding(update, supabaseOnboardingRepo(db), undefined, seal);
       return NextResponse.json({ success: true, kind, status: r.status });
     }
 

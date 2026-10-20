@@ -39,6 +39,14 @@ export function supabaseOnboardingRepo(db: SupabaseClient): OnboardingRepo {
       // The status columns come from add_grow_cashier.sql (run by hand): without them this is a no-op, never a failure.
       if (error && !/column|schema cache|42703|PGRST204/i.test(`${error.code} ${error.message}`)) throw new Error(error.message);
     },
+    async saveApiKey(tenantId, sealed) {
+      const { error } = await db.from('grow_account_secrets').upsert(
+        { tenant_id: tenantId, api_key_encrypted: sealed, source: 'registration', updated_at: new Date().toISOString() },
+        { onConflict: 'tenant_id' },
+      );
+      // add_grow_register.sql not run yet: say so, without the key.
+      if (error) throw new Error(/schema cache|does not exist|42P01|PGRST205/i.test(`${error.code} ${error.message}`) ? 'grow_account_secrets missing' : error.message);
+    },
     async clearPending(tenantId) {
       const { error } = await db.from('grow_onboarding_pending').update({ consumed_at: new Date().toISOString() }).eq('tenant_id', tenantId).is('consumed_at', null);
       if (error) throw new Error(error.message);

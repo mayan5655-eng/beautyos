@@ -26,7 +26,8 @@ export const METHOD_ENV: Record<PayMethod, string> = {
   google_pay: 'GROW_PAGE_CODE_GOOGLE_PAY',
 };
 
-export const METHOD_LABEL_HE: Record<PayMethod, string> = {
+export const METHOD_LABEL_HE: Record<PayMethod | 'wallet', string> = {
+  wallet: 'כרטיס אשראי · ביט · Apple Pay · Google Pay',
   card: 'כרטיס אשראי',
   bit: 'ביט',
   apple_pay: 'Apple Pay',
