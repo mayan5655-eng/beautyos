@@ -386,6 +386,15 @@ export default function PublicLandingPage({
                     : { display: "block", margin: "0 auto", maxHeight: 84, maxWidth: "70%", width: "auto", height: "auto", objectFit: "contain" }} />
               </div>
             )}
+            {/* No logo and no photo: her initial in a circle of her own colour, so the page opens with a mark of the
+                business instead of bare text. Never a stock image. */}
+            {!brand.logoUrl && !brand.heroImageUrl && String(bizName || "").trim() !== "" && (
+              <div aria-hidden="true" data-testid="biz-monogram" style={{
+                width: 72, height: 72, margin: "0 auto 14px", borderRadius: "50%", background: surface,
+                border: "2px solid var(--pc)", color: "var(--pc-text)", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 32, fontWeight: 700, boxShadow: "0 8px 24px -14px rgba(0,0,0,.35)",
+              }} className="serif">{Array.from(String(bizName || "").trim())[0]}</div>
+            )}
             <h1 className="serif" style={{ margin: 0, fontSize: "clamp(28px, 8vw, 38px)", fontWeight: 700, lineHeight: 1.15, color: ink }}>{bizName || " "}</h1>
             {person && <p style={{ margin: "6px 0 0", fontSize: "var(--t-md, 16px)", color: ink2, fontWeight: 600 }}>{person}</p>}
 

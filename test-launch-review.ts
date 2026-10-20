@@ -23,7 +23,8 @@ ok('the two package buttons have different names', () => {
 
 ok('on phones the help bubble is icon only and the mic is smaller', () => {
   assert.match(app, /\.fab-help\{font-size:0!important/);
-  assert.match(app, /\.fab-voice\{width:48px!important/);
+  // 2026-10-20 design pass: 44px (the touch-target minimum), down from 48, so it covers less of the content.
+  assert.match(app, /\.fab-voice\{width:44px!important/);
 });
 
 ok('settings > advanced carries a visible way to ask for the account to be deleted', () => {
