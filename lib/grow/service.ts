@@ -20,6 +20,7 @@ import { isPayMethod, methodProblem, pageCodeFor, pageCodeForTypeId } from './me
 import type { PayMethod, PageCodes } from './methods.ts';
 import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
 import type { Notification } from './payload.ts';
+import { walletLink, paymentMethodLabel } from './wallet.ts';
 
 export type GrowPayment = {
   id: string;
@@ -35,6 +36,9 @@ export type GrowPayment = {
   appointment_id: string | null;
   description: string | null;
   notify_token: string;
+  /** Selected by the repo; the wallet page needs them (the phone Grow's form wants, the age of the link). */
+  payer_phone?: string | null;
+  created_at?: string | null;
 };
 
 export type GrowRepo = {
@@ -69,6 +73,8 @@ export type ChargeInput = {
   saveCard?: boolean;
   /** card (default) | bit | apple_pay | google_pay: picks Grow's page code (lib/grow/methods.ts). */
   method?: PayMethod;
+  /** The wallet checkout (lib/grow/wallet.ts): the link is a Kalmea page that opens Grow's wallet when the client loads it; Grow is not asked yet. */
+  wallet?: boolean;
 };
 
 type Deps = {
@@ -87,7 +93,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
   const phone = growPhone(i.phone);
   if (!phone) return { ok: false, code: 'bad-phone', message: 'צריך מספר נייד תקין של הלקוחה כדי לשלוח לה את דף התשלום' };
   const method: PayMethod = isPayMethod(i.method) ? i.method : 'card';
-  const methodErr = methodProblem(method, amount);
+  const methodErr = i.wallet ? '' : methodProblem(method, amount);
   if (methodErr) return { ok: false, code: 'bad-amount', message: methodErr };
 
   const payment = await d.repo.insertPayment({
@@ -104,6 +110,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
   });
 
   const base = d.appUrl.replace(/\/+$/, '');
+  if (i.wallet) return { ok: true, paymentId: payment.id, url: walletLink(base, payment.notify_token) };
   const fields = buildProcessFields({
     userId: i.userId,
     pageCode: pageCodeFor(method, d.creds.pageCodes || {}, d.creds.pageCode),
@@ -164,8 +171,8 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       appointment_id: /^מקדמה/.test(p.description || '') ? null : p.appointment_id,
       service: p.description || 'טיפול',
       amount: Number(p.amount),
-      payment_method: 'אשראי',
-      note: `שולם בכרטיס אשראי דרך Grow (אסמכתא ${n.asmachta || n.transactionId})`,
+      payment_method: paymentMethodLabel(n.echo.transactionTypeId),
+      note: `שולם דרך Grow, ${paymentMethodLabel(n.echo.transactionTypeId)} (אסמכתא ${n.asmachta || n.transactionId})`,
       items: '[]',
       discount: 0,
       tip: 0,
@@ -211,7 +218,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
 
   const now = (d.now || (() => new Date()))().toISOString();
   const flipped = await d.repo.markPaid(p.id, {
-    status: 'paid', paid_at: now, transaction_id: n.transactionId, asmachta: n.asmachta || null, updated_at: now,
+    status: 'paid', paid_at: now, transaction_id: n.transactionId, transaction_token: n.transactionToken || null, asmachta: n.asmachta || null, updated_at: now,
   });
   if (!flipped) {
     // Duplicate callback. If the first one died between "paid" and "receipt", finish that job now.

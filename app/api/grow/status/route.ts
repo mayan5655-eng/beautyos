@@ -32,7 +32,8 @@ export async function GET() {
     account: { connected: false, enabled: false, userIdMasked: '' },
     request: { sent: false, at: null as string | null },
     registration: null as null | { status: string; message: string | null; url: string | null; at: string | null },
-    methods: availableMethods(grow.creds?.pageCodes || (grow.creds ? { card: grow.creds.pageCode } : {})),
+    wallet: !!grow.wallet,
+    methods: grow.wallet ? ['wallet'] : availableMethods(grow.creds?.pageCodes || (grow.creds ? { card: grow.creds.pageCode } : {})),
     registrationAvailable: !!registrationOps(process.env, grow.mode, grow.configured, grow.creds, APP_URL),
     payments: [] as unknown[],
   };

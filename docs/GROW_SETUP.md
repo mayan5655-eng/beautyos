@@ -147,3 +147,17 @@ Only methods with a page code appear in the cashier (chips above the charge butt
 **To switch from mock to real:** `GROW_MODE=live`, `GROW_API_KEY`, `GROW_PAGE_CODE` (the regular-payment page code Grow sends), optionally the three method page codes, `GROW_ENV=production`, and `GROW_UI_ENABLED=true`. For registration also `GROW_REGISTRATION_PATH` and the field names from Grow.
 
 **Tests:** `test-grow-cashier.ts` (methods, page codes, approve page code, Bit limit, requests, credit, registration mock/live/status, route guards, migration), `test-grow-webhook.ts` (approved / rejected / waiting registration updates).
+## Wallet checkout (card, Bit, Apple Pay, Google Pay on one page)
+
+Grow's regular-payment page code is a **wallet** code: `createPaymentProcess` answers with an `authCode` (valid 4 minutes) instead of a URL, and the form is drawn by Grow's script (`cdn.meshulam.co.il/sdk/gs.min.js`) inside a page of ours. So the payment link is a Kalmea page, **`/pay/<token>`** (`app/pay/[token]`), built the same way for the cashier and for a payment request:
+
+1. Cashier / payment request: `createCharge({ wallet: true })` writes the `grow_payments` row and returns `<app>/pay/<notify_token>`. Grow is not asked yet. For a payment request she sends that link from her own WhatsApp (wa.me).
+2. The client opens the link; only then does `/api/grow/wallet` call `createPaymentProcess` (wallet page code, her userId, `notifyUrl` and `invoiceNotifyUrl` with the per-payment token, apiKey as a body field) and the wallet opens. The link lives 24 hours and stops working once paid.
+3. Grow's callback (`/api/grow/notify?t=`) and invoice callback (`/api/grow/invoice?t=`, an array) are recorded as for any payment, then `approveTransaction` is sent with the wallet page code. The page thanks the client only after OUR record says paid.
+4. Refund: Settings > Grow card > "החזר" on a paid payment (`/api/grow/refund`, her tenant only, never a deposit) uses the transaction id and token stored from the callback.
+
+Environment: sandbox `GROW_WALLET_PAGE_CODE_TEST` (with the same `GROW_TOKEN_USER_ID_TEST` / `GROW_TOKEN_API_KEY_TEST`); production `GROW_WALLET_PAGE_CODE` with `GROW_API_KEY`. SQL: `supabase/migrations/add_grow_wallet.sql` (a `refunded` status and a server-only `transaction_token` column). The Content-Security-Policy of `/pay/*` alone names Grow's hosts (`lib/securityHeaders.ts`); every other page is unchanged.
+
+**Bit, Apple Pay and Google Pay have no sandbox at Grow**: a test with them is real money. Only cards were tested (sandbox card 4580458045804580). To repeat the sandbox test (card payment, a payment-request link, a refund; no database is touched): `node --env-file=.env.local scripts/smoke/grow-wallet.mjs <outDir>`.
+
+**Registration (GetLink):** Grow's registration API and its result webhook are not in the public docs (checked 2026-10-20), so the card still runs on the mock until Grow sends the spec: `lib/grow/registration.ts` has every field name marked `TODO(grow-docs)` and live mode needs `GROW_REGISTRATION_PATH`.

@@ -20,7 +20,7 @@ import CancelPolicyCard from './CancelPolicyCard';
 import GrowRegistration from './GrowRegistration';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
-const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל' };
+const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
 export default function GrowCard({ pc, pcTint, toast, isDemo }) {
@@ -30,6 +30,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   const [door, setDoor] = useState(null); // null | 'have' | 'register' | 'need'
   const [form, setForm] = useState({ name: '', phone: '', businessName: '', businessId: '' });
   const [confirmOff, setConfirmOff] = useState(false);
+  const [refunding, setRefunding] = useState(null); // the payment she is about to refund (asked once more before any money moves)
 
   const load = useCallback(async () => {
     try {
@@ -101,6 +102,14 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
                 <span style={{ display: 'flex', gap: 8 }}>
                   <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{STATUS_HE[p.status] || p.status}</b>
                   {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>קבלה</a>}
+                  {p.status === 'paid' && s.wallet && !isDemo && !/^מקדמה/.test(p.description || '') && (refunding === p.id ? (
+                    <>
+                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה')) setRefunding(null); }}>כן, להחזיר {money(p.amount)}</button>
+                      <button type="button" style={ghost} onClick={() => setRefunding(null)}>ביטול</button>
+                    </>
+                  ) : (
+                    <button type="button" data-testid="grow-refund" style={ghost} onClick={() => setRefunding(p.id)}>החזר</button>
+                  ))}
                 </span>
               </div>
             ))}

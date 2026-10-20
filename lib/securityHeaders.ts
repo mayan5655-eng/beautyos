@@ -51,7 +51,17 @@ function supabaseOrigin(env: Record<string, string | undefined>): string | null 
 }
 
 /** The Content-Security-Policy value. */
-export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined> } = {}): string {
+/**
+ * The origins Grow's wallet needs on the payment page /pay/<token> and nowhere else: its own hosts and the wallet providers' (Google Pay).
+ * Every other page keeps the strict policy: nothing here is added unless `grow` is passed.
+ */
+export const GROW_WALLET_ORIGINS = ['https://*.meshulam.co.il', 'https://*.grow.link', 'https://*.grow.business', 'https://pay.google.com'];
+/** Google Pay's readiness check inside the wallet connects here. */
+const GROW_WALLET_CONNECT_EXTRA = ['https://google.com'];
+/** The card form itself is Grow's card processor's page (sandbox ppsuat., live pps.), drawn in a frame. */
+const GROW_WALLET_FRAME_EXTRA = ['https://*.creditguard.co.il'];
+
+export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean } = {}): string {
   const dev = !!opts.dev;
   const env = opts.env || process.env;
   const supabase = supabaseOrigin(env);
@@ -88,19 +98,25 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     'connect-src': connect as string[],
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],
-    'frame-src': ["'none'"],
+    'frame-src': opts.grow ? ["'self'", ...GROW_WALLET_ORIGINS, ...GROW_WALLET_FRAME_EXTRA] : ["'none'"],
     'frame-ancestors': ["'none'"],
     'form-action': ["'self'"],
     'base-uri': ["'self'"],
     'object-src': ["'none'"],
   };
+  if (opts.grow) {
+    directives['script-src'].push(...GROW_WALLET_ORIGINS);
+    directives['connect-src'].push(...GROW_WALLET_ORIGINS, ...GROW_WALLET_CONNECT_EXTRA);
+    directives['style-src'].push(...GROW_WALLET_ORIGINS);
+    directives['font-src'].push(...GROW_WALLET_ORIGINS);
+  }
   const parts = Object.entries(directives).map(([k, v]) => `${k} ${v.join(' ')}`);
   if (!dev) parts.push('upgrade-insecure-requests');
   return parts.join('; ');
 }
 
 /** Every header, for next.config.ts's headers(). */
-export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined> } = {}): HeaderPair[] {
+export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean } = {}): HeaderPair[] {
   const dev = !!opts.dev;
   const headers: HeaderPair[] = [
     { key: 'Content-Security-Policy', value: buildCsp(opts) },
@@ -109,7 +125,7 @@ export function securityHeaders(opts: { dev?: boolean; env?: Record<string, stri
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
     // Camera for the skin scanner's photo input, microphone for voice booking,
     // both first-party only. Everything else off.
-    { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()' },
+    { key: 'Permissions-Policy', value: `camera=(self), microphone=(self), geolocation=(), payment=${opts.grow ? '(self "https://pay.google.com")' : '()'}, usb=(), interest-cohort=()` },
     { key: 'X-DNS-Prefetch-Control', value: 'on' },
   ];
   // Two years, subdomains included. Not `preload`: that is a one-way door

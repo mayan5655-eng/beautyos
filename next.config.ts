@@ -60,6 +60,11 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders({ dev: process.env.NODE_ENV !== "production" }),
       },
+      // Later rules override earlier ones for the same header: only the Grow payment page may load Grow's wallet (see buildCsp).
+      {
+        source: "/pay/:token*",
+        headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", grow: true }),
+      },
     ];
   },
 };

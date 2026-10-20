@@ -15,6 +15,7 @@ import { resolveGrow } from '@/lib/grow/adapter';
 import { createCharge } from '@/lib/grow/service';
 import { isPayMethod } from '@/lib/grow/methods';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
+import { walletAsCreds } from '@/lib/grow/wallet';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
 
 export async function POST(request: Request) {
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: DEMO_NOTE }, { status: 403 });
 
   const grow = resolveGrow(process.env, APP_URL);
-  const creds = grow.creds;
+  const creds = grow.creds || walletAsCreds(grow.wallet);
   if (!creds) return NextResponse.json({ success: false, code: 'platform-not-connected', error: 'הסליקה בכרטיס אשראי עוד לא פעילה במערכת. נעדכן כשהיא זמינה.' }, { status: 409 });
 
   const db = admin();
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       clientId: b.clientId != null ? String(b.clientId) : null,
       appointmentId: b.appointmentId != null ? String(b.appointmentId) : null,
       method: isPayMethod(b.method) ? b.method : undefined,
+      wallet: !!grow.wallet,
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
