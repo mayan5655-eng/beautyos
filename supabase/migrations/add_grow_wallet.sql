@@ -4,7 +4,7 @@
 -- The code works before it runs; what it loses until then is only the word "הוחזר" on a refunded payment.
 --
 -- WHAT
---   The wallet checkout (card, Bit, Apple Pay, Google Pay on one page /pay/<token>) needs no new table and no new column:
+--   The wallet checkout (card, Bit, Apple Pay, Google Pay on one page /pay/<token>) needs no new table:
 --   its payment link is the existing grow_payments row (notify_token), and the refund of a cashier payment is the same row.
 --   Two schema changes. (1) a payment can now end as 'refunded'. (2) grow_payments.transaction_token: the token Grow's callback sends with
 --   the transaction id, which a refund needs. It is server-only: the browser's column-level SELECT grant (add_grow_payments.sql) does not
@@ -14,7 +14,7 @@
 
 alter table public.grow_payments add column if not exists transaction_token text;
 
-do $
+do $$
 declare c text;
 begin
   select conname into c from pg_constraint
