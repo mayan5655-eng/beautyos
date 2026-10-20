@@ -69,7 +69,13 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
     async getTenant(tenantId) {
       const { data, error } = await db.from('tenants').select('id, name, plan_status, trial_ends_at, plan_price').eq('id', tenantId).maybeSingle();
       if (error) fail(error, 'getTenant');
-      return (data || null) as TenantRow | null;
+      if (!data) return null;
+      // The payer's phone for the token charge: the same source as the card page (app/api/billing/card). A read failure leaves it
+      // empty, which chargeToken refuses as before; it never blocks reading the tenant itself.
+      const st = await db.from('settings').select('business_phone, automations').eq('tenant_id', tenantId).maybeSingle();
+      const autos = (st.data?.automations && typeof st.data.automations === 'object' ? st.data.automations : {}) as Record<string, unknown>;
+      const phone = String(autos.owner_phone || st.data?.business_phone || '').trim() || null;
+      return { ...(data as TenantRow), phone } as TenantRow;
     },
     async setPlanStatus(tenantId, status) {
       const { error } = await db.from('tenants').update({ plan_status: status }).eq('id', tenantId);

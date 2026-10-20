@@ -32,7 +32,7 @@ type TenantRow = {
 }
 type SettingsRow = { tenant_id: string; business_name: string | null; therapist_name: string | null; business_phone: string | null; wa: string | null }
 type AccountRow = { email: string | null; lastSignInAt: string | null; fullName: string | null }
-type MetricsRow = { id: string; last_activity_at: string | null; setup_score: number | null; setup_total: number | null; appointment_count: number | null }
+type MetricsRow = { id: string; last_activity_at: string | null; setup_score: number | null; setup_total: number | null; appointment_count: number | null; whatsapp_sent_30d?: number | null }
 type ContactRow = { tenant_id: string; status: string; note: string | null; follow_up_on: string | null; contacted_at: string | null; updated_at: string | null }
 
 export type SubscriberData =
@@ -82,17 +82,30 @@ export async function readSubscriberRows(db: Db, excludeTenantIds: string[], now
   const ids = tenants.map((t) => t.id)
   if (ids.length === 0) return { ok: true, rows: [], notesAvailable: true, metricsAvailable: true }
 
-  const [settingsRes, metricsRes, billingRes, contactsRes, accounts] = await Promise.all([
+  const since30 = new Date(Date.now() - 30 * 86400_000).toISOString()
+  const [settingsRes, metricsRes, billingRes, contactsRes, accounts, cloudRes] = await Promise.all([
     db.from('settings').select('tenant_id, business_name, therapist_name, business_phone, wa:branding->>whatsapp_number').in('tenant_id', ids),
     db.rpc('platform_tenant_metrics'),
     db.from('billing_subscriptions').select('tenant_id, status').in('tenant_id', ids),
     db.from('admin_tenant_contacts').select(CONTACT_COLUMNS).in('tenant_id', ids),
     readAccounts(db),
+    // What the official WhatsApp channel cost per business in 30 days (lib/waCloud/send.ts writes one row per accepted message,
+    // with Meta's price estimate). Live rows only: mock rows cost nothing. Degrades to unknown before add_wa_cloud.sql.
+    db.from('wa_cloud_messages').select('tenant_id, cost_estimate_usd').in('tenant_id', ids).eq('mode', 'live').eq('status', 'accepted').gte('created_at', since30).limit(50000),
   ])
   if (settingsRes.error) console.error('[subscribers] settings read failed:', settingsRes.error.message)
   if (metricsRes.error) console.error('[subscribers] platform_tenant_metrics unavailable:', metricsRes.error.message)
   if (billingRes.error) console.error('[subscribers] billing_subscriptions unavailable:', billingRes.error.message)
   if (contactsRes.error) console.error('[subscribers] admin_tenant_contacts unavailable:', contactsRes.error.message)
+  const cloudOf = new Map<string, { n: number; usd: number }>()
+  if (!cloudRes.error) {
+    for (const c of (cloudRes.data || []) as Array<{ tenant_id: string; cost_estimate_usd: number | string | null }>) {
+      const e = cloudOf.get(c.tenant_id) || { n: 0, usd: 0 }
+      e.n++
+      e.usd += Number(c.cost_estimate_usd) || 0
+      cloudOf.set(c.tenant_id, e)
+    }
+  }
 
   const settingsOf = new Map<string, SettingsRow>()
   for (const s of (settingsRes.data || []) as unknown as SettingsRow[]) settingsOf.set(s.tenant_id, s)
@@ -135,6 +148,9 @@ export async function readSubscriberRows(db: Db, excludeTenantIds: string[], now
       setupScore: num(m?.setup_score),
       setupTotal: num(m?.setup_total),
       appointmentCount: num(m?.appointment_count),
+      whatsappSent30d: num(m?.whatsapp_sent_30d),
+      cloudMessages30d: cloudRes.error ? null : cloudOf.get(t.id)?.n ?? 0,
+      cloudCostUsd30d: cloudRes.error ? null : Math.round((cloudOf.get(t.id)?.usd ?? 0) * 100) / 100,
       whatsappSet: settingsKnown ? !!text(s?.wa) : null,
       bookingLinkSet,
       bookingUrl: slug ? `/${encodeURIComponent(slug)}` : null,

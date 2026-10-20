@@ -230,4 +230,55 @@ await ok('the migration: identifier unique and in range, the two new statuses, c
   assert.ok(!/is_tenant_active/.test(sql), 'billing stays reachable for a blocked business');
 });
 
+// ── 2026-10-21: through the REAL Grow ops (only the network is faked) ────────────
+// Every test above used fake ops, which skip chargeToken's own rule: Grow needs the payer's Israeli mobile on a token charge, and the
+// live ops refuse to call Grow without one. The subscription charge never passed a phone, so every live charge failed before reaching
+// Grow. These run saveCard -> attempt -> createGrowBillingAdapters -> createLiveOps -> fetch, end to end.
+async function withFakeGrow(answer: unknown, fn: (calls: Array<{ url: string; form: Record<string, string> }>) => Promise<void>) {
+  const calls: Array<{ url: string; form: Record<string, string> }> = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    const form: Record<string, string> = {};
+    (init.body as FormData).forEach((v, k) => { form[k] = String(v); });
+    calls.push({ url: String(url), form });
+    return new Response(JSON.stringify(answer), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+  try { await fn(calls); } finally { globalThis.fetch = real; }
+}
+
+await ok('live path: the subscription charge reaches Grow with the payer\'s phone, and succeeds', async () => {
+  await withFakeGrow({ status: 1, data: { transactionId: 'tx-live-1', invoiceUrl: 'https://grow.test/r/9' } }, async (calls) => {
+    const w = world('2026-11-01T08:00:00Z');
+    w.tenants.set(T, { id: T, name: 'סטודיו רונית', plan_status: 'expired', trial_ends_at: null, plan_price: 349, phone: '054-123-4567' });
+    const a = createGrowBillingAdapters(CREDS, undefined, (x) => x);
+    const d: Deps = { repo: w.repo, payments: a.payments, invoicing: a.invoicing, now: w.now, newIdentifier: ids(500000001) };
+    const r = await saveCard(d, T, { tokenRef: 'tok-live' });
+    assert.equal(r.charged, 'charged');
+    assert.equal(calls.length, 1, 'Grow was called once');
+    assert.match(calls[0].url, /createTransactionWithToken$/);
+    assert.equal(calls[0].form['pageField[phone]'], '0541234567');
+    assert.equal(w.payments[0].status, 'succeeded');
+    assert.equal(w.tenants.get(T)!.plan_status, 'active');
+  });
+});
+
+await ok('live path: with no mobile on file the charge is refused BEFORE Grow, and is recorded as failed (not silently skipped)', async () => {
+  await withFakeGrow({ status: 1, data: { transactionId: 'never' } }, async (calls) => {
+    const w = world('2026-11-01T08:00:00Z');
+    w.tenants.set(T, { id: T, name: 'ס', plan_status: 'expired', trial_ends_at: null, plan_price: 349, phone: null });
+    const a = createGrowBillingAdapters(CREDS, undefined, (x) => x);
+    const d: Deps = { repo: w.repo, payments: a.payments, invoicing: a.invoicing, now: w.now, newIdentifier: ids(500000002) };
+    assert.equal((await saveCard(d, T, { tokenRef: 'tok-live' })).charged, 'failed');
+    assert.equal(calls.length, 0);
+    assert.match(String(w.payments[0].error || ''), /phone|mobile/i);
+  });
+});
+
+await ok('the billing repo reads the payer phone from the same place as the card page', () => {
+  const repo = src('lib/billing/repo.ts');
+  assert.match(repo, /autos\.owner_phone \|\| st\.data\?\.business_phone/);
+  assert.match(src('app/api/billing/card/route.ts'), /autos\.owner_phone \|\| st\?\.business_phone/);
+  assert.match(src('lib/billing/service.ts'), /phone: tenant\?\.phone \|\| undefined/);
+});
+
 console.log(`billing grow: ${n} ok`);

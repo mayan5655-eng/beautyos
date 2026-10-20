@@ -662,7 +662,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // WHAT stands in for it. If business_name really is empty the page now says
   // so plainly instead of borrowing the tagline to cover it, which is the
   // prompt to go and fill it in.
-  const bizName = brand?.businessName || settings?.business_name || "העסק שלי";
+  // Never the placeholder "העסק שלי" (2026-10-21 audit: a skipped onboarding step printed it as the page title for her clients).
+  // A real business name, else her own name, else a neutral heading.
+  const realName = (v) => { const s = String(v || "").trim(); return s && s !== "העסק שלי" ? s : ""; };
+  const bizName = realName(brand?.businessName) || realName(settings?.business_name)
+    || displayName(brand?.therapistName || settings?.therapist_name || "") || "קביעת תור";
   // Her line, under her name. Optional - most clinics never set one.
   const personName = displayName(brand?.therapistName || settings?.therapist_name || ""); // never a login handle: lib/personName.js
   const personTitle = brand?.therapistTitle || "";

@@ -24,7 +24,7 @@ export default function FeeQuestions({ appointmentId, clientId, pc, pcTint, toas
       const r = await fetch('/api/grow/fees/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feeId: f.id, decision }) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'משהו נתקע, נסי שוב', 'error'); feesChanged(); return; }
-      if (decision === 'charge') { toast?.('החיוב עבר והקבלה נרשמה'); onCharged?.(j.receiptId); }
+      if (decision === 'charge') { toast?.('החיוב עבר ואישור התשלום נרשם בקופה'); onCharged?.(j.receiptId); }
       else if (decision === 'waive') toast?.('בסדר, לא גובים');
       else toast?.('ההחזר עבר');
       feesChanged();

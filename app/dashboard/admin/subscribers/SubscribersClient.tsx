@@ -305,6 +305,13 @@ function SubscriberCard({ row: r, now, notesAvailable, onSaved }: {
         <Mark done={!!r.bookingLinkSet} unknown={r.bookingLinkSet === null}
           label={r.bookingLinkSet && r.bookingUrl ? <a href={r.bookingUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>דף הזמנות</a> : 'דף הזמנות'} />
         {r.appointmentCount !== null && <span style={{ fontSize: 13, color: ink3 }}>{r.appointmentCount.toLocaleString('he-IL')} תורים</span>}
+        {/* What her messages cost: the central number's count, and the official channel's estimated cost to Kalmea. */}
+        {(r.whatsappSent30d || r.cloudMessages30d) ? (
+          <span style={{ fontSize: 13, color: ink3 }} title="הודעות וואטסאפ ב-30 הימים האחרונים">
+            {((r.whatsappSent30d || 0) + (r.cloudMessages30d || 0)).toLocaleString('he-IL')} הודעות ב-30 יום
+            {r.cloudCostUsd30d ? <span dir="ltr"> · ~${r.cloudCostUsd30d.toFixed(2)}</span> : null}
+          </span>
+        ) : null}
       </div>
 
       {(r.phone || r.email) && (

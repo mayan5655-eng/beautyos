@@ -91,6 +91,11 @@ export type SubscriberRow = {
   setupScore: number | null
   setupTotal: number | null
   appointmentCount: number | null
+  /** WhatsApp messages sent through the central GreenAPI number in 30 days (platform_tenant_metrics), null when unknown */
+  whatsappSent30d?: number | null
+  /** official Cloud API messages Meta accepted in 30 days, and their estimated cost to Kalmea (USD); null before the table exists */
+  cloudMessages30d?: number | null
+  cloudCostUsd30d?: number | null
   /** she set the WhatsApp number her clients reach her on */
   whatsappSet: boolean | null
   /** she has her own booking link (not the signup placeholder) */

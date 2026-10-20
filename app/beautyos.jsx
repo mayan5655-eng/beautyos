@@ -1336,7 +1336,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const weekDates = getWeekDates(weekStart);
   const now    = new Date();
   const today  = formatDate(now);
-  const tomorrow = formatDate(new Date(now.getTime()+86400000));
+  // One CALENDAR day, not 24 hours: on the night before Israel's spring clock change, now+24h lands on the day after tomorrow.
+  const tomorrow = formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()+1, 12));
   const thisMonth = now.getMonth();
   const thisYear  = now.getFullYear();
   const lastMonth = thisMonth===0?11:thisMonth-1;
@@ -1754,7 +1755,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // startMinute once the picker has set one; hour*60 for the eight call sites
   // that still construct newAppt with a whole hour, where hour N means N:00.
   const apptRequestedStart = newAppt.startMinute != null ? Number(newAppt.startMinute) : Number(newAppt.hour) * 60;
-  const apptEffectiveStart = apptSlotOptions.includes(apptRequestedStart) ? apptRequestedStart : (apptSlotOptions.length ? apptSlotOptions[0] : apptRequestedStart);
+  // An existing appointment keeps its own time even when it is not on the picker's grid (10:15 from voice or an import, or a time
+  // outside the margin). Found 2026-10-21: the effect below no longer snapped it, but this fallback still did, so Save wrote the
+  // day's first slot (06:00) and reset the confirmation. When she changes the day or the length the effect moves it as before.
+  const apptKeepOwnTime = !!editingAppointmentId && Number.isFinite(apptRequestedStart) && !apptSlotOptions.includes(apptRequestedStart);
+  const apptEffectiveStart = apptSlotOptions.includes(apptRequestedStart) || apptKeepOwnTime ? apptRequestedStart : (apptSlotOptions.length ? apptSlotOptions[0] : apptRequestedStart);
   const fmtHM = (mins)=>`${String(Math.floor(mins/60)).padStart(2,"0")}:${String(((mins%60)+60)%60).padStart(2,"0")}`;
   const apptStartMin = apptEffectiveStart;
   const apptEndMin = apptStartMin + Number(newAppt.duration||0);
@@ -3176,7 +3181,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{})};
         const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
         if(error){handleDbError(error, "update appointment"); return;}
-        if(data)setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
+        // Zero rows back means nothing was saved (deleted on another device, or not hers): say so instead of "updated", and never put
+        // an undefined row into the calendar.
+        if(!data?.length){toast("התור לא נמצא, אולי נמחק במכשיר אחר. כדאי לרענן את היומן.","error");return;}
+        setAppointments(prev=>prev.map(a=>a.id===editingAppointmentId?data[0]:a));
         setApptNote("");closeApptModal();
         toast("התור עודכן בהצלחה");
       } else if (apptRepeat.on && Number(apptRepeat.count) > 1) {
@@ -10446,7 +10454,7 @@ ${MARKETING_FOOTER}`)}`;
                   it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>תאריך</p><input type="date" value={newAppt.date} onChange={e=>setNewAppt({...newAppt,date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></div>
- <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>{apptTimeTouched.current=true;setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)});}} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
+ <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>שעה</p>{apptDayHours?(<select value={apptEffectiveStart} onChange={e=>{apptTimeTouched.current=true;setNewAppt({...newAppt,startMinute:Number(e.target.value),hour:Math.floor(Number(e.target.value)/60)});}} style={{width:"100%",border:apptSelectedTaken?"1.5px solid var(--danger)":apptSelectedOutside?"1.5px solid var(--warning)":"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",background:apptSelectedTaken?"rgba(224,91,111,0.08)":apptSelectedOutside?"rgba(242,184,75,0.14)":"var(--surface-2)",color:apptSelectedTaken?"var(--danger)":apptSelectedOutside?"var(--ink)":"inherit",fontWeight:(apptSelectedTaken||apptSelectedOutside)?700:400,direction:"ltr",textAlign:"center"}}>{apptKeepOwnTime&&<option key={`own-${apptEffectiveStart}`} value={apptEffectiveStart}>{fmtTime(apptEffectiveStart)} (השעה הנוכחית)</option>}{apptSlotOptions.map(m=>{const taken=slotIsTaken(m);const outside=apptOutsideHours(m);return <option key={m} value={m} disabled={taken} style={taken?{color:"#E05B6F",fontWeight:700}:outside?{color:"#B07A1E",fontWeight:700}:{color:"var(--ink)",fontWeight:400}}>{fmtTime(m)}{outside?" ✦ מחוץ לשעות":""}{taken?" ⛔ תפוס":""}</option>;})}</select>):(<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,padding:"9px 0",textAlign:"center"}}>סגור ביום זה</p>)}</div>
  </div>
  {!editingAppointmentId && newAppt.date && newAppt.date<today && <p role="status" data-testid="appt-past-date" style={{fontSize:"var(--t-sm)",color:"#8A5A00",marginTop:6,fontWeight:600}}>התאריך כבר עבר</p>}
 
@@ -12237,7 +12245,7 @@ ${MARKETING_FOOTER}`)}`;
    : <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M3.5 9.5h11.2a5 5 0 0 1 0 10H8.2M3.5 9.5l4.3-4.3M3.5 9.5l4.3 4.3"/></svg>}
  </button>
  {/* Permanent delete. Refuses, with a count, when anything references it. */}
- <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn sm" style={{color:"var(--danger)"}} title="מחיקה לצמיתות — רק אם השירות לא מופיע בשום תור, קבלה, חבילה או ליד" aria-label="מחיקה">✕</button>
+ <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn sm" style={{color:"var(--danger)"}} title="מחיקה לצמיתות: רק אם השירות לא מופיע בשום תור, תשלום, חבילה או ליד" aria-label="מחיקה">✕</button>
  </div>
  </div>
                   );})}

@@ -11,7 +11,7 @@ import { supabase } from "../supabase";
 import ImportChooser, { type ImportKind } from "../ImportChooser";
 import ServiceTemplatePicker from "../ServiceTemplatePicker";
 import FieldPicker from "../FieldPicker";
-import { lighten, contrastOn } from "@/lib/theme";
+import { lighten, contrastOn } from "@/lib/theme";
 import { isPlaceholderSlug, claimNameSlug } from "@/lib/autoSlug";
 import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
@@ -109,6 +109,7 @@ export default function OnboardingPage() {
   // settings — and send her back through onboarding over populated tables.
   // They go in inside finish(), straight after the settings insert.
   const [pickedServices, setPickedServices] = useState<PickedService[]>([]);
+  const [colorDraft, setColorDraft] = useState<string | null>(null);
 
   const [data, setData] = useState<OnboardingData>({
     business_name: "",
@@ -500,8 +501,15 @@ export default function OnboardingPage() {
                     style={{ width: 56, height: 44, border: "1.5px solid var(--line)", borderRadius:"var(--r-sm)", cursor: "pointer", background: "var(--brand-cream, #FBF8F1)" }} />
                   <input
                     className="ob-input"
-                    value={data.primary_color}
-                    onChange={e => setData({ ...data, primary_color: e.target.value })}
+                    value={colorDraft ?? data.primary_color}
+                    // Typed by hand: kept as a draft until it is a full #RRGGBB, so a half-typed value never paints the "next" button
+                    // white-on-white or gets saved to her branding (2026-10-21 audit).
+                    onChange={e => {
+                      const v = e.target.value.trim();
+                      if (/^#[0-9a-f]{6}$/i.test(v)) { setColorDraft(null); setData({ ...data, primary_color: v }); }
+                      else setColorDraft(e.target.value);
+                    }}
+                    onBlur={() => setColorDraft(null)}
                     style={{ ...inputStyle, direction: "ltr", margin: 0, flex: 1 }}
                   />
                 </div>
@@ -536,7 +544,12 @@ export default function OnboardingPage() {
               <div style={{ marginBottom: 18 }}>
                 <FieldPicker
                   value={data.business_fields}
-                  onChange={(fields) => setData({ ...data, business_fields: fields })}
+                  onChange={(fields) => {
+                    setData({ ...data, business_fields: fields });
+                    // A field she unticks takes its picked treatments with it: they are no longer in the picker, so they must not be
+                    // inserted onto her booking page behind her back (2026-10-21 audit). Picks with no field stay.
+                    setPickedServices((prev) => prev.filter((p) => !p.field || (fields as string[]).includes(p.field)));
+                  }}
                   accent={pc}
                   accentTint={pcTint}
                 />

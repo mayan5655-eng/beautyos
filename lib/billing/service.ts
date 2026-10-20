@@ -50,7 +50,10 @@ export type Subscription = {
   ends_at: string | null;
 };
 
-export type TenantRow = { id: string; name: string | null; plan_status: string | null; trial_ends_at: string | null; plan_price: number | string | null };
+export type TenantRow = { id: string; name: string | null; plan_status: string | null; trial_ends_at: string | null; plan_price: number | string | null;
+  /** Her mobile, the payer Grow requires on every token charge (lib/grow/ops.ts chargeToken refuses without one). The same source as
+   *  the card page (app/api/billing/card): settings.automations.owner_phone, else settings.business_phone. */
+  phone?: string | null };
 
 export type PaymentRecord = {
   id: string;
@@ -183,6 +186,9 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   const res = await d.payments.charge({
     tokenRef: sub.token_ref, amount: sub.price, currency: CURRENCY, description: 'מנוי קלמיה', idempotencyKey: `${sub.id}:${periodKey}`,
     uniqueIdentifier: uid, groupIdentifier: groupIdentifierOf(sub.id), fullName: tenant?.name || undefined,
+    // Found 2026-10-21: without the payer's phone every live charge was refused by chargeToken before reaching Grow, so a good card
+    // failed four times and the business was blocked after the grace days.
+    phone: tenant?.phone || undefined,
   }).catch((e) => ({ ok: false as const, code: 'unreachable' as const, error: String(e?.message || e) }));
 
   if (res.ok) return succeed(d, sub, tenant, pay, res.providerPaymentId, periodEnd, now, res.invoiceNumber, res.invoiceUrl);

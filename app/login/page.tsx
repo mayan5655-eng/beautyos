@@ -85,9 +85,20 @@ export default function LoginPage() {
     if (error) {
       // Supabase says this only when the password was right, so it reveals nothing.
       setNeedsConfirm(/not confirmed/i.test(error.message))
-      setError(/not confirmed/i.test(error.message)
+      // Only a real "wrong credentials" answer blames the password (2026-10-21 audit: offline, rate limits and server errors also
+      // said "wrong password", and a new user on weak mobile data went to reset a password that was right).
+      const msg = String(error.message || '')
+      const status = (error as { status?: number }).status
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+      setError(/not confirmed/i.test(msg)
         ? 'עוד לא אישרת את האימייל. שלחנו לך קישור בעת ההרשמה, כדאי לבדוק גם בספאם.'
-        : 'אימייל או סיסמה שגויים')
+        : /invalid login credentials|invalid credentials/i.test(msg) || status === 400
+          ? 'אימייל או סיסמה שגויים'
+          : offline || /fetch|network|failed to fetch/i.test(msg)
+            ? 'אין חיבור לאינטרנט כרגע. כדאי לבדוק את החיבור ולנסות שוב.'
+            : status === 429 || /rate|too many/i.test(msg)
+              ? 'היו יותר מדי ניסיונות. כדאי לחכות דקה ולנסות שוב.'
+              : 'משהו נתקע אצלנו בכניסה. אפשר לנסות שוב בעוד רגע.')
       setLoading(false)
     } else {
       router.push('/')
