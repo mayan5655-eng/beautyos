@@ -19,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
 import { MODELS, EFFORT } from "@/lib/ai/models";
+import { buildBotMessages, loadRecentTurns, recordInbound } from "../../../lib/waConversation";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
@@ -133,7 +134,7 @@ async function shouldBotReply(tenantId) {
   return true;
 }
 // Generate the AI reply directly (no network hop) - faster and more reliable
-async function generateReply({ message, clientName, tenantId }) {
+async function generateReply({ message, clientName, tenantId, history = [] }) {
   const [settingsRes, servicesRes] = await Promise.all([
     supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
     supabase.from("service_prices").select("*").eq("tenant_id", tenantId).or(ACTIVE_OR_NULL),
@@ -155,12 +156,8 @@ async function generateReply({ message, clientName, tenantId }) {
     max_tokens: 2000,
     output_config: { effort: EFFORT.cheap },
     system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`,
-      },
-    ],
+    // The last turns with this client (lib/waConversation.js), then the message being answered.
+    messages: buildBotMessages(history, `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`),
   }, { tenantId, callSite: "whatsapp-webhook" });
 
   // Haiku 5.5 can decline (stop_reason "refusal") and has no server-side fallback. Send nothing rather than half an answer:
@@ -345,8 +342,14 @@ export async function POST(request) {
       return Response.json({ ok: true, rateLimited: "tenant" });
     }
 
+    // The conversation so far (read BEFORE this message is kept, so it is not in its own history), then keep this one
+    // for the next turn. Only here, when the bot is about to answer: a business whose bot is off stores nothing.
+    const senderPhone = senderToPhone(senderChatId);
+    const history = await loadRecentTurns(supabase, { tenantId, variants: phoneVariants(senderPhone) });
+    await recordInbound(supabase, { tenantId, phone: senderPhone, body: text, source: "greenapi" });
+
     // Generate the reply directly
-    const reply = await generateReply({ message: text, clientName: senderName, tenantId });
+    const reply = await generateReply({ message: text, clientName: senderName, tenantId, history });
 
     if (!reply) {
       return Response.json({ ok: true, noReply: true });
