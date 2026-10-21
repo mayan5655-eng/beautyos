@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 const TUTORIALS = [
-  { id: "welcome", title: "מה מיוחד בקלמיה", sub: "כל מה שקלמיה עושה בשבילך, בדקה אחת" },
+  { id: "welcome", title: "מה מיוחד בקלמיה", sub: "למה קלמיה היא לא עוד מערכת לקביעת תורים" },
   { id: "tour", title: "סיור בכל המסכים", sub: "היומן, הלקוחות, התשלומים, התוכן וההגדרות" },
   { id: "booking", title: "איך קובעים תור", sub: "ביומן שלך, ואיך הלקוחה קובעת לבד בדף שלך" },
 ] as const;

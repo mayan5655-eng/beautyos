@@ -28,7 +28,8 @@ for (const f of ['marketing/tutorials.mjs', 'marketing/welcome-motion.mjs']) {
   assert.ok(script.includes('050-7321978'), `${f}: the welcome video ends on the support line`);
   assert.ok(!script.includes('עני להודעה'), `${f}: not on "reply to this message", which nobody reads`);
 }
-// payments (Grow) are not live: the animated welcome may only show them as coming
-assert.ok(/ובקרוב:', 'סליקה/.test(raw('marketing/welcome-motion.mjs')), 'online payments are captioned as coming soon');
+// version 3 shows card payments, the cancellation charge and automatic messages as features: the script must keep saying that
+// it goes on /tutorials only once those are switched on (owner's condition, 2026-10-21)
+assert.ok(raw('marketing/welcome-motion.mjs').includes('Do not put this version on /tutorials until'), 'the welcome script records its go-live condition');
 
 console.log('tutorials page: all checks passed');
