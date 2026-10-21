@@ -252,6 +252,7 @@ export default function AdminClient({
         </div>
       )}
       <WhatsAppModeToggle greenApiDown={greenApiDown} />
+      <PhoneVerifyToggles />
       <div style={{ marginBottom: 22, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize:"var(--t-3xl)", fontWeight: 600, letterSpacing: '-0.01em', margin: 0 }}>
@@ -569,6 +570,81 @@ function WhatsAppModeToggle({ greenApiDown }: { greenApiDown: boolean }) {
       >
         {saving ? '...' : enabled ? 'כיבוי' : 'הפעלה'}
       </button>
+    </div>
+  )
+}
+
+// The two phone-verification switches (app/api/admin/phone-verify). Same card shape as WhatsAppModeToggle above.
+type PhoneVerifyState = { signup: boolean; existing: boolean; since: string | null; sms: { ready: boolean; mode: string; provider: string | null; reason: string | null } }
+
+function PhoneVerifyToggles() {
+  const [st, setSt] = useState<PhoneVerifyState | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  useMemo(() => {
+    fetch('/api/admin/phone-verify')
+      .then((r) => r.json())
+      .then((d) => { setSt(d); if (d.error) setErr(d.error) })
+      .catch(() => setErr('לא הצלחנו לטעון את מצב אימות הטלפון.'))
+  }, [])
+
+  async function flip(key: 'signup' | 'existing') {
+    if (!st || saving) return
+    setSaving(true)
+    setErr('')
+    try {
+      const res = await fetch('/api/admin/phone-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: !st[key] }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setErr(data?.error || 'העדכון נכשל'); return }
+      setSt(data)
+    } catch {
+      setErr('העדכון נכשל. בדקי את החיבור ונסי שוב.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const row = (key: 'signup' | 'existing', title: string, onText: string, offText: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>
+      <div style={{ flex: '1 1 240px' }}>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: ink, marginBottom: 3 }}>{title}</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: ink2, lineHeight: 1.6 }}>{!st ? 'טוענת...' : st[key] ? onText : offText}</p>
+      </div>
+      <button
+        onClick={() => flip(key)}
+        disabled={!st || saving}
+        style={{
+          flexShrink: 0, padding: '10px 20px', borderRadius: 'var(--r-full)', border: 'none',
+          background: st?.[key] ? '#9A5148' : '#4E7A55', color: '#fff', fontWeight: 700,
+          fontSize: 'var(--t-sm)', cursor: !st || saving ? 'default' : 'pointer',
+          opacity: !st || saving ? 0.6 : 1, fontFamily: 'inherit', whiteSpace: 'nowrap',
+        }}
+      >
+        {saving ? '...' : st?.[key] ? 'כיבוי' : 'הפעלה'}
+      </button>
+    </div>
+  )
+
+  return (
+    <div style={{ padding: '16px 20px', borderRadius: 'var(--r-md)', border: `1px solid ${line}`, background: surface, marginBottom: 20 }}>
+      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: ink, marginBottom: 3 }}>אימות טלפון נייד בהרשמה (חשבון אחד לכל מספר)</p>
+      <p style={{ fontSize: 'var(--t-sm)', color: st && !st.sms.ready ? '#9A5148' : ink2, lineHeight: 1.6 }}>
+        {!st ? 'טוענת...' : st.sms.ready
+          ? `שליחת SMS מוכנה (${st.sms.mode === 'mock' ? 'בדיקה, בלי שליחה אמיתית' : st.sms.provider}).`
+          : 'שליחת SMS עוד לא מוגדרת, ולכן המתגים לא משפיעים על אף אחת עד שתוגדר. אף הרשמה לא תיחסם בגלל זה.'}
+      </p>
+      {row('signup', 'הרשמה חדשה מאמתת נייד ב-SMS',
+        `פעיל${st?.since ? ` מאז ${fmtDate(st.since)}` : ''} - כל הרשמה חדשה מאמתת נייד, ומספר יכול להיות שייך לחשבון אחד בלבד.`,
+        'כבוי (ברירת המחדל) - ההרשמה כמו היום, אימייל וסיסמה.')}
+      {row('existing', 'לבקש מחשבונות קיימים לאמת נייד',
+        'פעיל - חשבון בלי נייד מאומת יתבקש לאמת בכניסה הבאה, עם אפשרות "אחר כך". אף אחת לא ננעלת בחוץ.',
+        'כבוי - חשבונות קיימים לא מתבקשים לאמת.')}
+      {err && <p style={{ fontSize: 'var(--t-sm)', color: '#9A5148', marginTop: 6 }}>{err}</p>}
     </div>
   )
 }

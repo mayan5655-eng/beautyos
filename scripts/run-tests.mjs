@@ -58,6 +58,16 @@ const FAKE_ENV = {
   NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
   SENTRY_AUTH_TOKEN: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
+  // Phone verification SMS (lib/phoneVerify/sms.ts): off, no provider, no credentials. A test that needs mock sets it itself.
+  SMS_MODE: '',
+  SMS_PROVIDER: '',
+  SMS_019_TOKEN: '',
+  SMS_019_USERNAME: '',
+  SMS_019_SOURCE: '',
+  TWILIO_ACCOUNT_SID: '',
+  TWILIO_AUTH_TOKEN: '',
+  TWILIO_FROM: '',
+  PHONE_OTP_SECRET: '',
 };
 
 const files = readdirSync('.')

@@ -16,9 +16,12 @@
 // unchanged.
 
 import dynamic from 'next/dynamic'
+import PhoneGate from './PhoneGate'
 
 const BeautyOS = dynamic(() => import('./beautyos'))
 
 export default function BeautyOSLoader({ ownerEntry = null }: { ownerEntry?: React.ReactNode }) {
-  return <BeautyOS ownerEntry={ownerEntry} />
+  // PhoneGate renders nothing unless phone verification is switched on and this account has no verified mobile
+  // (lib/phoneVerify/policy.ts). It never delays the app: it asks after the app is already on screen.
+  return <><BeautyOS ownerEntry={ownerEntry} /><PhoneGate /></>
 }

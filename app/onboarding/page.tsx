@@ -17,6 +17,7 @@ import { buildSeedSettings } from "@/lib/tenantTemplate";
 import { insertPickedServices, type PickedService } from "@/lib/seedServices";
 import type { FieldKey } from "@/lib/businessFields";
 import BrandBackdrop from "../BrandBackdrop";
+import PhoneGate from "../PhoneGate";
 import { LOGO_COMPACT, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 
 // The missing-column retry that used to live here moved with the insert into
@@ -383,6 +384,8 @@ export default function OnboardingPage() {
           /signup - BrandBackdrop's bold corner flowers replace the old
           single quiet ChromeFlowerBg it shared with the dashboard chrome. */}
       <BrandBackdrop density="full" idPrefix="onboarding" />
+      {/* One account per mobile: claims the number she verified at signup, or asks for it (app/PhoneGate.tsx). */}
+      <PhoneGate />
       <style>{`
         @keyframes fadeIn { from {opacity:0;transform:translateY(8px)} to {opacity:1;transform:translateY(0)} }
         .step-body { animation: fadeIn 0.28s ease-out; }

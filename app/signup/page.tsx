@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -19,6 +19,7 @@ import {
   BANNER_HEADER, BANNER_HEADER_W, BANNER_HEADER_H, FLOWER_MARK,
 } from '@/lib/brand'
 import BrandImage from "@/app/BrandImage";
+import PhoneVerifyForm, { type PhoneVerified } from '../PhoneVerifyForm'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -29,7 +30,18 @@ export default function SignupPage() {
   // Set once Supabase accepted the sign-up but is waiting for her to confirm her email (no session yet).
   const [sentTo, setSentTo] = useState('')
   const [resendNote, setResendNote] = useState('')
+  // One account per mobile (lib/phoneVerify): when the switch is on, she proves her mobile by SMS BEFORE choosing an
+  // email and password. Asked of the server, not built in: off (or unreadable) means the two-field form, as before.
+  const [phoneRequired, setPhoneRequired] = useState(false)
+  const [phoneOk, setPhoneOk] = useState<PhoneVerified | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/phone/config', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.phoneRequired === true) setPhoneRequired(true) })
+      .catch(() => { /* the old form is the fallback */ })
+  }, [])
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
@@ -58,6 +70,9 @@ export default function SignupPage() {
         // inside and has a reason to answer.
         data: {
           ...(attr ? { kl_attr: attr } : {}),
+          // The verified mobile and the server's signed proof of it. Claimed for her on her first signed-in request
+          // (app/api/phone/status); the database refuses it if another account already holds the number.
+          ...(phoneOk?.ticket ? { phone_e164: phoneOk.phone, phone_ticket: phoneOk.ticket } : {}),
         },
       },
     })
@@ -159,7 +174,18 @@ export default function SignupPage() {
         </div>
         </>)}
 
-        {sentTo ? (
+        {!sentTo && phoneRequired && !phoneOk ? (
+          <>
+            <p style={{ ...welcomeSubtitleStyle, textAlign: 'center', margin: '0 0 16px' }}>
+              מתחילות במספר הנייד שלך. נשלח אלייך קוד בהודעת SMS, ולכל מספר יש חשבון אחד.
+            </p>
+            <PhoneVerifyForm purpose="signup" onVerified={setPhoneOk} />
+            <p style={footerStyle}>
+              כבר יש לך חשבון?{' '}
+              <a href="/login" className="signup-link" style={linkStyle}>התחברי</a>
+            </p>
+          </>
+        ) : sentTo ? (
           <div role="status" style={{ textAlign: 'center' }}>
             <h1 style={{ ...welcomeTitleStyle, marginTop: 0 }}>בדקי את המייל 🌸</h1>
             <p style={welcomeSubtitleStyle}>שלחנו קישור אישור אל</p>
@@ -180,6 +206,11 @@ export default function SignupPage() {
           </div>
         ) : (
         <form onSubmit={handleSignup}>
+          {phoneOk && (
+            <p role="status" style={{ ...welcomeSubtitleStyle, textAlign: 'center', margin: '0 0 14px', color: DEEP }}>
+              הנייד <span dir="ltr" style={{ fontWeight: 700 }}>{phoneOk.phone.replace(/^972/, '0')}</span> אומת ✓ עכשיו אימייל וסיסמה.
+            </p>
+          )}
           <Field label="אימייל" htmlFor="signup-email">
             <input
               className="signup-input"

@@ -67,9 +67,12 @@ export default function LoginPage() {
   // /auth/confirm and /auth/callback send ?error=auth when an email link could not become a session: it expired or was already
   // used. If she already confirmed, signing in works.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('error') === 'auth') {
+    const q = new URLSearchParams(window.location.search)
+    if (q.get('error') === 'auth') {
       setError('הקישור פג תוקף או כבר נוצל. אם כבר אישרת את האימייל, אפשר להתחבר עם הסיסמה שבחרת.')
     }
+    // "/login?forgot=1": the signup page's "this number already has an account" links straight to password recovery.
+    if (q.get('forgot') === '1') setMode('forgot')
   }, [])
 
   async function handleLogin(e: React.FormEvent) {
