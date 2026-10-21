@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '../../../../../lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
-import { FacebookClient } from '../../../../../lib/facebook/client';
+import { FacebookClient, mergePages } from '../../../../../lib/facebook/client';
 import { encryptToken } from '../../../../../lib/facebook/encryption';
 import { APP_URL } from '../../../../../lib/appUrl';
 import { isDemoTenantId } from '../../../../../lib/demoTenants';
@@ -119,7 +119,13 @@ export async function GET(request: NextRequest) {
     );
 
     const fbClient = new FacebookClient(longLivedToken.access_token);
-    const pages = await fbClient.getUserPages();
+    // Her profile's Pages, plus the Pages she reaches only through a business portfolio (owned or client): a Page
+    // owned by her business with full access there never comes back from /me/accounts. Best effort: getBusinessPages
+    // never throws, and needs business_management, which is asked only when she connects for publishing.
+    const profilePages = await fbClient.getUserPages();
+    const businessPages = await fbClient.getBusinessPages();
+    const pages = mergePages(profilePages, businessPages);
+    console.log(`[fb-oauth] pages: ${profilePages.length} from the profile, ${businessPages.length} through a business, ${pages.length} in all`);
 
     // Who this Facebook user is (Meta's deauthorize / data-deletion callbacks name her by this id), which
     // permissions she actually granted, and her long-lived USER token, which is what the ad account is read
