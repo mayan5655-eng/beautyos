@@ -67,4 +67,30 @@ assert.ok(!/הבוט עוד לא פעיל בחשבון שלך/.test(dash) && /in
 const results = read('./app/ResultsManager.jsx');
 assert.ok(!/!r\.published && !r\.consent_confirmed/.test(results) && /!r\.published && !consentComplete\(fromRow\(r\)\)/.test(results), 'publish checks the whole consent record');
 
+// ── the saved-card page lasts ~10 minutes too: a later press opens a fresh save-only page, moving the tick's process id to it ──
+const { freshCardLink } = await import('./lib/grow/cancelFees.ts');
+const cardCalls: string[] = [];
+const cardDeps = (consent: unknown, card: unknown) => ({
+  notifyUrl: 'n',
+  ops: { createTokenSession: async (i: { mode: string }) => { cardCalls.push(`session:${i.mode}`); return { ok: true, url: 'https://grow/new', processId: 'p2' }; } },
+  repo: {
+    getConsent: async () => consent, getCardConsent: async () => card,
+    getAccount: async () => ({ user_id: 'u', enabled: true }),
+    getAppointment: async () => ({ id: 'a', name: 'n', client_phone: '0501234567', confirmation_status: 'confirmed' }),
+    updateCardConsent: async (_id: string, p: { process_id: string }) => { cardCalls.push(`update:${p.process_id}`); },
+    insertCardConsent: async (r: { process_id: string }) => { cardCalls.push(`insert:${r.process_id}`); return r; },
+    updateConsent: async (_id: string, p: { status: string }) => { cardCalls.push(`consent:${p.status}`); },
+  },
+}) as never;
+const sc = { id: 'c', mode: 'saved_card', client_id: null, client_name: 'n', consented_at: new Date().toISOString(), token_id: null };
+const args = { tenantId: 't', appointmentId: 'a', returnUrl: 'r' };
+assert.equal((await freshCardLink(cardDeps({ ...sc, status: 'card_saved' }, null), args) as { code: string }).code, 'saved', 'a saved card opens nothing');
+assert.equal((await freshCardLink(cardDeps({ ...base, status: 'awaiting_deposit' }, null), args) as { code: string }).code, 'none', 'not for a deposit booking');
+const ok1 = await freshCardLink(cardDeps({ ...sc, status: 'awaiting_card' }, { id: 'k', status: 'awaiting' }), args) as { url: string };
+assert.equal(ok1.url, 'https://grow/new');
+assert.deepEqual(cardCalls.splice(0), ['session:save_only', 'update:p2'], 'a save-only page (no charge), and the stored tick follows it');
+await freshCardLink(cardDeps({ ...sc, status: 'step_failed' }, null), args);
+assert.deepEqual(cardCalls.splice(0), ['session:save_only', 'insert:p2', 'consent:awaiting_card'], 'when the first page never opened, the tick is stored now');
+assert.ok(/kind: policyStep\.kind === "saved_card" \? "card" : "deposit"/.test(booking) && /data-testid="card-retry"/.test(booking), 'the booking page asks for a fresh card page too');
+
 console.log('dead controls: ok');

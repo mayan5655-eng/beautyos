@@ -1,15 +1,16 @@
 // app/api/grow/deposit/pay/route.ts
 //
-// POST { t, appointmentId } -> { url }
+// POST { t, appointmentId, kind? } -> { url }      kind: 'deposit' (default) or 'card' (saved-card mode: the page that saves her card, no charge)
 //
 // PUBLIC (no login): the client who just booked presses "pay the deposit" on the booking page. Grow's page link lasts about 10 minutes while the
 // booking is held for 30, so a link made at booking time could be dead by the time she presses. Each press opens a fresh deposit page for the
 // agreement stored with the booking (lib/grow/cancelFees.freshDepositLink): the amount comes from that snapshot, never from the browser, and only
-// while the hold is still open.
+// while the hold is still open. The saved-card page has the same 10-minute life, so kind 'card' opens a fresh save-only page the same way
+// (lib/grow/cancelFees.freshCardLink).
 import { NextResponse } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { growUiEnabled } from '@/lib/grow/adapter';
-import { freshDepositLink } from '@/lib/grow/cancelFees';
+import { freshDepositLink, freshCardLink } from '@/lib/grow/cancelFees';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { cancelDeps } from '../../_cancel';
 
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
   const deps = cancelDeps();
   if (!deps) return fail(UNAVAILABLE, 409);
   try {
-    const r = await freshDepositLink(deps, { tenantId: t, appointmentId, returnUrl: `${APP_URL.replace(/\/+$/, '')}/book?t=${t}` });
+    const args = { tenantId: t, appointmentId, returnUrl: `${APP_URL.replace(/\/+$/, '')}/book?t=${t}` };
+    const r = b.kind === 'card' ? await freshCardLink(deps, args) : await freshDepositLink(deps, args);
     if (!r.ok) return fail(r.error, r.code === 'step-failed' ? 502 : 409);
     return NextResponse.json({ success: true, url: r.url }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {

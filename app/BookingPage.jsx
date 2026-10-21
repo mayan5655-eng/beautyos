@@ -356,14 +356,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
   const [policyStepAt, setPolicyStepAt] = useState(0);
-  // "Pay the deposit": Grow's page link lasts ~10 minutes while the hold lasts 30, so after the first few minutes each press asks for a fresh page
-  // (app/api/grow/deposit/pay). A dead link used to leave her no way to pay while her slot was still held.
+  // "Pay the deposit" / "save the card": Grow's page link lasts ~10 minutes (the deposit hold lasts 30, a saved card has no deadline), so after the
+  // first few minutes, or when the first page never opened, each press asks for a fresh page (app/api/grow/deposit/pay). A dead link used to leave
+  // her no way through.
   const payDeposit = async () => {
-    if (payBusy || !policyStep?.url) return;
-    if (Date.now() - policyStepAt < 8 * 60 * 1000 || !bookedId) { window.location.href = policyStep.url; return; }
+    if (payBusy || !policyStep) return;
+    if (policyStep.url && (Date.now() - policyStepAt < 8 * 60 * 1000 || !bookedId)) { window.location.href = policyStep.url; return; }
+    if (!bookedId) return;
     setPayBusy(true); setPayErr("");
     try {
-      const r = await fetch("/api/grow/deposit/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId }) });
+      const r = await fetch("/api/grow/deposit/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId, kind: policyStep.kind === "saved_card" ? "card" : "deposit" }) });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
       setPayErr(j?.error || "לא הצלחנו לפתוח את דף התשלום, נסי שוב");
@@ -1478,12 +1480,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
                       {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
                     </p>
-                    {policyStep.kind === "deposit" ? (
-                      <>
-                        <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : "המשך לתשלום המקדמה"}</button>
-                        {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
-                      </>
-                    ) : <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>}
+                    <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</button>
+                    {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>
                 )}
                 {cardPay && bookedId && !policyStep && Number(selectedService?.price) > 0 && (
@@ -1496,6 +1494,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 {policyStep && !policyStep.url && (
                   <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
                     התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח. {brand?.businessName || "העסק"} תיצור איתך קשר להשלמת {policyStep.kind === "deposit" ? "המקדמה" : "שמירת הכרטיס"}.
+                    {policyStep.kind === "saved_card" && bookedId && (
+                      <>
+                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : "לנסות שוב לשמור את הכרטיס"}</button>
+                        {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
+                      </>
+                    )}
                   </div>
                 )}
                 {/* Add to her own calendar. Hidden while a deposit is still pending: that slot is only held, and may be released. */}
