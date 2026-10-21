@@ -7,7 +7,7 @@
 //   booking   how she books an appointment in the app, and how a client books herself on her public booking page
 //
 //   node tutorials.mjs                  both videos
-//   node tutorials.mjs booking          just one (tour | booking)
+//   node tutorials.mjs booking          just one (tour | booking | welcome)
 //   node tutorials.mjs --stitch-only    re-join the parts already recorded in out/tutorials/<video>/
 //
 // Output (out/tutorials/, git-ignored): kalmea-tutorial-<video>.mp4 - 720x1280, 30 fps, H.264 main + AAC silence, small enough for
@@ -150,16 +150,17 @@ const inApp = {
     await pause(3200);
   },
 };
-const selfBook = {
-  id: 'self', owner: false,
+// a client books herself on the public page; `caps` = its four captions, in order
+const selfBooking = (caps, id = 'self') => ({
+  id, owner: false,
   setup: async (h) => { await h.page.goto(`${BASE}/book?t=${DEMO_TENANT}`, { waitUntil: 'networkidle' }); await h.page.locator('#bk-services').waitFor({ state: 'visible', timeout: 15000 }); await pause(400); },
   async play(h) {
     const page = h.page;
-    cap(h, 'זה הדף שלך.\nהלקוחה בוחרת טיפול', { hold: 4600 });
+    cap(h, caps[0], { hold: 4600 });
     await pause(1000); await h.glide(page.locator('#bk-services'), 1100); await pause(1600);
     await h.tap(page.locator('#bk-services button', { hasText: 'קביעת תור' }).first(), { after: 900 });
     await page.getByText('בחרי יום').waitFor({ timeout: 10000 });
-    cap(h, 'היא רואה רק שעות פנויות,\nובוחרת יום ושעה', { delay: 200, hold: 5600 });
+    cap(h, caps[1], { delay: 200, hold: 5600 });
     const weekdays = page.getByText(/^(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)$/);
     const today = israelDom(0), chips = [];
     for (let i = 0; i < Math.min(await weekdays.count(), 14); i++) {
@@ -179,7 +180,7 @@ const selfBook = {
     await h.tap((await slot.count()) ? slot.first() : slots.first(), { after: 900 });
     await h.tap(page.getByRole('button', { name: /המשיכי/ }), { after: 600 });
     await page.getByText('סיכום התור').waitFor({ timeout: 10000 });
-    cap(h, 'ממלאת שם וטלפון,\nומאשרת', { delay: 200, hold: 5600 });
+    cap(h, caps[2], { delay: 200, hold: 5600 });
     await pause(700);
     await h.type(page.getByPlaceholder('שם מלא'), NAME, { after: 300 });
     await h.type(page.getByPlaceholder('טלפון נייד'), PHONE, { after: 300 });
@@ -187,10 +188,11 @@ const selfBook = {
     await h.tap(page.getByRole('button', { name: 'קביעת תור' }).last(), { after: 400 });
     await page.getByText('התור נקבע').waitFor({ timeout: 20000 });
     log(`   self: ${NAME} - ${((await page.locator('body').innerText()).match(/נתראה ב([^\n]+)/)?.[1] || '').trim()}`);
-    cap(h, 'התור נקבע, ונכנס\nליומן שלך לבד', { delay: 400, hold: 4400 });
+    cap(h, caps[3], { delay: 400, hold: 4400 });
     await pause(5200);
   },
-};
+});
+const selfBook = selfBooking(['זה הדף שלך.\nהלקוחה בוחרת טיפול', 'היא רואה רק שעות פנויות,\nובוחרת יום ושעה', 'ממלאת שם וטלפון,\nומאשרת', 'התור נקבע, ונכנס\nליומן שלך לבד']);
 const BOOKING = [
   { id: 'open', card: { kicker: 'מדריך קצר', title: 'איך קובעים<br>תור', sub: 'ביומן שלך, או לבד<br>בדף קביעת התורים' }, seconds: 3.2 },
   inApp,
@@ -199,7 +201,62 @@ const BOOKING = [
   { id: 'end', card: { title: 'זהו,<br>ככה פשוט', sub: 'kalmea.app' }, seconds: 3 },
 ];
 
-const VIDEOS = { tour: TOUR, booking: BOOKING };
+// ── video C: the welcome explainer (goes out with the WhatsApp welcome message) ───────────────
+// The face on the first and last card is the product's own AI presenter (public/defaults/presenters, the owner holds commercial
+// rights); it carries the same "דמות AI להמחשה" label the templates do. Reminders are "ready on WhatsApp", not "sent automatically":
+// automatic sending needs the central WhatsApp number, which the settings screen itself says is not connected yet.
+const PRESENTER = `${BASE}/defaults/presenters/skin-presenter-1.jpg`;
+const WELCOME = [
+  { id: 'hook', hero: { title: 'זו לא עוד מערכת<br>לקביעת תורים', sub: 'כל העסק שלך, במקום אחד' }, seconds: 4.5 },
+  selfBooking(['הלקוחות קובעות לבד,\nגם באמצע הלילה', 'הן רואות רק את\nהשעות שפנויות לך', 'שם וטלפון,\nוזהו', 'התור נקבע,\nבלי הודעות הלוך ושוב'], 'booking'),
+  screen('calendar', 'והכול נכנס ליומן,\nבלי שיחות טלפון', goto('יומן'), async (h) => {
+    await pause(2600); await h.tap(button(h, /^שבוע$/), { before: 200, after: 1200 });
+  }),
+  screen('reminders', 'תזכורות ואישורים\nמוכנים בוואטסאפ',
+    async (h) => { await goto('לקוחות')(h); await h.tap(button(h, /^הודעות$/), { before: 200, after: 1300 }); },
+    async (h) => { await pause(2600); await h.scrollBy(260, 1500); }), // "שלחי" is never tapped
+  screen('posts', 'פוסטים ורילס מוכנים\nלאינסטגרם, בצבעים שלך', goto('תוכן'), async (h) => {
+    await pause(2200); await h.tap(button(h, /^תבניות/), { before: 300, after: 900 }); await h.scrollBy(330, 1500);
+  }),
+  screen('client-card', 'כרטיס לכל לקוחה:\nהיסטוריה ותמונות',
+    async (h) => { await goto('לקוחות')(h); await h.tap(text(h, 'ליה דהן', { exact: true }), { before: 200, after: 1500 }); },
+    async (h) => { await h.tap(button(h, /^היסטוריה/), { before: 1800, after: 800 }); }),
+  screen('leads', 'כל הפניות במקום אחד,\nעד שהן קובעות תור',
+    async (h) => { await goto('לקוחות')(h); await h.tap(button(h, /^פניות/), { before: 200, after: 1400 }); },
+    async (h) => { await pause(2600); await h.scrollBy(380, 1600); }),
+  screen('campaigns', 'ותוצאות הקמפיינים\nבפייסבוק ובאינסטגרם',
+    async (h) => { await goto('תוכן')(h); await h.tap(button(h, /^קמפיינים בפייסבוק$/), { before: 200, after: 1500 }); },
+    async (h) => { await pause(2600); await h.scrollBy(300, 1500); }),
+  screen('payments', 'תשלומים והכנסות,\nמסודרים לבד', goto('תשלום'), async (h) => { await pause(2400); await h.scrollBy(480, 1800); }),
+  { id: 'cta', hero: { title: 'שאלה?<br>פשוט עני להודעה', sub: 'אנחנו כאן בשבילך' }, seconds: 5 },
+];
+
+const VIDEOS = { tour: TOUR, booking: BOOKING, welcome: WELCOME };
+
+// a title card with a face: the presenter fills the top, fading into cream, the line under it. Hebrew drawn by Chromium.
+async function heroCard(browser, file, { title, sub }) {
+  const ctx = await browser.newContext({ viewport: { width: 540, height: 960 }, deviceScaleFactor: 2, locale: 'he-IL' });
+  const page = await ctx.newPage();
+  await page.setContent(`<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><style>
+@font-face{font-family:KF;src:url(${BASE}/design-fonts/FrankRuhlLibre-700.ttf);font-weight:700}
+@font-face{font-family:KA;src:url(${BASE}/design-fonts/Assistant-600.ttf);font-weight:600}
+html,body{margin:0;width:540px;height:960px;overflow:hidden;background:#FBF8F1}
+.ph{position:absolute;top:0;left:0;width:540px;height:600px;object-fit:cover;object-position:50% 22%}
+.fade{position:absolute;top:380px;left:0;width:540px;height:230px;background:linear-gradient(#FBF8F100,#FBF8F1 88%)}
+.ai{position:absolute;top:18px;left:18px;font:600 15px KA;color:#1F3A30;background:#FBF8F1D9;padding:5px 12px;border-radius:12px}
+.mark{position:absolute;top:18px;right:20px;width:150px}
+.txt{position:absolute;top:590px;left:0;right:0;text-align:center}
+.t{font:700 52px/1.2 KF;color:#1F3A30;margin:0 30px}
+.rule{width:64px;height:3px;background:#E9A9A1;margin:24px auto 20px;border-radius:2px}
+.s{font:600 26px/1.45 KA;color:#5E6F68}
+</style></head><body><img class="ph" src="${PRESENTER}"><div class="fade"></div><div class="ai">דמות AI להמחשה</div>
+<img class="mark" src="${BASE}/kalmea-wordmark.png"><div class="txt"><div class="t">${title}</div><div class="rule"></div><div class="s">${sub}</div></div></body></html>`,
+  { waitUntil: 'networkidle' });
+  await page.evaluate(() => document.fonts.ready);
+  await pause(300);
+  await page.screenshot({ path: file });
+  await ctx.close();
+}
 
 // ── ffmpeg: 720x1280, H.264 main + AAC silence (WhatsApp and Instagram both take it) ─────────
 const NORM = 'fps=30,scale=720:1280:flags=lanczos:force_original_aspect_ratio=increase,crop=720:1280,setsar=1,format=yuv420p';
@@ -223,7 +280,7 @@ function join(files, mp4, FADE = 0.4) {
 // ── run ───────────────────────────────────────────────────────────────────────────────────
 const root = path.join(OUT, 'tutorials');
 const names = which.length ? which : Object.keys(VIDEOS);
-for (const n of names) if (!VIDEOS[n]) { console.error(`[tour] unknown video "${n}" (tour | booking)`); process.exit(1); }
+for (const n of names) if (!VIDEOS[n]) { console.error(`[tour] unknown video "${n}" (tour | booking | welcome)`); process.exit(1); }
 
 let exit = 0, browser;
 try {
@@ -237,9 +294,9 @@ try {
       files.push(mp4);
       if (stitchOnly) { if (!fs.existsSync(mp4)) throw new Error(`missing ${mp4}: record first`); continue; }
       log(`${n} / ${seg.id}`);
-      if (seg.card) {
+      if (seg.card || seg.hero) {
         const png = mp4.replace(/\.mp4$/, '.png');
-        await renderCard(browser, png, seg.card);
+        if (seg.hero) await heroCard(browser, png, seg.hero); else await renderCard(browser, png, seg.card);
         stillToClip(png, seg.seconds, mp4);
         continue;
       }
