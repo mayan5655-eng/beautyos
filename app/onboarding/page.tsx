@@ -529,7 +529,7 @@ export default function OnboardingPage() {
                       aria-label={swatchLabel(c)}
                       aria-pressed={data.primary_color.toLowerCase() === c.toLowerCase()}
                       style={{
-                        width: 30, height: 30, borderRadius: "50%", padding: 0,
+                        width: 40, height: 40, borderRadius: "50%", padding: 0, // 40px: a finger hits it on a phone (was 30)
                         border: data.primary_color.toLowerCase() === c.toLowerCase() ? `3px solid var(--ink)` : "2px solid var(--line)",
                         background: c, cursor: "pointer", transition: "transform 0.15s",
                       }}

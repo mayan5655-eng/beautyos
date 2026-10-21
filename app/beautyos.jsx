@@ -974,6 +974,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
   const [loadError,         setLoadError]          = useState(null);
+  // Has she copied or shared her booking link on this device? Ticks the setup step "שליחת הקישור" when she does exactly that
+  // (2026-10-21 audit: the step only ticked once an appointment or ANY client existed, so sending the link never ticked it,
+  // and adding a client by hand did). Per device, in localStorage: a convenience mark, never business data.
+  const [linkShared,        setLinkShared]         = useState(false);
   // Which account this browser is signed in to, shown where she signs out: a page that answers "not found" because she is in
   // another account (a test one) must not look like a bug.
   const [authEmail,         setAuthEmail]          = useState("");
@@ -1526,13 +1530,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setTourStep(null); persistTourPatch({ onboarding_tour_seen: true });
   }, [showSettings, tourStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const t = settings?.tenant_id;
+    if (!t) return;
+    try { if (localStorage.getItem(`kl_link_shared_${t}`) === "1") setLinkShared(true); } catch { /* storage blocked: stays unticked */ }
+  }, [settings?.tenant_id]);
   const _sb = (settings.branding && typeof settings.branding === "object") ? settings.branding : {};
   const setupSteps = [
     { key:"details",  done: !!(settings.business_name && settings.business_name.trim() && settings.business_name.trim()!=="העסק שלי") && !!(settings.business_phone && String(settings.business_phone).trim()), label:"פרטי העסק", hint:"שם וטלפון ליצירת קשר", onClick:()=>openSetupTab("general") },
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
-    { key:"link",     done: appointments.length>0||clients.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
+    { key:"link",     done: linkShared||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -1591,7 +1600,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
               onClick={()=>{ if(!s.done) setExpandedSetupKey(open?null:s.key); }}
               aria-expanded={s.done?undefined:open}
               disabled={s.done}
-              style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"8px 11px",background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
+              style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"8px 11px",minHeight:44,background:"none",border:"none",fontFamily:"inherit",textAlign:"right",cursor:s.done?"default":"pointer"}}>
               <span style={{width:18,height:18,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-sm)",fontWeight:700,background:s.done?"var(--success)":"transparent",color:s.done?"var(--surface)":pc,border:s.done?"none":`1.5px solid ${isNext?pc:"var(--line-2)"}`}}>{s.done?"✓":""}</span>
               <span style={{flex:1,minWidth:0,fontSize:"var(--t-sm)",fontWeight:isNext?700:500,color:s.done?"var(--ink-2)":"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.label}</span>
               {s.done
@@ -1603,7 +1612,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             {open&&(
               <div style={{padding:"0 11px 10px 11px",display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}>
                 <p style={{flex:1,minWidth:110,fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
-                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-lg)",padding:"6px 14px",fontSize:"var(--t-sm)",fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
+                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-lg)",padding:"6px 16px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
               </div>
             )}
           </div>
@@ -6690,6 +6699,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
+      if (kind === "book") { setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ } }
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← העמוד שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;
