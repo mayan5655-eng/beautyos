@@ -1,6 +1,6 @@
 // app/api/billing/status/route.ts
 //
-// GET -> what the billing screen and the trial banner need, in one call, read through HER session (row level security applies, and the token
+// GET -> what the billing screen and the trial banner need, in one call, read for HER tenant only (the tenant comes from her session; the token
 // reference is not a column the browser role may read):
 //   ui / mode / configured   the screens are on for this deployment; mock or live; can a card be added at all
 //   plan                     { status, trialEndsAt, price }  the price she will pay (her subscription's, else her agreed price, else 499)
@@ -29,7 +29,9 @@ export async function GET() {
   const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price').eq('id', c.tenantId).maybeSingle();
   if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: Number(t.data.plan_price) > 0 ? Number(t.data.plan_price) : REGULAR_PRICE };
 
-  const s = await c.session.from('billing_subscriptions').select(SUB_COLS).eq('tenant_id', c.tenantId).maybeSingle();
+  // Read with the service role for her own tenant, like the writes: under the session the select policy can hide her row (the same mismatch
+  // made the Grow card show a connected business as "not connected", fixed in b7b3e81). SUB_COLS never includes the token reference.
+  const s = await admin().from('billing_subscriptions').select(SUB_COLS).eq('tenant_id', c.tenantId).maybeSingle();
   if (s.error) {
     if (tableMissing(s.error)) return NextResponse.json({ ...out, tableReady: false });
     return NextResponse.json({ success: false, error: 'לא הצלחנו לטעון את פרטי המנוי' }, { status: 500 });
@@ -44,7 +46,7 @@ export async function GET() {
     };
   }
 
-  const p = await c.session
+  const p = await admin()
     .from('billing_payments')
     .select('id, kind, status, amount, currency, period_start, period_end, invoice_status, invoice_number, invoice_url, note, created_at')
     .eq('tenant_id', c.tenantId)

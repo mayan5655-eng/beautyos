@@ -45,6 +45,7 @@ export default function MarketingToday({ settings, appointments, clients, servic
 
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [links, setLinks] = useState(null); // null = not asked yet; {} = none available
+  const [linksError, setLinksError] = useState(false);
   const [linksBusy, setLinksBusy] = useState(false);
   const [sent, setSent] = useState({});
   const [showAll, setShowAll] = useState(false);
@@ -61,9 +62,10 @@ export default function MarketingToday({ settings, appointments, clients, servic
         body: JSON.stringify({ appointmentIds: targets.map((t) => t.appointmentId) }),
       });
       const j = await r.json().catch(() => ({}));
-      setLinks(r.ok && j?.success && j.links && typeof j.links === "object" ? j.links : {});
+      // A failed request is not "no links": it would tell her to add a Google link and send the messages without the private feedback link.
+      if (r.ok && j?.success) { setLinksError(false); setLinks(j.links && typeof j.links === "object" ? j.links : {}); } else setLinksError(true);
     } catch {
-      setLinks({});
+      setLinksError(true);
     } finally {
       setLinksBusy(false);
     }
@@ -115,6 +117,12 @@ export default function MarketingToday({ settings, appointments, clients, servic
           {reviewsOpen && (
             <div style={{ paddingBottom: 10 }}>
               {linksBusy && <p style={{ ...sub, padding: "4px 0" }}>מכינה קישורים…</p>}
+              {!linksBusy && links === null && linksError && (
+                <p style={{ ...sub, padding: "4px 0" }}>
+                  לא הצלחנו להכין את הקישורים.{" "}
+                  <button type="button" onClick={() => { setReviewsOpen(false); openReviews(); }} style={{ border: "none", background: "none", color: pc, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0, textDecoration: "underline" }}>לנסות שוב</button>
+                </p>
+              )}
               {!linksBusy && links !== null && !hasAnyLink && (
                 <p style={{ fontSize: 12.5, color: "var(--ink-2)", background: pcTint, borderRadius: 10, padding: "8px 10px", margin: "2px 0 8px", lineHeight: 1.5 }}>
                   ההודעה תצא בלי קישור. כדאי להוסיף את לינק הביקורת שלך בגוגל בהגדרות, כדי שיהיה להן איפה לכתוב.

@@ -131,7 +131,8 @@ export default function ResultsManager({ tenantId, services }) {
     setMsg(""); setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").update({ published: !r.published }).eq("id", r.id);
-      if (error) setMsg("אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה.");
+      // The consent rule only ever refuses publishing; an unpublish (or any other refusal) is a plain save failure.
+      if (error) setMsg(!r.published ? "אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה." : SAVE_FAILED_HE);
       await load();
     } finally { setBusy(""); }
   };

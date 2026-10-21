@@ -31,6 +31,8 @@ export default function PayClient({ token }) {
     try {
       const r = await fetch(`/api/grow/wallet?t=${encodeURIComponent(token)}`);
       const j = await r.json().catch(() => null);
+      // Busy or a server hiccup is not a bad link: a refresh will work.
+      if (r.status === 429 || r.status >= 500) { setMsg('יש עומס רגעי. נסי לרענן בעוד רגע.'); setPhase('error'); return; }
       if (!r.ok || !j?.success) { setInfo({ state: 'unknown' }); setPhase('ready'); return; }
       setInfo(j);
       setPhase(j.state === 'paid' ? 'paid' : 'ready');

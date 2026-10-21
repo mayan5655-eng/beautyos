@@ -18,7 +18,7 @@
 
 import { isPayMethod, methodProblem, pageCodeFor, pageCodeForTypeId } from './methods.ts';
 import type { PayMethod, PageCodes } from './methods.ts';
-import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText } from './payload.ts';
+import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText, withGrowResult } from './payload.ts';
 import type { Notification } from './payload.ts';
 import { walletLink, paymentMethodLabel } from './wallet.ts';
 
@@ -121,8 +121,9 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     fullName: i.clientName,
     phone,
     email: i.email,
-    successUrl: i.returnUrl || `${base}/dashboard?grow=paid`,
-    cancelUrl: i.returnUrl || `${base}/dashboard?grow=cancelled`,
+    // The page she returns to says which way it went (the booking page shows "paid" or "not completed" instead of a blank new booking).
+    successUrl: i.returnUrl ? withGrowResult(i.returnUrl, 'paid') : `${base}/dashboard?grow=paid`,
+    cancelUrl: i.returnUrl ? withGrowResult(i.returnUrl, 'cancelled') : `${base}/dashboard?grow=cancelled`,
     notifyUrl: `${base}/api/grow/notify?t=${payment.notify_token}`,
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${payment.notify_token}`,
     paymentRef: payment.id,

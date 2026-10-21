@@ -14,7 +14,7 @@
 //       Production values (GROW_TOKEN_*, GROW_API_BASE) come from Grow when the live account is issued.
 import { buildSessionFields, buildTokenChargeFields, buildLookupFields, readEnvelope, GROW_ERR_DUPLICATE, GROW_FINAL_CARD_ERRORS } from './tokenFlow.ts';
 import type { TokenCreds } from './tokenFlow.ts';
-import { growFullName, growPhone } from './payload.ts';
+import { growFullName, growPhone, withGrowResult } from './payload.ts';
 
 export type OpsFail = { ok: false; code: 'declined' | 'not-confirmed' | 'unreachable' | 'duplicate'; error: string; errId?: number | null; final?: boolean };
 
@@ -141,7 +141,7 @@ export function createLiveOps(creds: TokenCreds): GrowOps {
       if (mode === 'charge_and_save' && !(Number(i.amount) > 0)) return { ok: false, code: 'declined', error: 'amount missing' };
       const r = await post(creds, 'createPaymentProcess', buildSessionFields(creds, {
         mode, userId: userFor(creds, i.userId), amount: i.amount, description: mode === 'save_only' ? 'שמירת כרטיס לחיוב עתידי' : 'תשלום ושמירת כרטיס',
-        fullName: growFullName(i.fullName || ''), phone, successUrl: i.returnUrl, cancelUrl: i.returnUrl, notifyUrl: i.notifyUrl || i.returnUrl,
+        fullName: growFullName(i.fullName || ''), phone, successUrl: withGrowResult(i.returnUrl, 'paid'), cancelUrl: withGrowResult(i.returnUrl, 'cancelled'), notifyUrl: i.notifyUrl || i.returnUrl,
         appointmentRef: i.appointmentId, tenantId: i.tenantId,
       }));
       if (!r.ok && r.json === null) return unreachable;

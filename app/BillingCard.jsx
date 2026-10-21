@@ -29,8 +29,11 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     try {
       const r = await fetch('/api/billing/status');
       const j = await r.json().catch(() => null);
-      setS(r.ok && j && j.success ? j : { hidden: true });
-    } catch { setS({ hidden: true }); }
+      // Hidden only when billing is off (hidden / 404). A failed read shows an error with a retry: a past-due owner sent here by the
+      // banner's "עדכון כרטיס" used to find no billing card at all.
+      if (r.ok && j && j.success) setS(j);
+      else setS(j?.hidden || r.status === 404 ? { hidden: true } : { failed: true });
+    } catch { setS({ failed: true }); }
   }, []);
   useEffect(() => {
     load();
@@ -41,6 +44,15 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   }, [load]);
 
   if (!s || s.hidden) return null;
+  if (s.failed) {
+    return (
+      <div data-testid="billing-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 }}>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>המנוי שלך</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 10 }}>לא הצלחנו לטעון את פרטי המנוי.</p>
+        <button type="button" onClick={load} style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>לנסות שוב</button>
+      </div>
+    );
+  }
 
   const openCardPage = async () => {
     if (busy) return;
@@ -50,6 +62,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את דף הכרטיס', 'error'); return; }
       window.location.assign(j.url);
+    } catch {
+      toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -63,6 +77,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
       toast?.('המנוי בוטל');
       setConfirmCancel(false);
       await load();
+    } catch {
+      toast?.('אין חיבור. המנוי לא בוטל, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -81,7 +97,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     let line;
     if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז החשבון עובר למצב צפייה בלבד. כל הנתונים נשארים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
-    else if (status === 'expired' || status === 'paused') line = 'החשבון במצב צפייה בלבד. הוספת כרטיס וחיוב ישחררו אותו מיד.';
+    else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו ונמצא במצב צפייה בלבד. כדי לחדש אותו, כתבי לנו ב"תקועה?" ונחזיר אותו לפעילות.';
+    else if (status === 'expired') line = 'החשבון במצב צפייה בלבד. הוספת כרטיס וחיוב ישחררו אותו מיד.';
     else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
     else if (sub?.next_charge_at) line = `החיוב הבא: ${day(sub.next_charge_at)}.`;
     else line = 'המנוי פעיל.';
