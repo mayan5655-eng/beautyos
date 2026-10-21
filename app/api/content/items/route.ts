@@ -1,7 +1,12 @@
 // app/api/content/items/route.ts
 //
-// One post in her content plan (lib/content/pack.ts). PATCH only, on HER session (RLS: her rows only):
+// One post in her content plan (lib/content/pack.ts), on HER session (RLS: her rows only):
 //
+//   POST  { planned_for, texts: { instagram?: { caption, hashtags? }, facebook?: { caption } } }
+//                                                                     her OWN post (calendar "+"): no template; the plan of
+//                                                                     that week is created if there is none (manual). She
+//                                                                     uploads its picture next and sends it as media_path.
+//   PATCH { id, media_path }                                          the picture of the post (her private folder only)
 //   { id, status: 'approved' | 'planned' | 'posted' | 'skipped' }      approve ("מאשרת"), undo, mark posted, skip
 //   { id, planned_for: ISO }                                          move it to another day or time (future only)
 //   { id, platform, caption, hashtags? }                              edit one platform's text (kept: edited = true)
@@ -18,7 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit } from '@/lib/rateLimit';
-import { CAPTION_LIMITS, PLATFORMS, slotLabelHe, type Platform } from '@/lib/content/pack';
+import { CAPTION_LIMITS, PLATFORMS, slotLabelHe, weekStartOf, type Platform } from '@/lib/content/pack';
 import { isMissingContentTable, CONTENT_NOT_AVAILABLE_HE } from '@/lib/content/db';
 import { contentPublishVisible } from '@/lib/featureFlags';
 import { isMissingColumnError } from '@/lib/pgError';
@@ -27,7 +32,8 @@ import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 
 const admin = () =>
   createServiceRoleClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
-const MEDIA_PATH = /^[0-9a-f-]{36}\/content\/[0-9a-f-]{36}_\d+\.png$/i;
+// The picture of a post, in her private folder: drawn from the card (JPEG for Instagram) or her own upload.
+const MEDIA_PATH = /^[0-9a-f-]{36}\/content\/[0-9a-f-]{36}_\d+\.(png|jpe?g)$/i;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['planned', 'approved', 'posted', 'skipped'] as const;
@@ -47,7 +53,8 @@ export async function PATCH(request: NextRequest) {
   if (!UUID.test(id)) return json({ success: false, error: 'פוסט לא מזוהה' }, 400);
 
   // RLS returns nothing for another business's row, so "not found" covers both.
-  const cur = await supabase.from('content_items').select('id, tenant_id, status, planned_for').eq('id', id).maybeSingle();
+  let cur = await supabase.from('content_items').select('id, tenant_id, status, planned_for, media_path').eq('id', id).maybeSingle();
+  if (cur.error && isMissingColumnError(cur.error)) cur = await supabase.from('content_items').select('id, tenant_id, status, planned_for').eq('id', id).maybeSingle() as typeof cur;
   if (cur.error) {
     if (isMissingContentTable(cur.error)) return json({ success: false, error: CONTENT_NOT_AVAILABLE_HE }, 409);
     return json({ success: false, error: 'לא הצלחנו לקרוא את הפוסט' }, 500);
@@ -104,9 +111,10 @@ export async function PATCH(request: NextRequest) {
       await supabase.from('content_item_platforms').update({ posted_marked_at: now, updated_at: now }).eq('item_id', id);
     }
   }
-  // The picture to publish: rendered in her browser from the card and stored in HER folder (never another tenant's).
-  let mediaPath: string | null = null;
-  if (patch.status === 'approved' && typeof b.media_path === 'string' && b.media_path) {
+  // The picture to publish: drawn from the card or uploaded by her, stored in HER folder (never another tenant's).
+  // Sent with the approval, or on its own; an approval without one keeps the picture the post already has.
+  let mediaPath: string | null = ((cur.data as { media_path?: string | null }).media_path) || null;
+  if (typeof b.media_path === 'string' && b.media_path) {
     if (!MEDIA_PATH.test(b.media_path) || !b.media_path.startsWith(`${cur.data.tenant_id}/content/${id}_`)) return json({ success: false, error: 'תמונה לא תקינה' }, 400);
     mediaPath = b.media_path;
     patch.media_path = mediaPath;
@@ -143,4 +151,71 @@ export async function PATCH(request: NextRequest) {
     console.error('[content/items] publish queue step failed:', e instanceof Error ? e.message : 'unknown');
   }
   return json({ success: true, item: { ...data, label: slotLabelHe(new Date(data.planned_for)) }, publish });
+}
+
+const PLATFORM_KEYS = ['instagram', 'facebook'] as const;
+
+export async function POST(request: NextRequest) {
+  const limited = checkIpLimit(request, 'creatives');
+  if (limited) return limited;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return json({ success: false, error: 'לא מחוברת' }, 401);
+  const guard = await requireActiveTenant(supabase);
+  if (!guard.ok) return guard.response;
+  const { data: tenantId } = await supabase.rpc('get_user_tenant_id');
+  if (!tenantId) return json({ success: false, error: 'לא זוהה עסק' }, 400);
+
+  const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const t = Date.parse(String(b.planned_for || ''));
+  if (!Number.isFinite(t)) return json({ success: false, error: 'צריך לבחור יום ושעה' }, 400);
+  if (t < Date.now() - 60_000) return json({ success: false, error: 'אי אפשר לתזמן לזמן שכבר עבר' }, 400);
+  if (t > Date.now() + 60 * 86_400_000) return json({ success: false, error: 'אפשר לתזמן עד חודשיים קדימה' }, 400);
+  const texts = (b.texts && typeof b.texts === 'object' ? b.texts : {}) as Record<string, { caption?: unknown; hashtags?: unknown }>;
+  const rows: Array<{ platform: Platform; caption: string; hashtags: string[] }> = [];
+  for (const platform of PLATFORM_KEYS) {
+    const tx = texts[platform];
+    const caption = typeof tx?.caption === 'string' ? tx.caption.replace(/\r\n/g, '\n').trim() : '';
+    if (!caption) continue;
+    if (caption.length > CAPTION_LIMITS[platform].chars) return json({ success: false, error: `הטקסט ארוך מדי ל${platform === 'instagram' ? 'אינסטגרם' : 'פייסבוק'}` }, 400);
+    const hashtags = (Array.isArray(tx?.hashtags) ? tx!.hashtags as unknown[] : [])
+      .map((h) => String(h || '').replace(/\s+/g, '')).filter(Boolean)
+      .map((h) => (h.startsWith('#') ? h : `#${h}`)).filter((h) => /^#[^\s#]{1,50}$/.test(h))
+      .slice(0, CAPTION_LIMITS[platform].hashtags);
+    rows.push({ platform, caption, hashtags });
+  }
+  if (!rows.length) return json({ success: false, error: 'צריך לכתוב טקסט לפחות לרשת אחת' }, 400);
+
+  // The week's plan (week_start = its Sunday, Israel): reused when it exists, created as a manual one otherwise.
+  const when = new Date(t);
+  const weekStart = weekStartOf(when);
+  let planId: string | null = null;
+  const existing = await supabase.from('content_plans').select('id').eq('tenant_id', tenantId).eq('week_start', weekStart).maybeSingle();
+  if (existing.error) {
+    if (isMissingContentTable(existing.error)) return json({ success: false, error: CONTENT_NOT_AVAILABLE_HE }, 409);
+    return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
+  }
+  planId = (existing.data?.id as string | undefined) || null;
+  if (!planId) {
+    const ins = await supabase.from('content_plans').insert({ tenant_id: tenantId, week_start: weekStart, status: 'active', generated_by: 'manual', source: {} }).select('id').single();
+    if (ins.error || !ins.data) {
+      // Two creates in the same second: the other one made the plan.
+      const again = await supabase.from('content_plans').select('id').eq('tenant_id', tenantId).eq('week_start', weekStart).maybeSingle();
+      planId = (again.data?.id as string | undefined) || null;
+      if (!planId) return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
+    } else planId = ins.data.id as string;
+  }
+
+  const topic = rows[0].caption.split('\n')[0].slice(0, 80);
+  const item = await supabase.from('content_items').insert({
+    tenant_id: tenantId, plan_id: planId, kind: 'post', topic, reason: 'פוסט שלך', template_key: null, values: {},
+    planned_for: when.toISOString(), status: 'planned',
+  }).select('id, planned_for, status').single();
+  if (item.error || !item.data) {
+    console.error('[content/items] create failed:', item.error?.message);
+    return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
+  }
+  const pl = await supabase.from('content_item_platforms').insert(rows.map((r) => ({ item_id: item.data.id, tenant_id: tenantId, platform: r.platform, caption: r.caption, hashtags: r.hashtags, edited: true })));
+  if (pl.error) console.error('[content/items] create texts failed:', pl.error.message);
+  return json({ success: true, item: { ...item.data, label: slotLabelHe(when) } });
 }

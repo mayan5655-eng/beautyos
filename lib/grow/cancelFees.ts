@@ -240,6 +240,63 @@ export async function requestDepositForAppointment(d: Deps, i: { tenantId: strin
   return { ok: true, url: r.step.url, amount: r.consent.snapshot.deposit_amount, minutes: DEPOSIT_HOLD_MINUTES, clientName: appt.name || '', phone };
 }
 
+/**
+ * The client presses "pay the deposit" on the booking page. Grow's page link lasts about 10 minutes while the hold lasts 30, so each press opens a NEW
+ * deposit page for the same agreement (amount from the stored snapshot, never from the browser), and only while the hold is still open.
+ */
+export async function freshDepositLink(
+  d: Deps,
+  i: { tenantId: string; appointmentId: string; returnUrl: string },
+): Promise<{ ok: true; url: string } | { ok: false; code: 'none' | 'paid' | 'expired' | 'step-failed'; error: string }> {
+  const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);
+  if (!consent || consent.mode !== 'deposit') return { ok: false, code: 'none', error: 'לא נמצאה מקדמה לתור הזה' };
+  if (consent.status === 'deposit_paid') return { ok: false, code: 'paid', error: 'המקדמה כבר שולמה. התור שלך מאושר.' };
+  const holdEnds = consent.hold_expires_at ? new Date(consent.hold_expires_at).getTime() : NaN;
+  if (consent.status !== 'awaiting_deposit' || !(holdEnds > clock(d).getTime())) return { ok: false, code: 'expired', error: 'הזמן לתשלום המקדמה עבר והתור שוחרר. אפשר לקבוע תור חדש.' };
+  const [account, appt] = await Promise.all([d.repo.getAccount(i.tenantId), d.repo.getAppointment(i.tenantId, i.appointmentId)]);
+  if (!account || !account.enabled || !appt || appt.confirmation_status === 'cancelled') return { ok: false, code: 'none', error: 'התשלום לא זמין כרגע' };
+  const amount = consent.snapshot.deposit_amount;
+  if (!(amount > 0)) return { ok: false, code: 'none', error: 'לא נמצאה מקדמה לתור הזה' };
+  // The card-save tick was given (and stored) with the first page; a fresh page keeps the same choice.
+  const saveCard = (consent.snapshot.via || 'booking_page') !== 'owner';
+  const charge = await createCharge(
+    { tenantId: i.tenantId, userId: account.user_id, amount, description: `מקדמה ל${appt.service || 'טיפול'}`, clientName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), clientId: consent.client_id, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard },
+    d.chargeDeps,
+  );
+  if (!charge.ok) return { ok: false, code: 'step-failed', error: 'לא הצלחנו לפתוח את דף התשלום, נסי שוב' };
+  return { ok: true, url: charge.url };
+}
+
+/**
+ * The client presses "save the card" on the booking page. Like the deposit page, Grow's card page (createPaymentProcess) lasts about 10 minutes, so
+ * a later press opens a NEW save-only page for the same booking. The card-save tick she gave is one row per booking (grow_card_consents is unique
+ * on the booking): its process id moves to the new page, so the callback of the new page finds it. Also the way back when the first page never opened.
+ */
+export async function freshCardLink(
+  d: Deps,
+  i: { tenantId: string; appointmentId: string; returnUrl: string },
+): Promise<{ ok: true; url: string } | { ok: false; code: 'none' | 'saved' | 'step-failed'; error: string }> {
+  const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);
+  if (!consent || consent.mode !== 'saved_card') return { ok: false, code: 'none', error: 'לא נמצאה שמירת כרטיס לתור הזה' };
+  const card = await d.repo.getCardConsent(i.tenantId, i.appointmentId);
+  if (consent.status === 'card_saved' || consent.token_id || card?.status === 'saved') return { ok: false, code: 'saved', error: 'הכרטיס כבר נשמר. התור שלך קבוע.' };
+  const [account, appt] = await Promise.all([d.repo.getAccount(i.tenantId), d.repo.getAppointment(i.tenantId, i.appointmentId)]);
+  if (!account || !account.enabled || !appt || appt.confirmation_status === 'cancelled') return { ok: false, code: 'none', error: 'שמירת הכרטיס לא זמינה כרגע' };
+  const r = await d.ops.createTokenSession({ tenantId: i.tenantId, userId: account.user_id, appointmentId: i.appointmentId, returnUrl: i.returnUrl, mode: 'save_only', fullName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), notifyUrl: d.notifyUrl });
+  if (!r.ok) return { ok: false, code: 'step-failed', error: 'לא הצלחנו לפתוח את הדף המאובטח, נסי שוב' };
+  if (card) {
+    await d.repo.updateCardConsent(card.id, { process_id: r.processId || null, process_token: r.processToken || null, status: 'awaiting' });
+  } else {
+    // The first page never opened, so its tick was not stored yet; the booking page does not book in this mode without it.
+    await d.repo.insertCardConsent({
+      tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: consent.client_id, consent_text: CARD_CONSENT_TEXT_HE, consent_version: CARD_CONSENT_VERSION,
+      consented_at: consent.consented_at, mode: 'save_only', process_id: r.processId || null, process_token: r.processToken || null, status: 'awaiting', token_id: null,
+    });
+  }
+  if (consent.status === 'step_failed') await d.repo.updateConsent(consent.id, { status: 'awaiting_card' });
+  return { ok: true, url: r.url };
+}
+
 /** A card was saved on Grow's hosted page. Stores the token reference and links it to the booking. Idempotent for the same token. */
 export async function saveToken(d: Deps, i: { tenantId: string; appointmentId: string; tokenRef: string; last4?: string; brand?: string; fromDeposit?: boolean }): Promise<{ ok: boolean; tokenId?: string }> {
   const consent = await d.repo.getConsent(i.tenantId, i.appointmentId);

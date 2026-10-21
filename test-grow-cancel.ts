@@ -698,9 +698,11 @@ await ok('public booking keeps working for blocked tenants and for mode off: no 
   assert.ok(/if \(!growUiEnabled\(\)\) return off\(\)/.test(pub) && /acc\.data\.enabled !== true/.test(pub), 'off when the flag is off or Grow is not connected');
   assert.ok(/const card = resolveGrow\(process\.env, APP_URL\)\.configured/.test(pub), 'card: true only when her clearing is on and the deployment can charge');
   const bp = read('app/BookingPage.jsx');
-  assert.ok(/j\.card === true\) setCardPay\(true\)/.test(bp) && /\{cardPay && \(/.test(bp), 'the booking page tells the client she can pay by card');
+  assert.ok(/j\.card === true\) setCardPay\(true\)/.test(bp) && /\{cardPay && Number\(selectedService\?\.price\) > 0 && !needsPolicy && \(/.test(bp), 'the booking page tells the client she can pay by card');
   assert.ok(/fetch\("\/api\/grow\/booking-pay"/.test(bp) && /setBookedId\(result\.appointmentId/.test(bp) && /data-testid="booking-pay-now"/.test(bp), 'after booking, a pay-by-card button opens the payment page for that appointment');
   const bpay = read('app/api/grow/booking-pay/route.ts');
+  const st = read('app/api/grow/status/route.ts');
+  assert.ok(!/c\.session\.from\(/.test(st) && /admin\(\)\.from\('grow_accounts'\)[^\n]*\.eq\('tenant_id', c\.tenantId\)/.test(st), 'the Grow card reads her account with the service role, scoped to her tenant');
   assert.ok(!/planGuard|requireActiveTenant|is_tenant_active/.test(bpay), 'booking-pay has no plan guard (public)');
   assert.ok(/amount: Number\(a\.price\)/.test(bpay) && /phone: a\.client_phone/.test(bpay) && !/b\.amount|b\.price|b\.phone/.test(bpay), 'amount and phone come from the appointment, never the browser');
   assert.ok(/acc\.data\.enabled !== true/.test(bpay) && /a\.self_booked !== true/.test(bpay) && /FRESH_MS/.test(bpay) && /checkIpLimit\(request, 'booking-pay'\)/.test(bpay), 'only for an enabled Grow business, a fresh self-booked appointment, rate limited');

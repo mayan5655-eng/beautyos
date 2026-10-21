@@ -22,6 +22,7 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialNudge from "./TrialNudge";
+import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import ClientPrivacyPanel from "./ClientPrivacyPanel";
 import BillingNotices from "./BillingNotices";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
@@ -1453,6 +1454,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (editServices && JSON.stringify(editServices) !== JSON.stringify(services)) return true;
     return false;
   }, [editSettings, settings, editServices, services]);
+  // Cards that save to their own table (the cancellation policy) count too, so the bar never says "אין שינויים" over an unsaved change.
+  const pendingCardSaves = usePendingSaveCount();
+  const panelDirty = settingsDirty || pendingCardSaves > 0;
 
   // Closing throws the draft away, so it asks first when there is one. `force`
   // is for the save path, which has already written everything.
@@ -1464,8 +1468,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       setShowNewService(false);
       setShowTemplatePicker(false);
       setTemplatePicks([]);
+      clearPendingSaves();
     };
-    if (force || !settingsDirty) { done(); return; }
+    if (force || !panelDirty) { done(); return; }
     askConfirm({
       title: "לצאת בלי לשמור?",
       message: "יש שינויים שעדיין לא נשמרו. אם תצאי עכשיו הם יאבדו.",
@@ -1474,7 +1479,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       danger: true,
       onConfirm: done,
     });
-  }, [settingsDirty, askConfirm]);
+  }, [panelDirty, askConfirm]);
 
   // ── Onboarding walkthrough — trigger + persistence. The handlers that
   // actually advance/skip/finish the tour live further down, right after
@@ -4306,7 +4311,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           ...(bulkConfirmConsent?{confirmedConsent:true}:{}),
         }),
       });
-      const data=await res.json();
+      const data=await res.json().catch(() => ({}));
       if(!res.ok||!data.success){
         setBulkError(data.error||"ההודעה לא נשלחה, אפשר לנסות שוב"); setBulkStep("confirm"); return;
       }
@@ -4315,7 +4320,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // nothing has been sent yet, only prepared.
       setBulkStep("result");
     }catch(err){
-      setBulkError(err instanceof Error?err.message:"ההודעה לא נשלחה, אפשר לנסות שוב"); setBulkStep("confirm");
+      setBulkError("אין חיבור. ההודעה לא נשלחה, אפשר לנסות שוב"); setBulkStep("confirm");
     }
   };
 
@@ -4680,6 +4685,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return { changed, errors };
   };
 
+  // The bar's "שמירה": first the cards with their own save, then the settings draft (only when it changed, so a policy-only change does
+  // not also toast "ההגדרות נשמרו"). A card that failed has already said why and keeps its change.
+  const saveSettingsPanel = async () => {
+    if (isBusy("saveSettings")) return;
+    if (pendingCardSaves > 0 && !(await flushPendingSaves())) return;
+    if (settingsDirty) await handleSaveSettings();
+  };
+
   const handleSaveSettings = async () => {
     if(isBusy("saveSettings")) return;
     setBusyKey("saveSettings", true);
@@ -4738,6 +4751,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       // The services live in a different table, but she pressed one button and
       // means one thing by it. Commit the service draft in the same action.
+      // An account on hold cannot write services (the database refuses); say why, instead of "some services failed: update X".
+      if (readOnly && editServices && JSON.stringify(editServices) !== JSON.stringify(services)) {
+        toast(`ההגדרות נשמרו, אבל את השירותים אי אפשר לשנות כרגע. ${WRITE_BLOCKED_TOAST_HE}`, "error");
+        return;
+      }
       const { changed, errors } = await commitServiceDraft(tenantId);
 
       // Re-read rather than patching state from the responses: the draft may
@@ -5197,10 +5215,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
-      // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used. Best-effort:
-      // the receipt is already saved and must never fail because of this.
-      if (growDepositUsed > 0 && cashierAppt?.id) fetch("/api/grow/deposit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({appointmentId:String(cashierAppt.id),receiptId:String(data[0].id),used:growDepositUsed})}).catch(()=>{});
-      if (growCreditUsed > 0 && cashierClient?.id) fetch("/api/grow/credit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clientId:String(cashierClient.id),amount:growCreditUsed,receiptId:String(data[0].id)})}).catch(()=>{});
+      // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used. The
+      // receipt is already saved and never fails because of this, but a failed mark is said out loud: unmarked, the same deposit or credit
+      // would be offered again at the next visit.
+      const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+        .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||"");})
+        .catch(()=>toast(`אישור התשלום נשמר, אבל לא הצלחנו לסמן ש${what} נוצל. בדקי לפני שמנכים אותו שוב בתור הבא.`,"error"));
+      if (growDepositUsed > 0 && cashierAppt?.id) growMark("/api/grow/deposit",{appointmentId:String(cashierAppt.id),receiptId:String(data[0].id),used:growDepositUsed},"המקדמה");
+      if (growCreditUsed > 0 && cashierClient?.id) growMark("/api/grow/credit",{clientId:String(cashierClient.id),amount:growCreditUsed,receiptId:String(data[0].id)},"הקרדיט");
 
       // The deduction, AFTER the receipt, ordered by which failure is
       // recoverable: a drawn session with no receipt is money she has to chase,
@@ -5511,7 +5533,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript, today }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.intent) {
         const intent = data.intent;
         setVoiceIntent(intent);
@@ -5525,7 +5547,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         else setVoiceStatus("result");
       } else { setVoiceErr(data.error || "לא הצלחתי להבין את הבקשה"); setVoiceStatus("error"); }
     } catch (err) {
-      setVoiceErr(err.message); setVoiceStatus("error");
+      setVoiceErr("משהו השתבש בעיבוד הבקשה, נסי שוב"); setVoiceStatus("error");
     }
   };
 
@@ -6509,7 +6531,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: base64, mediaType, tenantId: settings.tenant_id }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!data.success) { toast(data.error || "לא הצלחנו לנתח את התמונה, אפשר לנסות שוב", "error"); setScanLoading(false); return; }
       setScanReport(data.report);
 
@@ -6559,9 +6581,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // never see another business's page.
   const loadFbConnection = async () => {
     try {
-      const { data } = await supabase
+      const { data, error: fbErr } = await supabase
         .from("facebook_pages")
         .select("page_id, page_name, is_active, instagram_business_id");
+      // A failed read is not "no page connected": say so instead of offering to connect a page she already connected.
+      if (fbErr && !/does not exist|schema cache/i.test(fbErr.message || "")) { toast("לא הצלחנו לבדוק את החיבור לפייסבוק. נסי לרענן את הדף.", "error"); return; }
       const all = Array.isArray(data) ? data : [];
       setFbPages(all);
       const firstOn = all.find((p) => p.is_active);
@@ -6615,7 +6639,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       const dp = preset || fbDatePreset;
       const res = await fetch(`/api/marketing/campaigns?datePreset=${dp}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (seq !== fbLoadSeq.current) return;
       if (data.ok) {
         setFbCampaigns(data.campaigns || []);
@@ -6626,7 +6650,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
     } catch (err) {
       if (seq !== fbLoadSeq.current) return;
-      setFbError(err.message);
+      setFbError("אין חיבור. לא הצלחנו לטעון את הקמפיינים, נסי שוב");
       setFbCampaigns([]);
     } finally {
       if (seq === fbLoadSeq.current) setFbLoading(false);
@@ -6655,7 +6679,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: reelTopic.trim(), duration: reelDuration, vibe: reelVibe }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.success && data.reel) {
         setReelData(data.reel);
         try { sessionStorage.setItem("kalmea:last-reel", JSON.stringify({ reel: data.reel, topic: reelTopic.trim() })); } catch { /* optional */ }
@@ -6664,7 +6688,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setReelError(data.error || "לא הצלחנו ליצור את הרילס, אפשר לנסות שוב");
       }
     } catch (err) {
-      setReelError(err.message);
+      setReelError("אין חיבור. הרילס לא נוצר, אפשר לנסות שוב");
     } finally {
       setReelLoading(false);
     }
@@ -6701,7 +6725,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
       if (kind === "book") { setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ } }
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
-      if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← העמוד שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
+      if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← הדף שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;
     } catch {
       toast(url, "info");
@@ -6800,7 +6824,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         toast(failed, "error");
       }
     } catch (err) {
-      toast(err.message, "error");
+      toast("אין חיבור. היועץ לא קיבל את השאלה, נסי שוב", "error");
     } finally {
       setAdvisorSending(false);
     }
@@ -6892,11 +6916,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setWaLogLoading(true); setWaLogError("");
     try {
       const res = await fetch("/api/messages");
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.success) setWaMessages(data.messages || []);
       else setWaLogError(data.error || "לא הצלחנו לטעון את ההודעות, אפשר לרענן");
     } catch (err) {
-      setWaLogError(err.message || "לא הצלחנו לטעון את ההודעות, אפשר לרענן");
+      setWaLogError("אין חיבור. לא הצלחנו לטעון את ההודעות, אפשר לרענן");
     }
     setWaLogLoading(false);
   };
@@ -12327,10 +12351,11 @@ ${MARKETING_FOOTER}`)}`;
  <a href={"mailto:maayanfacebook1992@gmail.com?subject="+encodeURIComponent("בקשת מחיקת חשבון קלמיה")+"&body="+encodeURIComponent("היי, אני רוצה למחוק את החשבון שלי בקלמיה ואת כל המידע בו.")} style={{display:"inline-block",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"8px 14px",textDecoration:"none"}}>לבקש מחיקת חשבון</a>
  </div>
  )}
-              {inG("advanced")&&(
+              {/* The answers here feed only the WhatsApp bot, which is connected by hand per business; without it this editor promised a bot she cannot
+                  connect. Shown only where the bot runs. */}
+              {inG("advanced")&&!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
- {!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",lineHeight:1.6,marginBottom:10,fontWeight:700}}>הבוט עוד לא פעיל בחשבון שלך, ולכן התשובות כאן עדיין לא נשלחות ללקוחות. הן נשמרות, ויופעלו כשהבוט יחובר.</p>}
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",marginBottom:8}}/>
@@ -12487,7 +12512,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:6}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--success)",fontWeight:700,margin:0}}>✓ מחוברת{legalAccount.businessName?" לחשבון: "+legalAccount.businessName:""}</p>
                         {legalAccount.needsReconnect&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",lineHeight:1.5,margin:0}}>{legalAccount.lastError||"החיבור לא תקין. חברי מחדש."}</p>}
- <button onClick={async()=>{ setLegalMsg(""); try{ const r=await fetch("/api/legal-receipts/account",{method:"DELETE"}); if(r.ok){ setLegalAccount(a=>({...(a||{}),connected:false,businessName:"",needsReconnect:false})); toast("החיבור למורנינג נותק. המסמכים שכבר הונפקו נשארים בחשבון שלך."); } else setLegalMsg(STUCK_HE); }catch{ setLegalMsg(STUCK_HE); } }} style={{alignSelf:"flex-start",background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-xs)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:0}}>ניתוק החשבון</button>
+ <button onClick={()=>askConfirm({ title:"לנתק את מורנינג?", message:"כדי לחבר שוב יהיה צריך להזין מחדש את מפתח ה-API. המסמכים שכבר הונפקו נשארים.", confirmText:"כן, לנתק", cancelText:"ביטול", danger:true, onConfirm: async()=>{ setLegalMsg(""); try{ const r=await fetch("/api/legal-receipts/account",{method:"DELETE"}); if(r.ok){ setLegalAccount(a=>({...(a||{}),connected:false,businessName:"",needsReconnect:false})); toast("החיבור למורנינג נותק. המסמכים שכבר הונפקו נשארים בחשבון שלך."); } else { const d=await r.json().catch(()=>null); setLegalMsg((d&&d.error)||STUCK_HE); } }catch{ setLegalMsg(STUCK_HE); } } })} style={{alignSelf:"flex-start",background:"none",border:"none",color:"var(--ink-3)",fontSize:"var(--t-xs)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit",padding:0}}>ניתוק החשבון</button>
  </div>
                     ):(
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -12527,7 +12552,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,padding:"14px 24px"}}>
  <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>סגירה</button>
- <button onClick={handleSaveSettings} disabled={isBusy("saveSettings")||!settingsDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:settingsDirty?pcGrad:"var(--line-2)",color:settingsDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:settingsDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:settingsDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
+ <button onClick={saveSettingsPanel} disabled={isBusy("saveSettings")||!panelDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:panelDirty?pcGrad:"var(--line-2)",color:panelDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:panelDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:panelDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
  </div>
  </div>
  </Sheet>

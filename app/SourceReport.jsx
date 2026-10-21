@@ -51,8 +51,9 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
     if (r.to) q.set('to', r.to);
     fetch(`/api/ad-spend?${q}`)
       .then((x) => x.json())
-      .then((j) => { if (alive) setSpend({ available: j && j.success ? j.available !== false : false, rows: (j && j.rows) || [] }); })
-      .catch(() => { if (alive) setSpend({ available: false, rows: [] }); });
+      // "Not enabled" only when the server says so; a failed read is an error with a retry, not a missing feature.
+      .then((j) => { if (alive) setSpend(j && j.success ? { available: j.available !== false, rows: j.rows || [] } : { available: 'error', rows: [] }); })
+      .catch(() => { if (alive) setSpend({ available: 'error', rows: [] }); });
     return () => { alive = false; };
   }, [r.from, r.to, reloadKey]);
 
@@ -87,11 +88,15 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
       toast?.('ההוצאה נשמרה');
       setForm((f) => ({ ...f, amount: '' }));
       setReloadKey((k) => k + 1);
+    } catch {
+      toast?.('אין חיבור. ההוצאה לא נשמרה, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
   const removeSpend = async (id) => {
-    const res = await fetch(`/api/ad-spend?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (res.ok) setReloadKey((k) => k + 1); else toast?.('המחיקה נכשלה', 'error');
+    try {
+      const res = await fetch(`/api/ad-spend?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (res.ok) setReloadKey((k) => k + 1); else toast?.('המחיקה נכשלה', 'error');
+    } catch { toast?.('אין חיבור. המחיקה לא בוצעה, נסי שוב', 'error'); }
   };
 
   const chip = (active) => ({ padding: '6px 12px', borderRadius: 'var(--r-full)', border: `1px solid ${active ? pc : 'var(--line-2)'}`, background: active ? pcGrad : 'var(--surface)', color: active ? 'var(--pc-contrast)' : 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' });
@@ -161,7 +166,12 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
 
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
         <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>הוצאות פרסום</p>
-        {spend.available === false ? (
+        {spend.available === 'error' ? (
+          <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+            לא הצלחנו לטעון את הוצאות הפרסום.{' '}
+            <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 'none', background: 'none', color: pc, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}>לנסות שוב</button>
+          </p>
+        ) : spend.available === false ? (
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
             עוד לא הופעל מעקב הוצאות בחשבון, ולכן עלות לליד ו-ROI לא מוצגים. ההכנסות לפי מקור כבר מדויקות.
           </p>

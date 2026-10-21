@@ -27,6 +27,7 @@ import { UngroundedClaimsError } from '@/lib/ai/claimsGuard';
 import { capRefusalHe } from '@/lib/ai/capMessages';
 import { isMissingColumnError } from '@/lib/pgError';
 import { isDemoTenantId } from '@/lib/demoTenants';
+import { PRIVATE_BUCKET } from '@/lib/clientImages';
 import { isMissingContentTable as isMissingTable, CONTENT_NOT_AVAILABLE_HE as NOT_AVAILABLE_HE } from '@/lib/content/db';
 import {
   PACK_CALL_SITE, cleanPreferences, upcomingSlots, pickSuggestions, planCaptions, weekStartOf, slotLabelHe, israelDay,
@@ -92,17 +93,35 @@ async function readPreferences(supabase: Supa, tenantId: string): Promise<{ pref
   return { prefs: cleanPreferences(data as Partial<Preferences> | null), missing: false };
 }
 
-type ItemRow = { id: string; plan_id: string; topic: string; reason: string; template_key: string | null; values: Record<string, string> | null; planned_for: string; status: string; approved_at: string | null; posted_at: string | null; design_id: string | null };
+type ItemRow = { id: string; plan_id: string; topic: string; reason: string; template_key: string | null; values: Record<string, string> | null; planned_for: string; status: string; approved_at: string | null; posted_at: string | null; design_id: string | null; media_path?: string | null };
 type PlatformRow = { item_id: string; platform: string; caption: string; hashtags: string[] | null; edited: boolean; copied_at: string | null; posted_marked_at: string | null };
 
-/** The newest plan with its items (oldest slot first) and each item's captions by platform. */
-async function readPlan(supabase: Supa, tenantId: string) {
-  const plan = await supabase.from('content_plans').select('id, week_start, created_at').eq('tenant_id', tenantId).order('week_start', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (plan.error) return { error: plan.error } as const;
-  if (!plan.data) return { plan: null } as const;
-  const items = await supabase.from('content_items').select('id, plan_id, topic, reason, template_key, values, planned_for, status, approved_at, posted_at, design_id').eq('plan_id', plan.data.id).neq('status', 'skipped').order('planned_for', { ascending: true });
+const ITEM_COLS = 'id, plan_id, topic, reason, template_key, values, planned_for, status, approved_at, posted_at, design_id';
+const DAY_MS = 86_400_000;
+
+/** The calendar's window: ?from=YYYY-MM-DD&to=YYYY-MM-DD (at most ~3 months), else a week back to six weeks ahead. */
+function rangeOf(url: URL, now = new Date()): { from: string; to: string } {
+  const ok = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(`${v}T00:00:00Z`)) ? v : null);
+  let from = ok(url.searchParams.get('from'));
+  let to = ok(url.searchParams.get('to'));
+  if (!from || !to || Date.parse(to) < Date.parse(from) || Date.parse(to) - Date.parse(from) > 100 * DAY_MS) {
+    from = new Date(now.getTime() - 7 * DAY_MS).toISOString().slice(0, 10);
+    to = new Date(now.getTime() + 42 * DAY_MS).toISOString().slice(0, 10);
+  }
+  return { from, to };
+}
+
+/** Every post in the window (any plan, her own uploads included), oldest first, with its texts by platform. */
+async function readPlan(supabase: Supa, tenantId: string, range: { from: string; to: string }) {
+  const q = (cols: string) => supabase.from('content_items').select(cols).eq('tenant_id', tenantId).neq('status', 'skipped')
+    .gte('planned_for', `${range.from}T00:00:00Z`).lt('planned_for', new Date(Date.parse(`${range.to}T00:00:00Z`) + DAY_MS + 3 * 3600_000).toISOString())
+    .order('planned_for', { ascending: true }).limit(500);
+  let items = await q(`${ITEM_COLS}, media_path`);
+  // media_path arrives with add_publish_jobs.sql: degrade to the plan columns alone.
+  if (items.error && isMissingColumnError(items.error)) items = await q(ITEM_COLS);
   if (items.error) return { error: items.error } as const;
-  const ids = (items.data || []).map((i) => i.id);
+  const rows = (items.data || []) as unknown as ItemRow[];
+  const ids = rows.map((i) => i.id);
   const plats = ids.length ? await supabase.from('content_item_platforms').select('item_id, platform, caption, hashtags, edited, copied_at, posted_marked_at').in('item_id', ids) : { data: [], error: null };
   if (plats.error) return { error: plats.error } as const;
   const byItem = new Map<string, Record<string, Omit<PlatformRow, 'item_id' | 'platform'>>>();
@@ -111,10 +130,17 @@ async function readPlan(supabase: Supa, tenantId: string) {
     m[p.platform] = { caption: p.caption, hashtags: p.hashtags || [], edited: p.edited, copied_at: p.copied_at, posted_marked_at: p.posted_marked_at };
     byItem.set(p.item_id, m);
   }
+  // Her own pictures live in her private folder: a short-lived link to show them, signed by the server.
+  const urls = new Map<string, string>();
+  const withMedia = rows.filter((r) => r.media_path && r.media_path.startsWith(`${tenantId}/`));
+  if (withMedia.length) {
+    const { data } = await admin().storage.from(PRIVATE_BUCKET).createSignedUrls(withMedia.map((r) => r.media_path as string), 3600);
+    for (const d of (data || []) as Array<{ path: string | null; signedUrl: string | null }>) if (d.path && d.signedUrl) urls.set(d.path, d.signedUrl);
+  }
   return {
     plan: {
-      id: plan.data.id, week_start: plan.data.week_start,
-      items: ((items.data || []) as ItemRow[]).map((i) => ({ ...i, values: i.values || {}, label: slotLabelHe(new Date(i.planned_for)), platforms: byItem.get(i.id) || {} })),
+      range,
+      items: rows.map((i) => ({ ...i, values: i.values || {}, label: slotLabelHe(new Date(i.planned_for)), platforms: byItem.get(i.id) || {}, media_url: i.media_path ? urls.get(i.media_path) || null : null })),
     },
   } as const;
 }
@@ -125,7 +151,7 @@ export async function GET(request: NextRequest) {
   if (!contentPlanVisible(s.settings)) return json({ success: true, enabled: false });
   const { prefs, missing } = await readPreferences(s.supabase, s.tenantId);
   if (missing) return json({ success: true, enabled: true, available: false, error: NOT_AVAILABLE_HE });
-  const r = await readPlan(s.supabase, s.tenantId);
+  const r = await readPlan(s.supabase, s.tenantId, rangeOf(new URL(request.url)));
   if ('error' in r && r.error) {
     if (isMissingTable(r.error)) return json({ success: true, enabled: true, available: false, error: NOT_AVAILABLE_HE });
     console.error('[content/plan] read failed:', r.error.message);
@@ -274,6 +300,6 @@ export async function POST(request: NextRequest) {
     if (pl.error) console.error('[content/plan] captions insert failed:', pl.error.message);
   }
 
-  const r = await readPlan(s.supabase, s.tenantId);
+  const r = await readPlan(s.supabase, s.tenantId, rangeOf(new URL(request.url)));
   return json({ success: true, plan: 'plan' in r ? r.plan : null });
 }

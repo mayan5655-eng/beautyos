@@ -47,6 +47,8 @@ export async function POST(request: Request) {
   const a = appt.data;
   if (appt.error || !a || a.self_booked !== true) return fail('התור לא נמצא', 404);
   if (a.confirmation_status === 'cancelled') return fail('התור בוטל', 409);
+  // A booking held for its deposit is confirmed only by the deposit payment; a full payment here would never release the hold.
+  if (a.confirmation_status === 'pending') return fail('התור ממתין למקדמה. העסק ייצור איתך קשר להשלמת התשלום.', 409);
   if (!(Date.now() - new Date(String(a.created_at)).getTime() < FRESH_MS)) return fail('אפשר לשלם על התור בעסק', 409);
   if (!(Number(a.price) > 0)) return fail('לטיפול הזה אין מחיר לתשלום מראש. אפשר לשלם בעסק.', 409);
 

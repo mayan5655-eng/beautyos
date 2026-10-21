@@ -34,7 +34,8 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const from = url.searchParams.get('from') || '';
   const to = url.searchParams.get('to') || '';
-  let q = w.session.from('ad_spend').select('id, day, source, amount, origin').eq('tenant_id', w.tenantId).order('day', { ascending: false }).limit(2000);
+  // The service role for her own tenant, the same client the writes use: a session read could come back empty under RLS while the write succeeded.
+  let q = admin().from('ad_spend').select('id, day, source, amount, origin').eq('tenant_id', w.tenantId).order('day', { ascending: false }).limit(2000);
   if (DAY.test(from)) q = q.gte('day', from);
   if (DAY.test(to)) q = q.lte('day', to);
   const { data, error } = await q;

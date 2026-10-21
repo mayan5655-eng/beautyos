@@ -41,7 +41,10 @@ export async function GET() {
     registrationFrame: growRegisterFrameOrigin(process.env),
     payments: [] as unknown[],
   };
-  const acc = await c.session.from('grow_accounts').select('user_id, enabled').eq('tenant_id', c.tenantId).maybeSingle();
+  // Read with the service role, for her own tenant only, like every other read here and like the routes that write this row
+  // (account, policy, charge). Through her session the row could come back empty under RLS, and the card then offered
+  // "paste your Grow id" to a business that is connected and charging (seen 2026-10-21).
+  const acc = await admin().from('grow_accounts').select('user_id, enabled').eq('tenant_id', c.tenantId).maybeSingle();
   if (acc.error) {
     if (tableMissing(acc.error)) return NextResponse.json({ ...out, tableReady: false });
     return NextResponse.json({ success: false, error: 'לא הצלחנו לטעון את מצב Grow' }, { status: 500 });
@@ -61,7 +64,7 @@ export async function GET() {
     out.registration = { status, message: d.status_message ? String(d.status_message) : null, url: status === 'waiting' && d.link_url ? String(d.link_url) : null, at: String(d.updated_at || d.created_at || '') || null };
   }
   const COLS = 'id, status, amount, client_name, description, invoice_url, receipt_id, paid_at, created_at';
-  const read = (cols: string) => c.session.from('grow_payments').select(cols).eq('tenant_id', c.tenantId).order('created_at', { ascending: false }).limit(20);
+  const read = (cols: string) => admin().from('grow_payments').select(cols).eq('tenant_id', c.tenantId).order('created_at', { ascending: false }).limit(20);
   // kind (charge / deposit / fee) is a column of add_grow_cancellation.sql: without it the list still loads.
   let pay = await read(`${COLS}, kind`);
   if (pay.error) pay = await read(COLS);

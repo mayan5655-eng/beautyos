@@ -230,3 +230,9 @@ export function maskUserId(id: string): string {
 }
 
 export const USER_ID_RE = /^[A-Za-z0-9_-]{4,64}$/;
+
+/** The return address with grow=<result> added, so the page she lands on after Grow knows whether it went through. */
+export function withGrowResult(url: string, result: 'paid' | 'cancelled'): string {
+  const [base, hash = ''] = url.split('#');
+  return `${base}${base.includes('?') ? '&' : '?'}grow=${result}${hash ? `#${hash}` : ''}`;
+}

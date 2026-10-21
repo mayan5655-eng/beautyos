@@ -80,6 +80,9 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   const text = { fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7 };
   const ghost = { background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 };
   const primary = { background: pcTint, border: `1px dashed ${pc}`, borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--pc-text, var(--ink))', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 };
+  // A disabled button looks disabled (it used to keep full colour and a pointer, so a press that did nothing looked like a broken app).
+  const off = (disabled) => (disabled ? { opacity: 0.55, cursor: 'not-allowed' } : null);
+  const formMissing = form.name.trim().length < 2 ? 'שם מלא' : form.phone.replace(/\D/g, '').length < 9 ? 'מספר נייד' : form.businessName.trim().length < 2 ? 'שם העסק' : !/^\d{8,9}$/.test(form.businessId.replace(/\D/g, '')) ? 'מספר עוסק או ח.פ. (8 או 9 ספרות)' : '';
   const formOk = form.name.trim().length >= 2 && form.phone.replace(/\D/g, '').length >= 9 && form.businessName.trim().length >= 2 && /^\d{8,9}$/.test(form.businessId.replace(/\D/g, ''));
 
   let body;
@@ -128,7 +131,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         ) : (
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>עוד לא היו חיובים. בקופה יופיע כפתור &quot;חיוב בכרטיס אשראי&quot;.</p>
         )}
-        <CancelPolicyCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+        <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
         {!isDemo && (
           <div style={{ marginTop: 12 }}>
             {!confirmOff ? (
@@ -158,7 +161,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         {!isDemo && s.platform.configured && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
             <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />
-            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={primary}>חיבור</button>
+            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>חיבור</button>
           </div>
         )}
         <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor('need')}>לעדכן את הפרטים ששלחתי</button></div>
@@ -171,7 +174,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         {!isDemo && (s.platform.configured ? (
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />
-            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={primary}>חיבור</button>
+            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>חיבור</button>
           </div>
         ) : (
           <p style={text}>החיבור עוד לא פתוח במערכת. כשיהיה, תוכלי להדביק את המזהה כאן.</p>
@@ -191,9 +194,10 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
           <input value={form.businessId} onChange={set('businessId')} placeholder="מספר עוסק או ח.פ." aria-label="מספר עוסק או ח.פ." inputMode="numeric" style={{ ...inp, ...ltr }} />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <button type="button" disabled={busy || isDemo || !formOk} onClick={async () => { if (await call('/api/grow/request', 'POST', form, 'הפרטים נשלחו')) setDoor(null); }} style={primary}>{busy ? 'שולחת…' : 'שליחת הפרטים'}</button>
+          <button type="button" disabled={busy || isDemo || !formOk} onClick={async () => { if (await call('/api/grow/request', 'POST', form, 'הפרטים נשלחו')) setDoor(null); }} style={{ ...primary, ...off(busy || isDemo || !formOk) }}>{busy ? 'שולחת…' : 'שליחת הפרטים'}</button>
           <button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button>
         </div>
+        {!formOk && <p style={{ ...text, marginTop: 6 }}>כדי לשלוח חסר: {formMissing}</p>}
       </>
     );
   } else {

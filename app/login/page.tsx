@@ -1,5 +1,6 @@
 'use client'
 
+import { safeNext } from '@/lib/safeNext'
 import { useEffect, useState } from 'react'
 import Spinner from "../Spinner";
 import { useRouter } from 'next/navigation'
@@ -104,6 +105,10 @@ export default function LoginPage() {
               : 'משהו נתקע אצלנו בכניסה. אפשר לנסות שוב בעוד רגע.')
       setLoading(false)
     } else {
+      // ?next= (lib/safeNext.ts, same-site paths only): e.g. the Facebook connect link sends her here when she was not
+      // signed in, and continues to Facebook right after. A full navigation, since it may be a route that redirects.
+      const next = safeNext(new URLSearchParams(window.location.search).get('next'), '')
+      if (next) { window.location.assign(next); return }
       router.push('/')
       router.refresh()
     }

@@ -270,8 +270,9 @@ export default function LandingPage() {
           אפשר להיכנס לדמו של{" "}
           {DEMOS.map((d, i) => (
             <span key={d.field}>
+              {/* A plain <a>: /demo/<field> is a route that signs into the demo account, and <Link> would prefetch it (a GET) while scrolling. */}
               {i > 0 && " או של "}
-              <Link href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3 }}>{d.title}</Link>
+              <a href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3 }}>{d.title}</a>
             </span>
           ))}
           . עסק לדוגמה, ולא נשלח שום דבר באמת.

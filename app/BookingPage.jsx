@@ -334,6 +334,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [growPolicy, setGrowPolicy] = useState(null);
   // Her Grow clearing is on: the client is told she can pay by credit card (the same answer, card: true).
   const [cardPay, setCardPay] = useState(false);
+  // Back from Grow's secure page: ?grow=paid|cancelled (lib/grow/payload withGrowResult). Without it she landed on a blank new booking, not
+  // knowing whether it went through, and might book again.
+  const [growReturn, setGrowReturn] = useState(null);
   // After booking: the appointment to pay for, and the press on "pay by card" (/api/grow/booking-pay opens Grow's page).
   const [bookedId, setBookedId] = useState(null);
   const [payBusy, setPayBusy] = useState(false);
@@ -352,6 +355,23 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [policyOk, setPolicyOk] = useState(false);
   const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
+  const [policyStepAt, setPolicyStepAt] = useState(0);
+  // "Pay the deposit" / "save the card": Grow's page link lasts ~10 minutes (the deposit hold lasts 30, a saved card has no deadline), so after the
+  // first few minutes, or when the first page never opened, each press asks for a fresh page (app/api/grow/deposit/pay). A dead link used to leave
+  // her no way through.
+  const payDeposit = async () => {
+    if (payBusy || !policyStep) return;
+    if (policyStep.url && (Date.now() - policyStepAt < 8 * 60 * 1000 || !bookedId)) { window.location.href = policyStep.url; return; }
+    if (!bookedId) return;
+    setPayBusy(true); setPayErr("");
+    try {
+      const r = await fetch("/api/grow/deposit/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId, kind: policyStep.kind === "saved_card" ? "card" : "deposit" }) });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
+      setPayErr(j?.error || "לא הצלחנו לפתוח את דף התשלום, נסי שוב");
+    } catch { setPayErr("אין חיבור כרגע. נסי שוב בעוד רגע."); }
+    setPayBusy(false);
+  };
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
   // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
@@ -377,6 +397,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // Context carried over from the skin scanner (or any deep link) so the
       // visitor never re-enters what we already know.
       svc = params.get("service");
+      const gr = params.get("grow");
+      if (gr === "paid" || gr === "cancelled") setGrowReturn(gr);
       const nm = params.get("name");
       const ph = params.get("phone");
       if (nm) setName(nm);
@@ -632,6 +654,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
       setPolicyStep(result.policyStep || null);
+      setPolicyStepAt(Date.now());
       setBookedId(result.appointmentId || null);
       setStep(4);
     } catch (err) {
@@ -827,6 +850,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           as finished. */}
       {step === 1 && (
         <div className="bk-stack" style={{ paddingBottom: barShown ? "calc(112px + env(safe-area-inset-bottom, 0px))" : 0 }}>
+          {growReturn && (
+            <div role="status" data-testid="grow-return" style={{ width: "100%", maxWidth: 540, boxSizing: "border-box", padding: "14px 18px", background: cream, borderBottom: `1px solid ${hair}`, textAlign: "center", fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
+              {growReturn === "paid" ? "✓ הפעולה בדף המאובטח הושלמה. תודה! אין צורך לקבוע את התור שוב." : "התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק."}
+              <button type="button" onClick={() => setGrowReturn(null)} aria-label="סגירת ההודעה" style={{ marginInlineStart: 10, border: "none", background: "none", color: ink, cursor: "pointer", fontSize: "var(--t-md)", fontFamily: "inherit" }}>✕</button>
+            </div>
+          )}
 
           {/* HERO - the photograph is the page; everything is written ON it.
               Her hero photo, else the shipped default. The veil is light and
@@ -1135,12 +1164,6 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div>
                 {eyebrow("עקבו אחרינו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                  {depositInfo && depositInfo.amount > 0 && (
-                  <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
-                    <b>מקדמה: ₪{depositInfo.amount}</b>
-                    {depositInfo.note ? <><br />{depositInfo.note}</> : null}
-                  </div>
-                )}
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
@@ -1374,7 +1397,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="טלפון נייד" aria-label="טלפון נייד" aria-required="true"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
 
-                {cardPay && (
+                {cardPay && Number(selectedService?.price) > 0 && !needsPolicy && (
                   <p data-testid="booking-card-pay" style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, padding: "10px 12px", borderRadius: "var(--r-md)", border: `1px solid ${hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12 }}>
                     💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.
                   </p>
@@ -1445,15 +1468,23 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
+                {/* The manual deposit and how to pay it. It sat in step 1's social links, which are gone by step 4, so the client never saw it. */}
+                {depositInfo && depositInfo.amount > 0 && (
+                  <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
+                    <b>מקדמה: ₪{depositInfo.amount}</b>
+                    {depositInfo.note ? <><br />{depositInfo.note}</> : null}
+                  </div>
+                )}
                 {policyStep && policyStep.url && (
                   <div data-testid="grow-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
                       {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
                     </p>
-                    <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>
+                    <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</button>
+                    {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>
                 )}
-                {cardPay && bookedId && !(policyStep && policyStep.url) && Number(selectedService?.price) > 0 && (
+                {cardPay && bookedId && !policyStep && Number(selectedService?.price) > 0 && (
                   <div data-testid="booking-pay-now" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה, והקבלה נשלחת אלייך.</p>
                     <button type="button" className="bk-btn" disabled={payBusy} onClick={payNow} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : `💳 לתשלום ₪${Number(selectedService.price)} בכרטיס אשראי`}</button>
@@ -1463,6 +1494,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 {policyStep && !policyStep.url && (
                   <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
                     התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח. {brand?.businessName || "העסק"} תיצור איתך קשר להשלמת {policyStep.kind === "deposit" ? "המקדמה" : "שמירת הכרטיס"}.
+                    {policyStep.kind === "saved_card" && bookedId && (
+                      <>
+                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : "לנסות שוב לשמור את הכרטיס"}</button>
+                        {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
+                      </>
+                    )}
                   </div>
                 )}
                 {/* Add to her own calendar. Hidden while a deposit is still pending: that slot is only held, and may be released. */}

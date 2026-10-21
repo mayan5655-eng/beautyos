@@ -20,6 +20,8 @@ export default function LeadSourcesEditor({ sources, onChange, pc, pcTint }) {
     onChange([...list, name]);
     setDraft('');
   };
+  const full = list.length >= MAX_LEAD_SOURCES;
+  const addOff = !cleanSourceName(draft) || full;
   const isDefault = list.length === DEFAULT_LEAD_SOURCES.length && list.every((s, i) => s === DEFAULT_LEAD_SOURCES[i]);
   return (
     <div data-testid="lead-sources-editor" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
@@ -46,8 +48,9 @@ export default function LeadSourcesEditor({ sources, onChange, pc, pcTint }) {
           maxLength={30}
           style={{ flex: 1, border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', outline: 'none', direction: 'rtl', background: 'var(--surface-2)' }}
         />
-        <button type="button" onClick={add} disabled={!cleanSourceName(draft) || list.length >= MAX_LEAD_SOURCES} style={{ background: pcTint, border: `1px dashed ${pc}`, borderRadius: 'var(--r-sm)', padding: '0 14px', fontSize: 'var(--t-sm)', color: pc, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>הוספה</button>
+        <button type="button" onClick={add} disabled={addOff} style={{ background: pcTint, border: `1px dashed ${pc}`, borderRadius: 'var(--r-sm)', padding: '0 14px', fontSize: 'var(--t-sm)', color: pc, cursor: addOff ? 'not-allowed' : 'pointer', opacity: addOff ? 0.55 : 1, fontFamily: 'inherit', fontWeight: 700 }}>הוספה</button>
       </div>
+      {full && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>אפשר עד {MAX_LEAD_SOURCES} מקורות. כדי להוסיף חדש, הסירי אחד מהרשימה.</p>}
       {!isDefault && (
         <button type="button" onClick={() => onChange([...DEFAULT_LEAD_SOURCES])} style={{ marginTop: 8, background: 'none', border: 'none', color: 'var(--ink-3)', fontSize: 'var(--t-xs)', cursor: 'pointer', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}>חזרה לרשימה המקורית</button>
       )}

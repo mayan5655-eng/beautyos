@@ -31,7 +31,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
   const [qr, setQr] = useState('');
   const [busy, setBusy] = useState(false);
   const [link, setLink] = useState(null); // { url, paymentId }
-  const [state, setState] = useState('idle'); // idle | waiting | paid
+  const [state, setState] = useState('idle'); // idle | waiting | stale (no answer after ~4 minutes) | paid
   // How the client pays: one chip per method this deployment has a Grow page code for (lib/grow/methods.ts). One method, no chips.
   const [methods, setMethods] = useState(['card']);
   const [method, setMethod] = useState('card');
@@ -52,7 +52,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
     if (timer.current) clearInterval(timer.current);
     timer.current = setInterval(async () => {
       tries += 1;
-      if (tries > 60) { clearInterval(timer.current); return; }
+      if (tries > 60) { clearInterval(timer.current); setState('stale'); return; }
       try {
         const j = await (await fetch('/api/grow/status')).json();
         const p = (j?.payments || []).find((x) => x.id === paymentId);
@@ -82,6 +82,8 @@ export default function GrowChargePanel({ amount, description, client, appointme
       import('qrcode').then((m) => m.toDataURL(j.url, { margin: 1, width: 180 })).then(setQr).catch(() => setQr(''));
       setState('waiting');
       poll(j.paymentId);
+    } catch {
+      toast?.('אין חיבור. דף התשלום לא נפתח, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -109,6 +111,12 @@ export default function GrowChargePanel({ amount, description, client, appointme
         <button type="button" onClick={charge} disabled={busy || !(amount > 0)} className="primary-btn" style={{ width: '100%', padding: '10px 0', background: 'var(--surface)', color: pc, border: `1px solid ${pc}`, fontSize: 'var(--t-sm)', fontWeight: 700 }}>
           {busy ? 'פותחת דף תשלום…' : method === 'wallet' ? `בקשת תשלום ${money(amount)} (כרטיס, ביט, Apple Pay, Google Pay)` : method === 'card' ? `חיוב בכרטיס אשראי ${money(amount)}` : method === 'bit' ? `דף תשלום בביט ${money(amount)}` : `דף תשלום ב-${METHOD_LABEL_HE[method]} ${money(amount)}`}
         </button>
+      )}
+      {state === 'stale' && link && (
+        <div data-testid="grow-charge-stale">
+          <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600, marginBottom: 6 }}>עוד לא קיבלנו אישור על התשלום. אם הלקוחה כבר שילמה, האישור יירשם בקופה ברגע שיגיע.</p>
+          <button type="button" onClick={() => { setState('waiting'); poll(link.paymentId); }} style={{ padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>לבדוק שוב</button>
+        </div>
       )}
       {state === 'waiting' && link && (
         <div>

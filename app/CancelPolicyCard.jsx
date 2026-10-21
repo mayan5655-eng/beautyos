@@ -8,9 +8,10 @@
 //   deposit      the client pays a deposit when booking; it is deducted at the cashier, kept, or returned
 // Saved through /api/grow/policy into its own table, so the dashboard's whole-settings save can never overwrite it.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { defaultPolicyText, describeFee } from '@/lib/cancellationPolicy';
 import { growPolicyChanged } from './useGrowPolicy';
+import { setPendingSave } from './pendingSaves';
 
 const MODES = [
   { k: 'off', l: 'כבויה' },
@@ -50,25 +51,46 @@ export default function CancelPolicyCard({ pc, pcTint, toast, isDemo }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  // An unsaved change also lights up the Settings "שמירה" bar and makes "סגירה" ask first (app/pendingSaves.js).
+  const saveRef = useRef(null);
+  useEffect(() => {
+    setPendingSave('cancel-policy', dirty && !isDemo ? () => saveRef.current() : null);
+  }, [dirty, isDemo]);
+  useEffect(() => () => setPendingSave('cancel-policy', null), []);
+
   if (!state || state.hidden || !state.connected || !p) return null;
 
-  const set = (patch) => { setP((cur) => ({ ...cur, ...patch })); setDirty(true); };
   const numeric = (spec) => ({ ...spec, value: Number(spec.value) || 0 });
-  const payload = () => ({ ...p, lateFee: numeric(p.lateFee), noShowFee: numeric(p.noShowFee), deposit: numeric(p.deposit), windowHours: Number(p.windowHours) || 0 });
+  const asPolicy = (q) => ({ ...q, lateFee: numeric(q.lateFee), noShowFee: numeric(q.noShowFee), deposit: numeric(q.deposit), windowHours: Number(q.windowHours) || 0 });
+  const payload = () => asPolicy(p);
+  // While the text is still the default wording, it follows the mode and the numbers (switching to "deposit" no longer leaves the saved-card text).
+  const set = (patch) => {
+    setP((cur) => {
+      const next = { ...cur, ...patch };
+      if (!('text' in patch) && cur.text.trim() === defaultPolicyText(asPolicy(cur))) next.text = defaultPolicyText(asPolicy(next));
+      return next;
+    });
+    setDirty(true);
+  };
 
   const save = async () => {
-    if (busy) return;
+    if (busy) return false;
     setBusy(true);
     try {
       const r = await fetch('/api/grow/policy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ policy: payload() }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'השמירה נכשלה, נסי שוב', 'error'); return; }
+      if (!r.ok || !j?.success) { toast?.(j?.error || 'השמירה נכשלה, נסי שוב', 'error'); return false; }
       toast?.('מדיניות הביטולים נשמרה');
       setDirty(false);
       growPolicyChanged();
       await load();
+      return true;
+    } catch {
+      toast?.('אין חיבור. מדיניות הביטולים לא נשמרה, נסי שוב', 'error');
+      return false;
     } finally { setBusy(false); }
   };
+  saveRef.current = save;
 
   const resetText = () => { const q = payload(); set({ text: defaultPolicyText(q) }); };
 
@@ -132,7 +154,12 @@ export default function CancelPolicyCard({ pc, pcTint, toast, isDemo }) {
             </>
           )}
 
-          {!isDemo && <button type="button" style={primary} disabled={busy || !dirty} onClick={save}>{busy ? 'שומרת…' : 'שמירת המדיניות'}</button>}
+          {!isDemo && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" data-testid="policy-save" style={{ ...primary, opacity: busy || !dirty ? 0.55 : 1, cursor: busy || !dirty ? 'default' : 'pointer' }} disabled={busy || !dirty} onClick={save}>{busy ? 'שומרת…' : 'שמירת המדיניות'}</button>
+              <span role="status" style={lbl}>{dirty ? 'יש שינוי שעוד לא נשמר' : 'שמור'}</span>
+            </div>
+          )}
         </>
       )}
     </div>
