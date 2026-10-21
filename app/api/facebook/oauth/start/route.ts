@@ -64,6 +64,12 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      // Opened as a link in a browser that is not signed in to Kalmea: sign in, then come straight back here (with the
+      // same ?publish=1), instead of a bare JSON error. A script call still gets the JSON.
+      if ((request.headers.get('accept') || '').includes('text/html')) {
+        const back = `/api/facebook/oauth/start${request.nextUrl.search}`;
+        return NextResponse.redirect(`${APP_URL}/login?next=${encodeURIComponent(back)}`);
+      }
       return NextResponse.json(
         { error: 'You must be logged in to connect Facebook' },
         { status: 401 }
