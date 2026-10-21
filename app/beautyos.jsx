@@ -260,10 +260,11 @@ const TOUR_STEPS = [
     title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן — פשוט ומסודר." },
   { id:"content", tab:"campaigns", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
     title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
-  // requiresSettings: the tour's advance handler opens Settings -> כללי
-  // before switching to this step, since the real button lives there.
+  // requiresSettings: the tour's advance handler opens Settings at settingsTab before switching to this step. The booking-link
+  // button lives in the "clients" group (tab "import" maps there), not in כללי: opening כללי left the card pointing at nothing
+  // (2026-10-21 audit).
   { id:"booking-link", selector:'[data-tour="booking-link"]', icon: ICON_CALENDAR,
-    title:"הקישור שלך להזמנות", requiresSettings:true,
+    title:"הקישור שלך להזמנות", requiresSettings:true, settingsTab:"import",
     text:"זה הקישור שהלקוחות שלך יזמינו דרכו. אפשר לשלוח אותו עכשיו — או פשוט לקבוע את התור הראשון בעצמך.",
     cta:"קביעת תור ראשון ✦" },
 ];
@@ -5095,7 +5096,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const next = tourStep + 1;
     const nextStep = TOUR_STEPS[next];
     if (!nextStep) return; // the last step's button is onFinish, not onNext
-    if (nextStep.requiresSettings) openSettings("general");
+    if (nextStep.requiresSettings) openSettings(nextStep.settingsTab || "general");
     setTourStep(next);
     persistTourPatch({ onboarding_tour_step: next });
   }, [tourStep, openSettings, persistTourPatch]);
@@ -5215,7 +5216,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       afterPaymentRecorded(data[0], { autoSend: !!((settings.send_receipt_auto===true||settings.send_receipt_auto==="true") && cashierClient?.phone) });
       setShowCashier(false);setRebookDone(null);setRebookWeeks(4);setRebookPick(null);setRebookPickOpen(false);setShowReceipt(data[0]);setConsentAskFor(data[0].id);
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});
-      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`);
+      // No business type means the legal document is SKIPPED (lib/legalReceipts/service.js, tax_status_missing): say so now, never
+      // "מפיקה מסמך…" for a document that will not come (2026-10-21 audit).
+      const legalBlocked=legalAccount?.connected&&needsLegalDoc(data[0])&&!settings.business_tax_status;
+      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalBlocked?" · לא יופק מסמך חוקי: חסר סוג העסק בהגדרות (העסק שלי)":legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`, legalBlocked?"error":undefined);
     } finally {
       setBusyKey("saveReceipt", false);
     }
@@ -11917,7 +11921,8 @@ ${MARKETING_FOOTER}`)}`;
                 const onDefaultTrue=(k)=>!(editSettings[k]===false||editSettings[k]==="false");
                 // Preserve the existing default-OFF semantics for gap-fill and
                 // auto-receipt exactly as they were in the General tab.
-                const botOn=onDefaultTrue("bot_active");
+                // Off unless she turned it on (the webhook reads it the same way): app/api/whatsapp-webhook shouldBotReply.
+                const botOn=editSettings.bot_active===true||editSettings.bot_active==="true";
                 const gapOn=(editSettings.gap_fill_enabled===true);
                 const receiptOn=(editSettings.send_receipt_auto===true||editSettings.send_receipt_auto==="true");
                 const setFlag=(k,v)=>setEditSettings({...editSettings,[k]:v});

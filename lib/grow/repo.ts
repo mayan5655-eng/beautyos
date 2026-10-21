@@ -5,7 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
 
-const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at';
+const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at, transaction_id';
 const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column|schema cache/i.test(e.message || ''));
 
 export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {

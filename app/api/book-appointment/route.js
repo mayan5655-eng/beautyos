@@ -24,6 +24,7 @@ import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
 import { suppressionHash } from "../../../lib/clientData";
 import { APP_URL } from "../../../lib/appUrl";
+import { tenantIsBlocked } from "../../../lib/tenantActive";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
 import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
@@ -117,6 +118,16 @@ export async function POST(request) {
     // stops a stranger filling one cosmetician's day.
     const tenantLimited = checkTenantLimit(activeTenantId, "book-appointment", logBlock(activeTenantId));
     if (tenantLimited) return tenantLimited;
+
+    // A business whose trial ended (or that is paused) takes no NEW bookings from strangers: she cannot manage, move or cancel them
+    // in the app while blocked, and the waitlist already refuses (app/api/waitlist/join). Appointments already booked keep their
+    // reminders. Fails open like every plan check (lib/tenantActive.ts): an unreadable plan never turns a client away.
+    if (await tenantIsBlocked(supabase, activeTenantId)) {
+      return Response.json(
+        { success: false, code: "business_paused", error: "ההזמנות אונליין סגורות כרגע. אפשר לפנות לעסק ישירות בוואטסאפ או בטלפון." },
+        { status: 403 }
+      );
+    }
 
     // The service must be a real, ACTIVE row on this tenant's menu. Enforced
     // here and not only by which services the page renders, for the same
