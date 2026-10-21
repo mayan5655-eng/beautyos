@@ -27,7 +27,7 @@ const CLIENT = 'לקוחת בדיקה סגירה';
 
 try {
   // ── onboarding, same steps as e2e.mjs ──
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1500); // typed before hydration = empty fields on a slow preview
   await page.fill('input[type=email]', email); await page.fill('input[type=password]', PASSWORD); await page.click('button[type=submit]');
   await page.waitForURL((u) => u.pathname.startsWith('/onboarding'), { timeout: 60000 });
   await page.fill('input[placeholder="למשל: סטודיו רונית"]', 'קליניקת בדיקה סגירה');
