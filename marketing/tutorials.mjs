@@ -8,7 +8,8 @@
 //
 //   node tutorials.mjs                  both videos
 //   node tutorials.mjs booking          just one (tour | booking | welcome)
-//   node tutorials.mjs --stitch-only    re-join the parts already recorded in out/tutorials/<video>/
+//   node tutorials.mjs --stitch-only    re-join the parts already recorded in out/tutorials/<video>/ (cards are re-drawn: a
+//                                       caption change on a card needs no new recording)
 //
 // Output (out/tutorials/, git-ignored): kalmea-tutorial-<video>.mp4 - 720x1280, 30 fps, H.264 main + AAC silence, small enough for
 // WhatsApp (its media limit is 16 MB; the script fails above 15 MB). The parts are kept in out/tutorials/<video>/ for re-stitching.
@@ -228,7 +229,8 @@ const WELCOME = [
     async (h) => { await goto('תוכן')(h); await h.tap(button(h, /^קמפיינים בפייסבוק$/), { before: 200, after: 1500 }); },
     async (h) => { await pause(2600); await h.scrollBy(300, 1500); }),
   screen('payments', 'תשלומים והכנסות,\nמסודרים לבד', goto('תשלום'), async (h) => { await pause(2400); await h.scrollBy(480, 1800); }),
-  { id: 'cta', hero: { title: 'שאלה?<br>פשוט עני להודעה', sub: 'אנחנו כאן בשבילך' }, seconds: 5 },
+  // the support line, not "reply to this message": nobody reads replies to the WhatsApp Cloud number the welcome goes out from
+  { id: 'cta', hero: { title: 'שאלה? אנחנו כאן<br>בוואטסאפ', sub: '<span dir="ltr">050-7321978</span>' }, seconds: 5 },
 ];
 
 const VIDEOS = { tour: TOUR, booking: BOOKING, welcome: WELCOME };
@@ -292,7 +294,7 @@ try {
     for (const [i, seg] of VIDEOS[n].entries()) {
       const mp4 = path.join(dir, `${String(i + 1).padStart(2, '0')}-${seg.id}.mp4`);
       files.push(mp4);
-      if (stitchOnly) { if (!fs.existsSync(mp4)) throw new Error(`missing ${mp4}: record first`); continue; }
+      if (stitchOnly && !seg.card && !seg.hero) { if (!fs.existsSync(mp4)) throw new Error(`missing ${mp4}: record first`); continue; }
       log(`${n} / ${seg.id}`);
       if (seg.card || seg.hero) {
         const png = mp4.replace(/\.mp4$/, '.png');
