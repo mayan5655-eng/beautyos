@@ -163,6 +163,13 @@ async function generateReply({ message, clientName, tenantId }) {
     ],
   }, { tenantId, callSite: "whatsapp-webhook" });
 
+  // Haiku 5.5 can decline (stop_reason "refusal") and has no server-side fallback. Send nothing rather than half an answer:
+  // the client's message stays for her to answer by hand. Cut off mid-reply ("max_tokens") is treated the same way.
+  if (aiResponse.stop_reason === "refusal" || aiResponse.stop_reason === "max_tokens") {
+    console.warn(`[whatsapp-webhook] no bot reply for tenant ${tenantId}: stop_reason=${aiResponse.stop_reason}`);
+    return "";
+  }
+
   return aiResponse.content
     .map((b) => (b.type === "text" ? b.text : ""))
     .filter(Boolean)
