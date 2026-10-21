@@ -696,6 +696,9 @@ await ok('public booking keeps working for blocked tenants and for mode off: no 
   for (const f of ['policy/public/route.ts', 'mock-token/route.ts']) assert.ok(!/planGuard|requireActiveTenant|is_tenant_active/.test(read(`app/api/grow/${f}`)), `${f} has no plan guard`);
   const pub = read('app/api/grow/policy/public/route.ts');
   assert.ok(/if \(!growUiEnabled\(\)\) return off\(\)/.test(pub) && /acc\.data\.enabled !== true/.test(pub), 'off when the flag is off or Grow is not connected');
+  assert.ok(/const card = resolveGrow\(process\.env, APP_URL\)\.configured/.test(pub), 'card: true only when her clearing is on and the deployment can charge');
+  const bp = read('app/BookingPage.jsx');
+  assert.ok(/j\.card === true\) setCardPay\(true\)/.test(bp) && /\{cardPay && \(/.test(bp), 'the booking page tells the client she can pay by card');
   assert.ok(/mode !== 'mock' \|\| !grow\.configured/.test(read('app/api/grow/mock-token/route.ts')), 'the mock card page is 404 unless mock is allowed');
 });
 

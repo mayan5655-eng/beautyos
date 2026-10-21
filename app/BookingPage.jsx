@@ -332,6 +332,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [depositInfo, setDepositInfo] = useState(null);
   // Her cancellation policy on top of Grow (/api/grow/policy/public): null unless she turned it on, and then the booking works as it always did.
   const [growPolicy, setGrowPolicy] = useState(null);
+  // Her Grow clearing is on: the client is told she can pay by credit card (the same answer, card: true).
+  const [cardPay, setCardPay] = useState(false);
   const [policyOk, setPolicyOk] = useState(false);
   const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
@@ -346,7 +348,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   useEffect(() => {
     if (!tenantId) return undefined;
     let alive = true;
-    fetch(`/api/grow/policy/public?t=${encodeURIComponent(tenantId)}`).then((r) => r.json()).then((j) => { if (alive && j && j.mode && j.mode !== "off") setGrowPolicy(j); }).catch(() => {});
+    fetch(`/api/grow/policy/public?t=${encodeURIComponent(tenantId)}`).then((r) => r.json()).then((j) => { if (!alive || !j) return; if (j.card === true) setCardPay(true); if (j.mode && j.mode !== "off") setGrowPolicy(j); }).catch(() => {});
     return () => { alive = false; };
   }, [tenantId]);
 
@@ -1355,6 +1357,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="טלפון נייד" aria-label="טלפון נייד" aria-required="true"
                   style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
+
+                {cardPay && (
+                  <p data-testid="booking-card-pay" style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, padding: "10px 12px", borderRadius: "var(--r-md)", border: `1px solid ${hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12 }}>
+                    💳 אפשר לשלם אצלנו בכרטיס אשראי, בדף תשלום מאובטח. הקבלה נשלחת אלייך.
+                  </p>
+                )}
 
                 {/* CONSENT, before the button. What is stored, what it is
                     used for, where the full policy is - and a tick that the

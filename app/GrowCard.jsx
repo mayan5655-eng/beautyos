@@ -88,9 +88,18 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   } else if (s.account.connected) {
     body = (
       <>
+        {(() => {
+          const live = s.account.enabled && s.platform.configured;
+          return (
+            <div data-testid="grow-connected-status" role="status" style={{ background: live ? pcTint : 'var(--surface-2)', border: `1px solid ${live ? pc : 'var(--line-2)'}`, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
+              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>{live ? '✓ מחוברת ל-Grow. הסליקה פעילה' : s.account.enabled ? 'מחוברת ל-Grow. הסליקה תתחיל לעבוד כשהיא תופעל במערכת' : 'מחוברת ל-Grow. הסליקה כבויה'}</p>
+              <p style={{ ...text, marginTop: 2 }}>{live ? 'בקופה מופיע "חיוב בכרטיס אשראי", ובדף ההזמנה הלקוחות רואות שאפשר לשלם אצלך באשראי.' : 'כדי להפעיל, מסמנים את התיבה למטה. השינוי נשמר מיד, בלי כפתור שמירה.'}</p>
+            </div>
+          );
+        })()}
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: isDemo ? 'default' : 'pointer', minHeight: 44 }}>
-          <input type="checkbox" checked={s.account.enabled} disabled={busy || isDemo} onChange={(e) => call('/api/grow/account', 'POST', { enabled: e.target.checked }, 'נשמר')} style={{ accentColor: pc, width: 20, height: 20 }} />
-          <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>חיוב בכרטיס אשראי מהקופה <span style={{ color: 'var(--ink-3)' }}>({s.account.userIdMasked})</span></span>
+          <input type="checkbox" checked={s.account.enabled} disabled={busy || isDemo} onChange={(e) => call('/api/grow/account', 'POST', { enabled: e.target.checked }, e.target.checked ? 'הסליקה הופעלה ונשמרה' : 'הסליקה כובתה ונשמרה')} style={{ accentColor: pc, width: 20, height: 20 }} />
+          <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>חיוב בכרטיס אשראי מהקופה <span style={{ color: 'var(--ink-3)' }}>({s.account.userIdMasked} · נשמר אוטומטית)</span></span>
         </label>
         {!s.platform.configured && <p style={{ ...text, marginTop: 6 }}>החיבור שלך שמור. הסליקה עצמה תתחיל לעבוד ברגע שהיא תופעל במערכת.</p>}
         {s.platform.configured && Array.isArray(s.methods) && s.methods.length > 0 && (
