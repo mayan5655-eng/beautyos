@@ -4,7 +4,7 @@
 // the link to the tutorial videos. Sent once, at the moment her settings row is first created (onboarding finished,
 // app/api/settings/save/route.ts), after the response has gone, so nothing here can slow or break her signup.
 //
-// Channel: Meta's WhatsApp Cloud API (lib/waCloud), as the approved template `kalmea_owner_welcome`. Not GreenAPI: a
+// Channel: Meta's WhatsApp Cloud API (lib/waCloud), as the approved MARKETING template `kalmea_owner_welcome`, with an image header. Not GreenAPI: a
 // first message with a link, from the central number, to a number that never wrote to it, is exactly the pattern that
 // gets an unofficial number restricted - and that number carries every business's reminders.
 //
@@ -14,6 +14,9 @@
 //         sent: the mock adapter has no network. For a preview check, set per deployment.
 //   live  sent through Meta. Also needs WA Cloud's live credentials (lib/waCloud/config.ts) and
 //         OWNER_WELCOME_TUTORIALS_URL (an https link to the videos); without either it refuses and records why.
+//
+// Header image: public/media/kalmea-welcome-whatsapp.png (the features in circles around an illustrated cosmetician -
+// drawn, not a real person), made by marketing/welcome/render.sh. OWNER_WELCOME_IMAGE_URL overrides it.
 //
 // Once only, in the database: owner_welcome_messages (supabase/migrations/add_owner_welcome.sql) has the tenant id as
 // its primary key and the phone's hash as a unique key, and the row is inserted BEFORE anything is sent. A second save,
@@ -30,7 +33,8 @@ import { looksLikeTestName } from './ownerContact.ts';
 import { normalizeIsraeliMobile } from './phone.ts';
 import { KALMEA_SUPPORT_WHATSAPP_DISPLAY } from './support.ts';
 import { sanitizeParam } from './waCloud/templates.ts';
-import { waCloudStatus, utilityCostUsd, type WaCloudEnv } from './waCloud/config.ts';
+import { waCloudStatus, type WaCloudEnv } from './waCloud/config.ts';
+import { APP_URL } from './appUrl.ts';
 import { mockAdapter, liveAdapter, type WaCloudAdapter } from './waCloud/adapter.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,23 +48,35 @@ export const MESSAGE_TYPE = 'owner_welcome';
 export const TUTORIALS_PLACEHOLDER = 'https://kalmea.app/tutorials';
 
 // The template submitted to Meta (docs/WA_TEMPLATES.md carries the same text; test-owner-welcome.ts checks they agree).
-// Submitted as UTILITY: it is about the account she just opened and how to set it up, with nothing promotional. Meta
-// decides the category at review; if it comes back MARKETING, see the cost note in docs/WA_TEMPLATES.md.
-// {{2}} is the link, as a variable, so the video page can change without a new review.
+// MARKETING, honestly: the "זו לא עוד מערכת" hook is a pitch, and Meta would re-categorise a utility submission anyway.
+// It costs the marketing rate and needs her marketing consent at signup. {{2}} is the video link, as a variable, so the
+// video can move without a new review. The header is an IMAGE whose link is given at send time.
 export const WELCOME_TEMPLATE = {
   name: 'kalmea_owner_welcome',
   language: 'he' as const,
-  category: 'UTILITY' as const,
-  params: ['business name', 'tutorial videos link'],
+  category: 'MARKETING' as const,
+  header: 'IMAGE' as const,
+  params: ['business name', 'tutorial video link'],
   body:
     'היי, ברוכה הבאה לקלמיה! 🌸\n' +
-    'החשבון של {{1}} מוכן.\n\n' +
-    'הכנו לך סרטוני הדרכה קצרים, צעד אחרי צעד: איך מגדירים את העסק ואיך מקבלים תורים אונליין.\n' +
+    'זו לא עוד מערכת לקביעת תורים: מעכשיו יש לך עוזרת אישית לעסק, מהתור הראשון ועד הפוסט הבא.\n\n' +
+    'החשבון של {{1}} מוכן, והכנו לך סרטון קצר שמראה איך מתחילים, צעד אחרי צעד:\n' +
     '{{2}}\n\n' +
     `שאלה? אנחנו כאן בוואטסאפ ${KALMEA_SUPPORT_WHATSAPP_DISPLAY}\n` +
     'צוות קלמיה',
   example: ['סטודיו נועה', 'https://kalmea.app/tutorials'],
 };
+
+/** Meta's rate for one marketing template to an Israeli number (Oct 2026 card, USD). The webhook brings the real price. */
+export const MARKETING_COST_USD = 0.0353;
+
+export const DEFAULT_IMAGE_PATH = '/media/kalmea-welcome-whatsapp.png';
+
+/** The header image link: OWNER_WELCOME_IMAGE_URL when it is https, else the image this app hosts. */
+export function welcomeImageUrl(env: WaCloudEnv = process.env): string {
+  const v = String(env.OWNER_WELCOME_IMAGE_URL ?? '').trim();
+  return /^https:\/\/[^\s]+$/.test(v) ? v : `${APP_URL}${DEFAULT_IMAGE_PATH}`;
+}
 
 export type WelcomeMode = 'off' | 'mock' | 'live';
 
@@ -84,7 +100,7 @@ export function phoneHash(e164: string): string {
   return createHash('sha256').update(`owner-welcome:${e164}`).digest('hex');
 }
 
-export function buildWelcome(businessName: unknown, link: string) {
+export function buildWelcome(businessName: unknown, link: string, imageUrl: string = `${APP_URL}${DEFAULT_IMAGE_PATH}`) {
   const name = sanitizeParam(businessName).slice(0, 60) || 'העסק שלך';
   const params = [name, sanitizeParam(link)];
   const preview = WELCOME_TEMPLATE.body.replace(/\{\{(\d+)\}\}/g, (_m, n) => params[Number(n) - 1] ?? '');
@@ -94,7 +110,10 @@ export function buildWelcome(businessName: unknown, link: string) {
     payload: {
       name: WELCOME_TEMPLATE.name,
       language: { code: WELCOME_TEMPLATE.language },
-      components: [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text })) }],
+      components: [
+        { type: 'header', parameters: [{ type: 'image', image: { link: imageUrl } }] },
+        { type: 'body', parameters: params.map((text) => ({ type: 'text', text })) },
+      ],
     },
   };
 }
@@ -189,7 +208,7 @@ export async function sendOwnerWelcome(o: {
     }
   }
 
-  const built = buildWelcome(o.businessName, link || TUTORIALS_PLACEHOLDER);
+  const built = buildWelcome(o.businessName, link || TUTORIALS_PLACEHOLDER, welcomeImageUrl(env));
   const adapter = o.adapter || (mode === 'live' ? liveAdapter(env) : mockAdapter());
   const res = await adapter.sendTemplate(phone.e164, built.payload);
   const costRow = {
@@ -209,6 +228,6 @@ export async function sendOwnerWelcome(o: {
   }
   // Accepted = Meta queued it. Delivery arrives on /api/wa-cloud/webhook against the same wamid in wa_cloud_messages.
   await mark({ status: mode === 'live' ? 'accepted' : 'mock', wa_message_id: res.messageId, message_preview: built.preview });
-  await safe(db.from(COST_LOG_TABLE).insert({ ...costRow, status: 'accepted', wa_message_id: res.messageId, cost_estimate_usd: utilityCostUsd(env) }), 'cost log');
+  await safe(db.from(COST_LOG_TABLE).insert({ ...costRow, status: 'accepted', wa_message_id: res.messageId, cost_estimate_usd: MARKETING_COST_USD }), 'cost log');
   return mode === 'live' ? { status: 'accepted', messageId: res.messageId } : { status: 'mock', preview: built.preview, messageId: res.messageId };
 }

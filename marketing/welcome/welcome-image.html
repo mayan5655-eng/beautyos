@@ -1,0 +1,98 @@
+<!doctype html>
+<!--
+  marketing/welcome/welcome-image.html: the header image of the welcome WhatsApp (kalmea_owner_welcome).
+  An illustration, not a photo of a real person: a smiling cosmetician drawn in the Kalmea palette, with the
+  features in circles around her. Rendered to public/media/kalmea-welcome-whatsapp.png by render.sh (headless Edge).
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Assistant:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+  :root { --green:#1F3A30; --cream:#FBF8F1; --pink:#E9A9A1; --petal:#FBEDE9; --sage:#DCE4D5; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1080px; height:1080px; background:var(--cream); overflow:hidden; }
+  body { position:relative; font-family:'Assistant', sans-serif; color:var(--green); }
+  .wash { position:absolute; border-radius:50%; }
+  h1 { position:absolute; top:62px; left:0; right:0; text-align:center; font-family:'Frank Ruhl Libre', serif;
+       font-weight:700; font-size:66px; line-height:1.1; }
+  h1 .not { color:var(--pink); }
+  .sub { position:absolute; top:150px; left:0; right:0; text-align:center; font-size:34px; font-weight:600; opacity:.85; }
+  .hero { position:absolute; left:340px; top:330px; width:400px; height:400px; border-radius:50%;
+          background:var(--petal); border:6px solid #fff; box-shadow:0 18px 50px rgba(31,58,48,.12); overflow:hidden; }
+  .feat { position:absolute; width:190px; text-align:center; }
+  .feat .c { width:132px; height:132px; margin:0 auto; border-radius:50%; background:#fff; border:4px solid var(--sage);
+             display:flex; align-items:center; justify-content:center; box-shadow:0 10px 28px rgba(31,58,48,.10); }
+  .feat .c svg { width:84px; height:84px; stroke:var(--green); fill:none; stroke-width:2.8; stroke-linecap:round; stroke-linejoin:round; }
+  .feat .c .acc { stroke:var(--pink); }
+  .feat .l { margin-top:12px; font-size:29px; font-weight:700; line-height:1.15; }
+  .foot { position:absolute; bottom:46px; left:0; right:0; display:flex; justify-content:center; align-items:center; gap:14px; }
+  .foot img.mark { height:72px; }
+  .foot img.flower { height:44px; }
+</style>
+</head>
+<body>
+  <div class="wash" style="width:620px;height:620px;left:230px;top:220px;background:var(--sage);opacity:.45"></div>
+  <div class="wash" style="width:260px;height:260px;left:-80px;top:-70px;background:var(--petal)"></div>
+  <div class="wash" style="width:200px;height:200px;right:-60px;bottom:120px;background:var(--petal)"></div>
+
+  <h1>זו <span class="not">לא</span> עוד מערכת לקביעת תורים</h1>
+  <div class="sub">אלא העוזרת האישית של העסק שלך</div>
+
+  <!-- the cosmetician: flat illustration, invented, no real person -->
+  <div class="hero">
+    <svg viewBox="0 0 400 400" width="400" height="400">
+      <circle cx="200" cy="96" r="44" fill="#3B2A24"/>                          <!-- bun -->
+      <path d="M118 190 q0-92 82-92 q82 0 82 92 q0 40-14 70 l-136 0 q-14-30-14-70z" fill="#3B2A24"/> <!-- hair -->
+      <rect x="176" y="232" width="48" height="50" rx="20" fill="#E8BFA6"/>       <!-- neck -->
+      <ellipse cx="200" cy="186" rx="64" ry="74" fill="#F1CDB6"/>                <!-- face -->
+      <path d="M136 168 q10-62 64-66 q54 4 64 66 q-26-34-64-38 q-38 4-64 38z" fill="#3B2A24"/> <!-- fringe -->
+      <path d="M168 182 q10-10 20 0" stroke="#3B2A24" stroke-width="4.5" fill="none" stroke-linecap="round"/> <!-- eyes, smiling -->
+      <path d="M212 182 q10-10 20 0" stroke="#3B2A24" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      <circle cx="160" cy="210" r="13" fill="#E9A9A1" opacity=".55"/>            <!-- blush -->
+      <circle cx="240" cy="210" r="13" fill="#E9A9A1" opacity=".55"/>
+      <path d="M180 222 q20 20 40 0" stroke="#B0504A" stroke-width="5" fill="none" stroke-linecap="round"/> <!-- smile -->
+      <path d="M70 400 q8-110 98-124 l32 26 l32-26 q90 14 98 124z" fill="#FFFFFF"/> <!-- tunic -->
+      <path d="M168 276 l32 26 l32-26" stroke="#DCE4D5" stroke-width="6" fill="none"/>
+      <circle cx="262" cy="330" r="9" fill="#E9A9A1"/>                           <!-- small flower pin -->
+      <circle cx="262" cy="330" r="3.5" fill="#1F3A30"/>
+      <!-- a brush in her hand -->
+      <path d="M296 400 l34-96" stroke="#1F3A30" stroke-width="10" stroke-linecap="round"/>
+      <path d="M326 312 q10-30 4-46 q-18 12-16 40z" fill="#E9A9A1"/>
+    </svg>
+  </div>
+
+  <!-- six features around her (positions chosen by hand, centre 540,530) -->
+  <div class="feat" style="left:445px;top:190px;display:none"></div>
+  <div class="feat" style="left:150px;top:250px">
+    <div class="c"><svg viewBox="0 0 64 64"><rect x="10" y="14" width="44" height="40" rx="6"/><path d="M10 26h44M22 8v10M42 8v10"/><path class="acc" d="M24 40l6 6 12-12"/></svg></div>
+    <div class="l">תורים אונליין<br>24/7</div>
+  </div>
+  <div class="feat" style="left:740px;top:250px">
+    <div class="c"><svg viewBox="0 0 64 64"><path d="M32 10a14 14 0 0 1 14 14v10l5 8H13l5-8V24a14 14 0 0 1 14-14z"/><path class="acc" d="M26 48a6 6 0 0 0 12 0"/></svg></div>
+    <div class="l">תזכורות<br>ללקוחות</div>
+  </div>
+  <div class="feat" style="left:70px;top:520px">
+    <div class="c"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="6"/><circle class="acc" cx="24" cy="30" r="6"/><path class="acc" d="M15 43q9-9 18 0"/><path d="M38 26h12M38 34h12M38 42h8"/></svg></div>
+    <div class="l">כרטיס לקוחה</div>
+  </div>
+  <div class="feat" style="left:820px;top:520px">
+    <div class="c"><svg viewBox="0 0 64 64"><rect x="12" y="8" width="40" height="48" rx="8"/><path class="acc" d="M28 24l12 8-12 8z"/></svg></div>
+    <div class="l">פוסטים<br>ורילס</div>
+  </div>
+  <div class="feat" style="left:230px;top:760px">
+    <div class="c"><svg viewBox="0 0 64 64"><path d="M14 22V14h8M42 14h8v8M50 42v8h-8M22 50h-8v-8"/><circle class="acc" cx="32" cy="32" r="10"/></svg></div>
+    <div class="l">סריקת עור</div>
+  </div>
+  <div class="feat" style="left:660px;top:760px">
+    <div class="c"><svg viewBox="0 0 64 64"><path d="M12 52h40"/><path d="M18 44V32M30 44V22M42 44V28"/><path class="acc" d="M16 22l12-8 10 6 12-10"/></svg></div>
+    <div class="l">דוחות<br>ויעדים</div>
+  </div>
+
+  <div class="foot">
+
+    <img class="mark" src="kalmea-wordmark.png" alt="קלמיה">
+  </div>
+</body>
+</html>

@@ -3,9 +3,9 @@
 // the phone choice (verified first, then the onboarding phone), demo / test names / reserved test numbers never sent,
 // live refused without credentials or the videos link, the template's Meta rules, and that the docs carry the same text.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import {
-  sendOwnerWelcome, welcomeMode, tutorialsUrl, isReservedTestNumber, buildWelcome, WELCOME_TEMPLATE, MARKER_TABLE, COST_LOG_TABLE,
+  sendOwnerWelcome, welcomeMode, welcomeImageUrl, tutorialsUrl, isReservedTestNumber, buildWelcome, WELCOME_TEMPLATE, MARKER_TABLE, COST_LOG_TABLE,
 } from './lib/ownerWelcome.ts';
 import { mockAdapter, type WaCloudAdapter } from './lib/waCloud/adapter.ts';
 import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
@@ -14,7 +14,7 @@ let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
 
 const T = '00000000-0000-0000-0000-0000000000b1';
-const LIVE = { OWNER_WELCOME_WA: 'live', OWNER_WELCOME_TUTORIALS_URL: 'https://kalmea.app/tutorials', WA_CLOUD_PHONE_NUMBER_ID: '1', WA_CLOUD_ACCESS_TOKEN: 't', WA_CLOUD_APP_SECRET: 's', WA_CLOUD_VERIFY_TOKEN: 'v' };
+const LIVE = { OWNER_WELCOME_IMAGE_URL: 'https://kalmea.app/media/kalmea-welcome-whatsapp.png', OWNER_WELCOME_WA: 'live', OWNER_WELCOME_TUTORIALS_URL: 'https://kalmea.app/tutorials', WA_CLOUD_PHONE_NUMBER_ID: '1', WA_CLOUD_ACCESS_TOKEN: 't', WA_CLOUD_APP_SECRET: 's', WA_CLOUD_VERIFY_TOKEN: 'v' };
 
 // A stand-in for the Supabase builder: owner_phones answers `verified`, the marker table enforces its two unique keys.
 function fakeDb(o: { verified?: string | null; markerError?: { code: string; message: string } | null; markers?: Record<string, unknown>[] } = {}) {
@@ -60,7 +60,7 @@ await ok('mock: marker claimed, a mock id, the Hebrew preview, a mock cost row, 
   assert.equal(r.status, 'mock');
   if (r.status !== 'mock') return;
   assert.ok(r.messageId.startsWith('mock.'));
-  assert.ok(r.preview.includes('החשבון של סטודיו נועה מוכן.'));
+  assert.ok(r.preview.includes('החשבון של סטודיו נועה מוכן,'));
   assert.ok(r.preview.includes('https://kalmea.app/tutorials'));
   assert.equal(f.markers.length, 1);
   assert.equal(f.markers[0].status, 'claimed');
@@ -138,8 +138,13 @@ await ok('live: accepted with the template payload; a Meta error is recorded as 
   assert.equal(r.status, 'accepted');
   assert.deepEqual(a.sent[0].body, {
     name: 'kalmea_owner_welcome', language: { code: 'he' },
-    components: [{ type: 'body', parameters: [{ type: 'text', text: 'סטודיו נועה' }, { type: 'text', text: 'https://kalmea.app/tutorials' }] }],
+    components: [
+      { type: 'header', parameters: [{ type: 'image', image: { link: 'https://kalmea.app/media/kalmea-welcome-whatsapp.png' } }] },
+      { type: 'body', parameters: [{ type: 'text', text: 'סטודיו נועה' }, { type: 'text', text: 'https://kalmea.app/tutorials' }] },
+    ],
   });
+  assert.equal(f.costs[0].category, 'MARKETING');
+  assert.equal(f.costs[0].cost_estimate_usd, 0.0353);
   assert.equal(f.costs[0].mode, 'live');
   const failing: WaCloudAdapter = { mode: 'live', sendTemplate: async () => ({ ok: false, mode: 'live', error: 'template not approved' }), sendText: async () => ({ ok: false, mode: 'live', error: 'x' }) };
   const g = fakeDb();
@@ -150,14 +155,17 @@ await ok('live: accepted with the template payload; a Meta error is recorded as 
   assert.deepEqual(retry, { status: 'skipped', reason: 'duplicate' });
 });
 
-await ok('template obeys Meta rules, is feminine and non-promotional, and the docs carry it exactly', () => {
+await ok('template obeys Meta rules, has the hook and the image, and the docs carry it exactly', () => {
   const t = WELCOME_TEMPLATE;
   assert.match(t.name, /^[a-z0-9_]+$/);
   assert.ok(!/^\s*\{\{/.test(t.body) && !/\}\}\s*[.!?]?\s*$/.test(t.body), 'no variable at the start or end');
   assert.deepEqual([...t.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])), [1, 2]);
   assert.equal(t.example.length, t.params.length);
-  assert.ok(!/מבצע|הנחה|קופון|חינם/.test(t.body), 'nothing promotional');
-  assert.ok(t.body.includes('ברוכה הבאה'));
+  assert.ok(!/מבצע|הנחה|קופון|חינם/.test(t.body), 'no offers: the hook is the only pitch');
+  assert.ok(t.body.includes('ברוכה הבאה') && t.body.includes('זו לא עוד מערכת לקביעת תורים'));
+  assert.equal(t.category, 'MARKETING', 'the hook makes it marketing; never submitted as utility');
+  assert.ok(existsSync('public/media/kalmea-welcome-whatsapp.png'), 'the header image is in the repo');
+  assert.ok(welcomeImageUrl({ OWNER_WELCOME_IMAGE_URL: 'http://not-https' }).endsWith('/media/kalmea-welcome-whatsapp.png'));
   const doc = readFileSync('docs/WA_TEMPLATES.md', 'utf8').replace(/\r\n/g, '\n');
   assert.ok(doc.includes(t.name) && doc.includes(t.body), 'docs/WA_TEMPLATES.md identical');
   const b = buildWelcome('שם\nעם שורה', 'https://kalmea.app/tutorials');
