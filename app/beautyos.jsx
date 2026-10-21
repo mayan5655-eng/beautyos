@@ -12351,10 +12351,11 @@ ${MARKETING_FOOTER}`)}`;
  <a href={"mailto:maayanfacebook1992@gmail.com?subject="+encodeURIComponent("בקשת מחיקת חשבון קלמיה")+"&body="+encodeURIComponent("היי, אני רוצה למחוק את החשבון שלי בקלמיה ואת כל המידע בו.")} style={{display:"inline-block",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"8px 14px",textDecoration:"none"}}>לבקש מחיקת חשבון</a>
  </div>
  )}
-              {inG("advanced")&&(
+              {/* The answers here feed only the WhatsApp bot, which is connected by hand per business; without it this editor promised a bot she cannot
+                  connect. Shown only where the bot runs. */}
+              {inG("advanced")&&!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
- {!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",lineHeight:1.6,marginBottom:10,fontWeight:700}}>הבוט עוד לא פעיל בחשבון שלך, ולכן התשובות כאן עדיין לא נשלחות ללקוחות. הן נשמרות, ויופעלו כשהבוט יחובר.</p>}
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",marginBottom:8}}/>

@@ -355,6 +355,21 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [policyOk, setPolicyOk] = useState(false);
   const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
+  const [policyStepAt, setPolicyStepAt] = useState(0);
+  // "Pay the deposit": Grow's page link lasts ~10 minutes while the hold lasts 30, so after the first few minutes each press asks for a fresh page
+  // (app/api/grow/deposit/pay). A dead link used to leave her no way to pay while her slot was still held.
+  const payDeposit = async () => {
+    if (payBusy || !policyStep?.url) return;
+    if (Date.now() - policyStepAt < 8 * 60 * 1000 || !bookedId) { window.location.href = policyStep.url; return; }
+    setPayBusy(true); setPayErr("");
+    try {
+      const r = await fetch("/api/grow/deposit/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId }) });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
+      setPayErr(j?.error || "לא הצלחנו לפתוח את דף התשלום, נסי שוב");
+    } catch { setPayErr("אין חיבור כרגע. נסי שוב בעוד רגע."); }
+    setPayBusy(false);
+  };
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
   // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
@@ -637,6 +652,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
       setPolicyStep(result.policyStep || null);
+      setPolicyStepAt(Date.now());
       setBookedId(result.appointmentId || null);
       setStep(4);
     } catch (err) {
@@ -1462,7 +1478,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
                       {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
                     </p>
-                    <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>
+                    {policyStep.kind === "deposit" ? (
+                      <>
+                        <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : "המשך לתשלום המקדמה"}</button>
+                        {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
+                      </>
+                    ) : <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>}
                   </div>
                 )}
                 {cardPay && bookedId && !policyStep && Number(selectedService?.price) > 0 && (
