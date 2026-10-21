@@ -25,11 +25,12 @@ ok('the listed ranges add up to the figure on the page', () => {
 
 ok('Kalmea price is shown: launch price 349 with no end date, regular price 499, no promise of limited spots', () => {
   assert.match(page, /499 ₪/);
-  assert.match(page, /מחיר השקה 349 ₪/);
+  assert.match(page, /מחיר היכרות 349 ₪ לזמן מוגבל/);
   assert.doesNotMatch(page, /20\.10\.2026|LAUNCH_PRICE_CUTOFF_ISO|Date\.now\(\)\s*<=/, 'the launch price has no end date and no automatic expiry');
   assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
   assert.doesNotMatch(page, /לחברות הראשונות/);
-  assert.doesNotMatch(page, /מקומות|מוגבל|עד שיגמר|רק ל-\d+ /);
+  // "לזמן מוגבל" is the owner's wording for the intro price (2026-10-21); limited spots or quantities stay banned.
+  assert.doesNotMatch(page, /מקומות|מספר מוגבל|כמות מוגבלת|עד שיגמר|רק ל-\d+ /);
 });
 
 ok('the terms page matches the landing: launch price 349, regular 499, no end date', () => {

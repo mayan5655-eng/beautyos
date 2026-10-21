@@ -181,7 +181,7 @@ export default function LandingPage() {
             499 ₪ <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
           </p>
           {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
-          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה 349 ₪</p>
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר היכרות 349 ₪ לזמן מוגבל</p>
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
           {/* The value in her own terms, next to the price: what one month has to save for the price to pay itself back. */}
           <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--line)" }}>

@@ -82,7 +82,7 @@ ok('booking page: a monogram when there is no logo and no photo, never a stock i
 
 ok('landing: the payback line sits with the price', () => {
   const l = rd('app/LandingPage.jsx');
-  assert.ok(l.indexOf('data-testid="price-payback"') > l.indexOf('מחיר השקה 349'));
+  assert.ok(l.indexOf('data-testid="price-payback"') > l.indexOf('מחיר היכרות 349'));
 });
 
 console.log(`${n} passed`);
