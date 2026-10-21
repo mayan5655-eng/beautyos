@@ -1,7 +1,7 @@
 // lib/grow/growIps.ts
 //
-// Grow's published IP addresses, from https://developers.grow.business/reference/ip-address (read 2026-10-14 and again
-// 2026-10-15: 30 rows, 18.156.94.176 listed twice, so 29 distinct). Kept in this one file so a change on Grow's side is a
+// Grow's published IP addresses, from https://developers.grow.business/reference/ip-address (read 2026-10-14,
+// 2026-10-15 and 2026-10-21, unchanged: 30 rows, 18.156.94.176 listed twice, so 29 distinct). Kept in this one file so a change on Grow's side is a
 // one-file edit, and GROW_WEBHOOK_IPS (comma-separated) can replace it without a deploy.
 //
 // What the page says: "The following IP addresses must be allowed at the firewall for testing and production
@@ -9,7 +9,7 @@
 // Grow's own email says to check requests against this list, which is what lib/grow/webhook.ts does.
 
 export const GROW_IPS_SOURCE = 'https://developers.grow.business/reference/ip-address';
-export const GROW_IPS_READ_ON = '2026-10-15';
+export const GROW_IPS_READ_ON = '2026-10-21';
 
 export const GROW_IPS: readonly string[] = [
   '3.123.194.128', '3.124.62.248', '18.198.97.252', '3.75.43.49', '18.156.94.176', '18.158.107.17', '3.121.149.170',

@@ -67,3 +67,14 @@ Use **your own** business and your own card. No client is involved.
 4. Refund it: in the Grow dashboard (or the refund button once Grow confirms the refund call), refund the ₪1; check that Kalmea voids the receipt. (1 min)
 5. If anything is off, set `GROW_UI_ENABLED` back to `false` and redeploy; no data is deleted either way.
 6. Account 1, once wired: add your card on the billing screen with a ₪1 test price (`plan_price = 1` for your own tenant in the admin list), confirm the receipt number and link, then refund and cancel.
+
+## Grow's go-live checklist (answered 2026-10-21)
+
+- Sandbox proof: `node --env-file=.env.local scripts/smoke/grow-go-live.mjs <outDir>` gives a regular payment with `approveTransaction` (Grow answers status 1),
+  a saved card (save only: an authorization, which Grow does not approve, error 722), a charge-and-save token with `approveTransaction`, and a token charge;
+  it records the client's side as video and refunds every charge. IDs sent to Grow: payment 559826, token save 559827, charge-and-save 559831, token charge 559828.
+- Site check (https://grow.business/Site_check, a PDF): every payment page now has a required terms tick linking `/terms#payments` (`lib/paymentTerms.ts`;
+  `/api/grow/wallet` refuses without it); the terms cover delivery of the service, the 18+ purchase limit, privacy, liability and cancellation under the
+  Consumer Protection Law; Kalmea's footer shows the contact number. The address is the city only (`KALMEA_ADDRESS`): Grow may ask for a street address.
+- Merchant onboarding test link: `node --env-file=.env.local scripts/smoke/grow-register-test-link.mjs <fictitious 9-digit number> <her mobile>` (test key only).
+- IP list re-checked against Grow's page on 2026-10-21: unchanged (30 rows, 29 distinct).

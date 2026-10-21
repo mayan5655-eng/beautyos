@@ -43,6 +43,7 @@ import WaitlistJoin from "./WaitlistJoin";
 import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
+import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from "@/lib/paymentTerms";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -1382,7 +1383,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
                       <b>מדיניות ביטולים</b><br />
                       <span data-testid="grow-policy-text" style={{ whiteSpace: "pre-line" }}>{growPolicy.text}</span><br />
-                      קראתי ואני מאשרת.
+                      {PAY_TERMS_BEFORE_HE}מדיניות הביטולים ול<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}
                     </span>
                   </label>
                 )}

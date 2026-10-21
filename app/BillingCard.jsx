@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { trialEndDateHe } from '@/lib/planCopy';
 import { subscriptionDoc } from '@/lib/kalmeaBusiness';
-import { billingConsentTextHe } from '@/lib/billing/consent';
+import { billingConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
+import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -94,7 +95,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         {!isDemo && s.configured && (
           <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
             <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-            <span>{billingConsentTextHe(s.plan.price)}</span>
+            <span>{billingConsentTextHe(s.plan.price).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
           </label>
         )}
         {!isDemo && s.configured && sub?.status !== 'canceled' && (

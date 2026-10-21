@@ -34,8 +34,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { t?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { t?: unknown; acceptedTerms?: unknown };
   const token = typeof body.t === 'string' ? body.t : '';
+  // The terms tick on the payment page (Grow's site check) is required here too, before Grow is asked for anything.
+  if (body.acceptedTerms !== true) return NextResponse.json({ success: false, state: 'terms-required', error: 'כדי להמשיך לתשלום צריך לסמן את האישור.' }, { status: 400 });
   const grow = resolveGrow(process.env, APP_URL);
   if (!grow.wallet) return NextResponse.json({ success: false, state: 'closed', error: 'התשלום הזה עוד לא זמין.' }, { status: 409 });
   const db = admin();

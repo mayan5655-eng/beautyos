@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { openGrowWallet, preloadGrowSdk } from '@/lib/grow/walletClient';
+import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '@/lib/paymentTerms';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 
@@ -22,6 +23,8 @@ export default function PayClient({ token }) {
   const [info, setInfo] = useState(null); // { state, amount, description, businessName, accent }
   const [phase, setPhase] = useState('loading'); // loading | ready | opening | open | confirming | paid | late | error
   const [msg, setMsg] = useState('');
+  // The required terms tick (Grow's site check): the pay button waits for it, and /api/grow/wallet refuses without it.
+  const [termsOk, setTermsOk] = useState(false);
   const timer = useRef(null);
 
   const load = useCallback(async () => {
@@ -51,9 +54,10 @@ export default function PayClient({ token }) {
   }, [token]);
 
   const start = async () => {
+    if (!termsOk) { setMsg('כדי להמשיך לתשלום צריך לסמן את האישור.'); return; }
     setPhase('opening'); setMsg('');
     try {
-      const r = await fetch('/api/grow/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token }) });
+      const r = await fetch('/api/grow/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, acceptedTerms: termsOk === true }) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
         if (j?.state === 'paid') { setPhase('paid'); return; }
@@ -98,7 +102,11 @@ export default function PayClient({ token }) {
             )}
             {(phase === 'ready' || phase === 'opening') && (
               <>
-                <button type="button" data-testid="pay-start" onClick={start} disabled={phase === 'opening'} style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: accent, color: '#fff', fontSize: 18, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <label data-testid="pay-terms" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'right', padding: '12px', borderRadius: 14, border: `1px solid ${termsOk ? accent : '#E8DFD0'}`, background: '#FDFBF9', marginBottom: 14, cursor: 'pointer', fontSize: 15, lineHeight: 1.6 }}>
+                  <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setMsg(''); }} aria-label="אישור תנאי התשלום" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: accent }} />
+                  <span>{PAY_TERMS_BEFORE_HE}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: accent, fontWeight: 700, textDecoration: 'underline' }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}</span>
+                </label>
+                <button type="button" data-testid="pay-start" onClick={start} disabled={phase === 'opening' || !termsOk} style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: accent, color: '#fff', fontSize: 18, fontWeight: 700, cursor: termsOk ? 'pointer' : 'default', opacity: termsOk ? 1 : 0.55, fontFamily: 'inherit' }}>
                   {phase === 'opening' ? 'פותחת את התשלום…' : `לתשלום ${money(info.amount)}`}
                 </button>
                 <p style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>כרטיס אשראי, ביט, Apple Pay או Google Pay.<br />התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.</p>
