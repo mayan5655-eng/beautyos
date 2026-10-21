@@ -50,4 +50,21 @@ const billingCard = read('./app/BillingCard.jsx');
 assert.ok(!/'expired' \|\| status === 'paused'\) line = 'החשבון במצב צפייה בלבד. הוספת כרטיס/.test(billingCard), 'paused has its own copy');
 assert.ok(/\{ failed: true \}/.test(billingCard), 'a failed billing read shows a retry');
 
+// ── a deposit link made at booking can expire: each press after the first minutes asks for a fresh page, only while the hold is open ──
+const { freshDepositLink } = await import('./lib/grow/cancelFees.ts');
+const future = new Date(Date.now() + 10 * 60000).toISOString();
+const past = new Date(Date.now() - 60000).toISOString();
+const depDeps = (consent: unknown) => ({ repo: { getConsent: async () => consent, getAccount: async () => ({ user_id: 'u', enabled: true }), getAppointment: async () => ({ id: 'a', service: 'x', name: 'n', client_phone: '0501234567', confirmation_status: 'pending' }) } }) as never;
+const base = { mode: 'deposit', client_id: null, client_name: 'n', snapshot: { deposit_amount: 100, via: 'booking_page' } };
+assert.equal((await freshDepositLink(depDeps(null), { tenantId: 't', appointmentId: 'a', returnUrl: 'r' }) as { code: string }).code, 'none');
+assert.equal((await freshDepositLink(depDeps({ ...base, status: 'deposit_paid', hold_expires_at: null }), { tenantId: 't', appointmentId: 'a', returnUrl: 'r' }) as { code: string }).code, 'paid');
+assert.equal((await freshDepositLink(depDeps({ ...base, status: 'awaiting_deposit', hold_expires_at: past }), { tenantId: 't', appointmentId: 'a', returnUrl: 'r' }) as { code: string }).code, 'expired');
+assert.equal((await freshDepositLink(depDeps({ ...base, status: 'hold_expired', hold_expires_at: future }), { tenantId: 't', appointmentId: 'a', returnUrl: 'r' }) as { code: string }).code, 'expired');
+assert.ok(/fetch\("\/api\/grow\/deposit\/pay"/.test(booking) && /data-testid="deposit-pay"/.test(booking), 'the deposit button asks for a fresh page');
+
+// ── the FAQ editor (bot answers) shows only where the bot runs; results publish uses the full consent record ──
+assert.ok(!/הבוט עוד לא פעיל בחשבון שלך/.test(dash) && /inG\("advanced"\)&&!!\(settings\.green_api_instance/.test(dash), 'no bot promise for a business without the bot');
+const results = read('./app/ResultsManager.jsx');
+assert.ok(!/!r\.published && !r\.consent_confirmed/.test(results) && /!r\.published && !consentComplete\(fromRow\(r\)\)/.test(results), 'publish checks the whole consent record');
+
 console.log('dead controls: ok');

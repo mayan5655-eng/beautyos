@@ -131,8 +131,8 @@ export default function ResultsManager({ tenantId, services }) {
     setMsg(""); setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").update({ published: !r.published }).eq("id", r.id);
-      // The consent rule only ever refuses publishing; an unpublish (or any other refusal) is a plain save failure.
-      if (error) setMsg(!r.published ? "אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה." : SAVE_FAILED_HE);
+      // The consent message only when the consent record really is incomplete (the database's rule); anything else is a plain save failure.
+      if (error) setMsg(!r.published && !consentComplete(fromRow(r)) ? "אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה." : SAVE_FAILED_HE);
       await load();
     } finally { setBusy(""); }
   };
@@ -185,12 +185,12 @@ export default function ResultsManager({ tenantId, services }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600, margin: 0 }}>{r.service_name || "ללא טיפול"}</p>
                 <p style={{ ...hint, color: r.published ? "var(--pc-deep)" : "var(--ink-3)" }}>
-                  {r.published ? "מפורסם" : r.consent_confirmed ? "טיוטה" : "טיוטה, חסרה הסכמה"}
+                  {r.published ? "מפורסם" : consentComplete(fromRow(r)) ? "טיוטה" : "טיוטה, חסרה הסכמה"}
                   {r.sessions ? ` · ${r.sessions} טיפולים` : ""}
                 </p>
               </div>
-              <button disabled={!!busy || (!r.published && !r.consent_confirmed)} onClick={() => togglePublish(r)}
-                style={{ background: "none", border: "none", color: "var(--pc-deep)", fontSize: "var(--t-xs)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", opacity: (!r.published && !r.consent_confirmed) ? 0.4 : 1 }}>
+              <button disabled={!!busy || (!r.published && !consentComplete(fromRow(r)))} onClick={() => togglePublish(r)}
+                style={{ background: "none", border: "none", color: "var(--pc-deep)", fontSize: "var(--t-xs)", fontWeight: 600, fontFamily: "inherit", textDecoration: "underline", opacity: (!r.published && !consentComplete(fromRow(r))) ? 0.4 : 1, cursor: (!r.published && !consentComplete(fromRow(r))) ? "not-allowed" : "pointer" }}>
                 {r.published ? "הסרה מהדף" : "פרסום"}
               </button>
               <button disabled={!!busy} onClick={() => { setMsg(""); setDraft(fromRow(r)); }}
