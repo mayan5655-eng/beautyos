@@ -34,6 +34,9 @@ export default function SignupPage() {
   // email and password. Asked of the server, not built in: off (or unreadable) means the two-field form, as before.
   const [phoneRequired, setPhoneRequired] = useState(false)
   const [phoneOk, setPhoneOk] = useState<PhoneVerified | null>(null)
+  // Her explicit yes to Kalmea's own WhatsApp (the welcome with the tutorial videos, lib/ownerWelcome.ts). Unticked by default:
+  // a marketing message needs a real opt-in (Meta's policy and the Israeli spam law), and without it nothing is sent.
+  const [waOptIn, setWaOptIn] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -73,6 +76,7 @@ export default function SignupPage() {
           // The verified mobile and the server's signed proof of it. Claimed for her on her first signed-in request
           // (app/api/phone/status); the database refuses it if another account already holds the number.
           ...(phoneOk?.ticket ? { phone_e164: phoneOk.phone, phone_ticket: phoneOk.ticket } : {}),
+          ...(waOptIn ? { wa_welcome_optin: true, wa_welcome_optin_at: new Date().toISOString() } : {}),
         },
       },
     })
@@ -250,6 +254,17 @@ export default function SignupPage() {
             </button>
           </Field>
 
+          <label htmlFor="signup-wa-optin" style={optInStyle}>
+            <input
+              id="signup-wa-optin"
+              type="checkbox"
+              checked={waOptIn}
+              onChange={(e) => setWaOptIn(e.target.checked)}
+              style={{ width: 20, height: 20, margin: '2px 0 0', accentColor: DEEP, flexShrink: 0 }}
+            />
+            <span>אשמח לקבל מקלמיה בוואטסאפ הודעת ברוכה הבאה, סרטוני הדרכה ועדכונים. אפשר להפסיק בכל רגע.</span>
+          </label>
+
           {error && <div role="alert" style={errorStyle}>{error}</div>}
 
           <button type="submit" disabled={loading} className="signup-btn" style={buttonStyle(loading)}>
@@ -420,4 +435,16 @@ const linkStyle: React.CSSProperties = {
   color: ACCENT,
   fontWeight: 700,
   textDecoration: 'none',
+}
+
+const optInStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 10,
+  margin: '4px 0 16px',
+  minHeight: 44,
+  fontSize: "var(--t-sm)",
+  lineHeight: 1.5,
+  color: DEEP,
+  cursor: 'pointer',
 }
