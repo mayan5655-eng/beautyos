@@ -9,6 +9,7 @@ import PublicFooterLinks from "../PublicFooterLinks";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 import KalmeaLegalFooter from "../KalmeaLegalFooter";
 import { footerBusinessLine } from "@/lib/kalmeaBusiness";
+import { PLAN_PRICES, priceHe } from "@/lib/pricing";
 
 // Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
@@ -116,21 +117,21 @@ export default function TermsPage() {
 
         <Section heHeading="מחיר וחודש ראשון" enHeading="Price and First Month">
           <He>
-            המחיר הרגיל הוא 499 ₪ לחודש. החודש הראשון חינם, בלי כרטיס אשראי.
+            המחיר הרגיל הוא {priceHe(PLAN_PRICES.regular)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.
           </He>
           <En>
-            The regular price is NIS 499 per month. The first month is free, with
+            The regular price is NIS {PLAN_PRICES.regular} per month. The first month is free, with
             no credit card.
           </En>
         </Section>
 
         <Section heHeading="מחיר השקה" enHeading="Launch Price">
           <He>
-            מחיר ההשקה הוא 349 ₪ לחודש. מחיר ההשקה עשוי להשתנות בעתיד, ובמקרה
+            מחיר ההשקה הוא {priceHe(PLAN_PRICES.launch)} לחודש. מחיר ההשקה עשוי להשתנות בעתיד, ובמקרה
             כזה תישלח הודעה מראש למנויות הקיימות.
           </He>
           <En>
-            The launch price is NIS 349 per month. The launch price may change
+            The launch price is NIS {PLAN_PRICES.launch} per month. The launch price may change
             in the future, in which case existing subscribers will be given
             advance notice.
           </En>

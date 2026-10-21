@@ -22,8 +22,10 @@ import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
 import { subscriptionDoc } from '../kalmeaBusiness.ts';
 import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
+import { PLAN_PRICES } from '../pricing.ts';
 
-export const REGULAR_PRICE = 499;
+/** From lib/pricing.ts, the one place prices live. */
+export const REGULAR_PRICE: number = PLAN_PRICES.regular;
 export const RETRY_OFFSETS_DAYS = [1, 3, 5] as const;
 export const GRACE_DAYS = 7;
 export const TRIAL_LOOKAHEAD_HOURS = 24;

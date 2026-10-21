@@ -9,6 +9,8 @@
 // Pure functions, so the days can be tested at any date. Days are counted in Israel's calendar (Asia/Jerusalem), because "day 1" is
 // the day she signed up as she lives it, not as UTC sees it.
 
+import { PLAN_PRICES, priceHe } from './pricing.ts'
+
 export type NudgeKey = 'day1' | 'day10' | 'day23'
 
 /** The first day of each nudge, and how many days it stays visible so a busy week does not skip it. */
@@ -99,7 +101,7 @@ export function nudgeCopy(key: NudgeKey, counts: { appointments: number; clients
   }
   return {
     title: 'תקופת ההתנסות מסתיימת בקרוב',
-    body: `${appts === 0 && clients === 0 ? 'עוד לא קבענו תורים יחד, ואפשר להתחיל מהקישור לקביעת תור שלך.' : `עד עכשיו יש לך ${plural(appts, 'תור אחד', 'תורים')}, ${clients === 0 ? 'ועוד אין לקוחות' : plural(clients, 'לקוחה אחת', 'לקוחות')}.`} המחיר הרגיל הוא 499 ₪ לחודש. כתבי לנו ונסגור את זה בקלות. כל מה שיצרת נשאר שלך.`,
+    body: `${appts === 0 && clients === 0 ? 'עוד לא קבענו תורים יחד, ואפשר להתחיל מהקישור לקביעת תור שלך.' : `עד עכשיו יש לך ${plural(appts, 'תור אחד', 'תורים')}, ${clients === 0 ? 'ועוד אין לקוחות' : plural(clients, 'לקוחה אחת', 'לקוחות')}.`} המחיר הרגיל הוא ${priceHe(PLAN_PRICES.regular)} לחודש. כתבי לנו ונסגור את זה בקלות. כל מה שיצרת נשאר שלך.`,
     action: 'contact',
     actionLabel: 'לדבר איתנו',
   }

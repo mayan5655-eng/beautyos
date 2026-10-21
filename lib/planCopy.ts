@@ -95,6 +95,22 @@ export const BLOCKED_CLIENTS_NOTE_HE =
 export const READ_ONLY_BADGE_HE = 'המערכת סגורה עד לחידוש המנוי'
 
 /**
+ * The upgrade button (behind NEXT_PUBLIC_UPGRADE_BUTTONS, lib/pricing.ts). During the trial it adds a card, and the first charge
+ * happens only when the trial ends, so the label says the price and nothing about paying today.
+ */
+export function upgradeCtaHe(price: number): string {
+  return `הצטרפות למנוי, ${priceHe(price)} לחודש`
+}
+
+/** Under the upgrade button: the trial is not cut short by joining. */
+export const UPGRADE_HINT_HE = 'החיוב הראשון רק כשתקופת ההתנסות מסתיימת.'
+
+/** The blocked card's button with the price on it, when the upgrade buttons are on. */
+export function payToContinueHe(price: number): string {
+  return `תשלום וחזרה לעבודה, ${priceHe(price)} לחודש`
+}
+
+/**
  * Shown the moment she tries a blocked write, so she never meets a raw error.
  * Used by the guard in beautyos.jsx and by the RLS-denial fallback.
  */
