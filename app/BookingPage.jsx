@@ -334,6 +334,21 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [growPolicy, setGrowPolicy] = useState(null);
   // Her Grow clearing is on: the client is told she can pay by credit card (the same answer, card: true).
   const [cardPay, setCardPay] = useState(false);
+  // After booking: the appointment to pay for, and the press on "pay by card" (/api/grow/booking-pay opens Grow's page).
+  const [bookedId, setBookedId] = useState(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState("");
+  const payNow = async () => {
+    if (payBusy || !bookedId) return;
+    setPayBusy(true); setPayErr("");
+    try {
+      const r = await fetch("/api/grow/booking-pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId }) });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
+      setPayErr(j?.error || "התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק.");
+    } catch { setPayErr("התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק."); }
+    setPayBusy(false);
+  };
   const [policyOk, setPolicyOk] = useState(false);
   const [cardOk, setCardOk] = useState(false);
   const [policyStep, setPolicyStep] = useState(null);
@@ -617,6 +632,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
       setPolicyStep(result.policyStep || null);
+      setBookedId(result.appointmentId || null);
       setStep(4);
     } catch (err) {
       setErrorMsg(CLIENT_STUCK_HE);
@@ -1360,7 +1376,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
                 {cardPay && (
                   <p data-testid="booking-card-pay" style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, padding: "10px 12px", borderRadius: "var(--r-md)", border: `1px solid ${hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12 }}>
-                    💳 אפשר לשלם אצלנו בכרטיס אשראי, בדף תשלום מאובטח. הקבלה נשלחת אלייך.
+                    💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.
                   </p>
                 )}
 
@@ -1435,6 +1451,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
                     </p>
                     <a href={policyStep.url} className="bk-btn" style={{ display: "block", textAlign: "center", textDecoration: "none", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700 }}>{policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</a>
+                  </div>
+                )}
+                {cardPay && bookedId && !(policyStep && policyStep.url) && Number(selectedService?.price) > 0 && (
+                  <div data-testid="booking-pay-now" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
+                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה, והקבלה נשלחת אלייך.</p>
+                    <button type="button" className="bk-btn" disabled={payBusy} onClick={payNow} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : `💳 לתשלום ₪${Number(selectedService.price)} בכרטיס אשראי`}</button>
+                    {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>
                 )}
                 {policyStep && !policyStep.url && (
