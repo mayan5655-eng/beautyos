@@ -147,3 +147,33 @@ Variables and samples:
 3. `{{3}}` appointment date and time: יום ג׳ 21.10 בשעה 10:00
 4. `{{4}}` fee amount: 80
 5. `{{5}}` payment link: https://pay.grow.link/abc
+
+## `kalmea_owner_welcome`
+
+Category: **MARKETING** · Language: he · Header: **Image** · Sent by: `lib/ownerWelcome.ts`, once, to a NEW business owner after onboarding (never to clients) · Switch: `OWNER_WELCOME_WA` (off / mock / live)
+
+Unlike the templates above, submit this one as **Marketing**: the opening hook is a pitch, and Meta would move it there anyway. It needs her marketing consent at signup.
+
+Header: Image. Sample to upload: `public/media/kalmea-welcome-whatsapp.png` (1080x1080, the features in circles around an illustrated cosmetician, drawn, not a photo of a real person; source `marketing/welcome/welcome-image.html`, rendered by `marketing/welcome/render.sh`). At send time the link is `OWNER_WELCOME_IMAGE_URL`, or the copy this app hosts at `/media/kalmea-welcome-whatsapp.png`.
+
+Body:
+
+```text
+היי, ברוכה הבאה לקלמיה! 🌸
+זו לא עוד מערכת לקביעת תורים: מעכשיו יש לך עוזרת אישית לעסק, מהתור הראשון ועד הפוסט הבא.
+
+החשבון של {{1}} מוכן, והכנו לך סרטון קצר שמראה איך מתחילים, צעד אחרי צעד:
+{{2}}
+
+שאלה? אנחנו כאן בוואטסאפ 050-7321978
+צוות קלמיה
+```
+
+Variables and samples:
+
+1. `{{1}}` business name: סטודיו נועה
+2. `{{2}}` tutorial video link: https://kalmea.app/tutorials
+
+The link is a variable on purpose: the video can move or change without a new review. Live mode refuses to send until `OWNER_WELCOME_TUTORIALS_URL` is set in Vercel.
+
+Cost: Israel marketing ≈ $0.0353 a message (Oct 2026 rate card, third-party tables; confirm on Meta's card), one message per signup. The real price arrives on the status webhook. Meta may hold back marketing messages to a number that gets many of them (error 131049); that is recorded as failed and not retried.

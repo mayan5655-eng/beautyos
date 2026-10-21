@@ -25,6 +25,7 @@ import { join } from 'node:path';
 
 const LIMIT = 200 * 1024;
 const VIDEO_LIMIT = 2 * 1024 * 1024;
+const TUTORIAL_LIMIT = 8 * 1024 * 1024;
 const ROOTS = ['brand', 'public'];
 
 let passed = 0, failed = 0;
@@ -53,6 +54,12 @@ for (const root of ROOTS) {
     // play), so they get their own 2 MB limit instead of the first-load image budget.
     if (/^public\/media\/[^/]+\.(mp4|webm)$/.test(norm)) {
       ok(size <= VIDEO_LIMIT, `${norm} is ${Math.round(size / 1024)} KB - over the ${VIDEO_LIMIT / 1024} KB video limit`);
+      continue;
+    }
+    // The tutorial videos on /tutorials (the WhatsApp welcome link) are the same kind of lazy clip (preload="none"), but
+    // a minute and a half each at phone size: 8 MB each, still well under WhatsApp's 16 MB if one is sent as a file.
+    if (/^public\/tutorials\/[^/]+\.mp4$/.test(norm)) {
+      ok(size <= TUTORIAL_LIMIT, `${norm} is ${Math.round(size / 1024)} KB - over the ${TUTORIAL_LIMIT / 1024} KB tutorial video limit`);
       continue;
     }
     ok(size <= LIMIT, `${file.replace(/\\/g, '/')} is ${Math.round(size / 1024)} KB - over the ${LIMIT / 1024} KB budget (see the header of test-asset-budget.ts)`);
