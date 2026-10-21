@@ -15,7 +15,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { contentPlanVisible } from '@/lib/featureFlags';
+import { contentPlanVisible, contentPublishVisible } from '@/lib/featureFlags';
+import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
+import { publishAbility, PUBLISH_ERROR_HE, type PublishErrorClass } from '@/lib/content/metaPublish';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { holidayTemplates } from '@/lib/design/holidayTemplates';
 import { suggestPosts } from '@/lib/design/suggestions';
@@ -35,6 +37,35 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 type Supa = Awaited<ReturnType<typeof createClient>>;
+// The publishing pieces (facebook_pages, publish_jobs) are server-only tables: read with the service role, always scoped
+// to the tenant her own session resolved (get_user_tenant_id), never to anything from the request.
+const admin = () =>
+  createServiceRoleClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+
+/** Her Pages and what each can be published to; null when the publishing columns are not there yet (SQL not run). */
+async function readPublishPages(tenantId: string) {
+  const { data, error } = await admin().from('facebook_pages')
+    .select('page_id, page_name, instagram_business_id, granted_scopes, publish_enabled, is_active')
+    .eq('tenant_id', tenantId).eq('is_active', true);
+  if (error) return null;
+  return ((data || []) as Array<{ page_id: string; page_name: string | null; instagram_business_id: string | null; granted_scopes: string | null; publish_enabled: boolean | null }>)
+    .map((p) => ({ page_id: p.page_id, page_name: p.page_name || 'העמוד שלך', has_instagram: !!p.instagram_business_id, publish_enabled: !!p.publish_enabled, can: publishAbility(p) }));
+}
+
+/** Each post's publish jobs (state, platform, link, the reason in Hebrew when it failed). */
+async function readJobs(tenantId: string, itemIds: string[]) {
+  if (!itemIds.length) return {} as Record<string, unknown[]>;
+  const { data, error } = await admin().from('publish_jobs').select('item_id, platform, state, run_at, external_url, error_class')
+    .eq('tenant_id', tenantId).in('item_id', itemIds).neq('state', 'cancelled').order('created_at', { ascending: false });
+  if (error) return {} as Record<string, unknown[]>;
+  const out: Record<string, unknown[]> = {};
+  for (const j of (data || []) as Array<{ item_id: string; platform: string; state: string; run_at: string; external_url: string | null; error_class: string | null }>) {
+    const list = (out[j.item_id] ||= []) as Array<{ platform: string }>;
+    if (list.some((x) => x.platform === j.platform)) continue; // the newest per platform
+    list.push({ platform: j.platform, state: j.state, run_at: j.run_at, external_url: j.external_url, error: j.error_class ? PUBLISH_ERROR_HE[j.error_class as PublishErrorClass] || PUBLISH_ERROR_HE.unknown : null } as never);
+  }
+  return out;
+}
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status });
 
 async function session(request: NextRequest) {
@@ -101,7 +132,17 @@ export async function GET(request: NextRequest) {
     return json({ success: false, error: 'לא הצלחנו לטעון את לוח התוכן' }, 500);
   }
   const cap = await getCallCapStatus(s.tenantId, PACK_CALL_SITE);
-  return json({ success: true, enabled: true, available: true, preferences: prefs, plan: 'plan' in r ? r.plan : null, cap: { used: cap.used, cap: cap.cap } });
+  let plan = 'plan' in r ? r.plan : null;
+  let publish: unknown = { enabled: false };
+  if (contentPublishVisible(s.settings)) {
+    const pages = await readPublishPages(s.tenantId);
+    publish = { enabled: true, available: pages !== null, pages: pages || [] };
+    if (plan && pages !== null) {
+      const jobs = await readJobs(s.tenantId, plan.items.map((i) => i.id));
+      plan = { ...plan, items: plan.items.map((i) => ({ ...i, jobs: jobs[i.id] || [] })) };
+    }
+  }
+  return json({ success: true, enabled: true, available: true, preferences: prefs, plan, publish, cap: { used: cap.used, cap: cap.cap } });
 }
 
 export async function POST(request: NextRequest) {
@@ -121,6 +162,22 @@ export async function POST(request: NextRequest) {
       return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
     }
     return json({ success: true, preferences: prefs });
+  }
+
+  if (body.action === 'publish-page') {
+    if (!contentPublishVisible(s.settings)) return json({ success: false, error: 'פרסום אוטומטי לא פעיל בחשבון' }, 404);
+    const pageId = typeof body.pageId === 'string' && /^\d{3,30}$/.test(body.pageId) ? body.pageId : '';
+    if (!pageId) return json({ success: false, error: 'עמוד לא מזוהה' }, 400);
+    const enabled = body.enabled === true;
+    // Only her own Page (tenant from her session), and only turned ON when it actually has a publishing permission.
+    const pages = await readPublishPages(s.tenantId);
+    if (pages === null) return json({ success: false, error: 'פרסום אוטומטי עוד לא הופעל בחשבון (חסרה הרצת SQL: kalmea-sql-content-publish).' }, 409);
+    const page = pages.find((p) => p.page_id === pageId);
+    if (!page) return json({ success: false, error: 'העמוד לא נמצא בחשבון שלך' }, 404);
+    if (enabled && !page.can.facebook && !page.can.instagram) return json({ success: false, error: 'לעמוד הזה אין עדיין הרשאת פרסום. צריך לחבר מחדש עם "לחבר פרסום אוטומטי".' }, 409);
+    const { error } = await admin().from('facebook_pages').update({ publish_enabled: enabled }).eq('tenant_id', s.tenantId).eq('page_id', pageId);
+    if (error) return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
+    return json({ success: true, pages: await readPublishPages(s.tenantId) });
   }
 
   if (body.action !== 'generate') return json({ success: false, error: 'פעולה לא מוכרת' }, 400);

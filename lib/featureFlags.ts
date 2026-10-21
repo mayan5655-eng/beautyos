@@ -173,6 +173,12 @@ export function contentPlanVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).content_plan === true;
 }
 
+/** Automatic publishing of approved posts to Instagram and Facebook (stage 2). Off unless explicitly true; also needs content_plan. */
+export function contentPublishVisible(settings: SettingsLike): boolean {
+  const f = tenantFlags(settings);
+  return f.content_plan === true && f.content_publish_meta === true;
+}
+
 export function legacyCampaignTextsVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).legacy_campaign_texts === true;
 }

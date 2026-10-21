@@ -1,6 +1,6 @@
 # Content planning and publishing: feature spec
 
-Status: **stage 1 built 2026-10-21** (weekly plan, Instagram + Facebook captions, approve, morning reminder; behind the `content_plan` flag; SQL `add_content_plan.sql` + `add_content_gate.sql`). Stages 2 to 4 not started. Owner decisions recorded 2026-10-18 (section 8). Written 2026-10-17 from a read-only reading of the code on `main` (76bdca5) and from public
+Status: **stage 1 built 2026-10-21** (weekly plan, Instagram + Facebook captions, approve, morning reminder; behind the `content_plan` flag; SQL `add_content_plan.sql` + `add_content_gate.sql`). **Stage 2 built 2026-10-21** (publish queue + Meta publisher for images, every 5 minutes, behind `content_publish_meta`; SQL `add_publish_jobs.sql`; waits for Meta's permissions). Stages 3 and 4 not started. Owner decisions recorded 2026-10-18 (section 8). Written 2026-10-17 from a read-only reading of the code on `main` (76bdca5) and from public
 platform documentation. **Nothing here was built or run.** Facts about Meta, TikTok and YouTube are from their
 public docs and developer guides as found on 2026-10-17; anything that depends on those platforms' current
 rules is marked UNVERIFIED and must be re-checked in the platform's own dashboard before work starts. They change

@@ -42,6 +42,18 @@ const FACEBOOK_SCOPES = [
   ...(process.env.FACEBOOK_REQUEST_ADS_READ === 'false' ? [] : ['ads_read']),
 ].join(',');
 
+// Automatic publishing from the content plan (docs/specs/content-publishing.md, stage 2) asks for MORE: posting to her
+// Page and to the Instagram account linked to it. Asked only when she connects FOR publishing (?publish=1), so the lead
+// connection is never put at risk by a permission name Meta does not recognise. The names for the Facebook Login route
+// are UNVERIFIED (Meta renamed the Instagram-Login ones in 2025): FACEBOOK_PUBLISH_SCOPES overrides them without a code
+// change once the App Dashboard confirms them. Until Meta approves them, only people with a role on the app get them.
+const DEFAULT_PUBLISH_SCOPES = 'pages_manage_posts,instagram_basic,instagram_content_publish';
+function scopesFor(publish: boolean): string {
+  if (!publish) return FACEBOOK_SCOPES;
+  const extra = (process.env.FACEBOOK_PUBLISH_SCOPES || DEFAULT_PUBLISH_SCOPES).split(',').map((s) => s.trim()).filter((s) => /^[a-z_]+$/.test(s));
+  return [...new Set([...FACEBOOK_SCOPES.split(','), ...extra])].join(',');
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -78,7 +90,8 @@ export async function GET(request: NextRequest) {
     fbAuthUrl.searchParams.set('client_id', appId);
     fbAuthUrl.searchParams.set('redirect_uri', redirectUri);
     fbAuthUrl.searchParams.set('state', state);
-    fbAuthUrl.searchParams.set('scope', FACEBOOK_SCOPES);
+    const scope = scopesFor(request.nextUrl.searchParams.get('publish') === '1');
+    fbAuthUrl.searchParams.set('scope', scope);
     fbAuthUrl.searchParams.set('response_type', 'code');
 
     // Diagnostic: ?dryrun=1 returns the URL we would redirect to instead of
@@ -121,7 +134,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         client_id: appId,
         redirect_uri: redirectUri,
-        scope: FACEBOOK_SCOPES,
+        scope,
         app_url_from_env: APP_URL_IS_CONFIGURED,
         app_secret_valid,
         app_secret_error,

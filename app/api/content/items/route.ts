@@ -7,8 +7,12 @@
 //   { id, platform, caption, hashtags? }                              edit one platform's text (kept: edited = true)
 //   { id, platform, copied: true }                                    she copied that text (shown as "הועתק")
 //
-// Approving does not publish anything today. Stage 2 (Meta) will queue approved posts; until then the morning
-// reminder tells her it is the day, and she posts from the copy / open buttons.
+// Approving, with automatic publishing switched on for her (content_publish_meta flag, a Page with publishing permission
+// and publishing turned on, and the picture rendered from her card as media_path), queues one publish job per platform
+// for the post's time (lib/content/publisher.ts). Undo / skip cancels the queued jobs; moving the time moves them.
+// Without that, approving keeps the stage-1 behaviour: the morning reminder, and she posts from the copy buttons.
+// The queue table is server-only, so those three steps use the service role, AFTER her own session proved (RLS) that
+// the post is hers.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -16,6 +20,14 @@ import { requireActiveTenant } from '@/lib/planGuard';
 import { checkIpLimit } from '@/lib/rateLimit';
 import { CAPTION_LIMITS, PLATFORMS, slotLabelHe, type Platform } from '@/lib/content/pack';
 import { isMissingContentTable, CONTENT_NOT_AVAILABLE_HE } from '@/lib/content/db';
+import { contentPublishVisible } from '@/lib/featureFlags';
+import { isMissingColumnError } from '@/lib/pgError';
+import { enqueueApproved, cancelJobs, rescheduleJobs } from '@/lib/content/publisher';
+import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
+
+const admin = () =>
+  createServiceRoleClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+const MEDIA_PATH = /^[0-9a-f-]{36}\/content\/[0-9a-f-]{36}_\d+\.png$/i;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES = ['planned', 'approved', 'posted', 'skipped'] as const;
@@ -35,7 +47,7 @@ export async function PATCH(request: NextRequest) {
   if (!UUID.test(id)) return json({ success: false, error: 'פוסט לא מזוהה' }, 400);
 
   // RLS returns nothing for another business's row, so "not found" covers both.
-  const cur = await supabase.from('content_items').select('id, status, planned_for').eq('id', id).maybeSingle();
+  const cur = await supabase.from('content_items').select('id, tenant_id, status, planned_for').eq('id', id).maybeSingle();
   if (cur.error) {
     if (isMissingContentTable(cur.error)) return json({ success: false, error: CONTENT_NOT_AVAILABLE_HE }, 409);
     return json({ success: false, error: 'לא הצלחנו לקרוא את הפוסט' }, 500);
@@ -92,13 +104,43 @@ export async function PATCH(request: NextRequest) {
       await supabase.from('content_item_platforms').update({ posted_marked_at: now, updated_at: now }).eq('item_id', id);
     }
   }
+  // The picture to publish: rendered in her browser from the card and stored in HER folder (never another tenant's).
+  let mediaPath: string | null = null;
+  if (patch.status === 'approved' && typeof b.media_path === 'string' && b.media_path) {
+    if (!MEDIA_PATH.test(b.media_path) || !b.media_path.startsWith(`${cur.data.tenant_id}/content/${id}_`)) return json({ success: false, error: 'תמונה לא תקינה' }, 400);
+    mediaPath = b.media_path;
+    patch.media_path = mediaPath;
+  }
   if (Object.keys(patch).length === 1) return json({ success: false, error: 'אין מה לעדכן' }, 400);
 
-  const { data, error } = await supabase.from('content_items').update(patch).eq('id', id)
+  let { data, error } = await supabase.from('content_items').update(patch).eq('id', id)
     .select('id, status, planned_for, approved_at, posted_at').maybeSingle();
+  if (error && 'media_path' in patch && isMissingColumnError(error)) {
+    // add_publish_jobs.sql not run yet: approve without the picture column (publishing is not available anyway).
+    delete patch.media_path;
+    mediaPath = null;
+    ({ data, error } = await supabase.from('content_items').update(patch).eq('id', id).select('id, status, planned_for, approved_at, posted_at').maybeSingle());
+  }
   if (error || !data) {
     console.error('[content/items] update failed:', error?.message);
     return json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, 500);
   }
-  return json({ success: true, item: { ...data, label: slotLabelHe(new Date(data.planned_for)) } });
+  // ── the publishing queue (stage 2): only behind her flag; any failure here leaves the approval itself intact ──
+  let publish: { queued: string[]; reason: string | null } | null = null;
+  try {
+    const flags = (await supabase.from('settings').select('automations').eq('tenant_id', cur.data.tenant_id).maybeSingle()).data;
+    if (contentPublishVisible(flags as never)) {
+      const db = admin();
+      if (patch.status === 'approved') {
+        publish = await enqueueApproved(db, { tenantId: cur.data.tenant_id, itemId: id, plannedFor: data.planned_for, approvedAt: String(data.approved_at), mediaPath });
+      } else if (patch.status === 'planned' || patch.status === 'skipped' || patch.status === 'posted') {
+        await cancelJobs(db, id, patch.status === 'posted' ? 'marked posted by hand' : `status ${patch.status}`);
+      } else if (patch.planned_for) {
+        await rescheduleJobs(db, id, String(patch.planned_for));
+      }
+    }
+  } catch (e) {
+    console.error('[content/items] publish queue step failed:', e instanceof Error ? e.message : 'unknown');
+  }
+  return json({ success: true, item: { ...data, label: slotLabelHe(new Date(data.planned_for)) }, publish });
 }

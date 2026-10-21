@@ -7,14 +7,20 @@
 //
 // Each post: the picture (her template, in her colours), the topic, the day and time (editable), and one text per
 // platform (Instagram, Facebook), editable, with a counter. She approves ("מאשרת"), copies the text, opens the picture to
-// edit, marks it posted, or skips it. A morning reminder tells her on the day. Nothing is published from here today:
-// automatic publishing to Instagram and Facebook comes with Meta's approval (stage 2), and the card says so plainly.
+// edit, marks it posted, or skips it. A morning reminder tells her on the day.
+// Automatic publishing (stage 2, behind its own content_publish_meta flag): she connects her Page with publishing
+// permission and switches it on; then approving renders the picture from the card, stores it in her private folder,
+// and the server queues the post for its time. Each post then shows "scheduled", "published" (with the link) or
+// "failed" with the reason. Without the flag, approving stays a reminder, and the card says so plainly.
 
 import { useEffect, useMemo, useState } from 'react';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import { getTemplate } from '@/lib/design/templates';
 import { fillTemplate } from '@/lib/design/mapBranding';
+import { renderTemplateBlob } from './canvasRender';
+import { supabase } from '../supabase';
+import { PRIVATE_BUCKET } from '@/lib/clientImages';
 
 const PLATFORM_HE = { instagram: 'אינסטגרם', facebook: 'פייסבוק' };
 const LIMITS = { instagram: 2200, facebook: 5000 };
@@ -28,6 +34,17 @@ const STATUS = {
 const card = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '12px 14px' };
 const btn = { padding: '8px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40, whiteSpace: 'nowrap' };
 const primary = { ...btn, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', border: 'none' };
+
+/** Draws the card as a PNG and stores it in her private folder for the publisher; returns the storage path. */
+async function renderForPublishing(template, fill, tenantId, itemId) {
+  const blob = await renderTemplateBlob(template, fill);
+  const path = `${tenantId}/content/${itemId}_${Date.now()}.png`;
+  const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(path, blob, { contentType: 'image/png' });
+  if (error) throw new Error('לא הצלחנו לשמור את התמונה לפרסום. נסי שוב.');
+  return path;
+}
+
+const JOB_HE = { queued: 'מתוזמן', claimed: 'מתפרסם עכשיו', container_created: 'מתפרסם עכשיו', published: 'פורסם', failed: 'לא פורסם', paused: 'מושהה' };
 
 async function api(url, method, body) {
   const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -82,9 +99,13 @@ export default function ContentPlan({ settings, readOnly, toast, onCreate }) {
 
       {state.available && (
         <>
-          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '6px 0 12px', padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
-            פרסום אוטומטי לאינסטגרם ולפייסבוק ייפתח כאן אחרי האישור של Meta. עד אז, בכל פוסט יש העתקת טקסט והורדת התמונה בלחיצה.
-          </p>
+          {state.publish?.enabled
+            ? <PublishPanel publish={state.publish} readOnly={readOnly} toast={toast} onPages={(pages) => setState((s) => ({ ...s, publish: { ...s.publish, pages } }))} />
+            : (
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '6px 0 12px', padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
+                פרסום אוטומטי לאינסטגרם ולפייסבוק ייפתח כאן אחרי האישור של Meta. עד אז, בכל פוסט יש העתקת טקסט והורדת התמונה בלחיצה.
+              </p>
+            )}
 
           {!state.plan?.items?.length ? (
             <div style={{ textAlign: 'center', padding: '14px 0 4px' }}>
@@ -97,6 +118,8 @@ export default function ContentPlan({ settings, readOnly, toast, onCreate }) {
             <div style={{ display: 'grid', gap: 12 }}>
               {state.plan.items.map((it) => (
                 <PlanItem key={it.id} item={it} settings={settings} readOnly={readOnly} toast={toast} onCreate={onCreate}
+                  autoPublish={!!state.publish?.enabled && (state.publish.pages || []).some((p) => p.publish_enabled && (p.can.facebook || p.can.instagram))}
+                  onReload={load}
                   onChange={(upd) => patchItem(it.id, upd)} onGone={() => setState((s) => ({ ...s, plan: { ...s.plan, items: s.plan.items.filter((x) => x.id !== it.id) } }))} />
               ))}
               <button type="button" style={{ ...btn, justifySelf: 'start' }} disabled={readOnly || busy === 'generate'} onClick={generate}>
@@ -111,7 +134,7 @@ export default function ContentPlan({ settings, readOnly, toast, onCreate }) {
   );
 }
 
-function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone }) {
+function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone, autoPublish, onReload }) {
   const platforms = Object.keys(item.platforms || {}).filter((p) => PLATFORM_HE[p]);
   const [tab, setTab] = useState(platforms[0] || 'instagram');
   const [busy, setBusy] = useState('');
@@ -128,7 +151,14 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone 
 
   const run = async (key, fn) => { setBusy(key); setErr(''); try { await fn(); } catch (e) { setErr(e.message); } finally { setBusy(''); } };
   const setStatus = (status, okMsg) => run(status, async () => {
-    const d = await api('/api/content/items', 'PATCH', { id: item.id, status });
+    // With automatic publishing on, the picture that goes out is drawn from the card now, at approval.
+    const media_path = status === 'approved' && autoPublish && t && fill ? await renderForPublishing(t, fill, settings?.tenant_id, item.id) : undefined;
+    const d = await api('/api/content/items', 'PATCH', { id: item.id, status, ...(media_path ? { media_path } : {}) });
+    if (d.publish) {
+      onReload?.();
+      if (status === 'approved') toast?.(d.publish.queued?.length ? `אושר ותוזמן לפרסום אוטומטי (${d.publish.queued.map((p) => PLATFORM_HE[p]).join(', ')})` : 'אושר. הפרסום האוטומטי לא תוזמן, נזכיר לך ביום הפרסום');
+      return;
+    }
     if (status === 'skipped') { onGone(); toast?.('דילגנו על הפוסט'); return; }
     onChange({ status: d.item.status, approved_at: d.item.approved_at, posted_at: d.item.posted_at });
     if (okMsg) toast?.(okMsg);
@@ -168,6 +198,19 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone 
           </div>
           <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '4px 0 2px', overflowWrap: 'anywhere' }}>{item.topic}</p>
           {item.reason && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.5, margin: 0 }}>{item.reason}</p>}
+          {(item.jobs || []).length > 0 && (
+            <div data-testid="publish-jobs" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+              {item.jobs.map((j) => (
+                <span key={j.platform} title={j.error || ''} style={{ fontSize: 'var(--t-xs)', fontWeight: 700, borderRadius: 'var(--r-full)', padding: '2px 8px', border: '1px solid var(--line-2)', color: j.state === 'failed' ? 'var(--danger)' : j.state === 'published' ? 'var(--success)' : 'var(--ink-2)' }}>
+                  {PLATFORM_HE[j.platform]}: {JOB_HE[j.state] || j.state}
+                  {j.state === 'published' && j.external_url ? <> · <a href={j.external_url} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>לפוסט</a></> : null}
+                </span>
+              ))}
+            </div>
+          )}
+          {(item.jobs || []).filter((j) => j.state === 'failed' && j.error).map((j) => (
+            <p key={j.platform} role="alert" style={{ fontSize: 'var(--t-xs)', color: 'var(--danger)', lineHeight: 1.5, margin: '4px 0 0' }}>{PLATFORM_HE[j.platform]}: {j.error}</p>
+          ))}
         </div>
       </div>
 
@@ -200,7 +243,7 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone 
       )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {item.status === 'planned' && <button type="button" style={primary} disabled={readOnly || !!busy} onClick={() => setStatus('approved', 'אושר. נזכיר לך ביום הפרסום')}>{busy === 'approved' ? <Spinner inline label="" /> : 'מאשרת'}</button>}
+        {item.status === 'planned' && <button type="button" style={primary} disabled={readOnly || !!busy} onClick={() => setStatus('approved', 'אושר. נזכיר לך ביום הפרסום')}>{busy === 'approved' ? <Spinner inline label="" /> : autoPublish ? 'מאשרת ומתזמנת' : 'מאשרת'}</button>}
         {dirty && <button type="button" style={primary} disabled={readOnly || busy === 'save'} onClick={saveText}>{busy === 'save' ? <Spinner inline label="" /> : 'שמירת הטקסט'}</button>}
         <button type="button" style={btn} disabled={!text?.caption || busy === 'copy'} onClick={copy}>העתקת טקסט</button>
         {t && onCreate && <button type="button" style={btn} disabled={readOnly} onClick={() => onCreate(t, item.values || {})}>לתמונה ולהורדה</button>}
@@ -251,6 +294,52 @@ function Preferences({ initial, readOnly, toast, onSaved }) {
       </div>
       <div><button type="button" style={primary} disabled={readOnly || busy || !p.posting_days.length || !p.platforms.length} onClick={save}>{busy ? <Spinner inline label="" /> : 'שמירה'}</button></div>
       {err && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: 0 }}>{err}</p>}
+    </div>
+  );
+}
+
+function PublishPanel({ publish, readOnly, toast, onPages }) {
+  const [busy, setBusy] = useState('');
+  const [err, setErr] = useState('');
+  const pages = publish.pages || [];
+  const toggle = async (p) => {
+    setBusy(p.page_id); setErr('');
+    try {
+      const d = await api('/api/content/plan', 'POST', { action: 'publish-page', pageId: p.page_id, enabled: !p.publish_enabled });
+      onPages(d.pages || []);
+      toast?.(!p.publish_enabled ? 'הפרסום האוטומטי הופעל' : 'הפרסום האוטומטי כובה');
+    } catch (e) { setErr(e.message); } finally { setBusy(''); }
+  };
+  const connect = <a href="/api/facebook/oauth/start?publish=1" style={{ ...btn, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>לחבר פרסום אוטומטי</a>;
+  return (
+    <div data-testid="publish-panel" style={{ ...card, margin: '6px 0 12px', background: 'var(--surface-2)' }}>
+      <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>פרסום אוטומטי</p>
+      {publish.available === false ? (
+        <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', margin: 0 }}>עוד לא הופעל בחשבון (חסרה הרצת SQL: kalmea-sql-content-publish).</p>
+      ) : (
+        <>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, margin: '0 0 8px' }}>
+            פוסט שאישרת יתפרסם לבד בזמן שנקבע, בעמוד הפייסבוק ובאינסטגרם העסקי שמחובר אליו. אפשר לבטל אישור עד רגע הפרסום.
+          </p>
+          {pages.length === 0 && <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>{connect}<span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>צריך עמוד פייסבוק עסקי, ואינסטגרם עסקי שמחובר אליו.</span></div>}
+          {pages.map((p) => {
+            const can = [p.can.facebook && 'פייסבוק', p.can.instagram && 'אינסטגרם'].filter(Boolean);
+            return (
+              <div key={p.page_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0', borderTop: '1px solid var(--line)' }}>
+                <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, flex: '1 1 160px', minWidth: 0 }}>{p.page_name}{p.has_instagram ? ' + אינסטגרם' : ''}</span>
+                {can.length ? (
+                  <button type="button" style={{ ...btn, background: p.publish_enabled ? 'var(--pc-tint)' : 'var(--surface)', borderColor: p.publish_enabled ? 'var(--pc)' : 'var(--line-2)' }} disabled={readOnly || busy === p.page_id} onClick={() => toggle(p)}>
+                    {busy === p.page_id ? <Spinner inline label="" /> : p.publish_enabled ? `פעיל (${can.join(', ')})` : 'להפעיל'}
+                  </button>
+                ) : (
+                  <>{connect}<span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>אין עדיין הרשאת פרסום לעמוד הזה</span></>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+      {err && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: '6px 0 0' }}>{err}</p>}
     </div>
   );
 }

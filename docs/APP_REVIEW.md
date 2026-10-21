@@ -361,3 +361,25 @@ in full. Use the reviewer tenant (section 4). Open the screen first, then read t
     deletion by e-mail, and Meta's deletion callback removes the connections we hold for that Facebook user." (If
     you want to show the callback itself: Meta App Dashboard > Facebook Login > Settings > the callback URLs.)
 12. **4:50 - Close.** "That is every permission we request, used as shown."
+
+## Content publishing (added 2026-10-21, stage 2 of docs/specs/content-publishing.md)
+
+Built and waiting for these permissions. Until Meta grants Advanced Access, only people with a role on the app (and
+test users) get them; the content board says so and keeps approve-and-remind working.
+
+| Permission | How Kalmea uses it | Where |
+|---|---|---|
+| `pages_manage_posts` | Publishes a post she approved (her picture + her caption) to her own Facebook Page at the time she chose. One post at a time, never without her approval. | `lib/content/metaPublish.ts` publishFacebookPhoto, `/api/content/publish-due` |
+| `instagram_basic` | Reads the Instagram professional account linked to her Page (id, permalink of what we published). | `oauth/callback` (instagram_business_id), instagramPublish permalink |
+| `instagram_content_publish` | Publishes the same approved post to her linked Instagram account (container, then media_publish). | `lib/content/metaPublish.ts` instagramContainer / instagramPublish |
+
+The names for the Facebook Login route are UNVERIFIED (Meta renamed the Instagram-Login ones in 2025). Check them in App
+Dashboard > App Review > Permissions and Features first; if they differ, set `FACEBOOK_PUBLISH_SCOPES` in Vercel to the
+right comma-separated list (no code change).
+
+Screencast for the reviewer (one take, test Page + test Instagram professional account):
+1. Kalmea > תוכן > לוח התוכן > "לחבר פרסום אוטומטי" -> the Facebook Login dialog showing the publishing permissions -> allow.
+2. Back in Kalmea: the Page shows "להפעיל" -> switch on.
+3. "להכין לי תוכנית לשבוע" -> a post with its picture and its Instagram and Facebook texts -> edit a word -> "מאשרת ומתזמנת".
+4. Move its time to two minutes from now ("שינוי זמן"); wait; the post shows "פורסם" with the link; open the link on Facebook and on Instagram.
+5. Show "ביטול האישור" on another post (nothing is published), and the notification she receives.

@@ -82,8 +82,10 @@ ok('routes: her session (RLS) only, flag first, writes need an active plan, noth
   const plan = strip(rd('app/api/content/plan/route.ts'));
   const items = strip(rd('app/api/content/items/route.ts'));
   for (const r of [plan, items]) {
-    assert.doesNotMatch(r, /SUPABASE_SERVICE_ROLE_KEY|createServiceRoleClient/);
+    // Stage 2 (2026-10-21): the server-only publishing tables use the service role, but only AFTER her session
+    // (getUser + RLS) identified her; the plan itself is still read and written on her session.
     assert.match(r, /auth\.getUser\(\)/);
+    assert.ok(r.indexOf('auth.getUser()') < r.indexOf('admin()', r.indexOf('export async function')), 'session before service role');
     assert.match(r, /requireActiveTenant\(/);
     assert.doesNotMatch(r, /graph\.facebook\.com|sendWhatsApp|media_publish|\/feed/);
   }
