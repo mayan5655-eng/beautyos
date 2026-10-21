@@ -3,7 +3,8 @@
 // Server component, no session: any top-level single segment is public (lib/supabase/middleware.ts). "tutorials" is a
 // reserved slug (lib/slug.ts + supabase/migrations/add_reserved_slug_tutorials.sql), so no business page sits under it.
 //
-// The videos are recorded from the demo tenant by marketing/tutorials.mjs; to update one, re-run it and copy the file over
+// The tour and booking videos are recorded from the demo tenant by marketing/tutorials.mjs; the welcome video is the animated
+// one from marketing/welcome-motion.mjs. To update one, re-run its script and copy the file over
 // public/tutorials/kalmea-<id>.mp4 (and its poster .jpg). preload="none": nothing is downloaded until she presses play,
 // which is why these clips have their own size limit in test-asset-budget.ts.
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 const TUTORIALS = [
-  { id: "welcome", title: "מה יש בקלמיה", sub: "כל העסק שלך במקום אחד, בדקה וחצי" },
+  { id: "welcome", title: "מה מיוחד בקלמיה", sub: "כל מה שקלמיה עושה בשבילך, בדקה אחת" },
   { id: "tour", title: "סיור בכל המסכים", sub: "היומן, הלקוחות, התשלומים, התוכן וההגדרות" },
   { id: "booking", title: "איך קובעים תור", sub: "ביומן שלך, ואיך הלקוחה קובעת לבד בדף שלך" },
 ] as const;

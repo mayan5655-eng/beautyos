@@ -23,8 +23,12 @@ assert.ok(RESERVED_SLUGS.has('tutorials'), 'a business cannot take the address "
 assert.notEqual(slugError('tutorials'), '', 'and is told why');
 assert.ok(/'tutorials'/.test(raw('supabase/migrations/add_reserved_slug_tutorials.sql')), 'nor in the database (migration file)');
 
-const script = raw('marketing/tutorials.mjs');
-assert.ok(script.includes('050-7321978'), "the welcome video ends on the support line");
-assert.ok(!script.includes('עני להודעה'), 'not on "reply to this message", which nobody reads');
+for (const f of ['marketing/tutorials.mjs', 'marketing/welcome-motion.mjs']) {
+  const script = raw(f);
+  assert.ok(script.includes('050-7321978'), `${f}: the welcome video ends on the support line`);
+  assert.ok(!script.includes('עני להודעה'), `${f}: not on "reply to this message", which nobody reads`);
+}
+// payments (Grow) are not live: the animated welcome may only show them as coming
+assert.ok(/ובקרוב:', 'סליקה/.test(raw('marketing/welcome-motion.mjs')), 'online payments are captioned as coming soon');
 
 console.log('tutorials page: all checks passed');

@@ -63,6 +63,13 @@ animation; everything on screen is a function of the clock, and the script steps
 it, so every run is identical. The rows are read from `app/LandingPage.jsx` (the video cannot drift from the page) and it
 refuses to render unless they total 10,068, the number its copy says. `--frame=16.5` writes one still for checking.
 
+## welcome-motion
+
+`node welcome-motion.mjs --shots` captures real demo screens (AI calls blocked), then `node welcome-motion.mjs` renders the animated
+welcome video (about 64 s, 720x1280) frame by frame into `out/motion/kalmea-welcome-motion.mp4`; `--frame=12.5` writes one still.
+It is the first video on kalmea.app/tutorials (copy it over `public/tutorials/kalmea-welcome.mp4`). What it may claim, and why,
+is in the header of the script: payments are "coming soon", reminders are not called automatic, the advisor answer is marked as a demo.
+
 ## tutorials
 
 `node tutorials.mjs` records the two videos sent to new users: `tour` (every main screen, one caption each, about 85 s) and
