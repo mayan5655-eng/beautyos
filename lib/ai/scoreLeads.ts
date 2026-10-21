@@ -3,7 +3,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from './usage.ts'
-import { MODELS } from './models.ts'
+import { MODELS, EFFORT } from './models.ts'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -118,7 +118,9 @@ ${customFieldsText}
       // Unsuffixed on purpose: the model id is complete as-is, and pinning a
       // dated variant silently ties this to one snapshot.
       model: MODELS.cheap,
-      max_tokens: 1024,
+      // Room for Haiku 5.5's thinking as well as the JSON: thinking counts against max_tokens.
+      max_tokens: 3000,
+      output_config: { effort: EFFORT.cheap },
       messages: [{ role: 'user', content: prompt }],
     }, { tenantId: tenantId || null, callSite: 'score-lead' })
 

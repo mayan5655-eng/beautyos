@@ -18,6 +18,7 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
+import { MODELS, EFFORT } from "@/lib/ai/models";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
@@ -148,8 +149,11 @@ async function generateReply({ message, clientName, tenantId }) {
   // GreenAPI instance id on the inbound webhook, not from anything the sender
   // could set.
   const aiResponse = await trackedCreate(anthropic, {
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 400,
+    // Haiku 5.5 thinks before it writes, and the thinking counts against max_tokens: the room is for that, not for a
+    // longer reply (the prompt holds it to three sentences). A refusal comes back with no text, so she answers by hand.
+    model: MODELS.cheap,
+    max_tokens: 2000,
+    output_config: { effort: EFFORT.cheap },
     system: systemPrompt,
     messages: [
       {

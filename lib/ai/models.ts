@@ -13,7 +13,12 @@
 //   writer  Claude Opus 5.5    $4 / $20 per MTok   what she judges hardest
 //   ideas   Claude Sonnet 5.5  $2 / $10 per MTok   lists of ideas - same price as
 //                                                  the Sonnet 5 it replaces, newer
-//   cheap   Claude Haiku 4.5   $1 / $5  per MTok   mechanical, high-volume, unread
+//   cheap   Claude Haiku 5.5   $0.10 / $0.50       mechanical, high-volume, short:
+//                                                  the WhatsApp bot, voice commands,
+//                                                  lead scoring, header mapping.
+//                                                  Was Haiku 4.5 ($1 / $5) until
+//                                                  2026-10-21: 5.5 is newer AND 10x
+//                                                  cheaper. It thinks too (below).
 //
 // What the newer models need from the call (all enforced by test-ai-models.ts):
 //   * thinking is always on, and counts against max_tokens - budgets must leave
@@ -28,7 +33,7 @@
 export const MODELS = {
   writer: 'claude-opus-5-5',
   ideas: 'claude-sonnet-5-5',
-  cheap: 'claude-haiku-4-5',
+  cheap: 'claude-haiku-5-5',
 } as const;
 
 /**
@@ -50,4 +55,7 @@ export const EFFORT = {
   // brief's own words repeated, its slogan copied, one templated shape) - those
   // were prompt problems, fixed in buildGeneratePrompt. See test-post-generator.ts.
   captions: 'medium',
+  // The Haiku 5.5 calls. Its own default is medium; low keeps the WhatsApp reply
+  // and the voice command fast, and these are short, mechanical answers.
+  cheap: 'low',
 } as const;
