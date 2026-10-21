@@ -29,7 +29,7 @@ export const SLUG_MAX = 40;
 export const RESERVED_SLUGS = new Set([
   'api', 'auth', 'book', 'claim', 'community', 'confirm', 'dashboard',
   'accessibility', 'data-deletion', 'demo', 'form', 'login', 'logo', 'og', 'onboarding', 'privacy', 'reset-password', 'review', 'reviews', 'signup',
-  'skin-scan', 'terms',
+  'skin-scan', 'terms', 'tutorials',
   'admin', 'app', 'assets', 'blog', 'help', 'icons', 'images', 'new',
   'pricing', 'public', 'settings', 'splash', 'static', 'support',
   'www', '_next',

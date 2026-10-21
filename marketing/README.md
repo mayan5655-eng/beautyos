@@ -62,3 +62,16 @@ Rules that came from real mistakes, kept in the code as comments:
 animation; everything on screen is a function of the clock, and the script steps the clock one frame at a time and screenshots
 it, so every run is identical. The rows are read from `app/LandingPage.jsx` (the video cannot drift from the page) and it
 refuses to render unless they total 10,068, the number its copy says. `--frame=16.5` writes one still for checking.
+
+## tutorials
+
+`node tutorials.mjs` records the two videos sent to new users: `tour` (every main screen, one caption each, about 85 s) and
+`booking` (booking from the app, then a client booking herself on the public page, about 60 s). `node tutorials.mjs booking`
+records one; `--stitch-only` re-joins the parts in `out/tutorials/<video>/`. Output: `out/tutorials/kalmea-tutorial-<video>.mp4`,
+720x1280 H.264 + AAC, a few MB (the script fails above 15 MB: WhatsApp's media limit is 16 MB), and `<video>-sheet.png`, a frame
+every 2 s: look at it before sending a new version. The captions live in the script (`TOUR`, `BOOKING`), two lines each with the
+break chosen by hand. The booking video books two appointments on the demo tenant; the nightly reset clears them.
+
+When the UI changes, a step that no longer finds its button fails with the step's name and `out/failure-*.png`: fix that selector
+and re-run. (October 2026: settings moved services to "יומן ושירותים" and branding to "הדף שלי"; the booking page grew a second
+checkbox, the marketing opt-in, which stays unticked.)
