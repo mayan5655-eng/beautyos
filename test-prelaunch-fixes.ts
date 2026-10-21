@@ -38,7 +38,7 @@ ok('terms state the regular price and the free month, in Hebrew with the English
   assert.ok(i > 0);
   const en = t.indexOf('The regular price is NIS {PLAN_PRICES.regular} per month', i);
   assert.ok(en > i);
-  assert.ok(t.indexOf('Launch Price') > en, 'the clause sits before the launch-price clause');
+  assert.ok(t.indexOf('Introductory Price') > en, 'the clause sits before the introductory-price clause');
 });
 
 ok('payments export button is Hebrew', () => {

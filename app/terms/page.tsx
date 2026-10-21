@@ -125,13 +125,13 @@ export default function TermsPage() {
           </En>
         </Section>
 
-        <Section heHeading="מחיר השקה" enHeading="Launch Price">
+        <Section heHeading="מחיר היכרות" enHeading="Introductory Price">
           <He>
-            מחיר ההשקה הוא {priceHe(PLAN_PRICES.launch)} לחודש. מחיר ההשקה עשוי להשתנות בעתיד, ובמקרה
+            מחיר ההיכרות הוא {priceHe(PLAN_PRICES.launch)} לחודש, לזמן מוגבל. מחיר ההיכרות עשוי להשתנות בעתיד, ובמקרה
             כזה תישלח הודעה מראש למנויות הקיימות.
           </He>
           <En>
-            The launch price is NIS {PLAN_PRICES.launch} per month. The launch price may change
+            The introductory price is NIS {PLAN_PRICES.launch} per month, for a limited time. It may change
             in the future, in which case existing subscribers will be given
             advance notice.
           </En>

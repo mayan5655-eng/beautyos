@@ -29,6 +29,7 @@ ok('Kalmea price is shown: launch price 349 with no end date, regular price 499,
   assert.equal(PLAN_PRICES.regular, 499);
   assert.equal(PLAN_PRICES.launch, 349);
   assert.match(page, /\{priceHe\(PLAN_PRICES\.regular\)\} <span/);
+  // Owner, 2026-10-21: an introductory price "for a limited time", with no date shown.
   assert.match(page, /מחיר היכרות \{priceHe\(PLAN_PRICES\.launch\)\} לזמן מוגבל/);
   assert.doesNotMatch(page, /20\.10\.2026|LAUNCH_PRICE_CUTOFF_ISO|Date\.now\(\)\s*<=/, 'the launch price has no end date and no automatic expiry');
   assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
