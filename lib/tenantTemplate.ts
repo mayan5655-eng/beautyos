@@ -377,7 +377,8 @@ export const DEFAULT_AUTOMATION_FLAGS = {
   review_requests_enabled: true,
   winback_enabled: true,
   package_reminders_enabled: true,
-  bot_active: true,
+  // Off until she turns it on: its replies wait in her manual queue anyway, and each one is a paid AI call (2026-10-21).
+  bot_active: false,
   bot_mode: 'always' as const,
   gap_fill_enabled: false,
   send_receipt_auto: false,

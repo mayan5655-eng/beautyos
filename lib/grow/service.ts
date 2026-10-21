@@ -38,6 +38,8 @@ export type GrowPayment = {
   notify_token: string;
   /** Selected by the repo; the wallet page needs them (the phone Grow's form wants, the age of the link). */
   payer_phone?: string | null;
+  /** Grow's transaction on a paid row (selected by the repo): a second, different one on the same payment means a double payment. */
+  transaction_id?: string | null;
   created_at?: string | null;
 };
 
@@ -192,7 +194,7 @@ export async function applyNotification(raw: Record<string, unknown>, token: str
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
   if (!p) return { status: 'unknown-token' };
-  return applyToPayment(p, raw, d, approve);
+  return applyToPayment(p, raw, d, approve, true);
 }
 
 /**
@@ -207,10 +209,23 @@ export async function applyNotificationByProcess(raw: Record<string, unknown>, d
   return applyToPayment(p, raw, d, approve);
 }
 
-async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
+/**
+ * viaSecret: the callback reached this payment's own notify URL, whose secret only Grow and we know (applyNotification).
+ *
+ * 2026-10-21: the wallet page opens a NEW Grow process each time the client taps "pay" (lib/grow/wallet.ts), and only the last
+ * process id is stored. A client who tapped, switched to Bit, came back and tapped again, then completed the FIRST one, was
+ * answered "mismatch": the money was in her Grow account, the payment stayed open, no receipt, and the link could be paid again.
+ * Through the secret URL, a callback that names THIS payment (cField1 = payment id) for THIS amount is accepted even when its
+ * process id is an earlier one. The platform webhook (no secret) still requires the stored process id.
+ */
+async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>, viaSecret = false): Promise<NotifyResult> {
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
-  if (!p.process_id || !notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) })) return { status: 'mismatch' };
+  const exact = !!p.process_id && notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) });
+  const earlierTap = viaSecret && !exact && !!n.processId && n.paymentRef === String(p.id)
+    && notificationMatches(n, { processId: n.processId, amount: Number(p.amount) });
+  if (!exact && !earlierTap) return { status: 'mismatch' };
+  if (earlierTap) console.warn('[grow] payment', p.id, 'paid through an earlier process of the same payment; accepted via its secret URL');
   // The tenant id we sent in cField2 must be this payment's tenant. Absent on payments created before cField2 existed:
   // then the process id, the amount and the secret are the checks, as before.
   if (n.tenantRef && n.tenantRef !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
@@ -219,6 +234,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   const now = (d.now || (() => new Date()))().toISOString();
   const flipped = await d.repo.markPaid(p.id, {
     status: 'paid', paid_at: now, transaction_id: n.transactionId, transaction_token: n.transactionToken || null, asmachta: n.asmachta || null, updated_at: now,
+    ...(earlierTap ? { process_id: n.processId } : {}),
   });
   if (!flipped) {
     // Duplicate callback. If the first one died between "paid" and "receipt", finish that job now.
@@ -228,6 +244,9 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     if (p.status === 'paid' && !p.receipt_id && !(ageMs < 120_000)) {
       const rid = await createReceiptFor(p, n, d);
       return { status: 'paid', paymentId: p.id, receiptId: rid };
+    }
+    if (p.status === 'paid' && p.transaction_id && n.transactionId && String(p.transaction_id) !== String(n.transactionId)) {
+      console.error('[grow] payment', p.id, 'received a SECOND transaction', n.transactionId, '- the client may have paid twice; check Grow and refund one');
     }
     return { status: 'already' };
   }

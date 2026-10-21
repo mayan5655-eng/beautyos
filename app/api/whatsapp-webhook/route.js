@@ -106,8 +106,10 @@ async function shouldBotReply(tenantId) {
     console.log("BOT_SETTINGS_EXCEPTION", e.message);
   }
 
-  // Master switch off -> never reply
-  if (s.bot_active === false) return false;
+  // Master switch: ON only when she turned it on (2026-10-21). Its replies cannot go out automatically (ai_agent_reply is not a
+  // utility type, so it waits in her manual queue), yet every client "תודה" cost a Claude call and dropped a draft there. A new
+  // business starts with it off (lib/tenantTemplate.ts); one whose row says true keeps it.
+  if (s.bot_active !== true && s.bot_active !== "true") return false;
 
   // Always-on mode (default) -> reply
   if (!s.bot_mode || s.bot_mode === "always") return true;

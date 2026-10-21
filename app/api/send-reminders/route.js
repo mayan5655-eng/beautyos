@@ -16,6 +16,8 @@ import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { markCronRun } from '../../../lib/cronHeartbeat.js';
+import { checkInstanceState } from "../../../lib/greenApi/health.ts";
+import { opsPush } from "../../../lib/opsPush.js";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
 import { isPersonal } from "../../../lib/calendarKind";
@@ -60,9 +62,26 @@ export async function POST(request) {
     const onlyParam = new URL(request.url).searchParams.get("only");
     const only = onlyParam ? onlyParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
+    // Is the central WhatsApp session actually logged in? GreenAPI answers 200 to a send either way, so without this a logged-out
+    // session turned every reminder into "sent" that reached nobody (2026-10-21 audit). Down -> every reminder waits in her
+    // manual queue (she can tap it out from her own WhatsApp) and the operator is told, by push too.
+    const state = await checkInstanceState();
+    // Only a definite answer counts: GreenAPI said the session is not authorized. A failed CHECK (network) is not proof, and the
+    // send path already falls back to the queue on network errors.
+    const sessionDown = state.ok && !state.authorized;
+    const send = sessionDown ? (phone, text, opts) => sendWhatsApp(phone, text, { ...(opts || {}), forceManual: true }) : sendWhatsApp;
+    if (sessionDown) {
+      await raiseOpsAlert({
+        db: supabase, send: sendWhatsApp, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || "").trim(),
+        source: "send-reminders", severity: "error", push: opsPush(supabase),
+        message: `וואטסאפ המרכזי לא מחובר (${state.ok ? state.stateInstance : ""}). התזכורות למחר הועברו לתור השליחה הידנית של כל עסק במקום להישלח. כדאי לחבר מחדש ב-GreenAPI.`,
+        details: { date: tomorrow, greenApi: state },
+      });
+    }
+
     const run = await runDailyReminders({
       db: supabase,
-      send: sendWhatsApp,
+      send,
       tomorrow,
       baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app",
       deps: { startMinute, isPersonal, confirmLinks, isDemoTenantId, isMissingColumnError },

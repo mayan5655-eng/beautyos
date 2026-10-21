@@ -28,8 +28,10 @@ const sumAmount = (rows) => rows.reduce((s, r) => s + (Number(r.amount) || 0), 0
 async function reportFor(row, now) {
   const tenantId = row.tenant_id;
   const today = dayKey(now);
-  const weekStart = dayKey(new Date(now.getTime() - 7 * 864e5));
-  const prevStart = dayKey(new Date(now.getTime() - 14 * 864e5));
+  // Seven days including today, and the seven before them (2026-10-21 audit: today-7 through today was EIGHT days, so the
+  // week looked bigger than the one before it and the same Sunday was counted in two reports).
+  const weekStart = dayKey(new Date(now.getTime() - 6 * 864e5));
+  const prevStart = dayKey(new Date(now.getTime() - 13 * 864e5));
   const monthStart = today.slice(0, 8) + "01";
   const earliest = monthStart < prevStart ? monthStart : prevStart;
   // Appointments from the week's start too: read only from the 1st, "this week" early in a month counted just the days since

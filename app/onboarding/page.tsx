@@ -241,6 +241,11 @@ export default function OnboardingPage() {
       return;
     }
     // A closing hour that is not after the opening hour used to be replaced by 9 to 19 without a word.
+    // An emptied field (the input stores Number("") = 0) skipped the check below and was then silently filled with 8 (2026-10-21).
+    if (step === 3 && (!(Number(data.working_hours_start) > 0) || !(Number(data.working_hours_end) > 0))) {
+      setError("צריך למלא שעת התחלה ושעת סיום.");
+      return;
+    }
     if (step === 3 && Number(data.working_hours_end) && Number(data.working_hours_start) && Number(data.working_hours_end) <= Number(data.working_hours_start)) {
       setError("שעת הסיום צריכה להיות אחרי שעת ההתחלה.");
       return;
