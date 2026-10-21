@@ -6,7 +6,7 @@
 // It builds ON the existing trial and gate, it does not replace them. The gate stays tenants.plan_status (lib/planState.ts,
 // trial-state.sql): 'trial' | 'active' | 'expired' | 'paused'. This file only ever moves a tenant between those:
 //   a successful charge        -> 'active'  (unblocks at once)
-//   grace period over / ended  -> 'expired' (the existing read-only gate; nothing is ever deleted)
+//   grace period over / ended  -> 'expired' (the system closes behind app/PlanBlockedScreen.jsx; nothing is ever deleted)
 //   'paused' is an arrangement made by hand and is never touched here.
 //
 // Life cycle of a subscription (billing_subscriptions.status):

@@ -1,5 +1,9 @@
 "use client";
 // app/usePlanState.js
+// NO CALLERS (2026-10-21): the standalone pages it served no longer show a
+// read-only notice. Kept, not deleted. Note the comment below describes the old
+// read-only model; a blocked tenant now sees app/PlanBlockedScreen.jsx.
+//
 // Reads this tenant's plan state in a client component that is NOT beautyos.jsx.
 //
 // The main app already loads the tenants row inside loadAll and derives state

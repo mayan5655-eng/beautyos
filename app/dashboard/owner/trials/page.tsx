@@ -3,7 +3,7 @@
 // Read-only: activating or extending is done on /dashboard/admin, linked below.
 import { loadTenants } from '../loader'
 import { OwnerShell, Unavailable, Row, card, muted, h2, bigNumber } from '../OwnerShell'
-import { trialsEndingSoon, planStatusCounts, launchPriceQualifiers, dateHe } from '@/lib/ownerControl'
+import { trialsEndingSoon, planStatusCounts, launchPriceQualifiers, dateHe, LAUNCH_PRICE_CUTOFF_ISO } from '@/lib/ownerControl'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -41,7 +41,7 @@ export default async function OwnerTrialsPage() {
       <section style={card}>
         <h2 style={h2}>זכאיות למחיר 349</h2>
         <p style={{ ...muted, marginBottom: 8 }}>
-          נרשמו עד 20.10.2026 (סוף היום, שעון ישראל). {offer.length} עסקים. הרשימה לעיון בלבד, ההחלטה נשארת אצלך.
+          {LAUNCH_PRICE_CUTOFF_ISO ? `נרשמו עד ${dateHe(LAUNCH_PRICE_CUTOFF_ISO)} (סוף היום, שעון ישראל).` : 'מחיר ההשקה פתוח לכל מי שמצטרפת עכשיו, בלי תאריך סיום.'} {offer.length} עסקים. הרשימה לעיון בלבד, ההחלטה נשארת אצלך.
         </p>
         {offer.length === 0 ? <p style={muted}>עוד אין.</p> : offer.map((o) => (
           <Row key={o.id} left={o.name} right={`${dateHe(o.created_at)} · ${STATUS_HE[o.status]}`} />
