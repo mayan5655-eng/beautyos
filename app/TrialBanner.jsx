@@ -10,10 +10,10 @@
 //   urgent  -> a real card with a way to reach a human, the final 7 days.
 //   blocked -> the trial has run out, or the account is paused.
 //
-// On `blocked`: the dashboard is NOT replaced. The account goes read-only, so
-// she keeps seeing her calendar and clients and this banner is the standing
-// explanation of why the write actions are disabled. Wording comes from
-// lib/planCopy, shared with the read-only notice on the standalone pages.
+// On `blocked`: since 2026-10-21 the system closes completely, and beautyos.jsx
+// renders app/PlanBlockedScreen.jsx INSTEAD of the dashboard, so this banner is
+// not on screen for a blocked tenant. The branch stays as a fallback for any
+// surface that still mounts the banner. Wording comes from lib/planCopy.
 //
 // Colour comes from her own primary_color via the pc* props, so the notice
 // belongs to her brand rather than looking like a system warning. Hebrew copy
@@ -22,8 +22,8 @@
 import { supportWhatsAppUrl } from "@/lib/support";
 import { ICON_FLOWER } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
-// All Hebrew comes from lib/planCopy so this banner and the read-only notice on
-// the standalone dashboard pages can never drift apart.
+// All Hebrew comes from lib/planCopy so this banner and the blocked screen can
+// never drift apart.
 import {
   trialGentleHe,
   trialUrgentTitleHe,

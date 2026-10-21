@@ -25,6 +25,7 @@ import TrialNudge from "./TrialNudge";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import ClientPrivacyPanel from "./ClientPrivacyPanel";
 import BillingNotices from "./BillingNotices";
+import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
@@ -2316,6 +2317,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // never lock her out of her own data.
       setPlanRow(tn?.data || null);
       console.log("[BeautyOS] current plan:", plan, "| plan_status:", tn?.data?.plan_status || "(not migrated)");
+      // A CLOSED SYSTEM (owner decision 2026-10-21): an expired or paused business
+      // sees only the renewal screen (app/PlanBlockedScreen.jsx, rendered below in
+      // place of the shell). Stop here, before any calendar, client or receipt row
+      // is put into state, so there is nothing behind that screen to reveal.
+      // Nothing is deleted: once the plan is active the next load is the full app.
+      // Same rule as planInfo (planState fails OPEN on a missing or unreadable row).
+      if (planState(tn?.data || null).isBlocked && !isDemoTenantId(myTenantId)) {
+        setLoadError(null);
+        return; // the `finally` still clears `loading`
+      }
       // Past the guard above, every one of these succeeded, so an empty array
       // is a real answer and can be trusted.
       setAppointments(a.data || []);
@@ -7106,6 +7117,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       default: return svg(<circle cx="12" cy="12" r="8" {...p}/>);
     }
   };
+
+  // ── CLOSED: the trial ended without payment, or the account is paused ──
+  // The whole system closes (no read-only mode). loadAll stopped before loading
+  // any data for this case; this replaces the entire shell, so no tab, menu or
+  // calendar is reachable. A demo session is never closed.
+  if(planInfo.isBlocked && !isDemoTenantId(planRow?.id)) return (
+    <PlanBlockedScreen
+      plan={planInfo}
+      businessName={planRow?.name || ""}
+      isDemo={false}
+      toast={toast}
+      onSignOut={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+    />
+  );
 
   // backgroundAttachment:"fixed" was removed from the shell below, not
   // restyled. iOS has never implemented it properly, and in a standalone

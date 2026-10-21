@@ -24,6 +24,8 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import BookingPage from "../BookingPage";
+import BookingClosed from "../BookingClosed";
+import { publicBookingClosed } from "@/lib/publicBookingGate";
 import { APP_URL } from "@/lib/appUrl";
 import { brandFor, ogVersion } from "@/lib/og/tenantOg";
 
@@ -60,5 +62,7 @@ export default async function BookRoute({ searchParams }) {
   let found;
   try { found = await brandOnce(t); } catch { found = undefined; }
   if (found === null) notFound();
+  // Her system is closed (trial ended without payment, or paused): the same closed page as /[slug].
+  if (await publicBookingClosed(t)) return <BookingClosed brand={found?.brand} fallbackName={found?.tenantName || ""} />;
   return <BookingPage />;
 }

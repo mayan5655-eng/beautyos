@@ -1,5 +1,10 @@
 "use client";
 // app/ReadOnlyNotice.jsx
+// NOT MOUNTED ANYWHERE (2026-10-21). The read-only model it served was replaced
+// by a full close: a blocked tenant sees app/PlanBlockedScreen.jsx instead of the
+// dashboard. Kept, not deleted, per the house rule; its copy comes from
+// lib/planCopy and no longer promises read access.
+//
 // The read-only explanation for the standalone dashboard pages (leads,
 // new campaign, campaign detail). beautyos.jsx already shows <TrialBanner/>,
 // which covers the same ground inside the main app.

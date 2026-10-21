@@ -82,15 +82,24 @@ ok('plan status counts use the effective status (an elapsed trial is expired)', 
   assert.deepEqual(planStatusCounts(rows, NOW), { trial: 1, active: 2, expired: 1, paused: 1 }); // null fails open to active
 });
 
-ok('349 qualifiers: on or before 2026-10-20T20:59:59Z, oldest first, boundary inclusive', () => {
-  assert.equal(LAUNCH_PRICE_CUTOFF_ISO, '2026-10-20T20:59:59Z');
+ok('349 qualifiers: no end date today (owner 2026-10-21), so every dated sign-up qualifies, oldest first', () => {
+  assert.equal(LAUNCH_PRICE_CUTOFF_ISO, null, '349 for everyone who joins now, as the landing page and terms say');
   const rows = [
     t('on', { created_at: '2026-10-20T20:59:59Z' }),
     t('after', { created_at: '2026-10-20T21:00:00Z' }),
     t('old', { created_at: '2026-09-01T00:00:00Z' }),
     t('none', { created_at: null }),
   ];
-  assert.deepEqual(launchPriceQualifiers(rows, NOW).map((x) => x.id), ['old', 'on']);
+  assert.deepEqual(launchPriceQualifiers(rows, NOW).map((x) => x.id), ['old', 'on', 'after']);
+});
+
+ok('349 qualifiers with an explicit cutoff: on or before it, boundary inclusive', () => {
+  const rows = [
+    t('on', { created_at: '2026-10-20T20:59:59Z' }),
+    t('after', { created_at: '2026-10-20T21:00:00Z' }),
+    t('old', { created_at: '2026-09-01T00:00:00Z' }),
+  ];
+  assert.deepEqual(launchPriceQualifiers(rows, NOW, '2026-10-20T20:59:59Z').map((x) => x.id), ['old', 'on']);
 });
 
 ok('activity rows keep only the business name and one timestamp; demo and own are dropped; never-active last', () => {

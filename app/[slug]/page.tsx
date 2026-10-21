@@ -31,6 +31,8 @@ import { fetchPublicServices } from '@/lib/publicServices';
 import { fetchPublicPage } from '@/lib/publicPage';
 import BookingPage from '../BookingPage';
 import PublicLandingPage from '../PublicLandingPage';
+import BookingClosed from '../BookingClosed';
+import { publicBookingClosed } from '@/lib/publicBookingGate';
 import { cleanPublicResults } from '@/lib/results';
 import { ogVersion } from '@/lib/og/tenantOg';
 import { localBusinessJsonLd, jsonLdString } from '@/lib/localBusinessJsonLd';
@@ -199,12 +201,20 @@ export default async function SlugPage({ params, searchParams }: Props) {
 
   // Both reads run together. If either fails the page gets null for it and
   // loads that part in the browser, as it did before this step existed.
-  const [initialSettings, initialServices, reviews, results] = await Promise.all([
+  // The closed check runs alongside them, so an open business pays no extra round trip for it.
+  const [initialSettings, initialServices, reviews, results, closed] = await Promise.all([
     loadPublicSettings(slug, tenant.id),
     loadServices(slug, tenant.id),
     useOld ? Promise.resolve(null) : loadReviews(tenant.id),
     useOld ? Promise.resolve([]) : loadResults(tenant.id),
+    timed('closed', publicBookingClosed(tenant.id)),
   ]);
+
+  // Her Kalmea system is closed (trial ended without payment, or paused): no new bookings until she renews.
+  // Her client sees how to reach her directly, and nothing about billing (app/BookingClosed.tsx).
+  if (closed) {
+    return <BookingClosed brand={initialSettings ? resolveBranding(initialSettings) : null} fallbackName={tenant.name} />;
+  }
 
   // v2: the landing page. It needs her settings and services from the server (it has no browser fallback); when a read
   // failed, the old page is rendered instead, since that one loads its data in the browser.

@@ -8,8 +8,12 @@ import { planState } from './planState.ts'
 import type { PlanStatus } from './planState.ts'
 import { isDemoTenantId } from './demoTenants.ts'
 
-/** Sign-ups on or before 20.10.2026, end of day Israel time (UTC+3 that day), keep the launch price of 349. */
-export const LAUNCH_PRICE_CUTOFF_ISO = '2026-10-20T20:59:59Z'
+/**
+ * Last sign-up that gets the launch price of 349, or null for "no end date". Owner decision 2026-10-21: 349 for
+ * everyone who joins now (it used to end on 20.10.2026), matching app/LandingPage.jsx and app/terms. Set an ISO
+ * instant here the day a real end date is decided.
+ */
+export const LAUNCH_PRICE_CUTOFF_ISO: string | null = null
 
 /** The only columns the owner screens ever read from public.tenants. */
 export const OWNER_TENANT_COLUMNS = 'id, name, created_at, plan_status, trial_started_at, trial_ends_at, signup_source' as const
@@ -117,9 +121,9 @@ export function planStatusCounts(rows: OwnerTenant[], now: Date): Record<PlanSta
 
 export type LaunchPriceRow = { id: string; name: string; created_at: string; status: PlanStatus }
 
-/** Everyone who signed up on or before the cutoff, oldest first. The decision stays with a person: this only lists. */
-export function launchPriceQualifiers(rows: OwnerTenant[], now: Date, cutoffIso = LAUNCH_PRICE_CUTOFF_ISO): LaunchPriceRow[] {
-  const cut = Date.parse(cutoffIso)
+/** Everyone who signed up on or before the cutoff (everyone, while there is none), oldest first. The decision stays with a person: this only lists. */
+export function launchPriceQualifiers(rows: OwnerTenant[], now: Date, cutoffIso: string | null = LAUNCH_PRICE_CUTOFF_ISO): LaunchPriceRow[] {
+  const cut = cutoffIso === null ? Infinity : Date.parse(cutoffIso)
   return rows
     .filter((r) => {
       const c = ms(r.created_at)

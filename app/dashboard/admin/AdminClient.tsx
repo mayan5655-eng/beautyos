@@ -165,9 +165,9 @@ export default function AdminClient({
         ? `להאריך את ההתנסות של ${label} ב-${daysHe(days || 0)}?`
         : action === 'activate'
           ? `להעביר את ${label} למצב פעיל?`
-          : `להעביר את ${label} להשהיה? החשבון יעבור למצב צפייה בלבד.`
+          : `להעביר את ${label} להשהיה? המערכת שלו תיסגר עד להפעלה מחדש.`
 
-    // Pausing her own business would put her own dashboard into read-only.
+    // Pausing her own business would close her own dashboard.
     // Worth one extra beat, but not worth forbidding: she may want to test it.
     const own = tenantId === ownTenantId && action !== 'activate'
 
@@ -470,8 +470,8 @@ export default function AdminClient({
       <p style={{ fontSize:"var(--t-sm)", color: ink2, marginTop: 16, lineHeight: 1.7 }}>
         הארכה מוסיפה ימים מהיום או מתאריך הסיום הקיים, לפי המאוחר מביניהם, ומחזירה
         את העסק למצב התנסות. הפעלה משאירה את תאריכי ההתנסות כפי שהם, כתיעוד.
-        השהיה מעבירה למצב צפייה בלבד: העסק ממשיך לראות הכל, ודף ההזמנות הציבורי
-        של הלקוחות שלו ממשיך לעבוד כרגיל.
+        השהיה סוגרת את המערכת לעסק עד להפעלה מחדש. שום נתון לא נפגע, תזכורות לתורים
+        שכבר נקבעו ממשיכות לצאת, ודף ההזמנות הציבורי לא מקבל תורים חדשים בינתיים.
       </p>
 
       <ConfirmDialog

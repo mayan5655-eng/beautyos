@@ -6,6 +6,7 @@
 // Uses Claude vision.
 
 import { createClient } from "@supabase/supabase-js";
+import { tenantIsBlocked } from "@/lib/tenantActive";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
 import { checkIpLimit, checkTenantLimit } from "@/lib/rateLimit";
@@ -79,6 +80,12 @@ export async function POST(request) {
     // 3. Per-tenant burst limit. Still no I/O.
     const tenantLimited = checkTenantLimit(tenantId, "skin-scan");
     if (tenantLimited) return tenantLimited;
+
+    // 3b. Her system is closed (trial ended without payment, or paused): her public scanner closes with it, before any
+    //     spend. Fails open like every billing check (lib/tenantActive).
+    if (await tenantIsBlocked(supabase, tenantId)) {
+      return Response.json({ success: false, code: "business_paused", error: "הסורק לא זמין כרגע. אפשר לפנות לעסק ישירות בוואטסאפ או בטלפון." }, { status: 403 });
+    }
 
     // 4. The monthly ceiling — the only hard cap on spend. One indexed count.
     //    Every admitted request names a tenant, so this always runs.

@@ -95,10 +95,10 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     const status = s.plan.status;
     const hasCard = !!sub?.card_last4;
     let line;
-    if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז החשבון עובר למצב צפייה בלבד. כל הנתונים נשארים.`;
+    if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
-    else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו ונמצא במצב צפייה בלבד. כדי לחדש אותו, כתבי לנו ב"תקועה?" ונחזיר אותו לפעילות.';
-    else if (status === 'expired') line = 'החשבון במצב צפייה בלבד. הוספת כרטיס וחיוב ישחררו אותו מיד.';
+    else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו ב"תקועה?" ונחזיר אותו לפעילות.';
+    else if (status === 'expired') line = 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.';
     else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
     else if (sub?.next_charge_at) line = `החיוב הבא: ${day(sub.next_charge_at)}.`;
     else line = 'המנוי פעיל.';

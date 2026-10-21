@@ -1,6 +1,6 @@
 // app/api/billing/cancel/route.ts
 //
-// POST -> she cancels her subscription. No more charges; she keeps what she has paid for until ends_at, then the existing read-only gate
+// POST -> she cancels her subscription. No more charges; she keeps what she has paid for until ends_at, then the plan gate closes the system (app/PlanBlockedScreen.jsx)
 // closes (nothing is ever deleted). Adding a card again resumes it.
 import { NextResponse } from 'next/server';
 import { isDemoTenantId } from '@/lib/demoTenants';
