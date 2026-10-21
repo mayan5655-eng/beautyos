@@ -24,7 +24,7 @@
 // failed send is recorded and never retried automatically. If the table cannot be written (migration not run), nothing
 // is sent - fails closed, because a send without the marker could repeat.
 //
-// Never sent: demo tenants, test-looking business names (13 digits, as the test runs create), and in live mode the
+// Never sent without her opt-in: the unticked-by-default box on /signup (user_metadata.wa_welcome_optin). Never sent: demo tenants, test-looking business names (13 digits, as the test runs create), and in live mode the
 // reserved fake numbers 050-0000000..050-0000099 that the SMS mock uses.
 
 import { createHash } from 'node:crypto';
@@ -139,7 +139,7 @@ export async function resolveOwnerMobile(db: Db, o: { tenantId: string; userId?:
 }
 
 export type WelcomeResult =
-  | { status: 'skipped'; reason: 'off' | 'no-tenant' | 'demo' | 'test-name' | 'no-phone' | 'test-number' | 'duplicate' | 'marker-unavailable' }
+  | { status: 'skipped'; reason: 'off' | 'no-tenant' | 'no-consent' | 'demo' | 'test-name' | 'no-phone' | 'test-number' | 'duplicate' | 'marker-unavailable' }
   | { status: 'refused'; reason: 'not-configured' | 'no-tutorials-link'; detail: string }
   | { status: 'mock'; preview: string; messageId: string }
   | { status: 'accepted'; messageId: string }
@@ -158,6 +158,8 @@ export async function sendOwnerWelcome(o: {
   db: Db;
   tenantId: string;
   userId?: string | null;
+  /** She ticked the WhatsApp box at signup. */
+  optedIn: boolean;
   businessName: unknown;
   businessPhone?: unknown;
   env?: WaCloudEnv;
@@ -168,6 +170,7 @@ export async function sendOwnerWelcome(o: {
   if (mode === 'off') return { status: 'skipped', reason: 'off' };
   const { db, tenantId } = o;
   if (!tenantId) return { status: 'skipped', reason: 'no-tenant' };
+  if (o.optedIn !== true) return { status: 'skipped', reason: 'no-consent' };
   if (isDemoTenantId(tenantId)) return { status: 'skipped', reason: 'demo' };
   if (looksLikeTestName(o.businessName)) return { status: 'skipped', reason: 'test-name' };
 

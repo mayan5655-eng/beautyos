@@ -44,14 +44,14 @@ function admin() {
 async function resolveTenant() {
   const session = await createSessionClient();
   const { data: { user } } = await session.auth.getUser();
-  if (!user) return { error: 'לא מחוברת', status: 401 as const, tenantId: null, userId: null };
+  if (!user) return { error: 'לא מחוברת', status: 401 as const, tenantId: null, userId: null, waOptIn: false };
 
   const { data: tenantId, error } = await session.rpc('get_user_tenant_id');
   if (error || !tenantId) {
     console.error('[settings/save] tenant resolve failed:', error?.message);
-    return { error: 'לא זוהה עסק', status: 400 as const, tenantId: null, userId: null };
+    return { error: 'לא זוהה עסק', status: 400 as const, tenantId: null, userId: null, waOptIn: false };
   }
-  return { error: null, status: 200 as const, tenantId: tenantId as string, userId: user.id };
+  return { error: null, status: 200 as const, tenantId: tenantId as string, userId: user.id, waOptIn: user.user_metadata?.wa_welcome_optin === true };
 }
 
 // 200 KB is generous for a settings row (the FAQ and branding JSON are the
@@ -147,7 +147,7 @@ export async function POST(request: Request) {
   const signupPhone = (data as { business_phone?: unknown } | null)?.business_phone ?? (insertRow as { business_phone?: unknown }).business_phone;
   after(async () => {
     try {
-      const r = await sendOwnerWelcome({ db, tenantId, userId: t.userId, businessName: signupName, businessPhone: signupPhone });
+      const r = await sendOwnerWelcome({ db, tenantId, userId: t.userId, optedIn: t.waOptIn, businessName: signupName, businessPhone: signupPhone });
       if (r.status !== 'skipped' || r.reason !== 'off') console.log(`[settings/save] owner welcome for ${tenantId}: ${r.status}${'reason' in r ? ` (${r.reason})` : ''}`);
     } catch (e) {
       console.error('[settings/save] owner welcome failed:', e instanceof Error ? e.message : 'unknown');

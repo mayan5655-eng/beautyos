@@ -47,7 +47,7 @@ await ok('off by default: no env, a typo, or "true" all mean off, and off touche
   assert.equal(welcomeMode({ OWNER_WELCOME_WA: 'live' }), 'live');
   const f = fakeDb();
   const a = mockAdapter();
-  const r = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '0541234567', env: {}, adapter: a });
+  const r = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '0541234567', env: {}, adapter: a });
   assert.deepEqual(r, { status: 'skipped', reason: 'off' });
   assert.equal(f.reads(), 0, 'no database read when off');
   assert.equal(a.sent.length, 0);
@@ -56,7 +56,7 @@ await ok('off by default: no env, a typo, or "true" all mean off, and off touche
 await ok('mock: marker claimed, a mock id, the Hebrew preview, a mock cost row, and nothing on the network', async () => {
   const f = fakeDb();
   const a = mockAdapter();
-  const r = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '054-123-4567', env: { OWNER_WELCOME_WA: 'mock' }, adapter: a });
+  const r = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '054-123-4567', env: { OWNER_WELCOME_WA: 'mock' }, adapter: a });
   assert.equal(r.status, 'mock');
   if (r.status !== 'mock') return;
   assert.ok(r.messageId.startsWith('mock.'));
@@ -78,10 +78,10 @@ await ok('once only: the same business again, or another business on the same nu
   const f = fakeDb();
   const a = mockAdapter();
   const env = { OWNER_WELCOME_WA: 'mock' };
-  await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env, adapter: a });
-  const again = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env, adapter: a });
+  await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env, adapter: a });
+  const again = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env, adapter: a });
   assert.deepEqual(again, { status: 'skipped', reason: 'duplicate' });
-  const other = await sendOwnerWelcome({ db: f.db, tenantId: '00000000-0000-0000-0000-0000000000b2', businessName: 'ב', businessPhone: '0541234567', env, adapter: a });
+  const other = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: '00000000-0000-0000-0000-0000000000b2', businessName: 'ב', businessPhone: '0541234567', env, adapter: a });
   assert.deepEqual(other, { status: 'skipped', reason: 'duplicate' });
   assert.equal(a.sent.length, 1);
 });
@@ -89,7 +89,7 @@ await ok('once only: the same business again, or another business on the same nu
 await ok('fails closed: when the marker table cannot be written (migration not run), nothing is sent', async () => {
   const f = fakeDb({ markerError: { code: '42P01', message: 'relation "owner_welcome_messages" does not exist' } });
   const a = mockAdapter();
-  const r = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: a });
+  const r = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: a });
   assert.deepEqual(r, { status: 'skipped', reason: 'marker-unavailable' });
   assert.equal(a.sent.length, 0);
 });
@@ -97,12 +97,12 @@ await ok('fails closed: when the marker table cannot be written (migration not r
 await ok('the verified mobile wins over the onboarding phone; a landline or nothing means no send', async () => {
   const f = fakeDb({ verified: '972529998877' });
   const a = mockAdapter();
-  await sendOwnerWelcome({ db: f.db, tenantId: T, userId: 'u1', businessName: 'א', businessPhone: '0541234567', env: { OWNER_WELCOME_WA: 'mock' }, adapter: a });
+  await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, userId: 'u1', businessName: 'א', businessPhone: '0541234567', env: { OWNER_WELCOME_WA: 'mock' }, adapter: a });
   assert.equal(a.sent[0].to, '972529998877');
   assert.equal(f.markers[0].phone_source, 'verified');
   for (const phone of ['03-1234567', '', null]) {
     const g = fakeDb();
-    const r = await sendOwnerWelcome({ db: g.db, tenantId: T, businessName: 'א', businessPhone: phone, env: { OWNER_WELCOME_WA: 'mock' }, adapter: mockAdapter() });
+    const r = await sendOwnerWelcome({ optedIn: true, db: g.db, tenantId: T, businessName: 'א', businessPhone: phone, env: { OWNER_WELCOME_WA: 'mock' }, adapter: mockAdapter() });
     assert.deepEqual(r, { status: 'skipped', reason: 'no-phone' });
     assert.equal(g.markers.length, 0);
   }
@@ -111,9 +111,9 @@ await ok('the verified mobile wins over the onboarding phone; a landline or noth
 await ok('never: a demo tenant, a test-looking name, or (live) a reserved fake number', async () => {
   const a = mockAdapter();
   const env = LIVE;
-  assert.deepEqual(await sendOwnerWelcome({ db: fakeDb().db, tenantId: DEMO_TENANT_IDS.cosmetics, businessName: 'א', businessPhone: '0541234567', env, adapter: a }), { status: 'skipped', reason: 'demo' });
-  assert.deepEqual(await sendOwnerWelcome({ db: fakeDb().db, tenantId: T, businessName: 'בדיקה 1791063027140', businessPhone: '0541234567', env, adapter: a }), { status: 'skipped', reason: 'test-name' });
-  assert.deepEqual(await sendOwnerWelcome({ db: fakeDb().db, tenantId: T, businessName: 'א', businessPhone: '050-0000011', env, adapter: a }), { status: 'skipped', reason: 'test-number' });
+  assert.deepEqual(await sendOwnerWelcome({ optedIn: true, db: fakeDb().db, tenantId: DEMO_TENANT_IDS.cosmetics, businessName: 'א', businessPhone: '0541234567', env, adapter: a }), { status: 'skipped', reason: 'demo' });
+  assert.deepEqual(await sendOwnerWelcome({ optedIn: true, db: fakeDb().db, tenantId: T, businessName: 'בדיקה 1791063027140', businessPhone: '0541234567', env, adapter: a }), { status: 'skipped', reason: 'test-name' });
+  assert.deepEqual(await sendOwnerWelcome({ optedIn: true, db: fakeDb().db, tenantId: T, businessName: 'א', businessPhone: '050-0000011', env, adapter: a }), { status: 'skipped', reason: 'test-number' });
   assert.equal(a.sent.length, 0);
   assert.ok(isReservedTestNumber('972500000099') && !isReservedTestNumber('972500000100') && !isReservedTestNumber('972541234567'));
 });
@@ -121,10 +121,10 @@ await ok('never: a demo tenant, a test-looking name, or (live) a reserved fake n
 await ok('live: refused (and recorded) without WA Cloud credentials or without the videos link', async () => {
   const a = mockAdapter();
   const f = fakeDb();
-  const r1 = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: { OWNER_WELCOME_WA: 'live', OWNER_WELCOME_TUTORIALS_URL: 'https://x.y' }, adapter: a });
+  const r1 = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: { OWNER_WELCOME_WA: 'live', OWNER_WELCOME_TUTORIALS_URL: 'https://x.y' }, adapter: a });
   assert.equal(r1.status, 'refused');
   assert.equal(f.updates.at(-1)?.status, 'refused');
-  const r2 = await sendOwnerWelcome({ db: fakeDb().db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: { ...LIVE, OWNER_WELCOME_TUTORIALS_URL: 'kalmea.app/tutorials' }, adapter: a });
+  const r2 = await sendOwnerWelcome({ optedIn: true, db: fakeDb().db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: { ...LIVE, OWNER_WELCOME_TUTORIALS_URL: 'kalmea.app/tutorials' }, adapter: a });
   assert.equal(r2.status, 'refused');
   if (r2.status === 'refused') assert.equal(r2.reason, 'no-tutorials-link');
   assert.equal(a.sent.length, 0);
@@ -134,7 +134,7 @@ await ok('live: refused (and recorded) without WA Cloud credentials or without t
 await ok('live: accepted with the template payload; a Meta error is recorded as failed and not retried', async () => {
   const a = mockAdapter();
   const f = fakeDb();
-  const r = await sendOwnerWelcome({ db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '0541234567', env: LIVE, adapter: a });
+  const r = await sendOwnerWelcome({ optedIn: true, db: f.db, tenantId: T, businessName: 'סטודיו נועה', businessPhone: '0541234567', env: LIVE, adapter: a });
   assert.equal(r.status, 'accepted');
   assert.deepEqual(a.sent[0].body, {
     name: 'kalmea_owner_welcome', language: { code: 'he' },
@@ -148,10 +148,10 @@ await ok('live: accepted with the template payload; a Meta error is recorded as 
   assert.equal(f.costs[0].mode, 'live');
   const failing: WaCloudAdapter = { mode: 'live', sendTemplate: async () => ({ ok: false, mode: 'live', error: 'template not approved' }), sendText: async () => ({ ok: false, mode: 'live', error: 'x' }) };
   const g = fakeDb();
-  const bad = await sendOwnerWelcome({ db: g.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: failing });
+  const bad = await sendOwnerWelcome({ optedIn: true, db: g.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: failing });
   assert.deepEqual(bad, { status: 'failed', error: 'template not approved' });
   assert.equal(g.updates.at(-1)?.status, 'failed');
-  const retry = await sendOwnerWelcome({ db: g.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: a });
+  const retry = await sendOwnerWelcome({ optedIn: true, db: g.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: a });
   assert.deepEqual(retry, { status: 'skipped', reason: 'duplicate' });
 });
 
@@ -171,6 +171,19 @@ await ok('template obeys Meta rules, has the hook and the image, and the docs ca
   const b = buildWelcome('שם\nעם שורה', 'https://kalmea.app/tutorials');
   assert.equal(b.params[0], 'שם עם שורה', 'no newline in a parameter');
   assert.equal(buildWelcome('', 'https://a.b').params[0], 'העסק שלך');
+});
+
+await ok('no opt-in at signup, no message: nothing read, nothing sent', async () => {
+  const f = fakeDb();
+  const a = mockAdapter();
+  const r = await sendOwnerWelcome({ optedIn: false, db: f.db, tenantId: T, businessName: 'א', businessPhone: '0541234567', env: LIVE, adapter: a });
+  assert.deepEqual(r, { status: 'skipped', reason: 'no-consent' });
+  assert.equal(f.reads(), 0);
+  assert.equal(a.sent.length, 0);
+  const signup = readFileSync('app/signup/page.tsx', 'utf8');
+  assert.ok(signup.includes('const [waOptIn, setWaOptIn] = useState(false)'), 'the box starts unticked');
+  assert.ok(signup.includes('wa_welcome_optin: true'), 'the yes is stored on the account');
+  assert.ok(readFileSync('app/api/settings/save/route.ts', 'utf8').includes("user.user_metadata?.wa_welcome_optin === true"), 'the route reads it');
 });
 
 await ok('the signup route calls it after the response, only on the first settings insert', () => {
