@@ -135,6 +135,43 @@ export class FacebookClient {
     return (data.data || []) as FacebookPage[];
   }
 
+  /**
+   * Pages she reaches through a business portfolio rather than through her own profile (2026-10-21: a Page owned by her
+   * business, with full access granted there, never comes back from /me/accounts). Reads /me/businesses, then each
+   * business's owned_pages and client_pages; a Page whose edge carries no Page token is asked for one directly. Needs
+   * business_management; without it (or on any error) this returns what it found so far and the connection still works
+   * with /me/accounts alone. Never throws.
+   */
+  async getBusinessPages(): Promise<FacebookPage[]> {
+    const get = async (path: string, fields: Record<string, string>) => {
+      const params = new URLSearchParams({ access_token: this.accessToken, ...fields });
+      try {
+        const r = await fetch(`${FB_BASE_URL}/${path}?${params.toString()}`, { method: 'GET' });
+        if (!r.ok) return null;
+        return (await r.json()) as Record<string, unknown>;
+      } catch { return null; }
+    };
+    const out: FacebookPage[] = [];
+    const biz = await get('me/businesses', { fields: 'id', limit: '50' });
+    const ids = (Array.isArray(biz?.data) ? biz!.data : []).map((b: { id?: string }) => b.id).filter(Boolean) as string[];
+    const pageFields = 'id,name,category,access_token,instagram_business_account{id}';
+    for (const id of ids) {
+      for (const edge of ['owned_pages', 'client_pages']) {
+        const r = await get(`${encodeURIComponent(id)}/${edge}`, { fields: pageFields, limit: '100' });
+        for (const pg of (Array.isArray(r?.data) ? r!.data : []) as FacebookPage[]) {
+          if (!pg?.id || out.some((x) => x.id === pg.id)) continue;
+          let page = pg;
+          if (!page.access_token) {
+            const one = await get(encodeURIComponent(pg.id), { fields: pageFields });
+            if (one && typeof one.access_token === 'string') page = { ...pg, ...(one as unknown as FacebookPage) };
+          }
+          if (page.access_token) out.push(page);
+        }
+      }
+    }
+    return out;
+  }
+
   /** The app-scoped id of the Facebook user this token belongs to (what Meta's deauthorize/deletion callbacks name). */
   async getMyId(): Promise<string | null> {
     const params = new URLSearchParams({ access_token: this.accessToken, fields: 'id' });
@@ -287,4 +324,14 @@ export function extractStandardFields(
   }
 
   return { name, email, phone };
+}
+/** Her Pages from both sources, each once: the profile's own list first (it carries her tasks), then the business ones. */
+export function mergePages(fromProfile: FacebookPage[], fromBusiness: FacebookPage[]): FacebookPage[] {
+  const out = [...fromProfile];
+  for (const p of fromBusiness) {
+    const i = out.findIndex((x) => x.id === p.id);
+    if (i === -1) out.push(p);
+    else if (!out[i].instagram_business_account && p.instagram_business_account) out[i] = { ...out[i], instagram_business_account: p.instagram_business_account };
+  }
+  return out;
 }

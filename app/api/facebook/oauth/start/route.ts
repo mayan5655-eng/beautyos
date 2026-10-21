@@ -47,7 +47,8 @@ const FACEBOOK_SCOPES = [
 // connection is never put at risk by a permission name Meta does not recognise. The names for the Facebook Login route
 // are UNVERIFIED (Meta renamed the Instagram-Login ones in 2025): FACEBOOK_PUBLISH_SCOPES overrides them without a code
 // change once the App Dashboard confirms them. Until Meta approves them, only people with a role on the app get them.
-const DEFAULT_PUBLISH_SCOPES = 'pages_manage_posts,instagram_basic,instagram_content_publish';
+// business_management: read the Pages she reaches through her business portfolio (lib/facebook/client.ts getBusinessPages).
+const DEFAULT_PUBLISH_SCOPES = 'pages_manage_posts,instagram_basic,instagram_content_publish,business_management';
 function scopesFor(publish: boolean): string {
   if (!publish) return FACEBOOK_SCOPES;
   const extra = (process.env.FACEBOOK_PUBLISH_SCOPES || DEFAULT_PUBLISH_SCOPES).split(',').map((s) => s.trim()).filter((s) => /^[a-z_]+$/.test(s));

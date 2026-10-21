@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { classifyGraphError, publishAbility, igCaption, PUBLISH_ERROR_HE } from './lib/content/metaPublish.ts';
 import { runDue, enqueueApproved, cancelJobs, rescheduleJobs, MAX_ATTEMPTS } from './lib/content/publisher.ts';
 import { contentPublishVisible } from './lib/featureFlags.ts';
+import { mergePages } from './lib/facebook/client.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -251,6 +252,22 @@ await ok('routes and the cron: flag-gated, her tenant only, cron secret, fails c
   assert.match(sql, /idempotency_key  text not null unique/);
   assert.match(sql, /grant select on public\.publish_jobs to authenticated;/);
   assert.doesNotMatch(sql, /grant (insert|update|all)[^;]*to authenticated/);
+});
+
+
+await ok('Pages from her profile and through her business: each once, the Instagram link filled from either; asked with business_management', () => {
+  const prof = [{ id: '1', name: 'A', access_token: 't1', category: 'x' }, { id: '2', name: 'B', access_token: 't2', category: 'x' }];
+  const biz = [{ id: '2', name: 'B', access_token: 'tb', category: 'x', instagram_business_account: { id: '99' } }, { id: '3', name: 'Kalmea', access_token: 't3', category: 'x' }];
+  const m = mergePages(prof as never, biz as never);
+  assert.deepEqual(m.map((p) => p.id), ['1', '2', '3']);
+  assert.equal(m[1].access_token, 't2', 'the profile token is kept');
+  assert.equal(m[1].instagram_business_account?.id, '99');
+  const cb = rd('app/api/facebook/oauth/callback/route.ts');
+  assert.match(cb, /mergePages\(profilePages, businessPages\)/);
+  assert.match(rd('app/api/facebook/oauth/start/route.ts'), /instagram_content_publish,business_management/);
+  const client = rd('lib/facebook/client.ts');
+  assert.match(client, /me\/businesses/);
+  assert.match(client, /'owned_pages', 'client_pages'/);
 });
 
 console.log(`${n} passed`);
