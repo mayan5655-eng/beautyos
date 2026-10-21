@@ -368,6 +368,7 @@ await ok('the prompt is mounted on every way into the app, and "later" exists on
   const gate = rd('app/PhoneGate.tsx');
   assert.match(gate, /gate === 'prompt' \? \(\s*<button type="button" onClick=\{later\}/);
   assert.match(gate, /method: 'POST'/);
+  assert.match(rd('app/api/phone/status/route.ts'), /if \(!smsStatus\(\)\.ready\) return NextResponse\.json\(\{ gate: 'none'/, 'dormant: no session or database work on each app load');
 });
 
 await ok('the test runner blanks every SMS credential', () => {

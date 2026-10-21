@@ -11,10 +11,14 @@ import { NextResponse } from 'next/server';
 import { phoneStore, sessionInfo } from '@/lib/phoneVerify/route';
 import { phoneStatus } from '@/lib/phoneVerify/service';
 import { isDemoTenantId } from '@/lib/demoTenants';
+import { smsStatus } from '@/lib/phoneVerify/sms';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
+  // No SMS, no question to ask: answered before any session or database work, so every app load stays free while the
+  // feature is dormant (and the logs stay quiet before the migration has run).
+  if (!smsStatus().ready) return NextResponse.json({ gate: 'none', verified: false, dormant: true }, { headers: { 'Cache-Control': 'no-store' } });
   const session = await sessionInfo();
   if (!session) return NextResponse.json({ gate: 'none', verified: false }, { status: 401 });
   const st = await phoneStatus({
