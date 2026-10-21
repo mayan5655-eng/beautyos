@@ -147,3 +147,29 @@ Variables and samples:
 3. `{{3}}` appointment date and time: יום ג׳ 21.10 בשעה 10:00
 4. `{{4}}` fee amount: 80
 5. `{{5}}` payment link: https://pay.grow.link/abc
+
+## `kalmea_owner_welcome`
+
+Category: UTILITY (submitted as) · Language: he · Sent by: `lib/ownerWelcome.ts`, once, to a NEW business owner after onboarding (never to clients) · Switch: `OWNER_WELCOME_WA` (off / mock / live)
+
+Body:
+
+```text
+היי, ברוכה הבאה לקלמיה! 🌸
+החשבון של {{1}} מוכן.
+
+הכנו לך סרטוני הדרכה קצרים, צעד אחרי צעד: איך מגדירים את העסק ואיך מקבלים תורים אונליין.
+{{2}}
+
+שאלה? אנחנו כאן בוואטסאפ 050-7321978
+צוות קלמיה
+```
+
+Variables and samples:
+
+1. `{{1}}` business name: סטודיו נועה
+2. `{{2}}` tutorial videos link: https://kalmea.app/tutorials
+
+The link is a variable on purpose: the videos page can move or change without a new review. Live mode refuses to send until `OWNER_WELCOME_TUTORIALS_URL` is set in Vercel.
+
+Category and cost: it is about the account she just opened and how to set it up, nothing promotional, so it goes in as Utility (Israel ≈ $0.0053 a message). Meta has the final word on onboarding messages; if review answers Marketing (Israel ≈ $0.0353 a message), that is still about 13 agorot per new business, and it can be accepted as marketing rather than reworded, unlike the client templates above. Either way it is one message per signup, and the real price arrives on the status webhook.

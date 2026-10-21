@@ -31,6 +31,7 @@ import { pickSettingsPayload, preserveProtectedAutomations, mergeStoredBags } fr
 import { SEEDED_SETTINGS_KEYS } from '@/lib/tenantTemplate';
 import { isMissingColumnError } from '@/lib/pgError';
 import { notifyOwnerOfSignup } from '@/lib/ownerSignupAlert';
+import { sendOwnerWelcome } from '@/lib/ownerWelcome';
 
 function admin() {
   return createClient(
@@ -43,14 +44,14 @@ function admin() {
 async function resolveTenant() {
   const session = await createSessionClient();
   const { data: { user } } = await session.auth.getUser();
-  if (!user) return { error: 'לא מחוברת', status: 401 as const, tenantId: null };
+  if (!user) return { error: 'לא מחוברת', status: 401 as const, tenantId: null, userId: null };
 
   const { data: tenantId, error } = await session.rpc('get_user_tenant_id');
   if (error || !tenantId) {
     console.error('[settings/save] tenant resolve failed:', error?.message);
-    return { error: 'לא זוהה עסק', status: 400 as const, tenantId: null };
+    return { error: 'לא זוהה עסק', status: 400 as const, tenantId: null, userId: null };
   }
-  return { error: null, status: 200 as const, tenantId: tenantId as string };
+  return { error: null, status: 200 as const, tenantId: tenantId as string, userId: user.id };
 }
 
 // 200 KB is generous for a settings row (the FAQ and branding JSON are the
@@ -139,6 +140,17 @@ export async function POST(request: Request) {
       await notifyOwnerOfSignup({ db, tenantId, businessName: signupName, to: String(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim() });
     } catch (e) {
       console.error('[settings/save] owner signup alert failed:', e instanceof Error ? e.message : 'unknown');
+    }
+  });
+  // And one welcome WhatsApp to HER, with the tutorial videos. Off unless OWNER_WELCOME_WA is set; once only, by a DB marker. See
+  // lib/ownerWelcome.ts.
+  const signupPhone = (data as { business_phone?: unknown } | null)?.business_phone ?? (insertRow as { business_phone?: unknown }).business_phone;
+  after(async () => {
+    try {
+      const r = await sendOwnerWelcome({ db, tenantId, userId: t.userId, businessName: signupName, businessPhone: signupPhone });
+      if (r.status !== 'skipped' || r.reason !== 'off') console.log(`[settings/save] owner welcome for ${tenantId}: ${r.status}${'reason' in r ? ` (${r.reason})` : ''}`);
+    } catch (e) {
+      console.error('[settings/save] owner welcome failed:', e instanceof Error ? e.message : 'unknown');
     }
   });
   return NextResponse.json({ success: true, settings: data, created: true });
