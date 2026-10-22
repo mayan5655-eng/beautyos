@@ -73,6 +73,12 @@ Use **your own** business and your own card. No client is involved.
 - Sandbox proof: `node --env-file=.env.local scripts/smoke/grow-go-live.mjs <outDir>` gives a regular payment with `approveTransaction` (Grow answers status 1),
   a saved card (save only: an authorization, which Grow does not approve, error 722), a charge-and-save token with `approveTransaction`, and a token charge;
   it records the client's side as video and refunds every charge. IDs sent to Grow: payment 559826, token save 559827, charge-and-save 559831, token charge 559828.
+- Grow's review (2026-10-22): (1) `getPaymentProcessInfo` only in extreme cases: the app never called it (the token always came from the callback),
+  but the sandbox proof scripts did, standing in for a callback that could not reach a laptop. Those scripts now refuse to run unless
+  `ALLOW_PROCESS_INFO=1`. (2) A token charge sent `transactionUniqueIdentifier` AND `transactionGroupIdentifier`; it now sends the unique one only
+  (the group id stays in our ledger). New proof, real callback, no `getPaymentProcessInfo`:
+  `SMOKE_BASE=https://<preview> node --env-file=.env.local scripts/smoke/grow-token-callback.mjs <outDir>` (a public deployment with
+  `GROW_MODE=live` and the sandbox token triple; it records the required card-save tick, refused-then-ticked, as video).
 - Site check (https://grow.business/Site_check, a PDF): every payment page now has a required terms tick linking `/terms#payments` (`lib/paymentTerms.ts`;
   `/api/grow/wallet` refuses without it); the terms cover delivery of the service, the 18+ purchase limit, privacy, liability and cancellation under the
   Consumer Protection Law; Kalmea's footer shows the contact number. The address is the city only (`KALMEA_ADDRESS`): Grow may ask for a street address.

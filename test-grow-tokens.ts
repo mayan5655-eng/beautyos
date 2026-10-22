@@ -75,9 +75,9 @@ await ok('charge and save: a regular charge (chargeType 1) for the real amount t
   assert.equal(f.chargeType, '1'); assert.equal(f.sum, '120.00'); assert.equal(f.saveCardToken, '1');
 });
 
-await ok('charge a token: cardToken, a numeric transactionUniqueIdentifier, an optional group; the lookup sends exactly ONE identifier', () => {
-  const f = obj(buildTokenChargeFields(creds, { userId: 'U', cardToken: 'TOK', amount: 150, description: 'x', fullName: 'דנה כהן', phone: '0501234567', uniqueIdentifier: 123456789, groupIdentifier: 77 }));
-  assert.equal(f.cardToken, 'TOK'); assert.equal(f.transactionUniqueIdentifier, '123456789'); assert.equal(f.transactionGroupIdentifier, '77'); assert.equal(f.sum, '150.00'); assert.equal(f.apiKey, 'K');
+await ok('charge a token: cardToken and a numeric transactionUniqueIdentifier ONLY (never the group too); the lookup sends exactly ONE identifier', () => {
+  const f = obj(buildTokenChargeFields(creds, { userId: 'U', cardToken: 'TOK', amount: 150, description: 'x', fullName: 'דנה כהן', phone: '0501234567', uniqueIdentifier: 123456789 }));
+  assert.equal(f.cardToken, 'TOK'); assert.equal(f.transactionUniqueIdentifier, '123456789'); assert.ok(!('transactionGroupIdentifier' in f), 'the charge never sends both identifiers'); assert.equal(f.sum, '150.00'); assert.equal(f.apiKey, 'K');
   const l = obj(buildLookupFields(creds, { userId: 'U', cardToken: 'TOK', uniqueIdentifier: 123456789 }));
   assert.equal(l.transactionUniqueIdentifier, '123456789'); assert.ok(!('transactionGroupIdentifier' in l), 'never both identifiers');
 });

@@ -12,7 +12,8 @@
 //   - authentication is userId + pageCode + apiKey, and apiKey travels as a BODY field (a header is refused with error 701).
 //   - transactionUniqueIdentifier is numeric, generated on our server, and never reused: Grow rejects a repeated one outright, even after a
 //     failed charge (error 1010). newUniqueIdentifier() is only a generator; the ledger (tokenCharge.ts) saves it BEFORE the call.
-//   - getTokenTransactionsByExternalIdentifiers takes exactly ONE identifier; sending both is an error.
+//   - createTransactionWithToken and getTokenTransactionsByExternalIdentifiers each take exactly ONE identifier: we send only
+//     transactionUniqueIdentifier, never transactionGroupIdentifier with it (Grow's review, 2026-10). The group id stays in our own ledger.
 //   - the first transaction of a token sends a callback and needs approveTransaction; later token charges do neither: their result is the
 //     API response.
 import { growText, tenantRefOf } from './payload.ts';
@@ -127,12 +128,11 @@ export type TokenChargeFields = {
   fullName: string;
   phone: string;
   uniqueIdentifier: number;
-  groupIdentifier?: number;
 };
 
-/** createTransactionWithToken. paymentType 2 = regular single payment. */
+/** createTransactionWithToken. paymentType 2 = regular single payment. ONE identifier only: transactionUniqueIdentifier. */
 export function buildTokenChargeFields(c: TokenCreds, i: TokenChargeFields): [string, string][] {
-  const f: [string, string][] = [
+  return [
     ['apiKey', c.apiKey],
     ['userId', i.userId],
     ['cardToken', i.cardToken],
@@ -144,8 +144,6 @@ export function buildTokenChargeFields(c: TokenCreds, i: TokenChargeFields): [st
     ['pageField[phone]', i.phone],
     ['transactionUniqueIdentifier', String(i.uniqueIdentifier)],
   ];
-  if (i.groupIdentifier !== undefined) f.push(['transactionGroupIdentifier', String(i.groupIdentifier)]);
-  return f;
 }
 
 /** getTokenTransactionsByExternalIdentifiers with exactly ONE identifier (the unique one): both together is an error. */

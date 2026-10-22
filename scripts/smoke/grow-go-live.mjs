@@ -23,6 +23,11 @@ import { tokenCredentials, newUniqueIdentifier, groupIdentifierOf, CARD_CONSENT_
 import { securityHeaders } from '../../lib/securityHeaders.ts';
 import { PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '../../lib/paymentTerms.ts';
 
+// Grow's review (2026-10): getPaymentProcessInfo is for extreme cases only; a token must come from Grow's server callback. This script
+// stands in for the callback with getPaymentProcessInfo, so it no longer runs unless asked for explicitly. The proof Grow asked for is
+// scripts/smoke/grow-token-callback.mjs (against a public deployment, the real callback, no getPaymentProcessInfo).
+if (process.env.ALLOW_PROCESS_INFO !== '1') { console.error('[grow] this script calls getPaymentProcessInfo, which Grow asked us not to use. Run scripts/smoke/grow-token-callback.mjs instead (or set ALLOW_PROCESS_INFO=1 for an exceptional check).'); process.exit(2); }
+
 const out = process.argv[2];
 if (!out) { console.error('usage: grow-go-live.mjs <outDir>'); process.exit(2); }
 mkdirSync(`${out}/video`, { recursive: true });

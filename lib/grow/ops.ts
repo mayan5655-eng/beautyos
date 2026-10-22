@@ -34,7 +34,7 @@ export type ChargeTokenInput = {
   userId: string; tokenRef: string; amount: number; description: string;
   /** Numeric, generated on our server, saved BEFORE this call, never reused (not even after a refusal). */
   uniqueIdentifier: number;
-  /** Not unique, for looking things up later (one per appointment). */
+  /** Not unique, one per appointment. Kept in our ledger only: never sent to Grow, which takes ONE identifier per call. */
   groupIdentifier?: number;
   fullName?: string;
   phone?: string;
@@ -155,7 +155,7 @@ export function createLiveOps(creds: TokenCreds): GrowOps {
       if (!phone) return { ok: false, code: 'declined', error: 'client phone is not an Israeli mobile' };
       const r = await post(creds, 'createTransactionWithToken', buildTokenChargeFields(creds, {
         userId: userFor(creds, i.userId), cardToken: i.tokenRef, amount: i.amount, description: i.description,
-        fullName: growFullName(i.fullName || ''), phone, uniqueIdentifier: i.uniqueIdentifier, groupIdentifier: i.groupIdentifier,
+        fullName: growFullName(i.fullName || ''), phone, uniqueIdentifier: i.uniqueIdentifier,
       }));
       if (!r.ok && r.json === null) return unreachable;
       const env = readEnvelope(r.json);
