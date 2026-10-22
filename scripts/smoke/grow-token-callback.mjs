@@ -86,10 +86,11 @@ async function bookAndOpenGrow(label, time) {
   await pub.screenshot({ path: `${out}/${label}-refused.png` });
   await pub.locator('input[aria-label="אישור שמירת פרטי כרטיס האשראי"]').check(); await pub.waitForTimeout(1500);
   await pub.screenshot({ path: `${out}/${label}-ticked.png` });
-  await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(5000);
-  check(await pub.locator('[data-testid="grow-step"] a').count() === 1, `${label}: the booking page offers Grow's secure card page`);
+  await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForSelector('[data-testid="grow-step"] button', { timeout: 45000 }).catch(() => {}); await pub.waitForTimeout(1000);
+  await pub.screenshot({ path: `${out}/${label}-after-book.png` }); if (!(await pub.locator('[data-testid="grow-step"] button').count())) log('booking page after submit:', (await body(pub)).slice(0, 500));
+  check(await pub.locator('[data-testid="grow-step"] button').count() === 1, `${label}: the booking page offers Grow's secure card page`);
   await pub.waitForTimeout(1500);
-  await pub.locator('[data-testid="grow-step"] a').click();
+  await pub.locator('[data-testid="grow-step"] button').click();
   await typeSandboxCard(pub);
   await pub.screenshot({ path: `${out}/${label}-returned.png` });
   const video = await pub.video().path();
@@ -99,7 +100,8 @@ async function bookAndOpenGrow(label, time) {
 
 try {
   // login + onboarding (as scripts/smoke/grow-cancel.mjs)
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+  // networkidle: on a deployed preview the form must be hydrated before submit, or the sign-in request is rejected with a 400.
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
   await page.fill('input[type=email]', email); await page.fill('input[type=password]', PASSWORD); await page.click('button[type=submit]');
   await page.waitForURL((u) => u.pathname.startsWith('/onboarding'), { timeout: 60000 });
   await page.fill('input[placeholder="למשל: סטודיו רונית"]', 'קליניקת בדיקת טוקן');
@@ -112,10 +114,10 @@ try {
   const svcRows = page.locator('button:has-text("דקות")').filter({ visible: true });
   for (let i = 0; i < 2; i++) { await svcRows.nth(i).click(); await page.waitForTimeout(200); }
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(500);
-  await page.click('button:has-text("לא עכשיו")');
+  await page.click('button:has-text("סיום ופתיחת היומן")');
   await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
-  // In the sandbox every call goes to Grow's one test business (GROW_TOKEN_USER_ID_TEST overrides this user_id).
-  await db.from('grow_accounts').insert({ tenant_id: tenantId, user_id: 'sandbox-test-business', enabled: true });
+  // In the sandbox every call goes to Grow's one test business. The token session swaps in GROW_TOKEN_USER_ID_TEST itself, but the deposit page (charge and save) sends grow_accounts.user_id as is, so the row carries the real sandbox userId.
+  await db.from('grow_accounts').insert({ tenant_id: tenantId, user_id: process.env.GROW_TOKEN_USER_ID_TEST || 'sandbox-test-business', enabled: true });
   await db.from('service_prices').update({ price: 20 }).eq('tenant_id', tenantId);
 
   // ── 1. save only ──
@@ -165,7 +167,7 @@ try {
   check(!!tok3, '3 charge and save: the card token came from that same callback');
   ids.chargeAndSave = dep?.transaction_id || null;
 } catch (e) {
-  fails.push('script error: ' + e.message); console.error('[token-cb] ERROR', e.message);
+  fails.push('script error: ' + e.message); await page.screenshot({ path: `${out}/error.png` }).catch(() => {}); console.error((await body().catch(() => '')).slice(0, 600)); console.error('[token-cb] ERROR', e.message);
 } finally {
   await browser.close();
 }
