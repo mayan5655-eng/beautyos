@@ -20,6 +20,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from '../ai/usage.ts';
+import { MODELS, EFFORT } from '../ai/models.ts';
 
 /** The lead fields this importer can fill. Nothing else is writable. */
 export const TARGET_FIELDS = [
@@ -148,7 +149,7 @@ export async function proposeMapping(
   maskedSamples: string[][],
   options: ProposeOptions = {}
 ): Promise<MappingProposal> {
-  const model = options.model ?? 'claude-haiku-4-5';
+  const model = options.model ?? MODELS.cheap;
 
   let client = options.client;
   if (!client) {
@@ -167,9 +168,10 @@ export async function proposeMapping(
   try {
     const response = await trackedCreate(client, {
       model,
-      max_tokens: 2048,
+      // Room for Haiku 5.5's thinking as well as the mapping: thinking counts against max_tokens.
+      max_tokens: 4000,
+      output_config: { effort: EFFORT.cheap, format: { type: 'json_schema', schema: MAPPING_SCHEMA } },
       system: SYSTEM,
-      output_config: { format: { type: 'json_schema', schema: MAPPING_SCHEMA } },
       messages: [
         {
           role: 'user',

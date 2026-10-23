@@ -49,6 +49,7 @@ const SITES: [string, string, string | null][] = [
   ['lib/ai/creativeDirector.ts', MODELS.writer, 'app/api/designs/ai-fill/route.ts'],
   ['app/api/marketing/reel/route.ts', MODELS.writer, 'app/api/marketing/reel/route.ts'],
   ['app/api/advisor/route.ts', MODELS.writer, 'app/api/advisor/route.ts'],
+  ['lib/content/pack.ts', MODELS.writer, 'app/api/content/plan/route.ts'],
   ['lib/ai/marketingAI.ts', MODELS.ideas, 'app/api/marketing/groups/route.ts'],
   ['app/api/marketing/shooting-list/route.ts', MODELS.ideas, 'app/api/marketing/shooting-list/route.ts'],
   ['app/api/skin-scan/route.js', MODELS.ideas, 'app/api/skin-scan/route.js'],
@@ -79,9 +80,19 @@ for (const f of sources) {
   assert.ok(!/tool_choice:\s*\{\s*type:\s*['"](any|tool)['"]/.test(src), `${f} forces tool use (400 on Opus 5.5 / Sonnet 5.5)`);
 }
 
-// The cheap mechanical calls stay on the cheap model: nobody reads them.
-for (const f of ['app/api/voice-intent/route.ts', 'lib/ai/scoreLeads.ts', 'lib/leads/mapHeaders.ts']) {
-  assert.ok(!/MODELS\.(writer|ideas)/.test(code(f)), `${f} is a mechanical call and stays on the cheap model`);
+// The cheap mechanical calls stay on the cheap model, and Haiku 5.5 thinks too:
+// each takes its model from MODELS.cheap, sets effort, and leaves room to think.
+assert.equal(MODELS.cheap, 'claude-haiku-5-5');
+assert.equal(MODEL_RATES['claude-haiku-5-5'].input, 0.1);
+assert.equal(MODEL_RATES['claude-haiku-5-5'].output, 0.5);
+for (const f of ['app/api/whatsapp-webhook/route.js', 'app/api/voice-intent/route.ts', 'lib/ai/scoreLeads.ts', 'lib/leads/mapHeaders.ts']) {
+  const src = code(f);
+  assert.ok(!/MODELS\.(writer|ideas)/.test(src), `${f} is a mechanical call and stays on the cheap model`);
+  assert.ok(src.includes('MODELS.cheap'), `${f} takes its model from MODELS.cheap`);
+  assert.ok(!/['"`]claude-haiku-4-5/.test(src), `${f} must not hard-code the old Haiku`);
+  assert.ok(/output_config:\s*\{[^}]*effort:\s*EFFORT\.cheap/.test(src), `${f} sets effort (Haiku 5.5 defaults to medium)`);
+  const tokens = [...src.matchAll(/max_tokens:\s*([0-9_]+)/g)].map((m) => Number(m[1].replace(/_/g, '')));
+  assert.ok(tokens.length > 0 && tokens.every((n) => n >= 1500), `${f}: max_tokens ${tokens} leaves no room for Haiku 5.5's thinking (need >= 1500)`);
 }
 
 console.log('ai models: ok');

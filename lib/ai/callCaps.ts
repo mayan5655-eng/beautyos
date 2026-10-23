@@ -24,22 +24,22 @@
 // applied by hand.
 //
 // ── The arithmetic behind each number ───────────────────────────────────────
-// Per-call costs at Haiku 4.5 ($1/$5 per Mtok) and Sonnet 5 ($2/$10 per Mtok),
-// using each call site's real max_tokens. Ceilings sit roughly an order of
-// magnitude above heavy honest use, so tripping one means a loop or an abuser,
-// never a busy week:
+// Per-call costs on the models in lib/ai/models.ts as of 2026-10-21: Haiku 5.5
+// ($0.10/$0.50 per Mtok), Sonnet 5.5 ($2/$10) and Opus 5.5 ($4/$20), thinking
+// included. Ceilings sit roughly an order of magnitude above heavy honest use,
+// so tripping one means a loop or an abuser, never a busy week:
 //
 //   site                     ~$/call   cap   worst case   heavy honest use
-//   whatsapp-webhook          0.0035   1500     $5.25      ~300 inbound/mo
-//   advisor                   0.007     400     $2.80      ~50 questions
-//   voice-intent              0.002     600     $1.20      a few a day
-//   score-lead                0.005    1000     $5.00      one per new lead
-//   leads/map-headers         0.012     100     $1.20      one per import
-//   marketing/groups          0.045     150     $6.75
-//   marketing/reel            0.17       80    $13.60      ~10 reels
+//   whatsapp-webhook          0.0005   1500     $0.75      ~300 inbound/mo
+//   advisor (Opus, low)       0.05      400    $20.00      ~50 questions
+//   voice-intent              0.0003    600     $0.18      a few a day
+//   score-lead                0.0006   1000     $0.60      one per new lead
+//   leads/map-headers         0.001     100     $0.10      one per import
+//   marketing/groups          0.012     150     $1.80
+//   marketing/reel (Opus)     0.09       80     $7.20      ~10 reels
 //
-// Worst case if a tenant pinned every ceiling in one month: about $51.
-// Realistic use is $4-11. This is a ceiling, not a budget.
+// The count caps are a backstop; the per-tenant dollar ceiling below bounds the
+// sum. Realistic use is $3-6 a month. This is a ceiling, not a budget.
 //
 // ── skin-scan is deliberately ABSENT ────────────────────────────────────────
 // It already has a dedicated, env-tunable ceiling in lib/skinScanQuota.ts that

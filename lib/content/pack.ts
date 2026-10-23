@@ -15,7 +15,8 @@ import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfi
 import type { Suggestion } from '../design/suggestions.ts';
 
 export const PACK_CALL_SITE = 'content/pack';
-export const PACK_MODEL = MODELS.ideas;
+// Captions she publishes as written: the writer model, like the post generator (lib/ai/postGenerator.ts).
+export const PACK_MODEL = MODELS.writer;
 
 export const PLATFORMS = ['instagram', 'facebook'] as const;
 export type Platform = (typeof PLATFORMS)[number];
@@ -155,7 +156,8 @@ export async function planCaptions(profile: BusinessProfile, items: Array<{ key:
   const result = await withClaimsGuard(async (correction) => {
     const message = await trackedCreate(anthropic(), {
       model: PACK_MODEL,
-      max_tokens: 8000,
+      // Room for Opus to think AND write every caption of the week: thinking counts against this.
+      max_tokens: 12000,
       output_config: { effort: EFFORT.captions },
       messages: [{ role: 'user', content: buildPackPrompt(profile, items) + (correction ? `\n\n${correction}` : '') }],
     }, { tenantId, callSite: correction ? PACK_CALL_SITE + '/retry' : PACK_CALL_SITE });

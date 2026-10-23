@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireActiveTenant } from '@/lib/planGuard'
 import Anthropic from '@anthropic-ai/sdk'
 import { trackedCreate } from '@/lib/ai/usage'
+import { MODELS, EFFORT } from '@/lib/ai/models'
 import { voiceActionAllowed } from '@/lib/ai/demoPolicy'
 import { isDemoTenantId } from '@/lib/demoTenants'
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit'
@@ -92,8 +93,10 @@ export async function POST(request: NextRequest) {
 - החזירי JSON בלבד.`
 
     const aiResponse = await trackedCreate(anthropic, {
-      model: 'claude-haiku-4-5',
-      max_tokens: 400,
+      // Room for Haiku 5.5's thinking as well as the JSON: thinking counts against max_tokens.
+      model: MODELS.cheap,
+      max_tokens: 2000,
+      output_config: { effort: EFFORT.cheap },
       system: systemPrompt,
       messages: [{ role: 'user', content: transcript }],
     }, { tenantId: (tenantId as string) || null, callSite: 'voice-intent' })
