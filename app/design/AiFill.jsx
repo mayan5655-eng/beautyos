@@ -10,6 +10,7 @@
 // take on the same direction. Everything lands in the fill form's state;
 // saving is the same save button.
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -28,7 +29,7 @@ export default function AiFill({ template, designId, imageSlot, readOnly, onValu
   const [spent, setSpent] = useState(0);
 
   const fill = async () => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     if (brief.trim().length < 3) { setError('כתבי מה הפוסט צריך להגיד, למשל: הטיפול הראשון במבצע 249 ₪'); return; }
     setError(''); setState('filling');
     try {

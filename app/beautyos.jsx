@@ -7138,6 +7138,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       isDemo={false}
       toast={toast}
       onSignOut={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+      // After she pays (card page, or by arrangement), the dashboard reopens by itself: the plan is read again and, once it is
+      // active, loadAll runs from the start (the same path as the retry button). Answers whether it reopened.
+      recheck={async()=>{
+        const { data, error } = await supabase.from("tenants").select("*").eq("id", planRow?.id).maybeSingle();
+        if (error || !data || planState(data).isBlocked) return false;
+        setPlanRow(data); setLoadError(null); setLoading(true); loadAll();
+        return true;
+      }}
     />
   );
 

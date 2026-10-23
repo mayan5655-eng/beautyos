@@ -12,6 +12,7 @@
 //   4. the designs she has saved
 // Pick a template -> a design row is created from it -> the editor opens.
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -161,7 +162,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
 
   const create = async (t, values = null) => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     setCreating(t.key); setError('');
     try {
       const res = await fetch('/api/designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateKey: t.key, templateVersion: t.version, ...(values ? { values } : {}) }) });

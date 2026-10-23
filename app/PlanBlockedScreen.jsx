@@ -18,7 +18,13 @@
 // same slot contract as TrialBanner's. BillingCard renders only when billing is
 // switched on for the deployment, and stays usable here because no billing
 // route uses the plan guard: a closed business must be able to pay.
+//
+// `recheck` (optional) reads her plan again and reopens the dashboard when it is
+// active. It runs when she comes back to the tab (from the card page, or after
+// paying by phone), every 20 seconds while the tab is visible, and on the
+// "שילמתי, לבדוק שוב" button. She used to have to reload the page by hand.
 
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import BrandImage from "@/app/BrandImage";
 import { ICON_FLOWER } from "@/lib/brand";
@@ -33,8 +39,28 @@ import {
 
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 
-export default function PlanBlockedScreen({ plan, businessName = "", isDemo = false, toast, onSignOut, cta = null }) {
+export default function PlanBlockedScreen({ plan, businessName = "", isDemo = false, toast, onSignOut, cta = null, recheck = null }) {
   const { title, body } = blockedNoticeHe(plan?.status, plan?.trialEndsAt);
+  const [checking, setChecking] = useState(false);
+  const recheckRef = useRef(recheck);
+  recheckRef.current = recheck;
+  useEffect(() => {
+    if (!recheck) return undefined;
+    const run = () => { if (document.visibilityState === "visible") recheckRef.current?.(); };
+    const onVisible = () => run();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const timer = setInterval(run, 20000);
+    return () => { document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); clearInterval(timer); };
+  }, [!!recheck]);
+  const checkNow = async () => {
+    if (!recheck || checking) return;
+    setChecking(true);
+    try {
+      const reopened = await recheck();
+      if (!reopened) toast?.("עדיין לא רואים את התשלום. אם שילמת עכשיו, זה יכול לקחת דקה. המסך יתעדכן לבד.");
+    } finally { setChecking(false); }
+  };
   const wa = supportWhatsAppUrl();
   // A paused account is an arrangement, not a sale: no price pitch there.
   const showPrice = plan?.status === "expired";
@@ -110,6 +136,18 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
 
         {/* Pay-to-continue when billing is on. Renders nothing at all when it is off. */}
         <BillingCard pc="var(--brand-accent)" pcTint="var(--brand-tint)" toast={toast} isDemo={isDemo} />
+
+        {recheck && (
+          <button
+            type="button"
+            data-testid="plan-blocked-recheck"
+            onClick={checkNow}
+            disabled={checking}
+            style={{ alignSelf: "center", background: "none", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 16px", cursor: checking ? "wait" : "pointer", minHeight: 44, fontFamily: "inherit" }}
+          >
+            {checking ? "בודקת…" : "שילמתי, לבדוק שוב"}
+          </button>
+        )}
 
         {onSignOut && (
           <button

@@ -8,6 +8,7 @@
 // export captures a full-size copy of it mounted off-screen. Moving and
 // resizing things is the editor layer (stage 3) and is not here.
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -68,7 +69,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   };
 
   const save = async () => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     setSaving(true); setError('');
     try {
       const saved = await patch({ name, values, images, overrides: { ...overrides, consent, brand }, copy: { text: copyText, hashtags: hashtags.split(/\s+/).filter(Boolean) } });

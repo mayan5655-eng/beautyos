@@ -31,3 +31,12 @@ assert.ok(/if \(!leavingForOnboardingRef\.current\) setLoading\(false\)/.test(ap
 // ── business_tax_status: no silent 'exempt' default (journey pass F19) ──
 const taxSql = read('./supabase/migrations/fix_business_tax_status_default_2026-10-23.sql');
 assert.ok(/drop default/.test(taxSql) && /drop not null/.test(taxSql) && /VERIFY/.test(taxSql), 'the migration drops the default and verifies');
+
+// ── closed account: the dashboard reopens by itself after payment; no "read-only" wording left in design screens ──
+const blocked = read('./app/PlanBlockedScreen.jsx');
+assert.ok(/visibilitychange/.test(blocked) && /setInterval\(run, 20000\)/.test(blocked) && /data-testid="plan-blocked-recheck"/.test(blocked), 'the blocked screen rechecks on return, on a timer and on demand');
+assert.ok(/recheck=\{async\(\)=>\{[\s\S]{0,300}planState\(data\)\.isBlocked\) return false;[\s\S]{0,120}loadAll\(\)/.test(app), 'beautyos reopens through loadAll once the plan is active');
+for (const f of ['AiFill', 'DesignEditor', 'DesignStudio', 'Generate', 'ReelEditor']) {
+  const src = read(`./app/design/${f}.jsx`);
+  assert.ok(!/קריאה בלבד/.test(src) && /WRITE_BLOCKED_TOAST_HE/.test(src), `${f}: closed-system wording`);
+}
