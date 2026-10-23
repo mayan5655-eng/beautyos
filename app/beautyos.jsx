@@ -1556,7 +1556,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
-    { key:"link",     done: linkShared||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
+    { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -6743,7 +6743,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
-      if (kind === "book") { setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ } }
+      if (kind === "book") {
+        setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
+        // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
+        if (!settings?.automations?.link_shared_at) persistTourPatch({ link_shared_at: new Date().toISOString() });
+      }
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← הדף שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;

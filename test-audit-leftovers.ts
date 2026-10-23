@@ -51,3 +51,8 @@ const app8 = read('./app/beautyos.jsx');
 assert.ok(/>הסירה את עצמה מדיוור<\/button>/.test(app8) && /saveClientMarketing\(c,optOutFields\(\),"נרשם: הסירה את עצמה מדיוור"\)/.test(app8), 'the card action reuses the opt-out record');
 assert.ok(/data-testid="marketing-optout-hint"/.test(app8) && /בוואטסאפ האישי/.test(app8), 'a short hint explains why she marks it herself');
 assert.ok(/הסירה את עצמה מדיוור/.test(read('./lib/helpSections.ts')), 'help uses the same label');
+
+// ── first-day polish leftovers (overnight item י) ──
+const tour = read('./app/OnboardingTour.jsx');
+assert.ok((tour.match(/minHeight: 44/g) || []).length >= 2, 'the tour buttons are phone-sized');
+assert.ok(/שישי עד 14:00 ושבת סגור/.test(read('./app/onboarding/page.tsx')), 'onboarding says which week the hours start with');

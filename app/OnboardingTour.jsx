@@ -193,7 +193,7 @@ export default function OnboardingTour({
             <button
               type="button"
               onClick={onSkip}
-              style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit", padding: "6px 2px" }}
+              style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit", padding: "6px 10px", minHeight: 44, minWidth: 44 }}
             >
               דלגי
             </button>
@@ -204,7 +204,7 @@ export default function OnboardingTour({
                 onClick={isLast ? onFinish : onNext}
                 style={{
                   background: pcGrad, color: "var(--pc-contrast)", border: "none",
-                  borderRadius: "var(--r-xl)", padding: "9px 18px", fontSize: "var(--t-sm)",
+                  borderRadius: "var(--r-xl)", padding: "9px 18px", minHeight: 44, fontSize: "var(--t-sm)",
                   fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                 }}
               >

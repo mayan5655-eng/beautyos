@@ -636,7 +636,7 @@ export default function OnboardingPage() {
           {step === 3 && (
             <>
               <h1 style={titleStyle}><Icon name="clock" size={22}/> שעות עבודה</h1>
-              <p style={subtitleStyle}>מתי את בדרך כלל מתחילה ומסיימת (בשעון של 24 שעות, למשל 9 עד 18). בהגדרות ← שעות אפשר לקבוע שעות שונות לכל יום, כולל שישי ושבת ושעות ערב.</p>
+              <p style={subtitleStyle}>מתי את בדרך כלל מתחילה ומסיימת (בשעון של 24 שעות, למשל 9 עד 18). נתחיל עם השעות האלה בימים ראשון עד חמישי, שישי עד 14:00 ושבת סגור. בהגדרות ← שעות אפשר לשנות כל יום, כולל שישי, שבת ושעות ערב.</p>
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
                 <Field label="התחלה" inline>
                   <input

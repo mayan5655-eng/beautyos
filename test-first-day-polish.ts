@@ -8,9 +8,10 @@ const ok = (name: string, fn: () => void) => { fn(); n++; console.log('ok -', na
 
 ok('the "שליחת הקישור" step ticks when she copies her booking link, not when she adds a client by hand', () => {
   const a = rd('app/beautyos.jsx');
-  assert.match(a, /\{ key:"link",     done: linkShared\|\|appointments\.length>0,/);
+  assert.match(a, /\{ key:"link",     done: linkShared\|\|!!settings\?\.automations\?\.link_shared_at\|\|appointments\.length>0,/);
   assert.doesNotMatch(a, /key:"link",\s+done: appointments\.length>0\|\|clients\.length>0/);
-  assert.match(a, /if \(kind === "book"\) \{ setLinkShared\(true\); try \{ localStorage\.setItem\(`kl_link_shared_\$\{t\}`, "1"\);/);
+  assert.match(a, /if \(kind === "book"\) \{\s+setLinkShared\(true\); try \{ localStorage\.setItem\(`kl_link_shared_\$\{t\}`, "1"\);/);
+  assert.match(a, /persistTourPatch\(\{ link_shared_at: new Date\(\)\.toISOString\(\) \}\)/);
   assert.match(a, /localStorage\.getItem\(`kl_link_shared_\$\{t\}`\) === "1"/);
 });
 
