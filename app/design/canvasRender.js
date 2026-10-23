@@ -182,6 +182,10 @@ export function drawImageLayer(ctx, l, b, img, colors, zoom = 1) {
   shapePath(ctx, b, l);
   ctx.clip();
   if (img) {
+    // The photo is scaled on every reel frame (cover, then the Ken Burns zoom): ask for the browser's best filter,
+    // not its fast default, or a 1024-wide picture blown up to 1080+ goes soft and shimmers as it zooms.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     const scale = Math.max(b.w / img.width, b.h / img.height) * zoom;
     const dw = img.width * scale, dh = img.height * scale;
     const f = l.focus || { x: 0.5, y: 0.5 };
