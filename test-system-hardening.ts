@@ -12,7 +12,8 @@ let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
 
 await ok('every vercel.json cron is a known job, and every job is scheduled', () => {
-  const crons = (JSON.parse(rd('vercel.json')).crons as Array<{ path: string }>).map((c) => c.path).sort();
+  // A path may appear twice (the Saturday-night runs, lib/shabbat.js): each JOB is still listed once.
+  const crons = [...new Set((JSON.parse(rd('vercel.json')).crons as Array<{ path: string }>).map((c) => c.path))].sort();
   const jobs = Object.values(CRON_JOBS).map((j) => j.path).sort();
   assert.deepEqual(jobs, crons);
   for (const job of Object.keys(CRON_JOBS)) assert.ok((CRON_JOB_HE as Record<string, string>)[job], `Hebrew name for ${job}`);

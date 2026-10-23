@@ -305,6 +305,12 @@ const TAX_DISCLAIMER = "הדוח הוא לנוחותך בלבד. יש לבדוק
 //   reels     - יוצר רילסים        community - קהילה
 // Tiers are cumulative: pro includes basic, premium includes pro.
 const _PLAN_BASIC   = ["clients","calendar","cashier","receipts"];
+
+// Her business type, and whether SHE chose it. The live column defaults to 'exempt', so a type alone can be the default;
+// business_tax_status_set_at (add_business_tax_status_set_at.sql) says when she picked it. Before that migration the key is
+// absent from the row and nothing counts as unconfirmed - the app behaves as before.
+const TAX_STATUS_HE = { exempt: "עוסק פטור", licensed: "עוסק מורשה", company: "חברה בע\"מ" };
+const taxStatusUnconfirmed = (s) => !!s && Object.prototype.hasOwnProperty.call(s, "business_tax_status_set_at") && !s.business_tax_status_set_at;
 const _PLAN_PRO     = [..._PLAN_BASIC, "marketing","leads","whatsapp","birthdays","reviews"];
 const _PLAN_PREMIUM = [..._PLAN_PRO, "advisor","skinscan","reels","community"];
 const PLAN_FEATURES = {
@@ -10925,6 +10931,20 @@ ${MARKETING_FOOTER}`)}`;
       {/* CASHIER MODAL */}
       {showCashier&&(
  <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="קופה — תשלום חדש">
+ {/* No business type = no legal document from Morning (lib/legalReceipts/service.js, tax_status_missing). Said here, before she
+     charges, with a way to fix it. Never blocks the payment itself (owner's decision, 2026-10-23). */}
+ {(!settings.business_tax_status||taxStatusUnconfirmed(settings))&&(
+ <div role="note" data-testid="cashier-tax-warning" style={{background:"var(--k-petal)",border:"1px solid var(--k-pink)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:10,fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.55}}>
+ {!settings.business_tax_status?(<>
+ <p style={{fontWeight:700,margin:0}}>רגע לפני שגובים: עוד לא בחרת סוג עסק</p>
+ <p style={{margin:"3px 0 4px",color:"var(--ink-2)"}}>{legalAccount?.connected?"בלי לבחור פטור, מורשה או חברה, מורנינג לא תפיק קבלה חוקית על התשלום הזה.":"בלי לבחור פטור, מורשה או חברה לא נוכל להפיק קבלה חוקית כשתחברי את מורנינג, וסיכום ההכנסות לא יחושב."} התשלום עצמו יירשם כרגיל.</p>
+ </>):(<>
+ <p style={{fontWeight:700,margin:0}}>רגע לפני שגובים: בדקי את סוג העסק</p>
+ <p style={{margin:"3px 0 4px",color:"var(--ink-2)"}}>כרגע רשום &quot;{TAX_STATUS_HE[settings.business_tax_status]||settings.business_tax_status}&quot; כברירת מחדל, ועוד לא אישרת שזה נכון. {legalAccount?.connected?"אם זה לא הסוג שלך, הקבלה ממורנינג תצא מהסוג הלא נכון.":"זה קובע איזו קבלה תצא כשתחברי את מורנינג."} התשלום עצמו יירשם כרגיל.</p>
+ </>)}
+ <button type="button" onClick={()=>{setShowCashier(false);openSetupTab("general");}} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--k-green)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>{settings.business_tax_status?"לאישור סוג העסק בהגדרות ←":"לבחירת סוג העסק בהגדרות ←"}</button>
+ </div>
+ )}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"var(--success)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"var(--surface-2)":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
@@ -11591,10 +11611,12 @@ ${MARKETING_FOOTER}`)}`;
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
                     // No default: an unset status is shown as unset (below), never as "עוסק פטור".
                     const sel=editSettings.business_tax_status===o.k;
-                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
+                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k,business_tax_status_set_at:new Date().toISOString()})} style={{flex:1,padding:"9px 4px",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
                   })}
  </div>
  {!editSettings.business_tax_status&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700,marginTop:6,lineHeight:1.5}}>עוד לא בחרת. בלי זה לא נפיק קבלה או חשבונית חוקית, וסיכום ההכנסות לא יחושב.</p>}
+ {/* The live column defaults to 'exempt' (add_business_tax_status_set_at.sql): until she taps a type, it may be the default, not her answer. */}
+ {!!editSettings.business_tax_status&&taxStatusUnconfirmed(editSettings)&&<p data-testid="tax-status-unconfirmed" style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginTop:6,lineHeight:1.5}}>הסוג הזה נרשם אצלנו כברירת מחדל ועוד לא אישרת אותו. לחצי על הסוג הנכון ושמרי, כדי שהקבלות ממורנינג ייצאו נכון.</p>}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הבחירה קובעת איזה מסמך חוקי מופק ללקוחות (אם חיברת תוכנת חשבוניות), ואיך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. סיכום ההכנסות הוא לנוחותך, לא דוח להגשה.</p></div>
  </>)}
  {inG("connections")&&(<CalendarFeedCard pc={pc} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}

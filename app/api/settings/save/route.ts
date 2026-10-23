@@ -58,6 +58,14 @@ async function resolveTenant() {
 // bulk of it) and far below anything a browser would send by accident.
 const MAX_BODY_BYTES = 200_000;
 
+// Columns that arrive with a hand-run migration and must never cost her the whole save while it has not run.
+const OPTIONAL_COLUMNS = ['business_tax_status_set_at'];
+const withoutOptional = (row: Record<string, unknown>) => {
+  const out = { ...row };
+  for (const k of OPTIONAL_COLUMNS) delete out[k];
+  return out;
+};
+
 export async function POST(request: Request) {
   const t = await resolveTenant();
   if (!t.tenantId) return NextResponse.json({ success: false, error: t.error }, { status: t.status });
@@ -104,12 +112,16 @@ export async function POST(request: Request) {
   const toWrite = mergeStoredBags(preserveProtectedAutomations(payload, existing?.automations), existing);
 
   if (existing) {
-    const { data, error } = await db
+    let { data, error } = await db
       .from('settings')
       .update(toWrite)
       .eq('tenant_id', tenantId)
       .select()
       .maybeSingle();
+    // add_business_tax_status_set_at.sql not run yet: save everything else, as before.
+    if (error && isMissingColumnError(error) && OPTIONAL_COLUMNS.some((k) => k in toWrite)) {
+      ({ data, error } = await db.from('settings').update(withoutOptional(toWrite)).eq('tenant_id', tenantId).select().maybeSingle());
+    }
     if (error) {
       console.error('[settings/save] update failed:', error.code, error.message);
       return NextResponse.json({ success: false, error: 'לא הצלחנו לשמור את ההגדרות. מה ששמור כבר לא נפגע. נסי שוב בעוד רגע.' }, { status: 500 });
@@ -126,6 +138,7 @@ export async function POST(request: Request) {
     console.warn('[settings/save] insert rejected a seeded column; retrying with the seed stripped:', error.message);
     const reduced: Record<string, unknown> = { ...insertRow };
     for (const key of SEEDED_SETTINGS_KEYS) delete reduced[key];
+    for (const key of OPTIONAL_COLUMNS) delete reduced[key];
     ({ data, error } = await db.from('settings').insert([reduced]).select().maybeSingle());
   }
   if (error) {

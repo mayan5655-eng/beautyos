@@ -129,6 +129,16 @@ async function handleInbound(db: Admin, m: InboundText) {
   // Not again for someone who was already removed everywhere.
   if (cardsSeen === 0 || fresh > 0) {
     const res = await resolveWaCloudAdapter().sendText(m.from, OPT_OUT_ACK);
-    if (!res.ok) console.error('[wa-cloud-webhook] opt-out acknowledgement failed:', res.error);
+    if (!res.ok) {
+      console.error('[wa-cloud-webhook] opt-out acknowledgement failed:', res.error);
+      // The removal itself is recorded above; the client still deserves the answer. Left in the business's manual queue
+      // (the same pending_manual row lib/whatsapp.js writes) so she can send it from her own WhatsApp.
+      const phone = e164.ok ? e164.e164 : m.from;
+      const { error: qErr } = await db.from('whatsapp_messages').insert({
+        tenant_id: tenants[0] || null, recipient_name: null, recipient_phone: phone, message_body: OPT_OUT_ACK,
+        message_type: 'marketing_optout_ack', status: 'pending_manual', error_detail: String(res.error || 'send failed').slice(0, 500),
+      });
+      if (qErr) console.error('[wa-cloud-webhook] opt-out acknowledgement not queued:', qErr.message);
+    }
   }
 }
