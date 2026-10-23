@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       creds ? (n) => approveTransaction(n, creds, grow.fetchImpl) : undefined,
     );
     if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
+    if (needsRetry(result)) return NextResponse.json({ success: false, status: result.status }, { status: 503 });
     return NextResponse.json({ success: true, status: result.status });
   } catch (e) {
     console.error('[grow] notify failed:', (e as Error)?.message);

@@ -150,7 +150,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
 }
 
 export type NotifyResult =
-  | { status: 'unknown-token' | 'ignored' | 'mismatch' | 'not-paid' | 'already' }
+  | { status: 'unknown-token' | 'ignored' | 'mismatch' | 'not-paid' | 'already' | 'receipt-pending' }
   | { status: 'paid'; paymentId: string; receiptId: string | null };
 
 async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promise<string | null> {
@@ -179,6 +179,11 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
     console.error('[grow] receipt creation failed for payment', p.id, (e as Error)?.message);
     return null;
   }
+}
+
+/** A paid callback whose receipt is not written yet must not be acknowledged: Grow retries only on a failure answer. */
+export function needsRetry(r: NotifyResult): boolean {
+  return r.status === 'receipt-pending' || (r.status === 'paid' && !r.receiptId);
 }
 
 export async function applyNotification(raw: Record<string, unknown>, token: string, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
@@ -222,6 +227,10 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
       const rid = await createReceiptFor(p, n, d);
       return { status: 'paid', paymentId: p.id, receiptId: rid };
     }
+    // Paid, no receipt yet, and the first callback may still be writing it: not "done". The routes answer 5xx for this, so
+    // Grow calls again and a later delivery (past the two minutes) writes the receipt (2026-10-20 audit: a 200 here ended
+    // Grow's retries and the receipt was never written).
+    if (p.status === 'paid' && !p.receipt_id) return { status: 'receipt-pending' };
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);

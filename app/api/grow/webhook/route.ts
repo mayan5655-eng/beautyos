@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       const creds = grow.creds;
       const approve = creds ? (n: Parameters<typeof approveTransaction>[0]) => approveTransaction(n, creds, grow.fetchImpl) : undefined;
       const r = token ? await applyNotification(raw, token, deps(), approve) : await applyNotificationByProcess(raw, deps(), approve);
+      if (needsRetry(r)) return NextResponse.json({ success: false, kind, status: r.status }, { status: 503 });
       return NextResponse.json({ success: true, kind, status: r.status === 'unknown-token' ? 'ignored' : r.status });
     }
 
