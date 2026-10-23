@@ -10925,6 +10925,15 @@ ${MARKETING_FOOTER}`)}`;
       {/* CASHIER MODAL */}
       {showCashier&&(
  <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="קופה — תשלום חדש">
+ {/* No business type = no legal document from Morning (lib/legalReceipts/service.js, tax_status_missing). Said here, before she
+     charges, with a way to fix it. Never blocks the payment itself (owner's decision, 2026-10-23). */}
+ {!settings.business_tax_status&&(
+ <div role="note" data-testid="cashier-tax-warning" style={{background:"var(--k-petal)",border:"1px solid var(--k-pink)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:10,fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.55}}>
+ <p style={{fontWeight:700,margin:0}}>רגע לפני שגובים: עוד לא בחרת סוג עסק</p>
+ <p style={{margin:"3px 0 4px",color:"var(--ink-2)"}}>{legalAccount?.connected?"בלי לבחור פטור, מורשה או חברה, מורנינג לא תפיק קבלה חוקית על התשלום הזה.":"בלי לבחור פטור, מורשה או חברה לא נוכל להפיק קבלה חוקית כשתחברי את מורנינג, וסיכום ההכנסות לא יחושב."} התשלום עצמו יירשם כרגיל.</p>
+ <button type="button" onClick={()=>{setShowCashier(false);openSetupTab("general");}} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--k-green)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>לבחירת סוג העסק בהגדרות ←</button>
+ </div>
+ )}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"var(--success)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"var(--surface-2)":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
