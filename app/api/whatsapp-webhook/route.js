@@ -298,6 +298,13 @@ export async function POST(request) {
       return Response.json({ ok: true, optOut: true });
     }
 
+    // No automatic AI replies on the CENTRAL number (owner's decision, 2026-10-23): it speaks for every business at once, its
+    // replies cannot go out on their own anyway (ai_agent_reply waits in her manual queue), and every client "תודה" cost a Claude
+    // call. The client's conversation is with her cosmetician, on her own WhatsApp. CENTRAL_BOT_ENABLED=1 brings it back.
+    if (centralId && String(idInstance) === centralId && process.env.CENTRAL_BOT_ENABLED !== "1") {
+      return Response.json({ ok: true, botOff: "central" });
+    }
+
     // Respect the tenant's bot on/off switch and active hours
     const active = await shouldBotReply(tenantId);
     if (!active) {
