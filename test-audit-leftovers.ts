@@ -40,3 +40,8 @@ for (const f of ['AiFill', 'DesignEditor', 'DesignStudio', 'Generate', 'ReelEdit
   const src = read(`./app/design/${f}.jsx`);
   assert.ok(!/קריאה בלבד/.test(src) && /WRITE_BLOCKED_TOAST_HE/.test(src), `${f}: closed-system wording`);
 }
+
+// ── weekly report: seven Israeli days, counted from Israeli midnight ──
+const weekly = read('./app/api/send-weekly-report/route.js');
+assert.ok(/6 \* 864e5/.test(weekly), 'the week is today and the six days before it');
+assert.ok(/gte\("created_at", dayBefore\(weekStart\)\)/.test(weekly) && /filter\(inWeek\)/.test(weekly), 'leads and clients are cut by the Israeli day, not UTC midnight');
