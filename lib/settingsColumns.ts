@@ -55,6 +55,9 @@ export const SETTINGS_EDITABLE_COLUMNS = [
   'working_hours_end',
   // Tax
   'business_tax_status',
+  // When she actually chose it (add_business_tax_status_set_at.sql). The live column defaults to 'exempt', so the type alone
+  // cannot say whether she picked it. Optional: the save route drops it when the column is not there yet.
+  'business_tax_status_set_at',
   // Automation toggles
   'bot_active',
   'bot_mode',

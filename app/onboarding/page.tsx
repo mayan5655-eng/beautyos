@@ -299,7 +299,7 @@ export default function OnboardingPage() {
         therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
         // Only what she chose. Left unset otherwise: Settings and the income summary ask for it explicitly.
-        ...(data.business_tax_status ? { business_tax_status: data.business_tax_status } : {}),
+        ...(data.business_tax_status ? { business_tax_status: data.business_tax_status, business_tax_status_set_at: new Date().toISOString() } : {}),
         primary_color: data.primary_color,
         // Written as-is, even empty: if she skipped the field picker,
         // businessFieldsOf() (lib/businessFields.ts) is what every reader
