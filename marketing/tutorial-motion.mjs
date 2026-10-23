@@ -282,7 +282,7 @@ for (const n of names) {
   const graph = [
     ...delayed,
     `[0:a]${lines.map((_, i) => `[v${i}]`).join('')}amix=inputs=${lines.length + 1}:normalize=0:duration=first[voice]`,
-    `[1:a]atrim=0:${seconds},asetpts=N/SR/TB,aresample=44100,aformat=channel_layouts=stereo,volume='if(${talk},0.18,0.4)':eval=frame,afade=t=in:st=0:d=0.8,afade=t=out:st=${(seconds - 2).toFixed(2)}:d=2[music]`,
+    `[1:a]atrim=0:${seconds},asetpts=N/SR/TB,aresample=44100,aformat=channel_layouts=stereo,${key ? `volume='if(${talk},0.18,0.4)':eval=frame` : 'volume=0.45'},afade=t=in:st=0:d=0.8,afade=t=out:st=${(seconds - 2).toFixed(2)}:d=2[music]`,
     '[voice][music]amix=inputs=2:normalize=0:duration=first[out]',
   ].join(';');
   ff([...inputs, '-filter_complex', graph, '-map', '[out]', '-t', String(seconds), '-c:a', 'aac', '-b:a', '160k', mix]);
