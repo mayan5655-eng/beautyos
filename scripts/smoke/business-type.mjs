@@ -120,14 +120,18 @@ try {
   await page.screenshot({ path: `${SHOTS}/smoke-biztype-settings.png` });
   await visible('button:has-text("עוסק מורשה")').click(); await page.waitForTimeout(300);
   check(await page.locator('[data-testid="tax-status-unconfirmed"]').filter({ visible: true }).count() === 0, 'tapping a type clears that line');
-  await visible('button:has-text("שמירה ✓")').click(); await page.waitForTimeout(3000);
+  const saveResp = page.waitForResponse((r) => r.url().includes('/api/settings/save'), { timeout: 20000 }).catch(() => null);
+  await visible('button:has-text("שמירה ✓")').click();
+  const sr = await saveResp;
+  log('settings save answered', sr ? `${sr.status()} ${(await sr.text().catch(() => '')).slice(0, 160)}` : 'nothing (no request)');
+  await page.waitForTimeout(2000);
   check(!(await body()).includes('לא הצלחנו לשמור את ההגדרות'), 'the save did not fail');
   const after = await db.from('settings').select(migrated ? 'business_tax_status, business_tax_status_set_at' : 'business_tax_status').eq('tenant_id', tenantId).maybeSingle();
   check(after.data?.business_tax_status === 'licensed', `the new type is saved (${after.data?.business_tax_status})`);
   if (migrated) check(!!after.data?.business_tax_status_set_at, 'and stamped');
   if (!migrated) await page.unroute('**/rest/v1/settings*');
 
-  check(problems.filter((p) => !/favicon|sentry/i.test(p)).length === 0, `no page errors (${problems.slice(0, 3).join(' | ')})`);
+  check(problems.filter((p) => !/favicon|sentry|vercel\.live/i.test(p)).length === 0, `no page errors (${problems.slice(0, 3).join(' | ')})`);
 } catch (e) {
   fails.push(`threw: ${e?.message}`);
   console.error(e);
