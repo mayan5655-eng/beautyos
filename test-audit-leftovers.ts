@@ -22,3 +22,12 @@ assert.ok(!/setMsg\(!r\.published && !consentComplete/.test(rm), 'publish failur
 assert.ok((rm.match(/resultWriteErrorHe\(error\)/g) || []).length >= 3, 'save, publish and delete all show the real reason');
 
 console.log('test-audit-leftovers: ok');
+
+// ── a brand-new account goes to onboarding without painting the empty dashboard first (journey pass F5) ──
+const app = read('./app/beautyos.jsx');
+assert.ok(/leavingForOnboardingRef\.current = true; router\.replace\("\/onboarding"\)/.test(app), 'the redirect marks itself');
+assert.ok(/if \(!leavingForOnboardingRef\.current\) setLoading\(false\)/.test(app), 'loading stays up while leaving for onboarding');
+
+// ── business_tax_status: no silent 'exempt' default (journey pass F19) ──
+const taxSql = read('./supabase/migrations/fix_business_tax_status_default_2026-10-23.sql');
+assert.ok(/drop default/.test(taxSql) && /drop not null/.test(taxSql) && /VERIFY/.test(taxSql), 'the migration drops the default and verifies');

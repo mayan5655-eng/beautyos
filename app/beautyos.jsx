@@ -978,6 +978,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Null = the whole status group, which is the original behavior.
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
   const [loading,           setLoading]            = useState(true);
+  // A brand-new account (no settings row) is sent to /onboarding from loadAll. Until that navigation lands, the loading screen stays:
+  // clearing `loading` first painted the empty dashboard for about a second before onboarding (journey pass F5).
+  const leavingForOnboardingRef = useRef(false);
   // Non-null when a core read in loadAll FAILED. Distinct from "she has no
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
@@ -2346,7 +2349,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // read failed" - that case returned above. Before this change the two
       // were the same branch, so a failed read could bounce an established user
       // into onboarding, and finishing it inserts a SECOND settings row.
-      if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
+      if(st.data && st.data.length === 0) { leavingForOnboardingRef.current = true; router.replace("/onboarding"); return; }
       if(st.data && st.data.length > 0) {
         // The settings row for THIS user's tenant, or nothing.
         //
@@ -2412,7 +2415,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         offline: typeof navigator !== "undefined" && navigator.onLine === false,
       });
     } finally {
-      setLoading(false);
+      if (!leavingForOnboardingRef.current) setLoading(false);
     }
   };
 
