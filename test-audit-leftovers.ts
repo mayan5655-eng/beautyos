@@ -45,3 +45,9 @@ for (const f of ['AiFill', 'DesignEditor', 'DesignStudio', 'Generate', 'ReelEdit
 const weekly = read('./app/api/send-weekly-report/route.js');
 assert.ok(/6 \* 864e5/.test(weekly), 'the week is today and the six days before it');
 assert.ok(/gte\("created_at", dayBefore\(weekStart\)\)/.test(weekly) && /filter\(inWeek\)/.test(weekly), 'leads and clients are cut by the Israeli day, not UTC midnight');
+
+// ── a "הסר" sent to her own WhatsApp: recorded from the client card (overnight item ה) ──
+const app8 = read('./app/beautyos.jsx');
+assert.ok(/>הסירה את עצמה מדיוור<\/button>/.test(app8) && /saveClientMarketing\(c,optOutFields\(\),"נרשם: הסירה את עצמה מדיוור"\)/.test(app8), 'the card action reuses the opt-out record');
+assert.ok(/data-testid="marketing-optout-hint"/.test(app8) && /בוואטסאפ האישי/.test(app8), 'a short hint explains why she marks it herself');
+assert.ok(/הסירה את עצמה מדיוור/.test(read('./lib/helpSections.ts')), 'help uses the same label');

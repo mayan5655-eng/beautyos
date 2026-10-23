@@ -3,7 +3,7 @@
 // "Her data" on the client card: download everything held about her and erase her for real.
 // Erasing asks for the client's name to be typed (or the word "מחיקה" when the card has no name); the server checks it again
 // (app/api/clients/erase). What is deleted and what stays without her identity is written in lib/clientData.ts and said here in plain words
-// before the button can be pressed. A client who only wants the messages to stop does not need any of this: the card has "ביקשה הסרה מדיוור".
+// before the button can be pressed. A client who only wants the messages to stop does not need any of this: the card has "הסירה את עצמה מדיוור".
 
 import { useEffect, useRef, useState } from "react";
 import Spinner from "./Spinner";
@@ -62,7 +62,7 @@ export default function ClientPrivacyPanel({ client, toast, onErased, historyRea
         <button type="button" onClick={() => download("json")} disabled={!!busy} style={btn}>{busy === "json" ? <Spinner inline label="מכינה" /> : "הורדת כל המידע"}</button>
         <button type="button" onClick={() => download("csv")} disabled={!!busy} style={btn}>{busy === "csv" ? <Spinner inline label="מכינה" /> : "הורדה לאקסל"}</button>
       </div>
-      <p style={{ ...small, marginBottom: 14 }}>אם היא רק רוצה להפסיק לקבל הודעות שיווק, אין צורך למחוק: אפשר לסמן למעלה &quot;ביקשה הסרה מדיוור&quot;.</p>
+      <p style={{ ...small, marginBottom: 14 }}>אם היא רק רוצה להפסיק לקבל הודעות שיווק, אין צורך למחוק: אפשר לסמן למעלה &quot;הסירה את עצמה מדיוור&quot;.</p>
       {!erasing ? (
         <button type="button" onClick={() => setErasing(true)} disabled={!historyReady} style={{ ...btn, color: "var(--danger)", borderColor: "var(--danger)" }}>מחיקת הלקוחה לצמיתות</button>
       ) : (
