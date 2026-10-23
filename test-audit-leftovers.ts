@@ -56,3 +56,6 @@ assert.ok(/הסירה את עצמה מדיוור/.test(read('./lib/helpSections.
 const tour = read('./app/OnboardingTour.jsx');
 assert.ok((tour.match(/minHeight: 44/g) || []).length >= 2, 'the tour buttons are phone-sized');
 assert.ok(/שישי עד 14:00 ושבת סגור/.test(read('./app/onboarding/page.tsx')), 'onboarding says which week the hours start with');
+
+// ── a malformed VAPID key never takes down the routes that import ownerNotify ──
+assert.ok(/try \{\s+webpush\.setVapidDetails\("mailto:support@kalmea\.app"/.test(read('./lib/ownerNotify.js')), 'setVapidDetails is guarded');
