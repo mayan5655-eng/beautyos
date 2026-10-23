@@ -101,10 +101,16 @@ function roundRect(ctx: CanvasLike, x: number, y: number, w: number, h: number, 
   ctx.closePath();
 }
 
+/**
+ * ₪ glued to its number. A space between them is a place the wrap can break, which strands the sign on a line
+ * of its own, and in bidi it lets the sign jump to the far end of the line (.claude/skills/kalmea §4).
+ */
+export const glueShekel = (s: string): string => s.replace(/(\d)[^\S\n]+₪/g, '$1₪').replace(/₪[^\S\n]+(\d)/g, '₪$1');
+
 /** Lay out and draw one text layer. */
 export function drawText(ctx: CanvasLike, s: TextSpec): DrawnText {
   // Spaces collapse; a newline is a line break somebody chose and is kept (a one-line layer flattens it below).
-  const text = s.text.replace(/[^\S\n]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
+  const text = glueShekel(s.text.replace(/[^\S\n]+/g, ' ').replace(/ ?\n ?/g, '\n').trim());
   if (!text) return { px: s.sizePx, lines: [], fits: true, tops: [] };
   const dir = textDirection(text);
   const pill = s.pill || null;
