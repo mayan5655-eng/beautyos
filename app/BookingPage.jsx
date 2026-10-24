@@ -284,6 +284,17 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(!initialSettings);
   const goServicesOnLoad = useRef(false);
+  // Declared up here with the other hooks (an effect after the early returns breaks React #310).
+  // Arrived from her page's "קביעת תור אונליין" (?go=services): jump to the treatments once they are on screen.
+  useEffect(() => {
+    if (loading || !goServicesOnLoad.current) return;
+    goServicesOnLoad.current = false;
+    const id = setTimeout(() => {
+      const el = document.getElementById("bk-services");
+      if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
+    }, 60);
+    return () => clearTimeout(id);
+  }, [loading]);
   // False through the server render and the first client render, so anything
   // that depends on the clock (today's hours, which days have a free slot)
   // starts identical on both sides and only fills in once we are in the browser.
@@ -792,16 +803,6 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     const el = typeof document !== "undefined" ? document.getElementById("bk-services") : null;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  // Arrived from her page's "קביעת תור אונליין" (?go=services): jump to the treatments once they are on screen.
-  useEffect(() => {
-    if (loading || !goServicesOnLoad.current) return;
-    goServicesOnLoad.current = false;
-    const id = setTimeout(() => {
-      const el = document.getElementById("bk-services");
-      if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
-    }, 60);
-    return () => clearTimeout(id);
-  }, [loading]);
 
   // === refined style tokens (premium / luxury visual layer) ===
   const ink = "var(--ink, #1F3A30)";
