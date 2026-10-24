@@ -72,16 +72,21 @@ export async function PATCH(request) {
     const { tenantId, res } = await callerTenant();
     if (res) return res;
 
-    const { id } = await request.json().catch(() => ({}));
+    const { id, action = "sent" } = await request.json().catch(() => ({}));
     if (!id || typeof id !== "string") {
       return Response.json({ success: false, error: "חסר מזהה הודעה" }, { status: 400 });
+    }
+    // "sent": she opened it in WhatsApp. "dismiss": she took it off the list without
+    // sending (an old reminder for a visit that already happened). Kept in the log as dismissed.
+    if (action !== "sent" && action !== "dismiss") {
+      return Response.json({ success: false, error: "פעולה לא מוכרת" }, { status: 400 });
     }
 
     // Only a message of hers that is still waiting. Anything else is 404, so the
     // dashboard never shows "sent" for a row that did not change.
     const { data, error } = await admin
       .from("whatsapp_messages")
-      .update({ status: "sent" })
+      .update({ status: action === "dismiss" ? "dismissed" : "sent" })
       .eq("id", id)
       .eq("tenant_id", tenantId)
       .eq("status", "pending_manual")

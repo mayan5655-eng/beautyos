@@ -5717,6 +5717,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Send a receipt summary to the client's WhatsApp via GreenAPI (server route
   // /api/send-receipt, which reuses lib/whatsapp.js — the same mechanism as
   // booking confirmations). Only sends when the client has a phone number.
+  // A message the server queued and she is opening right now. When WhatsApp really opened, the queued row is
+  // marked sent, so the same message does not also wait in "הודעות מוכנות לשליחה" (2026-10-23 pass, C3).
+  // When the browser blocked it, it stays there and she is told so. (No "noopener": with it window.open
+  // always returns null and an opened tab could not be told from a blocked one; opener is cut by hand.)
+  const openQueuedWa = (link, messageId) => {
+    const w = window.open(link, "_blank");
+    if (w) {
+      try { w.opener = null; } catch {}
+      if (messageId) {
+        fetch("/api/messages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: messageId }) }).catch(() => {});
+        setWhatsappPending(prev => prev.filter(x => x.id !== messageId));
+      }
+      return true;
+    }
+    toast("הדפדפן חסם את פתיחת וואטסאפ. ההודעה מחכה ב\"הודעות מוכנות לשליחה\"", "info");
+    fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then(r => r.json()).then(j => { if (j?.success) setWhatsappPending(j.messages || []); }).catch(() => {});
+    return false;
+  };
+
   // `silent` suppresses toasts for the auto-send path. Returns true on success.
   const sendReceiptToClient = async (receipt, { silent = false } = {}) => {
     if (guardWrite()) return false;
@@ -5748,7 +5767,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // just not automatic. The silent auto-send path leaves it in her
         // WhatsApp queue rather than popping a tab she didn't ask for right
         // now; a direct button tap opens it immediately.
-        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); window.open(data.waLink, "_blank", "noopener"); }
+        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); openQueuedWa(data.waLink, data.messageId); }
         return true;
       }
       if (!res.ok || !data.success) {
@@ -5884,7 +5903,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the one tap that replaces it, with the exact message already
         // composed server-side.
         toast("מוכן לשליחה — נפתח וואטסאפ");
-        window.open(data.waLink, "_blank", "noopener");
+        openQueuedWa(data.waLink, data.messageId);
         return;
       }
       // A real failure (e.g. an unusable phone) - fall back to building the
@@ -7836,6 +7855,9 @@ ${MARKETING_FOOTER}`)}`;
                 ):(
  <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>מספר לא תקין</span>
                 )}
+                {/* Off the list without sending: an old reminder for a visit that already happened.
+                    It stays in the message log as "הוסרה מהרשימה". */}
+                {!done&&<button aria-label={`הסרת ההודעה ל${m.recipient_name||"לקוחה"} מהרשימה`} title="הסרה מהרשימה בלי לשלוח" onClick={()=>{fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id,action:"dismiss"})}).then(r=>{if(!r.ok)throw new Error(String(r.status));setWhatsappPending(prev=>prev.filter(x=>x.id!==m.id));}).catch(()=>toast("לא הצלחנו להסיר את ההודעה מהרשימה","error"));}} style={{background:"none",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"7px 10px",fontSize:"var(--t-sm)",color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>הסרה</button>}
  </div>
             );
           }))}

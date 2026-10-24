@@ -173,7 +173,7 @@ export async function POST(request) {
     // her go find it in a queue later, hand the caller the wa.me link to
     // open immediately - the one tap replaces the automatic send right now.
     if (result.queued) {
-      return Response.json({ success: true, queued: true, waLink: result.waLink });
+      return Response.json({ success: true, queued: true, waLink: result.waLink, messageId: result.messageId || null });
     }
     if (!result.ok) {
       return Response.json({ success: false, error: result.demoBlocked ? result.error : "WhatsApp send failed" }, { status: result.demoBlocked ? 403 : 502 });
