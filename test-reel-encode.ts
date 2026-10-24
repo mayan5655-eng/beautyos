@@ -3,12 +3,21 @@
 import assert from 'node:assert/strict';
 import { ENCODE_PRESETS, AUDIO, KEYFRAME_SEC, frameCount, frameTimeMs, sceneStarts, sceneIndexAt } from './lib/design/reelEncode.js';
 import { glueShekel } from './lib/design/canvasText.ts';
+import { readFileSync } from 'node:fs';
+import { Quality } from 'mediabunny';
 
-// Presets: H.264 High, best first, all inside Instagram's limits (23-60 fps, <= 25 Mbps).
+// Presets: H.264 High first, then Main and Baseline for phones whose encoder refuses High (iPhone, 2026-10-24),
+// best first, all inside Instagram's limits (23-60 fps, <= 25 Mbps).
 assert.ok(ENCODE_PRESETS.length >= 2);
 assert.equal(ENCODE_PRESETS[0].fps, 60, '60 fps first');
+assert.match(ENCODE_PRESETS[0].codec, /^avc1\.64/, 'High profile first');
+assert.match(ENCODE_PRESETS[1].codec, /^avc1\.64/, 'High profile second');
+const RANK: Record<string, number> = { '64': 3, '4d': 2, '42': 1 };
+for (let i = 1; i < ENCODE_PRESETS.length; i++) {
+  assert.ok(RANK[ENCODE_PRESETS[i].codec.slice(5, 7).toLowerCase()] <= RANK[ENCODE_PRESETS[i - 1].codec.slice(5, 7).toLowerCase()], 'never a better profile after a worse one');
+}
 for (const p of ENCODE_PRESETS) {
-  assert.match(p.codec, /^avc1\.64/, `${p.label}: High profile, not Baseline (42)`);
+  assert.match(p.codec, /^avc1\.(64|4d|42)00(28|2a)$/i, `${p.label}: H.264 High/Main/Baseline at level 4.0 or 4.2`);
   assert.ok(p.fps >= 23 && p.fps <= 60, `${p.label}: fps Instagram takes`);
   assert.ok(p.bitrate > 6_000_000 && p.bitrate <= 25_000_000, `${p.label}: above the old 6 Mbps, within Instagram's 25`);
 }
@@ -42,3 +51,20 @@ assert.equal(glueShekel('₪249 במקום ₪320'), '₪249 במקום ₪320',
 assert.equal(glueShekel('שורה 249\n₪ אחרי'), 'שורה 249\n₪ אחרי', 'a chosen line break is never removed');
 
 console.log('test-reel-encode: ok');
+
+// The bitrate reaches the encoder as a bitrate (2026-10-24). new Quality(16_000_000) is a quality LEVEL: it became
+// quantizer 0 with no bitrate, the exact configuration iPhone Safari refused ("quantizer 0 / Infinity bps").
+const rc = (q: any) => q._toVideoRateControl('avc', 1080, 1920);
+assert.equal(rc(new Quality(16_000_000)).quantizer, 0, 'the old call: quantizer mode (kept as the proof of the bug)');
+for (const p of ENCODE_PRESETS) {
+  const r = rc(new Quality({ bitrate: p.bitrate }));
+  assert.equal(r.quantizer, null, `${p.label}: no quantizer mode`);
+  assert.equal(r.bitrate, p.bitrate, `${p.label}: the preset's bitrate`);
+}
+const enc = readFileSync('app/design/reelEncoder.js', 'utf8');
+assert.doesNotMatch(enc, /new Quality\((?!\{)/, 'every Quality in the encoder is given an options object');
+assert.match(enc, /new Quality\(\{ bitrate: preset\.bitrate \}\)/);
+assert.match(enc, /new Quality\(\{ bitrate: AUDIO\.bitrate \}\)/);
+const rr = readFileSync('app/design/ReelRender.jsx', 'utf8');
+assert.match(rr, /for \(const preset of presets\)/, 'a preset that fails hands over to the next');
+assert.match(rr, /יצירת הסרטון לא הצליחה בדפדפן הזה/, 'a browser error reaches her in Hebrew');

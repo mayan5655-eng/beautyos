@@ -27,7 +27,7 @@ import { resolveImageRef } from './images';
 import { renderLayersCanvas, drawImageLayer, drawGraphicLayer, boxPx, loadImage } from './canvasRender';
 import { pickRecorderMime, fileExtFor } from '@/lib/design/recorderMime';
 import { sceneStarts, sceneIndexAt } from '@/lib/design/reelEncode';
-import { pickEncodePreset, canEncodeMusic, encodeReelMp4 } from './reelEncoder';
+import { encodePresets, canEncodeMusic, encodeReelMp4 } from './reelEncoder';
 
 const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30; // FPS: the MediaRecorder fallback only
 const TRANSITION_MS = 500;
@@ -171,10 +171,22 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       };
 
       // 4a. Frame-exact MP4 (WebCodecs, H.264 High, 60 fps when it can): see lib/design/reelEncode.js for why.
-      const preset = await pickEncodePreset(W, H);
-      if (preset && (!music || (await canEncodeMusic()))) {
-        setStatus('מקודדת את הסרטון באיכות גבוהה');
-        const blob = await encodeReelMp4({ canvas, drawAt, totalMs: total, preset, musicUrl: music?.url || null, onProgress: (p) => setProgress(20 + Math.round(p * 80)) });
+      // A browser can say "supported" and still refuse once the encoder starts (iPhone, 2026-10-24), so each preset
+      // that throws hands over to the next one, and the last resort is the MediaRecorder take below.
+      const presets = !music || (await canEncodeMusic()) ? await encodePresets(W, H) : [];
+      let mp4 = null;
+      for (const preset of presets) {
+        setStatus('מקודדת את הסרטון באיכות גבוהה'); setProgress(20);
+        try {
+          mp4 = await encodeReelMp4({ canvas, drawAt, totalMs: total, preset, musicUrl: music?.url || null, onProgress: (p) => setProgress(20 + Math.round(p * 80)) });
+          break;
+        } catch (e) {
+          if (leftTheTab) throw e;
+          console.warn('[reel] encoder preset failed, trying the next:', preset.label, e?.message || e);
+        }
+      }
+      if (mp4) {
+        const blob = mp4;
         const url = URL.createObjectURL(blob);
         setVideo({ url, ext: 'mp4', blob });
         setStatus('');
@@ -235,7 +247,11 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       // the "ready" above implying it was stored.
       try { await onVideo?.(blob, ext); } catch (e) { setError('הסרטון מוכן להורדה, אבל לא נשמר בחשבון: ' + String(e?.message || e)); }
     } catch (e) {
-      setError(String(e?.message || e || 'הרנדר נכשל'));
+      // Our own messages are Hebrew; a browser's own (English, technical) is replaced by one she can act on.
+      const msg = String(e?.message || e || '');
+      const hebrew = /[֐-׿]/.test(msg);
+      if (!hebrew) console.error('[reel] render failed:', msg);
+      setError(hebrew ? msg :'יצירת הסרטון לא הצליחה בדפדפן הזה. נסי שוב, ואם זה חוזר פתחי את kalmea.app בספארי או בכרום מעודכן (לא מתוך אינסטגרם או פייסבוק).');
     } finally {
       document.removeEventListener('visibilitychange', onVisibility);
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } }

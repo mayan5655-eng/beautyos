@@ -7,15 +7,16 @@
 import { Output, Mp4OutputFormat, BufferTarget, CanvasSource, AudioBufferSource, Quality, canEncodeVideo, canEncodeAudio } from 'mediabunny';
 import { ENCODE_PRESETS, AUDIO, KEYFRAME_SEC, frameCount, frameTimeMs } from '@/lib/design/reelEncode';
 
-/** The best preset this browser can encode at W x H, or null (no WebCodecs, no H.264 encoder). */
-export async function pickEncodePreset(W, H) {
-  if (typeof window === 'undefined' || typeof window.VideoEncoder === 'undefined') return null;
+/** Every preset this browser says it can encode at W x H, best first; empty with no WebCodecs / no H.264 encoder. */
+export async function encodePresets(W, H) {
+  if (typeof window === 'undefined' || typeof window.VideoEncoder === 'undefined') return [];
+  const ok = [];
   for (const p of ENCODE_PRESETS) {
     try {
-      if (await canEncodeVideo('avc', { width: W, height: H, bitrate: p.bitrate, frameRate: p.fps, fullCodecString: p.codec })) return p;
-    } catch { /* try the next one */ }
+      if (await canEncodeVideo('avc', { width: W, height: H, bitrate: p.bitrate, frameRate: p.fps, fullCodecString: p.codec })) ok.push(p);
+    } catch { /* not this one */ }
   }
-  return null;
+  return ok;
 }
 
 /** True when the browser can encode the music track (AAC). */
@@ -53,7 +54,8 @@ export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl 
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() });
   const video = new CanvasSource(canvas, {
     codec: 'avc',
-    bitrate: new Quality(preset.bitrate),
+    // A bitrate, explicitly: a bare number given to Quality is a quality LEVEL (see lib/design/reelEncode.js, 2026-10-24).
+    bitrate: new Quality({ bitrate: preset.bitrate }),
     fullCodecString: preset.codec,
     keyFrameInterval: KEYFRAME_SEC,
     latencyMode: 'quality',
@@ -61,7 +63,7 @@ export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl 
   output.addVideoTrack(video, { frameRate: preset.fps });
   let audio = null;
   if (musicUrl) {
-    audio = new AudioBufferSource({ codec: 'aac', bitrate: new Quality(AUDIO.bitrate) });
+    audio = new AudioBufferSource({ codec: 'aac', bitrate: new Quality({ bitrate: AUDIO.bitrate }) });
     output.addAudioTrack(audio);
   }
   await output.start();
