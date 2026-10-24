@@ -123,6 +123,7 @@ async function run(label, ua, canShare, onboard) {
       const mine = page.locator('[data-testid="mine-share"]').filter({ visible: true }).first();
       check(await mine.count() === 1, `${label}: "My designs" card has a share button`);
       if (await mine.count()) {
+        page.once('dialog', (dlg) => { check(dlg.message().includes('תמונת הדוגמה'), `${label}: sharing a card asks about the sample photo`); dlg.accept(); });
         await mine.click();
         const img2 = await page.locator('[data-testid="save-share-image"]').waitFor({ timeout: 60000 }).then(() => true, () => false);
         check(img2, `${label}: it opens the save/share panel with the picture`);

@@ -86,7 +86,15 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     setSharingId(d.id);
     try {
       const ov = { ...(d.overrides || {}) }; delete ov.consent; delete ov.brand;
-      const blob = await renderTemplateBlob(t, fill, ov);
+      // The card shows the template's sample photo where she has none; it goes into the file only if she says so
+      // (the same question the editor asks - see DesignEditor's exportPng).
+      const seeds = t.slots.filter((s) => !fill.images?.[s.key] && fill.seedImages?.[s.key]);
+      let useFill = fill;
+      if (seeds.length && window.confirm('בפוסט עוד אין תמונה משלך. בכרטיס רואים תמונת דוגמה של התבנית.\n\nלהכניס לפוסט את תמונת הדוגמה? (ביטול = פוסט בלי תמונה)')) {
+        const picked = Object.fromEntries(seeds.map((s) => { const u = fill.seedImages[s.key]; return [s.key, u.startsWith('/') ? `${window.location.origin}${u}` : u]; }));
+        useFill = fillTemplate(t, { settings, inputs: d.values, images: { ...(d.images || {}), ...picked }, brand: d.overrides?.brand });
+      }
+      const blob = await renderTemplateBlob(t, useFill, ov);
       const own = typeof d.copy?.text === 'string' ? [d.copy.text, (d.copy.hashtags || []).join(' ')].filter(Boolean).join('\n\n') : null;
       setMineReady({ blob, caption: own ?? defaultCaption(t, fill.values, settings) });
     } catch (e) { toast?.(String(e?.message || 'הכנת התמונה נכשלה'), 'error'); } finally { setSharingId(null); }

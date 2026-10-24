@@ -83,5 +83,6 @@ assert.match(editor, /window\.location\.origin/, 'stored as a full https URL, wh
 const studio = read('app/design/DesignStudio.jsx');
 assert.match(studio, /data-testid="mine-share"/);
 assert.match(studio, /source="mine"/);
+assert.match(studio, /להכניס לפוסט את תמונת הדוגמה?/, 'a card asks about the sample photo too');
 
 console.log('post publish polish: ok');
