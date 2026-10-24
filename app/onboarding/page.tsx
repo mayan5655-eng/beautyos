@@ -495,6 +495,9 @@ export default function OnboardingPage() {
               <Field label="טלפון העסק (וואטסאפ, ביט)">
                 <input
                   className="ob-input"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
                   value={data.business_phone}
                   onChange={e => setData({ ...data, business_phone: e.target.value })}
                   placeholder="0501234567"

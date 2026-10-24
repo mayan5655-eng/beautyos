@@ -110,6 +110,7 @@ import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 import { ownServices } from "@/lib/serviceScope";
+import { deliverFile, deliveryToast, dataUrlToBlob } from "@/lib/deliverFile";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -6249,10 +6250,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const downloadScanQr = () => {
     if (!scanQr) return;
-    const a = document.createElement("a");
-    a.href = scanQr;
-    a.download = `${(settings.business_name || "kalmea").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`;
-    a.click();
+    // Decoded in the same tap (a fetch first would use it up), so the phone's share sheet is still allowed.
+    const blob = dataUrlToBlob(scanQr);
+    if (!blob) { toast("לא הצלחנו להכין את הקוד להורדה. אפשר לצלם אותו מהמסך", "error"); return; }
+    deliverFile(blob, `${(settings.business_name || "kalmea").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`).then(o => { const t = deliveryToast(o, { downloaded: "הקוד ירד" }); if (t) toast(t.text, t.kind); });
   };
 
   // HIDE, AND NOTHING ELSE. There is no edit here and there cannot be one: the
@@ -6504,9 +6505,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const esc=v=>{let t=String(v??"");if(typeof v!=="number"&&/^[=+\-@\t\r]/.test(t))t="'"+t;return `"${t.replace(/"/g,'""')}"`;};
     const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=`kalmea_payments_${today}.csv`;a.click();URL.revokeObjectURL(url);
-    toast("הקובץ ירד");
+    // On a phone this is the share sheet (the home-screen app and Instagram/Facebook drop a blob download without a word; Safari hides it in Files).
+    deliverFile(blob,`kalmea_payments_${today}.csv`).then(o=>{const t=deliveryToast(o);if(t)toast(t.text,t.kind);});
   };
 
   // === WHATSAPP CENTER HANDLERS ===
@@ -6852,7 +6852,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← הדף שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;
     } catch {
-      toast(url, "info");
+      // No clipboard here (the in-app browsers of Instagram and Facebook): hand the link to the phone's share sheet while the tap is still
+      // live, and only then fall back to showing it. A bare address in a toast that vanishes in three seconds cannot be copied.
+      try { if (typeof navigator.share === "function") { await navigator.share({ url }); if (kind === "book") setLinkShared(true); return true; } }
+      catch (e) { if (e && e.name === "AbortError") return false; }
+      toast(`אי אפשר להעתיק כאן. הקישור: ${url}`, "info");
       return false;   // not copied: the day-1 nudge stays so she can try again
     }
   };
@@ -12667,9 +12671,9 @@ ${MARKETING_FOOTER}`)}`;
               {inG("business","connections")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  {inG("business")&&(<>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון העסק (וואטסאפ ויצירת קשר, וגם ביט)</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון העסק (וואטסאפ ויצירת קשר, וגם ביט)</p><input type="tel" inputMode="tel" dir="ltr" value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>זה המספר שלקוחות רואות בדף הקביעה ובהודעות, וגם הוא ישמש לבקשות תשלום בביט. אפשר להשאיר ריק.</p>
- <div style={{marginTop:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>המספר שלך לקבלת התראות (לא מוצג ללקוחות)</p><input value={(editSettings.automations&&typeof editSettings.automations==="object"&&editSettings.automations.owner_phone)||""} onChange={e=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,owner_phone:e.target.value}};})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <div style={{marginTop:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>המספר שלך לקבלת התראות (לא מוצג ללקוחות)</p><input type="tel" inputMode="tel" dir="ltr" value={(editSettings.automations&&typeof editSettings.automations==="object"&&editSettings.automations.owner_phone)||""} onChange={e=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,owner_phone:e.target.value}};})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginTop:4}}>התראות אליך בוואטסאפ (תור חדש, ביטול) יגיעו למספר הזה. אם תשאירי ריק, הן יגיעו למספר העסק.</p></div>
  </>)}
  {inG("connections")&&(<>

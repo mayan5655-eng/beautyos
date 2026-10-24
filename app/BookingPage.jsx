@@ -34,7 +34,7 @@ import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { rememberSource, recalledSource } from "@/lib/bookingSource";
-import { buildIcs, googleCalendarUrl } from "@/lib/calendarInvite";
+import { googleCalendarUrl } from "@/lib/calendarInvite";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
 import { Watermark, PoweredBy } from "./PublicChrome";
@@ -1526,21 +1526,18 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     location: addr || undefined,
                     details: wa ? `לשינוי או שאלה: https://wa.me/${wa}` : undefined,
                   };
-                  const downloadIcs = () => {
-                    try {
-                      const url = URL.createObjectURL(new Blob([buildIcs(invite)], { type: "text/calendar;charset=utf-8" }));
-                      const a = document.createElement("a");
-                      a.href = url; a.download = "tor.ics";
-                      document.body.appendChild(a); a.click(); a.remove();
-                      setTimeout(() => URL.revokeObjectURL(url), 4000);
-                    } catch { /* the Google link below still works */ }
-                  };
+                  // A real link, not a blob download: the in-app browsers of Instagram and Facebook drop a blob download without a word,
+                  // and iPhone Safari opens a link that answers text/calendar straight into "Add to Calendar" (app/api/calendar-invite).
+                  const icsHref = `/api/calendar-invite?${new URLSearchParams({
+                    date: invite.date, start: String(invite.startMinute), duration: String(invite.duration), title: invite.title,
+                    ...(invite.location ? { location: invite.location } : {}), ...(invite.details ? { details: invite.details } : {}),
+                  }).toString()}`;
                   const chip = { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
                   return (
                     <div data-testid="add-to-calendar" style={{ marginBottom: 18 }}>
                       <p style={{ fontSize: "var(--t-sm)", color: muted, marginBottom: 8 }}>שמרי את התור ביומן שלך, כדי שהטלפון יזכיר לך</p>
                       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                        <button type="button" onClick={downloadIcs} style={chip}>לאייפון / ליומן</button>
+                        <a href={icsHref} data-testid="add-to-calendar-ics" style={chip}>לאייפון / ליומן</a>
                         <a href={googleCalendarUrl(invite)} target="_blank" rel="noreferrer" style={chip}>ליומן Google</a>
                       </div>
                     </div>

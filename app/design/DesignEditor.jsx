@@ -44,13 +44,19 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
     : defaultCaption(template, fillTemplate(template, { settings, inputs: design.values || {}, images: design.images || {} }).values, settings)));
   const [hashtags, setHashtags] = useState(Array.isArray(design.copy?.hashtags) ? design.copy.hashtags.join(' ') : '');
   const captionFull = () => [copyText.trim(), hashtags.trim()].filter(Boolean).join('\n\n');
-  const copyCaption = async () => {
+  // Resolves true only when the text really reached the clipboard (the in-app browsers of Instagram and Facebook have none).
+  const copyCaption = async ({ quiet = false } = {}) => {
     const text = captionFull();
-    if (!text) { toast?.('אין עדיין טקסט לפוסט', 'error'); return; }
-    try { await navigator.clipboard.writeText(text); toast?.('הטקסט הועתק'); } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); }
+    if (!text) { toast?.('אין עדיין טקסט לפוסט', 'error'); return false; }
+    try { await navigator.clipboard.writeText(text); if (!quiet) toast?.('הטקסט הועתק'); return true; } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); return false; }
   };
   const shareWhatsApp = () => { const text = captionFull(); window.open(`https://wa.me/?text=${encodeURIComponent(text || name)}`, '_blank', 'noopener'); };
-  const shareFacebook = async () => { await copyCaption(); window.open('https://www.facebook.com/', '_blank', 'noopener'); toast?.('הטקסט הועתק. שמרי את התמונה בכפתור "שמירה ושיתוף" וצרפי אותה לפוסט'); };
+  // The page is opened in the same tap as the copy (a window.open after an await is refused by Safari); the toast only says "copied" when it was.
+  const shareFacebook = () => {
+    const copied = copyCaption({ quiet: true });
+    window.open('https://www.facebook.com/', '_blank', 'noopener');
+    copied.then((ok) => { if (ok) toast?.('הטקסט הועתק. שמרי את התמונה בכפתור "שמירה ושיתוף" וצרפי אותה לפוסט'); });
+  };
   const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
