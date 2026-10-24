@@ -235,6 +235,12 @@ export default function OnboardingPage() {
   // Capped by the step list, not a literal: adding the import step left this at
   // 3 and made the last step unreachable from "הבא".
   const next = () => {
+    // Her business name is what clients see on her page, her messages and her receipts. An empty one went
+    // through (2026-10-23 pass), and the page and the booking link were left without a name.
+    if (step === 1 && !data.business_name.trim()) {
+      setError("מה השם של העסק? הוא יופיע ללקוחות בדף ובהודעות. אפשר לשנות אותו אחר כך.");
+      return;
+    }
     // The field decides the menu, the forms and the content she sees. Skipping it silently made a nail technician
     // a facial cosmetician (businessFieldsOf falls back to cosmetics), so this step needs one pick.
     // Her business type decides whether Morning can issue a legal receipt at all (no type = no receipt, silently). Required for
@@ -267,6 +273,12 @@ export default function OnboardingPage() {
   // that wizard directly instead of asking her the same question again.
   const finish = async (importKind: ImportKind | null = null) => {
     if (saving || !tenantId) return;
+    // Same for a draft from before the business name was required.
+    if (!data.business_name.trim()) {
+      setStep(1);
+      setError("מה השם של העסק? הוא יופיע ללקוחות בדף ובהודעות. אפשר לשנות אותו אחר כך.");
+      return;
+    }
     // A draft saved before the step became required can land her past step 2 without a type: send her back to it.
     if (!data.business_tax_status) {
       setStep(2);
@@ -686,7 +698,7 @@ export default function OnboardingPage() {
 
           {step < STEP_NAMES.length ? (
             <>
-              {!(step === 4 && data.business_fields.length === 0) && !(step === 2 && !data.business_tax_status) && (
+              {!(step === 1 && !data.business_name.trim()) && !(step === 4 && data.business_fields.length === 0) && !(step === 2 && !data.business_tax_status) && (
                 <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                   דלגי
                 </button>
