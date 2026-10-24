@@ -9,10 +9,13 @@
 // "not blocked". A billing check must never be the reason a paying tenant loses a lead.
 
 import { planState } from './planState.ts';
+import { isDemoTenantId } from './demoTenants.ts';
 
 type Reader = { from: (table: string) => any };
 
 export async function tenantIsBlocked(admin: Reader, tenantId: string): Promise<boolean> {
+  // The demo is never closed, even if its nightly reset missed the trial roll-forward (lib/demoSeed.ts).
+  if (isDemoTenantId(tenantId)) return false;
   try {
     const { data, error } = await admin
       .from('tenants')
