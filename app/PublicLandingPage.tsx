@@ -313,6 +313,9 @@ export default function PublicLandingPage({
   // A single picked treatment is carried into the booking flow (BookingPage
   // preselects it from ?service= and opens straight on the date step).
   const bookHref = picked.length === 1 ? `${bookBase}&service=${encodeURIComponent(picked[0])}` : bookBase;
+  // Her main "book" buttons skip the second landing: one treatment opens straight on its dates, several land on
+  // the list of treatments (2026-10-23 pass: three taps from her link to a calendar).
+  const bookStart = services.length === 1 ? `${bookBase}&service=${encodeURIComponent(String(services[0].name))}` : `${bookBase}&go=services`;
   const navHref = address ? wazeHref(address) : google?.url || "";
 
   const pickedServices = services.filter((s) => picked.includes(String(s.name)));
@@ -336,7 +339,7 @@ export default function PublicLandingPage({
     waBase && { key: "wa", href: waBase, label: "וואטסאפ", icon: "whatsapp", external: true },
     tel && { key: "call", href: tel, label: "התקשרות", icon: "phone", external: false },
     navHref && { key: "nav", href: navHref, label: "ניווט", icon: "pin", external: true },
-    canBook && { key: "book", href: bookBase, label: "קביעת תור", icon: "calendar", external: false, primary: true },
+    canBook && { key: "book", href: bookStart, label: "קביעת תור", icon: "calendar", external: false, primary: true },
   ].filter(Boolean) as { key: string; href: string; label: string; icon: string; external: boolean; primary?: boolean }[];
   const barShown = barItems.length > 0 && !heroCtaVisible;
 
@@ -417,7 +420,7 @@ export default function PublicLandingPage({
 
             {(canBook || waBase) && (
               <div ref={heroCtaRef} style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
-                {canBook && <a href={bookBase} className="lp-btn lp-primary" style={{ flex: "1 1 160px", maxWidth: 260 }}><Icon name="calendar" size={18} /> קביעת תור אונליין</a>}
+                {canBook && <a href={bookStart} className="lp-btn lp-primary" style={{ flex: "1 1 160px", maxWidth: 260 }}><Icon name="calendar" size={18} /> קביעת תור אונליין</a>}
                 {waBase && <a href={waBase} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ flex: "1 1 140px", maxWidth: 220 }}><Icon name="whatsapp" size={18} /> וואטסאפ</a>}
               </div>
             )}
