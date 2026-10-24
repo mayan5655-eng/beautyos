@@ -483,6 +483,12 @@ function waLink(phone) {
   return `https://wa.me/${intl}`;
 }
 
+// "2026-10-25" -> "25.10.2026" for Hebrew screens; anything else comes back as it was.
+function fmtDateHe(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : String(iso || "");
+}
+
 function waMsg(phone, msg) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g,"");
@@ -3663,6 +3669,27 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast("התור שוחזר");
         };
         toast("התור בוטל", "success", { label: "החזרה", onClick: restore });
+        // She cancelled, so the client does not know yet (2026-10-23 pass, E1). After the same undo window, the
+        // message telling her is prepared server-side: out from the central number when it is on, otherwise in
+        // "הודעות מוכנות לשליחה". Only for a real client of hers with a phone; never for a personal block.
+        const cancelClient = clients.find(c => String(c.id) === String(appt.client_id));
+        if (appt.kind !== "personal" && (cancelClient?.phone || appt.client_phone)) {
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const r = await fetch("/api/cancel-notice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) });
+              const j = await r.json().catch(() => ({}));
+              if (!r.ok || !j.success) { if (r.status !== 403) toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); return; }
+              if (j.queued) {
+                const q = await fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then(x => x.json()).catch(() => null);
+                if (q?.success) setWhatsappPending(q.messages || []);
+                toast(`הודעה ל${appt.name || "לקוחה"} על הביטול מחכה ב"הודעות מוכנות לשליחה"`, "info");
+              } else {
+                toast(`הודעה על הביטול יצאה ל${appt.name || "לקוחה"} מהמספר המרכזי`);
+              }
+            } catch { toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); }
+          }, 6600);
+        }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
         // an appointment the cosmetician restored. Gated by the settings toggle.
@@ -8642,7 +8669,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","cancel_notice","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -9207,7 +9234,7 @@ ${MARKETING_FOOTER}`)}`;
                         {days>90&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
                         {total>0&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.filter(a=>a.confirmation_status!=="cancelled").length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
  </div>
                     {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:"var(--t-sm)"}}>✆ הודעה</a>}
  <span style={{fontSize:"var(--t-md)",color:pc}}>←</span>
@@ -12749,14 +12776,18 @@ ${MARKETING_FOOTER}`)}`;
                   {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}
                   {clientTab==="history"&&historyReady&&(
                     appts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין היסטוריית תורים</p>
-                    :appts.map(a=>(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
- <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                    :appts.map(a=>{
+                      // A cancelled visit reads as cancelled, and only a live future one offers a reminder (2026-10-23 pass, D2).
+                      const cancelled=a.confirmation_status==="cancelled";
+                      return(
+ <div key={a.id} data-testid={cancelled?"history-cancelled":undefined} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)",opacity:cancelled?0.6:1}}>
+ <span style={{width:8,height:8,borderRadius:"50%",background:cancelled?"var(--ink-3)":(a.color||"var(--warning)"),flexShrink:0}}/>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)",textDecoration:cancelled?"line-through":"none"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fmtDateHe(a.date)} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                        {cancelled&&<span className="pill" style={{fontSize:"var(--t-xs)",background:"var(--surface-2)",color:"var(--danger)",padding:"2px 8px",flexShrink:0}}>{a.cancelled_by==="client"?"ביטלה":"בוטל"}</span>}
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:"var(--t-xs)",color:"var(--success)"}}>✓</span>}
-                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
+                        {c.phone&&!cancelled&&a.date>=today&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
  </div>
-                    ))
+                    );})
                   )}
                   {clientTab==="scans"&&(
                     scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוען סריקות"/></p>
