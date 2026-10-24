@@ -17,7 +17,7 @@ import { downloadBlob } from './exportPng';
 import { canShareFile, inAppBrowser, isIos, isTouchDevice, plainMime, shareFileName, shareOutcome } from '@/lib/design/sharePost';
 
 const APP_HE = { instagram: 'אינסטגרם', facebook: 'פייסבוק', whatsapp: 'וואטסאפ', tiktok: 'טיקטוק', line: 'LINE' };
-const btn = { padding: '12px 16px', fontSize: 'var(--t-sm)', width: '100%', justifyContent: 'center', minHeight: 46 };
+const btn = { padding: '12px 16px', fontSize: 'var(--t-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 46 };
 
 export default function SaveShare({ open, onClose, blob, kind = 'image', ext = 'png', downloadName, caption = '', toast }) {
   const env = useMemo(() => {
