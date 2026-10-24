@@ -91,7 +91,7 @@ export default function ClaimPage() {
         <BusinessHeader name={details.businessName} />
 
         {state === "loading" && (
-          <p style={{ color: MUTED, fontSize: "var(--t-lg)", margin: "24px 0" }}><Spinner inline label="טוען" /></p>
+          <p style={{ color: MUTED, fontSize: "var(--t-lg)", margin: "24px 0" }}><Spinner inline label="טוענת" /></p>
         )}
 
         {state === "available" && (

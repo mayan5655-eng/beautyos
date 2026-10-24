@@ -172,7 +172,7 @@ export default function ResultsManager({ tenantId, services }) {
       {loadError && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{loadError}</p>}
       {msg && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{msg}</p>}
 
-      {rows === null && <Spinner inline label="טוען" />}
+      {rows === null && <Spinner inline label="טוענת" />}
 
       {rows && rows.length > 0 && !draft && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>

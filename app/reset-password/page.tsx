@@ -287,7 +287,7 @@ export default function ResetPasswordPage() {
             {error && <div style={noticeStyle('error')}>{error}</div>}
 
             <button type="submit" disabled={loading} className="auth-btn" style={btnStyle(loading)}>
-              {loading ? <Spinner inline label="מעדכן" /> : 'עדכון סיסמה'}
+              {loading ? <Spinner inline label="מעדכנת" /> : 'עדכון סיסמה'}
             </button>
           </form>
         ) : (
