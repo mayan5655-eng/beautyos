@@ -54,6 +54,8 @@ try {
   await setTrialDays(25);
   await home();
   const quiet = page.locator('[data-testid="upgrade-cta"]').filter({ visible: true });
+  // The button appears once /api/billing/status answers; on a cold preview that can take longer than the page itself.
+  await quiet.first().waitFor({ timeout: 20000 }).catch(() => {});
   check(await quiet.count() === 1, 'gentle trial: one upgrade button');
   const qt = (await quiet.first().innerText().catch(() => '')).trim();
   check(/הצטרפות למנוי, \d+ ₪ לחודש/.test(qt), `its label: ${qt}`);
@@ -79,6 +81,7 @@ try {
   // ── expired ──
   await setTrialDays(-2);
   await home();
+  await page.locator('[data-testid="billing-card"]').filter({ visible: true }).first().waitFor({ timeout: 20000 }).catch(() => {});
   const closed = await body();
   // Since trial-close, the expired dashboard is PlanBlockedScreen, which carries the billing card itself (no BillingNotices banner).
   check(closed.includes('תקופת ההתנסות הסתיימה') && await page.locator('[data-testid="billing-card"]').filter({ visible: true }).count() === 1, 'expired: the renewal screen with the billing card');
