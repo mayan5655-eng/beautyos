@@ -29,6 +29,7 @@ import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
+import { installDemoOutboundGuard } from "@/lib/demoOutbound";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
@@ -6151,6 +6152,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     fetch("/api/whatsapp-central-status").then(r=>r.json()).then(d=>{ if(!cancelled) setWaCentralConnected(!!d.connected); }).catch(()=>{ if(!cancelled) setWaCentralConnected(false); });
     return ()=>{ cancelled=true; };
   },[showSettings]);
+
+  // The demo's clients have real-looking numbers: no WhatsApp, call or SMS may open from it (lib/demoOutbound.js).
+  const isDemoTenant = isDemoTenantId(settings?.tenant_id);
+  useEffect(()=>{
+    if(!isDemoTenant) return;
+    return installDemoOutboundGuard(()=>toast("זו תצוגת דמו, אז וואטסאפ לא נפתח. בחשבון שלך ההודעה תיפתח מוכנה לשליחה.","info"));
+  },[isDemoTenant, toast]);
 
   const downloadScanQr = () => {
     if (!scanQr) return;
