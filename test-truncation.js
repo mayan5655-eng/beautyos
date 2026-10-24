@@ -174,7 +174,7 @@ group('dashboard boot');
     ok(`boot reads ${t} through readAllRows`, new RegExp(`readAllRows\\(supabase, "${t}"`).test(src));
     ok(`boot no longer does an unpaged ${t} select`, !new RegExp(`supabase\\.from\\("${t}"\\)\\.select\\("\\*"\\)\\]`).test(src));
   }
-  ok('the capped manual-WhatsApp queue reports its exact count, so a hidden overflow is known', src.includes('from("whatsapp_messages").select("*", { count: "exact" })') && src.includes('hidden(wap) > 0'));
+  ok('the capped manual-WhatsApp queue reports its exact count, so a hidden overflow is known', src.includes('fetch("/api/messages?status=pending_manual"') && src.includes('count: j.count ?? null') && src.includes('hidden(wap) > 0'));
   const q = fs.readFileSync(new URL('./lib/ownerQuestions.js', import.meta.url), 'utf8');
   ok('the question-a-day eligibility check (lib/ownerQuestions.js, shared by app/api/questions and the client-cancel path) reads her history through readAllRows', q.includes('readAllRows(admin, "appointments"') && q.includes('readAllRows(admin, "clients"') && !/admin.from("appointments").select/.test(q));
   const adv = fs.readFileSync(new URL('./app/api/advisor/route.ts', import.meta.url), 'utf8');

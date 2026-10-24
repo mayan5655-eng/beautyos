@@ -2207,7 +2207,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
         // newest-first: a queue is something she works through, not an
         // archive, and this card groups/caps display further on its own.
-        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*", { count: "exact" }).eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
+        // Through /api/messages, not a browser read: the table has no SELECT
+        // policy for her, so a direct read came back empty and the queue never showed.
+        ["whatsapp_pending", fetch("/api/messages?status=pending_manual", { cache: "no-store" })
+          .then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success ? { data: j.messages || [], count: j.count ?? null, error: null } : { data: null, count: null, error: { code: String(r.status), message: j.error || "messages read failed" } }; })
+          .catch((e) => ({ data: null, count: null, error: { code: "network", message: String(e?.message || e) } }))],
         ["owner_notifs",     supabase.from("owner_notifications").select("*", { count: "exact" }).is("read_at", null).order("created_at", { ascending: false }).limit(50)],
       ].map(([name, q]) => [name, Promise.resolve(q)]);
 
@@ -7771,7 +7775,7 @@ ${MARKETING_FOOTER}`)}`;
  {ageHe&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:2}}>ממתינה · {ageHe}</p>}
  </div>
                 {link?(
- <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(({error})=>{if(error){setWaQueueDone(prev=>({...prev,[m.id]:false}));toast("לא הצלחנו לשמור שההודעה נפתחה","error");}});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נפתח":"שליחה"}</a>
+ <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id})}).then(r=>{if(!r.ok)throw new Error(String(r.status));}).catch(()=>{setWaQueueDone(prev=>({...prev,[m.id]:false}));toast("לא הצלחנו לשמור שההודעה נפתחה","error");});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נפתח":"שליחה"}</a>
                 ):(
  <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>מספר לא תקין</span>
                 )}
