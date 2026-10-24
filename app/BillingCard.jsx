@@ -14,6 +14,7 @@ import { trialEndDateHe } from '@/lib/planCopy';
 import { subscriptionDoc } from '@/lib/kalmeaBusiness';
 import { billingConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
+import { priceHe } from '@/lib/pricing';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -151,7 +152,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                   <div key={a.key} data-testid={`addon-${a.key}`} style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600 }}>
-                        {a.label}: <b style={{ color: full ? 'var(--danger)' : 'var(--ink)' }}>{a.used === null ? '…' : a.used} מתוך {a.cap}</b>
+                        {/* Each part isolated: "AI" inside the label is Latin, and next to digits it would drag the numbers out of order. */}
+                        <bdi>{a.label}</bdi>: <b style={{ color: full ? 'var(--danger)' : 'var(--ink)', unicodeBidi: 'isolate' }}>{a.used === null ? '…' : a.used} מתוך {a.cap}</b>
                         {a.purchased > 0 && <span style={{ color: 'var(--ink-2)', fontWeight: 400 }}> (כולל {a.purchased} שהוספת)</span>}
                       </span>
                       {!isDemo && s.configured && confirmPack !== a.key && (
@@ -161,7 +163,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                     {confirmPack === a.key && (
                       hasCard ? (
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ ...text, flex: '1 1 180px' }}>לחייב {money(a.price)} בכרטיס <b dir="ltr">•••• {sub.card_last4}</b>, חיוב אחד לחודש הזה?</span>
+                          <span style={{ ...text, flex: '1 1 180px' }}>לחייב {priceHe(a.price)} בכרטיס שמסתיים ב-<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{sub.card_last4}</b>, חיוב אחד לחודש הזה?</span>
                           <button type="button" data-testid={`addon-confirm-${a.key}`} style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none' }} disabled={busy} onClick={() => buyPack(a.key)}>{busy ? 'מחייבת…' : 'כן, להוסיף'}</button>
                           <button type="button" style={ghost} disabled={busy} onClick={() => setConfirmPack(null)}>ביטול</button>
                         </div>

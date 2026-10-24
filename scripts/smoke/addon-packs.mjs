@@ -86,13 +86,18 @@ try {
   if (await consent.count()) await consent.check();
   await visible('[data-testid="billing-card"] button:text-matches("הוספת כרטיס אשראי|עדכון כרטיס")').click();
   await page.waitForURL((u) => u.pathname.startsWith('/api/billing/mock-card'), { timeout: 20000 });
+  await page.waitForLoadState('load'); await page.waitForTimeout(800);
+  // A CLI preview is built with the production NEXT_PUBLIC_APP_URL, so the card page link points there (where billing is off). The signed
+  // token is the same on any deployment of this database, so open the same page on the preview itself.
+  if (!page.url().startsWith(BASE)) { const u = new URL(page.url()); await page.goto(`${BASE}${u.pathname}${u.search}`, { waitUntil: 'load' }); await page.waitForTimeout(800); }
+  log('card page', page.url().replace(/s=[^&]+/, 's=…'));
   check((await body()).includes('לא יחויב כסף'), 'the mock card page says nothing is charged');
   await page.locator('button[value="ok"]').click(); await page.waitForTimeout(3000);
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1500); await skipTour();
   await openAddons();
   await visible('[data-testid="addon-buy-reels"]').click(); await page.waitForTimeout(400);
   const confirmText = (await body());
-  check(/לחייב 29 ₪ בכרטיס/.test(confirmText), 'confirm step: "לחייב 29 ₪ בכרטיס •••• ..."');
+  check(/לחייב 29 ₪ בכרטיס שמסתיים ב-\d{4}/.test(confirmText), 'confirm step: "לחייב 29 ₪ בכרטיס שמסתיים ב-XXXX"');
   await page.screenshot({ path: `${SHOTS}/smoke-addons-confirm.png` });
   const resp = page.waitForResponse((r) => r.url().includes('/api/billing/addon'), { timeout: 30000 });
   await visible('[data-testid="addon-confirm-reels"]').click();
