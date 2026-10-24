@@ -314,7 +314,10 @@ export default function SkinScanPage() {
                 { key: "left", label: "פרופיל שמאל", req: false, thumb: leftPreview, onPick: () => leftRef.current?.click() },
                 { key: "right", label: "פרופיל ימין", req: false, thumb: rightPreview, onPick: () => rightRef.current?.click() },
               ].map((a) => (
-                <div key={a.key} onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")} aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius:"var(--r-md)", overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #FDF6F6)`, background: a.thumb ? "var(--brand-surface, #FDFBF9)" : "linear-gradient(180deg,var(--brand-cream, #FBF8F1),var(--brand-cream, #FBF8F1))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                <div key={a.key} role="button" tabIndex={0} aria-label={`צילום ${a.label}${a.req ? " (חובה)" : " (רשות)"}`}
+                  onClick={gateOk ? a.onPick : () => setGateError("לפני הצילום: אשרי שאת בת 18 ומעלה ואת ההסכמה לניתוח התמונה.")}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.currentTarget.click(); } }}
+                  aria-disabled={!gateOk} style={{ cursor: gateOk ? "pointer" : "not-allowed", borderRadius:"var(--r-md)", overflow: "hidden", position: "relative", aspectRatio: "3 / 4", border: a.thumb ? `1px solid ${LINE}` : `1.5px dashed var(--pc-tint, #FDF6F6)`, background: a.thumb ? "var(--brand-surface, #FDFBF9)" : "linear-gradient(180deg,var(--brand-cream, #FBF8F1),var(--brand-cream, #FBF8F1))", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                   {a.thumb ? (
                     <>
                       <img src={a.thumb} alt={a.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
