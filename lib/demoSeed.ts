@@ -120,6 +120,15 @@ export async function resetDemoTenant(db: Db, field: DemoField, now: Date = new 
       },
     }).eq('tenant_id', tenantId);
 
+    // ── A trial that never runs out. The demo rows were provisioned with a 30-day trial
+    // (2026-09-30 → 2026-10-30) that nothing extended: past it the public demo
+    // booking pages would close and the RLS write gate (is_tenant_active) would
+    // refuse every demo write. Each nightly reset rolls it 30 days ahead. ──
+    const { error: trialErr } = await db.from('tenants')
+      .update({ trial_ends_at: new Date(now.getTime() + 30 * 86_400_000).toISOString() })
+      .eq('id', tenantId);
+    if (trialErr) console.error(`[demoSeed] ${field}: trial date not rolled forward:`, trialErr.message);
+
     // ── Services ──
     const picked = pickSeedServices(field, 8);
     const { inserted: insertedServices, error: svcErr } = await insertPickedServices(db, tenantId, picked);

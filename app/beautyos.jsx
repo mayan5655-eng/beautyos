@@ -31,6 +31,7 @@ import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
+import { installDemoOutboundGuard } from "@/lib/demoOutbound";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
@@ -66,7 +67,8 @@ import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false });
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
-import { slugError, slugify } from "@/lib/slug";
+import { slugError } from "@/lib/slug";
+import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
@@ -347,7 +349,8 @@ const planAllows = (plan, feature) => {
 };
 // A stored phone the way she writes it ("052-111-1111"), not the e164 digits bookings store ("972521111111").
 const fmtPhone = (p) => displayPhone(p) || p || "";
-const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
+// "רגיל" is what the seeded and imported clients carry; the sixth option used to be a misspelt non-word (2026-10-23 pass).
+const SKIN_TYPES = ["רגיל","יבש","שמן","מעורב","רגיש","נוטה לאקנה"];
 const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--ink-3)","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
 // `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
@@ -481,6 +484,12 @@ function waLink(phone) {
   const clean = phone.replace(/\D/g,"");
   const intl = clean.startsWith("0") ? "972" + clean.slice(1) : clean;
   return `https://wa.me/${intl}`;
+}
+
+// "2026-10-25" -> "25.10.2026" for Hebrew screens; anything else comes back as it was.
+function fmtDateHe(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : String(iso || "");
 }
 
 function waMsg(phone, msg) {
@@ -684,7 +693,7 @@ import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, bu
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
-const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
+const emptyLead = {name:"",phone:"",source:"",service_interest:"",status:"new",notes:"",reminder_date:""};
 
 // ============================================================
 // MAIN COMPONENT
@@ -2752,7 +2761,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       activeServices.filter(s=>has(s.name))
         .slice(0,5).map(s=>({type:"service",label:s.name,sub:`₪${s.price}`+(s.duration?` · ${s.duration}′`:""),obj:s})),
       receipts.filter(r=>has(r.client_name)||has(r.service)||has(r.amount))
-        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${localDayKey(r.created_at)}`,obj:r})),
+        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${fmtDateHe(localDayKey(r.created_at))}`,obj:r})),
     ];
     return groups.flat().slice(0,15);
   })();
@@ -3591,7 +3600,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     askConfirm({
       title: "לא הגיעה",
-      message: `לסמן ש${appt.name} לא הגיעה לתור ב-${appt.date} ${fmtApptTime(appt)}? הסימון נספר בכרטיס הלקוחה.`,
+      message: `לסמן ש${appt.name} לא הגיעה לתור ב-${fmtDateHe(appt.date)} ${fmtApptTime(appt)}? הסימון נספר בכרטיס הלקוחה.`,
       confirmText: "סמני: לא הגיעה",
       danger: true,
       onConfirm: async () => {
@@ -3651,7 +3660,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     askConfirm({
       title: "ביטול תור",
-      message: `לבטל את התור של ${appt.name} (${appt.service}, ${appt.date} ${fmtApptTime(appt)})? התור יסומן כמבוטל וישאר ביומן.`,
+      message: `לבטל את התור של ${appt.name} (${appt.service}, ${fmtDateHe(appt.date)} ${fmtApptTime(appt)})? התור יסומן כמבוטל וישאר ביומן.`,
       confirmText: "ביטול התור",
       danger: true,
       onConfirm: async () => {
@@ -3681,6 +3690,27 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast("התור שוחזר");
         };
         toast("התור בוטל", "success", { label: "החזרה", onClick: restore });
+        // She cancelled, so the client does not know yet (2026-10-23 pass, E1). After the same undo window, the
+        // message telling her is prepared server-side: out from the central number when it is on, otherwise in
+        // "הודעות מוכנות לשליחה". Only for a real client of hers with a phone; never for a personal block.
+        const cancelClient = clients.find(c => String(c.id) === String(appt.client_id));
+        if (appt.kind !== "personal" && (cancelClient?.phone || appt.client_phone)) {
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const r = await fetch("/api/cancel-notice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) });
+              const j = await r.json().catch(() => ({}));
+              if (!r.ok || !j.success) { if (r.status !== 403) toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); return; }
+              if (j.queued) {
+                const q = await fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then(x => x.json()).catch(() => null);
+                if (q?.success) setWhatsappPending(q.messages || []);
+                toast(`הודעה ל${appt.name || "לקוחה"} על הביטול מחכה ב"הודעות מוכנות לשליחה"`, "info");
+              } else {
+                toast(`הודעה על הביטול יצאה ל${appt.name || "לקוחה"} מהמספר המרכזי`);
+              }
+            } catch { toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); }
+          }, 6600);
+        }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
         // an appointment the cosmetician restored. Gated by the settings toggle.
@@ -4219,7 +4249,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
         toast("הליד עודכן");
       }else{
-        const {data,error}=await supabase.from("leads").insert([newLead]).select();
+        const {data,error}=await supabase.from("leads").insert([{...newLead,source:newLead.source||null}]).select();
         if(error){handleDbError(error, "create lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>[...prev,data[0]]);
@@ -5746,7 +5776,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const rows = [
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
-      ["תאריך", esc(localDayKey(receipt.created_at))],
+      ["תאריך", esc(fmtDateHe(localDayKey(receipt.created_at)))],
       ["שירות", esc(receipt.service || "")],
       ["אמצעי תשלום", esc(receipt.payment_method || "")],
     ];
@@ -5882,7 +5912,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
       `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
-      `📅 תאריך: ${localDayKey(receipt.created_at)}\n\n` +
+      `📅 תאריך: ${fmtDateHe(localDayKey(receipt.created_at))}\n\n` +
       (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
   };
@@ -6171,6 +6201,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     fetch("/api/whatsapp-central-status").then(r=>r.json()).then(d=>{ if(!cancelled) setWaCentralConnected(!!d.connected); }).catch(()=>{ if(!cancelled) setWaCentralConnected(false); });
     return ()=>{ cancelled=true; };
   },[showSettings]);
+
+  // The demo's clients have real-looking numbers: no WhatsApp, call or SMS may open from it (lib/demoOutbound.js).
+  const isDemoTenant = isDemoTenantId(settings?.tenant_id);
+  useEffect(()=>{
+    if(!isDemoTenant) return;
+    return installDemoOutboundGuard(()=>toast("זו תצוגת דמו, אז וואטסאפ לא נפתח. בחשבון שלך ההודעה תיפתח מוכנה לשליחה.","info"));
+  },[isDemoTenant, toast]);
 
   const downloadScanQr = () => {
     if (!scanQr) return;
@@ -7619,7 +7656,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
                 </div>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
-                  כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אליך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
+                  כתבי מה קרה, ותקבלי תשובה מ{SUPPORT_TEAM_HE}. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
                 <textarea
                   value={helpText}
@@ -7832,7 +7869,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_MICROPHONE} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>Beauty Voice ✦</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>העוזרת הקולית ✦</h3>
  </div>
  <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:"var(--t-lg)",cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
@@ -8653,7 +8690,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","cancel_notice","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -8745,7 +8782,7 @@ ${MARKETING_FOOTER}`)}`;
                                   ):(
  <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",padding:"7px 15px"}}>{it.primaryLabel}</button>
                                   )}
- <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",fontSize:"var(--t-md)",padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
+ <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",fontSize:"var(--t-md)",padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>הסתרה</button>
  </div>
  </div>
  </div>
@@ -9128,7 +9165,7 @@ ${MARKETING_FOOTER}`)}`;
                                     {!isPersonal(appt)&&hasPhone&&<button onClick={stop(()=>sendReminderToClient(appt))} disabled={isBusy("sendReminder")} style={ghost}>תזכורת</button>}
                                     {canTime&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
                                     {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button onClick={stop(()=>markNoShow(appt))} style={ghost}>לא הגיעה</button>}
- <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"מחיקה"}</button>
+ <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"ביטול התור"}</button>
  </div>
                                   )}
                                   </>);
@@ -9218,7 +9255,7 @@ ${MARKETING_FOOTER}`)}`;
                         {days>90&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
                         {total>0&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.filter(a=>a.confirmation_status!=="cancelled").length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
  </div>
                     {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:"var(--t-sm)"}}>✆ הודעה</a>}
  <span style={{fontSize:"var(--t-md)",color:pc}}>←</span>
@@ -9463,7 +9500,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {localDayKey(r.created_at)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {fmtDateHe(localDayKey(r.created_at))}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
@@ -11100,7 +11137,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{fontSize:"var(--t-xs)",color:"var(--ink)",lineHeight:1.9}}>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{localDayKey(showReceipt.created_at)}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{fmtDateHe(localDayKey(showReceipt.created_at))}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
                 {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
@@ -11801,7 +11838,7 @@ ${MARKETING_FOOTER}`)}`;
                         {slugDraft===null?(
  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:600,direction:"ltr",wordBreak:"break-all"}}>{origin.replace(/^https?:\/\//,"")}/{mySlug||"…"}</span>
- <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug||slugify(settings.business_name||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
+ <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug&&!/[א-ת]/.test(mySlug)?mySlug:(latinSlugFromName(settings.business_name||"")||mySlug||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
  </div>
                         ):(<>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -11813,8 +11850,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>{setSlugDraft(null);setSlugNote("");}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  <button onClick={saveSlug} disabled={slugBusy||!!slugError(slugDraft)} style={{flex:2,background:pcGrad,border:"none",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--pc-contrast)",cursor:"pointer",fontFamily:"inherit",opacity:(slugBusy||!!slugError(slugDraft))?0.5:1}}>{slugBusy?<Spinner inline label="שומרת"/>:"שמירת הכתובת"}</button>
  </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. הקישור הישן ימשיך לעבוד תמיד.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. כתובת באנגלית נשארת קצרה ונקייה כשמעתיקים אותה לאינסטגרם ולוואטסאפ. הקישור הישן ימשיך לעבוד תמיד.</p>
                         </>)}
+                        {slugDraft===null&&mySlug&&/[א-ת]/.test(mySlug)&&<p data-testid="hebrew-slug-hint" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כתובת בעברית הופכת לרצף ארוך של סימנים כשמעתיקים אותה. כדאי לבחור כתובת באנגלית, והישנה תמשיך לעבוד.</p>}
  </div>
                     )}
                     {settings?.tenant_id&&(
@@ -12762,14 +12800,18 @@ ${MARKETING_FOOTER}`)}`;
                   {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}
                   {clientTab==="history"&&historyReady&&(
                     appts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין היסטוריית תורים</p>
-                    :appts.map(a=>(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
- <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                    :appts.map(a=>{
+                      // A cancelled visit reads as cancelled, and only a live future one offers a reminder (2026-10-23 pass, D2).
+                      const cancelled=a.confirmation_status==="cancelled";
+                      return(
+ <div key={a.id} data-testid={cancelled?"history-cancelled":undefined} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)",opacity:cancelled?0.6:1}}>
+ <span style={{width:8,height:8,borderRadius:"50%",background:cancelled?"var(--ink-3)":(a.color||"var(--warning)"),flexShrink:0}}/>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)",textDecoration:cancelled?"line-through":"none"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fmtDateHe(a.date)} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                        {cancelled&&<span className="pill" style={{fontSize:"var(--t-xs)",background:"var(--surface-2)",color:"var(--danger)",padding:"2px 8px",flexShrink:0}}>{a.cancelled_by==="client"?"ביטלה":"בוטל"}</span>}
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:"var(--t-xs)",color:"var(--success)"}}>✓</span>}
-                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
+                        {c.phone&&!cancelled&&a.date>=today&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
  </div>
-                    ))
+                    );})
                   )}
                   {clientTab==="scans"&&(
                     scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוען סריקות"/></p>
@@ -12790,7 +12832,7 @@ ${MARKETING_FOOTER}`)}`;
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{localDayKey(r.created_at)} · {r.payment_method}</p></div>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{fmtDateHe(localDayKey(r.created_at))} · {r.payment_method}</p></div>
  {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
@@ -13011,7 +13053,7 @@ ${MARKETING_FOOTER}`)}`;
                     ))}
  </div>
                   {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
-                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{localDayKey(l.created_at)}</span></div>}
+                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{fmtDateHe(localDayKey(l.created_at))}</span></div>}
                   {/* Contact trail. Reads "טרם יצרת קשר" until the first
                       successful WhatsApp send from the app. */}
  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>

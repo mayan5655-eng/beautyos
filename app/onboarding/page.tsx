@@ -240,7 +240,7 @@ export default function OnboardingPage() {
     // Her business type decides whether Morning can issue a legal receipt at all (no type = no receipt, silently). Required for
     // every new business since 2026-10-23 (owner's decision): no skip past this step without it.
     if (step === 2 && !data.business_tax_status) {
-      setError("בחרי סוג עסק (פטור, מורשה או חברה) כדי שנוכל להפיק לך קבלות חוקיות.");
+      setError("בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
       return;
     }
     if (step === 4 && data.business_fields.length === 0) {
@@ -270,7 +270,7 @@ export default function OnboardingPage() {
     // A draft saved before the step became required can land her past step 2 without a type: send her back to it.
     if (!data.business_tax_status) {
       setStep(2);
-      setError("עוד שלב קטן: בחרי סוג עסק (פטור, מורשה או חברה) כדי שנוכל להפיק לך קבלות חוקיות.");
+      setError("עוד שלב קטן: בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
       return;
     }
     setSaving(true);
@@ -504,7 +504,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
                 <p style={{ fontSize: "var(--t-xs)", color: "var(--ink-3)", lineHeight: 1.5, marginTop: 6 }}>
-                  זה קובע איזו קבלה חוקית תצא ללקוחות שלך ואיך יחושב סיכום ההכנסות. בחרי את מה שרשום אצלך במע״מ. לא בטוחה? אפשר לשנות בכל רגע בהגדרות.
+                  זה קובע איך יחושב סיכום ההכנסות, ואיזה מסמך יופק אם תחברי בהמשך תוכנת קבלות. בחרי את מה שרשום אצלך במע״מ. לא בטוחה? אפשר לשנות בכל רגע בהגדרות.
                 </p>
               </Field>
               {/* The one thing every new tenant must be told before her first
@@ -513,7 +513,7 @@ export default function OnboardingPage() {
                   in Settings → תשלום and on every receipt/WhatsApp message - this
                   is just the first time she hears it, early enough to matter. */}
               <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
-                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
+                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← חיבורים</strong>.
               </div>
               <Field label="הצבע של העסק שלך (בדף ההזמנות ובעיצובים)">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
