@@ -594,7 +594,15 @@ function PushSubscribeButton({ pc, pcGrad }) {
   };
 
   if (state === "unsupported") {
-    return <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>הדפדפן הזה לא תומך בהתראות דחיפה.</p>;
+    // An iPhone only offers push to a web app that was added to the home screen (iOS 16.4+), and an Instagram/Facebook browser has none:
+    // "this browser does not support it" sent her away with nothing to do (2026-10-24 phone review).
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const text = /Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua)
+      ? "בדפדפן של אינסטגרם או פייסבוק אי אפשר לקבל התראות. פתחי את קלמיה בספארי או בכרום."
+      : /iPhone|iPad|iPod/.test(ua)
+        ? "באייפון ההתראות עובדות רק מאפליקציה שהוספת למסך הבית: בספארי לחצי על שיתוף ← הוספה למסך הבית, ופתחי את קלמיה משם."
+        : "הדפדפן הזה לא תומך בהתראות דחיפה.";
+    return <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>{text}</p>;
   }
   return (
     <div>
@@ -9457,7 +9465,7 @@ ${MARKETING_FOOTER}`)}`;
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_WALLET} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
  </div>
- <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
+ <button onClick={()=>setActiveTab("tax")} style={{marginTop:0,background:"none",border:"none",padding:"13px 0",minHeight:44,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>
@@ -10791,7 +10799,7 @@ ${MARKETING_FOOTER}`)}`;
  {importStage==="paste"&&(<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
- {importTarget==="clients"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>
+ {importTarget==="clients"&&(<>{/* The contact picker exists only on Chrome for Android: on an iPhone the button could never work, so it is not shown there (2026-10-24 phone review). */}{typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>

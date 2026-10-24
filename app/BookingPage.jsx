@@ -750,7 +750,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // it from businessFieldsOf), same source defaultHeroKey/defaultAboutKey
   // already use a few lines below for the photos.
   const heroHeadline = brand?.welcomeHeadline || defaultHeroHeadline(brand?.fields);
-  const heroLines = heroHeadline.split(/\n|(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+  // No regex lookbehind here: Safari before 16.4 (iPhones that cannot update past iOS 15/16) fails to even PARSE one, which blanks the whole
+  // booking page for her client (2026-10-24 phone review). Same split: a line break, or the space after . ! ?
+  const heroLines = heroHeadline.replace(/([.!?])\s+/g, "$1\n").split("\n").map((x) => x.trim()).filter(Boolean);
   const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || defaultHeroBenefits(brand?.fields);
   const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
   const aboutSignoff = brand?.aboutSignoff || "";

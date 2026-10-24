@@ -134,5 +134,27 @@ for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]
   check(await p.locator('[aria-label="התקנת האפליקציה למסך הבית"]').count() === 1, 'iphone: the install card still shows on her own app');
   await s.browser.close();
 }
+// 10. a browser too old for this version gets a line, not a dead page (regex lookbehind missing = Safari before 16.4)
+{
+  const s = await phone('iphone'); const p = s.page;
+  await s.ctx.addInitScript(() => { const R = window.RegExp; window.RegExp = function (src, f) { if (/\(\?<[=!]/.test(String(src))) throw new SyntaxError('invalid'); return new R(src, f); }; window.RegExp.prototype = R.prototype; });
+  await p.goto(BASE + '/clinic-bdika', { waitUntil: 'networkidle' }); await p.waitForTimeout(1500);
+  check(/iOS 16\.4/.test(await p.innerText('body')), 'old browser: the page says the phone is too old (instead of a dead page)');
+  await s.browser.close();
+}
+// 11. push notifications on an iPhone that has no PushManager: the sentence says what to do
+{
+  const s = await phone('iphone'); const p = s.page;
+  await s.ctx.addInitScript(() => { try { delete window.PushManager; } catch {} });
+  await login(p);
+  await p.locator('button[aria-label="הגדרות"]').first().click(); await p.waitForTimeout(1200);
+  let found = false;
+  for (const g of ['העסק שלי', 'הדף שלי', 'יומן ושירותים', 'הודעות', 'לקוחות ופניות', 'חיבורים', 'מתקדם']) {
+    await p.locator('.sheet button').filter({ hasText: new RegExp('^' + g + '$') }).first().click().catch(() => {}); await p.waitForTimeout(500);
+    if (/הוספה למסך הבית/.test(await p.locator('.sheet').first().innerText())) { found = true; break; }
+  }
+  check(found, 'push: an iPhone without PushManager is told to add Kalmea to the home screen');
+  await s.browser.close();
+}
 console.log(fails.length ? 'FAILED: ' + fails.length : 'ALL OK');
 process.exit(fails.length ? 1 : 0);
