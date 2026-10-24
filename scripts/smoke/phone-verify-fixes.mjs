@@ -84,5 +84,35 @@ for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]
   for (const c of css) { const t = await (await fetch(new URL(c, BASE))).text(); if (/-webkit-touch-callout:\s*none/.test(t) && /font-size:\s*16px\s*!important/.test(t)) found = true; }
   check(found, 'css: the iOS-only 16px field rule is shipped');
 }
+// ---- round 2 ----
+// 6. the accountant file goes to the share sheet on an iPhone (built inside the tap), and is refused honestly in the home-screen app
+{
+  const s = await phone('iphone'); const p = s.page; await login(p);
+  await p.locator('button[aria-label="עוד"]').filter({ visible: true }).first().click(); await p.waitForTimeout(500);
+  await p.locator('button:has-text("סיכום הכנסות")').filter({ visible: true }).first().click(); await p.waitForTimeout(2500);
+  await p.evaluate(() => { window.__ev = []; });
+  await p.locator('button:has-text("קובץ לרואה החשבון")').filter({ visible: true }).first().tap(); await p.waitForTimeout(2500);
+  const e = await evs(p);
+  check(e.some((x) => x.startsWith('share: ') && /kalmea-accountant-\d{4}.*\.xlsx/.test(x)), 'iphone: the accountant Excel goes to the share sheet: ' + JSON.stringify(e));
+  await s.browser.close();
+}
+// 7. a new appointment starts on a day she is open (today is checked as it comes: a Saturday opens on Sunday)
+{
+  const s = await phone('android'); const p = s.page; await login(p);
+  await p.locator('button:has-text("✦ קביעת תור"), button:has-text("✦ תור חדש")').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
+  const bad = await p.locator('text=סגור ביום זה').filter({ visible: true }).count();
+  check(bad === 0, 'new appointment: the form does not open on a closed day');
+  await p.screenshot({ path: SHOTS + '/verify-new-appt.png' });
+  await s.browser.close();
+}
+// 8. the voice sheet on the home-screen app says what is true for an iPhone
+{
+  const s = await phone('iphone-sa'); const p = s.page; await login(p);
+  await p.evaluate(() => { try { delete window.webkitSpeechRecognition; window.SpeechRecognition = undefined; } catch {} });
+  const mic = p.locator('button[aria-label*="קול"], button[aria-label*="מיקרופון"], button[aria-label*="פקודה"]').filter({ visible: true }).first();
+  if (await mic.count()) { await mic.click(); await p.waitForTimeout(1000); const t = await p.innerText('body'); check(/Safari/.test(t) && !/מחשב או אנדרואיד/.test(t), 'voice: iPhone wording on the home-screen app'); await p.screenshot({ path: SHOTS + '/verify-voice-sa.png' }); }
+  else console.log('skip voice: mic button not found by label');
+  await s.browser.close();
+}
 console.log(fails.length ? 'FAILED: ' + fails.length : 'ALL OK');
 process.exit(fails.length ? 1 : 0);

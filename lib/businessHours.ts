@@ -46,6 +46,16 @@ export function isOpenOn(settings: HoursSettings | null | undefined, date: Date)
   return dayHoursFrom(settings, date.getDay()) !== null;
 }
 
+// The first day from `from` on that she is open: where a NEW appointment should start. Defaulting to today on a Saturday (or any closed
+// day) opened the form on "סגור ביום זה" with the save button dead (2026-10-24 phone review). Today when open; none open in two weeks -> today.
+export function nextOpenDay(settings: HoursSettings | null | undefined, from: Date = new Date(), maxAhead = 14): Date {
+  for (let i = 0; i <= maxAhead; i++) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+    if (isOpenOn(settings, d)) return d;
+  }
+  return from;
+}
+
 // Derive the legacy single-range columns from a per-day map, so un-migrated
 // readers stay correct when the Settings UI saves.
 export function legacyHoursFromMap(bh: Record<number, DayHours>): {

@@ -12,6 +12,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { buildSourceReport, reportToSheetRows } from '@/lib/sourceReport';
+import { deliverFile, deliveryToast } from '@/lib/deliverFile';
+import { preloadXlsx, loadedXlsx, getXlsx, workbookBlob } from '@/lib/xlsxLoader';
 import { sourceLabelHe } from '@/lib/leadSources';
 
 const RANGES = [
@@ -42,6 +44,7 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
   const [form, setForm] = useState({ day: dayKey(new Date()), source: 'פייסבוק', amount: '' });
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => { preloadXlsx(); }, []); // the export builds its file inside the tap (a phone shares it from there)
   const r = useMemo(() => rangeOf(range), [range]);
 
   useEffect(() => {
@@ -67,12 +70,14 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
 
   const exportXlsx = async () => {
     try {
-      const XLSX = await import('xlsx');
+      const XLSX = loadedXlsx() || await getXlsx();
       const ws = XLSX.utils.aoa_to_sheet(reportToSheetRows(report, hasSpend));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'הכנסות לפי מקור');
       const stamp = dayKey(new Date());
-      XLSX.writeFile(wb, `הכנסות-לפי-מקור-${stamp}.xlsx`);
+      const o = await deliverFile(workbookBlob(XLSX, wb), `kalmea-income-by-source-${stamp}.xlsx`);
+      const t = deliveryToast(o, { downloaded: 'הקובץ ירד' });
+      if (t) toast?.(t.text, t.kind);
     } catch {
       toast?.('הייצוא נכשל, נסי שוב', 'error');
     }

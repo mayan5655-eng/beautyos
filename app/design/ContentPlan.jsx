@@ -24,6 +24,7 @@ import { fillTemplate } from '@/lib/design/mapBranding';
 import { renderTemplateBlob } from './canvasRender';
 import { uploadPostPicture } from './contentMedia';
 import SaveShare from './SaveShare';
+import { copyText } from '@/lib/copyText';
 
 const PLATFORM_HE = { instagram: 'אינסטגרם', facebook: 'פייסבוק' };
 const LIMITS = { instagram: 2200, facebook: 5000 };
@@ -379,7 +380,7 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone,
   });
   const copy = () => run('copy', async () => {
     const full = [text?.caption || '', (text?.hashtags || []).join(' ')].filter(Boolean).join('\n\n');
-    await navigator.clipboard.writeText(full);
+    if (!(await copyText(full))) throw new Error('ההעתקה נחסמה. סמני את הטקסט והעתיקי ידנית');
     toast?.(`הטקסט ל${PLATFORM_HE[tab]} הועתק`);
     fetch('/api/content/items', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, platform: tab, copied: true }) }).catch(() => {});
   });
