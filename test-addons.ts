@@ -16,9 +16,9 @@ const ok = async (name: string, fn: () => void | Promise<void>) => { await fn();
 
 await ok('the four packs and their prices, as decided with Shaked', () => {
   assert.deepEqual(ADDON_PACK_KEYS.sort(), ['advisor', 'posts', 'reels', 'skinscan']);
-  assert.deepEqual([ADDON_PACKS.posts.units, ADDON_PACKS.posts.price, ADDON_PACKS.posts.included], [10, 29, 9]);
-  assert.deepEqual([ADDON_PACKS.reels.units, ADDON_PACKS.reels.price, ADDON_PACKS.reels.included], [10, 29, 6]);
-  assert.deepEqual([ADDON_PACKS.advisor.units, ADDON_PACKS.advisor.price, ADDON_PACKS.advisor.included], [100, 39, 60]);
+  assert.deepEqual([ADDON_PACKS.posts.units, ADDON_PACKS.posts.price, ADDON_PACKS.posts.included], [10, 39, 9]);
+  assert.deepEqual([ADDON_PACKS.reels.units, ADDON_PACKS.reels.price, ADDON_PACKS.reels.included], [10, 29, 10]);
+  assert.deepEqual([ADDON_PACKS.advisor.units, ADDON_PACKS.advisor.price, ADDON_PACKS.advisor.included], [100, 49, 100]);
   assert.deepEqual([ADDON_PACKS.skinscan.units, ADDON_PACKS.skinscan.price, ADDON_PACKS.skinscan.included], [100, 19, 50]);
   assert.equal(addonButtonHe(ADDON_PACKS.reels), 'עוד 10 רילסים עם AI ב-29 ₪');
   assert.equal(addonPackForCallSite('marketing/reel')?.key, 'reels');
@@ -35,8 +35,8 @@ await ok('caps: OFF keeps the old ceilings; ON is included + bought; features wi
   const bought = emptyPurchased();
   bought.reels.units = 20;
   assert.deepEqual(capWithPacks('marketing/reel', bought, false), { cap: MONTHLY_CALL_CAPS['marketing/reel'], purchased: 0 });
-  assert.deepEqual(capWithPacks('marketing/reel', bought, true), { cap: 6 + 20, purchased: 20 });
-  assert.deepEqual(capWithPacks('advisor', emptyPurchased(), true), { cap: 60, purchased: 0 });
+  assert.deepEqual(capWithPacks('marketing/reel', bought, true), { cap: 10 + 20, purchased: 20 });
+  assert.deepEqual(capWithPacks('advisor', emptyPurchased(), true), { cap: 100, purchased: 0 });
   assert.deepEqual(capWithPacks('whatsapp-webhook', bought, true), { cap: MONTHLY_CALL_CAPS['whatsapp-webhook'], purchased: 0 });
   bought.advisor.usd = 7;
   assert.equal(totalUsd(bought), 7);
@@ -63,29 +63,29 @@ const NOW = new Date('2026-10-15T09:00:00Z');
 const usage = (count: number, site: string, usd = 0.01) => Array.from({ length: count }, (_, i) => ({ id: `u${String(i).padStart(6, '0')}`, tenant_id: T, call_site: site, created_at: '2026-10-10T08:00:00Z', cost_usd: usd }));
 const allow = (db: any) => ({ client: db, now: NOW, alert: async () => {}, noCache: true, alertThrottle: new Map<string, number>() });
 
-await ok('packs ON: the 7th reel is refused at 6 included; a bought pack of 10 lets it through', async () => {
+await ok('packs ON: the 11th reel is refused at 10 included; a bought pack of 10 lets it through', async () => {
   process.env.NEXT_PUBLIC_ADDON_PACKS = '1';
   try {
-    const none = makeCapDb({ ai_usage: usage(6, 'marketing/reel'), billing_addons: [] });
+    const none = makeCapDb({ ai_usage: usage(10, 'marketing/reel'), billing_addons: [] });
     const a = await checkAiAllowance(T, 'marketing/reel', allow(none));
     assert.equal(a.allowed, false);
     assert.equal(a.reason, 'calls');
-    assert.equal(a.callsCap, 6);
+    assert.equal(a.callsCap, 10);
     const pack = { tenant_id: T, pack: 'reels', units: 10, usd_allowance: 1.5, period_month: '2026-10-01' };
-    const withPack = makeCapDb({ ai_usage: usage(6, 'marketing/reel'), billing_addons: [pack] });
+    const withPack = makeCapDb({ ai_usage: usage(10, 'marketing/reel'), billing_addons: [pack] });
     const b = await checkAiAllowance(T, 'marketing/reel', allow(withPack));
     assert.equal(b.allowed, true);
-    assert.equal(b.callsCap, 16);
+    assert.equal(b.callsCap, 20);
     assert.equal(b.usdCap, tenantMonthlyUsdCeiling() + 1.5, 'the dollar ceiling grows by what the pack can cost');
-    const lastMonth = makeCapDb({ ai_usage: usage(6, 'marketing/reel'), billing_addons: [{ ...pack, period_month: '2026-09-01' }] });
+    const lastMonth = makeCapDb({ ai_usage: usage(10, 'marketing/reel'), billing_addons: [{ ...pack, period_month: '2026-09-01' }] });
     assert.equal((await checkAiAllowance(T, 'marketing/reel', allow(lastMonth))).allowed, false, 'a pack does not roll over');
-    const other = makeCapDb({ ai_usage: usage(6, 'marketing/reel'), billing_addons: [{ ...pack, tenant_id: '22222222-2222-2222-2222-222222222222' }] });
+    const other = makeCapDb({ ai_usage: usage(10, 'marketing/reel'), billing_addons: [{ ...pack, tenant_id: '22222222-2222-2222-2222-222222222222' }] });
     assert.equal((await checkAiAllowance(T, 'marketing/reel', allow(other))).allowed, false, 'another business\'s pack never counts');
   } finally { delete process.env.NEXT_PUBLIC_ADDON_PACKS; }
 });
 
-await ok('packs OFF: 6 reels are nowhere near the old ceiling, nothing is read from billing_addons', async () => {
-  const db = makeCapDb({ ai_usage: usage(6, 'marketing/reel') });
+await ok('packs OFF: 10 reels are nowhere near the old ceiling, nothing is read from billing_addons', async () => {
+  const db = makeCapDb({ ai_usage: usage(10, 'marketing/reel') });
   const a = await checkAiAllowance(T, 'marketing/reel', allow(db));
   assert.equal(a.allowed, true);
   assert.equal(a.callsCap, MONTHLY_CALL_CAPS['marketing/reel']);

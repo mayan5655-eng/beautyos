@@ -1,7 +1,7 @@
 // Paid add-on packs (NEXT_PUBLIC_ADDON_PACKS=1 + BILLING_UI_ENABLED, mock billing), on one NEW smoke tenant at 430px:
-//   6 reels already used this month (usage rows written for the smoke tenant only, no AI is called) -> the server refuses the 7th reel with
-//   the "used this month's" wording; Settings > העסק שלי shows "מה כלול החודש" with 6 of 6 and the "עוד 10 רילסים עם AI ב-29 ₪" button;
-//   a mock card is saved, the pack is confirmed, and (once add_billing_addons.sql has run) the reels cap becomes 16 and the next reel is
+//   10 reels already used this month (usage rows written for the smoke tenant only, no AI is called) -> the server refuses the 11th reel with
+//   the "used this month's" wording; Settings > העסק שלי shows "מה כלול החודש" with 10 of 10 and the "עוד 10 רילסים עם AI ב-29 ₪" button;
+//   a mock card is saved, the pack is confirmed, and (once add_billing_addons.sql has run) the reels cap becomes 20 and the next reel is
 //   allowed past the cap check. Mock mode only: no real card, no real charge. Everything the smoke tenant wrote is removed at the end.
 // node --env-file=.env.local scripts/smoke/addon-packs.mjs   (SMOKE_BASE=<preview>)
 import { launch, PASSWORD, BASE, admin, newEmail, tenantIdOf, REAL_TENANT } from './lib.mjs';
@@ -52,18 +52,18 @@ try {
   await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
   await page.waitForTimeout(1500); await skipTour();
 
-  // 6 reels "used" this month: usage rows for the smoke tenant only (cost 0), so the cap is reached without calling any AI.
-  const rows = Array.from({ length: 6 }, () => ({ tenant_id: tenantId, call_site: 'marketing/reel', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
+  // 10 reels "used" this month: usage rows for the smoke tenant only (cost 0), so the cap is reached without calling any AI.
+  const rows = Array.from({ length: 10 }, () => ({ tenant_id: tenantId, call_site: 'marketing/reel', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
   const ins = await db.from('ai_usage').insert(rows);
-  check(!ins.error, `6 reel usage rows for the smoke tenant${ins.error ? ` (${ins.error.message})` : ''}`);
+  check(!ins.error, `10 reel usage rows for the smoke tenant${ins.error ? ` (${ins.error.message})` : ''}`);
 
   let st = await status();
   check(st.code === 200 && st.json?.configured, `billing on for this preview (status ${st.code}, configured ${st.json?.configured})`);
   const r0 = reelsOf(st);
-  check(r0 && r0.cap === 6 && r0.used === 6, `reels: ${r0?.used} of ${r0?.cap} (expect 6 of 6)`);
+  check(r0 && r0.cap === 10 && r0.used === 10, `reels: ${r0?.used} of ${r0?.cap} (expect 10 of 10)`);
 
   const refused = await page.evaluate(async () => { const r = await fetch('/api/marketing/reel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: 'בדיקה', duration: 15, vibe: 'calm' }) }); return { code: r.status, json: await r.json().catch(() => null) }; });
-  check(refused.code === 429 && /ניצלנו כבר את יצירות הוידאו של החודש/.test(refused.json?.error || ''), `the 7th reel is refused on the server (${refused.code}: ${(refused.json?.error || '').slice(0, 60)})`);
+  check(refused.code === 429 && /ניצלנו כבר את יצירות הוידאו של החודש/.test(refused.json?.error || ''), `the 11th reel is refused on the server (${refused.code}: ${(refused.json?.error || '').slice(0, 60)})`);
 
   // The post generator at its 9 included posts (usage rows, no AI called): the "9 מתוך 9" box carries the posts pack button.
   const posts = Array.from({ length: 9 }, () => ({ tenant_id: tenantId, call_site: 'designs/generate', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
@@ -73,23 +73,23 @@ try {
   await visible('button:text-is("השבוע")').click().catch(() => {}); await page.waitForTimeout(1500);
   const postsBtn = page.locator('[data-testid="addon-offer-posts"]').filter({ visible: true }).first();
   await postsBtn.waitFor({ timeout: 20000 }).catch(() => {});
-  check((await postsBtn.innerText().catch(() => '')).trim() === 'עוד 10 פוסטים עם AI ב-29 ₪', 'posts at 9 of 9: the box offers "עוד 10 פוסטים עם AI ב-29 ₪"');
+  check((await postsBtn.innerText().catch(() => '')).trim() === 'עוד 10 פוסטים עם AI ב-39 ₪', 'posts at 9 of 9: the box offers "עוד 10 פוסטים עם AI ב-39 ₪"');
   await postsBtn.scrollIntoViewIfNeeded().catch(() => {});
   await page.screenshot({ path: `${SHOTS}/smoke-addons-posts.png` });
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1500); await skipTour();
 
-  // The advisor at its 60 included questions (usage rows again, no AI called): her question is refused, and the error toast carries the
+  // The advisor at its 100 included questions (usage rows again, no AI called): her question is refused, and the error toast carries the
   // pack's button, which opens the add-ons in Settings.
-  const adv = Array.from({ length: 60 }, () => ({ tenant_id: tenantId, call_site: 'advisor', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
+  const adv = Array.from({ length: 100 }, () => ({ tenant_id: tenantId, call_site: 'advisor', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
   const advIns = await db.from('ai_usage').insert(adv);
-  check(!advIns.error, `60 advisor usage rows for the smoke tenant${advIns.error ? ` (${advIns.error.message})` : ''}`);
+  check(!advIns.error, `100 advisor usage rows for the smoke tenant${advIns.error ? ` (${advIns.error.message})` : ''}`);
   await visible('button[aria-label="תפריט ניווט"]').click(); await page.waitForTimeout(600);
   await visible('.nav-item:has-text("יועץ AI")').click(); await page.waitForTimeout(2500); await skipTour();
   await visible('textarea').fill('כמה הכנסתי החודש?');
   await page.keyboard.press('Enter');
-  const toastBtn = page.locator('.toast button:has-text("עוד 100 שאלות ליועצת ב-39 ₪")').filter({ visible: true }).first();
+  const toastBtn = page.locator('.toast button:has-text("עוד 100 שאלות ליועצת ב-49 ₪")').filter({ visible: true }).first();
   await toastBtn.waitFor({ timeout: 30000 }).catch(() => {});
-  check(await toastBtn.count() === 1, 'advisor at its limit: the refusal toast carries "עוד 100 שאלות ליועצת ב-39 ₪"');
+  check(await toastBtn.count() === 1, 'advisor at its limit: the refusal toast carries "עוד 100 שאלות ליועצת ב-49 ₪"');
   await page.screenshot({ path: `${SHOTS}/smoke-addons-toast.png` });
   if (await toastBtn.count()) {
     await toastBtn.click();
@@ -101,7 +101,7 @@ try {
   const block = visible('[data-testid="billing-addons"]');
   check(await block.count() === 1, 'Settings shows "מה כלול החודש, ותוספות"');
   const btext = (await block.innerText().catch(() => '')).replace(/\s+/g, ' ');
-  check(btext.includes('רילסים עם AI: 6 מתוך 6'), 'reels: 6 מתוך 6');
+  check(btext.includes('רילסים עם AI: 10 מתוך 10'), 'reels: 10 מתוך 10');
   const buy = visible('[data-testid="addon-buy-reels"]');
   check((await buy.innerText().catch(() => '')).trim() === 'עוד 10 רילסים עם AI ב-29 ₪', 'the button: עוד 10 רילסים עם AI ב-29 ₪');
   const bb = await buy.boundingBox();
@@ -143,7 +143,7 @@ try {
     await page.waitForTimeout(1500);
     st = await status();
     const r1 = reelsOf(st);
-    check(r1 && r1.cap === 16 && r1.purchased === 10, `reels now ${r1?.used} of ${r1?.cap}, purchased ${r1?.purchased} (expect 6 of 16, 10)`);
+    check(r1 && r1.cap === 20 && r1.purchased === 10, `reels now ${r1?.used} of ${r1?.cap}, purchased ${r1?.purchased} (expect 10 of 20, 10)`);
     const pays = await db.from('billing_payments').select('kind, status, amount').eq('tenant_id', tenantId).eq('kind', 'addon');
     check(pays.data?.length === 1 && pays.data[0].status === 'succeeded' && Number(pays.data[0].amount) === 29, 'one addon payment of 29, succeeded (mock)');
     await page.screenshot({ path: `${SHOTS}/smoke-addons-bought.png` });

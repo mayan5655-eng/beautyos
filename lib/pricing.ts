@@ -28,6 +28,7 @@ export function priceHe(n: number): string {
 }
 
 // ── Paid add-on packs (decided 2026-10-24 with Shaked) ────────────────────────────────────────────────────────────────────────────
+// Revised the same day: posts pack 39 (image posts cost the most), 10 reels included, 100 advisor questions included, advisor pack 49.
 // The subscription includes a monthly amount of each metered AI feature; when it runs out she can buy a pack of more, for this month
 // only. `callSite` is the ai_usage call site the quota counts. `included` is the monthly amount while packs are ON (with packs OFF the
 // old anti-abuse ceilings in lib/ai/callCaps.ts and lib/skinScanQuota.ts apply unchanged). `usdPerPack` raises the per-tenant AI dollar
@@ -51,10 +52,10 @@ export type AddonPack = {
 }
 
 export const ADDON_PACKS: Record<AddonPackKey, AddonPack> = {
-  posts:    { key: 'posts',    callSite: 'designs/generate', included: 9,  units: 10,  price: 29, usdPerPack: 4,   unitHe: 'פוסטים עם AI' },
-  reels:    { key: 'reels',    callSite: 'marketing/reel',   included: 6,  units: 10,  price: 29, usdPerPack: 1.5, unitHe: 'רילסים עם AI' },
-  advisor:  { key: 'advisor',  callSite: 'advisor',          included: 60, units: 100, price: 39, usdPerPack: 7,   unitHe: 'שאלות ליועצת' },
-  skinscan: { key: 'skinscan', callSite: 'skin-scan',        included: 50, units: 100, price: 19, usdPerPack: 3,   unitHe: 'סריקות עור' },
+  posts:    { key: 'posts',    callSite: 'designs/generate', included: 9,   units: 10,  price: 39, usdPerPack: 4,   unitHe: 'פוסטים עם AI' },
+  reels:    { key: 'reels',    callSite: 'marketing/reel',   included: 10,  units: 10,  price: 29, usdPerPack: 1.5, unitHe: 'רילסים עם AI' },
+  advisor:  { key: 'advisor',  callSite: 'advisor',          included: 100, units: 100, price: 49, usdPerPack: 7,   unitHe: 'שאלות ליועצת' },
+  skinscan: { key: 'skinscan', callSite: 'skin-scan',        included: 50,  units: 100, price: 19, usdPerPack: 3,   unitHe: 'סריקות עור' },
 }
 
 export const ADDON_PACK_KEYS = Object.keys(ADDON_PACKS) as AddonPackKey[]
