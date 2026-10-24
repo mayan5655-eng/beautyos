@@ -18,6 +18,8 @@ import { fillReel } from '@/lib/design/reel';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { TOPIC_BANK, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
+import { ADDON_PACKS, addonPacksEnabled, addonButtonHe } from '@/lib/pricing';
+import { openAddons } from '@/lib/addonOffer';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '10px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)', resize: 'vertical', minHeight: 64 };
 const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 };
@@ -118,7 +120,11 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
           ניצלת את {allowance.cap} היצירות של החודש. בחודש הבא הן מתחדשות; בינתיים כל תבנית בגלריה פתוחה לך.
         </p>
-      ) : (
+      ) : null}
+      {atCap && addonPacksEnabled() ? (
+        <button type="button" data-testid="addon-offer-posts" onClick={openAddons} className="primary-btn" style={{ marginTop: 8, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 16px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>{addonButtonHe(ADDON_PACKS.posts)}</button>
+      ) : null}
+      {atCap ? null : (
         <>
           <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: מבצע על הטיפול הראשון ב-249 ₪ לפני ראש השנה" style={input} dir="rtl" maxLength={400} rows={2} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>

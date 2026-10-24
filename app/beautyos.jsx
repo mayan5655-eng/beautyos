@@ -25,6 +25,8 @@ import TrialNudge from "./TrialNudge";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import ClientPrivacyPanel from "./ClientPrivacyPanel";
 import BillingNotices from "./BillingNotices";
+import { addonPackForMessage, openAddons, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
+import { addonButtonHe } from "@/lib/pricing";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
@@ -1214,6 +1216,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // (e.g. "ביטול" for undo). Toasts with an action linger a bit longer.
   const toast = useCallback((msg, type = "success", action = null) => {
     const id = Date.now() + Math.random();
+    // A "you used this month's ___" refusal for a feature that has an add-on pack (lib/pricing.ts, only with packs on) carries the
+    // pack's button, which opens the add-ons in her billing settings. Recognised by its own wording (lib/addonOffer.ts).
+    if (!action && type === "error") {
+      const pack = addonPackForMessage(msg);
+      if (pack) action = { label: addonButtonHe(pack), onClick: openAddons };
+    }
     setToasts(prev => [...prev, { id, msg, type, action }]);
     // Error toasts stay until tapped: they carry real reasons now (an OAuth
     // error, a failed save), and a reason that vanishes in 3.5s while she is
@@ -1450,6 +1458,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setShowSetup(false);
   };
   const openSetupTab = (tab, extra) => openSettings(tab, extra);
+  // The add-on buttons (toast, reels, the post generator) all send one event; it opens Settings > העסק שלי at the add-ons.
+  const openAddonsRef = useRef(null);
+  openAddonsRef.current = () => {
+    setSettingsGroup("business");
+    openSettings();
+    setTimeout(() => { try { document.getElementById("billing-addons")?.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* not rendered yet */ } }, 700);
+  };
+  useEffect(() => {
+    const on = () => openAddonsRef.current?.();
+    window.addEventListener(OPEN_ADDONS_EVENT, on);
+    return () => window.removeEventListener(OPEN_ADDONS_EVENT, on);
+  }, []);
 
   // Has anything in the panel changed? Compared by value against the saved
   // state, not tracked by a flag, so typing a character and typing it back out
@@ -9875,6 +9895,9 @@ ${MARKETING_FOOTER}`)}`;
  {reelError&&(
  <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-md)",padding:"12px 16px",marginBottom:16}}>
  <p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600}}>{reelError}</p>
+ {addonPackForMessage(reelError)&&(
+ <button type="button" data-testid="addon-offer-reels" onClick={openAddons} className="primary-btn" style={{marginTop:10,background:"var(--pc-grad)",color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:600,padding:"10px 16px",minHeight:44,borderRadius:"var(--r-sm)",border:"none",cursor:"pointer",fontFamily:"inherit"}}>{addonButtonHe(addonPackForMessage(reelError))}</button>
+ )}
  </div>
  )}
 

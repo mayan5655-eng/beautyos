@@ -22,6 +22,8 @@ import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
 import { subscriptionDoc } from '../kalmeaBusiness.ts';
 import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
+import type { AddonPack } from '../pricing.ts';
+import { periodMonth } from '../addonQuota.ts';
 
 export const REGULAR_PRICE = 499;
 export const RETRY_OFFSETS_DAYS = [1, 3, 5] as const;
@@ -59,7 +61,7 @@ export type PaymentRecord = {
   id: string;
   tenant_id: string;
   subscription_id: string | null;
-  kind: 'subscription' | 'manual';
+  kind: 'subscription' | 'manual' | 'addon';
   /** pending: saved before the provider was called. unknown: the provider's answer never settled (looked up again before any new charge). */
   status: 'succeeded' | 'failed' | 'pending' | 'unknown';
   /** Grow's transactionUniqueIdentifier for this charge (null on manual payments and on rows from before it existed). */
@@ -95,6 +97,8 @@ export type BillingRepo = {
   pendingInvoices(): Promise<PaymentRecord[]>;
   getTenant(tenantId: string): Promise<TenantRow | null>;
   setPlanStatus(tenantId: string, status: 'active' | 'expired'): Promise<void>;
+  /** Credits an add-on pack after its charge succeeded (add_billing_addons.sql). Optional: absent = packs cannot be bought. */
+  insertAddon?(row: { tenant_id: string; pack: string; units: number; usd_allowance: number; price: number; period_month: string; payment_id: string }): Promise<void>;
 };
 
 export type Deps = { repo: BillingRepo; payments: PaymentsAdapter; invoicing: InvoicingAdapter; now?: () => Date; /** Draws a charge identifier (tests pin it). */ newIdentifier?: () => number };
@@ -237,7 +241,8 @@ async function settleOpen(d: Deps, sub: Subscription, tenant: TenantRow | null, 
 async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | null) {
   try {
     const doc = subscriptionDoc(pay.amount);
-    const inv = await d.invoicing.issueInvoice({ docType: doc.docType, vatAmount: doc.vatAmount, tenantId: pay.tenant_id, businessName: tenant?.name || '', amount: pay.amount, currency: pay.currency, description: 'מנוי קלמיה', providerPaymentId: pay.provider_payment_id || pay.id });
+    const description = pay.kind === 'addon' ? 'תוספת לקלמיה' : 'מנוי קלמיה';
+    const inv = await d.invoicing.issueInvoice({ docType: doc.docType, vatAmount: doc.vatAmount, tenantId: pay.tenant_id, businessName: tenant?.name || '', amount: pay.amount, currency: pay.currency, description, providerPaymentId: pay.provider_payment_id || pay.id });
     if (inv.ok) await d.repo.updatePayment(pay.id, { invoice_status: 'issued', invoice_number: inv.number, invoice_url: inv.url });
     else { console.warn('[billing] invoice not issued for payment', pay.id, inv.error); await d.repo.updatePayment(pay.id, { invoice_status: 'pending' }); }
   } catch (e) {
@@ -245,6 +250,73 @@ async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | nul
     console.warn('[billing] invoice threw for payment', pay.id, (e as Error)?.message);
     await d.repo.updatePayment(pay.id, { invoice_status: 'pending' }).catch(() => {});
   }
+}
+
+// ── add-on packs ─────────────────────────────────────────────────────────────
+
+export type BuyAddonResult =
+  | { ok: true; payment: PaymentRecord }
+  | { ok: false; reason: 'no-card' | 'declined' | 'pending' | 'not-configured' | 'unavailable'; error: string };
+
+/**
+ * She buys one add-on pack (lib/pricing.ts ADDON_PACKS) for THIS month: one charge to the card saved for her subscription, then the units are
+ * credited (billing_addons), which the AI quota reads on the server. The same ledger discipline as the monthly charge: the payment row and its
+ * unique identifier are saved BEFORE the provider is called, a lost or duplicate answer is looked up and never re-charged with a new
+ * identifier, and the units are credited only for a charge the provider confirmed. An unsettled charge ('pending') credits nothing; the
+ * operator settles it from the provider's records.
+ */
+export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack): Promise<BuyAddonResult> {
+  if (!d.repo.insertAddon) return { ok: false, reason: 'unavailable', error: 'add-on packs are not set up' };
+  const now = clock(d);
+  const sub = await d.repo.getSub(tenantId);
+  if (!sub || !sub.token_ref || sub.status === 'canceled') return { ok: false, reason: 'no-card', error: 'no saved card' };
+  const tenant = await d.repo.getTenant(tenantId);
+  const month = periodMonth(now);
+  const description = `תוספת לקלמיה: +${pack.units} ${pack.unitHe}`;
+  const base = { tenant_id: tenantId, subscription_id: sub.id, kind: 'addon' as const, amount: pack.price, currency: CURRENCY, period_start: month, period_end: null, attempt: 1, provider: 'card', note: pack.key };
+
+  let pay: PaymentRecord | null = null;
+  let uid = 0;
+  for (let tries = 0; tries < 5 && !pay; tries++) {
+    uid = (d.newIdentifier || newUniqueIdentifier)();
+    try {
+      pay = await d.repo.insertPayment({ ...base, status: 'pending', provider_payment_id: null, error: null, invoice_status: 'none', invoice_number: null, invoice_url: null, unique_identifier: uid });
+    } catch (e) {
+      if (!/unique|duplicate|23505/i.test(String((e as Error)?.message))) throw e;
+    }
+  }
+  if (!pay) throw new Error('could not draw a free charge identifier');
+  const row = pay;
+
+  const credit = async (providerPaymentId: string, invoiceNumber?: string, invoiceUrl?: string): Promise<BuyAddonResult> => {
+    const hasDoc = !!invoiceUrl && /^https:\/\//i.test(invoiceUrl);
+    await d.repo.updatePayment(row.id, { status: 'succeeded', provider_payment_id: providerPaymentId, error: null, ...(hasDoc ? { invoice_status: 'issued', invoice_number: invoiceNumber || null, invoice_url: invoiceUrl } : { invoice_status: 'pending' }) });
+    await d.repo.insertAddon!({ tenant_id: tenantId, pack: pack.key, units: pack.units, usd_allowance: pack.usdPerPack, price: pack.price, period_month: month, payment_id: row.id });
+    const done = { ...row, status: 'succeeded' as const, provider_payment_id: providerPaymentId };
+    if (!hasDoc) await issueInvoice(d, done, tenant);
+    return { ok: true, payment: done };
+  };
+
+  const res = await d.payments.charge({
+    tokenRef: sub.token_ref, amount: pack.price, currency: CURRENCY, description, idempotencyKey: `addon:${row.id}`,
+    uniqueIdentifier: uid, groupIdentifier: groupIdentifierOf(sub.id), fullName: tenant?.name || undefined, phone: tenant?.phone || undefined,
+  }).catch((e) => ({ ok: false as const, code: 'unreachable' as const, error: String(e?.message || e) }));
+
+  if (res.ok) return credit(res.providerPaymentId, res.invoiceNumber, res.invoiceUrl);
+
+  if (res.code === 'duplicate' || (res.code === 'unreachable' && d.payments.lookup)) {
+    // The money may have moved: look it up by the same identifier; never charge a new one blindly.
+    const r = d.payments.lookup ? await d.payments.lookup(sub.token_ref, uid).catch(() => null) : null;
+    if (r && r.ok && r.found && r.status === 'paid') return credit(r.providerPaymentId || `uid:${uid}`);
+    if (!(r && r.ok && (r.status === 'failed' || !r.found))) {
+      await d.repo.updatePayment(row.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
+      console.warn('[billing] add-on charge outcome unknown for tenant', tenantId, 'identifier', uid);
+      return { ok: false, reason: 'pending', error: 'waiting for the provider' };
+    }
+  }
+
+  await d.repo.updatePayment(row.id, { status: 'failed', error: String(res.error).slice(0, 200) });
+  return { ok: false, reason: res.code === 'not-configured' ? 'not-configured' : 'declined', error: String(res.error).slice(0, 200) };
 }
 
 // ── saving a card ────────────────────────────────────────────────────────────

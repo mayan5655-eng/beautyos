@@ -24,6 +24,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { reportCounterFailure } from './ai/callCaps.ts';
+import { addonPacksEnabled, ADDON_PACKS } from './pricing.ts';
+import { purchasedAddons } from './addonQuota.ts';
 
 /** Rows in ai_usage carry this call_site for the scanner. */
 export const SKIN_SCAN_CALL_SITE = 'skin-scan';
@@ -108,9 +110,12 @@ interface CountQuery extends PromiseLike<CountResult> {
 
 export async function getQuotaStatus(
   tenantId: string,
-  opts: { db?: { from: (t: string) => CountQuery } | null; now?: Date; alert?: Parameters<typeof reportCounterFailure>[3] } = {}
+  opts: { db?: { from: (t: string) => CountQuery } | null; now?: Date; alert?: Parameters<typeof reportCounterFailure>[3]; purchasedUnits?: number } = {}
 ): Promise<QuotaStatus> {
-  const limit = monthlyLimit();
+  // With add-on packs on (lib/pricing.ts): the included scans plus the packs bought this month. Off: the anti-abuse ceiling, unchanged.
+  const limit = addonPacksEnabled() && tenantId
+    ? ADDON_PACKS.skinscan.included + (opts.purchasedUnits ?? (await purchasedAddons(tenantId, { now: opts.now })).skinscan.units)
+    : monthlyLimit();
   if (!tenantId) return { used: 0, limit, remaining: limit, exceeded: false, unknown: true };
   // (No tenant: nothing to charge it to and nothing to count - the one case that is allowed through.)
 
