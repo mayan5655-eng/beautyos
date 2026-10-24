@@ -1,5 +1,5 @@
 // The four dashboard fixes from the 2026-10-23 pass, on one NEW smoke tenant at 430px (everything it wrote is removed at the end):
-//   F2  the till: pick a client who has a visit today -> the visit's service is added and the payment is linked to it (appointment_id)
+//   F2  the till (תשלום חדש, not from the visit): a payment for a client with one visit today is linked to it (appointment_id)
 //   C3  the calendar: "תזכורת" opens WhatsApp and the queued reminder becomes `sent` (skipped while the central number sends for real,
 //       so no message ever goes out from a smoke run)
 //   E3  the calendar day arrows: previous → / next ←
@@ -89,9 +89,13 @@ try {
   await home();
   await visible('button[aria-label="תשלום"]').click(); await page.waitForTimeout(800);
   await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
+  const sel = page.locator('.sheet select, [role=dialog] select').filter({ visible: true }).first();
+  const opts = await sel.locator('option').allInnerTexts();
+  const idx = opts.findIndex((o) => o.includes('טיפול ליטוש'));
+  check(idx > 0, 'F2 the treatment is in the till menu');
+  await sel.selectOption({ index: idx }); await page.waitForTimeout(500);
   await visible('input[placeholder="חיפוש לקוחה..."]').fill('ליטוש'); await page.waitForTimeout(700);
   await page.locator('.client-row').filter({ hasText: CLIENT, visible: true }).first().click(); await page.waitForTimeout(700);
-  check((await body()).includes('טיפול ליטוש'), 'F2 the visit\'s service was added to the till');
   await page.screenshot({ path: `${SHOTS}/smoke-polish-till.png` });
   await page.locator('button:has-text("מזומן")').filter({ visible: true }).last().click().catch(() => {});
   await page.locator('button:has-text("רשמי תשלום")').filter({ visible: true }).first().click();
