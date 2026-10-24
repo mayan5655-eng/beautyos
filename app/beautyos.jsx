@@ -66,6 +66,7 @@ const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false })
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
 import { slugError, slugify } from "@/lib/slug";
+import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
@@ -11786,7 +11787,7 @@ ${MARKETING_FOOTER}`)}`;
                         {slugDraft===null?(
  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:600,direction:"ltr",wordBreak:"break-all"}}>{origin.replace(/^https?:\/\//,"")}/{mySlug||"…"}</span>
- <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug||slugify(settings.business_name||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
+ <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug&&!/[א-ת]/.test(mySlug)?mySlug:(latinSlugFromName(settings.business_name||"")||mySlug||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
  </div>
                         ):(<>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -11798,8 +11799,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>{setSlugDraft(null);setSlugNote("");}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  <button onClick={saveSlug} disabled={slugBusy||!!slugError(slugDraft)} style={{flex:2,background:pcGrad,border:"none",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--pc-contrast)",cursor:"pointer",fontFamily:"inherit",opacity:(slugBusy||!!slugError(slugDraft))?0.5:1}}>{slugBusy?<Spinner inline label="שומרת"/>:"שמירת הכתובת"}</button>
  </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. הקישור הישן ימשיך לעבוד תמיד.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. כתובת באנגלית נשארת קצרה ונקייה כשמעתיקים אותה לאינסטגרם ולוואטסאפ. הקישור הישן ימשיך לעבוד תמיד.</p>
                         </>)}
+                        {slugDraft===null&&mySlug&&/[א-ת]/.test(mySlug)&&<p data-testid="hebrew-slug-hint" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כתובת בעברית הופכת לרצף ארוך של סימנים כשמעתיקים אותה. כדאי לבחור כתובת באנגלית, והישנה תמשיך לעבוד.</p>}
  </div>
                     )}
                     {settings?.tenant_id&&(
