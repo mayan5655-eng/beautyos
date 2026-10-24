@@ -21,7 +21,7 @@ export default function ClientReferral({ client, clients, publicUrl, businessNam
   const copy = async () => {
     try { await navigator.clipboard.writeText(message); toast?.('ההודעה עם הקישור האישי הועתקה'); } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); }
   };
-  const btn = { padding: '8px 12px', minHeight: 40, borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontWeight: 700, fontSize: 'var(--t-xs)', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
+  const btn = { padding: '8px 12px', minHeight: 44, borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontWeight: 700, fontSize: 'var(--t-xs)', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' };
 
   return (
     <div data-testid="client-referral" style={{ background: pcTint, borderRadius: 'var(--r-md)', padding: '10px 12px', margin: '10px 0' }}>

@@ -7102,7 +7102,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return (
  <div style={{display:"inline-flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
         {segs.map(([id,label])=>(
- <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
+ <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",minHeight:44,fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
             {label}{id==="leads"&&newLeadsCount>0&&<span style={{background:activeTab===id?"rgba(255,255,255,0.35)":pcGrad,color:activeTab===id?"inherit":"var(--pc-contrast)",fontSize:"var(--t-xs)",fontWeight:700,padding:"1px 7px",borderRadius:"var(--r-full)"}}>{newLeadsCount}</span>}
  </button>
         ))}
@@ -8281,7 +8281,7 @@ ${MARKETING_FOOTER}`)}`;
           )}
 
  <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);}}
-            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
+            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
             ✦ קביעת תור
  </button>
  </aside>
@@ -12635,7 +12635,7 @@ ${MARKETING_FOOTER}`)}`;
               const statusColor=STATUS_COLORS[c.status]||"var(--warning)";
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:14}}>
  <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<SignedImage value={c.images[0]} alt={c.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={c.name[0]}/>:c.name[0]}</div>
  <div style={{flex:1}}>
@@ -12658,7 +12658,7 @@ ${MARKETING_FOOTER}`)}`;
  {/* Book an appointment for THIS client — opens the existing new-appointment
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
- <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",minHeight:44,fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
      nails-only tenant (skinScanVisible derives that from business_fields
      when she hasn't explicitly toggled it in Settings); existing scan
@@ -12694,7 +12694,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                   {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים${deferred.forms==="ok"?` (${cForms.length})`:""}`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -12970,7 +12970,7 @@ ${MARKETING_FOOTER}`)}`;
               const st=leadStatusMeta(l.status);
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:13}}>
  <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
  <div style={{flex:1}}>

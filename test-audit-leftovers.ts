@@ -59,3 +59,9 @@ assert.ok(/שישי עד 14:00 ושבת סגור/.test(read('./app/onboarding/pa
 
 // ── a malformed VAPID key never takes down the routes that import ownerNotify ──
 assert.ok(/try \{\s+webpush\.setVapidDetails\("mailto:support@kalmea\.app"/.test(read('./lib/ownerNotify.js')), 'setVapidDetails is guarded');
+
+// ── phone tap targets measured on the preview (2026-10-24): client card tabs, drawer close, empty-state and referral buttons ──
+assert.ok(/onClick=\{\(\)=>setClientTab\(t\.k\)\} style=\{\{background:"none",border:"none",padding:"9px 9px",minHeight:44,/.test(read('./app/beautyos.jsx')), 'client card tabs 44px');
+assert.ok(!/className="drawer-close"[^>]*width:34,height:34/.test(read('./app/beautyos.jsx')), 'drawer close 44px');
+assert.equal((read('./app/EmptyState.jsx').match(/minHeight: 44/g) || []).length, 3, 'empty-state buttons 44px');
+assert.ok(/minHeight: 44/.test(read('./app/ClientReferral.jsx')) && /minHeight: 44/.test(read('./app/MarketingToday.jsx')), 'referral and marketing buttons 44px');
