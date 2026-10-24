@@ -65,7 +65,26 @@ try {
   const refused = await page.evaluate(async () => { const r = await fetch('/api/marketing/reel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: 'בדיקה', duration: 15, vibe: 'calm' }) }); return { code: r.status, json: await r.json().catch(() => null) }; });
   check(refused.code === 429 && /ניצלנו כבר את יצירות הוידאו של החודש/.test(refused.json?.error || ''), `the 7th reel is refused on the server (${refused.code}: ${(refused.json?.error || '').slice(0, 60)})`);
 
-  await openAddons();
+  // The advisor at its 60 included questions (usage rows again, no AI called): her question is refused, and the error toast carries the
+  // pack's button, which opens the add-ons in Settings.
+  const adv = Array.from({ length: 60 }, () => ({ tenant_id: tenantId, call_site: 'advisor', model: 'smoke', input_tokens: 0, output_tokens: 0, cost_usd: 0 }));
+  const advIns = await db.from('ai_usage').insert(adv);
+  check(!advIns.error, `60 advisor usage rows for the smoke tenant${advIns.error ? ` (${advIns.error.message})` : ''}`);
+  await visible('button[aria-label="תפריט ניווט"]').click(); await page.waitForTimeout(600);
+  await visible('.nav-item:has-text("יועץ AI")').click(); await page.waitForTimeout(2500); await skipTour();
+  await visible('textarea').fill('כמה הכנסתי החודש?');
+  await page.keyboard.press('Enter');
+  const toastBtn = page.locator('.toast button:has-text("+100 שאלות ליועצת ב-39 ₪")').filter({ visible: true }).first();
+  await toastBtn.waitFor({ timeout: 30000 }).catch(() => {});
+  check(await toastBtn.count() === 1, 'advisor at its limit: the refusal toast carries "+100 שאלות ליועצת ב-39 ₪"');
+  await page.screenshot({ path: `${SHOTS}/smoke-addons-toast.png` });
+  if (await toastBtn.count()) {
+    await toastBtn.click();
+    await page.locator('[data-testid="billing-addons"]').filter({ visible: true }).first().waitFor({ timeout: 15000 }).catch(() => {});
+    check(await visible('[data-testid="billing-addons"]').count() === 1, 'the toast button opens the add-ons in Settings');
+  } else {
+    await openAddons();
+  }
   const block = visible('[data-testid="billing-addons"]');
   check(await block.count() === 1, 'Settings shows "מה כלול החודש, ותוספות"');
   const btext = (await block.innerText().catch(() => '')).replace(/\s+/g, ' ');
