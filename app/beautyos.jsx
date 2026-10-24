@@ -65,7 +65,7 @@ import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false });
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
-import { slugError, slugify } from "@/lib/slug";
+import { slugError } from "@/lib/slug";
 import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
