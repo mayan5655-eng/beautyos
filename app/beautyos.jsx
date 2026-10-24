@@ -6301,9 +6301,17 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (data && data[0]) setOfferings(prev => prev.map(x => x.id === o.id ? data[0] : x));
   };
 
+  const freePackageOk = useRef(false);
   const handleSavePackage = async () => {
     if (guardWrite()) return;
     if(!newPackage.client_id||!newPackage.service){toast("חסרים לקוחה ושירות, אפשר לבחור","error");return;}
+    // A free package is real (a comped series), but a forgotten price used to save as ₪0 without a word and
+    // record no payment (2026-10-24 sweep). Ask once; the confirmed path comes back with free=true.
+    if(!(Number(newPackage.price)>0)&&!freePackageOk.current){
+      askConfirm({title:"חבילה בלי מחיר",message:"לא הוזן מחיר לחבילה. לשמור אותה כמתנה, בלי לרשום תשלום?",confirmText:"כן, בלי תשלום",cancelText:"להוסיף מחיר",onConfirm:()=>{freePackageOk.current=true;handleSavePackage();}});
+      return;
+    }
+    freePackageOk.current=false;
     if(isBusy("savePackage")) return;
     setBusyKey("savePackage", true);
     try {
@@ -6441,7 +6449,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const handleSaveWaitlist = async () => {
     if (guardWrite()) return;
-    if(!newWaitlist.client_name||!newWaitlist.service){toast("חסרים כמה פרטים, אפשר להשלים","error");return;}
+    if(!newWaitlist.client_name||!newWaitlist.service){toast(!newWaitlist.client_name?"בחרי לקוחה לרשימת ההמתנה":"בחרי טיפול לרשימת ההמתנה","error");return;}
     if(isBusy("saveWaitlist")) return;
     setBusyKey("saveWaitlist", true);
     try {
