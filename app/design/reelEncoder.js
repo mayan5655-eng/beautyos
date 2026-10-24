@@ -25,6 +25,16 @@ export async function canEncodeMusic() {
   try { return await canEncodeAudio('aac', { numberOfChannels: AUDIO.channels, sampleRate: AUDIO.sampleRate, bitrate: AUDIO.bitrate }); } catch { return false; }
 }
 
+/**
+ * An encoder that stops answering is a failure, not a wait: without this an iPhone whose encoder hangs (instead of
+ * throwing) left her on "מקודדת" forever. The caller then moves on to the next preset.
+ */
+const STALL_MS = 20_000;
+function withStall(promise, what) {
+  let t;
+  return Promise.race([promise, new Promise((_, reject) => { t = setTimeout(() => reject(new Error(`encoder stalled: ${what}`)), STALL_MS); })]).finally(() => clearTimeout(t));
+}
+
 /** Her music, decoded and laid out to exactly the reel's length: looped if short, faded out at the end. */
 async function musicBuffer(url, seconds) {
   const bytes = await (await fetch(url)).arrayBuffer();
@@ -66,14 +76,14 @@ export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl 
     audio = new AudioBufferSource({ codec: 'aac', bitrate: new Quality({ bitrate: AUDIO.bitrate }) });
     output.addAudioTrack(audio);
   }
-  await output.start();
+  await withStall(output.start(), 'start');
   try {
     const n = frameCount(totalMs, preset.fps);
     const dt = 1 / preset.fps;
     for (let i = 0; i < n; i++) {
       if (shouldStop?.()) throw new Error('stopped');
       drawAt(ctx, Math.min(frameTimeMs(i, preset.fps), totalMs));
-      await video.add(i * dt, dt);
+      await withStall(video.add(i * dt, dt), `frame ${i}`);
       if (i % 6 === 0) onProgress?.(i / n);
     }
     video.close();
@@ -81,7 +91,7 @@ export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl 
       await audio.add(await musicBuffer(musicUrl, n * dt));
       audio.close();
     }
-    await output.finalize();
+    await withStall(output.finalize(), 'finalize');
   } catch (e) {
     try { await output.cancel(); } catch { /* ignore */ }
     throw e;

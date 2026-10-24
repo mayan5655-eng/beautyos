@@ -62,5 +62,15 @@ const panel = fs.readFileSync('app/design/SaveShare.jsx', 'utf8');
 // navigator.share must be called straight from the tap, with nothing awaited before it
 assert.doesNotMatch(panel, /await[^\n]*\n[^\n]*navigator\.share/, 'nothing is awaited before navigator.share');
 assert.match(panel, /readAsDataURL/, 'the long-press picture is a data: image');
+// iPhone, 2026-10-24: a clipboard write in the same tap makes Safari refuse navigator.share. The share handler
+// calls navigator.share and nothing that touches the clipboard.
+const shareFn = panel.slice(panel.indexOf('const share = () => {'), panel.indexOf('const download = () => {'));
+assert.ok(shareFn.includes('navigator.share('), 'the share handler shares');
+assert.doesNotMatch(shareFn, /clipboard|copyCaption\(/, 'and never copies in the same tap');
+const dlFn = panel.slice(panel.indexOf('const download = () => {'), panel.indexOf('const copyLink'));
+assert.doesNotMatch(dlFn, /clipboard|copyCaption\(/, 'the download does not copy either');
+assert.match(panel, /data-testid="save-share-copy"/, 'the caption has its own copy button');
+const enc = fs.readFileSync('app/design/reelEncoder.js', 'utf8');
+assert.match(enc, /withStall\(video\.add/, 'a hung encoder fails instead of spinning forever');
 
 console.log('post share: ok');

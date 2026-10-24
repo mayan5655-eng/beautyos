@@ -28,8 +28,11 @@ log('base', BASE, 'account', email, 'tenant', tenantId);
 const STUB = (canShare) => `
   window.__shares = [];
   try { localStorage.setItem('bloomos-ios-install-dismissed', '1'); } catch { /* the iPhone add-to-home-screen hint */ }
+  // Safari: a clipboard write uses up the tap, so a share in the same tap is refused (NotAllowedError). Modelled here.
+  try { const w = navigator.clipboard.writeText.bind(navigator.clipboard); navigator.clipboard.writeText = (t) => { window.__clipAt = performance.now(); return w(t); }; } catch { /* no clipboard */ }
   Object.defineProperty(navigator, 'canShare', { configurable: true, value: ${canShare ? '(d) => !!(d && d.files && d.files.length)' : 'undefined'} });
   Object.defineProperty(navigator, 'share', { configurable: true, value: ${canShare ? `async (d) => {
+    if (window.__clipAt && performance.now() - window.__clipAt < 100) throw new DOMException('The request is not allowed by the user agent', 'NotAllowedError');
     const f = d.files[0];
     window.__shares.push({ active: navigator.userActivation ? navigator.userActivation.isActive : null, name: f.name, type: f.type, size: f.size, head: Array.from(new Uint8Array(await f.slice(0, 8).arrayBuffer())) });
   }` : 'undefined'} });`;
