@@ -5,6 +5,7 @@
 //   3. inside Instagram's in-app browser: the "open in Safari/Chrome" note
 // Chromium cannot open a real share sheet, so navigator.share/canShare are stubbed to RECORD the call.
 // node --env-file=.env.local scripts/smoke/post-share.mjs (SMOKE_BASE=<preview>). The tenant is removed at the end.
+import { chromium, firefox, webkit } from 'playwright';
 import { launch, PASSWORD, BASE, admin, newEmail, tenantIdOf, REAL_TENANT } from './lib.mjs';
 import { purgeTenant } from './admin-tools.mjs';
 
@@ -39,8 +40,25 @@ const STUB = (canShare) => `
 
 const visibleBtn = (page, text) => page.locator(`button:has-text("${text}")`).filter({ visible: true }).first();
 
+// SMOKE_BROWSER=chrome | msedge | firefox | webkit runs the same flow in that engine (default: Playwright's Chromium).
+const ENGINE = process.env.SMOKE_BROWSER || '';
+async function open(ua) {
+  if (!ENGINE) return launch({ userAgent: ua, isMobile: true, hasTouch: true, permissions: ['clipboard-read', 'clipboard-write'] });
+  const type = ENGINE === 'firefox' ? firefox : ENGINE === 'webkit' ? webkit : chromium;
+  const browser = await type.launch(ENGINE === 'chrome' || ENGINE === 'msedge' ? { channel: ENGINE } : {});
+  const opts = { viewport: { width: 430, height: 900 }, locale: 'he-IL', userAgent: ua, hasTouch: true };
+  if (ENGINE !== 'firefox') opts.isMobile = true;
+  if (type === chromium) opts.permissions = ['clipboard-read', 'clipboard-write'];
+  const ctx = await browser.newContext(opts);
+  const page = await ctx.newPage();
+  const problems = [];
+  page.on('pageerror', (e) => problems.push(`pageerror: ${String(e.message).slice(0, 240)}`));
+  page.on('response', (r) => { if (r.status() >= 500) problems.push(`HTTP ${r.status()} ${r.url().slice(0, 140)}`); });
+  return { browser, ctx, page, problems };
+}
+
 async function run(label, ua, canShare, onboard) {
-  const { browser, ctx, page, problems } = await launch({ userAgent: ua, isMobile: true, hasTouch: true, permissions: ['clipboard-read', 'clipboard-write'] });
+  const { browser, ctx, page, problems } = await open(ua);
   await ctx.addInitScript(STUB(canShare));
   try {
     await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1500);
