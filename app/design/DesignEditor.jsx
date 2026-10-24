@@ -20,6 +20,8 @@ import Sheet from '../Sheet';
 import CesdkEditor from './CesdkEditor';
 import { EDITOR_AVAILABLE } from './renderers';
 import AiFill from './AiFill';
+import SaveShare from './SaveShare';
+import { isTouchDevice } from '@/lib/design/sharePost';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const label = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4, display: 'block' };
@@ -44,13 +46,22 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
     try { await navigator.clipboard.writeText(text); toast?.('הטקסט הועתק'); } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); }
   };
   const shareWhatsApp = () => { const text = captionFull(); window.open(`https://wa.me/?text=${encodeURIComponent(text || name)}`, '_blank', 'noopener'); };
-  const shareFacebook = async () => { await copyCaption(); window.open('https://www.facebook.com/', '_blank', 'noopener'); toast?.('הטקסט הועתק. הורידי את התמונה וצרפי אותה לפוסט'); };
+  const shareFacebook = async () => { await copyCaption(); window.open('https://www.facebook.com/', '_blank', 'noopener'); toast?.('הטקסט הועתק. שמרי את התמונה בכפתור "שמירה ושיתוף" וצרפי אותה לפוסט'); };
   const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pickSlot, setPickSlot] = useState(null);
   const [error, setError] = useState('');
+  // The finished PNG, waiting in the save/share panel for her tap (a phone only shares from a fresh tap).
+  const [ready, setReady] = useState(null);
+  const pngName = () => `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`;
+  const showReady = (blob) => {
+    setReady(blob);
+    // A computer keeps the one-click download it always had; a phone gets the panel only (a blob download there
+    // lands in Files, or nowhere, instead of in her gallery).
+    if (!isTouchDevice(navigator.userAgent, navigator.maxTouchPoints)) downloadBlob(blob, pngName());
+  };
 
   // State starts from the row; the parent remounts this editor (key=design.id)
   // when another design opens, so no effect has to reset anything.
@@ -80,9 +91,9 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
     setExporting(true); setError('');
     try {
       const blob = await renderTemplateBlob(template, fill, overrides);
-      downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`);
+      showReady(blob);
       if (!readOnly && settings?.tenant_id) {
-        try { const path = await uploadExport(blob, settings.tenant_id, design.id, design.export_path); onSaved?.(await patch({ export_path: path })); } catch { /* the download already happened */ }
+        try { const path = await uploadExport(blob, settings.tenant_id, design.id, design.export_path); onSaved?.(await patch({ export_path: path })); } catch { /* the picture is already in her hands */ }
       }
     } catch (e) { setError(String(e.message || e)); } finally { setExporting(false); }
   };
@@ -202,7 +213,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
               <button onClick={shareWhatsApp} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="whatsapp" size={14} /> וואטסאפ</button>
               <button onClick={shareFacebook} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="share" size={14} /> פייסבוק</button>
             </div>
-            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: הורידי את ה-PNG למטה והדביקי את הטקסט.</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: "שמירה ושיתוף" למטה שומר את התמונה בגלריה או שולח אותה ישר, והטקסט מועתק באותה לחיצה.</p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
@@ -210,7 +221,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
               {saving ? <Spinner inline label="שומרת" /> : dirty ? 'שמירה' : 'נשמר'}
             </button>
             <button onClick={exportPng} disabled={exporting} className="primary-btn" style={{ padding: '11px 18px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
-              {exporting ? <Spinner inline label="מייצאת" /> : <><Icon name="download" size={14} /> הורדת PNG</>}
+              {exporting ? <Spinner inline label="מייצאת" /> : <><Icon name="share" size={14} /> שמירה ושיתוף</>}
             </button>
             <button onClick={duplicate} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="copy" size={14} /> שכפול</button>
             <button onClick={makeDefault} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="star" size={14} /> {design.is_default ? 'לא ברירת מחדל' : 'ברירת מחדל לקטגוריה'}</button>
@@ -229,12 +240,14 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             <CesdkEditor
               template={template} fill={fill} overrides={overrides} values={values}
               onChange={(next) => { setOverrides(next.overrides); setValues((p) => ({ ...p, ...next.values })); setDirty(true); }}
-              onExport={(blob) => downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`)}
+              onExport={(blob) => showReady(blob)}
               onClose={() => setAdvanced(false)}
             />
           )}
         </Sheet>
       )}
+
+      <SaveShare open={!!ready} onClose={() => setReady(null)} blob={ready} kind="image" ext="png" downloadName={pngName()} caption={captionFull()} toast={toast} />
 
       <ImagePicker
         key={pickSlot ? pickSlot.key : 'none'}

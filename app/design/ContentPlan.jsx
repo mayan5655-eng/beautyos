@@ -23,6 +23,7 @@ import { getTemplate } from '@/lib/design/templates';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { renderTemplateBlob } from './canvasRender';
 import { uploadPostPicture } from './contentMedia';
+import SaveShare from './SaveShare';
 
 const PLATFORM_HE = { instagram: 'אינסטגרם', facebook: 'פייסבוק' };
 const LIMITS = { instagram: 2200, facebook: 5000 };
@@ -158,7 +159,7 @@ export default function ContentPlan({ settings, readOnly, toast, onCreate }) {
             ? <PublishPanel publish={state.publish} readOnly={readOnly} toast={toast} onPages={(pages) => setState((s) => ({ ...s, publish: { ...s.publish, pages } }))} />
             : (
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '6px 0 12px', padding: '8px 10px', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
-                פרסום אוטומטי לאינסטגרם ולפייסבוק ייפתח כאן אחרי האישור של Meta. עד אז, בכל פוסט יש העתקת טקסט והורדת התמונה בלחיצה.
+                פרסום אוטומטי לאינסטגרם ולפייסבוק ייפתח כאן אחרי האישור של Meta. עד אז, בכל פוסט יש העתקת טקסט ושמירה ושיתוף של התמונה בלחיצה.
               </p>
             )}
 
@@ -383,6 +384,18 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone,
     fetch('/api/content/items', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, platform: tab, copied: true }) }).catch(() => {});
   });
 
+  // The post's picture, in her hands: her own upload as stored, or the card drawn now. The panel then shares it
+  // from her tap (or offers the long-press save) - see SaveShare.
+  const [picture, setPicture] = useState(null);
+  const fullText = [text?.caption || '', (text?.hashtags || []).join(' ')].filter(Boolean).join('\n\n');
+  const savePicture = () => run('picture', async () => {
+    if (item.media_url) {
+      const res = await fetch(item.media_url);
+      if (!res.ok) throw new Error('לא הצלחנו לטעון את התמונה. רענני את הדף ונסי שוב.');
+      setPicture(await res.blob());
+    } else if (t && fill) setPicture(await renderTemplateBlob(t, fill));
+  });
+
   const dirty = draft.trim() !== (text?.caption || '').trim();
   const count = draft.length + (tab === 'instagram' && text?.hashtags?.length ? text.hashtags.join(' ').length + 2 : 0);
 
@@ -453,13 +466,15 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone,
         {item.status === 'planned' && <button type="button" style={primary} disabled={readOnly || !!busy} onClick={() => setStatus('approved', 'אושר. נזכיר לך ביום הפרסום')}>{busy === 'approved' ? <Spinner inline label="" /> : autoPublish ? 'מאשרת ומתזמנת' : 'מאשרת'}</button>}
         {dirty && <button type="button" style={primary} disabled={readOnly || busy === 'save'} onClick={saveText}>{busy === 'save' ? <Spinner inline label="" /> : 'שמירת הטקסט'}</button>}
         <button type="button" style={btn} disabled={!text?.caption || busy === 'copy'} onClick={copy}>העתקת טקסט</button>
-        {t && onCreate && <button type="button" style={btn} disabled={readOnly} onClick={() => onCreate(t, item.values || {})}>לתמונה ולהורדה</button>}
+        {(item.media_url || (t && fill)) && <button type="button" style={btn} disabled={busy === 'picture'} onClick={savePicture}>{busy === 'picture' ? <Spinner inline label="" /> : 'שמירה ושיתוף התמונה'}</button>}
+        {t && onCreate && <button type="button" style={btn} disabled={readOnly} onClick={() => onCreate(t, item.values || {})}>עריכת התמונה</button>}
         {item.status !== 'posted' && <button type="button" style={btn} disabled={readOnly} onClick={() => setEditTime((v) => !v)}>שינוי זמן</button>}
         {item.status === 'approved' && <button type="button" style={btn} disabled={readOnly || !!busy} onClick={() => setStatus('posted', 'סומן שפורסם')}>סימנתי שפורסם</button>}
         {item.status === 'approved' && <button type="button" style={btn} disabled={readOnly || !!busy} onClick={() => setStatus('planned')}>ביטול האישור</button>}
         {item.status !== 'posted' && <button type="button" style={{ ...btn, color: 'var(--ink-3)' }} disabled={readOnly || !!busy} onClick={() => setStatus('skipped')}>דילוג</button>}
       </div>
       {err && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: 0 }}>{err}</p>}
+      <SaveShare open={!!picture} onClose={() => setPicture(null)} blob={picture} kind="image" ext={picture?.type === 'image/jpeg' ? 'jpg' : 'png'} caption={fullText} toast={toast} />
     </div>
   );
 }

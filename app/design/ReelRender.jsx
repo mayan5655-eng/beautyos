@@ -22,7 +22,7 @@ import { useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import { CANVAS } from '@/lib/design/contract';
-import { downloadBlob } from './exportPng';
+import SaveShare from './SaveShare';
 import { resolveImageRef } from './images';
 import { renderLayersCanvas, drawImageLayer, drawGraphicLayer, boxPx, loadImage } from './canvasRender';
 import { pickRecorderMime, fileExtFor } from '@/lib/design/recorderMime';
@@ -79,6 +79,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
   const [video, setVideo] = useState(null); // { url, ext, blob }
   const [music, setMusic] = useState(null);
   const [error, setError] = useState('');
+  const [sharing, setSharing] = useState(false);
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -265,9 +266,11 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       {video && (
         <div style={{ marginTop: 12 }}>
           <video src={video.url} controls playsInline style={{ width: '100%', maxWidth: 240, borderRadius: 'var(--r-sm)', display: 'block', background: '#000' }} />
-          <button onClick={() => downloadBlob(video.blob, `${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
-            <Icon name="download" size={14} /> הורדת הסרטון ({video.ext})
+          {/* The share sheet needs her own tap, so the finished video waits in the panel for it. */}
+          <button onClick={() => setSharing(true)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
+            <Icon name="share" size={14} /> שמירה ושיתוף הסרטון ({video.ext})
           </button>
+          <SaveShare open={sharing} onClose={() => setSharing(false)} blob={video.blob} kind="video" ext={video.ext} downloadName={`${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`} toast={toast} />
           {video.ext !== 'mp4' && (
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 8 }}>הדפדפן הזה שומר את הסרטון בפורמט שאינסטגרם לא מקבלת. כדי לקבל קובץ שאפשר להעלות, יצרי את הרילס ב-Chrome מעודכן או בספארי.</p>
           )}
