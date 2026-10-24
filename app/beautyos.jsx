@@ -689,7 +689,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC } from "@/lib/importMapping";
+import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -4048,7 +4048,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       // Phone -> client id, digits only, so "054-123 4567" and "0541234567"
       // are the same person however her old system wrote them.
-      const digits = (p) => String(p||"").replace(/\D/g,"");
+      const digits = importPhoneKey;
       const byPhone = new Map();
       for (const c of clients) {
         const k = digits(c.phone);
@@ -4172,13 +4172,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // the same paste - which happens after a partial failure - must not
       // double the list.
       const existing = new Set(
-        clients.map(c => String(c.phone||"").replace(/\D/g,"")).filter(Boolean)
+        clients.map(c => importPhoneKey(c.phone)).filter(Boolean)
       );
       const seen = new Set();
       const fresh = [];
       let dupes = 0;
       for (const r of rows) {
-        const key = String(r.phone||"").replace(/\D/g,"");
+        const key = importPhoneKey(r.phone);
         if (key && (existing.has(key) || seen.has(key))) { dupes++; continue; }
         if (key) seen.add(key);
         fresh.push({ ...emptyClient, ...r, status:"active", ...tenantField });
@@ -10796,10 +10796,18 @@ ${MARKETING_FOOTER}`)}`;
    // How many people in this paste we have never seen, so she knows before
    // pressing the button that clients will be created too.
    const newClientCount = importTarget!=="appts" ? 0 : (()=>{
-     const have = new Set(clients.map(c=>String(c.phone||"").replace(/\D/g,"")).filter(Boolean));
+     const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
      const s = new Set();
-     built.rows.forEach(r=>{ const k=String(r.phone||"").replace(/\D/g,""); if(k&&!have.has(k)) s.add(k); });
+     built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(k&&!have.has(k)) s.add(k); });
      return s.size;
+   })();
+   // Clients already on file are skipped by the import (matched by phone), so the preview counts them
+   // too: it promised "3 will be created" when 1 of them would be skipped (2026-10-24 sweep).
+   const existingClientCount = importTarget!=="clients" ? 0 : (()=>{
+     const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
+     const s = new Set(); let n = 0;
+     built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(!k) return; if(have.has(k)||s.has(k)) n++; else s.add(k); });
+     return n;
    })();
    return (<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
@@ -10839,7 +10847,8 @@ ${MARKETING_FOOTER}`)}`;
  {!hasName
    ?<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה בתור «{missingLabels}» כדי להמשיך.</p>
    :<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
-      <strong style={{color:pcDeep}}>{built.rows.length} {importSpec.unit} ייווצרו</strong>
+      <strong style={{color:pcDeep}}>{built.rows.length-existingClientCount} {importSpec.unit} ייווצרו</strong>
+      {existingClientCount>0&&<> · {existingClientCount} כבר קיימות אצלך ולא ייווצרו שוב</>}
       {newClientCount>0&&<> · {newClientCount} לקוחות חדשות ייווצרו גם</>}
       {built.past>0&&<> · {built.past} דולגו — תאריך שכבר עבר</>}
       {built.noDate>0&&<> · {built.noDate} דולגו — תאריך לא ברור</>}
@@ -10864,7 +10873,7 @@ ${MARKETING_FOOTER}`)}`;
  )}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבאת"/>:`ייבוא ${built.rows.length} ${importSpec.unit}`}</button>
+ <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length-existingClientCount<=0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length-existingClientCount<=0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבאת"/>:`ייבוא ${built.rows.length-existingClientCount} ${importSpec.unit}`}</button>
  <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-md)",cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
  </div>
  </>);
