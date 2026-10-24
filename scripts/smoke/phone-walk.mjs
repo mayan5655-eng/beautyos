@@ -105,6 +105,8 @@ const sig = () => page.evaluate(() => {
 }).catch(() => ({ url: 'GONE', h: 0, fixed: 0, scroll: 0, ev: 0 }));
 
 async function restore(tabLabel, pre) {
+  // HARD=1: a fresh page load before every control, so one tap's leftovers (an open sheet, a changed setting) cannot hide the next control
+  if (process.env.HARD === '1') { await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }).catch(() => {}); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 30000 }).catch(() => {}); await skipOverlays(); await openTab(tabLabel); if (pre) await pre(); return; }
   // close whatever opened, then make sure we are back on the tab
   for (let i = 0; i < 3; i++) {
     await page.keyboard.press('Escape').catch(() => {}); await sleep(150);
@@ -154,7 +156,7 @@ async function crawl(name, tabLabel, { pre, max = 90, skip = /^(יציאה|הת�
     const row = { ...it, result: err ? 'click-failed' : changed || ev.length || dialogs.length || blocked.length ? 'effect' : 'NOTHING', err, urlTo: before.url !== after.url ? after.url : undefined, ev: ev.map((x) => `${x.kind}: ${x.info}`), dialogs: [...dialogs], blocked: [...blocked], newProblems: problems.slice(pe) };
     out.push(row);
     if (row.result !== 'effect' || row.newProblems.length || row.ev.some((e) => /BLOCKED|REFUSED|NOTHING/.test(e))) { log(row.result, it.tag, JSON.stringify(it.text), err || '', row.ev.join(' | '), row.newProblems.join(' | ')); await shot(`${name}-${it.i}-${row.result}`); }
-    if (changed || err) await restore(tabLabel, pre);
+    if (changed || err || process.env.HARD === '1') await restore(tabLabel, pre);
   }
   report.tabs[name] = out;
 }
