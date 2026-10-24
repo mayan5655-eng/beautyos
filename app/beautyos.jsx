@@ -3401,7 +3401,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The mount-only load missed two real paths on mobile: a PWA resumed from
   // the background (no remount, stale state), and navigating to the dashboard
   // tab after the mount already ran. Reload on both.
+  // Skipped on the FIRST run: the mount effect above already starts this load, and running both sent the same
+  // two reads (pending questions, then the yes/no counts) twice at boot - two requests and two CORS preflights
+  // on the critical path for nothing. Every later change of tab loads as before.
+  const questionLoadedOnMountRef = useRef(true);
   useEffect(() => {
+    if (questionLoadedOnMountRef.current) { questionLoadedOnMountRef.current = false; return; }
     if (activeTab === "dashboard") loadPendingQuestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
