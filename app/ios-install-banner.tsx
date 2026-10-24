@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import InstallBannerCard from "./InstallBannerCard";
+import { usePathname } from "next/navigation";
 import { inAppBrowser } from "@/lib/design/sharePost";
+import { isOwnerSurface } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
@@ -24,7 +26,10 @@ export default function IOSInstallBanner() {
   const [render, setRender] = useState(false);
   const [enter, setEnter] = useState(false);
 
+  // Only on her own screens: a client on the booking page has no use for "install Kalmea" (lib/ownerSurface.js).
+  const pathname = usePathname() || "";
   useEffect(() => {
+    if (!isOwnerSurface(pathname, document.cookie)) { setEnter(false); setRender(false); return; }
     const ua = window.navigator.userAgent;
     const isIOS = /iphone|ipad|ipod/i.test(ua);
     // Chrome/Firefox/Edge on iOS carry their own tokens; their share sheets
@@ -46,7 +51,7 @@ export default function IOSInstallBanner() {
       // Next frame → trigger the slide/fade-in transition.
       requestAnimationFrame(() => setEnter(true));
     }
-  }, []);
+  }, [pathname]);
 
   function dismiss() {
     try {

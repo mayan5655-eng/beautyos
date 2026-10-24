@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import InstallBannerCard from "./InstallBannerCard";
 import { inAppBrowser, isIos, openInBrowserHref } from "@/lib/design/sharePost";
+import { isOwnerSurface } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "kalmea-inapp-dismissed";
 const APP_HE: Record<string, string> = { instagram: "אינסטגרם", facebook: "פייסבוק", whatsapp: "וואטסאפ", tiktok: "טיקטוק", line: "LINE" };
 
 // Her own screens. The public booking page is left alone: her clients book from inside Instagram all the time, and a
 // booking works fine there.
-const OWNER_PATHS = ["/dashboard", "/login", "/signup", "/onboarding", "/reset-password"];
+// (lib/ownerSurface.js: also "/" when she is signed in, which is where her whole app lives.)
 
 /**
  * Kalmea opened inside Instagram's / Facebook's / WhatsApp's own browser (2026-10-24: a customer could not add it to
@@ -28,7 +29,7 @@ export default function InAppBrowserBanner() {
   const [ua, setUa] = useState("");
 
   useEffect(() => {
-    if (!OWNER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) { setApp(null); return; }
+    if (!isOwnerSurface(pathname, document.cookie)) { setApp(null); return; }
     const u = window.navigator.userAgent;
     const which = inAppBrowser(u);
     let dismissed = false;

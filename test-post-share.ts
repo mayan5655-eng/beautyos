@@ -85,7 +85,9 @@ console.log('post share: ok');
   assert.equal(openInBrowserHref(IG, 'javascript:alert(1)'), null, 'only https links');
   assert.equal(iab(IG), 'instagram');
   const banner = fs.readFileSync('app/in-app-browser-banner.tsx', 'utf8');
-  assert.match(banner, /OWNER_PATHS = \["\/dashboard"/, 'only on her own screens, never the public booking page');
+  assert.match(banner, /isOwnerSurface\(pathname/, 'only on her own screens (lib/ownerSurface.js), never the public booking page');
+  assert.match(fs.readFileSync('lib/ownerSurface.js', 'utf8'), /OWNER_PATHS = \['\/dashboard'/);
+  for (const f of ['app/ios-install-banner.tsx', 'app/install-prompt-banner.tsx']) assert.match(fs.readFileSync(f, 'utf8'), /isOwnerSurface\(pathname/, f + ': install hint only on her own screens');
   assert.match(fs.readFileSync('app/layout.tsx', 'utf8'), /<InAppBrowserBanner \/>/);
   assert.match(fs.readFileSync('app/ios-install-banner.tsx', 'utf8'), /!inAppBrowser\(ua\)/, 'no "Add to Home Screen" hint where it does not exist');
 }
