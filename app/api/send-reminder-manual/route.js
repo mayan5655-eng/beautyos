@@ -159,7 +159,7 @@ export async function POST(request) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
-      `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
+      `אם צריך לבטל, אפשר כאן: ${cancelLink}`
     );
 
     const result = await sendWhatsApp(phone, message, {

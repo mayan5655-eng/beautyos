@@ -645,7 +645,7 @@ function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmUrl}`,
-      `אם לא מתאים, אפשר לשנות כאן: ${cancelUrl}`
+      `אם צריך לבטל, אפשר כאן: ${cancelUrl}`
     )
   );
 }
@@ -5874,7 +5874,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
-      `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
+      `אם צריך לבטל, אפשר כאן: ${cancelLink}`
     );
   };
 

@@ -8,6 +8,8 @@ import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { detect } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '@/app/api/grow/_cancel';
+import { hebrewDate } from '@/lib/messages.js';
+import { fmtApptTime } from '@/lib/apptTime';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -99,6 +101,20 @@ export async function POST(request: NextRequest) {
         primaryColor: publicAccent(st),
       };
     } catch { /* unbranded, not broken */ }
+
+    // { peek: true }: the cancel page asks WHICH appointment before she taps "cancel", and changes nothing.
+    // Only after the signature check, and only what her own message already told her - treatment, day and
+    // time. No name, phone, price or ids (point 3 above still holds). 2026-10-23 pass: the page asked
+    // "לבטל את התור?" without saying which one.
+    if (body.peek === true) {
+      return NextResponse.json({
+        success: true,
+        peek: true,
+        ...brand,
+        status: appt.confirmation_status,
+        appointment: { service: appt.service || '', date: appt.date ? hebrewDate(appt.date) : '', time: fmtApptTime(appt) },
+      });
+    }
 
     // Idempotent, and compared against the requested ACTION rather than the
     // status alone - otherwise a confirmed appointment could never be cancelled
