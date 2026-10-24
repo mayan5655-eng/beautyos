@@ -270,7 +270,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
           <button onClick={() => setSharing(true)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
             <Icon name="share" size={14} /> שמירה ושיתוף הסרטון ({video.ext})
           </button>
-          <SaveShare open={sharing} onClose={() => setSharing(false)} blob={video.blob} kind="video" ext={video.ext} downloadName={`${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`} toast={toast} />
+          <SaveShare open={sharing} onClose={() => setSharing(false)} blob={video.blob} kind="video" source="reel" ext={video.ext} downloadName={`${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`} toast={toast} />
           {video.ext !== 'mp4' && (
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 8 }}>הדפדפן הזה שומר את הסרטון בפורמט שאינסטגרם לא מקבלת. כדי לקבל קובץ שאפשר להעלות, יצרי את הרילס ב-Chrome מעודכן או בספארי.</p>
           )}

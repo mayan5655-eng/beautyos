@@ -68,6 +68,18 @@ async function run(label, ua, canShare, onboard) {
     await make.click();
     const exportBtn = visibleBtn(page, 'שמירה ושיתוף');
     await exportBtn.waitFor({ timeout: 30000 });
+    // a new design: a ready caption, and the sample photo offered as a choice
+    const caption = await page.locator('textarea').filter({ visible: true }).first().inputValue().catch(() => '');
+    check(caption.includes('קליניקת בדיקה שיתוף') && caption.length > 20, `${label}: the post text starts ready (${caption.split('\n')[0]}...)`);
+    const seedNote = page.locator('[data-testid="seed-photo-note"]');
+    if (label === 'iphone-share') {
+      check(await seedNote.count() === 1, `${label}: the preview says the photo is a sample, by choice`);
+      await seedNote.locator('button').click(); await page.waitForTimeout(500);
+      check(await seedNote.count() === 0, `${label}: "use this photo" puts it in the post`);
+    } else {
+      // no choice made: the export asks, and Playwright's default answer (cancel) means a post without the photo
+      page.once('dialog', (dlg) => { check(dlg.message().includes('תמונת הדוגמה'), `${label}: export asks about the sample photo`); dlg.dismiss(); });
+    }
     await exportBtn.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${SHOTS}/smoke-share-${label}-editor.png` });
     await exportBtn.click();
@@ -95,10 +107,29 @@ async function run(label, ua, canShare, onboard) {
       check(await shareBtn.count() === 0, `${label}: no share button where the browser cannot share files`);
       check(text.includes('לחיצה ארוכה על התמונה'), `${label}: the long-press instruction is shown`);
     }
+    const ev = await page.evaluate(async () => { const r = await fetch('/api/designs/share-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'image', outcome: 'opened', source: 'editor' }) }); return { code: r.status, json: await r.json().catch(() => null) }; });
+    check(ev.code === 200 && ev.json?.success === true, `${label}: share-event endpoint answers (recorded: ${ev.json?.recorded}; false until add_share_events.sql runs)`);
     if (ua === IG) check(text.includes('פתחת את Kalmea מתוך אינסטגרם'), `${label}: the in-app browser note is shown`);
     check(await page.locator('[data-testid="save-share-download"]').count() === 1, `${label}: download kept as a fallback`);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
     check(wide <= 431, `${label}: no sideways scroll (${wide}px)`);
+    if (label === 'iphone-share') {
+      // 5. straight from "My designs"
+      await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+      await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(3000);
+      for (let i = 0; i < 8; i++) { const sk = page.locator('button:has-text("דלגי")').filter({ visible: true }).first(); if (await sk.count()) { await sk.click().catch(() => {}); await page.waitForTimeout(300); } else break; }
+      await page.locator('button[aria-label="תוכן"]').filter({ visible: true }).first().click(); await page.waitForTimeout(2500);
+      await page.locator('button:has-text("שלי")').filter({ visible: true }).first().click(); await page.waitForTimeout(2500);
+      const mine = page.locator('[data-testid="mine-share"]').filter({ visible: true }).first();
+      check(await mine.count() === 1, `${label}: "My designs" card has a share button`);
+      if (await mine.count()) {
+        await mine.click();
+        const img2 = await page.locator('[data-testid="save-share-image"]').waitFor({ timeout: 60000 }).then(() => true, () => false);
+        check(img2, `${label}: it opens the save/share panel with the picture`);
+        await page.waitForTimeout(700);
+        await page.screenshot({ path: `${SHOTS}/smoke-share-${label}-mine.png` });
+      }
+    }
     const real = problems.filter((p) => !/favicon|Failed to load resource.*(404|401)|vercel.live/.test(p));
     check(real.length === 0, `${label}: no console errors / 5xx${real.length ? ': ' + real.slice(0, 3).join(' | ') : ''}`);
   } catch (e) {

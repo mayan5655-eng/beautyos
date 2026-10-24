@@ -22,6 +22,9 @@ import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
 import ContentPlan from './ContentPlan';
 import Archive from './Archive';
+import SaveShare from './SaveShare';
+import { renderTemplateBlob } from './canvasRender';
+import { defaultCaption } from '@/lib/design/defaultCaption';
 import { latestReels, getReel } from '@/lib/design/reels';
 import { fillReel } from '@/lib/design/reel';
 import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
@@ -76,6 +79,18 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   // when the server said there are none.
   const [designsFailed, setDesignsFailed] = useState(false);
   const [open, setOpen] = useState(null); // design being edited
+  // "שמירה ושיתוף" straight from a card in "My designs": drawn now, then the save/share panel waits for her tap.
+  const [sharingId, setSharingId] = useState(null);
+  const [mineReady, setMineReady] = useState(null); // { blob, caption }
+  const shareMine = async (d, t, fill) => {
+    setSharingId(d.id);
+    try {
+      const ov = { ...(d.overrides || {}) }; delete ov.consent; delete ov.brand;
+      const blob = await renderTemplateBlob(t, fill, ov);
+      const own = typeof d.copy?.text === 'string' ? [d.copy.text, (d.copy.hashtags || []).join(' ')].filter(Boolean).join('\n\n') : null;
+      setMineReady({ blob, caption: own ?? defaultCaption(t, fill.values, settings) });
+    } catch (e) { toast?.(String(e?.message || 'הכנת התמונה נכשלה'), 'error'); } finally { setSharingId(null); }
+  };
   // Opened from a template on this visit and never saved: going back removes it, so browsing templates
   // does not fill שלי with untouched copies (2026-10-23 pass: every open created a design).
   const freshIds = useRef(new Set());
@@ -468,13 +483,21 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
               const fill = reel ? fillReel(reel, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand }).scenes[0] : fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
-                <button key={d.id} onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <div key={d.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                   <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: d.is_default ? '2px solid var(--pc)' : '1px solid var(--line)', aspectRatio: ratio, background: 'var(--surface-2)' }}>
                     <DomPreview template={t} fill={fill} overrides={d.overrides} width={130} style={{ width: '100%', height: 'auto', aspectRatio: ratio }} />
                   </div>
                   <p style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>{d.is_default && <Icon name="star" size={12} />}{reel && <Icon name="film" size={12} />}{d.name}</p>
                   <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{CATEGORY_LABELS[d.category] || d.category} · {new Date(d.updated_at).toLocaleDateString('he-IL')}</p>
                 </button>
+                {!reel && (
+                  <button type="button" data-testid="mine-share" onClick={() => shareMine(d, t, fill)} disabled={sharingId === d.id}
+                    style={{ marginTop: 6, minHeight: 40, border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {sharingId === d.id ? <Spinner inline label="" /> : <><Icon name="share" size={12} /> שמירה ושיתוף</>}
+                  </button>
+                )}
+                </div>
               );
             })}
           </div>
@@ -482,6 +505,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         {/* The old campaign texts: hidden unless this tenant opted in (lib/featureFlags.ts). Not removed. */}
         {legacyCampaignTextsVisible(settings) && <Archive toast={toast} />}
       </div>}
+      <SaveShare open={!!mineReady} onClose={() => setMineReady(null)} blob={mineReady?.blob} kind="image" ext="png" source="mine" caption={mineReady?.caption || ''} toast={toast} />
     </>
   );
 }

@@ -9,6 +9,10 @@
 //   2. the picture itself, as a data: image, to long-press and save when the browser cannot share files;
 //   3. the plain download, for a computer.
 // The post text is copied on the same tap, because Instagram drops any text a share sheet hands it.
+//
+// Every outcome is counted (/api/designs/share-event -> the admin panel), so a phone where this stops working shows
+// up as numbers instead of as a customer's complaint. When the export belongs to a content-plan post, a successful
+// share or download asks "did you post it?" and marks it with one tap (onPosted).
 
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
@@ -19,7 +23,14 @@ import { canShareFile, inAppBrowser, isIos, isTouchDevice, plainMime, shareFileN
 const APP_HE = { instagram: 'אינסטגרם', facebook: 'פייסבוק', whatsapp: 'וואטסאפ', tiktok: 'טיקטוק', line: 'LINE' };
 const btn = { padding: '12px 16px', fontSize: 'var(--t-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 46 };
 
-export default function SaveShare({ open, onClose, blob, kind = 'image', ext = 'png', downloadName, caption = '', toast }) {
+/** Fire-and-forget: a lost count must never get in her way. */
+function logShare(kind, outcome, canShare, source) {
+  try {
+    fetch('/api/designs/share-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ kind, outcome, canShare, source }) }).catch(() => {});
+  } catch { /* ignore */ }
+}
+
+export default function SaveShare({ open, onClose, blob, kind = 'image', ext = 'png', downloadName, caption = '', toast, source, onPosted }) {
   const env = useMemo(() => {
     if (typeof navigator === 'undefined') return { ua: '', touch: 0 };
     return { ua: navigator.userAgent || '', touch: navigator.maxTouchPoints || 0 };
@@ -47,7 +58,15 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
   }, [open, blob, kind]);
 
   const [note, setNote] = useState('');
-  useEffect(() => { if (!open) setNote(''); }, [open]);
+  // 'ask' after a share or download when the post belongs to the content plan; 'busy' while it is being marked.
+  const [posted, setPosted] = useState('');
+  useEffect(() => { if (!open) { setNote(''); setPosted(''); } }, [open]);
+  useEffect(() => { if (open && blob) logShare(kind, 'opened', shareable, source); }, [open, blob]); // eslint-disable-line react-hooks/exhaustive-deps
+  const done = () => { if (onPosted) setPosted('ask'); };
+  const markPosted = async () => {
+    setPosted('busy');
+    try { await onPosted(); logShare(kind, 'posted', shareable, source); onClose?.(); } catch (e) { setPosted('ask'); setNote(String(e?.message || 'לא הצלחנו לסמן, נסי שוב')); }
+  };
 
   const copyCaption = () => {
     if (!caption || !navigator.clipboard?.writeText) return false;
@@ -60,10 +79,12 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
     // Both calls start inside this tap; navigator.share must not wait on anything before it.
     const copied = copyCaption();
     navigator.share({ files: [file] }).then(() => {
-      setNote('');
+      logShare(kind, 'shared', true, source);
+      setNote(''); done();
       toast?.(copied ? 'נשלח. הטקסט של הפוסט מועתק, הדביקי אותו בכיתוב' : 'נשלח');
     }).catch((e) => {
       const o = shareOutcome(e);
+      logShare(kind, o, true, source);
       if (o === 'cancelled') return;
       if (o === 'gesture') { setNote('הטלפון ביקש לחיצה נוספת. לחצי שוב על "שיתוף ושמירה".'); return; }
       setNote(kind === 'video' ? 'השיתוף לא הצליח. אפשר להוריד את הסרטון בכפתור למטה.' : 'השיתוף לא הצליח. לחיצה ארוכה על התמונה ← "שמירה בתמונות", ומשם לאינסטגרם.');
@@ -74,6 +95,8 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
     if (!blob) return;
     if (copyCaption()) toast?.('הטקסט של הפוסט הועתק');
     downloadBlob(blob, downloadName || shareFileName(kind, ext));
+    logShare(kind, 'download', shareable, source);
+    done();
   };
 
   const copyLink = () => {
@@ -104,6 +127,14 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
           <button type="button" onClick={share} className="primary-btn" data-testid="save-share-share" style={{ ...btn, background: 'var(--pc-grad)', color: 'var(--pc-contrast)' }}>
             <Icon name="share" size={15} /> שיתוף ושמירה לגלריה
           </button>
+        )}
+
+        {posted && (
+          <div data-testid="save-share-posted" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
+            <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', flex: 1, minWidth: 140 }}>פרסמת את הפוסט?</span>
+            <button type="button" onClick={markPosted} disabled={posted === 'busy'} className="primary-btn" style={{ padding: '8px 14px', minHeight: 40, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)' }}>כן, לסמן שפורסם</button>
+            <button type="button" onClick={() => setPosted('')} style={{ background: 'none', border: 'none', color: 'var(--ink-3)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 }}>עוד לא</button>
+          </div>
         )}
 
         {note && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: 0, lineHeight: 1.6 }}>{note}</p>}

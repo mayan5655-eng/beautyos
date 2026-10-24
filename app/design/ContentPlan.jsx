@@ -474,7 +474,8 @@ function PlanItem({ item, settings, readOnly, toast, onCreate, onChange, onGone,
         {item.status !== 'posted' && <button type="button" style={{ ...btn, color: 'var(--ink-3)' }} disabled={readOnly || !!busy} onClick={() => setStatus('skipped')}>דילוג</button>}
       </div>
       {err && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: 0 }}>{err}</p>}
-      <SaveShare open={!!picture} onClose={() => setPicture(null)} blob={picture} kind="image" ext={picture?.type === 'image/jpeg' ? 'jpg' : 'png'} caption={fullText} toast={toast} />
+      <SaveShare open={!!picture} onClose={() => setPicture(null)} blob={picture} kind="image" ext={picture?.type === 'image/jpeg' ? 'jpg' : 'png'} caption={fullText} toast={toast} source="plan"
+        onPosted={item.status !== 'posted' && !readOnly ? () => setStatus('posted', 'סומן שפורסם') : undefined} />
     </div>
   );
 }
