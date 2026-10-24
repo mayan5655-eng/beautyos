@@ -1176,7 +1176,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {(socials.length > 0 || wa) && (
             <div style={{ ...section }}>
               <div>
-                {eyebrow("עקבו אחרינו")}
+                {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? "עקבו אחרינו" : "כתבי לנו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
                   {socials.map((s) => (
