@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import InstallBannerCard from "./InstallBannerCard";
-import { isOwnerSurface } from "@/lib/ownerSurface";
+import { isOwnerSurface, hasBottomNav } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "bloomos-install-prompt-dismissed";
 
@@ -140,6 +140,7 @@ export default function InstallPromptBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
+      aboveNav={hasBottomNav(pathname)}
       title="התקיני את קלמיה למסך הבית"
       icon={
         /* phone with a download arrow */

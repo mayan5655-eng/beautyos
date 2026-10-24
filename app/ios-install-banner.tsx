@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import InstallBannerCard from "./InstallBannerCard";
 import { usePathname } from "next/navigation";
 import { inAppBrowser } from "@/lib/design/sharePost";
-import { isOwnerSurface } from "@/lib/ownerSurface";
+import { isOwnerSurface, hasBottomNav } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
@@ -70,6 +70,7 @@ export default function IOSInstallBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
+      aboveNav={hasBottomNav(pathname)}
       title="התקיני את קלמיה למסך הבית"
       icon={
         /* iOS share glyph */

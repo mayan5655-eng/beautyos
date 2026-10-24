@@ -114,5 +114,25 @@ for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]
   else console.log('skip voice: mic button not found by label');
   await s.browser.close();
 }
+// 9. banners: not on her clients' pages; the in-app-browser banner on her own app at "/"
+{
+  const s = await phone('iphone', { keepHints: true }); const p = s.page;
+  for (const path of ['/clinic-bdika', '/book?t=' + meta.tenantId]) {
+    await p.goto(BASE + path, { waitUntil: 'networkidle' }); await p.waitForTimeout(3500);
+    check(await p.locator('[aria-label="התקנת האפליקציה למסך הבית"]').count() === 0, 'iphone: no install card on the client page ' + path.slice(0, 14));
+  }
+  await s.browser.close();
+}
+{
+  const s = await phone('instagram', { keepHints: true }); const p = s.page; await login(p); await p.waitForTimeout(3000);
+  check(await p.locator('[aria-label="פתיחה בדפדפן של הטלפון"]').count() === 1, 'instagram: the open-in-Safari banner shows on her signed-in app at "/"');
+  await p.screenshot({ path: SHOTS + '/verify-ig-banner.png' });
+  await s.browser.close();
+}
+{
+  const s = await phone('iphone', { keepHints: true }); const p = s.page; await login(p); await p.waitForTimeout(3500);
+  check(await p.locator('[aria-label="התקנת האפליקציה למסך הבית"]').count() === 1, 'iphone: the install card still shows on her own app');
+  await s.browser.close();
+}
 console.log(fails.length ? 'FAILED: ' + fails.length : 'ALL OK');
 process.exit(fails.length ? 1 : 0);

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import InstallBannerCard from "./InstallBannerCard";
 import { inAppBrowser, isIos, openInBrowserHref } from "@/lib/design/sharePost";
-import { isOwnerSurface } from "@/lib/ownerSurface";
+import { isOwnerSurface, hasBottomNav } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "kalmea-inapp-dismissed";
 const APP_HE: Record<string, string> = { instagram: "אינסטגרם", facebook: "פייסבוק", whatsapp: "וואטסאפ", tiktok: "טיקטוק", line: "LINE" };
@@ -64,6 +64,7 @@ export default function InAppBrowserBanner() {
       ariaLabel="פתיחה בדפדפן של הטלפון"
       enter={enter}
       onDismiss={dismiss}
+      aboveNav={hasBottomNav(pathname)}
       title={`פתחי את Kalmea ב${browser}`}
       icon={
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
