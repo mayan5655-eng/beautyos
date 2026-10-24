@@ -28,6 +28,9 @@ export default function PayClient({ token }) {
   const timer = useRef(null);
 
   const load = useCallback(async () => {
+    // Every payment token is randomBytes(24) in hex (app/api/grow/*). Anything else cannot open a payment,
+    // so it is "invalid link" without a request (it used to leave a 404 in the client's console).
+    if (!/^[0-9a-f]{48}$/i.test(String(token || ''))) { setInfo({ state: 'unknown' }); setPhase('ready'); return; }
     try {
       const r = await fetch(`/api/grow/wallet?t=${encodeURIComponent(token)}`);
       const j = await r.json().catch(() => null);
