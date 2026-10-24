@@ -4716,7 +4716,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       //    passes without relying on a column default.
       if (!s.id) {
         const row = { tenant_id: tid, active: s.active !== false };
-        for (const k of SERVICE_FIELDS) if (k !== "active") row[k] = s[k];
+        // Only fields the draft actually has. supabase-js lists every key of an inserted array in `columns=`,
+        // and PostgREST writes NULL for a listed key with no value instead of the column default: the
+        // quick-add row has no requires_deposit, so every "+ הוסיפי שירות" save failed on its NOT NULL
+        // (23502), for every business (found 2026-10-24).
+        for (const k of SERVICE_FIELDS) if (k !== "active" && s[k] !== undefined) row[k] = s[k];
         let { data, error } = await supabase.from("service_prices").insert([row]).select();
         // field is added by supabase/migrations/add_business_fields.sql,
         // applied by hand and possibly not yet run — degrade rather than
