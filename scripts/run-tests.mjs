@@ -49,6 +49,9 @@ const FAKE_ENV = {
   CRON_SECRET: '',
   FACEBOOK_APP_SECRET: '',
   // WhatsApp Cloud API: off, mock, no token, whatever the machine has.
+  // Feature switches that move quotas: off, whatever the deployment builds with. A test that needs one on sets it itself.
+  NEXT_PUBLIC_ADDON_PACKS: '',
+  NEXT_PUBLIC_UPGRADE_BUTTONS: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',

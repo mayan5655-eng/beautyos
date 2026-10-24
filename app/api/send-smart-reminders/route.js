@@ -24,6 +24,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
+import { clientCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { APP_URL } from "@/lib/appUrl";
@@ -50,6 +51,11 @@ export async function POST(request) {
   try {
     const { searchParams } = new URL(request.url);
     const dryRun = searchParams.get("dryRun") === "1";
+
+    // Shabbat: nothing to clients on Saturday; the run goes out at 20:00 Saturday night instead (lib/shabbat.js).
+    // A dry run sends nothing, so it may run any time.
+    const slot = clientCronSlot(new Date());
+    if (!slot.run && !dryRun) return Response.json({ success: true, sent: 0, held: slot.reason, message: slotMessageHe(slot.reason) });
 
     const { results, stats } = await runSmartReminders({
       db: supabase,

@@ -62,7 +62,7 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
     },
     async pendingInvoices() {
       const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-      const { data, error } = await db.from('billing_payments').select('*').eq('status', 'succeeded').eq('kind', 'subscription').eq('invoice_status', 'pending').gte('created_at', since).limit(50);
+      const { data, error } = await db.from('billing_payments').select('*').eq('status', 'succeeded').in('kind', ['subscription', 'addon']).eq('invoice_status', 'pending').gte('created_at', since).limit(50);
       if (error) fail(error, 'pendingInvoices');
       return (data || []).map(payOf);
     },
@@ -76,6 +76,10 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       const autos = (st.data?.automations && typeof st.data.automations === 'object' ? st.data.automations : {}) as Record<string, unknown>;
       const phone = String(autos.owner_phone || st.data?.business_phone || '').trim() || null;
       return { ...(data as TenantRow), phone } as TenantRow;
+    },
+    async insertAddon(row) {
+      const { error } = await db.from('billing_addons').insert(row);
+      if (error) fail(error, 'insertAddon');
     },
     async setPlanStatus(tenantId, status) {
       const { error } = await db.from('tenants').update({ plan_status: status }).eq('id', tenantId);

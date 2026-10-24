@@ -18,7 +18,8 @@ assert.equal(isPlaceholderSlug('danacohen1987-687a661d', [uid, tid]), true, 'the
 assert.equal(isPlaceholderSlug('danacohen1987-687a661d', [tid]), false);
 assert.equal(isPlaceholderSlug(null, [uid]), true);
 assert.equal(isPlaceholderSlug('סטודיו-נוה', [uid, tid]), false, 'an address she chose is never replaced');
-assert.deepEqual(slugCandidates('סטודיו נוה קוסמטיקה').slice(0, 2), ['סטודיו-נוה-קוסמטיקה', 'סטודיו-נוה-קוסמטיקה-2']);
+// Latin, so a copied link is not percent-encoded (lib/latinSlug.ts, 2026-10-24).
+assert.deepEqual(slugCandidates('סטודיו נוה קוסמטיקה').slice(0, 2), ['studio-noa-cosmetics', 'studio-noa-cosmetics-2']);
 assert.equal(slugCandidates('Lily Nails')[0], 'lily-nails');
 assert.deepEqual(slugCandidates('!!!'), [], 'nothing usable, nothing tried');
 assert.deepEqual(slugCandidates('login'), [], 'a reserved word is never tried');

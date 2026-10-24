@@ -237,6 +237,12 @@ export default function OnboardingPage() {
   const next = () => {
     // The field decides the menu, the forms and the content she sees. Skipping it silently made a nail technician
     // a facial cosmetician (businessFieldsOf falls back to cosmetics), so this step needs one pick.
+    // Her business type decides whether Morning can issue a legal receipt at all (no type = no receipt, silently). Required for
+    // every new business since 2026-10-23 (owner's decision): no skip past this step without it.
+    if (step === 2 && !data.business_tax_status) {
+      setError("בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
+      return;
+    }
     if (step === 4 && data.business_fields.length === 0) {
       setError("בחרי לפחות תחום אחד כדי שנתאים לך את התפריט והתכנים.");
       return;
@@ -261,6 +267,12 @@ export default function OnboardingPage() {
   // that wizard directly instead of asking her the same question again.
   const finish = async (importKind: ImportKind | null = null) => {
     if (saving || !tenantId) return;
+    // A draft saved before the step became required can land her past step 2 without a type: send her back to it.
+    if (!data.business_tax_status) {
+      setStep(2);
+      setError("עוד שלב קטן: בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -287,7 +299,7 @@ export default function OnboardingPage() {
         therapist_name: data.therapist_name.trim(),
         business_phone: data.business_phone.trim(),
         // Only what she chose. Left unset otherwise: Settings and the income summary ask for it explicitly.
-        ...(data.business_tax_status ? { business_tax_status: data.business_tax_status } : {}),
+        ...(data.business_tax_status ? { business_tax_status: data.business_tax_status, business_tax_status_set_at: new Date().toISOString() } : {}),
         primary_color: data.primary_color,
         // Written as-is, even empty: if she skipped the field picker,
         // businessFieldsOf() (lib/businessFields.ts) is what every reader
@@ -479,12 +491,12 @@ export default function OnboardingPage() {
               </Field>
               {/* Her registration decides which legal document can be issued and how the income summary is
                   worked out. No button is pre-selected: it is her answer or it is blank (and the app says so). */}
-              <Field label="סוג העסק (עוסק פטור, מורשה או חברה)">
+              <Field label="סוג העסק (עוסק פטור, מורשה או חברה) *">
                 <div style={{ display: "flex", gap: 8 }}>
                   {[{ k: "exempt", l: "עוסק פטור" }, { k: "licensed", l: "עוסק מורשה" }, { k: "company", l: "חברה בע\"מ" }].map((o) => {
                     const on = (data.business_tax_status || "") === o.k;
                     return (
-                      <button key={o.k} type="button" aria-pressed={on} onClick={() => setData({ ...data, business_tax_status: o.k })}
+                      <button key={o.k} type="button" aria-pressed={on} onClick={() => { setData({ ...data, business_tax_status: o.k }); setError(""); }}
                         style={{ flex: 1, padding: "11px 6px", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: on ? `1.5px solid ${pc}` : "1px solid var(--line)", background: on ? "var(--pc-tint)" : "var(--surface)", color: "var(--ink)" }}>
                         {o.l}
                       </button>
@@ -492,7 +504,7 @@ export default function OnboardingPage() {
                   })}
                 </div>
                 <p style={{ fontSize: "var(--t-xs)", color: "var(--ink-3)", lineHeight: 1.5, marginTop: 6 }}>
-                  זה קובע איזה מסמך חוקי אפשר להפיק ללקוחות, ואיך מחושב סיכום ההכנסות. אם את לא בטוחה, אפשר לדלג ולבחור אחר כך בהגדרות: עד שתבחרי, לא יופקו מסמכים חוקיים.
+                  זה קובע איך יחושב סיכום ההכנסות, ואיזה מסמך יופק אם תחברי בהמשך תוכנת קבלות. בחרי את מה שרשום אצלך במע״מ. לא בטוחה? אפשר לשנות בכל רגע בהגדרות.
                 </p>
               </Field>
               {/* The one thing every new tenant must be told before her first
@@ -501,7 +513,7 @@ export default function OnboardingPage() {
                   in Settings → תשלום and on every receipt/WhatsApp message - this
                   is just the first time she hears it, early enough to matter. */}
               <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
-                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← תשלום</strong>.
+                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← חיבורים</strong>.
               </div>
               <Field label="הצבע של העסק שלך (בדף ההזמנות ובעיצובים)">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
@@ -674,7 +686,7 @@ export default function OnboardingPage() {
 
           {step < STEP_NAMES.length ? (
             <>
-              {!(step === 4 && data.business_fields.length === 0) && (
+              {!(step === 4 && data.business_fields.length === 0) && !(step === 2 && !data.business_tax_status) && (
                 <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                   דלגי
                 </button>

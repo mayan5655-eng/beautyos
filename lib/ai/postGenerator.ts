@@ -179,7 +179,8 @@ export type GenerationAllowance = { used: number; cap: number; remaining: number
 export async function generationAllowance(tenantId: string, tenantCap: unknown, opts: { status?: CapStatus } = {}): Promise<GenerationAllowance> {
   const status = opts.status || await getCallCapStatus(tenantId, GENERATE_CALL_SITE);
   const override = Number(tenantCap);
-  const cap = Number.isFinite(override) && override >= 0 && tenantCap !== null && tenantCap !== undefined ? Math.floor(override) : (status.cap ?? 0);
+  // A per-tenant override replaces the included amount; add-on packs she bought this month (status.purchased) come on top of either.
+  const cap = Number.isFinite(override) && override >= 0 && tenantCap !== null && tenantCap !== undefined ? Math.floor(override) + (status.purchased || 0) : (status.cap ?? 0);
   const used = status.unknown ? 0 : status.used;
   return { used, cap, remaining: status.unknown ? 0 : Math.max(0, cap - used), exceeded: status.unknown || used >= cap, unknown: status.unknown };
 }

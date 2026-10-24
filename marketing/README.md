@@ -69,6 +69,25 @@ refuses to render unless they total 10,068, the number its copy says. `--frame=1
 welcome video (about 64 s, 720x1280) frame by frame into `out/motion/kalmea-welcome-motion.mp4`; `--frame=12.5` writes one still.
 It is the first video on kalmea.app/tutorials (copy it over `public/tutorials/kalmea-welcome.mp4`). What it may claim, and why,
 is in the header of the script: payments are "coming soon", reminders are not called automatic, the advisor answer is marked as a demo.
+Version 3 (`--clips` records real demo clips; music; Gveret Levin titles) shows card payments, the cancellation charge and automatic
+messages as features: it goes on the site only once those are switched on (branch feat/tutorials-welcome-v3).
+
+## tutorial-motion (voiced tutorials)
+
+`tutorial-motion.mjs` makes the tour and booking videos in the welcome video's style (`motion-lib.mjs`: real demo clips in the phone,
+Gveret Levin titles, pop-ups, music) with a Hebrew voice-over from Google Cloud Text-to-Speech.
+
+```
+node tutorial-motion.mjs --clips              # record the real clips (demo tenant; the booking clips book on it)
+node tutorial-motion.mjs --draft              # no voice: estimated-length silence, to check the pictures
+node tutorial-motion.mjs                      # with the voice (needs the key file below)
+node tutorial-motion.mjs tour --frame=12      # one still
+```
+
+The Google TTS API key is read from `C:\Users\ksafi\kalmea-google-tts-key.txt` (or KALMEA_TTS_KEY_FILE), never committed. The voice is
+KALMEA_TTS_VOICE, else the first female he-IL Chirp3-HD voice (then Neural2, WaveNet). Each line is cached in `out/voice/`, so re-renders
+cost nothing. Scene length follows the narration; long takes play up to 1.7x. Output: `out/tutorials/kalmea-tutorial-<tour|booking>-voice.mp4`
+(`-voice-draft.mp4` without a key) and a contact sheet next to it. The narration is in the script, one line per scene.
 
 ## tutorials
 

@@ -77,6 +77,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { readAllRows } from '../pagedRead.js';
 import { capRefusalHe } from './capMessages.ts';
+import { addonPacksEnabled, addonPackForCallSite } from '../pricing.ts';
+import { purchasedAddons, totalUsd, type PurchasedByPack } from '../addonQuota.ts';
 
 /** Monthly ceiling per tenant, per call site. Absent = uncapped by this file. */
 export const MONTHLY_CALL_CAPS: Record<string, number> = {
@@ -215,7 +217,20 @@ export type CapStatus = {
   exceeded: boolean;
   /** true when the count could not be read (and `exceeded` is therefore true) */
   unknown: boolean;
+  /** Add-on units bought for this feature this month (lib/pricing.ts ADDON_PACKS), already inside `cap`. 0 with packs off. */
+  purchased?: number;
 };
+
+/**
+ * The monthly cap for one feature. With add-on packs ON (lib/pricing.ts), a feature that has a pack gets its INCLUDED amount plus the
+ * units she bought this month instead of the anti-abuse ceiling; with packs OFF, or for a feature without a pack, nothing changes.
+ */
+export function capWithPacks(callSite: string, purchased: PurchasedByPack | null, enabled: boolean = addonPacksEnabled()): { cap: number | null; purchased: number } {
+  const pack = enabled ? addonPackForCallSite(callSite) : null;
+  if (!pack) return { cap: capFor(callSite), purchased: 0 };
+  const bought = purchased?.[pack.key]?.units || 0;
+  return { cap: pack.included + bought, purchased: bought };
+}
 
 /**
  * How much of this month's allowance for one feature a tenant has used.
@@ -230,11 +245,13 @@ export type CapStatus = {
 export async function getCallCapStatus(
   tenantId: string | null | undefined,
   callSite: string,
-  opts: { now?: Date; db?: CountQuery } = {}
+  opts: { now?: Date; db?: CountQuery; purchased?: PurchasedByPack } = {}
 ): Promise<CapStatus> {
-  const cap = capFor(callSite);
+  const packsOn = addonPacksEnabled() && !!addonPackForCallSite(callSite);
+  const bought = packsOn && tenantId ? (opts.purchased ?? await purchasedAddons(tenantId, { now: opts.now })) : null;
+  const { cap, purchased } = capWithPacks(callSite, bought, packsOn);
   if (cap === null || !tenantId) {
-    return { used: 0, cap, exceeded: false, unknown: false };
+    return { used: 0, cap, exceeded: false, unknown: false, purchased };
   }
 
   const since = monthStartIso(opts.now);
@@ -258,7 +275,7 @@ export async function getCallCapStatus(
     }
 
     const used = Number(count) || 0;
-    return { used, cap, exceeded: used >= cap, unknown: false };
+    return { used, cap, exceeded: used >= cap, unknown: false, purchased };
   } catch (e) {
     console.error(
       `[ai-cap] threw for tenant ${tenantId} / ${callSite}: ` +
@@ -444,19 +461,23 @@ async function checkAiAllowanceUnsafe(
   callSite: string,
   opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number>; callsCap?: number }
 ): Promise<Allowance> {
-  const usdCap = tenantMonthlyUsdCeiling();
+  const client: Client | null = tenantId ? (opts.client ?? (admin() as unknown as Client)) : null;
+  // Add-on packs bought this month (lib/pricing.ts): they raise this feature's count cap AND the dollar ceiling by what they can cost, so a
+  // paid pack is never stopped by the ceiling. With packs off nothing is read and nothing changes.
+  const packsOn = addonPacksEnabled();
+  const bought = packsOn && tenantId && client ? await purchasedAddons(tenantId, { client: opts.client, now: opts.now, noCache: opts.noCache }) : null;
+  const usdCap = tenantMonthlyUsdCeiling() + (bought ? totalUsd(bought) : 0);
   // A caller may raise the per-feature ceiling for one call (the pictures of a generation scale with that
-  // tenant's own generation cap). The dollar ceiling below is never overridden.
-  const callsCap = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? Math.floor(opts.callsCap) : capFor(callSite);
+  // tenant's own generation cap). The dollar ceiling above is never overridden by a caller.
+  const callsCap = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? Math.floor(opts.callsCap) : capWithPacks(callSite, bought, packsOn).cap;
   const base = { callSite, callsUsed: 0, callsCap, spentUsd: 0, usdCap, near: false } as const;
-  if (!tenantId) return { ...base, allowed: true, reason: 'ok' };
+  if (!tenantId || !client) return { ...base, allowed: true, reason: 'ok' };
 
-  const client: Client = opts.client ?? (admin() as unknown as Client);
   const send = opts.alert ?? defaultAlert;
   const throttle = opts.alertThrottle ?? alertedAt;
   const since = monthStartIso(opts.now);
 
-  const status = await getCallCapStatus(tenantId, callSite, { now: opts.now, db: client.from('ai_usage') as CountQuery });
+  const status = await getCallCapStatus(tenantId, callSite, { now: opts.now, db: client.from('ai_usage') as CountQuery, ...(bought ? { purchased: bought } : {}) });
   if (status.unknown) {
     await raise({ reason: 'unreadable', tenantId, callSite, detail: 'ספירת הקריאות נכשלה' }, send, throttle);
     return { ...base, allowed: false, reason: 'unreadable', spentUsd: null };

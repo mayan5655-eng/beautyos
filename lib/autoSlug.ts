@@ -14,8 +14,13 @@
 // her business name (then name-2 ... name-5 when it is taken). An address she
 // chose herself in Settings > הדף שלי is never touched. Best-effort: any refusal
 // leaves the placeholder, which still works.
+//
+// The name is turned into a LATIN address (lib/latinSlug.ts): a Hebrew one was
+// percent-encoded in every link she copied (2026-10-23). A name that gives no
+// Latin at all gets a short code instead of staying on her email handle.
 
-import { slugify, slugError } from './slug.ts';
+import { slugError } from './slug.ts';
+import { latinSlugFromName, shortCodeSlug } from './latinSlug.ts';
 
 /**
  * True when this is the signup trigger's placeholder (or nothing at all), not an address she chose.
@@ -32,7 +37,7 @@ export function isPlaceholderSlug(slug: string | null | undefined, ids: Array<st
 
 /** Addresses to try, best first. Empty when the name gives nothing usable. */
 export function slugCandidates(businessName: string | null | undefined, max = 5): string[] {
-  const base = slugify(String(businessName || ''));
+  const base = latinSlugFromName(businessName);
   if (!base || slugError(base)) return [];
   const out = [base];
   for (let i = 2; i <= max; i++) {
@@ -50,7 +55,7 @@ type Rpc = (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: un
  * got, or null. Only a "taken" (23505) moves on to the next candidate; anything else stops.
  */
 export async function claimNameSlug(rpc: Rpc, businessName: string): Promise<string | null> {
-  for (const want of slugCandidates(businessName)) {
+  for (const want of [...slugCandidates(businessName), shortCodeSlug(), shortCodeSlug()]) {
     const { error } = await rpc('claim_tenant_slug', { p_slug: want });
     if (!error) return want;
     if (error.code !== '23505') return null;

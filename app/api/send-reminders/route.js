@@ -26,6 +26,7 @@ import { isDemoTenantId } from "../../../lib/demoTenants.ts";
 import { runDailyReminders } from "../../../lib/reminders/dailyReminders.js";
 import { describeMissed } from "../../../lib/cronFanout.js";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
+import { clientCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
 
 // 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
 // tenant may take longer than 60 s, so it always ends by 260 s on its own terms
@@ -61,6 +62,10 @@ export async function POST(request) {
     const tomorrow = getTomorrowDate();
     const onlyParam = new URL(request.url).searchParams.get("only");
     const only = onlyParam ? onlyParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
+
+    // Shabbat: Saturday's run is held and goes out at 20:00 (lib/shabbat.js). "Tomorrow" is still Sunday then.
+    const slot = clientCronSlot(new Date(), { retry: !!only });
+    if (!slot.run) return Response.json({ success: true, sent: 0, held: slot.reason, message: slotMessageHe(slot.reason) });
 
     // Is the central WhatsApp session actually logged in? GreenAPI answers 200 to a send either way, so without this a logged-out
     // session turned every reminder into "sent" that reached nobody (2026-10-21 audit). Down -> every reminder waits in her
