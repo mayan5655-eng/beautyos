@@ -12,7 +12,7 @@
 //   4. the designs she has saved
 // Pick a template -> a design row is created from it -> the editor opens.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
@@ -76,6 +76,17 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   // when the server said there are none.
   const [designsFailed, setDesignsFailed] = useState(false);
   const [open, setOpen] = useState(null); // design being edited
+  // Opened from a template on this visit and never saved: going back removes it, so browsing templates
+  // does not fill שלי with untouched copies (2026-10-23 pass: every open created a design).
+  const freshIds = useRef(new Set());
+  const leave = (d) => {
+    setOpen(null);
+    if (!d || !freshIds.current.has(d.id)) return;
+    freshIds.current.delete(d.id);
+    setDesigns((p) => (p || []).filter((x) => x.id !== d.id));
+    fetch(`/api/designs/${d.id}`, { method: 'DELETE' }).catch(() => {});
+  };
+  const kept = (d) => { if (d) freshIds.current.delete(d.id); };
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
   const [error, setError] = useState('');
@@ -168,6 +179,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.error || 'לא הצלחנו ליצור עיצוב');
       setDesigns((p) => [data.design, ...(p || [])]);
+      freshIds.current.add(data.design.id);
       setOpen(data.design);
     } catch (e) { setError(String(e.message || e)); } finally { setCreating(''); }
   };
@@ -180,8 +192,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <ReelEditor
           key={open.id}
           design={open} reel={reel} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
-          onBack={() => setOpen(null)}
-          onSaved={(d) => { setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x))); }}
+          onBack={() => leave(open)}
+          onSaved={(d) => { kept(d); setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x))); }}
           onDeleted={(id) => { setDesigns((p) => (p || []).filter((x) => x.id !== id)); setOpen(null); }}
         />
       </div>
@@ -196,9 +208,9 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <DesignEditor
           key={open.id}
           design={open} template={template} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
-          onBack={() => setOpen(null)}
-          onSaved={(d) => { setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x)).map((x) => (d.is_default && x.id !== d.id && x.category === d.category ? { ...x, is_default: false } : x))); }}
-          onDuplicated={(d) => { setDesigns((p) => [d, ...(p || [])]); setOpen(d); }}
+          onBack={() => leave(open)}
+          onSaved={(d) => { kept(d); setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x)).map((x) => (d.is_default && x.id !== d.id && x.category === d.category ? { ...x, is_default: false } : x))); }}
+          onDuplicated={(d) => { kept(open); setDesigns((p) => [d, ...(p || [])]); setOpen(d); }}
           onDeleted={(id) => { setDesigns((p) => (p || []).filter((x) => x.id !== id)); setOpen(null); }}
         />
       </div>

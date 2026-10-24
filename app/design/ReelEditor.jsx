@@ -61,7 +61,7 @@ export default function ReelEditor({ design, reel, settings, readOnly, previousI
     if (readOnly || !settings?.tenant_id) return;
     // Throws on failure: ReelRender reports it. The download itself still works either way.
     const path = await uploadReel(blob, settings.tenant_id, design.id, ext, design.export_path);
-    await patch({ export_path: path });
+    onSaved?.(await patch({ export_path: path })); // an exported reel is kept (DesignStudio removes untouched opens)
   };
 
   return (
