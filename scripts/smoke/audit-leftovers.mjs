@@ -41,11 +41,12 @@ try {
   await watch;
   check(!sawDashboard, 'a brand-new account goes to onboarding without the dashboard painting first (F5)');
 
-  // ── onboarding (the tax question is skipped on purpose) ──
+  // ── onboarding ──
   await page.fill('input[placeholder="למשל: סטודיו רונית"]', 'קליניקת בדיקה שאריות');
   await page.fill('input[placeholder="השם שלך"]', 'בודקת');
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(400);
   await page.fill('input[placeholder="0501234567"]', '0500000000');
+  await page.click('button:has-text("עוסק פטור")'); await page.waitForTimeout(300); // required since the owner-decisions work
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(400);
   check((await body()).includes('שישי עד 14:00 ושבת סגור'), 'the hours step says which week it starts with');
   await page.screenshot({ path: `${OUT}/leftovers-onboarding-hours.png` });
