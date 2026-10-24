@@ -5249,10 +5249,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if (!v.ok) { toast(v.error, "error"); return; }
       }
       const tip = Math.max(0, Number(cashierTip) || 0);
+      // Paid from "תשלום חדש" rather than from her appointment: link the client's visit TODAY when there is
+      // exactly one, not cancelled and not paid yet, so that visit shows as paid (2026-10-23 pass, F2).
+      // Anything ambiguous stays unlinked, as before.
+      const linkedApptId = cashierAppt?.id || (() => {
+        if (!cashierClient?.id) return null;
+        const c = appointments.filter(a => String(a.client_id) === String(cashierClient.id) && a.date === today
+          && a.confirmation_status !== "cancelled" && a.kind !== "personal"
+          && !receipts.some(r => String(r.appointment_id) === String(a.id)));
+        return c.length === 1 ? c[0].id : null;
+      })();
       const receipt={
         client_id:cashierClient?.id||null,
         client_name:cashierClient?.name||"לקוחה",
-        appointment_id:cashierAppt?.id||null,
+        appointment_id:linkedApptId||null,
         service:serviceNames,
         amount:cashierTotal,
         // Only when nothing is left to pay. A covered treatment plus a cream is
