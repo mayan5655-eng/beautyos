@@ -46,7 +46,7 @@ export type AddonPack = {
   units: number
   price: number
   usdPerPack: number
-  /** Feminine/plural noun as she reads it on the button: "+10 רילסים". */
+  /** The plural noun as she reads it on the button: "עוד 10 רילסים". */
   unitHe: string
 }
 
@@ -67,7 +67,10 @@ export function addonPackForCallSite(callSite: string): AddonPack | null {
   return ADDON_PACK_KEYS.map((k) => ADDON_PACKS[k]).find((p) => p.callSite === callSite) || null
 }
 
-/** The button: "+10 רילסים עם AI ב-29 ₪". */
+/**
+ * The button: "עוד 10 רילסים עם AI ב-29 ₪". It starts with a Hebrew word on purpose: a label that starts with "+10" begins with
+ * characters that have no direction of their own, and in an RTL button the "+" and the number can land at the wrong end.
+ */
 export function addonButtonHe(p: AddonPack): string {
-  return `+${p.units} ${p.unitHe} ב-${priceHe(p.price)}`
+  return `עוד ${p.units} ${p.unitHe} ב-${priceHe(p.price)}`
 }

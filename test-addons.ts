@@ -20,7 +20,7 @@ await ok('the four packs and their prices, as decided with Shaked', () => {
   assert.deepEqual([ADDON_PACKS.reels.units, ADDON_PACKS.reels.price, ADDON_PACKS.reels.included], [10, 29, 6]);
   assert.deepEqual([ADDON_PACKS.advisor.units, ADDON_PACKS.advisor.price, ADDON_PACKS.advisor.included], [100, 39, 60]);
   assert.deepEqual([ADDON_PACKS.skinscan.units, ADDON_PACKS.skinscan.price, ADDON_PACKS.skinscan.included], [100, 19, 50]);
-  assert.equal(addonButtonHe(ADDON_PACKS.reels), '+10 רילסים עם AI ב-29 ₪');
+  assert.equal(addonButtonHe(ADDON_PACKS.reels), 'עוד 10 רילסים עם AI ב-29 ₪');
   assert.equal(addonPackForCallSite('marketing/reel')?.key, 'reels');
   assert.equal(addonPackForCallSite('whatsapp-webhook'), null);
 });
