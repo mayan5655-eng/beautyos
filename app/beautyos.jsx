@@ -8793,7 +8793,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>);
                       return(<>
                         {paused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}><Icon name="pause" size={13}/> האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
-                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"2px 2px 8px"}}><Spinner inline label="טוען הצעות מעקב עור"/></p>}
+                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"2px 2px 8px"}}><Spinner inline label="טוענת הצעות מעקב עור"/></p>}
                         {skinQueueError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
  <div key={it.key} style={{border:"1px solid var(--line)",background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"11px 13px",marginBottom:8}}>
@@ -9722,7 +9722,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)"}}>יומן הודעות</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>100 ההודעות האחרונות שנשלחו מהמערכת בשמך.</p>
  </div>
- <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{waLogLoading?<Spinner inline label="טוען"/>:"רענני"}</button>
+ <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{waLogLoading?<Spinner inline label="טוענת"/>:"רענני"}</button>
  </div>
 
  {waLogError&&(
@@ -9731,7 +9731,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  )}
 
- {waLogLoading&&waMessages===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"26px 0"}}><Spinner inline label="טוען"/></p>}
+ {waLogLoading&&waMessages===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"26px 0"}}><Spinner inline label="טוענת"/></p>}
 
  {!waLogLoading&&waMessages&&waMessages.length===0&&(
  <div className="glass-card" style={{padding:"36px 20px",textAlign:"center"}}>
@@ -9803,7 +9803,7 @@ ${MARKETING_FOOTER}`)}`;
  <option value="last_30d">30 ימים</option>
  <option value="last_90d">90 ימים</option>
  </select>
- <button onClick={()=>loadFbCampaigns()} disabled={fbLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{fbLoading?<Spinner inline label="טוען"/>:fbCampaigns===null?"טעני קמפיינים":"רענני"}</button>
+ <button onClick={()=>loadFbCampaigns()} disabled={fbLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{fbLoading?<Spinner inline label="טוענת"/>:fbCampaigns===null?"טעני קמפיינים":"רענני"}</button>
  </div>
  </div>
 
@@ -10231,7 +10231,7 @@ ${MARKETING_FOOTER}`)}`;
                           const sel=newExpense.category===cat.k;
                           return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 12px",borderRadius:"var(--r-md)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{cat.l}</button>;
                         })}
- <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"var(--pc-contrast)",padding:"8px 18px",fontSize:"var(--t-sm)"}}>{isBusy("addExpense")?<Spinner inline label="מוסיף"/>:"הוספת הוצאה"}</button>
+ <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"var(--pc-contrast)",padding:"8px 18px",fontSize:"var(--t-sm)"}}>{isBusy("addExpense")?<Spinner inline label="מוסיפה"/>:"הוספת הוצאה"}</button>
  </div>
  </div>
 
@@ -10277,7 +10277,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <div id="advisor-scroll" className="glass-card" style={{flex:1,overflowY:"auto",padding:"18px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:300}}>
               {advisorMessages===null?(
- <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:"var(--t-sm)",margin:"auto"}}><Spinner inline label="טוען"/></p>
+ <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:"var(--t-sm)",margin:"auto"}}><Spinner inline label="טוענת"/></p>
               ):advisorMessages.length===0?(
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
  <BrandImage width={60} height={60} aria-hidden alt="" src={ICON_SPARKLE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
@@ -10864,7 +10864,7 @@ ${MARKETING_FOOTER}`)}`;
  )}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבא"/>:`ייבוא ${built.rows.length} ${importSpec.unit}`}</button>
+ <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבאת"/>:`ייבוא ${built.rows.length} ${importSpec.unit}`}</button>
  <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-md)",cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
  </div>
  </>);
@@ -10919,7 +10919,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowClientModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveClient} disabled={isBusy("saveClient")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveClient")?<Spinner inline label="שומר"/>:"שמירה ✓"}</button>
+ <button onClick={handleSaveClient} disabled={isBusy("saveClient")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveClient")?<Spinner inline label="שומרת"/>:"שמירה ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -10938,7 +10938,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowLeadModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveLead} disabled={isBusy("saveLead")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveLead")?<Spinner inline label="שומר"/>:"שמירה ✓"}</button>
+ <button onClick={handleSaveLead} disabled={isBusy("saveLead")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveLead")?<Spinner inline label="שומרת"/>:"שמירה ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -11160,7 +11160,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setShowCashier(false)} className="primary-btn" style={{flex:1,padding:"12px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומר"/>:"רשמי תשלום ✓"}</button>
+ <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומרת"/>:"רשמי תשלום ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -11291,7 +11291,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
  <button onClick={()=>printReceipt(showReceipt)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
- <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:"var(--t-xs)",border:"none"}}>{isBusy("sendReceipt")?<Spinner inline label="שולח"/>:"שליחה ללקוחה"}</button>
+ <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:"var(--t-xs)",border:"none"}}>{isBusy("sendReceipt")?<Spinner inline label="שולחת"/>:"שליחה ללקוחה"}</button>
               ):null;})()}
  <button onClick={()=>setShowReceipt(null)} className="primary-btn" style={{flex:1,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>סגירה</button>
  </div>
@@ -11809,7 +11809,7 @@ ${MARKETING_FOOTER}`)}`;
  <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="אימות סיסמה חדשה" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",marginTop:2}}>{isBusy("changePw")?<Spinner inline label="מעדכן"/>:"עדכון סיסמה"}</button>
+ <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",marginTop:2}}>{isBusy("changePw")?<Spinner inline label="מעדכנת"/>:"עדכון סיסמה"}</button>
  </div>
  </div>
 
@@ -12704,7 +12704,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,padding:"14px 24px"}}>
  <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>סגירה</button>
- <button onClick={saveSettingsPanel} disabled={isBusy("saveSettings")||!panelDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:panelDirty?pcGrad:"var(--line-2)",color:panelDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:panelDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:panelDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
+ <button onClick={saveSettingsPanel} disabled={isBusy("saveSettings")||!panelDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:panelDirty?pcGrad:"var(--line-2)",color:panelDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:panelDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומרת"/>:panelDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
  </div>
  </div>
  </Sheet>
@@ -12854,7 +12854,7 @@ ${MARKETING_FOOTER}`)}`;
                     );})
                   )}
                   {clientTab==="scans"&&(
-                    scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוען סריקות"/></p>
+                    scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוענת סריקות"/></p>
                     :clientScans.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין סריקות עדיין. לחצי על "סריקת עור AI" למעלה.</p>
                     :clientScans.map(s=>(
  <div key={s.id} onClick={()=>setViewScan(s)} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid var(--surface-2)",cursor:"pointer"}}>

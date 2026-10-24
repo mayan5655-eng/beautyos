@@ -71,7 +71,7 @@ export default function CommunityPage() {
             part of the rebrand; fixed while already here for the flower
             watermark below, since there is no point decorating text nobody
             could read in the first place. */}
-        {loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}><Spinner inline label="טוען"/></p>}
+        {loading && <p style={{ textAlign: "center", color: "var(--brand-muted, #7D8D87)", fontSize:"var(--t-md)" }}><Spinner inline label="טוענת"/></p>}
         {error && !loading && (
           <div className="pub-card"><LineIcon src={ICON_QUESTION} /><p style={{ color: "var(--ink-2)", fontSize: "var(--t-lg)", margin: 0 }}>{error}</p></div>
         )}
