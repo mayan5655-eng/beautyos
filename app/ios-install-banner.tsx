@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import InstallBannerCard from "./InstallBannerCard";
+import { inAppBrowser } from "@/lib/design/sharePost";
 
 const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
@@ -28,7 +29,9 @@ export default function IOSInstallBanner() {
     const isIOS = /iphone|ipad|ipod/i.test(ua);
     // Chrome/Firefox/Edge on iOS carry their own tokens; their share sheets
     // don't expose "Add to Home Screen", so only prompt real Safari.
-    const isSafari = !/crios|fxios|edgios|opios/i.test(ua);
+    // Instagram / Facebook / WhatsApp in-app browsers report as Safari but have no "Add to Home Screen"; the
+    // in-app-browser banner (in-app-browser-banner.tsx) tells her to open Safari instead.
+    const isSafari = !/crios|fxios|edgios|opios/i.test(ua) && !inAppBrowser(ua);
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       // iOS Safari exposes standalone here rather than via display-mode.

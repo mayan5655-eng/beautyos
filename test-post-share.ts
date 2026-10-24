@@ -74,3 +74,18 @@ const enc = fs.readFileSync('app/design/reelEncoder.js', 'utf8');
 assert.match(enc, /withStall\(video\.add/, 'a hung encoder fails instead of spinning forever');
 
 console.log('post share: ok');
+
+// Leaving an in-app browser (2026-10-24): Safari on iPhone, Chrome on Android, nothing elsewhere.
+{
+  const { openInBrowserHref, inAppBrowser: iab } = await import('./lib/design/sharePost.js');
+  const url = 'https://kalmea.app/dashboard';
+  assert.equal(openInBrowserHref(IG, url), 'x-safari-https://kalmea.app/dashboard');
+  assert.match(openInBrowserHref(FB, url)!, /^intent:\/\/kalmea\.app\/dashboard#Intent;scheme=https;package=com\.android\.chrome;/);
+  assert.equal(openInBrowserHref(DESKTOP, url), null);
+  assert.equal(openInBrowserHref(IG, 'javascript:alert(1)'), null, 'only https links');
+  assert.equal(iab(IG), 'instagram');
+  const banner = fs.readFileSync('app/in-app-browser-banner.tsx', 'utf8');
+  assert.match(banner, /OWNER_PATHS = \["\/dashboard"/, 'only on her own screens, never the public booking page');
+  assert.match(fs.readFileSync('app/layout.tsx', 'utf8'), /<InAppBrowserBanner \/>/);
+  assert.match(fs.readFileSync('app/ios-install-banner.tsx', 'utf8'), /!inAppBrowser\(ua\)/, 'no "Add to Home Screen" hint where it does not exist');
+}

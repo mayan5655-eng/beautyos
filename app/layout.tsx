@@ -4,6 +4,7 @@ import "./globals.css";
 import PWARegister from "./pwa-register";
 import AttributionCapture from "./AttributionCapture";
 import IOSInstallBanner from "./ios-install-banner";
+import InAppBrowserBanner from "./in-app-browser-banner";
 import InstallPromptBanner from "./install-prompt-banner";
 import UpdateBanner from "./UpdateBanner";
 import { APP_URL } from "@/lib/appUrl";
@@ -331,6 +332,7 @@ export default function RootLayout({
             does. The install banners stay outside it: they are chrome. */}
         <a href="#main-content" className="skip-link">דלגי לתוכן הראשי</a>
         <main id="main-content" tabIndex={-1} className="flex flex-1 flex-col" style={{ outline: "none" }}>{children}</main>
+        <InAppBrowserBanner />
         <IOSInstallBanner />
         <InstallPromptBanner />
         <UpdateBanner />
