@@ -33,7 +33,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NEEDS_MIGRATION = {
   success: false,
   needsMigration: true,
-  error: 'הדף האישי עוד לא הופעל: חסר עדכון אחד במסד הנתונים (kalmea-sql-client-results.txt). אחרי שירוץ הכפתור יעבוד.',
+  error: 'הדף האישי עוד לא הופעל: חסר עדכון אחד במסד הנתונים (kalmea-sql-client-pages.txt). אחרי שירוץ הכפתור יעבוד.',
 };
 const fail = (where: string, err: unknown) => {
   console.error(`[client-page] ${where} failed:`, (err as { message?: string })?.message || err);
