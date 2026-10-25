@@ -686,3 +686,8 @@ body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none 
   select,
   textarea { font-size: 16px !important; }
 }
+
+/* The "open in Safari/Chrome" card sat on top of every sheet in Instagram's in-app browser (2026-10-25: it covered the
+   consent box of the photo-to-post sheet). While a sheet is open the sheet is the thing she is doing; the card is back
+   when it closes. Browsers without :has() just keep the old behaviour. */
+body:has(.sheet-backdrop) [role="dialog"][aria-label="פתיחה בדפדפן של הטלפון"] { display: none !important; }
