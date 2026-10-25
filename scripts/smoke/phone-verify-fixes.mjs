@@ -99,7 +99,8 @@ for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]
 // 7. a new appointment starts on a day she is open (today is checked as it comes: a Saturday opens on Sunday)
 {
   const s = await phone('android'); const p = s.page; await login(p);
-  await p.locator('button:has-text("✦ קביעת תור"), button:has-text("✦ תור חדש")').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
+  await p.locator('button[aria-label="יומן"]').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
+  await p.locator('button:has-text("✦ תור חדש")').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
   const bad = await p.locator('text=סגור ביום זה').filter({ visible: true }).count();
   check(bad === 0, 'new appointment: the form does not open on a closed day');
   await p.screenshot({ path: SHOTS + '/verify-new-appt.png' });
