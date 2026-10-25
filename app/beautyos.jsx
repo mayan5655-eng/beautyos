@@ -2650,12 +2650,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (!myDayOn) return null;
     const byId = new Map(clients.map(c => [String(c.id), c]));
     return buildMyDay({
-      entries: todayEntries, clientAppts, tomorrowAppts, receipts: liveRcpts, leads, leadsReady: deferred.leads === "ok",
+      entries: todayEntries, clientAppts, tomorrowAppts, receipts: liveRcpts, leads, leadsReady: deferred.leads === "ok", paymentsReady: historyReady,
       now: new Date(), startMinute, endMinute, isPersonal,
       hasPhone: (a) => !!((byId.get(String(a.client_id))?.phone || "").trim()),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myDayOn, todayEntries, clientAppts, tomorrowAppts, liveRcpts, leads, clients, deferred.leads, myDayMinute]);
+  }, [myDayOn, todayEntries, clientAppts, tomorrowAppts, liveRcpts, leads, clients, deferred.leads, historyReady, myDayMinute]);
 
   // ── Attribution ───────────────────────────────────────────────────────────
   // Where a client came from is DERIVED, not copied. handleConvertLead already
@@ -8543,7 +8543,7 @@ ${MARKETING_FOOTER}`)}`;
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
- {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads!=="ok"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
+ {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
               pc={pc} pcTint={pcTint} style={{order:1}}
               onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt}/>}
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number

@@ -105,6 +105,23 @@ assert.equal(n.items.length, CAPS.total);
 assert.deepEqual(n.items.map((i: any) => i.kind), ['pay', 'pay', 'remind', 'remind', 'remind']);
 assert.equal(n.more, 6 + 6 + 4 - CAPS.total);
 
+
+// Receipts not loaded yet (history still loading): no 'no payment recorded' guesses.
+n = buildNeeds({ ...common, clientAppts: [A({ id: 'p1' })], tomorrowAppts: [], receipts: [], leads: [], paymentsReady: false });
+assert.equal(n.items.length, 0, 'receipts still loading: say nothing rather than guess');
+
+// A nails-only day: long back-to-back sets, a lunch break. Nothing the card says by itself is cosmetics wording.
+const nails = [
+  A({ id: 'n1', name: 'שני', service: 'בניית ציפורניים', start_minute: 9 * 60, duration: 120, price: 280 }),
+  A({ id: 'n2', name: 'גלית', service: 'לק ג׳ל', start_minute: 11 * 60, duration: 90, price: 150 }),
+  A({ id: 'n3', name: 'עדי', service: 'מילוי', start_minute: 13 * 60 + 30, duration: 90, price: 200 }),
+];
+const dn = buildMyDay({ entries: nails, clientAppts: nails, tomorrowAppts: [], receipts: [], leads: [], now: morning, startMinute, endMinute, isPersonal, hasPhone });
+assert.equal(dn.headline, '3 תורים היום, מ-09:00 עד 15:00');
+assert.deepEqual(dn.rows.map((r: any) => r.gapAfter?.minutes ?? null), [null, 60, null], 'only the lunch break is free time');
+assert.equal(dn.rows[0].sub, 'בניית ציפורניים');
+assert.ok(!/טיפול|פנים|קוסמטי/.test(JSON.stringify({ h: dn.headline, r: dn.rows.map((r: any) => [r.title, r.sub]), n: dn.needs.map((i: any) => [i.text, i.action]) })), 'no cosmetics words of our own');
+
 // ── the whole card ──
 // A brand-new empty tenant: nothing at all, and it is called empty (the dashboard shows the warm welcome).
 let d = buildMyDay({ entries: [], clientAppts: [], tomorrowAppts: [], receipts: [], leads: [], now: morning, startMinute, endMinute, isPersonal, hasPhone });
