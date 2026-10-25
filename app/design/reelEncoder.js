@@ -57,9 +57,11 @@ async function musicBuffer(url, seconds) {
  * Encode a reel. `drawAt(ctx, ms)` paints the frame `ms` into the reel onto `canvas`. Returns an MP4 Blob.
  * @param {{ canvas: HTMLCanvasElement, drawAt: (ctx: CanvasRenderingContext2D, ms: number) => void, totalMs: number,
  *   preset: { fps: number, bitrate: number, codec: string }, musicUrl?: string | null, onProgress?: (p: number) => void,
- *   shouldStop?: () => boolean }} opts
+ *   shouldStop?: () => boolean, prepareAt?: (ms: number) => Promise<void> }} opts
+ * `prepareAt`, when given, is awaited before each frame is drawn: a reel made of her own clips decodes the clip's
+ * next frame there (app/design/ownReelDraw.js), since drawAt itself is synchronous.
  */
-export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl = null, onProgress, shouldStop }) {
+export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl = null, onProgress, shouldStop, prepareAt }) {
   const ctx = canvas.getContext('2d');
   const output = new Output({ format: new Mp4OutputFormat({ fastStart: 'in-memory' }), target: new BufferTarget() });
   const video = new CanvasSource(canvas, {
@@ -82,7 +84,9 @@ export async function encodeReelMp4({ canvas, drawAt, totalMs, preset, musicUrl 
     const dt = 1 / preset.fps;
     for (let i = 0; i < n; i++) {
       if (shouldStop?.()) throw new Error('stopped');
-      drawAt(ctx, Math.min(frameTimeMs(i, preset.fps), totalMs));
+      const ms = Math.min(frameTimeMs(i, preset.fps), totalMs);
+      if (prepareAt) await withStall(prepareAt(ms), `prepare ${i}`);
+      drawAt(ctx, ms);
       await withStall(video.add(i * dt, dt), `frame ${i}`);
       if (i % 6 === 0) onProgress?.(i / n);
     }
