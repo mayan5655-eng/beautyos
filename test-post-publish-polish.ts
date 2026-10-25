@@ -53,6 +53,14 @@ assert.ok(getTemplate);
 // ── 4. share events ──
 assert.deepEqual(cleanShareEvent({ kind: 'image', outcome: 'shared', canShare: true, source: 'plan' }), { kind: 'image', outcome: 'shared', can_share: true, source: 'plan' });
 assert.deepEqual(cleanShareEvent({ kind: 'video', outcome: 'download', source: 'evil' }), { kind: 'video', outcome: 'download', can_share: null, source: null });
+assert.equal(cleanShareEvent({ kind: 'image', outcome: 'shared', source: 'photo' })?.source, 'photo', 'photo-to-post shares are counted');
+assert.equal(cleanShareEvent({ kind: 'video', outcome: 'shared', source: 'ownreel' })?.source, 'ownreel', 'own-media reels are counted');
+{
+  const shareSql = read('supabase/migrations/add_share_events.sql');
+  for (const s of ['photo', 'ownreel']) assert.ok(shareSql.split(`'${s}'`).length >= 3, `the share_events check allows '${s}' (create and swap)`);
+  assert.match(read('app/design/PhotoToPost.jsx'), /source="photo"/);
+  assert.match(read('app/design/OwnReel.jsx'), /source="ownreel"/);
+}
 assert.equal(cleanShareEvent({ kind: 'image', outcome: 'drop table' }), null);
 assert.equal(cleanShareEvent({ kind: 'pdf', outcome: 'shared' }), null);
 assert.equal(cleanShareEvent(null), null);

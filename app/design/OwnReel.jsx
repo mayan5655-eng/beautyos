@@ -235,7 +235,7 @@ export default function OwnReel({ open, onClose, settings, toast, readOnly = fal
       </Sheet>
 
       {out && (
-        <SaveShare open={open && sharing} onClose={() => setSharing(false)} blob={out.blob} kind="video" source="reel" ext={out.ext}
+        <SaveShare open={open && sharing} onClose={() => setSharing(false)} blob={out.blob} kind="video" source="ownreel" ext={out.ext}
           downloadName={`kalmea-reel.${out.ext}`} caption={text} toast={toast} />
       )}
 

@@ -197,6 +197,7 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
           onClose={() => setSharing(null)}
           blob={sharing === 'story' ? out.story.blob : out.post.blob}
           caption={sharing === 'story' ? '' : text}
+          source="photo"
           toast={toast}
         />
       )}

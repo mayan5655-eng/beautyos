@@ -34,8 +34,8 @@ create table if not exists public.share_events (
   can_share   boolean,
   device      text check (device in ('ios', 'android', 'desktop')),
   in_app      text check (in_app in ('instagram', 'facebook', 'whatsapp', 'tiktok', 'line')),
-  -- where the export started: editor | advanced | reel | plan | mine
-  source      text check (source in ('editor', 'advanced', 'reel', 'plan', 'mine'))
+  -- where the export started: editor | advanced | reel | plan | mine | photo (צילום אחרי טיפול) | ownreel (reel from her own media)
+  source      text check (source in ('editor', 'advanced', 'reel', 'plan', 'mine', 'photo', 'ownreel'))
 );
 
 create index if not exists share_events_created_idx on public.share_events (created_at desc);
@@ -43,6 +43,12 @@ create index if not exists share_events_tenant_idx on public.share_events (tenan
 
 alter table public.share_events enable row level security;
 revoke all on public.share_events from anon, authenticated;
+
+-- 2026-10-25: two more sources ('photo', 'ownreel'). For a database where this file already ran with the old list, swap
+-- the check in place. Safe to run more than once.
+alter table public.share_events drop constraint if exists share_events_source_check;
+alter table public.share_events add constraint share_events_source_check
+  check (source in ('editor', 'advanced', 'reel', 'plan', 'mine', 'photo', 'ownreel'));
 
 commit;
 

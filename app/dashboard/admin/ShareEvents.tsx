@@ -9,9 +9,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-type Row = { created_at: string; tenant_id: string; outcome: string; device: string | null; in_app: string | null; can_share: boolean | null }
+type Row = { created_at: string; tenant_id: string; outcome: string; device: string | null; in_app: string | null; can_share: boolean | null; source: string | null }
 
 const DEVICE_HE: Record<string, string> = { ios: 'אייפון', android: 'אנדרואיד', desktop: 'מחשב' }
+const SOURCE_HE: Record<string, string> = {
+  editor: 'עורך העיצוב', advanced: 'עורך מתקדם', reel: 'רילס', plan: 'תוכנית התוכן', mine: 'העיצובים שלי',
+  photo: 'צילום אחרי טיפול', ownreel: 'רילס מהתמונות שלה',
+}
 const COLS: Array<[string, string]> = [
   ['opened', 'נפתח החלון'],
   ['shared', 'שותף'],
@@ -26,7 +30,7 @@ export default async function ShareEvents({ db }: { db: SupabaseClient }) {
   const since = new Date(Date.now() - 14 * 864e5).toISOString()
   const { data, error } = await db
     .from('share_events')
-    .select('created_at, tenant_id, outcome, device, in_app, can_share')
+    .select('created_at, tenant_id, outcome, device, in_app, can_share, source')
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(5000)
@@ -49,8 +53,14 @@ export default async function ShareEvents({ db }: { db: SupabaseClient }) {
   const rows = (data || []) as Row[]
   const byDevice = new Map<string, Record<string, number>>()
   const tenants = new Map<string, number>()
+  // Which feature the finished post came from: opened, and got out (shared or downloaded).
+  const bySource = new Map<string, { opened: number; out: number }>()
   let inApp = 0, noShare = 0, opened = 0
   for (const r of rows) {
+    const src = bySource.get(r.source || '') || { opened: 0, out: 0 }
+    if (r.outcome === 'opened') src.opened++
+    if (r.outcome === 'shared' || r.outcome === 'download') src.out++
+    bySource.set(r.source || '', src)
     const key = r.device || 'desktop'
     const counts = byDevice.get(key) || {}
     counts[r.outcome] = (counts[r.outcome] || 0) + 1
@@ -95,6 +105,11 @@ export default async function ShareEvents({ db }: { db: SupabaseClient }) {
           </div>
           <p style={{ color: '#4A5B54', fontSize: 'var(--t-sm)', marginTop: 10 }}>
             {tenants.size} עסקים פתחו את החלון {opened} פעמים. מתוכן {inApp} מתוך דפדפן של אינסטגרם/פייסבוק, ו-{noShare} בדפדפן שלא יודע לשתף קבצים.
+          </p>
+          <p data-testid="share-by-source" style={{ color: '#4A5B54', fontSize: 'var(--t-sm)', marginTop: 6 }}>
+            לפי מקור:{' '}
+            {[...bySource.entries()].sort((a, b) => b[1].opened - a[1].opened)
+              .map(([src, c]) => `${SOURCE_HE[src] || 'לא ידוע'} ${c.opened} נפתחו, ${c.out} שותפו/הורדו`).join(' · ')}
           </p>
         </>
       )}
