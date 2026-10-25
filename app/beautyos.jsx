@@ -36,6 +36,8 @@ import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of co
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
 const DesignStudio = dynamic(() => import("./design/DesignStudio"), { ssr: false });
+// "צילום אחרי טיפול": one photo -> a ready post + story (app/design/PhotoToPost.jsx), from the dashboard and a client card.
+const PhotoToPost = dynamic(() => import("./design/PhotoToPost"), { ssr: false });
 import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
@@ -872,6 +874,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [editingClient,     setEditingClient]      = useState(null);
   const [editingLead,       setEditingLead]        = useState(null);
   const [selectedClient,    setSelectedClient]     = useState(null);
+  const [photoPost, setPhotoPost] = useState(null); // null = closed; { clientName } = open (clientName may be "")
   // Which agenda card has its "עוד" actions open (the day view shows one main action per card).
   const [apptMenuId, setApptMenuId] = useState(null);
   const [selectedLead,      setSelectedLead]       = useState(null);
@@ -7674,6 +7677,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           #tax-report{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:720px;box-shadow:none!important;border:none!important;padding:32px 28px}}
       `}</style>
 
+      {photoPost&&<PhotoToPost open onClose={()=>setPhotoPost(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={photoPost.clientName||""}/>}
+
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (
       <OnboardingTour
@@ -8466,6 +8471,13 @@ ${MARKETING_FOOTER}`)}`;
               )}
  </div>
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
+ <button type="button" onClick={()=>{if(guardWrite())return;setPhotoPost({clientName:""});}} data-testid="photo-to-post-open" className="glass-card card-boxed" style={{order:3,display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:1180,marginInline:"auto",marginBottom:12,padding:"14px 17px",textAlign:"right",cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line)"}}>
+ <span aria-hidden style={{width:40,height:40,borderRadius:"50%",background:"var(--ink)",color:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",flex:"none"}}><Icon name="camera" size={18}/></span>
+ <span style={{flex:1}}>
+ <span style={{display:"block",fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)"}}>צילום אחרי טיפול</span>
+ <span style={{display:"block",fontSize:12.5,color:"var(--brand-muted)",marginTop:2}}>תמונה אחת ← פוסט וסטורי מוכנים לאינסטגרם</span>
+ </span>
+ </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
@@ -12795,6 +12807,7 @@ ${MARKETING_FOOTER}`)}`;
      when she hasn't explicitly toggled it in Settings); existing scan
      history below is untouched either way — this only hides the action to
      take a NEW scan, never past data. */}
+ <button type="button" onClick={()=>{if(guardWrite())return;setSelectedClient(null);setPhotoPost({clientName:c.name||""});}} data-testid="photo-to-post-client" style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>✦ צילום אחרי טיפול</button>
  {skinScanVisible(settings)&&(
  <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
  {scanLoading?<Spinner inline label="סורקת"/>:"✦ סריקת עור AI"}
