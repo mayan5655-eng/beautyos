@@ -6,6 +6,7 @@
 // The account is kalmea-smoke-*; it is removed completely at the end (purgeTenant). Never the real tenant.
 import { launch, PASSWORD, BASE, admin, newEmail, tenantIdOf, REAL_TENANT } from './lib.mjs';
 import { purgeTenant } from './admin-tools.mjs';
+import { createClient } from '@supabase/supabase-js';
 
 const fails = [];
 const log = (...a) => console.log('[trial-closed]', ...a);
@@ -63,6 +64,16 @@ try {
   check(!closedText.includes(CLIENT), 'no client name anywhere on the screen');
   check(await page.locator('button[aria-label="יומן"]').count() === 0, 'no calendar tab, no menu');
   check(!/צפייה בלבד/.test(closedText), 'no read-only promise');
+
+  // The database side (supabase/migrations/add_closed_read_block_2026-10-25.sql): with her own session and the anon key,
+  // the client list must come back empty. Before that file is run it still comes back, which is reported, not failed.
+  const me = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  await me.auth.signInWithPassword({ email, password: PASSWORD });
+  const direct = await me.from('clients').select('id');
+  const dbBlock = !direct.error && (direct.data || []).length === 0;
+  log(`database read block: ${dbBlock ? 'ON' : 'OFF (add_closed_read_block_2026-10-25.sql not run yet)'}`);
+  const ownRow = await me.from('tenants').select('id').eq('id', tenantId).maybeSingle();
+  check(!!ownRow.data, 'the closed business can still read its own plan row (the screen needs it to reopen after payment)');
   await page.screenshot({ path: 'smoke-trial-closed-dashboard.png', fullPage: true });
 
   // ── her public page: no new bookings ──
@@ -86,6 +97,10 @@ try {
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }).catch(() => {});
   check(await page.locator('[data-testid="plan-blocked-screen"]').count() === 0, 'after renewal the dashboard is back');
+  if (dbBlock) {
+    const back = await me.from('clients').select('id');
+    check((back.data || []).length === 1, 'after renewal the database returns her clients again');
+  }
   const { data: still } = await db.from('clients').select('id').eq('tenant_id', tenantId).eq('name', CLIENT);
   check((still || []).length === 1, 'the client row was never touched');
   await pub.goto(`${BASE}/book?t=${tenantId}`, { waitUntil: 'domcontentloaded' });

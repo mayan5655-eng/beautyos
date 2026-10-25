@@ -19,7 +19,10 @@
 // switched on for the deployment, and stays usable here because no billing
 // route uses the plan guard: a closed business must be able to pay.
 
+import { useEffect } from "react";
 import dynamic from "next/dynamic";
+import { supabase } from "./supabase";
+import { planState } from "@/lib/planState";
 import BrandImage from "@/app/BrandImage";
 import { ICON_FLOWER } from "@/lib/brand";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
@@ -38,6 +41,39 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
   const wa = supportWhatsAppUrl();
   // A paused account is an arrangement, not a sale: no price pitch there.
   const showPrice = plan?.status === "expired";
+
+  // She paid (BillingCard, or we activated her by hand after a WhatsApp chat): open the system by itself, no refresh needed.
+  // Checked when she comes back to the tab (the card page opens in another one) and every 30 seconds while it is open.
+  // Only a row that is READ and is no longer blocked reopens: a failed read keeps this screen, it never loops a reload.
+  useEffect(() => {
+    if (isDemo) return undefined;
+    let alive = true;
+    let busy = false;
+    const check = async () => {
+      if (busy || !alive || (typeof document !== "undefined" && document.visibilityState === "hidden")) return;
+      busy = true;
+      try {
+        const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
+        if (!tenantId) return;
+        const { data, error } = await supabase.from("tenants").select("*").eq("id", tenantId).maybeSingle();
+        if (alive && !error && data && !planState(data).isBlocked) window.location.reload();
+      } catch {
+        // keep the screen; the next check tries again
+      } finally {
+        busy = false;
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", check);
+    const timer = setInterval(check, 30000);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", check);
+      clearInterval(timer);
+    };
+  }, [isDemo]);
 
   return (
     <div
