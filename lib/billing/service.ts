@@ -22,7 +22,8 @@ import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
 import { subscriptionDoc } from '../kalmeaBusiness.ts';
 import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
-import { PLAN_PRICES, type AddonPack } from '../pricing.ts';
+import { PLAN_PRICES, defaultPlanPrice, type AddonPack } from '../pricing.ts';
+import { LAUNCH_PRICE_CUTOFF_ISO } from '../ownerControl.ts';
 import { periodMonth } from '../addonQuota.ts';
 
 /** From lib/pricing.ts, the one place prices live. */
@@ -54,6 +55,8 @@ export type Subscription = {
 };
 
 export type TenantRow = { id: string; name: string | null; plan_status: string | null; trial_ends_at: string | null; plan_price: number | string | null;
+  /** Her signup date, which decides the launch price once LAUNCH_PRICE_CUTOFF_ISO is set. */
+  created_at?: string | null;
   /** Her mobile, the payer Grow requires on every token charge (lib/grow/ops.ts chargeToken refuses without one). The same source as
    *  the card page (app/api/billing/card): settings.automations.owner_phone, else settings.business_phone. */
   phone?: string | null };
@@ -119,9 +122,10 @@ export function addMonths(d: Date, n: number): Date {
   return out;
 }
 
-export const priceOf = (tenant: TenantRow | null): number => {
+/** Her agreed price (tenants.plan_price) when one was set, else the launch price while it is open for her (lib/pricing.ts). */
+export const priceOf = (tenant: Pick<TenantRow, 'plan_price' | 'created_at'> | null): number => {
   const p = Number(tenant?.plan_price);
-  return Number.isFinite(p) && p > 0 ? p : REGULAR_PRICE;
+  return Number.isFinite(p) && p > 0 ? p : defaultPlanPrice(tenant?.created_at, LAUNCH_PRICE_CUTOFF_ISO);
 };
 
 /** When the grace period ends for a past-due subscription (null when it is not past due). */

@@ -14,7 +14,8 @@
 import { useEffect, useState } from 'react';
 import TrialBanner from './TrialBanner';
 import { trialEndDateHe, upgradeCtaHe, payToContinueHe, UPGRADE_HINT_HE } from '@/lib/planCopy';
-import { PLAN_PRICES, upgradeButtonsEnabled } from '@/lib/pricing';
+import { defaultPlanPrice, upgradeButtonsEnabled } from '@/lib/pricing';
+import { LAUNCH_PRICE_CUTOFF_ISO } from '@/lib/ownerControl';
 
 export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner }) {
   const [s, setS] = useState(null);
@@ -30,8 +31,8 @@ export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner 
   const canPay = !!(s && s.configured && s.tableReady !== false && !isDemo);
   const invite = canPay && plan?.tone === 'urgent' && plan?.isTrial && plan?.daysRemaining !== null && plan.daysRemaining <= (s.inviteDays ?? 5) && !sub?.card_last4;
   const payToContinue = canPay && plan?.tone === 'blocked' && plan?.status === 'expired';
-  // Her own price: her subscription's, else her agreed price, else the regular one (the status route resolves the first two).
-  const price = Number(s?.plan?.price) > 0 ? Number(s.plan.price) : PLAN_PRICES.regular;
+  // Her own price: her subscription's, else her agreed price, else the launch price while it is open (the status route resolves all of it).
+  const price = Number(s?.plan?.price) > 0 ? Number(s.plan.price) : defaultPlanPrice(null, LAUNCH_PRICE_CUTOFF_ISO);
   const upgradeOn = upgradeButtonsEnabled();
   const upgrade = upgradeOn && canPay && plan?.isTrial && (plan?.tone === 'gentle' || plan?.tone === 'urgent') && !sub?.card_last4;
 

@@ -8,7 +8,7 @@
 //   payments                 her billing history with the invoice links
 //   tableReady               false while add_kalmea_billing.sql has not been run
 import { NextResponse } from 'next/server';
-import { REGULAR_PRICE, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
+import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
 import { admin, billing, caller, tableMissing } from '../_shared';
 import { ADDON_PACKS, ADDON_PACK_KEYS, addonPacksEnabled, addonButtonHe } from '@/lib/pricing';
 import { getCallCapStatus } from '@/lib/ai/callCaps';
@@ -22,15 +22,15 @@ export async function GET() {
   const b = billing();
   const out = {
     success: true, ui: true, mode: b.mode, configured: b.configured, tableReady: true, inviteDays: INVITE_DAYS,
-    plan: { status: 'active' as string, trialEndsAt: null as string | null, price: REGULAR_PRICE },
+    plan: { status: 'active' as string, trialEndsAt: null as string | null, price: priceOf(null) },
     subscription: null as Record<string, unknown> | null,
     payments: [] as unknown[],
   };
 
   // The plan columns are not readable with her own session (the gate revoked them from the browser role), so they are read with the service role,
   // for her own tenant only (c.tenantId comes from her session).
-  const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price').eq('id', c.tenantId).maybeSingle();
-  if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: Number(t.data.plan_price) > 0 ? Number(t.data.plan_price) : REGULAR_PRICE };
+  const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price, created_at').eq('id', c.tenantId).maybeSingle();
+  if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: priceOf(t.data) };
 
   // Read with the service role for her own tenant, like the writes: under the session the select policy can hide her row (the same mismatch
   // made the Grow card show a connected business as "not connected", fixed in b7b3e81). SUB_COLS never includes the token reference.

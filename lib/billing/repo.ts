@@ -67,7 +67,7 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       return (data || []).map(payOf);
     },
     async getTenant(tenantId) {
-      const { data, error } = await db.from('tenants').select('id, name, plan_status, trial_ends_at, plan_price').eq('id', tenantId).maybeSingle();
+      const { data, error } = await db.from('tenants').select('id, name, plan_status, trial_ends_at, plan_price, created_at').eq('id', tenantId).maybeSingle();
       if (error) fail(error, 'getTenant');
       if (!data) return null;
       // The payer's phone for the token charge: the same source as the card page (app/api/billing/card). A read failure leaves it

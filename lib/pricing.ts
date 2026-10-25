@@ -18,6 +18,19 @@ export const PLAN_PRICES = {
   launch: 349,
 } as const
 
+/**
+ * The monthly price a business pays when no price of her own was agreed (tenants.plan_price): the launch price while the launch
+ * offer is open for her, else the regular one. Owner 2026-10-25: "if it says a launch price of 349, the charge must match it".
+ * `cutoffIso` is lib/ownerControl.ts LAUNCH_PRICE_CUTOFF_ISO (null = open for everyone); with a cutoff, a business that signed up
+ * on or before it keeps 349, and one with no known signup date pays the regular price.
+ */
+export function defaultPlanPrice(signedUpAt: string | null | undefined, cutoffIso: string | null): number {
+  if (cutoffIso == null) return PLAN_PRICES.launch
+  const at = signedUpAt ? Date.parse(signedUpAt) : NaN
+  const cut = Date.parse(cutoffIso)
+  return Number.isFinite(at) && Number.isFinite(cut) && at <= cut ? PLAN_PRICES.launch : PLAN_PRICES.regular
+}
+
 export function upgradeButtonsEnabled(env: Record<string, string | undefined> = { NEXT_PUBLIC_UPGRADE_BUTTONS: process.env.NEXT_PUBLIC_UPGRADE_BUTTONS }): boolean {
   return String(env.NEXT_PUBLIC_UPGRADE_BUTTONS || '').trim() === '1'
 }
