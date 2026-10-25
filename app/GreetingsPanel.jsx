@@ -15,8 +15,9 @@ import { skipKey } from '@/lib/greetings/greetings.js';
 const OCC = [
   { key: 'birthday', icon: '🎂', title: 'יום הולדת', sub: 'ביום ההולדת של הלקוחה' },
   { key: 'anniversary', icon: '🌸', title: 'שנה אצלי', sub: 'כשמלאה שנה מהביקור הראשון שלה אצלך' },
-  { key: 'holiday', icon: '🌿', title: 'חג', sub: 'יומיים לפני החג שבחרת' },
+  { key: 'holiday', icon: '🌿', title: 'ברכת חג', sub: 'יומיים לפני החג שבחרת' },
 ];
+const ariaOf = (o) => (o.key === 'holiday' ? o.title : `ברכת ${o.title}`);
 const OCC_LABEL = { birthday: 'יום הולדת', anniversary: 'שנה אצלי', holiday: 'חג' };
 const HELD_LABEL = {
   no_consent: (n) => `${n} לקוחות בלי אישור דיוור לא יקבלו`,
@@ -144,7 +145,7 @@ export default function GreetingsPanel({ pc, toast }) {
                 <div style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600 }}>{o.icon} {o.title}</div>
                 <div style={small}>{o.sub}</div>
               </div>
-              <Switch on={cfg.enabled} onChange={(v) => setOcc(o.key, { enabled: v })} label={`ברכת ${o.title}`} pc={pc} />
+              <Switch on={cfg.enabled} onChange={(v) => setOcc(o.key, { enabled: v })} label={ariaOf(o)} pc={pc} />
             </div>
             {cfg.enabled && (
               <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -167,7 +168,7 @@ export default function GreetingsPanel({ pc, toast }) {
                 )}
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--t-xs)', color: 'var(--ink-2)' }}>
                   <span>הנוסח (אפשר לשנות; {'{name}'} שם הלקוחה, {'{clinic}'} שם העסק)</span>
-                  <textarea aria-label={`נוסח ברכת ${o.title}`} rows={4} maxLength={400} value={shown}
+                  <textarea aria-label={`נוסח ${ariaOf(o)}`} rows={4} maxLength={400} value={shown}
                     onChange={(e) => setOcc(o.key, { text: e.target.value === texts[o.key] ? '' : e.target.value })} style={{ ...field, resize: 'vertical', lineHeight: 1.5 }} />
                 </label>
                 {cfg.text && (
@@ -175,7 +176,7 @@ export default function GreetingsPanel({ pc, toast }) {
                 )}
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--t-xs)', color: 'var(--ink-2)' }}>
                   <span>מתנה קטנה ממך (לא חובה)</span>
-                  <input aria-label={`מתנה בברכת ${o.title}`} maxLength={80} value={cfg.gift} placeholder="למשל: שדרוג מתנה בטיפול הבא" onChange={(e) => setOcc(o.key, { gift: e.target.value })} style={field} />
+                  <input aria-label={`מתנה ב${ariaOf(o)}`} maxLength={80} value={cfg.gift} placeholder="למשל: שדרוג מתנה בטיפול הבא" onChange={(e) => setOcc(o.key, { gift: e.target.value })} style={field} />
                   {o.key === 'birthday' && !cfg.gift && <span style={small}>ריק? אז תופיע המתנה מ&quot;מתנת יום הולדת בהודעה&quot; אם כתבת שם אחת.</span>}
                 </label>
               </div>
