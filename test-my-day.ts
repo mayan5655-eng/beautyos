@@ -20,8 +20,9 @@ assert.equal(hhmm(null), '');
 assert.equal(telHref('050-123 4567'), 'tel:0501234567');
 assert.equal(telHref(''), '');
 assert.equal(telHref('12'), '');
-assert.equal(waitingHe(new Date(2026, 9, 24, 9, 0).toISOString(), morning), 'פנתה אתמול');
-assert.equal(waitingHe(new Date(2026, 9, 22, 8, 0).toISOString(), morning), 'פנתה לפני 3 ימים');
+// 25.10.2026 is the night Israel's clock goes back an hour; times are picked so the test reads the same in UTC (Vercel) and Israel.
+assert.equal(waitingHe(new Date(2026, 9, 24, 7, 0).toISOString(), morning), 'פנתה אתמול');
+assert.equal(waitingHe(new Date(2026, 9, 22, 7, 0).toISOString(), morning), 'פנתה לפני 3 ימים');
 assert.equal(waitingHe(null, morning), '');
 
 // ── timeline: order, gaps, state ──
@@ -88,8 +89,8 @@ assert.equal(n.items[1].action, 'הזכירי שוב');
 assert.equal(n.items[0].text, 'רות: מחר ב-15:00, עוד לא אישרה');
 
 // Leads: only unanswered ones with a number, within two weeks, oldest first; closed ones never; not before leads loaded.
-const lead = (o: any) => ({ id: 'l', name: 'נועה', phone: '052-111 2222', status: 'new', created_at: new Date(2026, 9, 24, 9, 0).toISOString(), service_interest: 'גבות', ...o });
-const leads = [lead({ id: 'new' }), lead({ id: 'old', created_at: new Date(2026, 9, 22, 9, 0).toISOString(), status: 'no_answer' }), lead({ id: 'closed', status: 'closed' }), lead({ id: 'nophone', phone: '' }), lead({ id: 'ancient', created_at: new Date(2026, 8, 1).toISOString() })];
+const lead = (o: any) => ({ id: 'l', name: 'נועה', phone: '052-111 2222', status: 'new', created_at: new Date(2026, 9, 24, 7, 0).toISOString(), service_interest: 'גבות', ...o });
+const leads = [lead({ id: 'new' }), lead({ id: 'old', created_at: new Date(2026, 9, 22, 7, 0).toISOString(), status: 'no_answer' }), lead({ id: 'closed', status: 'closed' }), lead({ id: 'nophone', phone: '' }), lead({ id: 'ancient', created_at: new Date(2026, 8, 1).toISOString() })];
 n = buildNeeds({ ...common, now: morning, clientAppts: [], tomorrowAppts: [], receipts: [], leads });
 assert.deepEqual(n.items.map((i: any) => i.lead.id), ['old', 'new']);
 assert.equal(n.items[0].kind, 'call');
