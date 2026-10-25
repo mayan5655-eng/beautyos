@@ -41,10 +41,19 @@ export function probeVideo(url) {
     v.muted = true; v.playsInline = true; v.preload = 'metadata';
     const done = (fn) => { clearTimeout(t); v.removeAttribute('src'); try { v.load(); } catch { /* ignore */ } fn(); };
     const t = setTimeout(() => done(() => reject(new Error('הסרטון לא נפתח בדפדפן הזה'))), 15000);
-    v.onloadedmetadata = () => {
+    const finish = () => {
       const d = Number.isFinite(v.duration) ? v.duration : 0;
       const r = { durationMs: Math.round(d * 1000), w: v.videoWidth, h: v.videoHeight };
       done(() => resolve(r));
+    };
+    v.onloadedmetadata = () => {
+      if (Number.isFinite(v.duration)) { finish(); return; }
+      // A recorded WebM (and some phone files) says "Infinity" until it is read to the end: seek far, then it knows.
+      // Without this a 2-second clip got the full 6 seconds and froze on its last frame (smoke, 2026-10-25).
+      // Read it when the seek has landed, not on the first durationchange: Chrome reports a tiny interim value first
+      // (a 2.5 s clip came out as 0 s in one smoke run). Still unknown after that = 0, which the plan treats as "up to 6 s".
+      v.onseeked = finish;
+      v.currentTime = 1e7;
     };
     v.onerror = () => done(() => reject(new Error('הסרטון לא נפתח בדפדפן הזה. אפשר לנסות סרטון אחר, או לשמור אותו שוב מהגלריה.')));
     v.src = url;

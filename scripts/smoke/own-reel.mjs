@@ -8,6 +8,7 @@
 //   -> nothing was uploaded (no storage request). Android also opens it from the studio card.
 // Real Chrome (Playwright's Chromium has no H.264 encoder). NOT a real iPhone: Safari's rules are modelled, its codecs are not.
 //   SMOKE_BASE=<preview> node --env-file=.env.local scripts/smoke/own-reel.mjs     (SMOKE_SHOTS=<dir> for screenshots)
+import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { PASSWORD, BASE, admin, newEmail, tenantIdOf, REAL_TENANT } from './lib.mjs';
 import { PROFILES, initScript } from './phone-profiles.mjs';
@@ -71,7 +72,8 @@ const inspect = (page, times) => page.evaluate(async ([ts, primary]) => {
     x.drawImage(v, 0, 0, 270, 480); const d = x.getImageData(0, 0, 270, 480).data;
     let p = 0, k = 0, n = 0;
     for (let i = 0; i < d.length; i += 8) { n++; if (near(d, i, P, 50)) p++; if (near(d, i, K, 18)) k++; }
-    out.frames.push({ t, her: p / n, kalmea: k / n });
+    const big = document.createElement('canvas'); big.width = 540; big.height = 960; big.getContext('2d').drawImage(v, 0, 0, 540, 960);
+    out.frames.push({ t, her: p / n, kalmea: k / n, png: big.toDataURL('image/png') });
   }
   return out;
 }, [times, PRIMARY]);
@@ -87,7 +89,8 @@ async function run(label, profile, { noEncoder = false } = {}) {
   page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text().slice(0, 240)}`); });
   page.on('pageerror', (e) => problems.push(`pageerror: ${String(e.message).slice(0, 240)}`));
   page.on('response', (r) => { if (r.status() >= 500) problems.push(`HTTP ${r.status()} ${r.url().slice(0, 140)}`); });
-  page.on('request', (r) => { if (/\/storage\/v1\/object|\/api\/designs/.test(r.url()) && r.method() !== 'GET') uploads.push(`${r.method()} ${r.url().slice(0, 120)}`); });
+  // share-event is the studio's anonymous "she opened / shared" count (SaveShare): no media in it
+  page.on('request', (r) => { if (/\/storage\/v1\/object|\/api\/designs(?!\/share-event)/.test(r.url()) && r.method() !== 'GET') uploads.push(`${r.method()} ${r.url().slice(0, 120)}`); });
   try {
     await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1500);
     await page.fill('input[type=email]', email); await page.fill('input[type=password]', PASSWORD); await page.click('button[type=submit]');
@@ -150,9 +153,11 @@ async function run(label, profile, { noEncoder = false } = {}) {
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     await page.waitForTimeout(800);
     const info = await inspect(page, [0.9, 3.6, -1.2]);
+    // the sampled frames themselves, for a human look (half size)
+    info.frames.forEach((f, k) => writeFileSync(`${SHOTS}/smoke-ownreel-${label}-frame-${k + 1}.png`, Buffer.from(f.png.split(',')[1], 'base64')));
     // planned: photo 2.6 + clip ~2.5 + photo 2.6 + end 3 = ~10.7 s
     check(info.w === 1080 && info.h === 1920, `${label}: reel is 1080x1920 (${info.w}x${info.h})`);
-    check(info.dur > 9 && info.dur < 12.5, `${label}: reel runs the planned ~10.7 s (${info.dur.toFixed(2)} s, made in ${secs} s)`);
+    check(info.dur > 9.5 && info.dur < 11.8, `${label}: reel runs the planned ~10.7 s (${info.dur.toFixed(2)} s, made in ${secs} s)`);
     check(info.frames.every((f) => f.her > 0.003), `${label}: her purple in every sampled frame (${info.frames.map((f) => (f.her * 100).toFixed(1) + '%').join(', ')})`);
     check(info.frames.every((f) => f.kalmea < 0.002), `${label}: no Kalmea green (${info.frames.map((f) => (f.kalmea * 100).toFixed(2) + '%').join(', ')})`);
     const text = await page.locator('[data-testid="own-reel-post-text"]').inputValue();
@@ -193,7 +198,7 @@ async function run(label, profile, { noEncoder = false } = {}) {
       check(await page.locator('[data-testid="own-reel-item"]').count() === 0, `${label}: the studio card opens a fresh, empty reel sheet`);
     }
 
-    const real = problems.filter((p) => !/favicon|Failed to load resource.*(404|401)|vercel.live/.test(p));
+    const real = problems.filter((p) => !/favicon|Failed to load resource.*(404|401)|vercel.live|Invalid Sentry Dsn/.test(p)); // the DSN line: local .env only
     check(real.length === 0, `${label}: no console errors / 5xx${real.length ? ': ' + real.slice(0, 3).join(' | ') : ''}`);
   } catch (e) {
     fails.push(`${label}: ${e.message}`); console.error('[own-reel] FAIL', label, e.message);
