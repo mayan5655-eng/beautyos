@@ -26,7 +26,11 @@ fs.mkdirSync('report-shots', { recursive: true });
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-const now = new Date();
+const realNow = new Date();
+// Phase 2 needs three visits still ahead today (about four hours of day). Late in the evening the page's clock is pinned to 08:00
+// today instead (Playwright clock), so the smoke runs the same at any hour.
+const LATE = realNow.getHours() * 60 + realNow.getMinutes() > 17 * 60;
+const now = LATE ? new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate(), 8, 0) : realNow;
 const TODAY = ymd(now), TOMORROW = ymd(addDays(now, 1));
 const nowMin = now.getHours() * 60 + now.getMinutes();
 
@@ -34,6 +38,7 @@ const S = await session(profile, stateFile);
 const { page, meta } = S;
 if (meta.tenantId === REAL_TENANT) throw new Error('refusing the real tenant');
 const tenantId = meta.tenantId;
+if (LATE) { await page.clock.setFixedTime(now); console.log('late run: page clock pinned to', now.toString()); }
 const tag = `${profile}${NAILS ? 'n' : ''}-${Date.now().toString(36).slice(-4)}`;
 
 const settings0 = (await db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle()).data || {};
@@ -105,8 +110,8 @@ await mkAppt(t3, TOMORROW, 13 * 60, 45, { confirmation_status: 'pending' });
 // leads: one unanswered with a number, one closed (must not appear)
 const L1 = `לידה ${tag}`;
 await db.from('leads').insert([
-  { tenant_id: tenantId, name: L1, phone: '0500000008', status: 'new', source: 'אינסטגרם', service_interest: 'גבות', received_at: new Date(Date.now() - 26 * 3600e3).toISOString() },
-  { tenant_id: tenantId, name: `סגורה ${tag}`, phone: '0500000009', status: 'closed', source: 'אינסטגרם', received_at: new Date(Date.now() - 26 * 3600e3).toISOString() },
+  { tenant_id: tenantId, name: L1, phone: '0500000008', status: 'new', source: 'אינסטגרם', service_interest: 'גבות', received_at: new Date(now.getTime() - 26 * 3600e3).toISOString() },
+  { tenant_id: tenantId, name: `סגורה ${tag}`, phone: '0500000009', status: 'closed', source: 'אינסטגרם', received_at: new Date(now.getTime() - 26 * 3600e3).toISOString() },
 ]);
 
 await openDash();
@@ -134,7 +139,8 @@ const minH = await btns.evaluateAll((els) => Math.min(...els.map((e) => e.getBou
 ok(minH >= 44, 'every action is at least 44px tall for a thumb', String(Math.round(minH)));
 ok(await page.locator('[data-testid=my-day-need-call] a[href^="tel:"]').getAttribute('href') === 'tel:0500000008', 'the lead\'s action is a real tel: link');
 const full = await card.innerText();
-ok(!/שילמ/.test(full) && !/נשלח/.test(full), 'wording never says "did not pay" or "sent"');
+// "עוד לא נשלחה לה תזכורת" is honest; any other "sent" (or "did not pay") is a claim the card must not make.
+ok(!/שילמ/.test(full) && !/נשלח/.test(full.replace(/לא נשלחה/g, '')), 'wording never says "did not pay" or "sent"');
 await card.scrollIntoViewIfNeeded();
 await page.screenshot({ path: `report-shots/myday-${profile}${NAILS ? '-nails' : ''}-3-card.png` }).catch(() => {});
 await card.screenshot({ path: `report-shots/myday-${profile}${NAILS ? '-nails' : ''}-3b-card-only.png` }).catch(() => {});
@@ -165,8 +171,11 @@ const [pop] = await Promise.all([
 ]);
 await page.waitForTimeout(2500);
 const evs = S.events ? await S.events() : [];
-const opened = !!pop || evs.some((e) => /open/.test(e) && /wa\.me|whatsapp/.test(e));
-ok(opened, 'remind: WhatsApp was opened from the tap', pop ? pop.url().slice(0, 60) : evs.join(' ; ').slice(0, 160));
+// The window is opened blank inside the tap and then pointed at WhatsApp (phone-profiles records that as popup.location).
+const waEv = evs.find((e) => /^(window\.open|popup\.location)/.test(e) && /wa\.me|whatsapp/.test(e)) || '';
+const opened = !!pop || !!waEv;
+ok(opened && !/BLOCKED/.test(evs.filter((e) => e.startsWith('window.open')).join(' ')), 'remind: WhatsApp was opened from the tap', pop ? pop.url().slice(0, 60) : evs.filter((e) => !e.startsWith('api')).join(' ; ').slice(0, 200));
+if (waEv) ok(/972500000006|0500000006/.test(waEv), "remind: aimed at HER client's number", waEv.slice(0, 90));
 if (pop) { ok(/wa\.me\/972500000006/.test(pop.url()) || pop.url() === 'about:blank' || /whatsapp/.test(pop.url()), 'remind: aimed at HER client\'s number', pop.url().slice(0, 70)); await pop.close().catch(() => {}); }
 const aT1now = (await db.from('appointments').select('confirmation_sent').eq('id', aT1.id).single()).data;
 ok(aT1now?.confirmation_sent === true || !opened, 'remind: marked as prepared once WhatsApp opened');
@@ -184,7 +193,7 @@ ok(await page.getByText('אין תורים להיום').count() + (await page.ge
 await page.screenshot({ path: `report-shots/myday-${profile}${NAILS ? '-nails' : ''}-6-flag-off.png` }).catch(() => {});
 await setAutomations({ feature_flags: {} });
 
-ok(S.problems.filter((p) => !/favicon|ResizeObserver|LockManager|Sentry/.test(p)).length === 0, 'no console or server errors', S.problems.slice(0, 3).join(' | '));
+ok(S.problems.filter((p) => !/favicon|ResizeObserver|LockManager|Sentry|vercel\.live/.test(p)).length === 0, 'no console or server errors', S.problems.slice(0, 3).join(' | '));
 await S.browser.close();
 console.log(fails.length ? `\n${fails.length} FAILED:\n- ${fails.join('\n- ')}` : '\nALL OK');
 process.exit(fails.length ? 1 : 0);
