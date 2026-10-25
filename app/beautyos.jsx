@@ -43,6 +43,7 @@ import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
 import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
+import WaitlistOfferSetting from "./WaitlistOfferSetting";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { firstFreeStart } from "@/lib/apptFirstFree";
@@ -3760,6 +3761,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
               }
             } catch { toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); }
           }, 6600);
+        }
+        // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
+        // The server re-checks that the appointment is still cancelled, so the undo above always wins.
+        if (settings?.automations?.waitlist_offers === true && appt.kind !== "personal") {
+          setTimeout(() => { if (!restored) fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) }).catch(() => {}); }, 6500);
         }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
@@ -12502,6 +12508,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
+ <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
  </>)}

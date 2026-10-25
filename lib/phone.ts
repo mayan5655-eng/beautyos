@@ -125,3 +125,14 @@ export function waLink(phone: string | null | undefined, message: string): strin
   if (!digits) return null;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * The block 050-000-0xxx is reserved for tests and smoke runs (scripts/smoke seed their fake clients with 05000000xx). A message to one
+ * of these is never handed to a provider: sendWhatsApp keeps it in the manual queue, so a test can see what WOULD have gone out and no
+ * real person (or API call) is involved.
+ */
+export function isReservedTestNumber(raw: string | null | undefined): boolean {
+  const d = String(raw ?? '').replace(/\D/g, '');
+  const local = d.startsWith('972') ? '0' + d.slice(3) : d;
+  return /^0500000\d{3}$/.test(local);
+}

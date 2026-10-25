@@ -23,6 +23,7 @@ import { checkIpLimit, checkTenantLimit, checkPhoneLimit } from "../../../../lib
 import { tenantIsBlocked } from "../../../../lib/tenantActive";
 import { notifyOwner } from "../../../../lib/ownerNotify";
 import { ACTIVE_OR_NULL } from "../../../../lib/serviceActive";
+import { WINDOWS } from "../../../../lib/waitlistMatch.js";
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -41,6 +42,10 @@ export async function POST(request) {
     const service = clean(body.service, 120);
     const preferredDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.preferredDate || "")) ? body.preferredDate : null;
     const note = clean(body.note, 200);
+    // The days and hours she can do (optional): weekdays 0-6 (0 = Sunday) and one of the time windows in lib/waitlistMatch.js.
+    const prefDays = Array.isArray(body.days) ? [...new Set(body.days.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort() : [];
+    const win = WINDOWS.find((w) => w.key === body.window) || WINDOWS[0];
+    const hasPrefs = prefDays.length > 0 || win.from !== null;
 
     if (!UUID.test(tenantId)) return Response.json({ success: false, error: "הקישור אינו תקין" }, { status: 400 });
     if (!name || !service) return Response.json({ success: false, error: "חסרים שם וטיפול" }, { status: 400 });
@@ -75,7 +80,7 @@ export async function POST(request) {
     const client = (clientRows || [])[0] || null;
 
     const notes = ["נרשמה דרך דף ההזמנה", note].filter(Boolean).join(" · ");
-    const { error } = await admin.from("waitlist").insert({
+    const row = {
       tenant_id: tenantId,
       client_id: client ? client.id : null,
       client_name: name,
@@ -84,7 +89,14 @@ export async function POST(request) {
       preferred_date: preferredDate,
       notes,
       status: "waiting",
-    });
+    };
+    let { error } = await admin.from("waitlist").insert(hasPrefs ? { ...row, pref_days: prefDays.length ? prefDays : null, pref_from_minute: win.from, pref_to_minute: win.to } : row);
+    let windowSaved = hasPrefs && !error;
+    // The window columns arrive with supabase/migrations/add_waitlist_windows_2026-10-25.sql. Until it has run she is still put on the list
+    // (by treatment, as always) and told so: the page must not claim a window that was not saved.
+    if (hasPrefs && error && (error.code === "42703" || error.code === "PGRST204" || /pref_days|pref_from_minute|pref_to_minute|schema cache|does not exist/i.test(String(error.message || "")))) {
+      ({ error } = await admin.from("waitlist").insert(row));
+    }
     // 23505: a double tap raced the duplicate check above; the unique index (add_audit_fixes_2026-10-20.sql) kept one row.
     if (error && error.code === "23505") return Response.json({ success: true, already: true });
     if (error) { console.error("[waitlist/join] insert failed:", error.code || "", error.message); return Response.json({ success: false, error: STUCK }, { status: 500 }); }
@@ -96,7 +108,7 @@ export async function POST(request) {
       settingsRow: settingsRow?.data || null,
     }).catch((e) => console.error("[waitlist/join] owner notify failed:", e?.message || String(e))));
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, windowSaved: hasPrefs ? windowSaved : undefined });
   } catch (err) {
     console.error("[waitlist/join] failed:", err?.message || String(err));
     return Response.json({ success: false, error: STUCK }, { status: 500 });
