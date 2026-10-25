@@ -88,7 +88,7 @@ export default function ClientPageSheet({ client, onClose, toast, pc, pcDeep, pc
 
         {needsMigration && (
           <p data-testid="clientpage-needs-migration" style={{ ...note, color: 'var(--ink)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: 12 }}>
-            הדף האישי עוד לא הופעל: חסר עדכון אחד במסד הנתונים (הקובץ kalmea-sql-client-pages.txt בשולחן העבודה). אחרי שהוא ירוץ, הכפתור הזה יעבוד.
+            הדף האישי עוד לא הופעל בחשבון (חסרה הרצת SQL: kalmea-sql-client-pages). אחרי שהיא תרוץ, הכפתור הזה יעבוד.
           </p>
         )}
 
