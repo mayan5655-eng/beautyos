@@ -54,6 +54,7 @@ export default function GreetingsPanel({ pc, toast }) {
   const [state, setState] = useState('loading'); // loading | ready | error
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(null);
+  const [previewing, setPreviewing] = useState(false); // a draft change is on its way to the server; the old plan is not shown as current
   const saved = useRef(null);
   const seq = useRef(0);
 
@@ -78,10 +79,12 @@ export default function GreetingsPanel({ pc, toast }) {
   // The preview follows the draft, so switching a greeting on shows who would get it before anything is saved.
   const refresh = useCallback(async (next) => {
     const mine = ++seq.current;
+    setPreviewing(true);
     try {
       const d = await post('preview', next);
       if (mine === seq.current) setPlan(d.plan);
     } catch { /* the previous preview stays; saving still works */ }
+    finally { if (mine === seq.current) setPreviewing(false); }
   }, [post]);
 
   const change = (patch) => {
@@ -124,6 +127,8 @@ export default function GreetingsPanel({ pc, toast }) {
 
   const texts = loaded.defaultTexts;
   const items = plan?.items || [];
+  // A tick follows her tap at once (the draft), not the server's answer, which can take a few seconds.
+  const draftSkip = new Set(draft?.skip || []);
   const heldLines = Object.entries(plan?.held || {}).filter(([k]) => HELD_LABEL[k]).map(([k, n]) => HELD_LABEL[k](n));
   const windowNote = WINDOW_NOTE[loaded.window];
 
@@ -189,6 +194,8 @@ export default function GreetingsPanel({ pc, toast }) {
         <div style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600, marginBottom: 2 }}>מי תקבל ברכה בשבוע הקרוב</div>
         {!anyOn ? (
           <p style={small}>כל הברכות כבויות, אז שום דבר לא ייכנס לרשימה. כשתדליקי ברכה, כאן תראי מי תקבל אותה לפני שמשהו קורה.</p>
+        ) : previewing && items.length === 0 ? (
+          <p style={small} data-testid="greetings-previewing">בודקת מי תקבל ברכה…</p>
         ) : items.length === 0 ? (
           <p style={small} data-testid="greetings-empty">
             {plan?.clientCount === 0 ? 'עוד אין לקוחות בעסק. כשיהיו, כאן תראי מי תקבל ברכה.' : 'השבוע אין ימי הולדת, ימי "שנה אצלי" או חגים שמתאימים ללקוחות עם אישור דיוור.'}
@@ -198,13 +205,14 @@ export default function GreetingsPanel({ pc, toast }) {
             {items.map((it) => {
               const k = skipKey(it.clientId, it.occasion, it.ref);
               const isOpen = open === k;
+              const skipped = draftSkip.has(k);
               return (
                 <li key={k} style={{ borderTop: '1px solid var(--line)', padding: '4px 0' }} data-testid="greeting-item">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <button type="button" role="checkbox" aria-checked={!it.skipped} aria-label={`${it.name}: ${OCC_LABEL[it.occasion]}`} onClick={() => toggleItem(it)}
-                      style={{ width: 44, height: 44, flexShrink: 0, border: 'none', background: 'transparent', fontSize: 22, color: it.skipped ? 'var(--ink-3)' : (pc || 'var(--brand-deep)'), cursor: 'pointer' }}>{it.skipped ? '☐' : '☑'}</button>
+                    <button type="button" role="checkbox" aria-checked={!skipped} aria-label={`${it.name}: ${OCC_LABEL[it.occasion]}`} onClick={() => toggleItem(it)}
+                      style={{ width: 44, height: 44, flexShrink: 0, border: 'none', background: 'transparent', fontSize: 22, color: skipped ? 'var(--ink-3)' : (pc || 'var(--brand-deep)'), cursor: 'pointer' }}>{skipped ? '☐' : '☑'}</button>
                     <button type="button" onClick={() => setOpen(isOpen ? null : k)} aria-expanded={isOpen}
-                      style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'start', background: 'none', border: 'none', fontFamily: 'inherit', color: 'var(--ink)', opacity: it.skipped ? 0.5 : 1 }}>
+                      style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'start', background: 'none', border: 'none', fontFamily: 'inherit', color: 'var(--ink)', opacity: skipped ? 0.5 : 1 }}>
                       <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{it.name || 'ללא שם'}</span>
                       <span style={{ ...small, display: 'block' }}>{OCC_LABEL[it.occasion]}{it.holidayKey ? ` · ${loaded.holidays.find((h) => h.key === it.holidayKey)?.name || ''}` : ''} · {it.sendOn === plan.today ? 'היום' : hebrewDateShort(it.sendOn)}</span>
                     </button>

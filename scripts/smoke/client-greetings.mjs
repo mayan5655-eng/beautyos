@@ -52,6 +52,9 @@ async function openPanel() {
 }
 const tap = async (loc) => { const l = loc.filter({ visible: true }).first(); await l.scrollIntoViewIfNeeded(); await (S.P.inApp ? l.dispatchEvent('click') : l.click()); };
 const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+// Each tap that changes the draft asks the server for a new preview (a cold preview function takes a few seconds): wait for the
+// answer, not for a fixed time.
+const tapAndWait = async (loc) => { await Promise.all([page.waitForResponse((r) => r.url().includes('/api/greetings') && r.request().method() === 'POST', { timeout: 30000 }).catch(() => null), tap(loc)]); await page.waitForTimeout(300); };
 const sw = (label) => page.locator(`[role=switch][aria-label="${label}"]`);
 
 // ── 1. empty tenant ──
@@ -63,7 +66,7 @@ ok((await page.locator('[data-testid=greetings-preview]').innerText()).includes(
 ok((await page.locator('[data-testid=greetings-save]').innerText()).includes('הכול שמור'), 'empty: nothing to save yet');
 ok((await overflow()) <= 1, 'empty: no sideways scroll at 430', String(await overflow()));
 await shot('1-empty-off');
-await tap(sw('ברכת יום הולדת')); await page.waitForTimeout(1500);
+await tapAndWait(sw('ברכת יום הולדת'));
 ok((await page.locator('[data-testid=greetings-preview]').innerText()).includes('עוד אין לקוחות'), 'empty: switching on says there are no clients yet');
 ok((await sw('ברכת יום הולדת').getAttribute('aria-checked')) === 'true', 'empty: switch is on in the draft');
 ok((await page.locator('[data-testid=greetings-save]').innerText()).includes('שמרי והפעילי'), 'empty: the save button offers to save and activate');
@@ -89,7 +92,7 @@ const FAKE = ['0500000011', '0500000012', '0500000013', '0500000014', '050000001
 console.log('seeded 5 clients');
 
 await openPanel();
-await tap(sw('ברכת יום הולדת')); await page.waitForTimeout(2000);
+await tapAndWait(sw('ברכת יום הולדת'));
 const prev = page.locator('[data-testid=greetings-preview]');
 const names = await page.locator('[data-testid=greeting-item]').allInnerTexts();
 const has = (c) => names.some((n) => n.includes(c.name));
@@ -106,9 +109,11 @@ ok(msg.includes('להסרה מרשימת התפוצה'), 'the message carries th
 ok(!/[{}]/.test(msg), 'no placeholder left in the message');
 await shot('4-message');
 // untick A2
-await tap(page.locator(`[role=checkbox][aria-label^="${A2.name}"]`)); await page.waitForTimeout(1500);
+await tap(page.locator(`[role=checkbox][aria-label^="${A2.name}"]`)); await page.waitForTimeout(200);
+ok((await page.locator(`[role=checkbox][aria-label^="${A2.name}"]`).first().getAttribute('aria-checked')) === 'false', 'the tick follows her tap at once (before the server answers)');
+await page.waitForResponse((r) => r.url().includes('/api/greetings') && r.request().method() === 'POST', { timeout: 30000 }).catch(() => null); await page.waitForTimeout(300);
 ok((await page.locator(`[role=checkbox][aria-label^="${A2.name}"]`).first().getAttribute('aria-checked')) === 'false', 'she can untick a name');
-await tap(page.locator('[data-testid=greetings-save]')); await page.waitForTimeout(2000);
+await tapAndWait(page.locator('[data-testid=greetings-save]'));
 const saved = (await db.from('settings').select('automations').eq('tenant_id', tenantId).maybeSingle()).data?.automations?.greetings;
 ok(saved?.birthday?.enabled === true, 'saved: birthday is on');
 ok(Array.isArray(saved?.skip) && saved.skip.some((k) => k.startsWith(A2.id)), 'saved: the unticked name is remembered');
