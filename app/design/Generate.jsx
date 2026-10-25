@@ -8,6 +8,7 @@
 // spends one; at the cap the button closes and the templates below stay
 // open, because templates are unlimited by design.
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -74,7 +75,7 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
   const generate = async (overrideBrief, overrideFmt) => {
     const b = overrideBrief ?? brief;
     const f = overrideFmt ?? format;
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     if (b.trim().length < 3) { setError('כתבי מה תרצי לפרסם, למשל: מבצע לפני החג'); return; }
     setError(''); setBusy(true); setResult(null);
     try {

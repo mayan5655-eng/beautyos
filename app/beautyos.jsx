@@ -1008,6 +1008,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Null = the whole status group, which is the original behavior.
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
   const [loading,           setLoading]            = useState(true);
+  // A brand-new account (no settings row) is sent to /onboarding from loadAll. Until that navigation lands, the loading screen stays:
+  // clearing `loading` first painted the empty dashboard for about a second before onboarding (journey pass F5).
+  const leavingForOnboardingRef = useRef(false);
   // Non-null when a core read in loadAll FAILED. Distinct from "she has no
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
@@ -1602,7 +1605,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
-    { key:"link",     done: linkShared||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
+    { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -2400,7 +2403,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // read failed" - that case returned above. Before this change the two
       // were the same branch, so a failed read could bounce an established user
       // into onboarding, and finishing it inserts a SECOND settings row.
-      if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
+      if(st.data && st.data.length === 0) { leavingForOnboardingRef.current = true; router.replace("/onboarding"); return; }
       if(st.data && st.data.length > 0) {
         // The settings row for THIS user's tenant, or nothing.
         //
@@ -2466,7 +2469,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         offline: typeof navigator !== "undefined" && navigator.onLine === false,
       });
     } finally {
-      setLoading(false);
+      if (!leavingForOnboardingRef.current) setLoading(false);
     }
   };
 
@@ -6917,7 +6920,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
-      if (kind === "book") { setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ } }
+      if (kind === "book") {
+        setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
+        // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
+        if (!settings?.automations?.link_shared_at) persistTourPatch({ link_shared_at: new Date().toISOString() });
+      }
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← הדף שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;
@@ -7276,7 +7283,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return (
  <div style={{display:"inline-flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
         {segs.map(([id,label])=>(
- <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
+ <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",minHeight:44,fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
             {label}{id==="leads"&&newLeadsCount>0&&<span style={{background:activeTab===id?"rgba(255,255,255,0.35)":pcGrad,color:activeTab===id?"inherit":"var(--pc-contrast)",fontSize:"var(--t-xs)",fontWeight:700,padding:"1px 7px",borderRadius:"var(--r-full)"}}>{newLeadsCount}</span>}
  </button>
         ))}
@@ -7316,6 +7323,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       isDemo={false}
       toast={toast}
       onSignOut={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+      // After she pays (card page, or by arrangement), the dashboard reopens by itself: the plan is read again and, once it is
+      // active, loadAll runs from the start (the same path as the retry button). Answers whether it reopened.
+      recheck={async()=>{
+        const { data, error } = await supabase.from("tenants").select("*").eq("id", planRow?.id).maybeSingle();
+        if (error || !data || planState(data).isBlocked) return false;
+        setPlanRow(data); setLoadError(null); setLoading(true); loadAll();
+        return true;
+      }}
     />
   );
 
@@ -8460,7 +8475,7 @@ ${MARKETING_FOOTER}`)}`;
           )}
 
  <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);}}
-            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
+            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
             ✦ קביעת תור
  </button>
  </aside>
@@ -12847,7 +12862,7 @@ ${MARKETING_FOOTER}`)}`;
               const statusColor=STATUS_COLORS[c.status]||"var(--warning)";
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:14}}>
  <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<SignedImage value={c.images[0]} alt={c.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={c.name[0]}/>:c.name[0]}</div>
  <div style={{flex:1}}>
@@ -12870,7 +12885,7 @@ ${MARKETING_FOOTER}`)}`;
  {/* Book an appointment for THIS client — opens the existing new-appointment
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
- <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",minHeight:44,fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
  {/* One tap to the NEXT visit: her rhythm, the nearest free slot at her usual time (components/RebookNextSheet). */}
  <button data-testid="rebook-client" onClick={()=>{setRebookNext({client:c,appt:null});}} style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"transparent",color:"var(--surface)",border:"1.5px solid rgba(255,255,255,0.85)",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>↻ קבעי לה שוב</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
@@ -12909,7 +12924,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                   {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים${deferred.forms==="ok"?` (${cForms.length})`:""}`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -12949,9 +12964,12 @@ ${MARKETING_FOOTER}`)}`;
                             {ms==="none"&&"לא אישרה קבלת עדכונים ומבצעים, ולכן לא נכללת ברשימות שיווק. תזכורות ואישורי תשלום ממשיכים כרגיל."}
  </p>
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                            {ms!=="consent"&&<button onClick={()=>saveClientMarketing(c,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>סימון הסכמה לדיוור</button>}
-                            {ms!=="opted_out"&&<button onClick={()=>askConfirm({title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור? לא יישלחו לה עוד הודעות שיווק.`,confirmText:"כן, להסיר",onConfirm:()=>saveClientMarketing(c,optOutFields(),"נרשם: ביקשה הסרה מדיוור")})} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>ביקשה הסרה מדיוור</button>}
+                            {ms!=="consent"&&<button onClick={()=>saveClientMarketing(c,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:44}}>סימון הסכמה לדיוור</button>}
+                            {ms!=="opted_out"&&<button onClick={()=>askConfirm({title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור? (למשל כתבה לך "הסר" בוואטסאפ.) לא יישלחו לה עוד הודעות שיווק.`,confirmText:"כן, להסיר",onConfirm:()=>saveClientMarketing(c,optOutFields(),"נרשם: הסירה את עצמה מדיוור")})} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:44}}>הסירה את עצמה מדיוור</button>}
  </div>
+                            {/* Overnight report item ה (2026-10-21): a "הסר" sent to HER OWN WhatsApp never reaches Kalmea (only the central number's
+                                webhook records it), so the opt-out the law requires (section 30A) exists only if she records it here. */}
+                            {ms!=="opted_out"&&<p data-testid="marketing-optout-hint" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,marginTop:6}}>כתבה לך "הסר" בוואטסאפ האישי? המערכת לא רואה את ההודעות שם, אז חשוב לסמן כאן. מהרגע הזה לא יישלחו לה הודעות שיווק, ותזכורות לתורים ממשיכות כרגיל.</p>}
  </div>
                       ); })()}
  {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
@@ -13186,7 +13204,7 @@ ${MARKETING_FOOTER}`)}`;
               const st=leadStatusMeta(l.status);
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:13}}>
  <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
  <div style={{flex:1}}>

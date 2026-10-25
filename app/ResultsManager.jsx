@@ -5,7 +5,7 @@ import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, notUploadable } from "@/lib/imageResize";
 import { PUBLIC_BUCKET } from "@/lib/clientImages";
-import { consentComplete, publishBlockers } from "@/lib/results";
+import { consentComplete, publishBlockers, resultWriteErrorHe } from "@/lib/results";
 import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
 
 // ============================================================
@@ -121,7 +121,7 @@ export default function ResultsManager({ tenantId, services }) {
         ? supabase.from("treatment_results").update(payload).eq("id", draft.id)
         : supabase.from("treatment_results").insert({ ...payload, tenant_id: tenantId });
       const { error } = await q;
-      if (error) { setMsg(SAVE_FAILED_HE); return; }
+      if (error) { setMsg(resultWriteErrorHe(error)); return; }
       setDraft(null);
       await load();
     } finally { setBusy(""); }
@@ -131,8 +131,8 @@ export default function ResultsManager({ tenantId, services }) {
     setMsg(""); setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").update({ published: !r.published }).eq("id", r.id);
-      // The consent message only when the consent record really is incomplete (the database's rule); anything else is a plain save failure.
-      if (error) setMsg(!r.published && !consentComplete(fromRow(r)) ? "אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה." : SAVE_FAILED_HE);
+      // The reason the database gave; the consent message only when the consent check refused it (an unpublish can never hit that check).
+      if (error) setMsg(resultWriteErrorHe(error));
       await load();
     } finally { setBusy(""); }
   };
@@ -142,7 +142,7 @@ export default function ResultsManager({ tenantId, services }) {
     setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").delete().eq("id", r.id);
-      if (error) setMsg("המחיקה נכשלה.");
+      if (error) { const why = resultWriteErrorHe(error); setMsg(why === SAVE_FAILED_HE ? "המחיקה נכשלה. התוצאה עדיין שמורה, נסי שוב בעוד רגע." : why); }
       await load();
     } finally { setBusy(""); }
   };

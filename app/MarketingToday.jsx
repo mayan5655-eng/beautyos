@@ -86,7 +86,7 @@ export default function MarketingToday({ settings, appointments, clients, servic
   const showPost = !!post;
   if (!showWinback && !showReviews && !showPost) return null;
 
-  const btn = { flexShrink: 0, padding: "7px 14px", borderRadius: 999, border: `1px solid ${pc}`, background: "var(--surface)", color: "var(--pc-text)", fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" };
+  const btn = { flexShrink: 0, padding: "7px 14px", minHeight: 44, display: "inline-flex", alignItems: "center", borderRadius: 999, border: `1px solid ${pc}`, background: "var(--surface)", color: "var(--pc-text)", fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" };
   const hasAnyLink = (links && Object.keys(links).length > 0) || !!googleUrl;
 
   return (
