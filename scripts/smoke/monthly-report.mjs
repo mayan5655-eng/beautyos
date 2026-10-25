@@ -51,7 +51,7 @@ try {
   check('empty: no zeros dressed as results', !/₪\s?0\b/.test(empty) && !/\b0 טיפולים/.test(empty));
   check('empty: no side scroll', await noSideScroll());
   await page.locator('[data-testid="monthly-report"]').first().scrollIntoViewIfNeeded();
-  await page.screenshot({ path: path.join(shots, `${profile}-1-empty.png`) });
+  await page.waitForTimeout(1200); await page.screenshot({ path: path.join(shots, `${profile}-1-empty.png`) });
 
   // ── 2. seeded tenant ──
   const { data: clients } = await db.from('clients').select('id,name,phone').eq('tenant_id', tenantId);
@@ -97,7 +97,7 @@ try {
   const bigColor = await page.locator('[data-testid="monthly-report-income"]').evaluate((e) => getComputedStyle(e).color);
   check('income number is in her colour family', bigColor !== 'rgb(31, 58, 48)', bigColor);
   await page.locator('[data-testid="monthly-report"]').first().scrollIntoViewIfNeeded();
-  await page.screenshot({ path: path.join(shots, `${profile}-2-data.png`) });
+  await page.waitForTimeout(1200); await page.screenshot({ path: path.join(shots, `${profile}-2-data.png`) });
 
   // ── 3. from the income screen ──
   await page.locator('[data-testid="monthly-report-to-income"]').first().click();
@@ -136,7 +136,7 @@ try {
   }
   await page.screenshot({ path: path.join(shots, `${profile}-5-after-share.png`) });
 
-  const bad = s.problems.filter((p) => !/Failed to load resource|favicon|manifest/i.test(p));
+  const bad = s.problems.filter((p) => !/Failed to load resource|favicon|manifest|vercel.live/i.test(p));
   check('no page errors', bad.length === 0, bad.slice(0, 3).join(' | '));
 } finally {
   await s.browser.close();
