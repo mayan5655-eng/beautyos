@@ -15,7 +15,7 @@ import { skipKey } from '@/lib/greetings/greetings.js';
 const OCC = [
   { key: 'birthday', icon: '🎂', title: 'יום הולדת', sub: 'ביום ההולדת של הלקוחה' },
   { key: 'anniversary', icon: '🌸', title: 'שנה אצלי', sub: 'כשמלאה שנה מהביקור הראשון שלה אצלך' },
-  { key: 'holiday', icon: '🌿', title: 'ברכת חג', sub: 'יומיים לפני החג שבחרת' },
+  { key: 'holiday', icon: '🌿', title: 'חג', sub: 'יומיים לפני החג שבחרת' },
 ];
 const OCC_LABEL = { birthday: 'יום הולדת', anniversary: 'שנה אצלי', holiday: 'חג' };
 const HELD_LABEL = {
