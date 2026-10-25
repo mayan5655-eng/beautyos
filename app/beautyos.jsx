@@ -96,6 +96,8 @@ import ServiceDepositToggle from "./ServiceDepositToggle";
 import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
 import RebookNextSheet from "./RebookNextSheet";
+import MyDayCard from "./MyDayCard";
+import { buildMyDay, myDayEnabled } from "@/lib/myDay";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
@@ -2639,6 +2641,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const convertedLeads     = leads.filter(l=>l.status==="closed");
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
   const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
+
+  // "היום שלי" (app/MyDayCard.jsx, lib/myDay.js): the morning card. Computed once per change of data or per minute, never per keystroke
+  // elsewhere on the screen. Off for a tenant with automations.feature_flags.my_day === false (the old today list then shows instead).
+  const myDayOn = myDayEnabled(settings);
+  const myDayMinute = now.getHours()*60+now.getMinutes();
+  const myDayModel = useMemo(() => {
+    if (!myDayOn) return null;
+    const byId = new Map(clients.map(c => [String(c.id), c]));
+    return buildMyDay({
+      entries: todayEntries, clientAppts, tomorrowAppts, receipts: liveRcpts, leads, leadsReady: deferred.leads === "ok",
+      now: new Date(), startMinute, endMinute, isPersonal,
+      hasPhone: (a) => !!((byId.get(String(a.client_id))?.phone || "").trim()),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myDayOn, todayEntries, clientAppts, tomorrowAppts, liveRcpts, leads, clients, deferred.leads, myDayMinute]);
 
   // ── Attribution ───────────────────────────────────────────────────────────
   // Where a client came from is DERIVED, not copied. handleConvertLead already
@@ -8526,6 +8543,9 @@ ${MARKETING_FOOTER}`)}`;
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
+ {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads!=="ok"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
+              pc={pc} pcTint={pcTint} style={{order:1}}
+              onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt}/>}
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's
@@ -8700,7 +8720,7 @@ ${MARKETING_FOOTER}`)}`;
                   const todayLive=todayAppts.filter(a=>a.confirmation_status!=="cancelled");
                   const allEnded=todayLive.length>0&&todayLive.every(a=>{const e=endMinute(a);return e!==null&&e<=nowMin;});
                   // The evening, or the moment the last client has left.
-                  if(!(now.getHours()>=17||allEnded)) return null;
+                  if(myDayOn||!(now.getHours()>=17||allEnded)) return null;
                   const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
                   return(
  <div className="glass-card card-boxed" style={{order:9,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
@@ -8725,7 +8745,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{order:4,maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+ {!myDayOn&&<div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
                     {/* The mockup replaces this card's old icon+heading+count
                         header with just the divider below - the divider
                         itself is the "new section" signal, no label needed. */}
@@ -8800,7 +8820,7 @@ ${MARKETING_FOOTER}`)}`;
                         );
                       });
                     })()}
- </div>
+ </div>}
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
  <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
