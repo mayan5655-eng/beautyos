@@ -41,6 +41,24 @@ export default function InAppBrowserBanner() {
     }
   }, [pathname]);
 
+  // The card is fixed over the bottom of the page. Without room under the content, the last buttons of a long screen
+  // (the post editor's "שמירה ושיתוף", 2026-10-25 review) could never scroll out from under it. Pad the page by the
+  // card's height while it is shown, so everything can be scrolled above it. Measured after the slide-in settles.
+  useEffect(() => {
+    if (!app || !enter) return undefined;
+    const body = document.body;
+    const before = body.style.paddingBottom;
+    const fit = () => {
+      const card = document.querySelector('[aria-label="פתיחה בדפדפן של הטלפון"]');
+      if (!card) return;
+      const top = card.getBoundingClientRect().top;
+      body.style.paddingBottom = `${Math.max(0, Math.ceil(window.innerHeight - top) + 12)}px`;
+    };
+    const timer = window.setTimeout(fit, 350);
+    window.addEventListener("resize", fit);
+    return () => { window.clearTimeout(timer); window.removeEventListener("resize", fit); body.style.paddingBottom = before; };
+  }, [app, enter]);
+
   function dismiss() {
     try { window.sessionStorage.setItem(DISMISS_KEY, "1"); } catch { /* just hide for now */ }
     setEnter(false);
