@@ -250,7 +250,7 @@ await ok('a callback for a process we never opened, or naming another business o
 
 // ── wiring (source pins) ─────────────────────────────────────────────────────
 await ok('the booking page asks for the card tick in plain Hebrew, blocks submission until it is ticked, and the server refuses without it', () => {
-  assert.ok(CARD_CONSENT_TEXT_HE.length > 60 && /כרטיס האשראי/.test(CARD_CONSENT_TEXT_HE) && /לחייב אותו בעתיד/.test(CARD_CONSENT_TEXT_HE));
+  assert.ok(CARD_CONSENT_TEXT_HE.length > 40 && /פרטי האשראי/.test(CARD_CONSENT_TEXT_HE) && /חיובים עתידיים/.test(CARD_CONSENT_TEXT_HE) && !/אצל חברת הסליקה/.test(CARD_CONSENT_TEXT_HE));
   const page = read('app/BookingPage.jsx');
   assert.ok(/needsCardTick = needsPolicy && \(growPolicy\.mode === "saved_card" \|\| growPolicy\.mode === "deposit"\)/.test(page), 'the tick is asked in both modes that keep a card');
   assert.ok(/needsCardTick && !cardOk/.test(page) && /acceptedCardSave: needsCardTick/.test(page));

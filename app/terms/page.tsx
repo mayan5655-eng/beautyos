@@ -201,16 +201,17 @@ export default function TermsPage() {
           <He>
             אנו משתמשים בפרטים שנמסרים באתר רק לצורך מתן השירות, החיוב ומשלוח
             הקבלות, ולא מעבירים אותם לצד שלישי מלבד הספקים הדרושים לכך. פרטי כרטיס
-            האשראי לא נשמרים אצלנו: הם מוקלדים בדף המאובטח של חברת הסליקה Grow
-            ונשמרים אצלה. המידע נשמר בשרתים מאובטחים, כמפורט{" "}
+            האשראי מוקלדים בדף המאובטח של חברת הסליקה Grow. כשמאשרים לשמור כרטיס
+            לחיובים עתידיים, נשמר במערכת שלנו מזהה מאובטח (טוקן) של הכרטיס, ולא
+            מספר הכרטיס עצמו. המידע נשמר בשרתים מאובטחים, כמפורט{" "}
             <a href="/privacy" style={{ color: "inherit" }}>במדיניות הפרטיות</a>.
           </He>
           <En>
             We use the details given on the site only to provide the Service, to
             charge and to send receipts, and do not pass them to third parties other
-            than the providers needed for that. Card details are never stored by us:
-            they are typed on the secure page of the payment company Grow and kept
-            there. Data is kept on secure servers, as described in the{" "}
+            than the providers needed for that. Card details are typed on the secure page
+            of the payment company Grow. When a card is saved for future charges, our
+            system keeps a secure reference to it (a token), never the card number itself. Data is kept on secure servers, as described in the{" "}
             <a href="/privacy" style={{ color: "inherit" }}>Privacy Policy</a>.
           </En>
         </Section>

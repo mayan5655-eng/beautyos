@@ -26,10 +26,14 @@ export const GROW_ERR_DUPLICATE = 1010;
 /** Final card errors from Grow's token page: stop charging this token, ask for a new card. */
 export const GROW_FINAL_CARD_ERRORS = new Set([103, 451, 452, 453]);
 
-/** The wording of the required tick on the booking page. The exact text is stored with the consent. */
+/**
+ * The wording of the required tick on the booking page. The exact text is stored with the consent.
+ * v2 (2026-10-25, Grow's review): Grow does not keep the card details; the card is kept on our side (Grow's token), so the
+ * tick no longer says "at Grow". Grow's suggested wording, plus what the future charges are for.
+ */
 export const CARD_CONSENT_TEXT_HE =
-  'אני מאשרת לשמור את פרטי כרטיס האשראי שלי באופן מאובטח אצל חברת הסליקה Grow, כדי שהעסק יוכל לחייב אותו בעתיד לפי מדיניות הביטולים שלמעלה. הפרטים נשמרים רק לצורך זה.';
-export const CARD_CONSENT_VERSION = 'card-save-v1';
+  'אני מאשרת לשמור את פרטי האשראי שלי עבור חיובים עתידיים, לפי מדיניות הביטולים שלמעלה.';
+export const CARD_CONSENT_VERSION = 'card-save-v2';
 
 // ── credentials ──────────────────────────────────────────────────────────────
 

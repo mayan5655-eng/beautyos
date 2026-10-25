@@ -30,7 +30,7 @@ assert.ok(wr.indexOf('body.acceptedTerms !== true') > -1 && wr.indexOf('body.acc
 
 // The booking page's Grow policy tick and Kalmea's own billing tick link the terms.
 assert.ok(/href=\{PAYMENT_TERMS_HREF\}/.test(read('app/BookingPage.jsx')), 'booking page: the Grow policy tick links the payment terms');
-assert.ok(billingConsentTextHe(349).endsWith(BILLING_TERMS_SENTENCE_HE) && BILLING_CONSENT_VERSION === 'billing-card-v2', 'billing: the stored consent names the terms, new version');
+assert.ok(billingConsentTextHe(349).endsWith(BILLING_TERMS_SENTENCE_HE) && BILLING_CONSENT_VERSION === 'billing-card-v3' && !/אצל חברת הסליקה/.test(billingConsentTextHe(349)), 'billing: the stored consent names the terms, new version');
 assert.ok(/href=\{KALMEA_TERMS_HREF\}/.test(read('app/BillingCard.jsx')), 'billing card: the terms are a link');
 
 // A phone number in plain sight on Kalmea's own pages (landing, terms, privacy carry KalmeaLegalFooter).
