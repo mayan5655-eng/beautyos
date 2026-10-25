@@ -45,6 +45,7 @@ import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
 import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
+import WaitlistOfferSetting from "./WaitlistOfferSetting";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { firstFreeStart } from "@/lib/apptFirstFree";
@@ -98,6 +99,9 @@ import ServiceDepositToggle from "./ServiceDepositToggle";
 import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
 import RebookNextSheet from "./RebookNextSheet";
+import MyDayCard from "./MyDayCard";
+import { buildMyDay, myDayEnabled } from "@/lib/myDay";
+import ClientPageSheet from "./ClientPageSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
@@ -105,6 +109,7 @@ import { displayPhone } from "@/lib/publicLanding";
 import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
+import GreetingsPanel from "./GreetingsPanel";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -873,6 +878,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
   // "קבעי לה שוב" (client card / finished appointment): { client, appt } while the sheet is open.
   const [rebookNext,        setRebookNext]         = useState(null);
+  const [clientPageFor,     setClientPageFor]      = useState(null); // "שליחת הדף שלה": the client whose personal results page is being prepared
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
   const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
@@ -2643,6 +2649,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
   const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
 
+  // "היום שלי" (app/MyDayCard.jsx, lib/myDay.js): the morning card. Computed once per change of data or per minute, never per keystroke
+  // elsewhere on the screen. Off for a tenant with automations.feature_flags.my_day === false (the old today list then shows instead).
+  const myDayOn = myDayEnabled(settings);
+  const myDayMinute = now.getHours()*60+now.getMinutes();
+  const myDayModel = useMemo(() => {
+    if (!myDayOn) return null;
+    const byId = new Map(clients.map(c => [String(c.id), c]));
+    return buildMyDay({
+      entries: todayEntries, clientAppts, tomorrowAppts, receipts: liveRcpts, leads, leadsReady: deferred.leads === "ok", paymentsReady: historyReady,
+      now: new Date(), startMinute, endMinute, isPersonal,
+      hasPhone: (a) => !!((byId.get(String(a.client_id))?.phone || "").trim()),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myDayOn, todayEntries, clientAppts, tomorrowAppts, liveRcpts, leads, clients, deferred.leads, historyReady, myDayMinute]);
+
   // ── Attribution ───────────────────────────────────────────────────────────
   // Where a client came from is DERIVED, not copied. handleConvertLead already
   // writes leads.client_id, so the lead is the single source of truth for
@@ -3745,6 +3766,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
               }
             } catch { toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); }
           }, 6600);
+        }
+        // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
+        // The server re-checks that the appointment is still cancelled, so the undo above always wins.
+        if (settings?.automations?.waitlist_offers === true && appt.kind !== "personal") {
+          setTimeout(() => { if (!restored) fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) }).catch(() => {}); }, 6500);
         }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
@@ -8530,6 +8556,9 @@ ${MARKETING_FOOTER}`)}`;
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
+ {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
+              pc={pc} pcTint={pcTint} style={{order:1}}
+              onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt}/>}
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's
@@ -8704,7 +8733,7 @@ ${MARKETING_FOOTER}`)}`;
                   const todayLive=todayAppts.filter(a=>a.confirmation_status!=="cancelled");
                   const allEnded=todayLive.length>0&&todayLive.every(a=>{const e=endMinute(a);return e!==null&&e<=nowMin;});
                   // The evening, or the moment the last client has left.
-                  if(!(now.getHours()>=17||allEnded)) return null;
+                  if(myDayOn||!(now.getHours()>=17||allEnded)) return null;
                   const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
                   return(
  <div className="glass-card card-boxed" style={{order:9,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
@@ -8729,7 +8758,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{order:4,maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+ {!myDayOn&&<div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
                     {/* The mockup replaces this card's old icon+heading+count
                         header with just the divider below - the divider
                         itself is the "new section" signal, no label needed. */}
@@ -8804,7 +8833,7 @@ ${MARKETING_FOOTER}`)}`;
                         );
                       });
                     })()}
- </div>
+ </div>}
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
  <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
@@ -8850,7 +8879,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","cancel_notice","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","cancel_notice","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_greeting_birthday","auto_greeting_anniversary","auto_greeting_holiday","auto_rebook","auto_package_expiring","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -10692,6 +10721,7 @@ ${MARKETING_FOOTER}`)}`;
         today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
         onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
         pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
+      {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
  <Sheet open onClose={closeApptModal} width={360} zIndex={1000} className="pop-in" title={editingAppointmentId?"עריכת תור":"קביעת תור חדש"}>
@@ -12156,7 +12186,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
- <div><p style={lbl}>מספר וואטסאפ</p><input value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>מספר וואטסאפ</p><input type="tel" inputMode="tel" autoComplete="tel-national" dir="ltr" value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
@@ -12479,9 +12509,13 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </>)}
  {inG("messages")&&(<>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}><GreetingsPanel pc={pc} toast={toast}/></div>
+ </>)}
+ {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
+ <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
  </>)}
@@ -12892,6 +12926,8 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",minHeight:44,fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
  {/* One tap to the NEXT visit: her rhythm, the nearest free slot at her usual time (components/RebookNextSheet). */}
  <button data-testid="rebook-client" onClick={()=>{setRebookNext({client:c,appt:null});}} style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"transparent",color:"var(--surface)",border:"1.5px solid rgba(255,255,255,0.85)",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>↻ קבעי לה שוב</button>
+ {/* Her private results page: photos she agreed to, what was done, aftercare, next-visit button (app/ClientPageSheet). */}
+ <button type="button" onClick={()=>setClientPageFor(c)} data-testid="client-page-open" style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>✦ שליחת הדף שלה</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
      nails-only tenant (skinScanVisible derives that from business_fields
      when she hasn't explicitly toggled it in Settings); existing scan
