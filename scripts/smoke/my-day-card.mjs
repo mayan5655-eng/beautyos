@@ -165,9 +165,14 @@ await openDash();
 // remind: from inside the tap, WhatsApp opens with the written message; marked as prepared; nothing is sent by the server
 const remBtn = page.locator('[data-testid=my-day-need-remind] [data-testid=my-day-action]');
 ok(/תזכורת בוואטסאפ/.test(await remBtn.innerText()), 'remind: the label says what it does');
+// A REAL tap on every profile: WhatsApp opens through window.open, which phones allow only inside a tap (a synthetic click has none).
+// mid-screen, where she taps: the in-app browser banner rests on the bottom edge of the screen until she closes it
+await remBtn.evaluate((b) => b.scrollIntoView({ block: 'center' })); await page.waitForTimeout(300);
+const cover = await remBtn.evaluate((b) => { const r = b.getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !e ? 'nothing at point' : b.contains(e) ? '' : `${e.tagName} ${String(e.className || '').slice(0, 60)} ${(e.innerText || '').slice(0, 60)} @${Math.round(r.y)}/${innerHeight}`; });
+ok(!cover, 'remind: nothing covers the button', cover);
 const [pop] = await Promise.all([
   page.context().waitForEvent('page', { timeout: 8000 }).catch(() => null),
-  (S.P.inApp ? remBtn.dispatchEvent('click') : remBtn.click()),
+  remBtn.click(),
 ]);
 await page.waitForTimeout(2500);
 const evs = S.events ? await S.events() : [];
