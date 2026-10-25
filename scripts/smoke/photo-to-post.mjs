@@ -78,6 +78,13 @@ async function run(label, profile) {
     }
     await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
     await page.waitForTimeout(1500); await skip(page);
+    if (label === 'nails') {
+      // the same tenant as a manicurist: the short path must pick nail designs, not facial ones
+      const { error } = await db.from('settings').update({ business_fields: ['nails'] }).eq('tenant_id', tenantId);
+      if (error) throw new Error('settings update: ' + error.message);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
+    }
 
     // ── dashboard entry ──
     const open = page.locator('[data-testid="photo-to-post-open"]');
@@ -112,6 +119,8 @@ async function run(label, profile) {
     const cap = await page.locator('[data-testid="photo-to-post-caption"]').inputValue();
     check(cap.includes(BIZ) && cap.includes('0500000000'), `${label}: the caption starts ready with her business and phone (${cap.split('\n')[0]})`);
     check(!cap.includes('דנה'), `${label}: the caption never names a client`);
+    if (label === 'nails') check(/קלוז-אפ|חדש בסטודיו|יש אירוע/.test(cap) && !/אנטי|פינוק|זמן לעצמך/.test(cap), `${label}: a nail design and nail words, not a facial one (${cap.split(String.fromCharCode(10))[0]})`);
+    else check(!cap.includes('הגוון'), `${label}: a facial design for a cosmetician`);
     await page.screenshot({ path: `${SHOTS}/smoke-photo-${label}-3-ready.png`, fullPage: false });
 
     // another design, and a typed headline
@@ -179,6 +188,7 @@ async function run(label, profile) {
     check(real.length === 0, `${label}: no console errors / 5xx${real.length ? ': ' + real.slice(0, 3).join(' | ') : ''}`);
   } catch (e) {
     fails.push(`${label}: ${e.message}`); console.error('[photo] FAIL', label, e.message);
+    console.error('[photo] debug', JSON.stringify(await page.evaluate(() => { const b = document.querySelector('[role=dialog][aria-label="פתיחה בדפדפן של הטלפון"]'); return { sheets: document.querySelectorAll('.sheet-backdrop').length, banner: b ? getComputedStyle(b).display : null, has: CSS.supports('selector(:has(a))') }; }).catch(() => null)));
     await page.screenshot({ path: `${SHOTS}/smoke-photo-${label}-error.png`, fullPage: true }).catch(() => {});
   } finally { await browser.close(); }
 }
@@ -187,6 +197,7 @@ try {
   await run('android', 'android');
   await run('iphone', 'iphone');
   await run('instagram', 'instagram');
+  await run('nails', 'iphone');
 } finally {
   log('purge', JSON.stringify(await purgeTenant(tenantId, userId)).slice(0, 200));
 }
