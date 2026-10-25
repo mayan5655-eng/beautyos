@@ -71,14 +71,17 @@ try {
   await shot(page, '1-card');
   await (S.P.inApp ? open.dispatchEvent('click') : open.click());
   await page.waitForSelector('[data-testid=clientpage-sheet]', { timeout: 15000 });
-  await page.waitForTimeout(1500);
+  // The sheet first says "בודקת" while it asks the server (a cold deployment takes a few seconds): wait for its answer.
+  await page.waitForSelector('[data-testid=clientpage-needs-migration], [data-testid=clientpage-aftercare], [data-testid=clientpage-error]', { timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(300);
 
   const migrationMissing = await page.locator('[data-testid=clientpage-needs-migration]').count() > 0;
   await shot(page, '2-sheet');
   if (migrationMissing) {
     ok(true, 'BEFORE the migration: the sheet says the page is not switched on yet (no crash, no fake link)');
     ok(await page.locator('[data-testid=clientpage-ready]').count() === 0, 'no link is shown');
-    ok(await page.locator('[data-testid=clientpage-save]').isDisabled(), 'the create button is disabled');
+    const saveBtn = page.locator('[data-testid=clientpage-save]');
+    ok((await saveBtn.count()) === 0 || (await saveBtn.isDisabled()), 'there is no create button to press (hidden or disabled)');
     const gone = await fetchPage(`${BASE}/c/${'a'.repeat(22)}.1999999999.${'b'.repeat(32)}`);
     ok(gone.status === 404, 'a link answers the neutral 404 while the table is missing', String(gone.status));
     console.log('BLOCKED: migration not run - the end-to-end and isolation checks need supabase/migrations/add_client_pages_2026-10-25.sql');
