@@ -101,7 +101,7 @@ if (colsOk) ok(Array.isArray(wlRow?.pref_days) && wlRow.pref_days.includes(wdOf(
 // ── 3. her switch (Settings > הודעות), off by default ──
 await S.open();
 await page.locator('button[aria-label*="הגדרות"]').first().click(); await page.waitForTimeout(1200);
-await page.locator('button:has-text("הודעות")').filter({ visible: true }).first().click(); await page.waitForTimeout(800);
+await page.locator('button', { hasText: /^הודעות$/ }).filter({ visible: true }).first().click(); await page.waitForTimeout(800);
 const setting = page.locator('[data-testid="waitlist-offer-setting"]');
 await setting.scrollIntoViewIfNeeded();
 const sw = setting.locator('button[role="switch"]');
@@ -112,8 +112,9 @@ ok((await sw.getAttribute('aria-checked')) === 'true' && (await setting.locator(
 ok((await overflow(page)) <= 0, 'no sideways scroll in Settings');
 await shot(page, '4-switch-on');
 const saveBtn = page.locator('button:has-text("שמירה ✓")').filter({ visible: true }).first();
-await saveBtn.click(); await page.waitForTimeout(2500);
-const saved = (await db.from('settings').select('automations').eq('tenant_id', tenantId).maybeSingle()).data?.automations;
+await saveBtn.click();
+// The settings save can take a few seconds on a cold deployment: wait for the row, not for a fixed time.
+const saved = await until(async () => { const a = (await db.from('settings').select('automations').eq('tenant_id', tenantId).maybeSingle()).data?.automations; return a?.waitlist_offers === true ? a : null; }, 20000);
 ok(saved?.waitlist_offers === true, 'the switch was saved (settings.automations.waitlist_offers)');
 await page.keyboard.press('Escape').catch(() => {});
 
@@ -131,7 +132,10 @@ if (ownerCancelInApp) {
   await page.waitForTimeout(1500); await shot(page, '5-cancelled');
 } else {
   console.log('slot is tomorrow (late evening): cancelling through the app route as her session is not possible here; using the database + her API');
-  await db.from('appointments').update({ confirmation_status: 'cancelled', cancelled_at: new Date().toISOString(), cancelled_by: 'owner' }).eq('id', appt.id);
+  { const { error } = await db.from('appointments').update({ confirmation_status: 'cancelled' }).eq('id', appt.id); if (error) throw error; }
+  // What the app does after its undo window: her session calls the offer route for that appointment.
+  const r = await page.evaluate(async (id) => { const res = await fetch('/api/waitlist/offer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: id }) }); return { http: res.status, body: await res.json().catch(() => null) }; }, appt.id);
+  console.log('offer route ->', JSON.stringify(r));
 }
 
 if (quietNow) {
@@ -212,8 +216,8 @@ ok(tally.won === 1 && tally.taken === 9, 'one "won", nine "taken"', JSON.stringi
 ok(claimedRows.length === 1, 'exactly one offer is marked claimed');
 
 // the same person tapping 10 times at once
-// Its own slot tomorrow at 11:00 (never in the past, whatever the hour) and a fully random token (a fixed-looking one collided with an earlier run's row).
-const SOLO = 660; const soloDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + 86400000));
+// Its own slot tomorrow at 17:00 (never in the past, whatever the hour) and a fully random token (a fixed-looking one collided with an earlier run's row).
+const SOLO = 1020; /* 17:00, clear of the 10:00 slot, the 12:00 race slot and the 14:00 visit below */ const soloDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + 86400000));
 const soloTok = 'wl' + Array.from({ length: 32 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
 await db.from('appointments').delete().eq('tenant_id', tenantId).eq('date', soloDate).eq('start_minute', SOLO);
 { const { error } = await db.from('slot_offers').insert({ tenant_id: tenantId, slot_date: soloDate, slot_start_minute: SOLO, slot_hour: Math.floor(SOLO / 60), service: SVC, duration: DUR, client_name: 'לוחצת בדיקת המתנה', phone: '0500000070', token: soloTok, status: 'sent', expires_at: exp }); if (error) throw error; }
@@ -221,7 +225,7 @@ const soloRes = await Promise.all(Array.from({ length: 10 }, () => fetch(`${BASE
 console.log('one person, 10 taps ->', JSON.stringify(soloRes.reduce((a, r) => (a[r.state] = (a[r.state] || 0) + 1, a), {})));
 await sleep(2000);
 const soloAppts = (await db.from('appointments').select('id').eq('tenant_id', tenantId).eq('date', soloDate).eq('start_minute', SOLO).neq('confirmation_status', 'cancelled')).data || [];
-ok(soloAppts.length === 1, 'one person tapping 10 times at once -> exactly ONE appointment', `appointments=${soloAppts.length}`);
+ok(soloAppts.length === 1, 'one person tapping 10 times at once -> exactly ONE appointment', `appointments=${soloAppts.length} ${JSON.stringify(soloRes.map((r) => r.state || r.error))}`);
 
 // ── 7. switch OFF: a cancellation offers nothing ──
 await db.from('settings').update({ automations: { ...(saved || {}), waitlist_offers: false } }).eq('tenant_id', tenantId);
