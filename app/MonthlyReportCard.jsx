@@ -55,7 +55,7 @@ async function renderReportImage(report, { accent, businessName }) {
   return await new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
 }
 
-export default function MonthlyReportCard({ report, accent, businessName, toast, onOpenIncome, variant = 'home', style }) {
+export default function MonthlyReportCard({ report, accent, businessName, toast, onOpenIncome, needsStatus = false, onChooseStatus, variant = 'home', style }) {
   const [blob, setBlob] = useState(null);
   const sentences = report?.sentences || [];
   const key = sentences.join('|') + '|' + (accent || '') + '|' + (businessName || '');
@@ -77,6 +77,25 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
   if (!report) return null;
   const accentText = readableAccentText(accent || DEFAULT_ACCENT);
   const shell = { padding: '14px 17px', marginBottom: variant === 'home' ? 12 : 0, maxWidth: 1180, marginInline: 'auto', width: '100%', boxSizing: 'border-box', position: 'relative', overflow: 'hidden', ...style };
+
+  // No registration chosen yet: the income screen asks instead of guessing, and so does this.
+  if (needsStatus) {
+    return (
+      <section className="glass-card card-boxed" data-testid="monthly-report" data-state="needs-status" aria-label="הדוח החודשי" style={shell}>
+        <span data-testid="monthly-report-stripe" aria-hidden style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: 5, background: accent || DEFAULT_ACCENT }} />
+        <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 6px' }}>הדוח החודשי שלי · {report.monthName}</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, margin: 0 }}>
+          כדי לחשב את הדוח צריך לדעת איזה סוג עוסקת את: פטור, מורשה או חברה. עוד לא בחרת, ואנחנו לא מנחשים.
+        </p>
+        {onChooseStatus && (
+          <button type="button" onClick={onChooseStatus} data-testid="monthly-report-choose-status"
+            style={{ background: 'none', border: 'none', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            לבחירת סוג העסק ←
+          </button>
+        )}
+      </section>
+    );
+  }
 
   if (!report.hasData) {
     return (

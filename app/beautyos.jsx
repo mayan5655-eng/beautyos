@@ -7715,7 +7715,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       {showMonthlyReport && (
         <Sheet open onClose={() => setShowMonthlyReport(false)} width={460} zIndex={1000} ariaLabel="הדוח החודשי שלי">
-          <MonthlyReportCard variant="sheet" report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast}/>
+          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast}/>
         </Sheet>
       )}
 
@@ -8492,7 +8492,7 @@ ${MARKETING_FOOTER}`)}`;
  </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
- <MonthlyReportCard report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>
+ <MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
  <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
