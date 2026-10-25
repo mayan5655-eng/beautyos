@@ -134,12 +134,12 @@ for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]
   check(await p.locator('[aria-label="התקנת האפליקציה למסך הבית"]').count() === 1, 'iphone: the install card still shows on her own app');
   await s.browser.close();
 }
-// 10. a browser too old for this version gets a line, not a dead page (regex lookbehind missing = Safari before 16.4)
+// 10. a browser too old for Kalmea gets a line, not a dead page (no :has() = before Safari/iOS 15.4)
 {
   const s = await phone('iphone'); const p = s.page;
-  await s.ctx.addInitScript(() => { const R = window.RegExp; window.RegExp = function (src, f) { if (/\(\?<[=!]/.test(String(src))) throw new SyntaxError('invalid'); return new R(src, f); }; window.RegExp.prototype = R.prototype; });
+  await s.ctx.addInitScript(() => { const q = CSS.supports.bind(CSS); CSS.supports = (...a) => (/:has/.test(String(a[0])) ? false : q(...a)); });
   await p.goto(BASE + '/clinic-bdika', { waitUntil: 'networkidle' }); await p.waitForTimeout(1500);
-  check(/iOS 16\.4/.test(await p.innerText('body')), 'old browser: the page says the phone is too old (instead of a dead page)');
+  check(/iOS 15\.4/.test(await p.innerText('body')), 'old browser: the page says the phone is too old (instead of a dead page)');
   await s.browser.close();
 }
 // 11. push notifications on an iPhone that has no PushManager: the sentence says what to do

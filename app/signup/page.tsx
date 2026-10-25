@@ -66,11 +66,7 @@ export default function SignupPage() {
     let attr = ''
     try { attr = (document.cookie.split('; ').find((c) => c.startsWith('kl_attr='))?.slice('kl_attr='.length) || '').slice(0, 600) } catch { /* nicety */ }
 
-    // Several accounts created at the same moment make the database's sign-up step fail now and then ("Database error saving new user":
-    // 5 at once lost 1 to 3 of them in the 2026-10-24 test, scripts/smoke/signup-concurrency.mjs). Nothing is left behind by a failed attempt, so try
-    // again a moment later, a different moment for each, before telling her anything went wrong.
-    const supabaseClient = await getSupabase()
-    const signUpArgs = {
+    const { data, error } = await (await getSupabase()).auth.signUp({
       email,
       password,
       options: {
@@ -87,13 +83,7 @@ export default function SignupPage() {
           ...(waOptIn ? { wa_welcome_optin: true, wa_welcome_optin_at: new Date().toISOString() } : {}),
         },
       },
-    }
-    let result = await supabaseClient.auth.signUp(signUpArgs)
-    for (let attempt = 0; attempt < 2 && result.error && /database error/i.test(result.error.message); attempt++) {
-      await new Promise((r) => setTimeout(r, 700 + Math.random() * 1300))
-      result = await supabaseClient.auth.signUp(signUpArgs)
-    }
-    const { data, error } = result
+    })
 
     if (error) {
       if (error.message.includes('already registered')) {

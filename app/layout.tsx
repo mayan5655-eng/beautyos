@@ -322,14 +322,14 @@ export default function RootLayout({
             __html: `(function(){window.__bloomosInstallPrompt=null;window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__bloomosInstallPrompt=e;window.dispatchEvent(new Event('bloomos:installprompt'))})})();`,
           }}
         />
-        {/* A phone too old for this version of Kalmea (Safari before 16.4: an iPhone 7 or older stuck on iOS 15) cannot run its scripts. Next 16
-            ships class static blocks, which that Safari fails to parse, so the page drew from the server and then did nothing: buttons that never
-            answer, with no word why. Regex lookbehind arrived in the same Safari release and is testable without eval, so the probe below
-            tells her, in a line at the top, instead of leaving a dead page (2026-10-24 phone review). Runs at parse time, before any bundle. */}
+        {/* A phone too old for Kalmea (before Safari/iOS 15.4, Chrome 105: an iPhone 6s, or one nobody updated) gets a page that looks drawn but whose
+            styles and buttons do not work, with no word why. The build targets Safari 15 (package.json browserslist), and 15.4 is where the
+            stylesheet's @layer and :has() start to exist; both are testable without eval, so this probe says so in a line at the top instead
+            of leaving a dead page (2026-10-24 phone review). Runs at parse time, before any bundle. */}
         <script
           id="old-browser-note"
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{new RegExp("(?<=a)b");return}catch(e){}document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.setAttribute("role","alert");d.dir="rtl";d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;padding:12px 14px;background:#FBEDE9;color:#1F3A30;font:600 14px/1.5 sans-serif;text-align:center;border-bottom:1px solid #E9A9A1";d.textContent="הטלפון או הדפדפן שלך ישנים מדי בשביל קלמיה, ולכן הכפתורים לא יעבדו. צריך אייפון עם iOS 16.4 ומעלה, אנדרואיד מעודכן או מחשב. אפשר לפתוח את kalmea.app במחשב.";document.body.appendChild(d)})})();`,
+            __html: `(function(){try{if(window.CSS&&CSS.supports&&CSS.supports("selector(:has(*))"))return}catch(e){}document.addEventListener("DOMContentLoaded",function(){var d=document.createElement("div");d.setAttribute("role","alert");d.dir="rtl";d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;padding:12px 14px;background:#FBEDE9;color:#1F3A30;font:600 14px/1.5 sans-serif;text-align:center;border-bottom:1px solid #E9A9A1";d.textContent="הטלפון או הדפדפן שלך ישנים מדי בשביל קלמיה, ולכן הכפתורים לא יעבדו. צריך אייפון עם iOS 15.4 ומעלה, אנדרואיד מעודכן או מחשב. אפשר לפתוח את kalmea.app במחשב.";document.body.appendChild(d)})})();`,
           }}
         />
         <PWARegister />
