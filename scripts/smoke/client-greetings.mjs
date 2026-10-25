@@ -116,15 +116,21 @@ ok(!saved?.anniversary?.enabled && !saved?.holiday?.enabled, 'saved: the other t
 ok((await page.locator('[data-testid=greetings-save]').innerText()).includes('הכול שמור'), 'after saving it says everything is saved');
 ok((await db.from('whatsapp_messages').select('id').eq('tenant_id', tenantId).like('message_type', 'auto_greeting%')).data.length === 0, 'saving queues nothing');
 await shot('5-saved');
-// the main settings save must not wipe the greetings
-await db.from('settings').select('id').eq('tenant_id', tenantId); // (read only)
+// the main settings save (an older copy of automations, greetings off) must not wipe the greetings
+const saveRes = await page.evaluate(async (autos) => {
+  const r = await fetch('/api/settings/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { automations: autos } }) });
+  return r.status;
+}, { ...(settings.automations || {}), onboarding_tour_seen: true, greetings: { birthday: { enabled: false } } });
+const afterMain = (await db.from('settings').select('automations').eq('tenant_id', tenantId).maybeSingle()).data?.automations?.greetings;
+ok(saveRes < 500 && afterMain?.birthday?.enabled === true, 'the main settings save does not switch the greeting off', String(saveRes));
 await openPanel();
 ok(await sw('ברכת יום הולדת').getAttribute('aria-checked') === 'true', 'after a reload the switch is still on');
 ok((await page.locator(`[role=checkbox][aria-label^="${A2.name}"]`).first().getAttribute('aria-checked')) === 'false', 'after a reload the unticked name is still unticked');
 
 // ── 3. the daily job (only when this machine holds the cron secret) ──
 if (process.env.CRON_SECRET) {
-  const call = async () => (await fetch(`${BASE}/api/send-greetings`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } })).json();
+  // ?tenant= keeps the run on this smoke business only: no other business's queue is touched.
+  const call = async () => (await fetch(`${BASE}/api/send-greetings?tenant=${tenantId}`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } })).json();
   const r = await call();
   console.log('job answer', JSON.stringify({ held: r.held, queued: r.queued, tenants: r.tenants }));
   if (r.held) {

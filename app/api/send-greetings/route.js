@@ -7,6 +7,7 @@
 // WhatsApp. This job never sends to a client by itself, and its answer says queued, not sent.
 //
 // ?dryRun=1 plans and counts without queueing or logging.
+// ?tenant=<id> runs for that one business only (the smoke test uses it so a test run never touches anyone else's queue).
 
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
@@ -26,7 +27,9 @@ export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
   await markCronRun('send-greetings');
   try {
-    const dryRun = new URL(request.url).searchParams.get("dryRun") === "1";
+    const params = new URL(request.url).searchParams;
+    const dryRun = params.get("dryRun") === "1";
+    const onlyTenant = params.get("tenant") || null;
     const now = new Date();
     const win = sendWindow(now, { isYomTov });
     if (!win.ok && !dryRun) return Response.json({ success: true, queued: 0, held: win.reason });
@@ -35,6 +38,7 @@ export async function POST(request) {
     if (rows.error || !rows.complete) throw new Error(`settings read failed: ${rows.error?.message || "incomplete"}`);
     const tenants = (rows.data || []).filter((r) => {
       const a = r.automations && typeof r.automations === "object" ? r.automations : {};
+      if (onlyTenant && r.tenant_id !== onlyTenant) return false;
       return !isDemoTenantId(r.tenant_id) && a.paused !== true && anyGreetingOn(normalizeGreetings(a.greetings));
     });
 

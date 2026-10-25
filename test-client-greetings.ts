@@ -8,6 +8,7 @@ import { firstVisitsOf, queueGreetingsForTenant, planForTenant } from './lib/gre
 import { holidaysBetween, isYomTov } from './lib/greetings/calendar.ts';
 import { MARKETING_FOOTER } from './lib/marketingConsent.js';
 import { makeCapDb } from './testkit/capDb.js';
+import { pickSettingsPayload, preserveProtectedAutomations } from './lib/settingsColumns.ts';
 
 const T = 'tenant-fake-1';
 // Tuesday 27 Oct 2026, 11:00 in Israel (UTC+2 after the clocks went back on the 25th).
@@ -289,6 +290,15 @@ const makeDb = (extraClients: any[] = [], automations: any = { greetings: { birt
     globalThis.fetch = realFetch;
   }
   assert.equal(process.env.GREENAPI_ID_INSTANCE || '', '', 'the test environment holds no live WhatsApp credentials');
+}
+
+// ── the main Settings save cannot overwrite the greetings (only app/api/greetings writes them) ──
+{
+  const { payload, dropped } = pickSettingsPayload({ automations: { paused: false, greetings: { birthday: { enabled: false } } } });
+  assert.ok(!('greetings' in (payload.automations as any)), 'a client-sent greetings key is dropped');
+  assert.ok(dropped.includes('automations.greetings'));
+  const kept = preserveProtectedAutomations(payload, { greetings: { birthday: { enabled: true } } });
+  assert.equal((kept.automations as any).greetings.birthday.enabled, true, 'the stored greetings survive the save');
 }
 
 console.log('client greetings: ok');
