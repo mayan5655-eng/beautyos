@@ -41,6 +41,7 @@ export default function InstallBannerCard({
       dir="rtl"
       role="dialog"
       aria-label={ariaLabel}
+      data-install-banner
       style={{
         position: "fixed",
         left: "50%",

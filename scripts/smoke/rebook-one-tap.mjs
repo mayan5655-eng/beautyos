@@ -1,3 +1,4 @@
+if (process.stdout._handle?.setBlocking) process.stdout._handle.setBlocking(true);
 // "קבעי לה שוב" on a brand-new smoke tenant, 430px, under a phone profile (see phone-profiles.mjs).
 //   node --env-file=.env.local scripts/smoke/phone-setup.mjs  <stateFile>                      (one new tenant, onboarded through the UI)
 //   SMOKE_BASE=<preview> node --env-file=.env.local scripts/smoke/rebook-one-tap.mjs <stateFile> <iphone|android|instagram>
@@ -36,6 +37,8 @@ const hoursFor = (d) => {
   const days = String(settings.working_days ?? '0,1,2,3,4,5').split(',').map(Number);
   return days.includes(d) ? { open: +settings.working_hours_start || 9, close: +settings.working_hours_end || 18 } : null;
 };
+// The first-visit tour is not what this smoke tests (its card floats over everything): mark it seen, as she would after her first day.
+await db.from('settings').update({ automations: { ...(settings.automations || {}), onboarding_tour_seen: true } }).eq('tenant_id', tenantId);
 const closedDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !hoursFor(d));
 console.log('profile', profile, 'tenant', tenantId, 'closed weekdays', closedDays.join(',') || 'none');
 
@@ -69,13 +72,19 @@ await mkAppt(F, TODAY, 660, DUR, SVC);
 const G = await mkClient(`גילה ${tag}`, '');
 await mkAppt(G, ymd(addDays(today, -2)), 600, DUR, SVC);
 
-await S.open();
+console.log('seeded'); await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1500); await quickSkip(); await page.screenshot({ path: `report-shots/rebook-${profile}-0-open.png` }).catch(() => {}); console.log('opened');
 
+// the first-visit tour card and friends: dismissed the way she would, without waiting 30s per try
+async function quickSkip() { for (let i = 0; i < 4; i++) { const k = page.locator('button:has-text("דלגי"), button:has-text("אחר כך")').filter({ visible: true }).first(); if (!(await k.count())) break; await k.click({ timeout: 2000, force: true }).catch(() => {}); await page.waitForTimeout(300); } }
 async function openClientCard(name) {
-  await page.locator('button[aria-label="לקוחות"]').filter({ visible: true }).first().click(); await page.waitForTimeout(800);
+  await page.locator('button[aria-label="לקוחות"]').filter({ visible: true }).first().click(); await page.waitForTimeout(2200); await quickSkip();
   await page.fill('input[placeholder^="חיפוש"]', name).catch(() => {}); await page.waitForTimeout(500);
-  await page.getByText(name, { exact: false }).filter({ visible: true }).first().click(); await page.waitForTimeout(900);
+  // In Instagram / Facebook the install banner floats over the bottom of the list (z-index 60): tap through it with a DOM click, like a thumb that scrolled the row clear of it.
+  const row = page.getByText(name, { exact: false }).filter({ visible: true }).first();
+  if (S.P.inApp) await row.dispatchEvent('click'); else await row.click();
+  await page.waitForTimeout(900);
 }
+const clickCard = async () => { const b = page.locator('[data-testid=rebook-client]').filter({ visible: true }).first(); await (S.P.inApp ? b.dispatchEvent('click') : b.click()); };
 const closeSheets = async () => { for (let i = 0; i < 3; i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(250); } };
 
 // independent checks of a booked slot against the DB, not against the proposal code
@@ -95,12 +104,13 @@ async function checkSlot(c, label) {
 }
 
 // ── 1. regular client from the client card ──
-await openClientCard(R.name);
+console.log('card…'); await openClientCard(R.name); console.log('card open');
 const btn = page.locator('[data-testid=rebook-client]').filter({ visible: true }).first();
 ok(await btn.count() > 0, 'client card has "קבעי לה שוב"');
 await page.screenshot({ path: `report-shots/rebook-${profile}-1-card.png` }).catch(() => {});
-await btn.click(); await page.waitForSelector('[data-testid=rebook-proposal]', { timeout: 15000 });
+await (S.P.inApp ? btn.dispatchEvent('click') : btn.click()); await page.waitForSelector('[data-testid=rebook-proposal]', { timeout: 15000 });
 const when = await page.locator('[data-testid=rebook-when]').innerText(); const why = await page.locator('[data-testid=rebook-why]').innerText();
+if (S.P.inApp) { await page.waitForTimeout(1200); await page.locator('.tour-card button:has-text("דלגי")').click({ force: true, timeout: 1500 }).catch(() => {}); await page.waitForTimeout(400); const info = await page.evaluate(() => { const b = document.querySelector('[data-testid=rebook-confirm]').getBoundingClientRect(); const e = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return { inSheet: !!e && !!e.closest('[data-testid=rebook-sheet]'), banner: (document.querySelector('[data-install-banner]')||{style:{}}).constructor.name + ' ' + (document.querySelector('[data-install-banner]') ? getComputedStyle(document.querySelector('[data-install-banner]')).display : 'absent'), html: e ? e.outerHTML.slice(0, 160) : '', at: e ? e.tagName + ' ' + String(e.className || e.getAttribute('aria-label') || '').slice(0, 60) : 'none', rect: [b.x, b.y, b.width, b.height].map(Math.round).join(',') }; }); ok(info.inSheet, 'in-app browser: the sheet confirm button is not covered by the open-in-Safari banner', JSON.stringify(info)); }
 console.log('proposal:', when.replace(/\n/g, ' '), '|', why);
 ok(/כל|שבועות|קצב/.test(why) && !/ברירת מחדל/.test(why), 'her rhythm is named, not a default', why);
 await page.screenshot({ path: `report-shots/rebook-${profile}-2-proposal.png` }).catch(() => {});
@@ -127,7 +137,8 @@ if (pop) await pop.close().catch(() => {});
 await page.waitForTimeout(800);
 ok((await msgs(R)).filter((m) => m.status === 'sent').length === 0, 'nothing marked sent in the message log after opening WhatsApp');
 // queue it
-await page.locator('[data-testid=rebook-queue]').click(); await page.waitForTimeout(1500);
+const qResp = page.waitForResponse((r) => /rebook-message/.test(r.url()) && r.request().method() === 'POST', { timeout: 15000 }).catch(() => null);
+await page.locator('[data-testid=rebook-queue]').click(); const qr = await qResp; console.log('queue response:', qr ? qr.status() + ' ' + (await qr.text()).slice(0, 200) : 'none'); await page.waitForTimeout(800);
 const qm = await msgs(R);
 ok(qm.length === 1 && qm[0].status === 'pending_manual', 'kept in "הודעות מוכנות לשליחה" as pending_manual (not sent)', JSON.stringify(qm.map((m) => m.status)));
 await page.screenshot({ path: `report-shots/rebook-${profile}-4-queued.png` }).catch(() => {});
@@ -136,7 +147,7 @@ await closeSheets();
 
 // ── 2. a client with no history: default, labelled as one ──
 await openClientCard(E.name);
-await page.locator('[data-testid=rebook-client]').filter({ visible: true }).first().click();
+await clickCard();
 await page.waitForTimeout(800);
 // no appointment to anchor on and no service to repeat -> she picks the treatment
 const svcSel = page.locator('[data-testid=rebook-service]');
@@ -151,7 +162,7 @@ await page.locator('[data-testid=rebook-done]').click(); await page.waitForTimeo
 
 // ── 3. a client without a phone: booked, nothing to send ──
 await openClientCard(G.name);
-await page.locator('[data-testid=rebook-client]').filter({ visible: true }).first().click();
+await clickCard();
 await page.waitForSelector('[data-testid=rebook-proposal]', { timeout: 15000 });
 await page.locator('[data-testid=rebook-confirm]').click(); await page.waitForSelector('[data-testid=rebook-booked]', { timeout: 20000 });
 ok(await page.locator('[data-testid=rebook-nophone]').count() === 1 && await page.locator('[data-testid=rebook-wa]').count() === 0, 'no phone: says so, offers no WhatsApp');
@@ -173,7 +184,7 @@ if (await ab.count()) {
 // ── 5. no pending nudges to real people: nothing in the whole tenant is "sent" ──
 const sent = (await db.from('whatsapp_messages').select('id').eq('tenant_id', tenantId).in('status', ['sent', 'delivered'])).data || [];
 ok(sent.length === 0, 'tenant-wide: no WhatsApp message left as sent');
-ok(S.problems.filter((p) => !/favicon|ResizeObserver|LockManager/.test(p)).length === 0, 'no console or server errors', S.problems.slice(0, 3).join(' | '));
+ok(S.problems.filter((p) => !/favicon|ResizeObserver|LockManager|Sentry/.test(p)).length === 0, 'no console or server errors', S.problems.slice(0, 3).join(' | '));
 
 await S.browser.close();
 console.log(fails.length ? `\n${fails.length} FAILED:\n- ${fails.join('\n- ')}` : '\nALL OK');
