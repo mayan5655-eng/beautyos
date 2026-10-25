@@ -45,7 +45,7 @@ function decodes(blob) {
   });
 }
 
-export default function PhotoToPost({ open, onClose, settings, toast, readOnly = false, clientName = '' }) {
+export default function PhotoToPost({ open, onClose, settings, toast, readOnly = false, clientName = '', onReel = null }) {
   const [file, setFile] = useState(null);
   const [thumb, setThumb] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -147,6 +147,12 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
                 </>
               )}
               {!thumb && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.7, margin: 0 }}>הצילום נשאר בטלפון שלך ולא נשמר אצלנו. מקבלות פוסט 4:5 וסטורי 9:16 עם הלוגו, הצבעים והשם של העסק, וטקסט מוכן לכיתוב.</p>}
+              {/* Several photos or a clip: the reel path (OwnReel.jsx), with the same consent and the same "stays on the phone". */}
+              {!thumb && onReel && (
+                <button type="button" onClick={onReel} data-testid="photo-to-post-reel" className="primary-btn" style={quiet}>
+                  <Icon name="film" size={15} /> יש לי כמה תמונות או סרטון: רילס
+                </button>
+              )}
             </>
           )}
 

@@ -19,6 +19,7 @@ import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
+import OwnReel from './OwnReel';
 import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
 import ContentPlan from './ContentPlan';
@@ -113,6 +114,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   const kept = (d) => { if (d) freshIds.current.delete(d.id); };
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
+  const [ownReel, setOwnReel] = useState(false); // "רילס מהצילומים שלי" (OwnReel.jsx): her own photos and clips, nothing saved
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -329,6 +331,17 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     );
   };
 
+  // Her own photos and clips into a reel: no template to pick, no design row, no AI. Shown on השבוע and with the reels.
+  const ownReelCard = (
+    <div data-testid="studio-own-reel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 2 }}><Icon name="film" size={14} /> רילס מהצילומים שלי</p>
+        <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>תמונות וסרטונים שלך מהעבודה, לפני ואחרי, ורילס מוכן בעיצוב שלך.</p>
+      </div>
+      <button type="button" onClick={() => { if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; } setOwnReel(true); }} data-testid="studio-own-reel-open" style={{ padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>בחירת תמונות</button>
+    </div>
+  );
+
   const viewChip = (k, l, n) => (
     <button key={k} onClick={() => setView(k)} style={{ ...chip(view === k), display: 'flex', gap: 6, alignItems: 'center' }}>{l}{typeof n === 'number' ? <span style={{ fontSize: 'var(--t-xs)', opacity: 0.8 }}>{n}</span> : null}</button>
   );
@@ -346,6 +359,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <>
           {/* Her weekly content plan (behind the content_plan flag: renders nothing when the server says it is off). */}
           <ContentPlan settings={settings} readOnly={readOnly} toast={toast} onCreate={(t, values) => create(t, values)} />
+          {ownReelCard}
           {lastDesign && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
               <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', flex: 1, minWidth: 160 }}><Icon name="refresh" size={13} /> כמו בפעם הקודמת: <b style={{ color: 'var(--ink)' }}>{lastDesign.name || 'העיצוב האחרון שלך'}</b></p>
@@ -420,6 +434,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
               </p>
             </div>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
+            {ownReelCard}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
               {orderedReels.map(reelCard)}
             </div>
@@ -515,6 +530,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         {legacyCampaignTextsVisible(settings) && <Archive toast={toast} />}
       </div>}
       <SaveShare open={!!mineReady} onClose={() => setMineReady(null)} blob={mineReady?.blob} kind="image" ext="png" source="mine" caption={mineReady?.caption || ''} toast={toast} />
+      {ownReel && <OwnReel open onClose={() => setOwnReel(false)} settings={settings} toast={toast} readOnly={readOnly} />}
     </>
   );
 }
