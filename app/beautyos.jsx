@@ -92,6 +92,7 @@ import HoldBadge from "./HoldBadge";
 import ServiceDepositToggle from "./ServiceDepositToggle";
 import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
+import RebookNextSheet from "./RebookNextSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
@@ -864,6 +865,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // free on the new date.
   const [rebookPick,        setRebookPick]         = useState(null);
   const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
+  // "קבעי לה שוב" (client card / finished appointment): { client, appt } while the sheet is open.
+  const [rebookNext,        setRebookNext]         = useState(null);
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
   const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
@@ -5505,6 +5508,71 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return rebookPlan.slot.minute;
   })();
 
+  // The one insert behind every "book the next visit" tap: the checkout strip below and the "קבעי לה שוב" sheet
+  // (RebookNextSheet). Same row handleSave writes for a plain new appointment, minus everything the form asks for.
+  // Returns the created row, or null after telling her why not.
+  const insertRebookAppointment = async ({ client, svc, date, minute }) => {
+    if (guardWrite()) return null;
+    // Re-check on the way in, through the same isFreeAt the proposal and the picker use. The plan was computed from state
+    // that may be a few minutes old, and the exclusion constraint would reject it anyway - this just turns that into a
+    // sentence she can act on.
+    if (!isFreeAt(date, minute, svc.duration)) {
+      toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
+      return null;
+    }
+    const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+    const tid = rpcTenant || settings?.tenant_id || null;
+    const tenantField = tid ? { tenant_id: tid } : {};
+
+    const appt = {
+      date,
+      ...startFields(minute),
+      name: client.name,
+      service: svc.name,
+      duration: Number(svc.duration) || 60,
+      color: svc.color || DEFAULT_SERVICE_COLOR,
+      client_id: client.id,
+      note: "",
+      price: Number(svc.price) || 0,
+      confirmation_status: "pending",
+      confirmation_sent: false,
+      ...tenantField,
+    };
+    const { data, error } = await supabase.from("appointments").insert([appt]).select();
+    if (error) { handleDbError(error, "rebook appointment"); return null; }
+    if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return null; }
+    setAppointments((prev) => [...prev, data[0]]);
+    toast(`נקבע תור ל-${formatDateHe(new Date(date))} בשעה ${fmtTime(minute)}`);
+    return data[0];
+  };
+
+  // "קבעי לה שוב" -> "שינוי": the full new-appointment form, prefilled with the proposal.
+  const openRebookForm = ({ client, svc, date, minute }) => {
+    const sv = svc || activeServices[0];
+    setEditingAppointmentId(null);
+    setNewAppt({
+      clientId: client.id, name: client.name, service: sv?.name || "", duration: sv?.duration || 60,
+      date: date || formatDate(nextOpenDay(settings)),
+      hour: minute != null ? Math.floor(minute / 60) : settings.working_hours_start,
+      ...(minute != null ? { startMinute: minute } : {}),
+      price: sv?.price || 0,
+    });
+    setApptNote("");
+    setRebookNext(null);
+    setSelectedClient(null);
+    setShowModal(true);
+  };
+  // She tapped "open in WhatsApp" on the message for the booking she just made: the same flag sendConfirmationNow sets.
+  const markRebookMessageOpened = async (appt) => {
+    toast("וואטסאפ נפתח עם ההודעה מוכנה. נשאר ללחוץ על שליחה.");
+    const { data, error } = await supabase.from("appointments").update({ confirmation_sent: true }).eq("id", appt.id).select();
+    if (error) { handleDbError(error, "mark confirmation_sent"); return; }
+    if (data?.[0]) setAppointments((prev) => prev.map((a) => (a.id === appt.id ? data[0] : a)));
+  };
+  const refreshWaQueue = () => {
+    fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then((r) => r.json()).then((j) => { if (j?.success) setWhatsappPending(j.messages || []); }).catch(() => {});
+  };
+
   // Book it. Same insert as handleSave, minus everything the form asks for.
   const confirmRebook = async () => {
     if (guardWrite()) return;
@@ -5523,32 +5591,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return;
       }
 
-      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
-      const tid = rpcTenant || settings?.tenant_id || null;
-      const tenantField = tid ? { tenant_id: tid } : {};
-
-      const appt = {
-        date: slot.date,
-        ...startFields(minute),
-        name: client.name,
-        service: svc.name,
-        duration: Number(svc.duration) || 60,
-        color: svc.color || DEFAULT_SERVICE_COLOR,
-        client_id: client.id,
-        note: "",
-        price: Number(svc.price) || 0,
-        confirmation_status: "pending",
-        confirmation_sent: false,
-        ...tenantField,
-      };
-      const { data, error } = await supabase.from("appointments").insert([appt]).select();
-      if (error) { handleDbError(error, "rebook appointment"); return; }
-      if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return; }
-      setAppointments((prev) => [...prev, data[0]]);
-      setRebookDone({ receiptId: showReceipt.id, appt: data[0] });
+      const row = await insertRebookAppointment({ client, svc, date: slot.date, minute });
+      if (!row) return;
+      setRebookDone({ receiptId: showReceipt.id, appt: row });
       setRebookPick(null);
       setRebookPickOpen(false);
-      toast(`נקבע תור ל-${formatDateHe(new Date(slot.date))} בשעה ${fmtTime(minute)}`);
     } finally {
       setBusyKey("rebook", false);
     }
@@ -9226,6 +9273,7 @@ ${MARKETING_FOOTER}`)}`;
                                     ):live?(
  <button onClick={stop(()=>handleOpenCashier(appt))} style={main}>₪ לתשלום</button>
                                     ):null}
+ {!isPersonal(appt)&&live&&appt.client_id&&appt.date<=today&&clients.some(c=>String(c.id)===String(appt.client_id))&&<button data-testid="rebook-appt" onClick={stop(()=>setRebookNext({client:clients.find(c=>String(c.id)===String(appt.client_id)),appt}))} style={ghost}>↻ קבעי לה שוב</button>}
  <button aria-expanded={open} aria-label="עוד פעולות" onClick={e=>{e.stopPropagation();setApptMenuId(open?null:appt.id);}} style={ghost}>{open?"סגירה":"עוד ⋯"}</button>
  </div>
                                   {open&&(
@@ -10592,6 +10640,11 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
       {/* APPT MODAL */}
+      {rebookNext&&(<RebookNextSheet
+        client={rebookNext.client} anchorAppt={rebookNext.appt} appointments={appointments} services={activeServices} settings={settings}
+        today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
+        onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
+        pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
  <Sheet open onClose={closeApptModal} width={360} zIndex={1000} className="pop-in" title={editingAppointmentId?"עריכת תור":"קביעת תור חדש"}>
@@ -12790,6 +12843,8 @@ ${MARKETING_FOOTER}`)}`;
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
  <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ {/* One tap to the NEXT visit: her rhythm, the nearest free slot at her usual time (components/RebookNextSheet). */}
+ <button data-testid="rebook-client" onClick={()=>{setRebookNext({client:c,appt:null});}} style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"transparent",color:"var(--surface)",border:"1.5px solid rgba(255,255,255,0.85)",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>↻ קבעי לה שוב</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
      nails-only tenant (skinScanVisible derives that from business_fields
      when she hasn't explicitly toggled it in Settings); existing scan
