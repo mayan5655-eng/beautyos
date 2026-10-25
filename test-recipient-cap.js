@@ -39,7 +39,7 @@ const VICTIM = '972501234567';
 const row = (over) => ({ tenant_id: 'tenant-a', recipient_phone: VICTIM, status: 'sent', message_type: 'booking_confirm', created_at: new Date(NOW - 60_000).toISOString(), ...over });
 
 // which types
-eq([...RECIPIENT_TYPES].sort(), ['booking_confirm', 'skin_report'], 'only the two types that go to a phone the CALLER chose');
+eq([...RECIPIENT_TYPES].sort(), ['booking_confirm', 'skin_report', 'waitlist_offer'], 'only the types that go to a phone the CALLER chose (a waiting-list entry is typed in by whoever fills the form)');
 for (const t of ['owner_alert', 'skin_lead_alert', 'reminder', 'receipt', 'ai_agent_reply', 'cap_alert', '', undefined]) eq(isRecipientCappedType(t), false, `${t} is not recipient-limited (the owner's own alerts and the cosigned reminders must never be blocked by a stranger)`);
 
 // phone variants: whatsapp_messages stores the string as the caller gave it

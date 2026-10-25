@@ -68,7 +68,7 @@ await ok('reminders go to the manual queue when GreenAPI says the session is not
   assert.ok(r.indexOf('const sessionDown') < r.indexOf('const run = await runDailyReminders'));
   assert.match(r, /push: opsPush\(supabase\)/);
   const w = rd('lib/whatsapp.js');
-  assert.match(w, /options\.forceManual === true \|\| !isUtilityType/);
+  assert.match(w, /options\.forceManual === true \|\| isReservedTestNumber\(phone\) \|\| !isUtilityType/);
   assert.match(w, /"session_down"/);
 });
 

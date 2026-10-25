@@ -7,7 +7,7 @@
 //   eraseClientData   -> removes her personal data; keeps what the business is legally bound to keep, without her identity
 //
 // What "erase" means here, table by table (the reasoning is the point, so it is written down):
-//   deleted outright   health declarations, skin scans, photos (rows and files), reviews, reminder log, her WhatsApp messages, waitlist,
+//   deleted outright   health declarations, skin scans, photos (rows and files), her personal results-page links (client_pages), reviews, reminder log, her WhatsApp messages, waitlist,
 //                      her leads and slot offers, the owner's notifications about her bookings, then the client card itself
 //   anonymised         appointments and payment records (receipts, packages): a business must keep its accounting records for years,
 //                      so the amounts and dates stay, but the name, phone, note and the link to her card are removed
@@ -213,7 +213,7 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
   }
 
   // 2. deleted outright
-  for (const table of ['forms', 'skin_scans', 'client_photos', 'reviews', 'auto_reminders_log', 'leads', 'slot_offers']) {
+  for (const table of ['forms', 'skin_scans', 'client_photos', 'reviews', 'auto_reminders_log', 'leads', 'slot_offers', 'client_pages']) {
     run(table, 'deleted', () => db.from(table).delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
   }
   if (phones.length) {

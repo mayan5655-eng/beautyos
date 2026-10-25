@@ -18,6 +18,7 @@ import { clinicName } from "../../../../lib/clinicName";
 import { canMarket, MARKETING_FOOTER } from "../../../../lib/marketingConsent.js";
 import { toMinutes, fmtTime, startMinute as apptStart, overlaps } from "../../../../lib/apptTime";
 import { readAllRows } from "../../../../lib/pagedRead.js";
+import { phoneKey } from "../../../../lib/waitlistMatch.js";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -212,11 +213,18 @@ export async function POST(request) {
     const seenClient = new Set();
     const seenPhone = new Set();
     const candidates = [];
+    // Smart waitlist (lib/waitlistOffers.js): someone who already holds an offer for this exact slot is not offered it a second time,
+    // and a client who asked to be removed from messages is never offered anything, waiting list or not.
+    const { data: heldOffers } = await admin.from("slot_offers").select("phone").eq("tenant_id", tenantId).eq("slot_date", slotDate)
+      .eq("slot_start_minute", slotStartMinute).in("status", ["sent", "claimed"]);
+    const heldKeys = new Set((heldOffers || []).map((o) => phoneKey(o.phone)).filter(Boolean));
+    const optedOutKeys = new Set((clients || []).filter((c) => c.marketing_opted_out_at).map((c) => phoneKey(c.phone)).filter(Boolean));
     const add = (clientId, name, phone) => {
       if (candidates.length >= MAX_CANDIDATES) return;
       const cid = clientId ? String(clientId) : null;
       const ph = (phone || "").trim();
       if (!ph) return;                                   // no phone -> can't reach
+      if (heldKeys.has(phoneKey(ph)) || optedOutKeys.has(phoneKey(ph))) return;
       if (cid && cid === excludeClientId) return;        // skip who just cancelled
       if (cid && seenClient.has(cid)) return;
       if (seenPhone.has(ph)) return;

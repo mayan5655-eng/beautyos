@@ -10,6 +10,7 @@ import { detect } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '@/app/api/grow/_cancel';
 import { hebrewDate } from '@/lib/messages.js';
 import { fmtApptTime } from '@/lib/apptTime';
+import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -210,6 +211,10 @@ export async function POST(request: NextRequest) {
       // The freed slot goes to her one-question card ("offer it to who is waiting?"), never straight out:
       // lib/ownerQuestions.js. Also under a fee policy: a fee does not stop the slot being free.
       after(() => askGapFillAfterClientCancel(supabase, { tenantId: appt.tenant_id, appt }).then(() => undefined));
+      // Smart waitlist: with her switch on (off by default), the people waiting for this treatment whom the slot fits get one offer.
+      after(() => runWaitlistOffer({ tenantId: appt.tenant_id, appt, db: supabase }).then(() => undefined).catch((e) => {
+        console.error('confirm: waitlist offer failed', e instanceof Error ? e.message : String(e));
+      }));
     }
 
     return okResponse(action, false, brand);
