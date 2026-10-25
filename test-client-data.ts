@@ -20,6 +20,7 @@ const COLUMNS: Record<string, string[]> = {
   auto_reminders_log: ['id', 'tenant_id', 'client_id'],
   leads: ['id', 'tenant_id', 'client_id', 'name', 'phone', 'email'],
   slot_offers: ['id', 'tenant_id', 'client_id', 'phone'],
+  client_pages: ['id', 'tenant_id', 'client_id', 'token_id'],
   owner_notifications: ['id', 'tenant_id', 'appointment_id', 'body'],
   whatsapp_messages: ['id', 'tenant_id', 'recipient_phone', 'recipient_name', 'message_body'],
   waitlist: ['id', 'tenant_id', 'phone', 'client_name'],
@@ -113,6 +114,7 @@ const seed = () => ({
     { id: 'ld3', tenant_id: T, client_id: null, name: 'אחרת', phone: '0529999999' },
   ],
   slot_offers: [{ id: 'so1', tenant_id: T, client_id: 'c1', phone: '0501234567' }],
+  client_pages: [{ id: 'cp1', tenant_id: T, client_id: 'c1', token_id: 'x'.repeat(22) }],
   owner_notifications: [
     { id: 'n1', tenant_id: T, appointment_id: 'a1', body: 'דנה · 0501234567' },
     { id: 'n2', tenant_id: T, appointment_id: 'a2', body: 'רחל' },

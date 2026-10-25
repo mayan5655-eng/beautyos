@@ -19,6 +19,7 @@ const PUBLIC_PREFIXES = [
   '/skin-scan',
   '/form',
   '/confirm',
+  '/c', // /c/<token>: a client's personal results page, opened from a link her cosmetician sent her (app/c/[token]); the signed, revocable token is the authorisation
   '/claim', // /claim/<token>: the gap-fill offer a client opens from a WhatsApp link. It was missing, so every such link answered 307 -> /login (found 2026-10-06)
   '/data-deletion', // Meta's data deletion status page (app/data-deletion/status), opened from a Facebook link with no session
   '/demo', // the public demo chooser AND /demo/cosmetics, /demo/nails (lib/demoTenants.ts) - two path segments, so the single-top-level-segment rule below does not already cover it
