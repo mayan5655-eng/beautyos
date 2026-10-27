@@ -28,7 +28,13 @@ const check = (ok, msg) => { if (ok) log('ok  ', msg); else { fails.push(msg); c
 const ids = {};
 const db = admin();
 const VIDEO = { dir: `${out}/video`, size: { width: 430, height: 932 } };
-const newPhone = () => '05000' + String(Math.floor(10000 + Math.random() * 89999));
+// The client's phone on each booking. Default: a made-up 05000xxxxx number per booking. SMOKE_PAYER_PHONE=05xxxxxxxx uses ONE real mobile
+// for every booking instead (Maayan's own, when Grow wants to see a known phone): two bookings stay under the 5-per-hour cap per number, and
+// the booking confirmation may reach that phone, so never set it to a client's number.
+const PAYER = (process.env.SMOKE_PAYER_PHONE || '').replace(/\D/g, '');
+if (PAYER && !/^05\d{8}$/.test(PAYER)) { console.error('[token-cb] SMOKE_PAYER_PHONE must be an Israeli mobile, 05xxxxxxxx'); process.exit(2); }
+const newPhone = () => PAYER || '05000' + String(Math.floor(10000 + Math.random() * 89999));
+const phonesUsed = new Set();
 
 // Polls the database for what the webhook wrote. Nothing here asks Grow anything.
 async function waitFor(what, fn, seconds = 120) {
@@ -75,7 +81,7 @@ async function bookAndOpenGrow(label, time) {
   await pub.locator('.bk-chip[aria-label^="יום שני"]').first().click(); await pub.waitForTimeout(2000);
   await pub.getByText(time, { exact: true }).first().click(); await pub.waitForTimeout(800);
   await pub.locator('button:has-text("המשיכי")').first().click(); await pub.waitForTimeout(1200);
-  await pub.fill('input[placeholder="שם מלא"]', 'לקוחה לבדיקה'); await pub.fill('input[type=tel]', newPhone());
+  await pub.fill('input[placeholder="שם מלא"]', 'לקוחה לבדיקה'); const ph = newPhone(); phonesUsed.add(ph); await pub.fill('input[type=tel]', ph);
   await pub.locator('input[aria-label="אישור שמירת הפרטים"]').check().catch(() => {});
   await pub.locator('input[aria-label="אישור מדיניות הביטולים"]').check(); await pub.waitForTimeout(1200);
   const cardBox = pub.locator('[data-testid="grow-card-consent"]');
@@ -171,7 +177,8 @@ try {
 } finally {
   await browser.close();
 }
-writeFileSync(`${out}/ids.json`, JSON.stringify({ at: new Date().toISOString(), base: BASE, tenantId, ...ids }, null, 2));
+// What Grow asks about a test run: which business (the sandbox userId Grow issued; not a secret, unlike the api key) and which phones.
+writeFileSync(`${out}/ids.json`, JSON.stringify({ at: new Date().toISOString(), base: BASE, tenantId, growSandboxUserId: process.env.GROW_TOKEN_USER_ID_TEST || null, businessPhone: '0500000000', payerPhones: [...phonesUsed], ...ids }, null, 2));
 log('ids:', JSON.stringify(ids));
 console.log(fails.length ? `\n[token-cb] ${fails.length} failure(s)` : '\n[token-cb] all ok');
 process.exit(fails.length ? 1 : 0);

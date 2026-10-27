@@ -51,3 +51,13 @@ credentials, and in the sandbox those are the token page. Fix (this branch): bot
    there must be NO `approveTransaction refused` line for that transaction.
 4. Refund it from the app (the cashier history refund), then run purge-smoke.
 5. Give Maayan the new wallet transaction id (`grow_payments.transaction_id`) for Grow.
+
+## Which business and which phone (Grow asked, 2026-10-27)
+
+- Business: Grow's sandbox test business, identified by its userId (`GROW_TOKEN_USER_ID_TEST`). We have no business number of our own for
+  it; Grow holds it. `ids.json` now records `growSandboxUserId`.
+- Phones: the smoke business's own phone is `0500000000`; each booking's client phone is a made-up `05000xxxxx`, recorded in `ids.json` as
+  `payerPhones`. To run with a known real mobile instead (only Maayan's own, never a client's), add `SMOKE_PAYER_PHONE=05xxxxxxxx` to the
+  run command. The booking confirmation may then reach that phone. For the wallet payment in the section above, use the same number as the
+  client phone when `SMOKE_PAYER_PHONE` is set.
+- Tell Maayan the userId and the phones in the summary, so she can answer Grow.
