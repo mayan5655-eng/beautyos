@@ -33,3 +33,21 @@ This branch has the fixes. The new proof script is `scripts/smoke/grow-token-cal
    - a short Hebrew reply to Grow.
 
 Do not merge to main unless she asks.
+
+## Wallet payment: a new transaction (Grow review, 2026-10-27)
+
+Grow: the identifiers in the wallet test were fine, but `approveTransaction` failed because it was sent with the TOKEN page code. Cause: Grow
+sends a payment's callback to its own notifyUrl AND to the account webhook (`/api/grow/webhook`). The webhook approved with the card/token
+credentials, and in the sandbox those are the token page. Fix (this branch): both routes now pick the credentials from the payment itself
+(`approveCredsFor` in `lib/grow/wallet.ts`), and a refused approve is logged as `[grow] approveTransaction refused for transaction ...`.
+
+1. Pull this branch. Make sure `GROW_WALLET_PAGE_CODE_TEST` (from `.env.local`) is set on Preview for this branch, add it the same way as the
+   other variables if it is missing, then redeploy.
+2. On a NEW smoke business against the preview (same login/onboarding and `grow_accounts` row as `grow-token-callback.mjs`), create a ₪10
+   payment link as the owner: `POST /api/grow/charge` from the logged-in page (see `app/api/grow/charge/route.ts` for the body). Open the
+   `/pay/<token>` link it returns at 430px, tick the terms, choose credit card in the Grow wallet, and pay with the sandbox card
+   (4580458045804580, any future date, id 000000018). Record it as video. You can add this as a step in `grow-token-callback.mjs`.
+3. Wait until the `grow_payments` row is `paid` (written by Grow's callback). Then check the preview's runtime logs (`npx vercel logs <url>`):
+   there must be NO `approveTransaction refused` line for that transaction.
+4. Refund it from the app (the cashier history refund), then run purge-smoke.
+5. Give Maayan the new wallet transaction id (`grow_payments.transaction_id`) for Grow.

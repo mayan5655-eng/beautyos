@@ -18,6 +18,8 @@ import { randomBytes } from 'node:crypto';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, applyNotificationByProcess, applyInvoice, applyInvoiceByProcess, approveTransaction } from '@/lib/grow/service';
+import type { GrowPayment } from '@/lib/grow/service';
+import { approveCredsFor } from '@/lib/grow/wallet';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseOnboardingRepo } from '@/lib/grow/onboardingRepo';
 import { applyOnboarding, classifyWebhook, clientIp, ipAllowed, ipCheckEnforced, parseWebhookBody, readOnboarding, readOnboardingApiKey } from '@/lib/grow/webhook';
@@ -83,8 +85,8 @@ export async function POST(request: Request) {
         }
       }
       const grow = resolveGrow(process.env, APP_URL);
-      const creds = grow.creds;
-      const approve = creds ? (n: Parameters<typeof approveTransaction>[0]) => approveTransaction(n, creds, grow.fetchImpl) : undefined;
+      // The page code of the page the client paid on (wallet or card page), decided by the payment, not by which URL Grow reached first.
+      const approve = (n: Parameters<typeof approveTransaction>[0], p: GrowPayment) => { const c = approveCredsFor(p, grow); return c ? approveTransaction(n, c, grow.fetchImpl) : Promise.resolve(); };
       const r = token ? await applyNotification(raw, token, deps(), approve) : await applyNotificationByProcess(raw, deps(), approve);
       return NextResponse.json({ success: true, kind, status: r.status === 'unknown-token' ? 'ignored' : r.status });
     }

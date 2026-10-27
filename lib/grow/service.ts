@@ -191,7 +191,7 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
   }
 }
 
-export async function applyNotification(raw: Record<string, unknown>, token: string, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
+export async function applyNotification(raw: Record<string, unknown>, token: string, d: Deps, approve?: (n: Notification, p: GrowPayment) => Promise<void>): Promise<NotifyResult> {
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
   if (!p) return { status: 'unknown-token' };
@@ -202,7 +202,7 @@ export async function applyNotification(raw: Record<string, unknown>, token: str
  * The platform webhook has no per-payment secret in its URL: the payment is found by Grow's process id instead, and the
  * same process-id and amount match below still has to pass. Ambiguous or unknown ids are ignored.
  */
-export async function applyNotificationByProcess(raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>): Promise<NotifyResult> {
+export async function applyNotificationByProcess(raw: Record<string, unknown>, d: Deps, approve?: (n: Notification, p: GrowPayment) => Promise<void>): Promise<NotifyResult> {
   const n = readNotification(raw);
   if (!n || !d.repo.findByProcessId) return { status: 'ignored' };
   const p = await d.repo.findByProcessId(n.processId);
@@ -219,7 +219,7 @@ export async function applyNotificationByProcess(raw: Record<string, unknown>, d
  * Through the secret URL, a callback that names THIS payment (cField1 = payment id) for THIS amount is accepted even when its
  * process id is an earlier one. The platform webhook (no secret) still requires the stored process id.
  */
-async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification) => Promise<void>, viaSecret = false): Promise<NotifyResult> {
+async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification, p: GrowPayment) => Promise<void>, viaSecret = false): Promise<NotifyResult> {
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
   const exact = !!p.process_id && notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) });
@@ -253,7 +253,7 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   }
   const receiptId = await createReceiptFor(flipped, n, d);
   if (d.afterPaid) { try { await d.afterPaid(flipped, raw); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
-  if (approve) { try { await approve(n); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
+  if (approve) { try { await approve(n, flipped); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
 
@@ -307,5 +307,11 @@ export async function approveTransaction(n: Notification, creds: Creds, fetchImp
   // The page the client paid on: a Bit or Apple Pay payment is approved with ITS page code (lib/grow/methods.ts).
   form.append('pageCode', pageCodeForTypeId(n.echo.transactionTypeId, creds.pageCodes || {}, creds.pageCode));
   for (const [k, v] of Object.entries(n.echo)) form.append(k, v);
-  await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
+  const res = await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
+  // Grow answers 200 with status 0 when it refuses (a wrong page code, for one): say so in the logs, without the payload.
+  const j = (await res.json().catch(() => null)) as { status?: unknown; err?: { id?: unknown; message?: unknown } | unknown } | null;
+  if (j && String(j.status) !== '1') {
+    const err = (j.err && typeof j.err === 'object' ? j.err : {}) as { id?: unknown; message?: unknown };
+    console.error('[grow] approveTransaction refused for transaction', n.transactionId, '-', String(err.id ?? ''), String(err.message ?? '').slice(0, 120));
+  }
 }

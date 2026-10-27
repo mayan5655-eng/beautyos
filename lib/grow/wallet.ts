@@ -58,6 +58,28 @@ export function walletCredentials(env: Env = process.env): WalletCreds | null {
 /** The credentials createCharge needs when only the wallet is configured (no separate payment-page code). */
 export const walletAsCreds = (w: WalletCreds | null | undefined) => (w ? { apiKey: w.apiKey, pageCode: w.pageCode, apiBase: w.apiBase } : null);
 
+/**
+ * Whether this payment was opened on the wallet page. A booking deposit opened by lib/grow/cancelFees.ts (an appointment id and a
+ * "מקדמה ל..." description) is the one payment that never uses the wallet: it opens Grow's credit-card page, which can also keep the card.
+ * Every other payment uses the wallet whenever the wallet is configured (the charge, booking-pay and payment-request routes).
+ */
+export function opensOnWallet(p: Pick<GrowPayment, 'appointment_id' | 'description'>, walletConfigured: boolean): boolean {
+  if (!walletConfigured) return false;
+  return !(p.appointment_id && /^מקדמה ל/.test(p.description || ''));
+}
+
+/**
+ * The credentials approveTransaction must use: those of the page the client paid on. Grow sends the same callback to the payment's own
+ * notifyUrl AND to the account webhook, and whichever lands first approves, so this is decided by the payment, never by the route.
+ * A wallet payment approved with the card or token page code is refused by Grow (its review, 2026-10-27).
+ */
+export function approveCredsFor<C extends { apiKey: string; pageCode: string; apiBase: string }>(
+  p: Pick<GrowPayment, 'appointment_id' | 'description'>,
+  grow: { creds: C | null; wallet?: WalletCreds | null },
+): C | { apiKey: string; pageCode: string; apiBase: string } | null {
+  return opensOnWallet(p, !!grow.wallet) ? walletAsCreds(grow.wallet) : grow.creds;
+}
+
 /** The payment link the client opens. */
 export function walletLink(appUrl: string, notifyToken: string): string {
   return `${appUrl.replace(/\/+$/, '')}/pay/${notifyToken}`;

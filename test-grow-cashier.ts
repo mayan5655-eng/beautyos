@@ -9,6 +9,8 @@ import { createCharge, approveTransaction } from './lib/grow/service.ts';
 import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 import { readNotification } from './lib/grow/payload.ts';
 import { resolveGrow } from './lib/grow/adapter.ts';
+import { approveCredsFor, opensOnWallet } from './lib/grow/wallet.ts';
+import { applyNotification, applyNotificationByProcess } from './lib/grow/service.ts';
 import {
   newTrackingCode, createMockRegistration, readRegisterResponse, registrationOps, registrationStatusOf, createLiveRegistration,
   registerConfig, getLinkError, GETLINK_ERRORS, growBusinessNumber, israeliIdValid, GROW_REGISTER_TEST_URL,
@@ -54,6 +56,42 @@ await ok('approveTransaction is sent with the page code of the method the client
   await approveTransaction(n6, { apiKey: 'K', pageCode: 'CARD', apiBase: 'https://g.test', pageCodes: codes }, fetchImpl);
   assert.equal(forms[0].get('pageCode'), 'BIT');
   assert.equal(forms[0].get('apiKey'), 'K', 'apiKey is a body field');
+});
+
+await ok('approveTransaction uses the page code of the page the client paid on, whichever URL Grow reaches first (Grow review 2026-10-27)', async () => {
+  // Sandbox shape: no platform keys, so the card page IS the token page; the wallet has its own page code.
+  const env = { GROW_MODE: 'live', GROW_TOKEN_API_KEY_TEST: 'K', GROW_TOKEN_PAGE_CODE_TEST: 'TOKENPAGE', GROW_TOKEN_USER_ID_TEST: 'U', GROW_WALLET_PAGE_CODE_TEST: 'WALLETPAGE' };
+  const grow = resolveGrow(env, 'https://kalmea.test');
+  assert.equal(grow.creds?.pageCode, 'TOKENPAGE');
+  const cashier = { appointment_id: null, description: 'טיפול פנים' };
+  const bookingPay = { appointment_id: 'a1', description: 'תשלום על תור · פנים' };
+  const requestDeposit = { appointment_id: null, description: 'מקדמה' };
+  const bookingDeposit = { appointment_id: 'a1', description: 'מקדמה לטיפול פנים' };
+  for (const p of [cashier, bookingPay, requestDeposit]) assert.equal(approveCredsFor(p, grow)?.pageCode, 'WALLETPAGE', `wallet payment: ${p.description}`);
+  assert.equal(approveCredsFor(bookingDeposit, grow)?.pageCode, 'TOKENPAGE', 'a booking deposit opens the card page and is approved with it');
+  assert.equal(opensOnWallet(cashier, false), false, 'no wallet configured: everything is the card page');
+  const noWallet = resolveGrow({ ...env, GROW_WALLET_PAGE_CODE_TEST: '' }, 'https://kalmea.test');
+  assert.equal(approveCredsFor(cashier, noWallet)?.pageCode, 'TOKENPAGE');
+
+  // The payment reaches the approve callback, through both entry points (the notifyUrl with its secret, and the account webhook by process).
+  const p = { id: 'p1', tenant_id: 't1', status: 'created', amount: 50, process_id: 'proc1', receipt_id: null, client_id: null, client_name: 'דנה', appointment_id: null, description: 'טיפול פנים', notify_token: 'x'.repeat(48) } as GrowPayment;
+  const repoFor = () => { const row = { ...p }; return {
+    async insertPayment() { return row; }, async updatePayment() {}, async markPaid(_id: string, patch: Record<string, unknown>) { if (row.status !== 'created') return null; Object.assign(row, patch); return row; },
+    async findByToken() { return row; }, async findByProcessId() { return row; }, async insertReceipt() { return { id: 'r1' }; }, async setReceiptDocument() {},
+  } as unknown as GrowRepo; };
+  const raw = { 'data[processId]': 'proc1', 'data[transactionId]': '9', 'data[sum]': '50', 'data[statusCode]': '2', 'data[transactionTypeId]': '1' };
+  for (const via of ['notify', 'webhook']) {
+    const forms: FormData[] = [];
+    const fetchImpl = (async (_u: string, init: RequestInit) => { forms.push(init.body as FormData); return new Response('{"status":1}'); }) as unknown as typeof fetch;
+    const approve = (n: Parameters<typeof approveTransaction>[0], pay: GrowPayment) => approveTransaction(n, approveCredsFor(pay, grow)!, fetchImpl);
+    const deps: Parameters<typeof applyNotification>[2] = { repo: repoFor(), creds: grow.creds!, appUrl: 'https://kalmea.test', newToken: () => 'y'.repeat(48) };
+    const r: Awaited<ReturnType<typeof applyNotification>> = via === 'notify' ? await applyNotification(raw, p.notify_token, deps, approve) : await applyNotificationByProcess(raw, deps, approve);
+    assert.equal(r.status, 'paid', via);
+    assert.equal(forms.length, 1, `${via}: approved once`);
+    assert.equal(forms[0].get('pageCode'), 'WALLETPAGE', `${via}: a wallet payment is never approved with the token page code`);
+  }
+  // Both routes decide by the payment: neither falls back to the route's own credentials.
+  for (const f of ['app/api/grow/notify/route.ts', 'app/api/grow/webhook/route.ts']) assert.ok(readFileSync(f, 'utf8').includes('approveCredsFor(p, grow)'), f);
 });
 
 function memoryRepo() {

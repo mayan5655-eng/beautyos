@@ -10,7 +10,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { walletAsCreds } from '@/lib/grow/wallet';
+import { approveCredsFor } from '@/lib/grow/wallet';
 import { randomBytes } from 'node:crypto';
 import { admin } from '../_shared';
 import { afterPaidHook } from '../_cancel';
@@ -35,14 +35,13 @@ export async function POST(request: Request) {
   const raw = await readBody(request);
   const grow = resolveGrow(process.env, APP_URL);
   const creds = grow.creds;
-  // A wallet payment is approved with the wallet page code (lib/grow/wallet.ts).
-  const approveCreds = grow.wallet ? walletAsCreds(grow.wallet) : creds;
   try {
     const result = await applyNotification(
       raw,
       token,
       { repo: supabaseGrowRepo(admin()), creds: creds || { apiKey: '', pageCode: '', apiBase: '' }, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex'), afterPaid: afterPaidHook() },
-      approveCreds ? (n) => approveTransaction(n, approveCreds, grow.fetchImpl) : undefined,
+      // Approved with the page code of the page the client paid on (wallet or card page), decided by the payment (lib/grow/wallet.ts).
+      (n, p) => { const c = approveCredsFor(p, grow); return c ? approveTransaction(n, c, grow.fetchImpl) : Promise.resolve(); },
     );
     if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
     return NextResponse.json({ success: true, status: result.status });

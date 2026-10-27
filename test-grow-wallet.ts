@@ -156,7 +156,7 @@ await ok('wiring: public page, tenant-scoped refund, notify approves with the wa
   assert.ok(/\.eq\('id', paymentId\)\.eq\('tenant_id', c\.tenantId\)/.test(refund), 'the payment is looked up by id AND her tenant');
   assert.ok(/status !== 'paid'/.test(refund) && /\^מקדמה/.test(refund), 'only paid, never a deposit');
   assert.ok(!/delete\(/.test(refund), 'nothing is deleted');
-  assert.ok(/const approveCreds = grow\.wallet \? walletAsCreds\(grow\.wallet\) : creds/.test(src('app/api/grow/notify/route.ts')));
+  for (const f of ['app/api/grow/notify/route.ts', 'app/api/grow/webhook/route.ts']) assert.ok(/approveCredsFor\(p, grow\)/.test(src(f)), `${f}: approved with the page the payment was opened on`);
   assert.ok(/wallet: !!grow\.wallet/.test(src('app/api/grow/charge/route.ts')) && /wallet: !!grow\.wallet/.test(src('app/api/grow/payment-request/route.ts')));
   assert.ok(/methods: grow\.wallet \? \['wallet'\]/.test(src('app/api/grow/status/route.ts')));
   const wr = src('app/api/grow/wallet/route.ts');
