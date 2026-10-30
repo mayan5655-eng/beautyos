@@ -109,4 +109,14 @@ assert.match(loader, /export async function loadFeedback\(\)[\s\S]*?await requir
 assert.match(rd('app/dashboard/owner/page.tsx'), /\/dashboard\/owner\/feedback/);
 assert.match(rd('app/dashboard/owner/feedback/page.tsx'), /add_product_feedback_2026-10-30/);
 
+// her tracking page: every business's answer on its own card, behind the same admin gate, and it says so until the SQL runs
+const subsLoader = rd('app/dashboard/admin/subscribers/loader.ts');
+assert.ok(subsLoader.indexOf('requirePlatformAdmin()') < subsLoader.indexOf("from('product_feedback')"));
+assert.match(subsLoader, /feedbackAvailable: !fb\.error/);
+const subs = rd('app/dashboard/admin/subscribers/SubscribersClient.tsx');
+assert.match(subs, /answer=\{feedback\[r\.id\]\}/);
+assert.match(subs, /\{answer && <FeedbackBlock answer=\{answer\} \/>\}/);
+assert.match(subs, /kalmea-sql-product-feedback/);
+assert.match(subs, /answer\.free_text/);
+
 console.log('feedback-banner: ok');

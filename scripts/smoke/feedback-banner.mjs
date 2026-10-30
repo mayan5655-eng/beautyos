@@ -155,6 +155,9 @@ try {
   await page.locator('[data-testid="feedback-send"]').click();
   await page.waitForSelector('[data-testid="feedback-thanks"]', { timeout: 15000 }).catch(() => {});
   check(await page.locator('[data-testid="feedback-thanks"]').count() === 1, `${tag}thanks only after the save`);
+  await page.waitForTimeout(500);
+  const thanksOpacity = await page.locator('[data-testid="feedback-banner"]').evaluate((el) => getComputedStyle(el).opacity);
+  check(thanksOpacity === '1', `${tag}the thanks card is solid, not see-through (${thanksOpacity})`);
   await page.screenshot({ path: `${SHOTS}/smoke-feedback-5-thanks.png` });
 
   if (reallyDegraded) {
@@ -168,11 +171,30 @@ try {
     await home();
     check(await banner.count() === 0, 'sent once: the server stops it even on a new phone');
   }
+
+  // The owner screen: a plain 404 for a business owner, the real page for a platform admin (this smoke user, for these few lines only).
+  const asOwner = await page.goto(`${BASE}/dashboard/owner/feedback`, { waitUntil: 'domcontentloaded' });
+  check(asOwner?.status() === 404, `not a platform admin: 404 (${asOwner?.status()})`);
+  await db.from('platform_admins').insert({ user_id: userId });
+  const asAdmin = await page.goto(`${BASE}/dashboard/owner/feedback`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
+  const text = (await page.innerText('body')).replace(/s+/g, ' ');
+  check(asAdmin?.status() === 200 && text.includes('משובים'), `platform admin: the page opens (${asAdmin?.status()})`);
+  if (reallyDegraded) check(text.includes('add_product_feedback_2026-10-30'), 'it names the SQL that is missing');
+  await page.screenshot({ path: `${SHOTS}/smoke-feedback-6-owner.png` });
+  await page.goto(`${BASE}/dashboard/owner`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1000);
+  check((await page.innerText('body')).includes('משובים'), 'the hub has the tile');
+  await page.screenshot({ path: `${SHOTS}/smoke-feedback-7-owner-hub.png` });
+  await page.goto(`${BASE}/dashboard/admin/subscribers`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(2000);
+  const subs = (await page.innerText('body')).replace(/\s+/g, ' ');
+  check(reallyDegraded ? subs.includes('kalmea-sql-product-feedback') : subs.includes('רק מי שענתה על המשוב'), 'the tracking page shows the feedback state');
+  await page.screenshot({ path: `${SHOTS}/smoke-feedback-8-tracking.png` });
 } catch (e) {
   fails.push(String(e?.message || e));
   console.error('[feedback] threw', e);
   await page.screenshot({ path: `${SHOTS}/smoke-feedback-crash.png` }).catch(() => {});
 } finally {
+  await db.from('platform_admins').delete().eq('user_id', userId);
   await browser.close();
   const left = await purgeTenant(tenantId, userId);
   log('purged', tenantId, left.length ? left : 'clean');
