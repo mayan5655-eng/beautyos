@@ -1,15 +1,15 @@
 "use client";
 // app/landing/DemoVideo.jsx
 //
-// A short, silent demo clip in a phone frame. It adds nothing to the first load:
+// A short demo clip in a phone frame. It adds nothing to the first load:
 //   - the server renders only an empty box with the clip's exact aspect ratio (no layout shift);
 //   - when the box is within ~400px of the viewport the poster is attached (one small image);
 //   - the video file itself is fetched only when she presses play (preload="none").
-// Muted, playsInline, controls visible, never autoplays. Demo tenant footage only.
+// playsInline, controls visible, never autoplays. Silent unless `sound` is set (a clip with its own music). Demo tenant footage only.
 
 import { useEffect, useRef, useState } from "react";
 
-export default function DemoVideo({ mp4, webm, poster, label }) {
+export default function DemoVideo({ mp4, webm, poster, label, width = 260, sound = false }) {
   const boxRef = useRef(null);
   const [near, setNear] = useState(false);
 
@@ -27,7 +27,7 @@ export default function DemoVideo({ mp4, webm, poster, label }) {
   return (
     <div
       style={{
-        width: 260,
+        width,
         margin: "0 auto",
         borderRadius: 36,
         border: "10px solid var(--ink)",
@@ -40,14 +40,14 @@ export default function DemoVideo({ mp4, webm, poster, label }) {
         {near && (
           <video
             controls
-            muted
+            muted={!sound}
             playsInline
             preload="none"
             poster={poster}
             aria-label={label}
             style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }}
           >
-            <source src={webm} type="video/webm" />
+            {webm && <source src={webm} type="video/webm" />}
             <source src={mp4} type="video/mp4" />
           </video>
         )}
