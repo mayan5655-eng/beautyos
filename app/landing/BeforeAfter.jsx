@@ -1,110 +1,42 @@
-"use client";
 // app/landing/BeforeAfter.jsx
 //
-// Before and after Kalmea, one row per pain: a red banner gets crossed out, then a green one pops up under it. The server HTML is the finished
-// picture (same rule as PhoneMock): the animation is only armed from JS, plays once per row as it scrolls in, and never under reduced motion.
-//
-// Sound: browsers refuse audio until the visitor touches the page, and a landing page must not make noise on its own. So it stays silent until
-// she presses the sound button or taps a row. The two sounds are synthesized here, no audio file to download.
+// Before and after Kalmea: one pair per row, so on a phone each problem sits right above its answer, and on a wide screen the pairs
+// line up as two columns. Soft red for the load, soft green for the order. The server HTML is the finished picture; Reveal only adds
+// a short rise on scroll (nothing under reduced motion).
 
-import { useEffect, useRef, useState } from "react";
-import BrandImage from "@/app/BrandImage";
+import Reveal from "./Reveal";
 
-function tone(ctx, { from, to, at, length, volume, type = "sine" }) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  const start = ctx.currentTime + at;
-  osc.type = type;
-  osc.frequency.setValueAtTime(from, start);
-  osc.frequency.exponentialRampToValueAtTime(to, start + length);
-  gain.gain.setValueAtTime(volume, start);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(start);
-  osc.stop(start + length);
-}
+const PATHS = {
+  chat: "M4 5h16v11H9l-5 4V5z",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  heart: "M12 20s-7-4.4-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.6 12 20 12 20z",
+  spark: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z",
+  wallet: "M3 7h18v12H3zM3 7l3-3h12l3 3M16 13h2",
+  layers: "M12 4l9 5-9 5-9-5 9-5zM3 14l9 5 9-5",
+  chart: "M4 20V10M10 20V4M16 20v-7M21 20H3",
+  person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6",
+};
 
-// A short low drop as the line crosses the old way out, then two rising notes when the green banner lands.
-function playBeforeAfter(ctx) {
-  tone(ctx, { from: 210, to: 90, at: 0, length: 0.22, volume: 0.14, type: "triangle" });
-  tone(ctx, { from: 660, to: 660, at: STRIKE_MS / 1000, length: 0.14, volume: 0.12 });
-  tone(ctx, { from: 990, to: 990, at: STRIKE_MS / 1000 + 0.11, length: 0.26, volume: 0.12 });
-}
-
-const STRIKE_MS = 620; // how long after the row starts the green banner pops; matches the .ba-after delay in globals.css
-
-function Row({ pair, soundRef, ensureAudio }) {
-  const ref = useRef(null);
-  const [stage, setStage] = useState("done");
-
-  const play = (withSound) => {
-    setStage("armed");
-    requestAnimationFrame(() => requestAnimationFrame(() => setStage("play")));
-    const ctx = withSound ? ensureAudio() : soundRef.current;
-    if (ctx) playBeforeAfter(ctx);
-  };
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    setStage("armed");
-    const io = new IntersectionObserver((entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      io.disconnect();
-      play(false);
-    }, { threshold: 0.7 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return (
-    <button ref={ref} type="button" className="ba-row" data-ba={stage} onClick={() => play(true)}>
-      <span className="ba-before">
-        <span className="ba-tag">לפני</span>
-        <span className="ba-text">{pair.before}<span className="ba-strike" aria-hidden /></span>
-      </span>
-      <span className="ba-after">
-        <span className="ba-icon"><BrandImage width={26} height={26} alt="" src={pair.icon} style={{ width: 26, height: 26, objectFit: "contain" }} /></span>
-        <span>
-          <span className="ba-tag">עם קלמיה</span>
-          <span className="ba-text">{pair.after}</span>
-        </span>
-      </span>
-    </button>
-  );
-}
+const Glyph = ({ name }) => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d={PATHS[name]} />
+  </svg>
+);
 
 export default function BeforeAfter({ rows }) {
-  const audioRef = useRef(null);
-  const [soundOn, setSoundOn] = useState(false);
-
-  // Called only from a press, which is what lets the browser start audio at all.
-  const ensureAudio = () => {
-    if (!audioRef.current) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return null;
-      audioRef.current = new AudioContext();
-    }
-    audioRef.current.resume?.();
-    setSoundOn(true);
-    return audioRef.current;
-  };
-
-  const toggle = () => {
-    if (soundOn) { audioRef.current?.suspend?.(); audioRef.current = null; setSoundOn(false); return; }
-    const ctx = ensureAudio();
-    if (ctx) playBeforeAfter(ctx);
-  };
-
   return (
-    <>
-      <p style={{ textAlign: "center", marginBottom: 14 }}>
-        <button type="button" onClick={toggle} aria-pressed={soundOn} className="ba-sound">{soundOn ? "לכבות צליל" : "להפעיל צליל"}</button>
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {rows.map((pair) => <Row key={pair.before} pair={pair} soundRef={audioRef} ensureAudio={ensureAudio} />)}
+    <div className="lp-ba">
+      <div className="lp-ba-head" aria-hidden>
+        <span className="lp-ba-title is-before">לפני Kalmea</span>
+        <span className="lp-ba-title is-after">עם Kalmea</span>
       </div>
-    </>
+      {rows.map((r, i) => (
+        <Reveal key={r.before} delay={Math.min(i, 4) * 40} className="lp-ba-row">
+          <p className="lp-ba-cell is-before"><span className="lp-ba-icon"><Glyph name={r.icon} /></span><span><b className="lp-ba-tag">לפני</b>{r.before}</span></p>
+          <p className="lp-ba-cell is-after"><span className="lp-ba-icon"><Glyph name={r.icon} /></span><span><b className="lp-ba-tag">עם Kalmea</b>{r.after}</span></p>
+        </Reveal>
+      ))}
+    </div>
   );
 }

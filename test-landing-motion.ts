@@ -50,12 +50,11 @@ ok('the video adds nothing to first load: no poster or source until near, preloa
   assert.match(video, /aspectRatio: "9 \/ 16"/);
 });
 
-ok('the section sits after the before/after block and says it is demo data', () => {
-  const a = page.indexOf('6. לפני / אחרי');
-  const b = page.indexOf('6b. DEMO VIDEO');
-  const c = page.indexOf('7. THREE PILLARS');
-  assert.ok(a > 0 && b > a && c > b);
-  assert.match(page, /אלה נתוני דמו/);
+ok('the in-action clips sit after the five areas and say they are a sample business', () => {
+  const a = page.indexOf('5. FIVE AREAS');
+  const b = page.indexOf('5c. IN ACTION');
+  assert.ok(a > 0 && b > a);
+  assert.match(page, /על עסק לדוגמה/);
 });
 
 ok('the clip files exist, are small, and have a poster', () => {
@@ -77,7 +76,7 @@ console.log(`${n} passed`);
 {
   const pg = rd('app/LandingPage.jsx');
   assert.doesNotMatch(pg, /kalmea-before-after/);
-  assert.match(pg, /kalmea-\$\{v\.id\}\.mp4/); // the page shows the /tutorials videos now (owner, 2026-10-30)
+  assert.ok(pg.includes("/media/landing-")); // real recordings only: the /tutorials videos end on an AI presenter (owner, 2026-10-30)
   for (const f of ['mp4', 'webm']) assert.ok(statSync(`public/media/kalmea-demo-20s.${f}`).size > 0); // the older clip stays in the product
   for (const f of ['mp4', 'webm', 'jpg']) assert.ok(statSync(`public/media/kalmea-before-after.${f}`).size > 0);
   console.log('ok - before/after clip not on the landing page, files kept');

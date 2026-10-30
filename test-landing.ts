@@ -87,30 +87,38 @@ ok('the share card title matches the Hebrew page title', () => {
 ok('the page carries no long dashes or arrows, and says who it is for in the hero', () => {
   const copy = (s: string) => s.replace(/^\s*(\/\/|\{?\/\*).*$/gm, '');
   for (const src of [page, cost, rd('app/landing/PhoneMock.jsx'), meta]) assert.doesNotMatch(copy(src), /[—–←]| -- /);
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. PHONE MOCK'));
-  assert.match(hero, /לקוסמטיקאיות ולציפורניסטיות/);
-  assert.match(page, /facial-classic\.jpg/);
-  assert.match(page, /nails-manicure\.jpg/);
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
+  assert.match(hero, /<h1[^>]*>קוסמטיקאית או מניקוריסטית שעובדת לבד\?<\/h1>/, 'who it is for IS the headline');
+  assert.match(page, /photo-cosmetician\.jpg/);
+  assert.match(page, /photo-manicure\.jpg/);
 });
 
-ok('the three tutorial videos are on the page and every one of them exists, nothing loads before play', () => {
+ok('owner, 2026-10-30: nothing AI-made on the page, every screen is a real one, nothing claims more than the product does', () => {
+  assert.doesNotMatch(page, /\/defaults\//, 'the /defaults/ pictures are AI-generated');
+  assert.doesNotMatch(page, /presenter|PRESENTER|דמות AI/);
+  for (const m of page.matchAll(/"\/landing\/([\w-]+\.jpg)"/g)) assert.ok(existsSync(`public/landing/${m[1]}`), m[1]);
+  assert.equal((page.match(/shot: "\/landing\/app-/g) || []).length, 6, 'five areas and the booking moment');
+  // Automatic WhatsApp is off (platform_settings), so reminders are "ready to send" until it is switched on.
+  assert.doesNotMatch(page, /תזכורות אוטומטיות/);
+  assert.match(page, /תזכורות מוכנות לשליחה/);
+  assert.doesNotMatch(page, /[״"]\s*[א-ת ]+\s*[״"]\s*-\s*[א-ת]+/, 'no quoted testimonial');
+});
+
+ok('the in-action clips exist and nothing loads before play', () => {
   const ids = [...page.matchAll(/\{ id: "(\w+)", title:/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['welcome', 'booking', 'tour']);
-  for (const id of ids) for (const ext of ['mp4', 'jpg']) assert.ok(existsSync(`public/tutorials/kalmea-${id}.${ext}`));
+  assert.deepEqual(ids, ['leads', 'booking', 'messages', 'content', 'data']);
+  for (const id of ids) for (const ext of ['mp4', 'jpg']) assert.ok(existsSync(`public/media/landing-${id}.${ext}`));
   assert.match(rd('app/landing/DemoVideo.jsx'), /preload="none"/);
 });
 
-ok('before and after: red crossed out, green pops, finished picture without JS, sound only after a press', () => {
+ok('before and after: soft red and green in pairs, finished picture without JS, no sound', () => {
   const ba = rd('app/landing/BeforeAfter.jsx');
   assert.match(page, /<BeforeAfter rows=\{BEFORE_AFTER\} \/>/);
-  assert.match(ba, /useState\("done"\)/); // the server HTML shows both banners
-  assert.match(ba, /prefers-reduced-motion: reduce/);
-  assert.doesNotMatch(ba, /autoplay|<audio|new Audio\(/i);
+  assert.equal((page.slice(page.indexOf('const BEFORE_AFTER'), page.indexOf('const MOMENTS')).match(/before: "/g) || []).length, 9);
+  assert.doesNotMatch(ba, /use client|autoplay|<audio|AudioContext/i);
   const css = rd('app/globals.css');
-  assert.match(css, /\.ba-row \.ba-strike, \.ba-row \.ba-after \{ opacity: 1 !important/);
-  // withSound only arrives from the row's press; the scroll-in play never creates an AudioContext.
-  assert.match(ba, /onClick=\{\(\) => play\(true\)\}/);
-  assert.match(ba, /play\(false\)/);
+  assert.match(css, /\.lp-ba-cell\.is-before \{ background: #FBF0EE/);
+  assert.match(css, /\.lp-ba-cell\.is-after \{ background: #EEF4EE/);
 });
 
 ok('the landing page leaves out the business line, terms and privacy keep it', () => {
@@ -118,11 +126,11 @@ ok('the landing page leaves out the business line, terms and privacy keep it', (
   for (const f of ['app/terms/page.tsx', 'app/privacy/page.tsx']) assert.doesNotMatch(rd(f), /showBusinessLine/);
 });
 
-ok('a real day: the times run in order and the messages stay "ready", never "sent"', () => {
-  const times = [...page.matchAll(/\{ time: "(\d\d:\d\d)"/g)].map((m) => m[1]);
-  assert.equal(times.length, 5);
-  assert.deepEqual(times, [...times].sort());
-  assert.doesNotMatch(page.slice(page.indexOf('const A_DAY'), page.indexOf('const VOICE_LINES')), /נשלח/);
+ok('a real day: three moments, and the "with" side never says a message went out by itself', () => {
+  const m = page.slice(page.indexOf('const MOMENTS'), page.indexOf('const AREAS'));
+  assert.equal((m.match(/\bid: "/g) || []).length, 3);
+  assert.doesNotMatch(m, /נשלח/);
+  assert.match(rd('app/landing/ClinicDay.jsx'), /שום דבר לא יוצא בלי שאת שולחת/);
 });
 
 ok('the free month without a credit card is said at every call to action', () => {
@@ -136,11 +144,10 @@ console.log(`${n} passed`);
 
 // Landing focus (2026-10-13): one prominent action, everything else quiet.
 {
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. PHONE MOCK'));
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
   assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one prominent button in the hero');
-  assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}[\s\S]*חודש ראשון חינם/);
-  assert.match(hero, /href="\/demo"/); // the demo is still one click away, as a quiet text link
-  assert.doesNotMatch(hero.slice(hero.indexOf('href="/demo"') - 40, hero.indexOf('href="/demo"') + 200), /pillBtn/);
+  assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}>התחילי חודש בחינם/);
+  assert.match(hero, /href="#how"/); // the second action is a quiet link down to the real day
   const demo = page.slice(page.indexOf('9. DEMO'), page.indexOf('9b. FAQ'));
   assert.doesNotMatch(demo, /boxShadow: "var\(--shadow-sm\)"/); // the two big cards are gone
   assert.match(demo, /DEMOS\.map/);
