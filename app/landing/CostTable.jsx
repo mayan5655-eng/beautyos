@@ -98,7 +98,7 @@ export default function CostTable({ rows, totalLow, totalHigh, closingLine }) {
           >
             <span style={{ fontSize: "var(--t-md)", color: "var(--ink)" }}>{row.label}</span>
             <span style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink-2)", direction: "ltr", unicodeBidi: "plaintext" }}>
-              {formatILS(row.low)}–{formatILS(row.high)}
+              {formatILS(row.low)} עד {formatILS(row.high)}
             </span>
           </Reveal>
         ))}
@@ -112,7 +112,7 @@ export default function CostTable({ rows, totalLow, totalHigh, closingLine }) {
           className="serif"
           style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", direction: "ltr", unicodeBidi: "plaintext", marginBottom: 14 }}
         >
-          {formatILS(countLow)}–{formatILS(countHigh)}
+          {formatILS(countLow)} עד {formatILS(countHigh)}
         </p>
         <p style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink)" }}>{closingLine}</p>
       </Reveal>

@@ -25,17 +25,16 @@ import { wantsLandingPreview } from "@/lib/homeRoute";
 // page, not the dashboard a real signed-in visit never exposes metadata
 // for anyway (client components don't export it).
 export const metadata = {
-  title: "קלמיה — עסק פורח, חיים עם יותר שקט",
-  description:
-    "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד — במקום הקמפיינרית, המזכירה ומנהלת הסושיאל. חודש ראשון חינם.",
+  title: "קלמיה: ניהול העסק לקוסמטיקאיות ולציפורניסטיות",
+  description: "יומן תורים, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולציפורניסטיות עצמאיות. חודש ראשון חינם.",
   openGraph: {
-    title: "קלמיה — עסק פורח, חיים עם יותר שקט",
+    title: "קלמיה: ניהול העסק לקוסמטיקאיות ולציפורניסטיות",
     description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד. חודש ראשון חינם.",
     images: [{ url: "/og-1200x630.jpg", width: 1200, height: 630, alt: "קלמיה" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "קלמיה — עסק פורח, חיים עם יותר שקט",
+    title: "קלמיה: ניהול העסק לקוסמטיקאיות ולציפורניסטיות",
     description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד. חודש ראשון חינם.",
     images: ["/og-1200x630.jpg"],
   },

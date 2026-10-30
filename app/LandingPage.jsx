@@ -13,7 +13,6 @@ import CostTable from "./landing/CostTable";
 import PhoneMock from "./landing/PhoneMock";
 import DemoVideo from "./landing/DemoVideo";
 import {
-  BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H,
   ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER,
 } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
@@ -43,9 +42,9 @@ const BEFORE_AFTER = [
 ];
 
 const PILLARS = [
-  { icon: ICON_CALENDAR, title: "ניהול", text: "יומן, לקוחות ותשלומים, תמיד מסודרים במקום אחד." },
-  { icon: ICON_FRAME, title: "שיווק", text: "פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
-  { icon: ICON_WALLET, title: "מכירות", text: "מהתור הראשון ועד התזכורת שמחזירה אותה." },
+  { icon: ICON_CALENDAR, title: "יומן מלא", text: "לקוחה קובעת תור לבד מהקישור שלך, ואת רואה הכל במקום אחד." },
+  { icon: ICON_FRAME, title: "נוכחות ברשתות", text: "פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
+  { icon: ICON_WALLET, title: "לקוחות שחוזרות", text: "תזכורת מוכנה ללקוחה שלא הגיעה מזמן, כדי שהיא תקבע שוב." },
 ];
 
 const VOICE_LINES = [
@@ -75,7 +74,7 @@ const FAQ = [
     a: "כן. קלמיה בנויה לעבוד מהטלפון, ואפשר להוסיף אותה למסך הבית כמו אפליקציה.",
   },
   {
-    q: "זה מתאים גם לטכנאיות ציפורניים?",
+    q: "זה מתאים גם לציפורניסטיות?",
     a: "כן. יש תחום ציפורניים ודמו משלו, שאפשר לראות לפני שנרשמים.",
   },
 ];
@@ -83,6 +82,15 @@ const FAQ = [
 const DEMOS = [
   { field: "cosmetics", title: "קוסמטיקה", href: "/demo/cosmetics" },
   { field: "nails", title: "ציפורניים", href: "/demo/nails" },
+];
+
+// The wordmark file's own size, so the page keeps its space before the image arrives.
+const WORDMARK_W = 600;
+const WORDMARK_H = 176;
+
+const HERO_PHOTOS = [
+  { src: "/defaults/facial-classic.jpg", alt: "קוסמטיקאית מורחת מסכה על פני לקוחה בטיפול פנים", position: "center 35%" },
+  { src: "/defaults/nails-manicure.jpg", alt: "ציפורניסטית עובדת על הציפורניים של לקוחה", position: "center 45%" },
 ];
 
 const pillBtn = {
@@ -108,35 +116,36 @@ export default function LandingPage() {
     <div dir="rtl" style={{ background: "var(--brand-cream, #F0EADE)", fontFamily: "var(--sans)", overflowX: "hidden" }}>
       {/* ── 1. HEADER ─────────────────────────────────────────────────────── */}
       <header style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-          <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+          <Image src="/kalmea-wordmark.png" alt="קלמיה" width={WORDMARK_W} height={WORDMARK_H} priority style={{ width: "auto", height: 34 }} />
           <Link href="/login" className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "none" }}>
             להתחבר
           </Link>
         </div>
-        <Image
-          src={BANNER_WIDE}
-          alt="קלמיה — עסק שפורח. חיים עם יותר שקט."
-          width={BANNER_WIDE_W}
-          height={BANNER_WIDE_H}
-          priority
-          fetchPriority="high"
-          sizes="(max-width: 1100px) 100vw, 1100px"
-          style={{ width: "100%", height: "auto", borderRadius: "var(--r-lg)" }}
-        />
+        {/* Two photos so both audiences see their own work in the first second. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, height: "clamp(190px, 31vw, 340px)" }}>
+          {HERO_PHOTOS.map((photo) => (
+            <div key={photo.src} style={{ position: "relative", overflow: "hidden", borderRadius: "var(--r-lg)" }}>
+              <Image src={photo.src} alt={photo.alt} fill priority fetchPriority="high" sizes="(max-width: 1100px) 50vw, 550px" style={{ objectFit: "cover", objectPosition: photo.position }} />
+            </div>
+          ))}
+        </div>
       </header>
 
       {/* ── 2. HERO ───────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 720, margin: "0 auto", padding: "34px 20px 10px", textAlign: "center" }}>
+        <Reveal immediate style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--brand-sage-text)", marginBottom: 8 }}>
+          <p>לקוסמטיקאיות ולציפורניסטיות עצמאיות</p>
+        </Reveal>
         <Reveal immediate as="h1" className="serif" style={{ fontSize: "var(--t-display, 40px)", fontWeight: 900, color: "var(--brand-accent)", lineHeight: 1.15, letterSpacing: "-0.01em", marginBottom: 14 }}>
-          במקום הקמפיינרית, המזכירה ומנהלת הסושיאל
+          כל העסק שלך בטלפון אחד
         </Reveal>
         <Reveal immediate delay={80} style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 26 }}>
-          <p>קלמיה עושה את זה בשבילך — תורים, תשלומים ותוכן שיווקי, במקום אחד.</p>
+          <p>יומן תורים, כרטיסי לקוחות, תשלומים ופוסטים מוכנים לרשתות.<br />בנתה אותה קוסמטיקאית שעובדת בזה כל יום.</p>
         </Reveal>
         <Reveal immediate delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
-            חודש ראשון חינם <span aria-hidden>←</span>
+            אני רוצה חודש ראשון חינם
           </Link>
         </Reveal>
         <Reveal immediate delay={200} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
@@ -157,19 +166,19 @@ export default function LandingPage() {
       {/* ── 4. "נבנתה למי שעובדת לבד" ─────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 24px 10px", textAlign: "center" }}>
         <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 14 }}>
-          נבנתה למי שעובדת לבד
+          עובדת לבד? זה בדיוק בשבילך
         </Reveal>
         <Reveal delay={80} style={{ fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginBottom: 16 }}>
-          <p>בלי צוות שיווק, בלי מזכירה, בלי מנהלת חשבונות. את קובעת תורים, עונה להודעות, מתכננת פוסטים, עוקבת אחרי ההכנסות — הכל לבד, בין לקוחה ללקוחה.</p>
+          <p>בין לקוחה ללקוחה את קובעת תורים, עונה להודעות, מתכננת פוסטים ובודקת כמה הכנסת. את עושה הכל לבד.</p>
         </Reveal>
         <Reveal delay={160} style={{ fontFamily: "var(--font-hand), cursive", fontSize: "var(--t-2xl)", color: "var(--brand-highlight)" }}>
-          ומשלמת על כל אחד מהם בנפרד.
+          ומשלמת על כל כלי בנפרד.
         </Reveal>
       </section>
 
       {/* ── 5. COST TABLE ─────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>כמה זה עולה בלי קלמיה</SectionEyebrow>
+        <SectionEyebrow>כמה עולה לנהל עסק בלי קלמיה</SectionEyebrow>
         <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="קלמיה מרכזת את הכלים האלה במקום אחד." />
         <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textAlign: "center", marginTop: 10 }}>הסכומים הם הערכה לפי מחירי שוק.</p>
       </section>
@@ -186,14 +195,14 @@ export default function LandingPage() {
           <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
           {/* The value in her own terms, next to the price: what one month has to save for the price to pay itself back. */}
           <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--line)" }}>
-            שניים-שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, וקלמיה כבר מחזירה את עצמה.
+            שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, וקלמיה כבר מחזירה את עצמה.
           </p>
         </Reveal>
       </section>
 
       {/* ── 6. לפני / אחרי ────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 760, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>לפני ואחרי</SectionEyebrow>
+        <SectionEyebrow>מה משתנה ביום יום שלך</SectionEyebrow>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginTop: 18 }}>
           {BEFORE_AFTER.map((pair, i) => (
             <Reveal key={pair.before} delay={(i % 3) * 80} style={{ background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--line)", padding: "16px 18px" }}>
@@ -206,7 +215,7 @@ export default function LandingPage() {
 
       {/* ── 6b. DEMO VIDEO ────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px", textAlign: "center" }}>
-        <SectionEyebrow>רואים אותה בעבודה</SectionEyebrow>
+        <SectionEyebrow>תראי איך זה עובד</SectionEyebrow>
         <DemoVideo
           mp4="/media/kalmea-demo-20s.mp4"
           webm="/media/kalmea-demo-20s.webm"
@@ -240,12 +249,12 @@ export default function LandingPage() {
           <BrandImage width={56} height={56} alt="" src={ICON_MICROPHONE} className="kl-flower-in" style={{ width: 56, height: 56, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
         </Reveal>
         <Reveal delay={60} as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
-          פשוט תגידי לה
+          הידיים עסוקות? פשוט תגידי לה
         </Reveal>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {VOICE_LINES.map((line, i) => (
             <Reveal key={line} delay={i * 80 + 100} style={{ fontFamily: "var(--font-hand), cursive", fontSize: "var(--t-xl)", color: "var(--ink-2)" }}>
-              “{line}”
+              {line}
             </Reveal>
           ))}
         </div>
@@ -254,7 +263,7 @@ export default function LandingPage() {
       {/* ── 8b. WHO IS BEHIND KALMEA ─────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 24px 10px", textAlign: "center" }}>
         <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 14 }}>
-          מי עומדת מאחורי קלמיה
+          מי בנתה את קלמיה
         </Reveal>
         <Reveal delay={80} style={{ fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7 }}>
           <p>קלמיה נבנתה על ידי קוסמטיקאית מוסמכת, שעובדת בעצמה בעסק שלה, כל יום. היא נולדה מהעבודה האמיתית, מהדברים הקטנים שחסרו בין טיפול לטיפול.</p>
@@ -263,9 +272,9 @@ export default function LandingPage() {
 
       {/* ── 9. DEMO ───────────────────────────────────────────────────────── */}
       <section style={{ maxWidth: 760, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>רוצה לראות קודם?</SectionEyebrow>
+        <SectionEyebrow>נסי לפני שנרשמים</SectionEyebrow>
         <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 4 }}>
-          קלמיה נבנתה גם לקוסמטיקאיות וגם לטכנאיות ציפורניים. לכל אחת יש דמו משלה.
+          יש דמו נפרד לקוסמטיקאיות ודמו נפרד לציפורניסטיות.
         </p>
         <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 6 }}>
           אפשר להיכנס לדמו של{" "}
@@ -306,11 +315,11 @@ export default function LandingPage() {
           <BrandImage width={48} height={48} alt="" src={ICON_FLOWER} className="kl-flower-in" style={{ width: 48, height: 48, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
         </Reveal>
         <Reveal delay={60} as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
-          חודש ראשון חינם
+          מוכנה לעסק מסודר יותר? החודש הראשון חינם
         </Reveal>
         <Reveal delay={120}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
-            להתחיל עכשיו <span aria-hidden>←</span>
+            להתחיל עכשיו
           </Link>
         </Reveal>
         <Reveal delay={180} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
