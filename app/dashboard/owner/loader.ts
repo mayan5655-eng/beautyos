@@ -5,7 +5,8 @@
 //
 // What is read, exactly:
 //   - public.tenants, only the columns in OWNER_TENANT_COLUMNS (name, dates, plan status, signup source);
-//   - the public.platform_tenant_metrics() function, projected immediately to business name + last-activity timestamp.
+//   - the public.platform_tenant_metrics() function, projected immediately to business name + last-activity timestamp;
+//   - public.product_feedback, what she herself wrote about Kalmea in the feedback banner.
 // Never read: clients, appointments, receipts, leads, messages, emails, phone numbers. test-owner-control.ts pins this.
 import { notFound } from 'next/navigation'
 import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
@@ -14,6 +15,8 @@ import { OWNER_TENANT_COLUMNS, realTenants, activityRows, newestSignups } from '
 import type { OwnerTenant, ActivityRow, NewestSignup } from '@/lib/ownerControl'
 import { loadSignupContacts } from './signups/contacts'
 import type { SignupContact } from '@/lib/ownerContact'
+import { isMissingTable } from '@/lib/feedbackBanner'
+import type { FeedbackRow } from '@/lib/feedbackBanner'
 
 /** Gate every owner page with this first. */
 export async function requireOwner() {
@@ -66,4 +69,19 @@ export async function loadActivity(): Promise<{ ok: true; rows: ActivityRow[] } 
     return { ok: false }
   }
   return { ok: true, rows: activityRows(data as Array<Record<string, unknown>>, ownTenantId) }
+}
+
+/** The feedback screen, newest first. Smoke and demo businesses and the admin's own are left out, by the same rule as every owner screen. */
+export async function loadFeedback(): Promise<{ ok: true; rows: Array<FeedbackRow & { name: string }> } | { ok: false; reason: 'table-missing' | 'read-failed' }> {
+  const { db, ownTenantId } = await requireOwner()
+  const { data, error } = await db.from('product_feedback').select('tenant_id, rating, answers, free_text, created_at').order('created_at', { ascending: false })
+  if (error || !data) {
+    console.error('[owner] product_feedback read failed:', error?.message)
+    return { ok: false, reason: isMissingTable(error?.message) ? 'table-missing' : 'read-failed' }
+  }
+  const tenants = await readTenants(db, ownTenantId)
+  if (!tenants) return { ok: false, reason: 'read-failed' }
+  const names = new Map(tenants.map((t) => [t.id, t.name]))
+  const rows = (data as FeedbackRow[]).filter((r) => names.has(r.tenant_id)).map((r) => ({ ...r, name: names.get(r.tenant_id) || 'עסק ללא שם' }))
+  return { ok: true, rows }
 }

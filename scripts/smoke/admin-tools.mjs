@@ -28,7 +28,7 @@ if (cmd === 'create') {
 // ---- purge: remove a smoke tenant and its user completely (service role; refuses the real tenant) ----
 export async function purgeTenant(tenantId, userId) {
   if (!tenantId || tenantId === REAL_TENANT) throw new Error('refusing');
-  const tables = ['billing_addons','billing_payments','billing_card_consents','billing_subscriptions','grow_payments','grow_accounts','grow_signup_requests','receipt_voids','receipts','appointments','forms','skin_scans','client_photos','treatment_results','reviews','auto_reminders_log','whatsapp_messages','waitlist','slot_offers','package_entries','packages','package_offerings','expenses','designs','leads','clients','service_prices','owner_notifications','owner_questions','push_subscriptions','advisor_messages','ai_usage','campaign_posts','campaigns','community_posts','ad_spend','support_messages','grow_payments','facebook_pages','settings','tenant_members'];
+  const tables = ['product_feedback','billing_addons','billing_payments','billing_card_consents','billing_subscriptions','grow_payments','grow_accounts','grow_signup_requests','receipt_voids','receipts','appointments','forms','skin_scans','client_photos','treatment_results','reviews','auto_reminders_log','whatsapp_messages','waitlist','slot_offers','package_entries','packages','package_offerings','expenses','designs','leads','clients','service_prices','owner_notifications','owner_questions','push_subscriptions','advisor_messages','ai_usage','campaign_posts','campaigns','community_posts','ad_spend','support_messages','grow_payments','facebook_pages','settings','tenant_members'];
   const out = [];
   for (const t of tables) {
     const { error, count } = await db.from(t).delete({ count: 'exact' }).eq('tenant_id', tenantId);
