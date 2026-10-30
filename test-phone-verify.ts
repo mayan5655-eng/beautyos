@@ -364,7 +364,7 @@ await ok('the signup page asks the server, shows the phone step first, and store
 });
 
 await ok('the prompt is mounted on every way into the app, and "later" exists only for the gentle prompt', () => {
-  for (const f of ['app/BeautyOSLoader.tsx', 'app/dashboard/page.tsx', 'app/onboarding/page.tsx']) assert.match(rd(f), /<PhoneGate \/>/, f);
+  for (const f of ['app/BeautyOSLoader.tsx', 'app/onboarding/page.tsx']) assert.match(rd(f), /<PhoneGate \/>/, f);
   const gate = rd('app/PhoneGate.tsx');
   assert.match(gate, /gate === 'prompt' \? \(\s*<button type="button" onClick=\{later\}/);
   assert.match(gate, /method: 'POST'/);

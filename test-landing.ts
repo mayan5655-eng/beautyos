@@ -100,6 +100,31 @@ ok('the three tutorial videos are on the page and every one of them exists, noth
   assert.match(rd('app/landing/DemoVideo.jsx'), /preload="none"/);
 });
 
+ok('before and after: red crossed out, green pops, finished picture without JS, sound only after a press', () => {
+  const ba = rd('app/landing/BeforeAfter.jsx');
+  assert.match(page, /<BeforeAfter rows=\{BEFORE_AFTER\} \/>/);
+  assert.match(ba, /useState\("done"\)/); // the server HTML shows both banners
+  assert.match(ba, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(ba, /autoplay|<audio|new Audio\(/i);
+  const css = rd('app/globals.css');
+  assert.match(css, /\.ba-row \.ba-strike, \.ba-row \.ba-after \{ opacity: 1 !important/);
+  // withSound only arrives from the row's press; the scroll-in play never creates an AudioContext.
+  assert.match(ba, /onClick=\{\(\) => play\(true\)\}/);
+  assert.match(ba, /play\(false\)/);
+});
+
+ok('the landing page leaves out the business line, terms and privacy keep it', () => {
+  assert.match(page, /<KalmeaLegalFooter showBusinessLine=\{false\}/);
+  for (const f of ['app/terms/page.tsx', 'app/privacy/page.tsx']) assert.doesNotMatch(rd(f), /showBusinessLine/);
+});
+
+ok('a real day: the times run in order and the messages stay "ready", never "sent"', () => {
+  const times = [...page.matchAll(/\{ time: "(\d\d:\d\d)"/g)].map((m) => m[1]);
+  assert.equal(times.length, 5);
+  assert.deepEqual(times, [...times].sort());
+  assert.doesNotMatch(page.slice(page.indexOf('const A_DAY'), page.indexOf('const VOICE_LINES')), /נשלח/);
+});
+
 ok('the free month without a credit card is said at every call to action', () => {
   const links = page.split('href="/signup"').length - 1;
   assert.equal(links, 3);

@@ -30,7 +30,7 @@ const costSrc = readFileSync('app/landing/CostTable.jsx', 'utf8');
 // ── Root route branches server-side, doesn't redirect ───────────────────────
 ok(/export default async function Page/.test(pageSrc), 'root page is an async Server Component, not a client redirect');
 ok(/await verifiedUserFromSession\(supabase\)/.test(pageSrc), 'checks the session (signature verified locally, lib/supabase/sessionGate) before deciding what to render');
-ok(/if \(user\) return <BeautyOS/.test(pageSrc), 'a logged-in visitor still gets the real dashboard');
+ok(!/BeautyOS/.test(pageSrc), 'the root route never serves the app: it lives at /dashboard');
 ok(/return <LandingPage/.test(pageSrc), 'a logged-out visitor gets the landing page, not a redirect to /login');
 ok(!/router\.push\(["']\/login["']\)|router\.replace\(["']\/login["']\)/.test(pageSrc),
   'no client-side redirect to /login left in the root route itself');

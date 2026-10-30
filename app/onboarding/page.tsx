@@ -182,7 +182,7 @@ export default function OnboardingPage() {
           // back) is meaningless now - clear it rather than leave it to be
           // found by a future, unrelated onboarding attempt.
           clearDraft(rpcTenant);
-          router.replace("/");
+          router.replace("/dashboard");
           return;
         }
 
@@ -379,7 +379,7 @@ export default function OnboardingPage() {
       }
 
       clearDraft(tenantId);
-      const dest = importKind ? `/?import=1&kind=${importKind}` : "/";
+      const dest = importKind ? `/dashboard?import=1&kind=${importKind}` : "/dashboard";
       router.replace(svcFailed ? `${dest}${dest.includes("?") ? "&" : "?"}svc=failed` : dest);
     } catch (e: unknown) {
       const err = e as { message?: string };

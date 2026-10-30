@@ -192,7 +192,7 @@ ok('the app bundle only has an empty slot: no owner link, no "בקרה" label in
   assert.doesNotMatch(app, /"בקרה"|'בקרה'|>בקרה</);
   const loader = rd('app/BeautyOSLoader.tsx');
   assert.doesNotMatch(loader, /dashboard\/owner/);
-  assert.match(rd('app/page.tsx'), /if \(user\) return <BeautyOSLoader ownerEntry=\{<OwnerEntry \/>\} \/>;/);
+  assert.match(rd('app/dashboard/page.tsx'), /<BeautyOSLoader ownerEntry=\{<OwnerEntry \/>\} \/>/);
   assert.match(rd('app/dashboard/page.tsx'), /ownerEntry=\{<OwnerEntry \/>\}/);
 });
 

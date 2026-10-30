@@ -61,5 +61,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fie
     return NextResponse.redirect(`${APP_URL}/demo?error=1`);
   }
 
-  return NextResponse.redirect(`${APP_URL}/`);
+  return NextResponse.redirect(`${APP_URL}/dashboard`);
 }
