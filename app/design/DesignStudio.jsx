@@ -12,16 +12,21 @@
 //   4. the designs she has saved
 // Pick a template -> a design row is created from it -> the editor opens.
 
-import { useEffect, useMemo, useState } from 'react';
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
+import OwnReel from './OwnReel';
 import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
 import ContentPlan from './ContentPlan';
 import Archive from './Archive';
+import SaveShare from './SaveShare';
+import { renderTemplateBlob } from './canvasRender';
+import { defaultCaption } from '@/lib/design/defaultCaption';
 import { latestReels, getReel } from '@/lib/design/reels';
 import { fillReel } from '@/lib/design/reel';
 import { galleryTemplates, getTemplate, storySibling, TEMPLATES } from '@/lib/design/templates';
@@ -76,8 +81,40 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   // when the server said there are none.
   const [designsFailed, setDesignsFailed] = useState(false);
   const [open, setOpen] = useState(null); // design being edited
+  // "שמירה ושיתוף" straight from a card in "My designs": drawn now, then the save/share panel waits for her tap.
+  const [sharingId, setSharingId] = useState(null);
+  const [mineReady, setMineReady] = useState(null); // { blob, caption }
+  const shareMine = async (d, t, fill) => {
+    setSharingId(d.id);
+    try {
+      const ov = { ...(d.overrides || {}) }; delete ov.consent; delete ov.brand;
+      // The card shows the template's sample photo where she has none; it goes into the file only if she says so
+      // (the same question the editor asks - see DesignEditor's exportPng).
+      const seeds = t.slots.filter((s) => !fill.images?.[s.key] && fill.seedImages?.[s.key]);
+      let useFill = fill;
+      if (seeds.length && window.confirm('בפוסט עוד אין תמונה משלך. בכרטיס רואים תמונת דוגמה של התבנית.\n\nלהכניס לפוסט את תמונת הדוגמה? (ביטול = פוסט בלי תמונה)')) {
+        const picked = Object.fromEntries(seeds.map((s) => { const u = fill.seedImages[s.key]; return [s.key, u.startsWith('/') ? `${window.location.origin}${u}` : u]; }));
+        useFill = fillTemplate(t, { settings, inputs: d.values, images: { ...(d.images || {}), ...picked }, brand: d.overrides?.brand });
+      }
+      const blob = await renderTemplateBlob(t, useFill, ov);
+      const own = typeof d.copy?.text === 'string' ? [d.copy.text, (d.copy.hashtags || []).join(' ')].filter(Boolean).join('\n\n') : null;
+      setMineReady({ blob, caption: own ?? defaultCaption(t, fill.values, settings) });
+    } catch (e) { toast?.(String(e?.message || 'הכנת התמונה נכשלה'), 'error'); } finally { setSharingId(null); }
+  };
+  // Opened from a template on this visit and never saved: going back removes it, so browsing templates
+  // does not fill שלי with untouched copies (2026-10-23 pass: every open created a design).
+  const freshIds = useRef(new Set());
+  const leave = (d) => {
+    setOpen(null);
+    if (!d || !freshIds.current.has(d.id)) return;
+    freshIds.current.delete(d.id);
+    setDesigns((p) => (p || []).filter((x) => x.id !== d.id));
+    fetch(`/api/designs/${d.id}`, { method: 'DELETE' }).catch(() => {});
+  };
+  const kept = (d) => { if (d) freshIds.current.delete(d.id); };
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
+  const [ownReel, setOwnReel] = useState(false); // "רילס מהצילומים שלי" (OwnReel.jsx): her own photos and clips, nothing saved
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -161,13 +198,14 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   const previousImages = useMemo(() => [...new Set((designs || []).flatMap((d) => Object.values(d.images || {})).filter((u) => typeof u === 'string' && u.startsWith('https://')))], [designs]);
 
   const create = async (t, values = null) => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     setCreating(t.key); setError('');
     try {
       const res = await fetch('/api/designs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateKey: t.key, templateVersion: t.version, ...(values ? { values } : {}) }) });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) throw new Error(data?.error || 'לא הצלחנו ליצור עיצוב');
       setDesigns((p) => [data.design, ...(p || [])]);
+      freshIds.current.add(data.design.id);
       setOpen(data.design);
     } catch (e) { setError(String(e.message || e)); } finally { setCreating(''); }
   };
@@ -180,8 +218,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <ReelEditor
           key={open.id}
           design={open} reel={reel} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
-          onBack={() => setOpen(null)}
-          onSaved={(d) => { setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x))); }}
+          onBack={() => leave(open)}
+          onSaved={(d) => { kept(d); setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x))); }}
           onDeleted={(id) => { setDesigns((p) => (p || []).filter((x) => x.id !== id)); setOpen(null); }}
         />
       </div>
@@ -196,9 +234,9 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <DesignEditor
           key={open.id}
           design={open} template={template} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
-          onBack={() => setOpen(null)}
-          onSaved={(d) => { setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x)).map((x) => (d.is_default && x.id !== d.id && x.category === d.category ? { ...x, is_default: false } : x))); }}
-          onDuplicated={(d) => { setDesigns((p) => [d, ...(p || [])]); setOpen(d); }}
+          onBack={() => leave(open)}
+          onSaved={(d) => { kept(d); setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x)).map((x) => (d.is_default && x.id !== d.id && x.category === d.category ? { ...x, is_default: false } : x))); }}
+          onDuplicated={(d) => { kept(open); setDesigns((p) => [d, ...(p || [])]); setOpen(d); }}
           onDeleted={(id) => { setDesigns((p) => (p || []).filter((x) => x.id !== id)); setOpen(null); }}
         />
       </div>
@@ -293,6 +331,17 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
     );
   };
 
+  // Her own photos and clips into a reel: no template to pick, no design row, no AI. Shown on השבוע and with the reels.
+  const ownReelCard = (
+    <div data-testid="studio-own-reel" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 2 }}><Icon name="film" size={14} /> רילס מהצילומים שלי</p>
+        <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>תמונות וסרטונים שלך מהעבודה, לפני ואחרי, ורילס מוכן בעיצוב שלך.</p>
+      </div>
+      <button type="button" onClick={() => { if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; } setOwnReel(true); }} data-testid="studio-own-reel-open" style={{ padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>בחירת תמונות</button>
+    </div>
+  );
+
   const viewChip = (k, l, n) => (
     <button key={k} onClick={() => setView(k)} style={{ ...chip(view === k), display: 'flex', gap: 6, alignItems: 'center' }}>{l}{typeof n === 'number' ? <span style={{ fontSize: 'var(--t-xs)', opacity: 0.8 }}>{n}</span> : null}</button>
   );
@@ -310,6 +359,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <>
           {/* Her weekly content plan (behind the content_plan flag: renders nothing when the server says it is off). */}
           <ContentPlan settings={settings} readOnly={readOnly} toast={toast} onCreate={(t, values) => create(t, values)} />
+          {ownReelCard}
           {lastDesign && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 16px', marginBottom: 14, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)' }}>
               <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', flex: 1, minWidth: 160 }}><Icon name="refresh" size={13} /> כמו בפעם הקודמת: <b style={{ color: 'var(--ink)' }}>{lastDesign.name || 'העיצוב האחרון שלך'}</b></p>
@@ -384,6 +434,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
               </p>
             </div>
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginBottom: 10 }}>רצף מוכן של 3 עד 5 סצנות: מלאי תמונות וכיתובים, והסרטון נבנה אצלך בדפדפן.</p>
+            {ownReelCard}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 14 }}>
               {orderedReels.map(reelCard)}
             </div>
@@ -456,13 +507,21 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
               const fill = reel ? fillReel(reel, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand }).scenes[0] : fillTemplate(t, { settings, inputs: d.values, images: d.images, brand: d.overrides?.brand });
               const ratio = t.format === 'story' ? '9 / 16' : '4 / 5';
               return (
-                <button key={d.id} onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <div key={d.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <button onClick={() => setOpen(d)} style={{ textAlign: 'right', padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                   <div style={{ borderRadius: 'var(--r-sm)', overflow: 'hidden', border: d.is_default ? '2px solid var(--pc)' : '1px solid var(--line)', aspectRatio: ratio, background: 'var(--surface-2)' }}>
                     <DomPreview template={t} fill={fill} overrides={d.overrides} width={130} style={{ width: '100%', height: 'auto', aspectRatio: ratio }} />
                   </div>
                   <p style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>{d.is_default && <Icon name="star" size={12} />}{reel && <Icon name="film" size={12} />}{d.name}</p>
                   <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{CATEGORY_LABELS[d.category] || d.category} · {new Date(d.updated_at).toLocaleDateString('he-IL')}</p>
                 </button>
+                {!reel && (
+                  <button type="button" data-testid="mine-share" onClick={() => shareMine(d, t, fill)} disabled={sharingId === d.id}
+                    style={{ marginTop: 6, minHeight: 40, border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {sharingId === d.id ? <Spinner inline label="" /> : <><Icon name="share" size={12} /> שמירה ושיתוף</>}
+                  </button>
+                )}
+                </div>
               );
             })}
           </div>
@@ -470,6 +529,8 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         {/* The old campaign texts: hidden unless this tenant opted in (lib/featureFlags.ts). Not removed. */}
         {legacyCampaignTextsVisible(settings) && <Archive toast={toast} />}
       </div>}
+      <SaveShare open={!!mineReady} onClose={() => setMineReady(null)} blob={mineReady?.blob} kind="image" ext="png" source="mine" caption={mineReady?.caption || ''} toast={toast} />
+      {ownReel && <OwnReel open onClose={() => setOwnReel(false)} settings={settings} toast={toast} readOnly={readOnly} />}
     </>
   );
 }

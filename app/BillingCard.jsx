@@ -14,6 +14,7 @@ import { trialEndDateHe } from '@/lib/planCopy';
 import { subscriptionDoc } from '@/lib/kalmeaBusiness';
 import { billingConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
+import { priceHe } from '@/lib/pricing';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -24,6 +25,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
   // The required tick before the card page opens (lib/billing/consent.ts); the server refuses without it too.
   const [consentOk, setConsentOk] = useState(false);
+  // Add-on packs (lib/pricing.ts, only when the status route sends `addons`): the pack she tapped, waiting for her "yes, charge".
+  const [confirmPack, setConfirmPack] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +67,21 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
       window.location.assign(j.url);
     } catch {
       toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
+    } finally { setBusy(false); }
+  };
+
+  const buyPack = async (key) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) { toast?.(j?.error || 'החיוב לא הצליח, נסי שוב', r.status === 202 ? 'info' : 'error'); return; }
+      toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
+      setConfirmPack(null);
+      await load();
+    } catch {
+      toast?.('אין חיבור. לא חויבת, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -123,13 +141,50 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         )}
         {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
 
+        {Array.isArray(s.addons) && s.addons.length > 0 && (
+          <div id="billing-addons" data-testid="billing-addons" style={{ marginTop: 16, scrollMarginTop: 80 }}>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מה כלול החודש, ותוספות</p>
+            <p style={{ ...text, marginBottom: 8 }}>הכמויות מתחדשות בראשון לחודש. חבילה שמוסיפים היא לחודש הנוכחי בלבד.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {s.addons.map((a) => {
+                const full = a.used !== null && a.cap !== null && a.used >= a.cap;
+                return (
+                  <div key={a.key} data-testid={`addon-${a.key}`} style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600 }}>
+                        {/* Each part isolated: "AI" inside the label is Latin, and next to digits it would drag the numbers out of order. */}
+                        <bdi>{a.label}</bdi>: <b style={{ color: full ? 'var(--danger)' : 'var(--ink)', unicodeBidi: 'isolate' }}>{a.used === null ? '…' : a.used} מתוך {a.cap}</b>
+                        {a.purchased > 0 && <span style={{ color: 'var(--ink-2)', fontWeight: 400 }}> (כולל {a.purchased} שהוספת)</span>}
+                      </span>
+                      {!isDemo && s.configured && confirmPack !== a.key && (
+                        <button type="button" data-testid={`addon-buy-${a.key}`} style={{ ...primary, minHeight: 40, padding: '8px 12px' }} disabled={busy} onClick={() => setConfirmPack(a.key)}>{a.button}</button>
+                      )}
+                    </div>
+                    {confirmPack === a.key && (
+                      hasCard ? (
+                        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ ...text, flex: '1 1 180px' }}>לחייב {priceHe(a.price)} בכרטיס שמסתיים ב-<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{sub.card_last4}</b>, חיוב אחד לחודש הזה?</span>
+                          <button type="button" data-testid={`addon-confirm-${a.key}`} style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none' }} disabled={busy} onClick={() => buyPack(a.key)}>{busy ? 'מחייבת…' : 'כן, להוסיף'}</button>
+                          <button type="button" style={ghost} disabled={busy} onClick={() => setConfirmPack(null)}>ביטול</button>
+                        </div>
+                      ) : (
+                        <p style={{ ...text, marginTop: 8 }}>כדי להוסיף חבילה צריך כרטיס שמור. אפשר להוסיף אותו כאן למעלה.</p>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {s.payments.length > 0 && (
           <div style={{ marginTop: 14 }}>
             <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>היסטוריית חיובים</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} data-testid="billing-history">
               {s.payments.map((p) => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : ''}</span>
+                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : p.kind === 'addon' ? ' · תוספת' : ''}</span>
                   <span style={{ display: 'flex', gap: 8 }}>
                     <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--ink-3)' }}>{p.status === 'succeeded' ? 'שולם' : p.status === 'failed' ? 'נכשל' : 'בבדיקה מול Grow'}</b>
                     {p.status === 'succeeded' && !p.invoice_url && p.invoice_status === 'pending' && <span style={{ color: 'var(--ink-3)' }}>הקבלה בדרך</span>}

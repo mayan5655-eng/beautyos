@@ -22,6 +22,7 @@ export default function InstallBannerCard({
   children,
   action,
   onDismiss,
+  aboveNav = false,
 }: {
   ariaLabel: string;
   /** false on the first paint, true on the next frame → slide/fade in. */
@@ -32,16 +33,19 @@ export default function InstallBannerCard({
   /** Optional call to action, under the body copy. */
   action?: ReactNode;
   onDismiss: () => void;
+  /** Her app has a bottom tab bar: sit above it, not on it (the card used to cover the very buttons she needs to dismiss it and move on). */
+  aboveNav?: boolean;
 }) {
   return (
     <div
       dir="rtl"
       role="dialog"
       aria-label={ariaLabel}
+      data-install-banner
       style={{
         position: "fixed",
         left: "50%",
-        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+        bottom: `calc(${aboveNav ? 84 : 16}px + env(safe-area-inset-bottom, 0px))`,
         transform: `translateX(-50%) translateY(${enter ? "0" : "12px"})`,
         opacity: enter ? 1 : 0,
         transition: "transform 200ms ease, opacity 200ms ease",

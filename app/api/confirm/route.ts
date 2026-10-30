@@ -8,6 +8,9 @@ import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { detect } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '@/app/api/grow/_cancel';
+import { hebrewDate } from '@/lib/messages.js';
+import { fmtApptTime } from '@/lib/apptTime';
+import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -99,6 +102,20 @@ export async function POST(request: NextRequest) {
         primaryColor: publicAccent(st),
       };
     } catch { /* unbranded, not broken */ }
+
+    // { peek: true }: the cancel page asks WHICH appointment before she taps "cancel", and changes nothing.
+    // Only after the signature check, and only what her own message already told her - treatment, day and
+    // time. No name, phone, price or ids (point 3 above still holds). 2026-10-23 pass: the page asked
+    // "לבטל את התור?" without saying which one.
+    if (body.peek === true) {
+      return NextResponse.json({
+        success: true,
+        peek: true,
+        ...brand,
+        status: appt.confirmation_status,
+        appointment: { service: appt.service || '', date: appt.date ? hebrewDate(appt.date) : '', time: fmtApptTime(appt) },
+      });
+    }
 
     // Idempotent, and compared against the requested ACTION rather than the
     // status alone - otherwise a confirmed appointment could never be cancelled
@@ -194,6 +211,10 @@ export async function POST(request: NextRequest) {
       // The freed slot goes to her one-question card ("offer it to who is waiting?"), never straight out:
       // lib/ownerQuestions.js. Also under a fee policy: a fee does not stop the slot being free.
       after(() => askGapFillAfterClientCancel(supabase, { tenantId: appt.tenant_id, appt }).then(() => undefined));
+      // Smart waitlist: with her switch on (off by default), the people waiting for this treatment whom the slot fits get one offer.
+      after(() => runWaitlistOffer({ tenantId: appt.tenant_id, appt, db: supabase }).then(() => undefined).catch((e) => {
+        console.error('confirm: waitlist offer failed', e instanceof Error ? e.message : String(e));
+      }));
     }
 
     return okResponse(action, false, brand);

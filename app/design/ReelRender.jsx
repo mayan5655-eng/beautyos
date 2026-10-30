@@ -4,7 +4,8 @@
 //
 // The composited reel recorder. A reel is a sequence of story frames; this
 // turns a filled reel into a video file in her browser, with no server video
-// stack - canvas + MediaRecorder - drawing the frames the studio draws:
+// stack - canvas + WebCodecs (frame-exact H.264 High MP4, app/design/reelEncoder.js),
+// or canvas + MediaRecorder where WebCodecs is missing - drawing the frames the studio draws:
 //
 //   per scene, once:   the frame's non-photo layers are drawn straight onto
 //                      canvases by canvasRender (the same drawer the PNG
@@ -21,12 +22,14 @@ import { useRef, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import { CANVAS } from '@/lib/design/contract';
-import { downloadBlob } from './exportPng';
+import SaveShare from './SaveShare';
 import { resolveImageRef } from './images';
 import { renderLayersCanvas, drawImageLayer, drawGraphicLayer, boxPx, loadImage } from './canvasRender';
 import { pickRecorderMime, fileExtFor } from '@/lib/design/recorderMime';
+import { sceneStarts, sceneIndexAt } from '@/lib/design/reelEncode';
+import { encodePresets, canEncodeMusic, encodeReelMp4 } from './reelEncoder';
 
-const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30;
+const W = CANVAS.story.w, H = CANVAS.story.h, FPS = 30; // FPS: the MediaRecorder fallback only
 const TRANSITION_MS = 500;
 
 /** Which of a frame's layers are photos, and the split around them. */
@@ -76,16 +79,13 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
   const [video, setVideo] = useState(null); // { url, ext, blob }
   const [music, setMusic] = useState(null);
   const [error, setError] = useState('');
+  const [sharing, setSharing] = useState(false);
   const canvasRef = useRef(null);
   const audioRef = useRef(null);
 
   const missing = fills.flatMap((f, i) => f.missing.map((m) => `${reel.scenes[i].label}: ${m.startsWith('slot:') ? 'תמונה' : m}`));
 
   const render = async () => {
-    if (typeof MediaRecorder === 'undefined') { setError('הדפדפן לא תומך בהקלטת וידאו. נסי בכרום או בספארי מעודכן.'); return; }
-    // A tab that goes to the background stops requestAnimationFrame: the file would come out with frozen frames
-    // and nothing would say so. Stop the take instead, and tell her.
-    if (typeof document !== 'undefined' && document.hidden) { setError('הטאב לא פעיל. חזרי למסך הזה ונסי שוב.'); return; }
     if (video?.url) { try { URL.revokeObjectURL(video.url); } catch { /* ignore */ } }
     setBusy(true); setError(''); setVideo(null); setProgress(0);
     let audioCtx = null;
@@ -149,12 +149,56 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
         if (s.over) ctx.drawImage(s.over, 0, 0, W, H);
       };
 
-      // 3. Record.
+      // 3. The frame `el` ms into the reel: the scene on screen, or two scenes mid-transition.
       const canvas = canvasRef.current;
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
       const a = document.createElement('canvas'); a.width = W; a.height = H; const actx = a.getContext('2d');
       const b = document.createElement('canvas'); b.width = W; b.height = H; const bctx = b.getContext('2d');
+      const { starts, total } = sceneStarts(scenes);
+      const drawAt = (c, el) => {
+        const i = sceneIndexAt(starts, el);
+        const s = scenes[i];
+        const tIn = Math.min((el - starts[i]) / (s.ms || 1), 1);
+        const into = el - starts[i];
+        if (i > 0 && s.transition !== 'cut' && into < TRANSITION_MS) {
+          const p = into / TRANSITION_MS;
+          drawScene(actx, scenes[i - 1], 1); drawScene(bctx, s, tIn);
+          c.clearRect(0, 0, W, H);
+          if (s.transition === 'fade') { c.drawImage(a, 0, 0); c.globalAlpha = p; c.drawImage(b, 0, 0); c.globalAlpha = 1; }
+          else { const e = 1 - Math.pow(1 - p, 3); c.drawImage(a, -e * W, 0); c.drawImage(b, W - e * W, 0); }
+        } else drawScene(c, s, tIn);
+      };
+
+      // 4a. Frame-exact MP4 (WebCodecs, H.264 High, 60 fps when it can): see lib/design/reelEncode.js for why.
+      // A browser can say "supported" and still refuse once the encoder starts (iPhone, 2026-10-24), so each preset
+      // that throws hands over to the next one, and the last resort is the MediaRecorder take below.
+      const presets = !music || (await canEncodeMusic()) ? await encodePresets(W, H) : [];
+      let mp4 = null;
+      for (const preset of presets) {
+        setStatus('מקודדת את הסרטון באיכות גבוהה'); setProgress(20);
+        try {
+          mp4 = await encodeReelMp4({ canvas, drawAt, totalMs: total, preset, musicUrl: music?.url || null, onProgress: (p) => setProgress(20 + Math.round(p * 80)) });
+          break;
+        } catch (e) {
+          if (leftTheTab) throw e;
+          console.warn('[reel] encoder preset failed, trying the next:', preset.label, e?.message || e);
+        }
+      }
+      if (mp4) {
+        const blob = mp4;
+        const url = URL.createObjectURL(blob);
+        setVideo({ url, ext: 'mp4', blob });
+        setStatus('');
+        toast?.('הרילס מוכן');
+        try { await onVideo?.(blob, 'mp4'); } catch (e) { setError('הסרטון מוכן להורדה, אבל לא נשמר בחשבון: ' + String(e?.message || e)); }
+        return;
+      }
+
+      // 4b. Fallback: record the canvas in real time with MediaRecorder. A tab that goes to the background stops
+      // requestAnimationFrame, so the file would come out with frozen frames and nothing would say so: stop instead.
+      if (typeof MediaRecorder === 'undefined') throw new Error('הדפדפן לא תומך ביצירת וידאו. נסי בכרום או בספארי מעודכן.');
+      if (document.hidden) throw new Error('הטאב לא פעיל. חזרי למסך הזה ונסי שוב.');
       drawScene(ctx, scenes[0], 0);
 
       const mime = pickRecorderMime(); // H.264 + AAC when the browser can; see lib/design/recorderMime.js for why
@@ -170,32 +214,19 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
           dest.stream.getAudioTracks().forEach((tr) => tracks.push(tr));
         } catch { /* video only */ }
       }
-      const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 6000000 });
+      const recorder = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 12_000_000 });
       const chunks = [];
       recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
       const finished = new Promise((resolve) => { recorder.onstop = resolve; });
       recorder.start();
       setStatus('מקליטה את הסרטון');
 
-      const starts = []; let acc = 0;
-      for (const s of scenes) { starts.push(acc); acc += s.ms; }
-      const total = acc;
       const t0 = performance.now();
       await new Promise((done) => {
         const tick = (now) => {
           if (leftTheTab) { done(); return; }
           const el = now - t0;
-          let i = 0; while (i < scenes.length - 1 && el >= starts[i + 1]) i++;
-          const s = scenes[i];
-          const tIn = Math.min((el - starts[i]) / (s.ms || 1), 1);
-          const into = el - starts[i];
-          if (i > 0 && s.transition !== 'cut' && into < TRANSITION_MS) {
-            const p = into / TRANSITION_MS;
-            drawScene(actx, scenes[i - 1], 1); drawScene(bctx, s, tIn);
-            ctx.clearRect(0, 0, W, H);
-            if (s.transition === 'fade') { ctx.drawImage(a, 0, 0); ctx.globalAlpha = p; ctx.drawImage(b, 0, 0); ctx.globalAlpha = 1; }
-            else { const e = 1 - Math.pow(1 - p, 3); ctx.drawImage(a, -e * W, 0); ctx.drawImage(b, W - e * W, 0); }
-          } else drawScene(ctx, s, tIn);
+          drawAt(ctx, Math.min(el, total));
           setProgress(20 + Math.round(Math.min(el / total, 1) * 80));
           if (el < total) requestAnimationFrame(tick); else done();
         };
@@ -216,7 +247,11 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       // the "ready" above implying it was stored.
       try { await onVideo?.(blob, ext); } catch (e) { setError('הסרטון מוכן להורדה, אבל לא נשמר בחשבון: ' + String(e?.message || e)); }
     } catch (e) {
-      setError(String(e?.message || e || 'הרנדר נכשל'));
+      // Our own messages are Hebrew; a browser's own (English, technical) is replaced by one she can act on.
+      const msg = String(e?.message || e || '');
+      const hebrew = /[֐-׿]/.test(msg);
+      if (!hebrew) console.error('[reel] render failed:', msg);
+      setError(hebrew ? msg :'יצירת הסרטון לא הצליחה בדפדפן הזה. נסי שוב, ואם זה חוזר פתחי את kalmea.app בספארי או בכרום מעודכן (לא מתוך אינסטגרם או פייסבוק).');
     } finally {
       document.removeEventListener('visibilitychange', onVisibility);
       if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } }
@@ -230,7 +265,7 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
   return (
     <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 14px 12px', background: 'var(--surface)' }}>
       <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}><Icon name="film" size={14} /> הסרטון</p>
-      <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 10 }}>{reel.scenes.length} סצנות, {total} שניות, 9:16. הרנדר קורה כאן בדפדפן ולוקח בערך {Math.ceil(total + 8)} שניות.{reel.musicVibe ? ` מוזיקה מומלצת: ${reel.musicVibe}.` : ''}</p>
+      <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 10 }}>{reel.scenes.length} סצנות, {total} שניות, 9:16 ב-1080×1920. הרנדר קורה כאן בדפדפן ולוקח בערך {Math.ceil(total + 8)} שניות.{reel.musicVibe ? ` מוזיקה מומלצת: ${reel.musicVibe}.` : ''}</p>
       {missing.length > 0 && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--warning, #B26B00)', marginBottom: 8 }}>חסר: {missing.join(', ')}</p>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={render} disabled={busy} className="primary-btn" style={{ padding: '10px 18px', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', opacity: busy ? 0.6 : 1 }}>
@@ -247,9 +282,11 @@ export default function ReelRender({ reel, fills, name, onVideo, toast }) {
       {video && (
         <div style={{ marginTop: 12 }}>
           <video src={video.url} controls playsInline style={{ width: '100%', maxWidth: 240, borderRadius: 'var(--r-sm)', display: 'block', background: '#000' }} />
-          <button onClick={() => downloadBlob(video.blob, `${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
-            <Icon name="download" size={14} /> הורדת הסרטון ({video.ext})
+          {/* The share sheet needs her own tap, so the finished video waits in the panel for it. */}
+          <button onClick={() => setSharing(true)} className="primary-btn" style={{ marginTop: 8, padding: '9px 16px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
+            <Icon name="share" size={14} /> שמירה ושיתוף הסרטון ({video.ext})
           </button>
+          <SaveShare open={sharing} onClose={() => setSharing(false)} blob={video.blob} kind="video" source="reel" ext={video.ext} downloadName={`${(name || reel.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-reel.${video.ext}`} toast={toast} />
           {video.ext !== 'mp4' && (
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 8 }}>הדפדפן הזה שומר את הסרטון בפורמט שאינסטגרם לא מקבלת. כדי לקבל קובץ שאפשר להעלות, יצרי את הרילס ב-Chrome מעודכן או בספארי.</p>
           )}

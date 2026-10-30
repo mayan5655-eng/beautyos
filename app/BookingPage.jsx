@@ -34,7 +34,7 @@ import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
 import { CLIENT_STUCK_HE } from "@/lib/errorCopy";
 import { rememberSource, recalledSource } from "@/lib/bookingSource";
-import { buildIcs, googleCalendarUrl } from "@/lib/calendarInvite";
+import { googleCalendarUrl } from "@/lib/calendarInvite";
 import { accentStyle } from "@/lib/theme";
 import { LOGO_COMPACT } from "@/lib/brand";
 import { Watermark, PoweredBy } from "./PublicChrome";
@@ -283,6 +283,18 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [services, setServices] = useState(initialServices || []);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(!initialSettings);
+  const goServicesOnLoad = useRef(false);
+  // Declared up here with the other hooks (an effect after the early returns breaks React #310).
+  // Arrived from her page's "קביעת תור אונליין" (?go=services): jump to the treatments once they are on screen.
+  useEffect(() => {
+    if (loading || !goServicesOnLoad.current) return;
+    goServicesOnLoad.current = false;
+    const id = setTimeout(() => {
+      const el = document.getElementById("bk-services");
+      if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
+    }, 60);
+    return () => clearTimeout(id);
+  }, [loading]);
   // False through the server render and the first client render, so anything
   // that depends on the clock (today's hours, which days have a free slot)
   // starts identical on both sides and only fills in once we are in the browser.
@@ -397,6 +409,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // Context carried over from the skin scanner (or any deep link) so the
       // visitor never re-enters what we already know.
       svc = params.get("service");
+      // ?go=services: her page already showed the shop window, so open on the list of treatments.
+      if (params.get("go") === "services") goServicesOnLoad.current = true;
       const gr = params.get("grow");
       if (gr === "paid" || gr === "cancelled") setGrowReturn(gr);
       const nm = params.get("name");
@@ -736,7 +750,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // it from businessFieldsOf), same source defaultHeroKey/defaultAboutKey
   // already use a few lines below for the photos.
   const heroHeadline = brand?.welcomeHeadline || defaultHeroHeadline(brand?.fields);
-  const heroLines = heroHeadline.split(/\n|(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean);
+  // No regex lookbehind here: Safari before 16.4 (iPhones that cannot update past iOS 15/16) fails to even PARSE one, which blanks the whole
+  // booking page for her client (2026-10-24 phone review). Same split: a line break, or the space after . ! ?
+  const heroLines = heroHeadline.replace(/([.!?])\s+/g, "$1\n").split("\n").map((x) => x.trim()).filter(Boolean);
   const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || defaultHeroBenefits(brand?.fields);
   const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
   const aboutSignoff = brand?.aboutSignoff || "";
@@ -1162,7 +1178,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {(socials.length > 0 || wa) && (
             <div style={{ ...section }}>
               <div>
-                {eyebrow("עקבו אחרינו")}
+                {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? "עקבו אחרינו" : "כתבי לנו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
                   {socials.map((s) => (
@@ -1451,7 +1467,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
                   {submitting ?<Spinner inline label="קובעת את התור"/>: (brand?.ctaLabel || "קביעת תור")}
                 </button>
-                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>אחרי הקביעה יגיע אלייך אישור בוואטסאפ. אם לא הגיע, אפשר לפנות אלינו</p>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>{/* No WhatsApp promise: while the central number is off the confirmation waits for her tap. */}התור נשמר מיד, וכל הפרטים יופיעו כאן. יש שאלה? אפשר לפנות אלינו בוואטסאפ</p>
               </div>
             )}
 
@@ -1512,21 +1528,18 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     location: addr || undefined,
                     details: wa ? `לשינוי או שאלה: https://wa.me/${wa}` : undefined,
                   };
-                  const downloadIcs = () => {
-                    try {
-                      const url = URL.createObjectURL(new Blob([buildIcs(invite)], { type: "text/calendar;charset=utf-8" }));
-                      const a = document.createElement("a");
-                      a.href = url; a.download = "tor.ics";
-                      document.body.appendChild(a); a.click(); a.remove();
-                      setTimeout(() => URL.revokeObjectURL(url), 4000);
-                    } catch { /* the Google link below still works */ }
-                  };
+                  // A real link, not a blob download: the in-app browsers of Instagram and Facebook drop a blob download without a word,
+                  // and iPhone Safari opens a link that answers text/calendar straight into "Add to Calendar" (app/api/calendar-invite).
+                  const icsHref = `/api/calendar-invite?${new URLSearchParams({
+                    date: invite.date, start: String(invite.startMinute), duration: String(invite.duration), title: invite.title,
+                    ...(invite.location ? { location: invite.location } : {}), ...(invite.details ? { details: invite.details } : {}),
+                  }).toString()}`;
                   const chip = { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
                   return (
                     <div data-testid="add-to-calendar" style={{ marginBottom: 18 }}>
                       <p style={{ fontSize: "var(--t-sm)", color: muted, marginBottom: 8 }}>שמרי את התור ביומן שלך, כדי שהטלפון יזכיר לך</p>
                       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                        <button type="button" onClick={downloadIcs} style={chip}>לאייפון / ליומן</button>
+                        <a href={icsHref} data-testid="add-to-calendar-ics" style={chip}>לאייפון / ליומן</a>
                         <a href={googleCalendarUrl(invite)} target="_blank" rel="noreferrer" style={chip}>ליומן Google</a>
                       </div>
                     </div>

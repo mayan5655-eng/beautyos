@@ -5,7 +5,7 @@ import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, notUploadable } from "@/lib/imageResize";
 import { PUBLIC_BUCKET } from "@/lib/clientImages";
-import { consentComplete, publishBlockers } from "@/lib/results";
+import { consentComplete, publishBlockers, resultWriteErrorHe } from "@/lib/results";
 import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
 
 // ============================================================
@@ -27,11 +27,11 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 const blank = () => ({
-  id: null, serviceId: "", serviceName: "", beforeUrl: "", afterUrl: "", caption: "", sessions: "",
+  id: null, clientId: "", hadClient: false, serviceId: "", serviceName: "", beforeUrl: "", afterUrl: "", caption: "", sessions: "",
   consentName: "", consentGivenOn: today(), consentConfirmed: false, published: false,
 });
 const fromRow = (r) => ({
-  id: r.id, serviceId: r.service_id || "", serviceName: r.service_name || "", beforeUrl: r.before_url || "", afterUrl: r.after_url || "",
+  id: r.id, clientId: r.client_id || "", hadClient: !!r.client_id, serviceId: r.service_id || "", serviceName: r.service_name || "", beforeUrl: r.before_url || "", afterUrl: r.after_url || "",
   caption: r.caption || "", sessions: r.sessions ? String(r.sessions) : "",
   consentName: r.consent_name || "", consentGivenOn: r.consent_given_on || today(), consentConfirmed: !!r.consent_confirmed, published: !!r.published,
 });
@@ -46,6 +46,7 @@ export default function ResultsManager({ tenantId, services }) {
   const [draft, setDraft] = useState(null); // the form, or null
   const [busy, setBusy] = useState(""); // "save" | "up:before" | "up:after" | row id
   const [msg, setMsg] = useState("");
+  const [clients, setClients] = useState([]); // { id, name }: to say whose photo it is (a client's own results page shows only hers)
 
   const apply = useCallback(({ data, error }) => {
     if (error) {
@@ -66,6 +67,16 @@ export default function ResultsManager({ tenantId, services }) {
     (async () => { const res = await fetchRows(); if (alive) apply(res); })();
     return () => { alive = false; };
   }, [apply]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from("clients").select("id, name").order("name").limit(1500);
+      if (alive && Array.isArray(data)) setClients(data);
+    })();
+    return () => { alive = false; };
+  }, []);
+  const clientName = (id) => (clients.find((c) => String(c.id) === String(id)) || {}).name || "";
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -115,13 +126,15 @@ export default function ResultsManager({ tenantId, services }) {
       consent_confirmed: draft.consentConfirmed === true,
       published: publish && consentComplete(draft),
     };
+    // Only sent when it is set (or was), so saving a result keeps working before add_client_pages.sql has added the column.
+    if (draft.clientId || draft.hadClient) payload.client_id = draft.clientId || null;
     setBusy("save");
     try {
       const q = draft.id
         ? supabase.from("treatment_results").update(payload).eq("id", draft.id)
         : supabase.from("treatment_results").insert({ ...payload, tenant_id: tenantId });
       const { error } = await q;
-      if (error) { setMsg(SAVE_FAILED_HE); return; }
+      if (error) { setMsg(/client_id|42703|PGRST204/i.test(`${error.code} ${error.message}`) ? "אי אפשר עדיין לשייך תמונה ללקוחה: חסר עדכון במסד הנתונים (kalmea-sql-client-pages.txt). אפשר לשמור בלי לבחור לקוחה." : resultWriteErrorHe(error)); return; }
       setDraft(null);
       await load();
     } finally { setBusy(""); }
@@ -131,8 +144,8 @@ export default function ResultsManager({ tenantId, services }) {
     setMsg(""); setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").update({ published: !r.published }).eq("id", r.id);
-      // The consent message only when the consent record really is incomplete (the database's rule); anything else is a plain save failure.
-      if (error) setMsg(!r.published && !consentComplete(fromRow(r)) ? "אפשר לפרסם רק אחרי שרשמת את הסכמת הלקוחה. פתחי את התוצאה והשלימי אותה." : SAVE_FAILED_HE);
+      // The reason the database gave; the consent message only when the consent check refused it (an unpublish can never hit that check).
+      if (error) setMsg(resultWriteErrorHe(error));
       await load();
     } finally { setBusy(""); }
   };
@@ -142,7 +155,7 @@ export default function ResultsManager({ tenantId, services }) {
     setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").delete().eq("id", r.id);
-      if (error) setMsg("המחיקה נכשלה.");
+      if (error) { const why = resultWriteErrorHe(error); setMsg(why === SAVE_FAILED_HE ? "המחיקה נכשלה. התוצאה עדיין שמורה, נסי שוב בעוד רגע." : why); }
       await load();
     } finally { setBusy(""); }
   };
@@ -172,7 +185,7 @@ export default function ResultsManager({ tenantId, services }) {
       {loadError && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{loadError}</p>}
       {msg && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{msg}</p>}
 
-      {rows === null && <Spinner inline label="טוען" />}
+      {rows === null && <Spinner inline label="טוענת" />}
 
       {rows && rows.length > 0 && !draft && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
@@ -187,6 +200,7 @@ export default function ResultsManager({ tenantId, services }) {
                 <p style={{ ...hint, color: r.published ? "var(--pc-deep)" : "var(--ink-3)" }}>
                   {r.published ? "מפורסם" : consentComplete(fromRow(r)) ? "טיוטה" : "טיוטה, חסרה הסכמה"}
                   {r.sessions ? ` · ${r.sessions} טיפולים` : ""}
+                  {r.client_id && clientName(r.client_id) ? ` · ${clientName(r.client_id)}` : ""}
                 </p>
               </div>
               <button disabled={!!busy || (!r.published && !consentComplete(fromRow(r)))} onClick={() => togglePublish(r)}
@@ -210,6 +224,15 @@ export default function ResultsManager({ tenantId, services }) {
               <option value="__other">{draft.serviceName && svcValue === "__other" ? draft.serviceName : "בחרי טיפול…"}</option>
               {services.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
             </select>
+          </div>
+
+          <div>
+            <p style={lbl}>הלקוחה (לדף האישי שלה, לא חובה)</p>
+            <select value={draft.clientId} onChange={(e) => set({ clientId: e.target.value })} style={inp} data-testid="result-client">
+              <option value="">לא משויכת ללקוחה</option>
+              {clients.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+            </select>
+            <p style={{ ...hint, marginTop: 4 }}>אם תבחרי לקוחה, התמונה תופיע גם בדף האישי ששולחים לה, ורק בו, ורק אחרי שההסכמה מתועדת.</p>
           </div>
 
           <div>

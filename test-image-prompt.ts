@@ -11,6 +11,12 @@ import { RATE_POLICIES } from './lib/rateLimit.ts';
 // Sizes: the 4:5 feed default and only sizes the model documents as valid
 // (multiples of 16, ratio between 1:3 and 3:1).
 assert.equal(FORMAT_SIZES.feed45, '1024x1280');
+// Story / reel pictures are 9:16 and at least as big as the 1080x1920 canvas: never cropped from 2:3 and upscaled.
+{
+  const [w, h] = FORMAT_SIZES.story.split('x').map(Number);
+  assert.ok(w >= 1080 && h >= 1920, `story ${FORMAT_SIZES.story} covers 1080x1920 without upscaling`);
+  assert.ok(Math.abs(w / h - 9 / 16) < 0.01, `story ${FORMAT_SIZES.story} is 9:16`);
+}
 for (const s of Object.values(FORMAT_SIZES)) {
   const [w, h] = s.split('x').map(Number);
   assert.ok(w % 16 === 0 && h % 16 === 0, `${s} is a multiple of 16`);

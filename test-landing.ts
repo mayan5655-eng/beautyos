@@ -2,6 +2,7 @@
 // page is a server component with no render harness here.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { PLAN_PRICES } from './lib/pricing.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
 const page = rd('app/LandingPage.jsx');
@@ -24,8 +25,12 @@ ok('the listed ranges add up to the figure on the page', () => {
 });
 
 ok('Kalmea price is shown: launch price 349 with no end date, regular price 499, no promise of limited spots', () => {
-  assert.match(page, /499 ₪/);
-  assert.match(page, /מחיר היכרות 349 ₪ לזמן מוגבל/);
+  // The numbers live in lib/pricing.ts (test-pricing.ts); the page reads them from there.
+  assert.equal(PLAN_PRICES.regular, 499);
+  assert.equal(PLAN_PRICES.launch, 349);
+  assert.match(page, /\{priceHe\(PLAN_PRICES\.regular\)\} <span/);
+  // Owner, 2026-10-21: an introductory price "for a limited time", with no date shown.
+  assert.match(page, /מחיר היכרות \{priceHe\(PLAN_PRICES\.launch\)\} לזמן מוגבל/);
   assert.doesNotMatch(page, /20\.10\.2026|LAUNCH_PRICE_CUTOFF_ISO|Date\.now\(\)\s*<=/, 'the launch price has no end date and no automatic expiry');
   assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
   assert.doesNotMatch(page, /לחברות הראשונות/);
@@ -35,8 +40,8 @@ ok('Kalmea price is shown: launch price 349 with no end date, regular price 499,
 
 ok('the terms page matches the landing: launch price 349, regular 499, no end date', () => {
   const terms = readFileSync('app/terms/page.tsx', 'utf8');
-  assert.match(terms, /349 ₪ לחודש/);
-  assert.match(terms, /499 ₪ לחודש/);
+  assert.match(terms, /\{priceHe\(PLAN_PRICES\.launch\)\} לחודש/);
+  assert.match(terms, /\{priceHe\(PLAN_PRICES\.regular\)\} לחודש/);
   assert.doesNotMatch(terms, /20\.10\.2026/);
   assert.doesNotMatch(terms, /לכל החיים/);
 });

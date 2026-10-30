@@ -8,6 +8,7 @@
 // export captures a full-size copy of it mounted off-screen. Moving and
 // resizing things is the editor layer (stage 3) and is not here.
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -20,6 +21,9 @@ import Sheet from '../Sheet';
 import CesdkEditor from './CesdkEditor';
 import { EDITOR_AVAILABLE } from './renderers';
 import AiFill from './AiFill';
+import SaveShare from './SaveShare';
+import { isTouchDevice } from '@/lib/design/sharePost';
+import { defaultCaption } from '@/lib/design/defaultCaption';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const label = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4, display: 'block' };
@@ -35,22 +39,40 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   // Which brand marks this design shows. Absent = on when she has it.
   const [brand, setBrand] = useState(design.overrides?.brand || {});
   // The post text that goes with the picture: from the AI, or typed here.
-  const [copyText, setCopyText] = useState(design.copy?.text || '');
+  // A design she never wrote a text for starts with a plain one drawn from the card (defaultCaption); one she saved,
+  // even empty, keeps hers.
+  const [copyText, setCopyText] = useState(() => (typeof design.copy?.text === 'string' ? design.copy.text
+    : defaultCaption(template, fillTemplate(template, { settings, inputs: design.values || {}, images: design.images || {} }).values, settings)));
   const [hashtags, setHashtags] = useState(Array.isArray(design.copy?.hashtags) ? design.copy.hashtags.join(' ') : '');
   const captionFull = () => [copyText.trim(), hashtags.trim()].filter(Boolean).join('\n\n');
-  const copyCaption = async () => {
+  // Resolves true only when the text really reached the clipboard (the in-app browsers of Instagram and Facebook have none).
+  const copyCaption = async ({ quiet = false } = {}) => {
     const text = captionFull();
-    if (!text) { toast?.('אין עדיין טקסט לפוסט', 'error'); return; }
-    try { await navigator.clipboard.writeText(text); toast?.('הטקסט הועתק'); } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); }
+    if (!text) { toast?.('אין עדיין טקסט לפוסט', 'error'); return false; }
+    try { await navigator.clipboard.writeText(text); if (!quiet) toast?.('הטקסט הועתק'); return true; } catch { toast?.('ההעתקה נחסמה, סמני והעתיקי ידנית', 'error'); return false; }
   };
   const shareWhatsApp = () => { const text = captionFull(); window.open(`https://wa.me/?text=${encodeURIComponent(text || name)}`, '_blank', 'noopener'); };
-  const shareFacebook = async () => { await copyCaption(); window.open('https://www.facebook.com/', '_blank', 'noopener'); toast?.('הטקסט הועתק. הורידי את התמונה וצרפי אותה לפוסט'); };
+  // The page is opened in the same tap as the copy (a window.open after an await is refused by Safari); the toast only says "copied" when it was.
+  const shareFacebook = () => {
+    const copied = copyCaption({ quiet: true });
+    window.open('https://www.facebook.com/', '_blank', 'noopener');
+    copied.then((ok) => { if (ok) toast?.('הטקסט הועתק. שמרי את התמונה בכפתור "שמירה ושיתוף" וצרפי אותה לפוסט'); });
+  };
   const [advanced, setAdvanced] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pickSlot, setPickSlot] = useState(null);
   const [error, setError] = useState('');
+  // The finished PNG, waiting in the save/share panel for her tap (a phone only shares from a fresh tap).
+  const [ready, setReady] = useState(null); // { blob, source }
+  const pngName = () => `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`;
+  const showReady = (blob, source = 'editor') => {
+    setReady({ blob, source });
+    // A computer keeps the one-click download it always had; a phone gets the panel only (a blob download there
+    // lands in Files, or nowhere, instead of in her gallery).
+    if (!isTouchDevice(navigator.userAgent, navigator.maxTouchPoints)) downloadBlob(blob, pngName());
+  };
 
   // State starts from the row; the parent remounts this editor (key=design.id)
   // when another design opens, so no effect has to reset anything.
@@ -68,7 +90,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   };
 
   const save = async () => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     setSaving(true); setError('');
     try {
       const saved = await patch({ name, values, images, overrides: { ...overrides, consent, brand }, copy: { text: copyText, hashtags: hashtags.split(/\s+/).filter(Boolean) } });
@@ -77,12 +99,21 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   };
 
   const exportPng = async () => {
+    // A photo slot she has not filled shows the template's sample photo in the preview, but the sample goes into a
+    // post only by her choice (lib/design/mapBranding.ts, Fill.seedImages). Asked here, inside her tap, so the file
+    // is never a surprise: before this the preview showed a photo and the PNG came out without one.
+    let exportFill = fill;
+    if (seedSlots.length && window.confirm('בפוסט עוד אין תמונה משלך. בתצוגה רואים תמונת דוגמה של התבנית.\n\nלהכניס לפוסט את תמונת הדוגמה? (ביטול = פוסט בלי תמונה)')) {
+      const picked = seedPicks();
+      setImages((p) => ({ ...p, ...picked })); setDirty(true);
+      exportFill = fillTemplate(template, { settings, inputs: values, images: { ...images, ...picked }, brand });
+    }
     setExporting(true); setError('');
     try {
-      const blob = await renderTemplateBlob(template, fill, overrides);
-      downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`);
+      const blob = await renderTemplateBlob(template, exportFill, overrides);
+      showReady(blob);
       if (!readOnly && settings?.tenant_id) {
-        try { const path = await uploadExport(blob, settings.tenant_id, design.id, design.export_path); await patch({ export_path: path }); } catch { /* the download already happened */ }
+        try { const path = await uploadExport(blob, settings.tenant_id, design.id, design.export_path); onSaved?.(await patch({ export_path: path })); } catch { /* the picture is already in her hands */ }
       }
     } catch (e) { setError(String(e.message || e)); } finally { setExporting(false); }
   };
@@ -108,6 +139,14 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   };
 
   const slotFor = (key) => template.slots.find((s) => s.key === key);
+  // Slots showing the template's sample photo, not hers (never a consent slot: those have no sample).
+  const seedSlots = template.slots.filter((s) => !fill.images?.[s.key] && fill.seedImages?.[s.key]);
+  // As full https URLs: that is what a saved design's images may hold (sanitizeImages), and the canvas loads it as is.
+  const seedPicks = () => Object.fromEntries(seedSlots.map((s) => {
+    const u = fill.seedImages[s.key];
+    return [s.key, u.startsWith('/') ? `${window.location.origin}${u}` : u];
+  }));
+  const takeSeed = () => { setImages((p) => ({ ...p, ...seedPicks() })); setDirty(true); };
   // Every variable is hers to change, the fixed labels included.
   const editableVars = template.variables;
 
@@ -128,6 +167,12 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--warning, #B26B00)', marginTop: 8, lineHeight: 1.5 }}>
               חסר: {fill.missing.map((m) => (m.startsWith('slot:') ? `תמונה (${slotFor(m.slice(5))?.label || m})` : template.variables.find((v) => v.key === m)?.label || m)).join(', ')}
             </p>
+          )}
+          {seedSlots.length > 0 && (
+            <div data-testid="seed-photo-note" style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5, margin: 0, flex: '1 1 180px' }}>התמונה בתצוגה היא דוגמה של התבנית. היא נכנסת לפוסט רק אם תבחרי בה.</p>
+              <button type="button" onClick={takeSeed} disabled={readOnly} style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', color: 'var(--pc-deep)', fontSize: 'var(--t-xs)', fontWeight: 600, padding: '8px 12px', minHeight: 40, cursor: 'pointer', fontFamily: 'inherit' }}>להשתמש בתמונה הזו</button>
+            </div>
           )}
         </div>
 
@@ -202,7 +247,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
               <button onClick={shareWhatsApp} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="whatsapp" size={14} /> וואטסאפ</button>
               <button onClick={shareFacebook} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="share" size={14} /> פייסבוק</button>
             </div>
-            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: הורידי את ה-PNG למטה והדביקי את הטקסט.</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: "שמירה ושיתוף" למטה שומר את התמונה בגלריה או שולח אותה ישר, והטקסט מועתק באותה לחיצה.</p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
@@ -210,7 +255,7 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
               {saving ? <Spinner inline label="שומרת" /> : dirty ? 'שמירה' : 'נשמר'}
             </button>
             <button onClick={exportPng} disabled={exporting} className="primary-btn" style={{ padding: '11px 18px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}>
-              {exporting ? <Spinner inline label="מייצאת" /> : <><Icon name="download" size={14} /> הורדת PNG</>}
+              {exporting ? <Spinner inline label="מייצאת" /> : <><Icon name="share" size={14} /> שמירה ושיתוף</>}
             </button>
             <button onClick={duplicate} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="copy" size={14} /> שכפול</button>
             <button onClick={makeDefault} disabled={readOnly} className="primary-btn" style={{ padding: '11px 14px', background: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="star" size={14} /> {design.is_default ? 'לא ברירת מחדל' : 'ברירת מחדל לקטגוריה'}</button>
@@ -229,12 +274,14 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
             <CesdkEditor
               template={template} fill={fill} overrides={overrides} values={values}
               onChange={(next) => { setOverrides(next.overrides); setValues((p) => ({ ...p, ...next.values })); setDirty(true); }}
-              onExport={(blob) => downloadBlob(blob, `${(name || template.name).replace(/[^\p{L}\p{N}]+/gu, '-')}-${template.format}.png`)}
+              onExport={(blob) => showReady(blob, 'advanced')}
               onClose={() => setAdvanced(false)}
             />
           )}
         </Sheet>
       )}
+
+      <SaveShare open={!!ready} onClose={() => setReady(null)} blob={ready?.blob} source={ready?.source} kind="image" ext="png" downloadName={pngName()} caption={captionFull()} toast={toast} />
 
       <ImagePicker
         key={pickSlot ? pickSlot.key : 'none'}

@@ -78,6 +78,12 @@ export const MODEL_RATES: Record<string, { input: number; output: number }> = {
   // The current Opus and Sonnet (platform.claude.com model table, cached 2026-09-25).
   'claude-opus-5-5':            { input: 4, output: 20 },
   'claude-sonnet-5-5':          { input: 2, output: 10 },
+  // Haiku 5.5, the cheap role since 2026-10-21. This card is for prompts up to
+  // 100K tokens ($0.50 / $2.50 above that); every Haiku call here is a few thousand.
+  'claude-haiku-5-5':           { input: 0.1, output: 0.5 },
+  // Fable 5.1, the strongest model. Nothing calls it today; priced so a trial
+  // of it is never recorded unpriced.
+  'claude-fable-5-1':           { input: 10, output: 50 },
   // OpenAI image models (lib/ai/openaiImages.ts). Billed per token like text:
   // text input $5/M, image output $30/M (model card, Sept 2026). A high
   // 1024x1280 image is roughly 4,000 output tokens, about 13 cents.

@@ -90,7 +90,9 @@ declare
     -- Saved cards (supabase/migrations/add_grow_tokens.sql): the consent a client gave and the ledger of every token charge.
     'grow_card_consents', 'grow_token_charges',
     -- The WhatsApp Cloud API cost log (supabase/migrations/add_wa_cloud.sql): server-written, listed so the gate stays right.
-    'wa_cloud_messages'
+    'wa_cloud_messages',
+    -- What clients wrote to the bot, for its memory (supabase/migrations/add_whatsapp_inbound.sql): server-written, listed so the gate stays right.
+    'whatsapp_inbound'
     -- NOTE: 'settings' is intentionally absent. See the header for why.
     --
     -- skin_scans, whatsapp_messages and auto_reminders_log are kept here on

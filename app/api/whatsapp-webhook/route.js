@@ -18,6 +18,8 @@
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { trackedCreate } from "@/lib/ai/usage";
+import { MODELS, EFFORT } from "@/lib/ai/models";
+import { buildBotMessages, loadRecentTurns, recordInbound } from "../../../lib/waConversation";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { dayHoursFrom } from "@/lib/businessHours";
 import { buildSystemPrompt } from "@/lib/botPrompt";
@@ -132,7 +134,7 @@ async function shouldBotReply(tenantId) {
   return true;
 }
 // Generate the AI reply directly (no network hop) - faster and more reliable
-async function generateReply({ message, clientName, tenantId }) {
+async function generateReply({ message, clientName, tenantId, history = [] }) {
   const [settingsRes, servicesRes] = await Promise.all([
     supabase.from("settings").select("*").eq("tenant_id", tenantId).limit(1),
     supabase.from("service_prices").select("*").eq("tenant_id", tenantId).or(ACTIVE_OR_NULL),
@@ -148,16 +150,22 @@ async function generateReply({ message, clientName, tenantId }) {
   // GreenAPI instance id on the inbound webhook, not from anything the sender
   // could set.
   const aiResponse = await trackedCreate(anthropic, {
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 400,
+    // Haiku 5.5 thinks before it writes, and the thinking counts against max_tokens: the room is for that, not for a
+    // longer reply (the prompt holds it to three sentences). A refusal comes back with no text, so she answers by hand.
+    model: MODELS.cheap,
+    max_tokens: 2000,
+    output_config: { effort: EFFORT.cheap },
     system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`,
-      },
-    ],
+    // The last turns with this client (lib/waConversation.js), then the message being answered.
+    messages: buildBotMessages(history, `${clientName ? `(שם הלקוחה: ${clientName})\n` : ""}הודעת הלקוחה: ${message}`),
   }, { tenantId, callSite: "whatsapp-webhook" });
+
+  // Haiku 5.5 can decline (stop_reason "refusal") and has no server-side fallback. Send nothing rather than half an answer:
+  // the client's message stays for her to answer by hand. Cut off mid-reply ("max_tokens") is treated the same way.
+  if (aiResponse.stop_reason === "refusal" || aiResponse.stop_reason === "max_tokens") {
+    console.warn(`[whatsapp-webhook] no bot reply for tenant ${tenantId}: stop_reason=${aiResponse.stop_reason}`);
+    return "";
+  }
 
   return aiResponse.content
     .map((b) => (b.type === "text" ? b.text : ""))
@@ -290,6 +298,13 @@ export async function POST(request) {
       return Response.json({ ok: true, optOut: true });
     }
 
+    // No automatic AI replies on the CENTRAL number (owner's decision, 2026-10-23): it speaks for every business at once, its
+    // replies cannot go out on their own anyway (ai_agent_reply waits in her manual queue), and every client "תודה" cost a Claude
+    // call. The client's conversation is with her cosmetician, on her own WhatsApp. CENTRAL_BOT_ENABLED=1 brings it back.
+    if (centralId && String(idInstance) === centralId && process.env.CENTRAL_BOT_ENABLED !== "1") {
+      return Response.json({ ok: true, botOff: "central" });
+    }
+
     // Respect the tenant's bot on/off switch and active hours
     const active = await shouldBotReply(tenantId);
     if (!active) {
@@ -334,8 +349,14 @@ export async function POST(request) {
       return Response.json({ ok: true, rateLimited: "tenant" });
     }
 
+    // The conversation so far (read BEFORE this message is kept, so it is not in its own history), then keep this one
+    // for the next turn. Only here, when the bot is about to answer: a business whose bot is off stores nothing.
+    const senderPhone = senderToPhone(senderChatId);
+    const history = await loadRecentTurns(supabase, { tenantId, variants: phoneVariants(senderPhone) });
+    await recordInbound(supabase, { tenantId, phone: senderPhone, body: text, source: "greenapi" });
+
     // Generate the reply directly
-    const reply = await generateReply({ message: text, clientName: senderName, tenantId });
+    const reply = await generateReply({ message: text, clientName: senderName, tenantId, history });
 
     if (!reply) {
       return Response.json({ ok: true, noReply: true });

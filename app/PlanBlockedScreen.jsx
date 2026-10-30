@@ -18,8 +18,15 @@
 // same slot contract as TrialBanner's. BillingCard renders only when billing is
 // switched on for the deployment, and stays usable here because no billing
 // route uses the plan guard: a closed business must be able to pay.
+//
+// `recheck` (optional) reads her plan again and reopens the dashboard when it is
+// active, on the "שילמתי, לבדוק שוב" button. Coming back to the tab and the
+// 30-second timer are handled by the effect inside (no reload needed by hand).
 
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { supabase } from "./supabase";
+import { planState } from "@/lib/planState";
 import BrandImage from "@/app/BrandImage";
 import { ICON_FLOWER } from "@/lib/brand";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
@@ -33,11 +40,54 @@ import {
 
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 
-export default function PlanBlockedScreen({ plan, businessName = "", isDemo = false, toast, onSignOut, cta = null }) {
+export default function PlanBlockedScreen({ plan, businessName = "", isDemo = false, toast, onSignOut, cta = null, recheck = null }) {
   const { title, body } = blockedNoticeHe(plan?.status, plan?.trialEndsAt);
+  // The automatic re-check on return / every 30 seconds is the effect below; the button runs `recheck` on demand.
+  const [checking, setChecking] = useState(false);
+  const checkNow = async () => {
+    if (!recheck || checking) return;
+    setChecking(true);
+    try {
+      const reopened = await recheck();
+      if (!reopened) toast?.("עדיין לא רואים את התשלום. אם שילמת עכשיו, זה יכול לקחת דקה. המסך יתעדכן לבד.");
+    } finally { setChecking(false); }
+  };
   const wa = supportWhatsAppUrl();
   // A paused account is an arrangement, not a sale: no price pitch there.
   const showPrice = plan?.status === "expired";
+
+  // She paid (BillingCard, or we activated her by hand after a WhatsApp chat): open the system by itself, no refresh needed.
+  // Checked when she comes back to the tab (the card page opens in another one) and every 30 seconds while it is open.
+  // Only a row that is READ and is no longer blocked reopens: a failed read keeps this screen, it never loops a reload.
+  useEffect(() => {
+    if (isDemo) return undefined;
+    let alive = true;
+    let busy = false;
+    const check = async () => {
+      if (busy || !alive || (typeof document !== "undefined" && document.visibilityState === "hidden")) return;
+      busy = true;
+      try {
+        const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
+        if (!tenantId) return;
+        const { data, error } = await supabase.from("tenants").select("*").eq("id", tenantId).maybeSingle();
+        if (alive && !error && data && !planState(data).isBlocked) window.location.reload();
+      } catch {
+        // keep the screen; the next check tries again
+      } finally {
+        busy = false;
+      }
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", check);
+    const timer = setInterval(check, 30000);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", check);
+      clearInterval(timer);
+    };
+  }, [isDemo]);
 
   return (
     <div
@@ -110,6 +160,18 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
 
         {/* Pay-to-continue when billing is on. Renders nothing at all when it is off. */}
         <BillingCard pc="var(--brand-accent)" pcTint="var(--brand-tint)" toast={toast} isDemo={isDemo} />
+
+        {recheck && (
+          <button
+            type="button"
+            data-testid="plan-blocked-recheck"
+            onClick={checkNow}
+            disabled={checking}
+            style={{ alignSelf: "center", background: "none", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 16px", cursor: checking ? "wait" : "pointer", minHeight: 44, fontFamily: "inherit" }}
+          >
+            {checking ? "בודקת…" : "שילמתי, לבדוק שוב"}
+          </button>
+        )}
 
         {onSignOut && (
           <button

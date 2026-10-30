@@ -48,7 +48,13 @@ const FAKE_ENV = {
   GREENAPI_API_URL: '',
   CRON_SECRET: '',
   FACEBOOK_APP_SECRET: '',
+  // Web push: no real keys in tests (a malformed Preview key failed every Vercel preview build on 2026-10-23).
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: '',
+  VAPID_PRIVATE_KEY: '',
   // WhatsApp Cloud API: off, mock, no token, whatever the machine has.
+  // Feature switches that move quotas: off, whatever the deployment builds with. A test that needs one on sets it itself.
+  NEXT_PUBLIC_ADDON_PACKS: '',
+  NEXT_PUBLIC_UPGRADE_BUTTONS: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',

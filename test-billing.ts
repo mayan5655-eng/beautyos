@@ -13,6 +13,7 @@ import {
 import type { BillingRepo, Subscription, PaymentRecord, TenantRow, Deps } from './lib/billing/service.ts';
 import { signCardSession, verifyCardSession } from './lib/billing/session.ts';
 import { planState } from './lib/planState.ts';
+import { defaultPlanPrice } from './lib/pricing.ts';
 
 let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
@@ -98,7 +99,7 @@ await ok('month arithmetic clamps: 31 Jan + 1 month is the end of February, neve
 });
 
 // ── trial -> card -> first charge -> invoice ─────────────────────────────────
-await ok('add card during the trial -> trialing, price from her agreed price (349) or the regular 499, nothing charged yet', async () => {
+await ok('add card during the trial -> trialing, price from her agreed price or the launch 349, nothing charged yet', async () => {
   const w = world('2026-11-01T08:00:00Z');
   w.addTenant(T, { trial_ends_at: '2026-11-10T08:00:00Z', plan_price: 349 });
   const r = await saveCard(w.deps(), T, OK());
@@ -106,8 +107,14 @@ await ok('add card during the trial -> trialing, price from her agreed price (34
   assert.equal(r.subscription.next_charge_at, '2026-11-10T08:00:00.000Z'); assert.equal(r.subscription.card_last4, '4242');
   assert.equal(w.payments.length, 0);
   const w2 = world('2026-11-01T08:00:00Z'); w2.addTenant(T, { trial_ends_at: '2026-11-10T08:00:00Z' });
-  assert.equal((await saveCard(w2.deps(), T, OK())).subscription.price, REGULAR_PRICE);
-  assert.equal(priceOf(null), 499);
+  // No agreed price: the launch price while it is open (owner 2026-10-25: the card says 349, so 349 is charged).
+  assert.equal((await saveCard(w2.deps(), T, OK())).subscription.price, 349);
+  assert.equal(priceOf(null), 349);
+  assert.equal(REGULAR_PRICE, 499);
+  // Once a cutoff is set: on or before it keeps 349, after it (or no signup date) pays the regular price.
+  assert.equal(defaultPlanPrice('2026-10-20T10:00:00Z', '2026-12-01T00:00:00Z'), 349);
+  assert.equal(defaultPlanPrice('2026-12-02T10:00:00Z', '2026-12-01T00:00:00Z'), 499);
+  assert.equal(defaultPlanPrice(null, '2026-12-01T00:00:00Z'), 499);
 });
 
 await ok('the cron charges one day before the trial ends: active, next charge a month after the trial, one invoice', async () => {

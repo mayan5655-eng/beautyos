@@ -9,8 +9,28 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/send-reminders",
+      "schedule": "0 17,18 * * 6"
+    },
+    {
+      "path": "/api/send-smart-reminders",
+      "schedule": "0 17,18 * * 6"
+    },
+    {
+      "path": "/api/send-greetings",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/send-greetings",
+      "schedule": "0 17,18 * * 6"
+    },
+    {
       "path": "/api/send-owner-evening",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/send-owner-evening",
+      "schedule": "0 18 * * 6"
     },
     {
       "path": "/api/legal-receipts/retry",

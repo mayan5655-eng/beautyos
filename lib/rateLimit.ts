@@ -286,6 +286,20 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) => `ביקשת הרבה קבצים בזמן קצר. אפשר לנסות שוב ${m}.`,
   },
+  // The client's personal results page. The owner's side is a session-bound API; the open beacon is public (a client's phone,
+  // often behind a carrier's shared address), so its per-IP cap is generous - it only bumps a counter.
+  'client-page': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `בוצעו הרבה פעולות בזמן קצר. אפשר לנסות שוב ${m}.`,
+  },
+  'client-page-open': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
+  },
   'client-erase': {
     perIp: { limit: 10, windowMs: 10 * MINUTE },
     perTenant: { limit: 10, windowMs: 10 * MINUTE },

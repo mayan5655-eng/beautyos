@@ -41,7 +41,7 @@ export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
   await markCronRun('send-owner-evening');
   try {
-    if (isQuietEvening()) return Response.json({ success: true, sent: 0, message: "ערב שבת, לא שולחים" });
+    if (isQuietEvening()) return Response.json({ success: true, sent: 0, message: "שישי או שבת לפני 20:00 - לא שולחים" });
 
     const run = await runEveningSummaries({
       db: supabase,

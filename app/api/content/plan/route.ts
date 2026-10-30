@@ -70,7 +70,9 @@ async function readJobs(tenantId: string, itemIds: string[]) {
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status });
 
 async function session(request: NextRequest) {
-  const limited = checkIpLimit(request, 'creatives');
+  // Reading the plan costs nothing, so only the writes share the AI-image brake: every open of the content tab reads, and phones on one
+  // mobile-data address share an IP, so counting reads gave some of them "too many images" without anyone making one (2026-10-24 review).
+  const limited = request.method === 'GET' ? null : checkIpLimit(request, 'creatives');
   if (limited) return { error: limited } as const;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

@@ -216,16 +216,16 @@ export default function EmptyState({
               style={
                 i === 0
                   ? isMoment
-                    ? { fontSize: "var(--t-sm)", padding: "11px 20px" }
+                    ? { fontSize: "var(--t-sm)", padding: "11px 20px", minHeight: 44 }
                     : {
                         background: accent, color: "var(--surface)", border: "none",
-                        borderRadius:"var(--r-xl)", padding: "11px 20px", fontSize:"var(--t-sm)",
+                        borderRadius:"var(--r-xl)", padding: "11px 20px", minHeight: 44, fontSize:"var(--t-sm)",
                         fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                       }
                   : {
                       background: "var(--surface)", color: "var(--ink-2)",
                       border: "1px solid var(--line-2)", borderRadius:"var(--r-xl)",
-                      padding: "11px 18px", fontSize:"var(--t-sm)", fontWeight: 600,
+                      padding: "11px 18px", minHeight: 44, fontSize:"var(--t-sm)", fontWeight: 600,
                       cursor: "pointer", fontFamily: "inherit",
                     }
               }

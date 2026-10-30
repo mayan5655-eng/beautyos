@@ -38,12 +38,18 @@ async function reportFor(row, now) {
   // the 1st (2026-10-20 audit).
   const apptFrom = monthStart < weekStart ? monthStart : weekStart;
 
-  const [rc, ap, ld, cl] = await Promise.all([
-    supabase.from("receipts").select("id, amount, created_at").eq("tenant_id", tenantId).gte("created_at", earliest),
+  // Timestamps are read from a day early and cut by the Israeli day below: a bare "YYYY-MM-DD" bound is UTC midnight, which is
+  // 02:00-03:00 in Israel, so the first hours of the window were dropped (receipts of the earlier week, leads and new clients).
+  const dayBefore = (key) => dayKey(new Date(new Date(`${key}T12:00:00Z`).getTime() - 864e5));
+  const [rc, ap, ldRaw, clRaw] = await Promise.all([
+    supabase.from("receipts").select("id, amount, created_at").eq("tenant_id", tenantId).gte("created_at", dayBefore(earliest)),
     supabase.from("appointments").select("date, kind, confirmation_status").eq("tenant_id", tenantId).gte("date", apptFrom).lte("date", today),
-    supabase.from("leads").select("source, created_at").eq("tenant_id", tenantId).gte("created_at", weekStart),
-    supabase.from("clients").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", weekStart),
+    supabase.from("leads").select("source, created_at").eq("tenant_id", tenantId).gte("created_at", dayBefore(weekStart)),
+    supabase.from("clients").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", dayBefore(weekStart)),
   ]);
+  const inWeek = (r) => dayKey(new Date(r.created_at)) >= weekStart;
+  const ld = { ...ldRaw, data: (ldRaw.data || []).filter(inWeek) };
+  const cl = { ...clRaw, data: (clRaw.data || []).filter(inWeek) };
   if (rc.error || ap.error) throw new Error(`reads failed: ${(rc.error || ap.error).message}`);
 
   const ids = (rc.data || []).map((r) => r.id);

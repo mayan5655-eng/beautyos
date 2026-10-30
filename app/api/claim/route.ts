@@ -14,6 +14,7 @@ import { bookAppointmentSlot } from "@/lib/booking";
 import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
 import { publicAccent } from "@/lib/branding";
+import { runWaitlistWin } from "@/lib/waitlistRuntime";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
 function admin() {
@@ -242,6 +243,12 @@ export async function POST(request: NextRequest) {
     .eq("slot_date", claimed.slot_date)
     .eq("slot_start_minute", claimedStart)
     .eq("status", "sent");
+
+  // A smart-waitlist offer (token starts with "wl"): take her off the list, tell the others kindly it went, and tell the owner in one line.
+  // Nothing past this point may delay or fail the response: she already has the slot.
+  after(() => runWaitlistWin({ tenantId: claimed.tenant_id, token, claimed }).then(() => undefined).catch((e) => {
+    console.error("[claim] waitlist follow-up failed:", e instanceof Error ? e.message : String(e));
+  }));
 
   return NextResponse.json({
     state: "won",

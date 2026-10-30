@@ -560,6 +560,8 @@ h1, h2, h3 {
    or carry data-overlay (the client and lead drawers, the "עוד" sheet). :has() is in every current browser; an older one keeps the old overlap. */
 body:has(.sheet-backdrop, [data-overlay]) .fab-voice,
 body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; }
+/* The install / "open in Safari" banners float over everything and sat on top of a sheet's own buttons (found 2026-10-25 in the Instagram browser, on the "קבעי לה שוב" sheet). They step aside while a sheet is open and come back after. */
+body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none !important; }
 
 /* ── Sheet: the one modal (app/Sheet.tsx) ──────────────────────────────────
    One backdrop, one card, one radius, one shadow, one max height. Centred
@@ -675,3 +677,17 @@ body:has(.sheet-backdrop, [data-overlay]) .fab-help { display: none !important; 
   background: #1F3A30; color: #FBF8F1; padding: 12px 18px; border-radius: 10px; font-weight: 700; text-decoration: none;
 }
 .skip-link:focus { top: 12px; }
+
+/* ── iPhone Safari zooms the whole page when a field smaller than 16px gets focus, and does not zoom back (2026-10-24 phone review:
+   the clients search box and the two filters were 12px and 11px, the content topic box 12px). The sheets already had this rule;
+   this is every field, on iOS only (-webkit-touch-callout exists nowhere else), beating the inline sizes. ── */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea { font-size: 16px !important; }
+}
+
+/* The "open in Safari/Chrome" card sat on top of every sheet in Instagram's in-app browser (2026-10-25: it covered the
+   consent box of the photo-to-post sheet). While a sheet is open the sheet is the thing she is doing; the card is back
+   when it closes. Browsers without :has() just keep the old behaviour. */
+body:has(.sheet-backdrop) [role="dialog"][aria-label="פתיחה בדפדפן של הטלפון"] { display: none !important; }

@@ -37,6 +37,10 @@ export default function SignupPage() {
   // Her explicit yes to Kalmea's own WhatsApp (the welcome with the tutorial videos, lib/ownerWelcome.ts). Unticked by default:
   // a marketing message needs a real opt-in (Meta's policy and the Israeli spam law), and without it nothing is sent.
   const [waOptIn, setWaOptIn] = useState(false)
+  // The page is drawn on the server before its script runs; a tap on "הרשמה" in that gap is a plain form submit that reloads the page
+  // and empties the fields without a word (slow phone on mobile data, 2026-10-24 phone review). Disabled until the script is live.
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(true), [])
   const router = useRouter()
 
   useEffect(() => {
@@ -267,7 +271,7 @@ export default function SignupPage() {
 
           {error && <div role="alert" style={errorStyle}>{error}</div>}
 
-          <button type="submit" disabled={loading} className="signup-btn" style={buttonStyle(loading)}>
+          <button type="submit" disabled={loading || !ready} className="signup-btn" style={buttonStyle(loading)}>
             {loading ? <Spinner inline label="יוצרת חשבון" /> : 'הרשמה'}
           </button>
 

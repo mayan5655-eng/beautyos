@@ -11,7 +11,7 @@ import { supabase } from "./supabase";
 import { daysSinceLastVisit, isActiveClient, isColdClient, winbackDaysOf } from "@/lib/clientActivity";
 import FloralCorners from "./FloralCorners";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
-import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap } from "@/lib/businessHours";
+import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap, nextOpenDay } from "@/lib/businessHours";
 import { planState } from "@/lib/planState";
 import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
 import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
@@ -25,19 +25,27 @@ import TrialNudge from "./TrialNudge";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import ClientPrivacyPanel from "./ClientPrivacyPanel";
 import BillingNotices from "./BillingNotices";
+import { addonPackForMessage, openAddons, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
+import { addonButtonHe } from "@/lib/pricing";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
+import { installDemoOutboundGuard } from "@/lib/demoOutbound";
 import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
 const DesignStudio = dynamic(() => import("./design/DesignStudio"), { ssr: false });
+// "צילום אחרי טיפול": one photo -> a ready post + story (app/design/PhotoToPost.jsx), from the dashboard and a client card.
+const PhotoToPost = dynamic(() => import("./design/PhotoToPost"), { ssr: false });
+// "רילס מהצילומים שלי": her own photos and clips -> a reel in her brand (app/design/OwnReel.jsx), reached from the photo sheet.
+const OwnReel = dynamic(() => import("./design/OwnReel"), { ssr: false });
 import ImportChooser from "./ImportChooser";
 import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
 import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
+import WaitlistOfferSetting from "./WaitlistOfferSetting";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { firstFreeStart } from "@/lib/apptFirstFree";
@@ -46,6 +54,7 @@ import { isMissingColumnError } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
+import { monthlyReport } from "@/lib/monthlyReport";
 import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from "@/lib/tourFlow";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
@@ -64,7 +73,8 @@ import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
 const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false });
 import ChromeFlowerBg from "./ChromeFlowerBg";
 import { quietStatus } from "@/lib/quiet";
-import { slugError, slugify } from "@/lib/slug";
+import { slugError } from "@/lib/slug";
+import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
@@ -88,6 +98,10 @@ import HoldBadge from "./HoldBadge";
 import ServiceDepositToggle from "./ServiceDepositToggle";
 import ApptDepositToggle from "./ApptDepositToggle";
 import DepositLinkSheet from "./DepositLinkSheet";
+import RebookNextSheet from "./RebookNextSheet";
+import MyDayCard from "./MyDayCard";
+import { buildMyDay, myDayEnabled } from "@/lib/myDay";
+import ClientPageSheet from "./ClientPageSheet";
 import { feesChanged } from "./useFees";
 import { resolveGoals } from "@/lib/goals";
 import { accountantSheets, periodProfit } from "@/lib/accountantPack";
@@ -95,6 +109,7 @@ import { displayPhone } from "@/lib/publicLanding";
 import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
+import GreetingsPanel from "./GreetingsPanel";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -102,10 +117,14 @@ const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), {
 const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
 const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 const MonthValueCard = dynamic(() => import("./MonthValueCard"), { ssr: false });
+const MonthlyReportCard = dynamic(() => import("./MonthlyReportCard"), { ssr: false });
 import FieldPicker from "./FieldPicker";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 import { ownServices } from "@/lib/serviceScope";
+import { deliverFile, deliveryToast, dataUrlToBlob } from "@/lib/deliverFile";
+import { copyText } from "@/lib/copyText";
+import { preloadXlsx, loadedXlsx, getXlsx, workbookBlob } from "@/lib/xlsxLoader";
 
 // Renders a private client image from storage. `value` may be a bare storage
 // path (new format) or a legacy public URL (old); either way we resolve a
@@ -305,6 +324,12 @@ const TAX_DISCLAIMER = "הדוח הוא לנוחותך בלבד. יש לבדוק
 //   reels     - יוצר רילסים        community - קהילה
 // Tiers are cumulative: pro includes basic, premium includes pro.
 const _PLAN_BASIC   = ["clients","calendar","cashier","receipts"];
+
+// Her business type, and whether SHE chose it. The live column defaults to 'exempt', so a type alone can be the default;
+// business_tax_status_set_at (add_business_tax_status_set_at.sql) says when she picked it. Before that migration the key is
+// absent from the row and nothing counts as unconfirmed - the app behaves as before.
+const TAX_STATUS_HE = { exempt: "עוסק פטור", licensed: "עוסק מורשה", company: "חברה בע\"מ" };
+const taxStatusUnconfirmed = (s) => !!s && Object.prototype.hasOwnProperty.call(s, "business_tax_status_set_at") && !s.business_tax_status_set_at;
 const _PLAN_PRO     = [..._PLAN_BASIC, "marketing","leads","whatsapp","birthdays","reviews"];
 const _PLAN_PREMIUM = [..._PLAN_PRO, "advisor","skinscan","reels","community"];
 const PLAN_FEATURES = {
@@ -339,7 +364,8 @@ const planAllows = (plan, feature) => {
 };
 // A stored phone the way she writes it ("052-111-1111"), not the e164 digits bookings store ("972521111111").
 const fmtPhone = (p) => displayPhone(p) || p || "";
-const SKIN_TYPES = ["יבש","שמן","מעורב","רגיש","נורמלי","אסתתי"];
+// "רגיל" is what the seeded and imported clients carry; the sixth option used to be a misspelt non-word (2026-10-23 pass).
+const SKIN_TYPES = ["רגיל","יבש","שמן","מעורב","רגיש","נוטה לאקנה"];
 const STATUS_COLORS = {"VIP":"#C9A24B","active":"var(--success)","cold":"var(--ink-3)","hot":"#C68A5E"};
 const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה","hot":"חמה"};
 // `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
@@ -475,6 +501,12 @@ function waLink(phone) {
   return `https://wa.me/${intl}`;
 }
 
+// "2026-10-25" -> "25.10.2026" for Hebrew screens; anything else comes back as it was.
+function fmtDateHe(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : String(iso || "");
+}
+
 function waMsg(phone, msg) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g,"");
@@ -574,7 +606,15 @@ function PushSubscribeButton({ pc, pcGrad }) {
   };
 
   if (state === "unsupported") {
-    return <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>הדפדפן הזה לא תומך בהתראות דחיפה.</p>;
+    // An iPhone only offers push to a web app that was added to the home screen (iOS 16.4+), and an Instagram/Facebook browser has none:
+    // "this browser does not support it" sent her away with nothing to do (2026-10-24 phone review).
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const text = /Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(ua)
+      ? "בדפדפן של אינסטגרם או פייסבוק אי אפשר לקבל התראות. פתחי את קלמיה בספארי או בכרום."
+      : /iPhone|iPad|iPod/.test(ua)
+        ? "באייפון ההתראות עובדות רק מאפליקציה שהוספת למסך הבית: בספארי לחצי על שיתוף ← הוספה למסך הבית, ופתחי את קלמיה משם."
+        : "הדפדפן הזה לא תומך בהתראות דחיפה.";
+    return <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>{text}</p>;
   }
   return (
     <div>
@@ -628,7 +668,7 @@ function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmUrl}`,
-      `אם לא מתאים, אפשר לשנות כאן: ${cancelUrl}`
+      `אם צריך לבטל, אפשר כאן: ${cancelUrl}`
     )
   );
 }
@@ -672,11 +712,11 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC } from "@/lib/importMapping";
+import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
-const emptyLead = {name:"",phone:"",source:"פייסבוק",service_interest:"",status:"new",notes:"",reminder_date:""};
+const emptyLead = {name:"",phone:"",source:"",service_interest:"",status:"new",notes:"",reminder_date:""};
 
 // ============================================================
 // MAIN COMPONENT
@@ -836,6 +876,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // free on the new date.
   const [rebookPick,        setRebookPick]         = useState(null);
   const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
+  // "קבעי לה שוב" (client card / finished appointment): { client, appt } while the sheet is open.
+  const [rebookNext,        setRebookNext]         = useState(null);
+  const [clientPageFor,     setClientPageFor]      = useState(null); // "שליחת הדף שלה": the client whose personal results page is being prepared
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
   const emptyProtocol = {brand:"",name:"",concern:"",skin_types:[],frequency:"",sessions_count:1,duration_minutes:60,price:0,notes:""};
@@ -844,6 +887,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [editingClient,     setEditingClient]      = useState(null);
   const [editingLead,       setEditingLead]        = useState(null);
   const [selectedClient,    setSelectedClient]     = useState(null);
+  const [photoPost, setPhotoPost] = useState(null); // null = closed; { clientName } = open (clientName may be "")
+  const [ownReel, setOwnReel] = useState(null); // the same, for "רילס מהצילומים שלי"
   // Which agenda card has its "עוד" actions open (the day view shows one main action per card).
   const [apptMenuId, setApptMenuId] = useState(null);
   const [selectedLead,      setSelectedLead]       = useState(null);
@@ -972,6 +1017,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Null = the whole status group, which is the original behavior.
   const [bulkLeadIds,       setBulkLeadIds]        = useState(null);
   const [loading,           setLoading]            = useState(true);
+  // A brand-new account (no settings row) is sent to /onboarding from loadAll. Until that navigation lands, the loading screen stays:
+  // clearing `loading` first painted the empty dashboard for about a second before onboarding (journey pass F5).
+  const leavingForOnboardingRef = useRef(false);
   // Non-null when a core read in loadAll FAILED. Distinct from "she has no
   // data": empty state is only ever allowed to mean empty. Renders a
   // full-screen explanation with a retry, instead of an empty dashboard.
@@ -1000,6 +1048,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // banner, which only appears when her PLAN needs attention. Someone stuck on
   // day three with a perfectly healthy plan had nowhere to go.
   const [showHelp,          setShowHelp]           = useState(false);
+  const [showMonthlyReport, setShowMonthlyReport]  = useState(false);
   const [helpText,          setHelpText]           = useState("");
   const [helpState,         setHelpState]          = useState("idle"); // idle|sending|sent|failed
 
@@ -1208,6 +1257,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // (e.g. "ביטול" for undo). Toasts with an action linger a bit longer.
   const toast = useCallback((msg, type = "success", action = null) => {
     const id = Date.now() + Math.random();
+    // A "you used this month's ___" refusal for a feature that has an add-on pack (lib/pricing.ts, only with packs on) carries the
+    // pack's button, which opens the add-ons in her billing settings. Recognised by its own wording (lib/addonOffer.ts).
+    if (!action && type === "error") {
+      const pack = addonPackForMessage(msg);
+      if (pack) action = { label: addonButtonHe(pack), onClick: openAddons };
+    }
     setToasts(prev => [...prev, { id, msg, type, action }]);
     // Error toasts stay until tapped: they carry real reasons now (an OAuth
     // error, a failed save), and a reason that vanishes in 3.5s while she is
@@ -1444,6 +1499,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setShowSetup(false);
   };
   const openSetupTab = (tab, extra) => openSettings(tab, extra);
+  // The add-on buttons (toast, reels, the post generator) all send one event; it opens Settings > העסק שלי at the add-ons.
+  const openAddonsRef = useRef(null);
+  openAddonsRef.current = () => {
+    setSettingsGroup("business");
+    openSettings();
+    setTimeout(() => { try { document.getElementById("billing-addons")?.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* not rendered yet */ } }, 700);
+  };
+  useEffect(() => {
+    const on = () => openAddonsRef.current?.();
+    window.addEventListener(OPEN_ADDONS_EVENT, on);
+    return () => window.removeEventListener(OPEN_ADDONS_EVENT, on);
+  }, []);
 
   // Has anything in the panel changed? Compared by value against the saved
   // state, not tracked by a flag, so typing a character and typing it back out
@@ -1547,7 +1614,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
-    { key:"link",     done: linkShared||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
+    { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -1853,6 +1920,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // warning had been firing ever since.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{ loadAll(); },[]);
+  useEffect(()=>{ if(activeTab==="tax") preloadXlsx(); },[activeTab]);
 
   // Separate from loadAll on purpose: this is one small status read, and a
   // failure here must not be able to blank the dashboard.
@@ -2201,7 +2269,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // whatsapp-manual-mode.sql is handed over by hand. Capped at 100 and
         // newest-first: a queue is something she works through, not an
         // archive, and this card groups/caps display further on its own.
-        ["whatsapp_pending", supabase.from("whatsapp_messages").select("*", { count: "exact" }).eq("status", "pending_manual").order("created_at", { ascending: false }).limit(100)],
+        // Through /api/messages, not a browser read: the table has no SELECT
+        // policy for her, so a direct read came back empty and the queue never showed.
+        ["whatsapp_pending", fetch("/api/messages?status=pending_manual", { cache: "no-store" })
+          .then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success ? { data: j.messages || [], count: j.count ?? null, error: null } : { data: null, count: null, error: { code: String(r.status), message: j.error || "messages read failed" } }; })
+          .catch((e) => ({ data: null, count: null, error: { code: "network", message: String(e?.message || e) } }))],
         ["owner_notifs",     supabase.from("owner_notifications").select("*", { count: "exact" }).is("read_at", null).order("created_at", { ascending: false }).limit(50)],
       ].map(([name, q]) => [name, Promise.resolve(q)]);
 
@@ -2340,7 +2412,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // read failed" - that case returned above. Before this change the two
       // were the same branch, so a failed read could bounce an established user
       // into onboarding, and finishing it inserts a SECOND settings row.
-      if(st.data && st.data.length === 0) { router.replace("/onboarding"); return; }
+      if(st.data && st.data.length === 0) { leavingForOnboardingRef.current = true; router.replace("/onboarding"); return; }
       if(st.data && st.data.length > 0) {
         // The settings row for THIS user's tenant, or nothing.
         //
@@ -2406,7 +2478,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         offline: typeof navigator !== "undefined" && navigator.onLine === false,
       });
     } finally {
-      setLoading(false);
+      if (!leavingForOnboardingRef.current) setLoading(false);
     }
   };
 
@@ -2511,6 +2583,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // A client last seen before the recent window has NO last visit until the history is in, which would read as "new" instead of "lapsed":
   // so these two lists stay empty until it is (they are nudges, and arrive a moment later).
   const winbackDays   = winbackDaysOf(settings?.automations);
+  // The simple monthly report (lib/monthlyReport.ts): the same live receipts and the same incomeTotals as the income screen.
+  // An unchosen registration is read as "what she took" (the exempt rule: no VAT carved out), never as a guess at VAT.
+  const monthlyReportData = useMemo(() => historyReady ? monthlyReport({ receipts: liveRcpts, appointments, status: settings?.business_tax_status || "exempt", vatRate: vatRateForYear(new Date().getFullYear()), now: new Date() }) : null, [liveRcpts, appointments, settings?.business_tax_status, today, historyReady]);
   const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now, winbackDays)) : [], [clients, appointments, today, historyReady, winbackDays]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, liveRcpts]);
 
@@ -2573,6 +2648,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const convertedLeads     = leads.filter(l=>l.status==="closed");
   const conversionRate     = leads.length>0?Math.round((convertedLeads.length/leads.length)*100):0;
   const leadsWithReminders = leads.filter(l=>l.reminder_date&&l.reminder_date<=tomorrow&&l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant");
+
+  // "היום שלי" (app/MyDayCard.jsx, lib/myDay.js): the morning card. Computed once per change of data or per minute, never per keystroke
+  // elsewhere on the screen. Off for a tenant with automations.feature_flags.my_day === false (the old today list then shows instead).
+  const myDayOn = myDayEnabled(settings);
+  const myDayMinute = now.getHours()*60+now.getMinutes();
+  const myDayModel = useMemo(() => {
+    if (!myDayOn) return null;
+    const byId = new Map(clients.map(c => [String(c.id), c]));
+    return buildMyDay({
+      entries: todayEntries, clientAppts, tomorrowAppts, receipts: liveRcpts, leads, leadsReady: deferred.leads === "ok", paymentsReady: historyReady,
+      now: new Date(), startMinute, endMinute, isPersonal,
+      hasPhone: (a) => !!((byId.get(String(a.client_id))?.phone || "").trim()),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myDayOn, todayEntries, clientAppts, tomorrowAppts, liveRcpts, leads, clients, deferred.leads, historyReady, myDayMinute]);
 
   // ── Attribution ───────────────────────────────────────────────────────────
   // Where a client came from is DERIVED, not copied. handleConvertLead already
@@ -2722,7 +2812,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       activeServices.filter(s=>has(s.name))
         .slice(0,5).map(s=>({type:"service",label:s.name,sub:`₪${s.price}`+(s.duration?` · ${s.duration}′`:""),obj:s})),
       receipts.filter(r=>has(r.client_name)||has(r.service)||has(r.amount))
-        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${localDayKey(r.created_at)}`,obj:r})),
+        .slice(0,5).map(r=>({type:"receipt",label:r.client_name||"תשלום",sub:`₪${r.amount} · ${fmtDateHe(localDayKey(r.created_at))}`,obj:r})),
     ];
     return groups.flat().slice(0,15);
   })();
@@ -3362,7 +3452,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The mount-only load missed two real paths on mobile: a PWA resumed from
   // the background (no remount, stale state), and navigating to the dashboard
   // tab after the mount already ran. Reload on both.
+  // Skipped on the FIRST run: the mount effect above already starts this load, and running both sent the same
+  // two reads (pending questions, then the yes/no counts) twice at boot - two requests and two CORS preflights
+  // on the critical path for nothing. Every later change of tab loads as before.
+  const questionLoadedOnMountRef = useRef(true);
   useEffect(() => {
+    if (questionLoadedOnMountRef.current) { questionLoadedOnMountRef.current = false; return; }
     if (activeTab === "dashboard") loadPendingQuestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -3561,7 +3656,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     askConfirm({
       title: "לא הגיעה",
-      message: `לסמן ש${appt.name} לא הגיעה לתור ב-${appt.date} ${fmtApptTime(appt)}? הסימון נספר בכרטיס הלקוחה.`,
+      message: `לסמן ש${appt.name} לא הגיעה לתור ב-${fmtDateHe(appt.date)} ${fmtApptTime(appt)}? הסימון נספר בכרטיס הלקוחה.`,
       confirmText: "סמני: לא הגיעה",
       danger: true,
       onConfirm: async () => {
@@ -3621,7 +3716,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (guardWrite()) return;
     askConfirm({
       title: "ביטול תור",
-      message: `לבטל את התור של ${appt.name} (${appt.service}, ${appt.date} ${fmtApptTime(appt)})? התור יסומן כמבוטל וישאר ביומן.`,
+      message: `לבטל את התור של ${appt.name} (${appt.service}, ${fmtDateHe(appt.date)} ${fmtApptTime(appt)})? התור יסומן כמבוטל וישאר ביומן.`,
       confirmText: "ביטול התור",
       danger: true,
       onConfirm: async () => {
@@ -3651,6 +3746,32 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast("התור שוחזר");
         };
         toast("התור בוטל", "success", { label: "החזרה", onClick: restore });
+        // She cancelled, so the client does not know yet (2026-10-23 pass, E1). After the same undo window, the
+        // message telling her is prepared server-side: out from the central number when it is on, otherwise in
+        // "הודעות מוכנות לשליחה". Only for a real client of hers with a phone; never for a personal block.
+        const cancelClient = clients.find(c => String(c.id) === String(appt.client_id));
+        if (appt.kind !== "personal" && (cancelClient?.phone || appt.client_phone)) {
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const r = await fetch("/api/cancel-notice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) });
+              const j = await r.json().catch(() => ({}));
+              if (!r.ok || !j.success) { if (r.status !== 403) toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); return; }
+              if (j.queued) {
+                const q = await fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then(x => x.json()).catch(() => null);
+                if (q?.success) setWhatsappPending(q.messages || []);
+                toast(`הודעה ל${appt.name || "לקוחה"} על הביטול מחכה ב"הודעות מוכנות לשליחה"`, "info");
+              } else {
+                toast(`הודעה על הביטול יצאה ל${appt.name || "לקוחה"} מהמספר המרכזי`);
+              }
+            } catch { toast("לא הצלחנו להכין ללקוחה הודעה על הביטול. כדאי לכתוב לה בעצמך.", "error"); }
+          }, 6600);
+        }
+        // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
+        // The server re-checks that the appointment is still cancelled, so the undo above always wins.
+        if (settings?.automations?.waitlist_offers === true && appt.kind !== "personal") {
+          setTimeout(() => { if (!restored) fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) }).catch(() => {}); }, 6500);
+        }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
         // an appointment the cosmetician restored. Gated by the settings toggle.
@@ -3988,7 +4109,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       // Phone -> client id, digits only, so "054-123 4567" and "0541234567"
       // are the same person however her old system wrote them.
-      const digits = (p) => String(p||"").replace(/\D/g,"");
+      const digits = importPhoneKey;
       const byPhone = new Map();
       for (const c of clients) {
         const k = digits(c.phone);
@@ -4112,13 +4233,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // the same paste - which happens after a partial failure - must not
       // double the list.
       const existing = new Set(
-        clients.map(c => String(c.phone||"").replace(/\D/g,"")).filter(Boolean)
+        clients.map(c => importPhoneKey(c.phone)).filter(Boolean)
       );
       const seen = new Set();
       const fresh = [];
       let dupes = 0;
       for (const r of rows) {
-        const key = String(r.phone||"").replace(/\D/g,"");
+        const key = importPhoneKey(r.phone);
         if (key && (existing.has(key) || seen.has(key))) { dupes++; continue; }
         if (key) seen.add(key);
         fresh.push({ ...emptyClient, ...r, status:"active", ...tenantField });
@@ -4189,7 +4310,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
         toast("הליד עודכן");
       }else{
-        const {data,error}=await supabase.from("leads").insert([newLead]).select();
+        const {data,error}=await supabase.from("leads").insert([{...newLead,source:newLead.source||null}]).select();
         if(error){handleDbError(error, "create lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>[...prev,data[0]]);
@@ -4374,7 +4495,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         toast(`${lead.name} הומרה ללקוחה`, "success", { label:"קבעי תור", onClick:()=>{
           const svc=activeServices.find(s=>s.name===svcName);
           setEditingAppointmentId(null);
-          setNewAppt({clientId:nc.id,name:nc.name,service:svc?.name||svcName||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});
+          setNewAppt({clientId:nc.id,name:nc.name,service:svc?.name||svcName||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});
           setApptNote("");setShowModal(true);
         }});
       },
@@ -4656,7 +4777,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       //    passes without relying on a column default.
       if (!s.id) {
         const row = { tenant_id: tid, active: s.active !== false };
-        for (const k of SERVICE_FIELDS) if (k !== "active") row[k] = s[k];
+        // Only fields the draft actually has. supabase-js lists every key of an inserted array in `columns=`,
+        // and PostgREST writes NULL for a listed key with no value instead of the column default: the
+        // quick-add row has no requires_deposit, so every "+ הוסיפי שירות" save failed on its NOT NULL
+        // (23502), for every business (found 2026-10-24).
+        for (const k of SERVICE_FIELDS) if (k !== "active" && s[k] !== undefined) row[k] = s[k];
         let { data, error } = await supabase.from("service_prices").insert([row]).select();
         // field is added by supabase/migrations/add_business_fields.sql,
         // applied by hand and possibly not yet run — degrade rather than
@@ -5122,7 +5247,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // that already has a booking, which is exactly why it reached production.
   const openNewAppt = () => {
     const svc = activeServices[0];
-    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});
+    setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});
     setApptNote("");
     setShowModal(true);
     setShowMobileSidebar(false);
@@ -5189,10 +5314,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if (!v.ok) { toast(v.error, "error"); return; }
       }
       const tip = Math.max(0, Number(cashierTip) || 0);
+      // Paid from "תשלום חדש" rather than from her appointment: link the client's visit TODAY when there is
+      // exactly one, not cancelled and not paid yet, so that visit shows as paid (2026-10-23 pass, F2).
+      // Anything ambiguous stays unlinked, as before.
+      const linkedApptId = cashierAppt?.id || (() => {
+        if (!cashierClient?.id) return null;
+        const c = appointments.filter(a => String(a.client_id) === String(cashierClient.id) && a.date === today
+          && a.confirmation_status !== "cancelled" && a.kind !== "personal"
+          && !receipts.some(r => String(r.appointment_id) === String(a.id)));
+        return c.length === 1 ? c[0].id : null;
+      })();
       const receipt={
         client_id:cashierClient?.id||null,
         client_name:cashierClient?.name||"לקוחה",
-        appointment_id:cashierAppt?.id||null,
+        appointment_id:linkedApptId||null,
         service:serviceNames,
         amount:cashierTotal,
         // Only when nothing is left to pay. A covered treatment plus a cream is
@@ -5414,6 +5549,71 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return rebookPlan.slot.minute;
   })();
 
+  // The one insert behind every "book the next visit" tap: the checkout strip below and the "קבעי לה שוב" sheet
+  // (RebookNextSheet). Same row handleSave writes for a plain new appointment, minus everything the form asks for.
+  // Returns the created row, or null after telling her why not.
+  const insertRebookAppointment = async ({ client, svc, date, minute }) => {
+    if (guardWrite()) return null;
+    // Re-check on the way in, through the same isFreeAt the proposal and the picker use. The plan was computed from state
+    // that may be a few minutes old, and the exclusion constraint would reject it anyway - this just turns that into a
+    // sentence she can act on.
+    if (!isFreeAt(date, minute, svc.duration)) {
+      toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
+      return null;
+    }
+    const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
+    const tid = rpcTenant || settings?.tenant_id || null;
+    const tenantField = tid ? { tenant_id: tid } : {};
+
+    const appt = {
+      date,
+      ...startFields(minute),
+      name: client.name,
+      service: svc.name,
+      duration: Number(svc.duration) || 60,
+      color: svc.color || DEFAULT_SERVICE_COLOR,
+      client_id: client.id,
+      note: "",
+      price: Number(svc.price) || 0,
+      confirmation_status: "pending",
+      confirmation_sent: false,
+      ...tenantField,
+    };
+    const { data, error } = await supabase.from("appointments").insert([appt]).select();
+    if (error) { handleDbError(error, "rebook appointment"); return null; }
+    if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return null; }
+    setAppointments((prev) => [...prev, data[0]]);
+    toast(`נקבע תור ל-${formatDateHe(new Date(date))} בשעה ${fmtTime(minute)}`);
+    return data[0];
+  };
+
+  // "קבעי לה שוב" -> "שינוי": the full new-appointment form, prefilled with the proposal.
+  const openRebookForm = ({ client, svc, date, minute }) => {
+    const sv = svc || activeServices[0];
+    setEditingAppointmentId(null);
+    setNewAppt({
+      clientId: client.id, name: client.name, service: sv?.name || "", duration: sv?.duration || 60,
+      date: date || formatDate(nextOpenDay(settings)),
+      hour: minute != null ? Math.floor(minute / 60) : settings.working_hours_start,
+      ...(minute != null ? { startMinute: minute } : {}),
+      price: sv?.price || 0,
+    });
+    setApptNote("");
+    setRebookNext(null);
+    setSelectedClient(null);
+    setShowModal(true);
+  };
+  // She tapped "open in WhatsApp" on the message for the booking she just made: the same flag sendConfirmationNow sets.
+  const markRebookMessageOpened = async (appt) => {
+    toast("וואטסאפ נפתח עם ההודעה מוכנה. נשאר ללחוץ על שליחה.");
+    const { data, error } = await supabase.from("appointments").update({ confirmation_sent: true }).eq("id", appt.id).select();
+    if (error) { handleDbError(error, "mark confirmation_sent"); return; }
+    if (data?.[0]) setAppointments((prev) => prev.map((a) => (a.id === appt.id ? data[0] : a)));
+  };
+  const refreshWaQueue = () => {
+    fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then((r) => r.json()).then((j) => { if (j?.success) setWhatsappPending(j.messages || []); }).catch(() => {});
+  };
+
   // Book it. Same insert as handleSave, minus everything the form asks for.
   const confirmRebook = async () => {
     if (guardWrite()) return;
@@ -5432,32 +5632,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         return;
       }
 
-      const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
-      const tid = rpcTenant || settings?.tenant_id || null;
-      const tenantField = tid ? { tenant_id: tid } : {};
-
-      const appt = {
-        date: slot.date,
-        ...startFields(minute),
-        name: client.name,
-        service: svc.name,
-        duration: Number(svc.duration) || 60,
-        color: svc.color || DEFAULT_SERVICE_COLOR,
-        client_id: client.id,
-        note: "",
-        price: Number(svc.price) || 0,
-        confirmation_status: "pending",
-        confirmation_sent: false,
-        ...tenantField,
-      };
-      const { data, error } = await supabase.from("appointments").insert([appt]).select();
-      if (error) { handleDbError(error, "rebook appointment"); return; }
-      if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return; }
-      setAppointments((prev) => [...prev, data[0]]);
-      setRebookDone({ receiptId: showReceipt.id, appt: data[0] });
+      const row = await insertRebookAppointment({ client, svc, date: slot.date, minute });
+      if (!row) return;
+      setRebookDone({ receiptId: showReceipt.id, appt: row });
       setRebookPick(null);
       setRebookPickOpen(false);
-      toast(`נקבע תור ל-${formatDateHe(new Date(slot.date))} בשעה ${fmtTime(minute)}`);
     } finally {
       setBusyKey("rebook", false);
     }
@@ -5657,6 +5836,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Send a receipt summary to the client's WhatsApp via GreenAPI (server route
   // /api/send-receipt, which reuses lib/whatsapp.js — the same mechanism as
   // booking confirmations). Only sends when the client has a phone number.
+  // A message the server queued and she is opening right now. When WhatsApp really opened, the queued row is
+  // marked sent, so the same message does not also wait in "הודעות מוכנות לשליחה" (2026-10-23 pass, C3).
+  // When the browser blocked it, it stays there and she is told so. (No "noopener": with it window.open
+  // always returns null and an opened tab could not be told from a blocked one; opener is cut by hand.)
+  const openQueuedWa = (link, messageId) => {
+    const w = window.open(link, "_blank");
+    if (w) {
+      try { w.opener = null; } catch {}
+      if (messageId) {
+        fetch("/api/messages", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: messageId }) }).catch(() => {});
+        setWhatsappPending(prev => prev.filter(x => x.id !== messageId));
+      }
+      return true;
+    }
+    toast("הדפדפן חסם את פתיחת וואטסאפ. ההודעה מחכה ב\"הודעות מוכנות לשליחה\"", "info");
+    fetch("/api/messages?status=pending_manual", { cache: "no-store" }).then(r => r.json()).then(j => { if (j?.success) setWhatsappPending(j.messages || []); }).catch(() => {});
+    return false;
+  };
+
   // `silent` suppresses toasts for the auto-send path. Returns true on success.
   const sendReceiptToClient = async (receipt, { silent = false } = {}) => {
     if (guardWrite()) return false;
@@ -5688,7 +5886,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // just not automatic. The silent auto-send path leaves it in her
         // WhatsApp queue rather than popping a tab she didn't ask for right
         // now; a direct button tap opens it immediately.
-        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); window.open(data.waLink, "_blank", "noopener"); }
+        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); openQueuedWa(data.waLink, data.messageId); }
         return true;
       }
       if (!res.ok || !data.success) {
@@ -5716,7 +5914,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const rows = [
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
-      ["תאריך", esc(localDayKey(receipt.created_at))],
+      ["תאריך", esc(fmtDateHe(localDayKey(receipt.created_at)))],
       ["שירות", esc(receipt.service || "")],
       ["אמצעי תשלום", esc(receipt.payment_method || "")],
     ];
@@ -5795,7 +5993,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
-      `אם לא מתאים, אפשר לשנות כאן: ${cancelLink}`
+      `אם צריך לבטל, אפשר כאן: ${cancelLink}`
     );
   };
 
@@ -5824,7 +6022,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the one tap that replaces it, with the exact message already
         // composed server-side.
         toast("מוכן לשליחה — נפתח וואטסאפ");
-        window.open(data.waLink, "_blank", "noopener");
+        openQueuedWa(data.waLink, data.messageId);
         return;
       }
       // A real failure (e.g. an unusable phone) - fall back to building the
@@ -5852,7 +6050,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
       `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
-      `📅 תאריך: ${localDayKey(receipt.created_at)}\n\n` +
+      `📅 תאריך: ${fmtDateHe(localDayKey(receipt.created_at))}\n\n` +
       (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
   };
@@ -6023,9 +6221,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (t) processVoice(t);
     };
     rec.onerror = (e) => {
-      setVoiceErr(e.error === "not-allowed" || e.error === "service-not-allowed"
-        ? "אין הרשאת מיקרופון. אפשרי גישה בדפדפן ונסי שוב."
-        : "שגיאה בהאזנה. נסי שוב.");
+      // "service-not-allowed" is what an iPhone answers when Dictation is switched off in the phone's own settings, not a browser permission.
+      setVoiceErr(e.error === "service-not-allowed"
+        ? "ההכתבה כבויה בטלפון. אפשר להפעיל אותה בהגדרות הטלפון ← כללי ← מקלדת ← הפעלת הכתבה, או להקליד את הבקשה."
+        : e.error === "not-allowed"
+          ? "אין הרשאת מיקרופון. אפשרי גישה בדפדפן ונסי שוב."
+          : "שגיאה בהאזנה. נסי שוב.");
       setVoiceStatus("error");
     };
     // If listening ended with no result, surface a gentle retry state.
@@ -6142,12 +6343,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return ()=>{ cancelled=true; };
   },[showSettings]);
 
+  // The demo's clients have real-looking numbers: no WhatsApp, call or SMS may open from it (lib/demoOutbound.js).
+  const isDemoTenant = isDemoTenantId(settings?.tenant_id);
+  useEffect(()=>{
+    if(!isDemoTenant) return;
+    return installDemoOutboundGuard(()=>toast("זו תצוגת דמו, אז וואטסאפ לא נפתח. בחשבון שלך ההודעה תיפתח מוכנה לשליחה.","info"));
+  },[isDemoTenant, toast]);
+
   const downloadScanQr = () => {
     if (!scanQr) return;
-    const a = document.createElement("a");
-    a.href = scanQr;
-    a.download = `${(settings.business_name || "kalmea").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`;
-    a.click();
+    // Decoded in the same tap (a fetch first would use it up), so the phone's share sheet is still allowed.
+    const blob = dataUrlToBlob(scanQr);
+    if (!blob) { toast("לא הצלחנו להכין את הקוד להורדה. אפשר לצלם אותו מהמסך", "error"); return; }
+    deliverFile(blob, `${(settings.business_name || "kalmea").replace(/[^\p{L}\p{N}]+/gu, "-")}-skin-scan-qr.png`).then(o => { const t = deliveryToast(o, { downloaded: "הקוד ירד" }); if (t) toast(t.text, t.kind); });
   };
 
   // HIDE, AND NOTHING ELSE. There is no edit here and there cannot be one: the
@@ -6205,9 +6413,17 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (data && data[0]) setOfferings(prev => prev.map(x => x.id === o.id ? data[0] : x));
   };
 
+  const freePackageOk = useRef(false);
   const handleSavePackage = async () => {
     if (guardWrite()) return;
     if(!newPackage.client_id||!newPackage.service){toast("חסרים לקוחה ושירות, אפשר לבחור","error");return;}
+    // A free package is real (a comped series), but a forgotten price used to save as ₪0 without a word and
+    // record no payment (2026-10-24 sweep). Ask once; the confirmed path comes back with free=true.
+    if(!(Number(newPackage.price)>0)&&!freePackageOk.current){
+      askConfirm({title:"חבילה בלי מחיר",message:"לא הוזן מחיר לחבילה. לשמור אותה כמתנה, בלי לרשום תשלום?",confirmText:"כן, בלי תשלום",cancelText:"להוסיף מחיר",onConfirm:()=>{freePackageOk.current=true;handleSavePackage();}});
+      return;
+    }
+    freePackageOk.current=false;
     if(isBusy("savePackage")) return;
     setBusyKey("savePackage", true);
     try {
@@ -6345,7 +6561,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const handleSaveWaitlist = async () => {
     if (guardWrite()) return;
-    if(!newWaitlist.client_name||!newWaitlist.service){toast("חסרים כמה פרטים, אפשר להשלים","error");return;}
+    if(!newWaitlist.client_name||!newWaitlist.service){toast(!newWaitlist.client_name?"בחרי לקוחה לרשימת ההמתנה":"בחרי טיפול לרשימת ההמתנה","error");return;}
     if(isBusy("saveWaitlist")) return;
     setBusyKey("saveWaitlist", true);
     try {
@@ -6391,9 +6607,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const esc=v=>{let t=String(v??"");if(typeof v!=="number"&&/^[=+\-@\t\r]/.test(t))t="'"+t;return `"${t.replace(/"/g,'""')}"`;};
     const csv=rows.map(r=>r.map(esc).join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=`kalmea_payments_${today}.csv`;a.click();URL.revokeObjectURL(url);
-    toast("הקובץ ירד");
+    // On a phone this is the share sheet (the home-screen app and Instagram/Facebook drop a blob download without a word; Safari hides it in Files).
+    deliverFile(blob,`kalmea_payments_${today}.csv`).then(o=>{const t=deliveryToast(o);if(t)toast(t.text,t.kind);});
   };
 
   // === WHATSAPP CENTER HANDLERS ===
@@ -6734,12 +6949,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     try {
       await navigator.clipboard.writeText(url);
       toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
-      if (kind === "book") { setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ } }
+      if (kind === "book") {
+        setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
+        // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
+        if (!settings?.automations?.link_shared_at) persistTourPatch({ link_shared_at: new Date().toISOString() });
+      }
       // Her first link is the long one (an id, not her name). Say once, kindly, that a short readable address exists.
       if (kind === "book" && !mySlug) setTimeout(() => toast("הקישור עוד ארוך. בהגדרות ← הדף שלי אפשר לבחור כתובת קצרה עם שם העסק.", "info"), 900);
       return true;
     } catch {
-      toast(url, "info");
+      // No clipboard here (the in-app browsers of Instagram and Facebook): hand the link to the phone's share sheet while the tap is still
+      // live, and only then fall back to showing it. A bare address in a toast that vanishes in three seconds cannot be copied.
+      try { if (typeof navigator.share === "function") { await navigator.share({ url }); if (kind === "book") setLinkShared(true); return true; } }
+      catch (e) { if (e && e.name === "AbortError") return false; }
+      toast(`אי אפשר להעתיק כאן. הקישור: ${url}`, "info");
       return false;   // not copied: the day-1 nudge stays so she can try again
     }
   };
@@ -7089,7 +7312,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return (
  <div style={{display:"inline-flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
         {segs.map(([id,label])=>(
- <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
+ <button key={id} onClick={()=>setActiveTab(id)} className="primary-btn" style={{padding:"8px 16px",minHeight:44,fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:activeTab===id?pcGrad:"transparent",color:activeTab===id?"var(--pc-contrast)":"var(--ink-2)",fontWeight:600,display:"flex",gap:6,alignItems:"center"}}>
             {label}{id==="leads"&&newLeadsCount>0&&<span style={{background:activeTab===id?"rgba(255,255,255,0.35)":pcGrad,color:activeTab===id?"inherit":"var(--pc-contrast)",fontSize:"var(--t-xs)",fontWeight:700,padding:"1px 7px",borderRadius:"var(--r-full)"}}>{newLeadsCount}</span>}
  </button>
         ))}
@@ -7129,6 +7352,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       isDemo={false}
       toast={toast}
       onSignOut={()=>{ supabase.auth.signOut().finally(()=>router.replace("/login")); }}
+      // After she pays (card page, or by arrangement), the dashboard reopens by itself: the plan is read again and, once it is
+      // active, loadAll runs from the start (the same path as the retry button). Answers whether it reopened.
+      recheck={async()=>{
+        const { data, error } = await supabase.from("tenants").select("*").eq("id", planRow?.id).maybeSingle();
+        if (error || !data || planState(data).isBlocked) return false;
+        setPlanRow(data); setLoadError(null); setLoading(true); loadAll();
+        return true;
+      }}
     />
   );
 
@@ -7543,6 +7774,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           #tax-report{position:fixed;top:0;left:0;right:0;margin:0 auto;width:100%;max-width:720px;box-shadow:none!important;border:none!important;padding:32px 28px}}
       `}</style>
 
+      {photoPost&&<PhotoToPost open onClose={()=>setPhotoPost(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={photoPost.clientName||""} onReel={()=>{setOwnReel({clientName:photoPost.clientName||""});setPhotoPost(null);}}/>}
+      {ownReel&&<OwnReel open onClose={()=>setOwnReel(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={ownReel.clientName||""}/>}
+
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (
       <OnboardingTour
@@ -7571,6 +7805,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         </button>
       )}
 
+      {showMonthlyReport && (
+        <Sheet open onClose={() => setShowMonthlyReport(false)} width={460} zIndex={1000} ariaLabel="הדוח החודשי שלי">
+          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast}/>
+        </Sheet>
+      )}
+
       {showHelp && (
           <Sheet open onClose={() => setShowHelp(false)} width={420} zIndex={5200} ariaLabel="עזרה">
             {helpState === "sent" ? (
@@ -7589,7 +7829,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
                 </div>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
-                  כתבי מה קרה, ו{SUPPORT_TEAM_HE} יחזרו אליך. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
+                  כתבי מה קרה, ותקבלי תשובה מ{SUPPORT_TEAM_HE}. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
                 <textarea
                   value={helpText}
@@ -7765,10 +8005,13 @@ ${MARKETING_FOOTER}`)}`;
  {ageHe&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:2}}>ממתינה · {ageHe}</p>}
  </div>
                 {link?(
- <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));supabase.from("whatsapp_messages").update({status:"sent"}).eq("id",m.id).then(({error})=>{if(error){setWaQueueDone(prev=>({...prev,[m.id]:false}));toast("לא הצלחנו לשמור שההודעה נפתחה","error");}});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נפתח":"שליחה"}</a>
+ <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id})}).then(r=>{if(!r.ok)throw new Error(String(r.status));}).catch(()=>{setWaQueueDone(prev=>({...prev,[m.id]:false}));toast("לא הצלחנו לשמור שההודעה נפתחה","error");});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?"✓ נפתח":"שליחה"}</a>
                 ):(
  <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>מספר לא תקין</span>
                 )}
+                {/* Off the list without sending: an old reminder for a visit that already happened.
+                    It stays in the message log as "הוסרה מהרשימה". */}
+                {!done&&<button aria-label={`הסרת ההודעה ל${m.recipient_name||"לקוחה"} מהרשימה`} title="הסרה מהרשימה בלי לשלוח" onClick={()=>{fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id,action:"dismiss"})}).then(r=>{if(!r.ok)throw new Error(String(r.status));setWhatsappPending(prev=>prev.filter(x=>x.id!==m.id));}).catch(()=>toast("לא הצלחנו להסיר את ההודעה מהרשימה","error"));}} style={{background:"none",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"7px 10px",fontSize:"var(--t-sm)",color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>הסרה</button>}
  </div>
             );
           }))}
@@ -7802,7 +8045,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_MICROPHONE} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>Beauty Voice ✦</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>העוזרת הקולית ✦</h3>
  </div>
  <button onClick={closeVoice} aria-label="סגירה" style={{background:"none",border:"none",fontSize:"var(--t-lg)",cursor:"pointer",color:"var(--ink-3)"}}>✕</button>
  </div>
@@ -8044,7 +8287,9 @@ ${MARKETING_FOOTER}`)}`;
 
             {voiceStatus==="unsupported"&&(
  <div style={{padding:"10px 0"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,textAlign:"center"}}>השליטה הקולית זמינה בדפדפני <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). נסי לפתוח את המערכת באחד מהם.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,textAlign:"center"}}>{typeof navigator!=="undefined"&&/iPhone|iPad|iPod/.test(navigator.userAgent)
+ ?<>השליטה הקולית לא עובדת באפליקציה שהוספת למסך הבית ולא בדפדפן של אינסטגרם או פייסבוק. ב-<b>Safari</b> באייפון היא עובדת, כשההכתבה דלוקה בהגדרות הטלפון. הפקודות שאפשר להגיד:</>
+ :<>השליטה הקולית זמינה בדפדפני <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). נסי לפתוח את המערכת באחד מהם.</>}</p>
  <VoiceCommandList/>
  </div>
             )}
@@ -8259,8 +8504,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
           )}
 
- <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);}}
-            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
+ <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);setShowMobileSidebar(false);}}
+            style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 10px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:"auto",boxShadow:"var(--shadow-accent)"}}>
             ✦ קביעת תור
  </button>
  </aside>
@@ -8311,6 +8556,9 @@ ${MARKETING_FOOTER}`)}`;
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
+ {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
+              pc={pc} pcTint={pcTint} style={{order:1}}
+              onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt}/>}
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's
@@ -8330,8 +8578,16 @@ ${MARKETING_FOOTER}`)}`;
               )}
  </div>
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
+ <button type="button" onClick={()=>{if(guardWrite())return;setPhotoPost({clientName:""});}} data-testid="photo-to-post-open" className="glass-card card-boxed" style={{order:3,display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:1180,marginInline:"auto",marginBottom:12,padding:"14px 17px",textAlign:"right",cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line)"}}>
+ <span aria-hidden style={{width:40,height:40,borderRadius:"50%",background:"var(--ink)",color:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",flex:"none"}}><Icon name="camera" size={18}/></span>
+ <span style={{flex:1}}>
+ <span style={{display:"block",fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)"}}>צילום אחרי טיפול</span>
+ <span style={{display:"block",fontSize:12.5,color:"var(--brand-muted)",marginTop:2}}>תמונה אחת ← פוסט וסטורי. כמה תמונות וסרטונים ← רילס</span>
+ </span>
+ </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
+ <MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
  <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
@@ -8477,7 +8733,7 @@ ${MARKETING_FOOTER}`)}`;
                   const todayLive=todayAppts.filter(a=>a.confirmation_status!=="cancelled");
                   const allEnded=todayLive.length>0&&todayLive.every(a=>{const e=endMinute(a);return e!==null&&e<=nowMin;});
                   // The evening, or the moment the last client has left.
-                  if(!(now.getHours()>=17||allEnded)) return null;
+                  if(myDayOn||!(now.getHours()>=17||allEnded)) return null;
                   const {items,allClear}=buildClosingList({appointments:clientAppts,receipts:liveRcpts,now,endMinute});
                   return(
  <div className="glass-card card-boxed" style={{order:9,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px"}}>
@@ -8502,7 +8758,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{order:4,maxWidth:1180,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-start"}}>
 
  {/* TODAY — the focal point: widest, most prominent */}
- <div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
+ {!myDayOn&&<div className="fm-in glass-card card-boxed" style={{padding:"16px 17px",flex:"2 1 380px",minWidth:0}}>
                     {/* The mockup replaces this card's old icon+heading+count
                         header with just the divider below - the divider
                         itself is the "new section" signal, no label needed. */}
@@ -8577,7 +8833,7 @@ ${MARKETING_FOOTER}`)}`;
                         );
                       });
                     })()}
- </div>
+ </div>}
 
  {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
  <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
@@ -8606,7 +8862,7 @@ ${MARKETING_FOOTER}`)}`;
                       // which they stop coming back at all, and the rest
                       // collapse into one line that opens the triage list.
                       const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
-                      coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
+                      coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
                       if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
@@ -8623,7 +8879,7 @@ ${MARKETING_FOOTER}`)}`;
                       // newest failure's timestamp, so dismissing hides this batch and a
                       // new failure brings the card back.
                       {
-                        const AUTO_TYPES=new Set(["reminder","booking_confirm","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_rebook","auto_package_expiring","reminder_failure"]);
+                        const AUTO_TYPES=new Set(["reminder","booking_confirm","cancel_notice","slot_offer","comeback","receipt","auto_winback","auto_package_done","auto_review","auto_birthday","auto_greeting_birthday","auto_greeting_anniversary","auto_greeting_holiday","auto_rebook","auto_package_expiring","reminder_failure"]);
                         const dayAgo=Date.now()-24*60*60*1000;
                         const failedAuto=(waMessages||[]).filter(m=>m&&m.status==="failed"&&AUTO_TYPES.has(m.message_type)&&parseDb(m.created_at).getTime()>dayAgo);
                         if(failedAuto.length>0){
@@ -8686,7 +8942,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>);
                       return(<>
                         {paused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}><Icon name="pause" size={13}/> האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
-                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"2px 2px 8px"}}><Spinner inline label="טוען הצעות מעקב עור"/></p>}
+                        {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"2px 2px 8px"}}><Spinner inline label="טוענת הצעות מעקב עור"/></p>}
                         {skinQueueError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
  <div key={it.key} style={{border:"1px solid var(--line)",background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"11px 13px",marginBottom:8}}>
@@ -8715,7 +8971,7 @@ ${MARKETING_FOOTER}`)}`;
                                   ):(
  <button onClick={it.run} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",padding:"7px 15px"}}>{it.primaryLabel}</button>
                                   )}
- <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",fontSize:"var(--t-md)",padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>דחייה</button>
+ <button onClick={()=>setQueueDismissed(prev=>{const n=new Set(prev);n.add(it.key);return n;})} style={{background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",fontSize:"var(--t-md)",padding:"7px 12px",color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>הסתרה</button>
  </div>
  </div>
  </div>
@@ -8881,12 +9137,12 @@ ${MARKETING_FOOTER}`)}`;
  <span className="pill" style={{gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"var(--ink-2)"}}/>אישי</span>
  </div>
  <div className={calView==="week"?undefined:"desktop-only"} style={{display:"flex",alignItems:"center",gap:2,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:3,boxShadow:"var(--shadow-xs)"}}>
- <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>←</button>
+ <button aria-label="שבוע קודם" onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>→</button>
  <button onClick={()=>setWeekStart(new Date())} style={{background:"var(--pc-tint)",border:"none",borderRadius:"var(--r-sm)",padding:"7px 14px",cursor:"pointer",fontSize:"var(--t-sm)",fontWeight:600,color:pcDeep,fontFamily:"inherit"}}>היום</button>
- <button onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>→</button>
+ <button aria-label="שבוע הבא" onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>←</button>
  </div>
  <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}><Icon name="lock" size={14}/> אירוע אישי</button>
- <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
+ <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
  </div>
  <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"hidden",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
@@ -9006,12 +9262,12 @@ ${MARKETING_FOOTER}`)}`;
                 return(
  <div className="mobile-only" style={{flexDirection:"column",maxWidth:560,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12}}>
- <button aria-label="יום קודם" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()-1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>←</button>
+ <button aria-label="יום קודם" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()-1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>→</button>
  <div style={{textAlign:"center",flex:1}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600}}>יום {DAYS_HE[calDay.getDay()]}</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-xl)",fontWeight:700,color:isTodaySel?pc:"var(--ink)",letterSpacing:"-0.01em"}}>{formatDateHe(calDay)}{isTodaySel?" · היום":""}</p>
  </div>
- <button aria-label="יום הבא" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()+1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>→</button>
+ <button aria-label="יום הבא" onClick={()=>{const d=new Date(calDay);d.setDate(d.getDate()+1);setCalDay(d);}} style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",width:44,height:44,fontSize:"var(--t-xl)",color:pc,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>←</button>
  </div>
  <div style={{display:"flex",gap:8,marginBottom:14}}>
  <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
@@ -9090,6 +9346,7 @@ ${MARKETING_FOOTER}`)}`;
                                     ):live?(
  <button onClick={stop(()=>handleOpenCashier(appt))} style={main}>₪ לתשלום</button>
                                     ):null}
+ {!isPersonal(appt)&&live&&appt.client_id&&appt.date<=today&&clients.some(c=>String(c.id)===String(appt.client_id))&&<button data-testid="rebook-appt" onClick={stop(()=>setRebookNext({client:clients.find(c=>String(c.id)===String(appt.client_id)),appt}))} style={ghost}>↻ קבעי לה שוב</button>}
  <button aria-expanded={open} aria-label="עוד פעולות" onClick={e=>{e.stopPropagation();setApptMenuId(open?null:appt.id);}} style={ghost}>{open?"סגירה":"עוד ⋯"}</button>
  </div>
                                   {open&&(
@@ -9098,7 +9355,7 @@ ${MARKETING_FOOTER}`)}`;
                                     {!isPersonal(appt)&&hasPhone&&<button onClick={stop(()=>sendReminderToClient(appt))} disabled={isBusy("sendReminder")} style={ghost}>תזכורת</button>}
                                     {canTime&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
                                     {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button onClick={stop(()=>markNoShow(appt))} style={ghost}>לא הגיעה</button>}
- <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"מחיקה"}</button>
+ <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"ביטול התור"}</button>
  </div>
                                   )}
                                   </>);
@@ -9188,7 +9445,7 @@ ${MARKETING_FOOTER}`)}`;
                         {days>90&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>רדומה · {days}י</span>}
                         {total>0&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"var(--pc-tint)",color:pcDeep,padding:"3px 8px"}}>₪{total.toLocaleString()}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{client.phone&&`${fmtPhone(client.phone)} · `}{countHe(appts.filter(a=>a.confirmation_status!=="cancelled").length,"תור אחד","תורים")}{last&&` · ${last.service}`}</p>
  </div>
                     {client.phone&&<a href={waLink(client.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"6px 11px",fontSize:"var(--t-sm)"}}>✆ הודעה</a>}
  <span style={{fontSize:"var(--t-md)",color:pc}}>←</span>
@@ -9329,7 +9586,7 @@ ${MARKETING_FOOTER}`)}`;
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_WALLET} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
  </div>
- <button onClick={()=>setActiveTab("tax")} style={{marginTop:6,background:"none",border:"none",padding:0,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
+ <button onClick={()=>setActiveTab("tax")} style={{marginTop:0,background:"none",border:"none",padding:"13px 0",minHeight:44,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>
@@ -9433,7 +9690,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {localDayKey(r.created_at)}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {fmtDateHe(localDayKey(r.created_at))}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
@@ -9615,7 +9872,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)"}}>יומן הודעות</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>100 ההודעות האחרונות שנשלחו מהמערכת בשמך.</p>
  </div>
- <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{waLogLoading?<Spinner inline label="טוען"/>:"רענני"}</button>
+ <button onClick={loadWaMessages} disabled={waLogLoading} className="primary-btn" style={{padding:"8px 18px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{waLogLoading?<Spinner inline label="טוענת"/>:"רענני"}</button>
  </div>
 
  {waLogError&&(
@@ -9624,7 +9881,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  )}
 
- {waLogLoading&&waMessages===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"26px 0"}}><Spinner inline label="טוען"/></p>}
+ {waLogLoading&&waMessages===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"26px 0"}}><Spinner inline label="טוענת"/></p>}
 
  {!waLogLoading&&waMessages&&waMessages.length===0&&(
  <div className="glass-card" style={{padding:"36px 20px",textAlign:"center"}}>
@@ -9696,7 +9953,7 @@ ${MARKETING_FOOTER}`)}`;
  <option value="last_30d">30 ימים</option>
  <option value="last_90d">90 ימים</option>
  </select>
- <button onClick={()=>loadFbCampaigns()} disabled={fbLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{fbLoading?<Spinner inline label="טוען"/>:fbCampaigns===null?"טעני קמפיינים":"רענני"}</button>
+ <button onClick={()=>loadFbCampaigns()} disabled={fbLoading} className="primary-btn" style={{padding:"7px 14px",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>{fbLoading?<Spinner inline label="טוענת"/>:fbCampaigns===null?"טעני קמפיינים":"רענני"}</button>
  </div>
  </div>
 
@@ -9865,6 +10122,9 @@ ${MARKETING_FOOTER}`)}`;
  {reelError&&(
  <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-md)",padding:"12px 16px",marginBottom:16}}>
  <p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600}}>{reelError}</p>
+ {addonPackForMessage(reelError)&&(
+ <button type="button" data-testid="addon-offer-reels" onClick={openAddons} className="primary-btn" style={{marginTop:10,background:"var(--pc-grad)",color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:600,padding:"10px 16px",minHeight:44,borderRadius:"var(--r-sm)",border:"none",cursor:"pointer",fontFamily:"inherit"}}>{addonButtonHe(addonPackForMessage(reelError))}</button>
+ )}
  </div>
  )}
 
@@ -9897,7 +10157,7 @@ ${MARKETING_FOOTER}`)}`;
    if(reelData.caption)lines.push("","תיאור: "+reelData.caption);
    if(reelData.hashtags&&reelData.hashtags.length>0)lines.push(reelData.hashtags.join(" "));
    if(reelData.music_vibe)lines.push("","🎵 "+reelData.music_vibe);
-   navigator.clipboard.writeText(lines.join("\n")).then(()=>toast("הרילס המלא הועתק")).catch(()=>toast("ההעתקה לא הצליחה, אפשר לסמן ולהעתיק ידנית","error"));
+   copyText(lines.join("\n")).then(ok=>ok?toast("הרילס המלא הועתק"):toast("ההעתקה לא הצליחה, אפשר לסמן ולהעתיק ידנית","error"));
  }} className="primary-btn" style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pc,border:`1.5px solid ${pc}`,fontSize:"var(--t-sm)",marginBottom:14}}><Icon name="copy" size={14}/> העתיקי את כל הרילס</button>
 
  {reelData.scenes&&reelData.scenes.length>0&&reelData.scenes.map((sc,i)=>(
@@ -9981,7 +10241,8 @@ ${MARKETING_FOOTER}`)}`;
             const profit = periodProfit({ net, expensesTotal, inputVat, status });
             const exportForAccountant = async () => {
               try {
-                const XLSX = await import("xlsx");
+                // The library is preloaded when this screen opens, so the file is built inside the tap and a phone can share it.
+                const XLSX = loadedXlsx() || await getXlsx();
                 const sh = accountantSheets({ businessName: settings.business_name, statusLabel, rangeLabel, status,
                   totals: { gross, net, vatDue, count }, expensesTotal, inputVat, receipts: periodReceipts, expenses: periodExpenses, parse: parseDb });
                 const wb = XLSX.utils.book_new();
@@ -9991,7 +10252,9 @@ ${MARKETING_FOOTER}`)}`;
                   XLSX.utils.book_append_sheet(wb, ws, name);
                 }
                 wb.Workbook = { Views: [{ RTL: true }] };
-                XLSX.writeFile(wb, `לרואה-החשבון-${rangeLabel.replace(/[\s–]+/g, "-")}.xlsx`);
+                const o = await deliverFile(workbookBlob(XLSX, wb), `kalmea-accountant-${taxYear}${mode==="annual"?"":"-"+(taxPeriodIdx+1)}.xlsx`);
+                const t = deliveryToast(o, { downloaded: "הקובץ ירד" });
+                if (t) toast(t.text, t.kind);
               } catch (e) {
                 console.error("[tax] accountant export failed:", e?.message || String(e));
                 toast("לא הצלחנו להכין את הקובץ, אפשר לנסות שוב", "error");
@@ -10047,6 +10310,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>window.print()} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 22px",fontSize:"var(--t-sm)",display:"inline-flex",alignItems:"center",gap:8}}>
  <svg viewBox="0 0 24 24" width="16" height="16" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
                     הורדת PDF / הדפסה
+ </button>
+ <button onClick={()=>setShowMonthlyReport(true)} data-testid="open-monthly-report" className="secondary-btn" style={{padding:"10px 18px",fontSize:"var(--t-sm)",marginInlineStart:8,border:`1px solid ${pc}`,background:"var(--surface)",color:"var(--ink)",borderRadius:"var(--r-full)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                    הדוח החודשי שלי
  </button>
  <button onClick={exportForAccountant} className="secondary-btn" style={{padding:"10px 18px",fontSize:"var(--t-sm)",marginInlineStart:8,border:`1px solid ${pc}`,background:"var(--surface)",color:"var(--ink)",borderRadius:"var(--r-full)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
                     קובץ לרואה החשבון (Excel)
@@ -10121,7 +10387,7 @@ ${MARKETING_FOOTER}`)}`;
                           const sel=newExpense.category===cat.k;
                           return <button key={cat.k} onClick={()=>setNewExpense({...newExpense,category:cat.k})} style={{padding:"5px 12px",borderRadius:"var(--r-md)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{cat.l}</button>;
                         })}
- <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"var(--pc-contrast)",padding:"8px 18px",fontSize:"var(--t-sm)"}}>{isBusy("addExpense")?<Spinner inline label="מוסיף"/>:"הוספת הוצאה"}</button>
+ <button onClick={handleAddExpense} disabled={isBusy("addExpense")} className="primary-btn" style={{marginRight:"auto",background:pcGrad,color:"var(--pc-contrast)",padding:"8px 18px",fontSize:"var(--t-sm)"}}>{isBusy("addExpense")?<Spinner inline label="מוסיפה"/>:"הוספת הוצאה"}</button>
  </div>
  </div>
 
@@ -10167,7 +10433,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <div id="advisor-scroll" className="glass-card" style={{flex:1,overflowY:"auto",padding:"18px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:300}}>
               {advisorMessages===null?(
- <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:"var(--t-sm)",margin:"auto"}}><Spinner inline label="טוען"/></p>
+ <p style={{textAlign:"center",color:"var(--ink-3)",fontSize:"var(--t-sm)",margin:"auto"}}><Spinner inline label="טוענת"/></p>
               ):advisorMessages.length===0?(
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
  <BrandImage width={60} height={60} aria-hidden alt="" src={ICON_SPARKLE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
@@ -10450,6 +10716,12 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
       {/* APPT MODAL */}
+      {rebookNext&&(<RebookNextSheet
+        client={rebookNext.client} anchorAppt={rebookNext.appt} appointments={appointments} services={activeServices} settings={settings}
+        today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
+        onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
+        pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
+      {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
  <Sheet open onClose={closeApptModal} width={360} zIndex={1000} className="pop-in" title={editingAppointmentId?"עריכת תור":"קביעת תור חדש"}>
@@ -10657,7 +10929,7 @@ ${MARKETING_FOOTER}`)}`;
  {importStage==="paste"&&(<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
- {importTarget==="clients"&&(<><button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>
+ {importTarget==="clients"&&(<>{/* The contact picker exists only on Chrome for Android: on an iPhone the button could never work, so it is not shown there (2026-10-24 phone review). */}{typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
@@ -10686,10 +10958,18 @@ ${MARKETING_FOOTER}`)}`;
    // How many people in this paste we have never seen, so she knows before
    // pressing the button that clients will be created too.
    const newClientCount = importTarget!=="appts" ? 0 : (()=>{
-     const have = new Set(clients.map(c=>String(c.phone||"").replace(/\D/g,"")).filter(Boolean));
+     const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
      const s = new Set();
-     built.rows.forEach(r=>{ const k=String(r.phone||"").replace(/\D/g,""); if(k&&!have.has(k)) s.add(k); });
+     built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(k&&!have.has(k)) s.add(k); });
      return s.size;
+   })();
+   // Clients already on file are skipped by the import (matched by phone), so the preview counts them
+   // too: it promised "3 will be created" when 1 of them would be skipped (2026-10-24 sweep).
+   const existingClientCount = importTarget!=="clients" ? 0 : (()=>{
+     const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
+     const s = new Set(); let n = 0;
+     built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(!k) return; if(have.has(k)||s.has(k)) n++; else s.add(k); });
+     return n;
    })();
    return (<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
@@ -10729,7 +11009,8 @@ ${MARKETING_FOOTER}`)}`;
  {!hasName
    ?<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה בתור «{missingLabels}» כדי להמשיך.</p>
    :<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
-      <strong style={{color:pcDeep}}>{built.rows.length} {importSpec.unit} ייווצרו</strong>
+      <strong style={{color:pcDeep}}>{built.rows.length-existingClientCount} {importSpec.unit} ייווצרו</strong>
+      {existingClientCount>0&&<> · {existingClientCount} כבר קיימות אצלך ולא ייווצרו שוב</>}
       {newClientCount>0&&<> · {newClientCount} לקוחות חדשות ייווצרו גם</>}
       {built.past>0&&<> · {built.past} דולגו — תאריך שכבר עבר</>}
       {built.noDate>0&&<> · {built.noDate} דולגו — תאריך לא ברור</>}
@@ -10754,7 +11035,7 @@ ${MARKETING_FOOTER}`)}`;
  )}
 
  <div style={{display:"flex",gap:8}}>
- <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length===0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length===0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבא"/>:`ייבוא ${built.rows.length} ${importSpec.unit}`}</button>
+ <button onClick={importTarget==="appts"?importAppointments:importTarget==="services"?importServices:importContacts} disabled={importing||!hasName||built.rows.length-existingClientCount<=0} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",opacity:(importing||!hasName||built.rows.length-existingClientCount<=0)?0.5:1,boxShadow:"var(--shadow-accent)"}}>{importing?<Spinner inline label="מייבאת"/>:`ייבוא ${built.rows.length-existingClientCount} ${importSpec.unit}`}</button>
  <button onClick={()=>setImportStage("paste")} style={{flex:1,padding:"12px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-md)",cursor:"pointer",fontFamily:"inherit"}}>→ חזרה</button>
  </div>
  </>);
@@ -10809,7 +11090,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowClientModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveClient} disabled={isBusy("saveClient")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveClient")?<Spinner inline label="שומר"/>:"שמירה ✓"}</button>
+ <button onClick={handleSaveClient} disabled={isBusy("saveClient")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveClient")?<Spinner inline label="שומרת"/>:"שמירה ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -10828,7 +11109,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowLeadModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveLead} disabled={isBusy("saveLead")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveLead")?<Spinner inline label="שומר"/>:"שמירה ✓"}</button>
+ <button onClick={handleSaveLead} disabled={isBusy("saveLead")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{isBusy("saveLead")?<Spinner inline label="שומרת"/>:"שמירה ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -10925,6 +11206,20 @@ ${MARKETING_FOOTER}`)}`;
       {/* CASHIER MODAL */}
       {showCashier&&(
  <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="קופה — תשלום חדש">
+ {/* No business type = no legal document from Morning (lib/legalReceipts/service.js, tax_status_missing). Said here, before she
+     charges, with a way to fix it. Never blocks the payment itself (owner's decision, 2026-10-23). */}
+ {(!settings.business_tax_status||taxStatusUnconfirmed(settings))&&(
+ <div role="note" data-testid="cashier-tax-warning" style={{background:"var(--k-petal)",border:"1px solid var(--k-pink)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:10,fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.55}}>
+ {!settings.business_tax_status?(<>
+ <p style={{fontWeight:700,margin:0}}>רגע לפני שגובים: עוד לא בחרת סוג עסק</p>
+ <p style={{margin:"3px 0 4px",color:"var(--ink-2)"}}>{legalAccount?.connected?"בלי לבחור פטור, מורשה או חברה, מורנינג לא תפיק קבלה חוקית על התשלום הזה.":"בלי לבחור פטור, מורשה או חברה לא נוכל להפיק קבלה חוקית כשתחברי את מורנינג, וסיכום ההכנסות לא יחושב."} התשלום עצמו יירשם כרגיל.</p>
+ </>):(<>
+ <p style={{fontWeight:700,margin:0}}>רגע לפני שגובים: בדקי את סוג העסק</p>
+ <p style={{margin:"3px 0 4px",color:"var(--ink-2)"}}>כרגע רשום &quot;{TAX_STATUS_HE[settings.business_tax_status]||settings.business_tax_status}&quot; כברירת מחדל, ועוד לא אישרת שזה נכון. {legalAccount?.connected?"אם זה לא הסוג שלך, הקבלה ממורנינג תצא מהסוג הלא נכון.":"זה קובע איזו קבלה תצא כשתחברי את מורנינג."} התשלום עצמו יירשם כרגיל.</p>
+ </>)}
+ <button type="button" onClick={()=>{setShowCashier(false);openSetupTab("general");}} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--k-green)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>{settings.business_tax_status?"לאישור סוג העסק בהגדרות ←":"לבחירת סוג העסק בהגדרות ←"}</button>
+ </div>
+ )}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"var(--success)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"var(--surface-2)":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
@@ -11036,7 +11331,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setShowCashier(false)} className="primary-btn" style={{flex:1,padding:"12px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
- <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומר"/>:"רשמי תשלום ✓"}</button>
+ <button onClick={handleSaveReceipt} disabled={isBusy("saveReceipt")} className="primary-btn" style={{flex:2,padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>{isBusy("saveReceipt")?<Spinner inline label="שומרת"/>:"רשמי תשלום ✓"}</button>
  </div>
  </Sheet>
       )}
@@ -11053,7 +11348,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{fontSize:"var(--t-xs)",color:"var(--ink)",lineHeight:1.9}}>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{localDayKey(showReceipt.created_at)}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{fmtDateHe(localDayKey(showReceipt.created_at))}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
                 {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
@@ -11167,7 +11462,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",gap:6,padding:"0 24px 24px"}}>
  <button onClick={()=>printReceipt(showReceipt)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>הדפסה</button>
               {(()=>{const cl=clients.find(c=>String(c.id)===String(showReceipt.client_id));return cl?.phone?(
- <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:"var(--t-xs)",border:"none"}}>{isBusy("sendReceipt")?<Spinner inline label="שולח"/>:"שליחה ללקוחה"}</button>
+ <button onClick={async()=>{if(isBusy("sendReceipt"))return;setBusyKey("sendReceipt",true);try{await sendReceiptToClient(showReceipt);}finally{setBusyKey("sendReceipt",false);}}} disabled={isBusy("sendReceipt")} className="primary-btn" style={{flex:1,padding:"11px 0",background:"#25D366",color:"#fff",fontSize:"var(--t-xs)",border:"none"}}>{isBusy("sendReceipt")?<Spinner inline label="שולחת"/>:"שליחה ללקוחה"}</button>
               ):null;})()}
  <button onClick={()=>setShowReceipt(null)} className="primary-btn" style={{flex:1,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-xs)"}}>סגירה</button>
  </div>
@@ -11591,10 +11886,12 @@ ${MARKETING_FOOTER}`)}`;
                   {[{k:"exempt",l:"עוסק פטור"},{k:"licensed",l:"עוסק מורשה"},{k:"company",l:"חברה בע\"מ"}].map(o=>{
                     // No default: an unset status is shown as unset (below), never as "עוסק פטור".
                     const sel=editSettings.business_tax_status===o.k;
-                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k})} style={{flex:1,padding:"9px 4px",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
+                    return <button key={o.k} onClick={()=>setEditSettings({...editSettings,business_tax_status:o.k,business_tax_status_set_at:new Date().toISOString()})} style={{flex:1,padding:"9px 4px",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{o.l}</button>;
                   })}
  </div>
  {!editSettings.business_tax_status&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700,marginTop:6,lineHeight:1.5}}>עוד לא בחרת. בלי זה לא נפיק קבלה או חשבונית חוקית, וסיכום ההכנסות לא יחושב.</p>}
+ {/* The live column defaults to 'exempt' (add_business_tax_status_set_at.sql): until she taps a type, it may be the default, not her answer. */}
+ {!!editSettings.business_tax_status&&taxStatusUnconfirmed(editSettings)&&<p data-testid="tax-status-unconfirmed" style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginTop:6,lineHeight:1.5}}>הסוג הזה נרשם אצלנו כברירת מחדל ועוד לא אישרת אותו. לחצי על הסוג הנכון ושמרי, כדי שהקבלות ממורנינג ייצאו נכון.</p>}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הבחירה קובעת איזה מסמך חוקי מופק ללקוחות (אם חיברת תוכנת חשבוניות), ואיך מחושב אומדן המע&quot;מ במסך &quot;סיכום הכנסות&quot;. סיכום ההכנסות הוא לנוחותך, לא דוח להגשה.</p></div>
  </>)}
  {inG("connections")&&(<CalendarFeedCard pc={pc} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
@@ -11683,7 +11980,7 @@ ${MARKETING_FOOTER}`)}`;
  <input type="password" value={pwCurrent} onChange={e=>setPwCurrent(e.target.value)} placeholder="סיסמה נוכחית" autoComplete="current-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="password" value={pwNew} onChange={e=>setPwNew(e.target.value)} placeholder="סיסמה חדשה (לפחות 8 תווים)" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <input type="password" value={pwConfirm} onChange={e=>setPwConfirm(e.target.value)} placeholder="אימות סיסמה חדשה" autoComplete="new-password" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",marginTop:2}}>{isBusy("changePw")?<Spinner inline label="מעדכן"/>:"עדכון סיסמה"}</button>
+ <button onClick={handleChangePassword} disabled={isBusy("changePw")} className="primary-btn" style={{padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",marginTop:2}}>{isBusy("changePw")?<Spinner inline label="מעדכנת"/>:"עדכון סיסמה"}</button>
  </div>
  </div>
 
@@ -11752,7 +12049,7 @@ ${MARKETING_FOOTER}`)}`;
                         {slugDraft===null?(
  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:600,direction:"ltr",wordBreak:"break-all"}}>{origin.replace(/^https?:\/\//,"")}/{mySlug||"…"}</span>
- <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug||slugify(settings.business_name||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
+ <button onClick={()=>{setSlugNote("");setSlugDraft(mySlug&&!/[א-ת]/.test(mySlug)?mySlug:(latinSlugFromName(settings.business_name||"")||mySlug||""));}} style={{background:"none",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{mySlug?"שינוי":"בחירת כתובת"}</button>
  </div>
                         ):(<>
  <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -11764,8 +12061,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>{setSlugDraft(null);setSlugNote("");}} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>ביטול</button>
  <button onClick={saveSlug} disabled={slugBusy||!!slugError(slugDraft)} style={{flex:2,background:pcGrad,border:"none",borderRadius:"var(--r-sm)",padding:"8px 0",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--pc-contrast)",cursor:"pointer",fontFamily:"inherit",opacity:(slugBusy||!!slugError(slugDraft))?0.5:1}}>{slugBusy?<Spinner inline label="שומרת"/>:"שמירת הכתובת"}</button>
  </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. הקישור הישן ימשיך לעבוד תמיד.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>אפשר בעברית או באנגלית. כתובת באנגלית נשארת קצרה ונקייה כשמעתיקים אותה לאינסטגרם ולוואטסאפ. הקישור הישן ימשיך לעבוד תמיד.</p>
                         </>)}
+                        {slugDraft===null&&mySlug&&/[א-ת]/.test(mySlug)&&<p data-testid="hebrew-slug-hint" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>כתובת בעברית הופכת לרצף ארוך של סימנים כשמעתיקים אותה. כדאי לבחור כתובת באנגלית, והישנה תמשיך לעבוד.</p>}
  </div>
                     )}
                     {settings?.tenant_id&&(
@@ -11888,7 +12186,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>קישורים ורשתות חברתיות (יוצגו רק אם מולאו)</p>
- <div><p style={lbl}>מספר וואטסאפ</p><input value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
+ <div><p style={lbl}>מספר וואטסאפ</p><input type="tel" inputMode="tel" autoComplete="tel-national" dir="ltr" value={brand.whatsapp_number||""} onChange={e=>setBrand("whatsapp_number",e.target.value)} placeholder="050-0000000" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>אינסטגרם</p><input value={brand.instagram||""} onChange={e=>setBrand("instagram",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>פייסבוק</p><input value={brand.facebook||""} onChange={e=>setBrand("facebook",e.target.value)} placeholder="username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
  <div><p style={lbl}>טיקטוק</p><input value={brand.tiktok||""} onChange={e=>setBrand("tiktok",e.target.value)} placeholder="@username או קישור מלא" style={{...inp,direction:"ltr",textAlign:"left"}}/></div>
@@ -12136,7 +12434,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{background:"var(--pc-tint)",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:8}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,marginBottom:4}}>המפתח שלך — מוצג פעם אחת בלבד:</p>
  <p style={{fontSize:"var(--t-sm)",fontFamily:"monospace",direction:"ltr",textAlign:"left",wordBreak:"break-all",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",userSelect:"all"}}>{leadKeyJustGenerated}</p>
- <button onClick={()=>{try{navigator.clipboard.writeText(leadKeyJustGenerated);toast("המפתח הועתק");}catch{toast("ההעתקה נכשלה — סמני והעתיקי ידנית","error");}}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--pc-contrast)",padding:"7px 14px",fontSize:"var(--t-sm)"}}>העתקה</button>
+ <button onClick={()=>{copyText(leadKeyJustGenerated).then(ok=>ok?toast("המפתח הועתק"):toast("ההעתקה נכשלה — סמני והעתיקי ידנית","error"));}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--pc-contrast)",padding:"7px 14px",fontSize:"var(--t-sm)"}}>העתקה</button>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר — שליחת ליד:</p>
  <pre style={{fontSize:"var(--t-xs)",fontFamily:"monospace",direction:"ltr",textAlign:"left",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",overflowX:"auto",whiteSpace:"pre",userSelect:"all"}}>{`curl -X POST ${typeof window!=="undefined"?window.location.origin:""}/api/leads/intake \
   -H "Content-Type: application/json" \
@@ -12211,9 +12509,13 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </>)}
  {inG("messages")&&(<>
+ <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}><GreetingsPanel pc={pc} toast={toast}/></div>
+ </>)}
+ {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
+ <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
  </div>
  </>)}
@@ -12522,9 +12824,9 @@ ${MARKETING_FOOTER}`)}`;
               {inG("business","connections")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  {inG("business")&&(<>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון העסק (וואטסאפ ויצירת קשר, וגם ביט)</p><input value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>טלפון העסק (וואטסאפ ויצירת קשר, וגם ביט)</p><input type="tel" inputMode="tel" dir="ltr" value={editSettings.business_phone||""} onChange={e=>setEditSettings({...editSettings,business_phone:e.target.value})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>זה המספר שלקוחות רואות בדף הקביעה ובהודעות, וגם הוא ישמש לבקשות תשלום בביט. אפשר להשאיר ריק.</p>
- <div style={{marginTop:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>המספר שלך לקבלת התראות (לא מוצג ללקוחות)</p><input value={(editSettings.automations&&typeof editSettings.automations==="object"&&editSettings.automations.owner_phone)||""} onChange={e=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,owner_phone:e.target.value}};})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
+ <div style={{marginTop:6}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>המספר שלך לקבלת התראות (לא מוצג ללקוחות)</p><input type="tel" inputMode="tel" dir="ltr" value={(editSettings.automations&&typeof editSettings.automations==="object"&&editSettings.automations.owner_phone)||""} onChange={e=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,owner_phone:e.target.value}};})} placeholder="050-0000000" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginTop:4}}>התראות אליך בוואטסאפ (תור חדש, ביטול) יגיעו למספר הזה. אם תשאירי ריק, הן יגיעו למספר העסק.</p></div>
  </>)}
  {inG("connections")&&(<>
@@ -12577,7 +12879,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:6,padding:"14px 24px"}}>
  <button onClick={()=>closeSettings()} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>סגירה</button>
- <button onClick={saveSettingsPanel} disabled={isBusy("saveSettings")||!panelDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:panelDirty?pcGrad:"var(--line-2)",color:panelDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:panelDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומר"/>:panelDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
+ <button onClick={saveSettingsPanel} disabled={isBusy("saveSettings")||!panelDirty} className="primary-btn" style={{flex:2,padding:"11px 0",background:panelDirty?pcGrad:"var(--line-2)",color:panelDirty?"var(--pc-contrast)":"var(--ink-3)",fontSize:"var(--t-sm)",cursor:panelDirty?"pointer":"default",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>{isBusy("saveSettings")?<Spinner inline label="שומרת"/>:panelDirty?(<><BrandImage width={14} height={14} aria-hidden alt="" src={FLOWER_64} style={{width:14,height:14,objectFit:"contain"}}/>שמירה ✓</>):"אין שינויים"}</button>
  </div>
  </div>
  </Sheet>
@@ -12598,7 +12900,7 @@ ${MARKETING_FOOTER}`)}`;
               const statusColor=STATUS_COLORS[c.status]||"var(--warning)";
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedClient(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:14}}>
  <div style={{width:60,height:60,borderRadius:"50%",background:c.images?.[0]?"transparent":"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",fontWeight:700,overflow:"hidden",flexShrink:0}}>{c.images?.[0]?<SignedImage value={c.images[0]} alt={c.name} style={{width:"100%",height:"100%",objectFit:"cover"}} fallback={c.name[0]}/>:c.name[0]}</div>
  <div style={{flex:1}}>
@@ -12621,16 +12923,21 @@ ${MARKETING_FOOTER}`)}`;
  {/* Book an appointment for THIS client — opens the existing new-appointment
      modal pre-filled with her (all the per-day-hours / no-double-booking /
      end-time logic is reused as-is). Closes the drawer so the modal is visible. */}
- <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ <button onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setSelectedClient(null);setShowModal(true);}} style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",minHeight:44,fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-md)"}}>✦ קביעת תור</button>
+ {/* One tap to the NEXT visit: her rhythm, the nearest free slot at her usual time (components/RebookNextSheet). */}
+ <button data-testid="rebook-client" onClick={()=>{setRebookNext({client:c,appt:null});}} style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"transparent",color:"var(--surface)",border:"1.5px solid rgba(255,255,255,0.85)",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>↻ קבעי לה שוב</button>
+ {/* Her private results page: photos she agreed to, what was done, aftercare, next-visit button (app/ClientPageSheet). */}
+ <button type="button" onClick={()=>setClientPageFor(c)} data-testid="client-page-open" style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>✦ שליחת הדף שלה</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
      nails-only tenant (skinScanVisible derives that from business_fields
      when she hasn't explicitly toggled it in Settings); existing scan
      history below is untouched either way — this only hides the action to
      take a NEW scan, never past data. */}
+ <button type="button" onClick={()=>{if(guardWrite())return;setSelectedClient(null);setPhotoPost({clientName:c.name||""});}} data-testid="photo-to-post-client" style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>✦ צילום אחרי טיפול</button>
  {skinScanVisible(settings)&&(
  <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
  {scanLoading?<Spinner inline label="סורקת"/>:"✦ סריקת עור AI"}
- <input type="file" accept="image/*" capture="user" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
+ <input type="file" accept="image/*" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
  </label>
  )}
  </div>
@@ -12657,7 +12964,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <div style={{display:"flex",gap:3,padding:"14px 22px 0",borderBottom:"1px solid var(--line)",overflowX:"auto"}}>
                   {[{k:"info",l:"פרטים"},{k:"history",l:`היסטוריה (${appts.length})`},{k:"scans",l:`סריקות עור (${clientScans.length})`,hidden:!skinScanVisible(settings)&&clientScans.length===0},{k:"receipts",l:`תשלומים (${cReceipts.length})`},{k:"packages",l:`חבילות (${cPackages.length})`},{k:"forms",l:`טפסים${deferred.forms==="ok"?` (${cForms.length})`:""}`},{k:"beforeafter",l:`לפני/אחרי (${clientPhotos.length})`},{k:"images",l:`תמונות (${c.images?.length||0})`}].filter(t=>!t.hidden).map(t=>(
- <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
+ <button key={t.k} onClick={()=>setClientTab(t.k)} style={{background:"none",border:"none",padding:"9px 9px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:clientTab===t.k?700:500,color:clientTab===t.k?pcDeep:"var(--ink-3)",borderBottom:clientTab===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                   ))}
  </div>
 
@@ -12697,9 +13004,12 @@ ${MARKETING_FOOTER}`)}`;
                             {ms==="none"&&"לא אישרה קבלת עדכונים ומבצעים, ולכן לא נכללת ברשימות שיווק. תזכורות ואישורי תשלום ממשיכים כרגיל."}
  </p>
  <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                            {ms!=="consent"&&<button onClick={()=>saveClientMarketing(c,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>סימון הסכמה לדיוור</button>}
-                            {ms!=="opted_out"&&<button onClick={()=>askConfirm({title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור? לא יישלחו לה עוד הודעות שיווק.`,confirmText:"כן, להסיר",onConfirm:()=>saveClientMarketing(c,optOutFields(),"נרשם: ביקשה הסרה מדיוור")})} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>ביקשה הסרה מדיוור</button>}
+                            {ms!=="consent"&&<button onClick={()=>saveClientMarketing(c,consentFields("manual"),"ההסכמה לדיוור נשמרה")} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:44}}>סימון הסכמה לדיוור</button>}
+                            {ms!=="opted_out"&&<button onClick={()=>askConfirm({title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור? (למשל כתבה לך "הסר" בוואטסאפ.) לא יישלחו לה עוד הודעות שיווק.`,confirmText:"כן, להסיר",onConfirm:()=>saveClientMarketing(c,optOutFields(),"נרשם: הסירה את עצמה מדיוור")})} disabled={isBusy("clientMarketing")} style={{flex:"1 1 130px",padding:"8px 10px",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",background:"var(--surface)",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:44}}>הסירה את עצמה מדיוור</button>}
  </div>
+                            {/* Overnight report item ה (2026-10-21): a "הסר" sent to HER OWN WhatsApp never reaches Kalmea (only the central number's
+                                webhook records it), so the opt-out the law requires (section 30A) exists only if she records it here. */}
+                            {ms!=="opted_out"&&<p data-testid="marketing-optout-hint" style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,marginTop:6}}>כתבה לך "הסר" בוואטסאפ האישי? המערכת לא רואה את ההודעות שם, אז חשוב לסמן כאן. מהרגע הזה לא יישלחו לה הודעות שיווק, ותזכורות לתורים ממשיכות כרגיל.</p>}
  </div>
                       ); })()}
  {c.birthday&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--surface-2)"}}><span style={{color:"var(--ink-2)"}}>יום הולדת</span><span style={{fontWeight:600}}>{c.birthday}</span></div>}
@@ -12713,17 +13023,21 @@ ${MARKETING_FOOTER}`)}`;
                   {(clientTab==="history"||clientTab==="receipts")&&!historyReady&&<DeferredGate status={deferred.history} what="את ההיסטוריה" onRetry={loadHistory}/>}
                   {clientTab==="history"&&historyReady&&(
                     appts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין היסטוריית תורים</p>
-                    :appts.map(a=>(
- <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)"}}>
- <span style={{width:8,height:8,borderRadius:"50%",background:a.color||"var(--warning)",flexShrink:0}}/>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{a.date} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                    :appts.map(a=>{
+                      // A cancelled visit reads as cancelled, and only a live future one offers a reminder (2026-10-23 pass, D2).
+                      const cancelled=a.confirmation_status==="cancelled";
+                      return(
+ <div key={a.id} data-testid={cancelled?"history-cancelled":undefined} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:"1px solid var(--surface-2)",opacity:cancelled?0.6:1}}>
+ <span style={{width:8,height:8,borderRadius:"50%",background:cancelled?"var(--ink-3)":(a.color||"var(--warning)"),flexShrink:0}}/>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)",textDecoration:cancelled?"line-through":"none"}}>{a.service}</p><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fmtDateHe(a.date)} · {fmtApptTime(a)}{a.price?` · ₪${a.price}`:""}</p></div>
+                        {cancelled&&<span className="pill" style={{fontSize:"var(--t-xs)",background:"var(--surface-2)",color:"var(--danger)",padding:"2px 8px",flexShrink:0}}>{a.cancelled_by==="client"?"ביטלה":"בוטל"}</span>}
                         {a.confirmation_status==="confirmed"&&<span style={{fontSize:"var(--t-xs)",color:"var(--success)"}}>✓</span>}
-                        {c.phone&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
+                        {c.phone&&!cancelled&&a.date>=today&&<button onClick={()=>sendReminderToClient(a)} disabled={isBusy("sendReminder")} title="שלחי תזכורת" style={{flexShrink:0,background:pcTint,color:pcDeep,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round",verticalAlign:"-2px"}}><rect x="2.8" y="5" width="18.4" height="14" rx="2.4"/><path d="M3.4 6.6l8.6 6 8.6-6"/></svg> שלחי תזכורת</button>}
  </div>
-                    ))
+                    );})
                   )}
                   {clientTab==="scans"&&(
-                    scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוען סריקות"/></p>
+                    scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוענת סריקות"/></p>
                     :clientScans.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין סריקות עדיין. לחצי על "סריקת עור AI" למעלה.</p>
                     :clientScans.map(s=>(
  <div key={s.id} onClick={()=>setViewScan(s)} style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0",borderBottom:"1px solid var(--surface-2)",cursor:"pointer"}}>
@@ -12741,7 +13055,7 @@ ${MARKETING_FOOTER}`)}`;
                     :cReceipts.map(r=>(
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
- <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{localDayKey(r.created_at)} · {r.payment_method}</p></div>
+ <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{fmtDateHe(localDayKey(r.created_at))} · {r.payment_method}</p></div>
  {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
@@ -12914,7 +13228,7 @@ ${MARKETING_FOOTER}`)}`;
      pre-filled with her + the AI-matched service). Turns the scan's best moment
      from a dead end into a booking. Primary action when a service was matched. */}
  {selectedClient&&SR.matched_service&&(()=>{const svc=activeServices.find(s=>s.name===SR.matched_service);return(
- <button onClick={()=>{const c=selectedClient;setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||SR.matched_service,duration:svc?.duration||60,date:formatDate(new Date()),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");closeModal();setSelectedClient(null);setShowModal(true);}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",marginBottom:8}}>✦ קבעי טיפול {SR.matched_service}</button>
+ <button onClick={()=>{const c=selectedClient;setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||SR.matched_service,duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");closeModal();setSelectedClient(null);setShowModal(true);}} className="primary-btn" style={{width:"100%",padding:"12px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)",marginBottom:8}}>✦ קבעי טיפול {SR.matched_service}</button>
  );})()}
  <button onClick={closeModal} className="primary-btn" style={{width:"100%",padding:"12px 0",background:(selectedClient&&SR.matched_service)?"var(--surface)":pcGrad,color:(selectedClient&&SR.matched_service)?"var(--ink-2)":"var(--pc-contrast)",border:(selectedClient&&SR.matched_service)?"1px solid var(--line-2)":"none",fontSize:"var(--t-md)"}}>סגירה</button>
  {!viewScan&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",marginTop:8}}>הסריקה נשמרה לכרטיס הלקוחה</p>}
@@ -12930,7 +13244,7 @@ ${MARKETING_FOOTER}`)}`;
               const st=leadStatusMeta(l.status);
               return(<>
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:34,height:34,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
+ <button onClick={()=>setSelectedLead(null)} aria-label="סגירה" className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:13}}>
  <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
  <div style={{flex:1}}>
@@ -12962,7 +13276,7 @@ ${MARKETING_FOOTER}`)}`;
                     ))}
  </div>
                   {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>תחום עניין</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
-                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{localDayKey(l.created_at)}</span></div>}
+                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>נוצר</span><span style={{color:"var(--ink)"}}>{fmtDateHe(localDayKey(l.created_at))}</span></div>}
                   {/* Contact trail. Reads "טרם יצרת קשר" until the first
                       successful WhatsApp send from the app. */}
  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>יצירת קשר</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>

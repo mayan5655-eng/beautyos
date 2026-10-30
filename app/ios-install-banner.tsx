@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import InstallBannerCard from "./InstallBannerCard";
+import { usePathname } from "next/navigation";
+import { inAppBrowser } from "@/lib/design/sharePost";
+import { isOwnerSurface, hasBottomNav } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "bloomos-ios-install-dismissed";
 
@@ -23,12 +26,17 @@ export default function IOSInstallBanner() {
   const [render, setRender] = useState(false);
   const [enter, setEnter] = useState(false);
 
+  // Only on her own screens: a client on the booking page has no use for "install Kalmea" (lib/ownerSurface.js).
+  const pathname = usePathname() || "";
   useEffect(() => {
+    if (!isOwnerSurface(pathname, document.cookie)) { setEnter(false); setRender(false); return; }
     const ua = window.navigator.userAgent;
     const isIOS = /iphone|ipad|ipod/i.test(ua);
     // Chrome/Firefox/Edge on iOS carry their own tokens; their share sheets
     // don't expose "Add to Home Screen", so only prompt real Safari.
-    const isSafari = !/crios|fxios|edgios|opios/i.test(ua);
+    // Instagram / Facebook / WhatsApp in-app browsers report as Safari but have no "Add to Home Screen"; the
+    // in-app-browser banner (in-app-browser-banner.tsx) tells her to open Safari instead.
+    const isSafari = !/crios|fxios|edgios|opios/i.test(ua) && !inAppBrowser(ua);
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       // iOS Safari exposes standalone here rather than via display-mode.
@@ -43,7 +51,7 @@ export default function IOSInstallBanner() {
       // Next frame → trigger the slide/fade-in transition.
       requestAnimationFrame(() => setEnter(true));
     }
-  }, []);
+  }, [pathname]);
 
   function dismiss() {
     try {
@@ -62,6 +70,7 @@ export default function IOSInstallBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
+      aboveNav={hasBottomNav(pathname)}
       title="התקיני את קלמיה למסך הבית"
       icon={
         /* iOS share glyph */

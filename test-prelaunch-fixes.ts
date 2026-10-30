@@ -34,11 +34,11 @@ ok('demo, terms and privacy have Hebrew descriptions', () => {
 
 ok('terms state the regular price and the free month, in Hebrew with the English line after it', () => {
   const t = rd('app/terms/page.tsx');
-  const i = t.indexOf('המחיר הרגיל הוא 499 ₪ לחודש. החודש הראשון חינם, בלי כרטיס אשראי.');
+  const i = t.indexOf('המחיר הרגיל הוא {priceHe(PLAN_PRICES.regular)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.');
   assert.ok(i > 0);
-  const en = t.indexOf('The regular price is NIS 499 per month', i);
+  const en = t.indexOf('The regular price is NIS {PLAN_PRICES.regular} per month', i);
   assert.ok(en > i);
-  assert.ok(t.indexOf('Launch Price') > en, 'the clause sits before the launch-price clause');
+  assert.ok(t.indexOf('Introductory Price') > en, 'the clause sits before the introductory-price clause');
 });
 
 ok('payments export button is Hebrew', () => {

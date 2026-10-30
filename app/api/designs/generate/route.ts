@@ -48,7 +48,10 @@ const isResponse = (v: unknown): v is Response => v instanceof Response;
 
 /** Session, plan, tenant, and the settings row (with the per-tenant cap when the column exists). */
 async function context(request: NextRequest): Promise<Ctx | Response> {
-  const ipLimited = checkIpLimit(request, 'creatives');
+  // The GET only reads this month's allowance (free); counting it against the AI-image brake made opening the content tab a few times
+  // in ten minutes refuse the images themselves, for everyone behind the same mobile-data address.
+  const isRead = request.method === 'GET';
+  const ipLimited = isRead ? null : checkIpLimit(request, 'creatives');
   if (ipLimited) return ipLimited;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -57,7 +60,7 @@ async function context(request: NextRequest): Promise<Ctx | Response> {
   if (!guard.ok) return guard.response;
   const { data: tenantId } = await supabase.rpc('get_user_tenant_id');
   if (!tenantId) return NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 400 });
-  const tenantLimited = checkTenantLimit(tenantId, 'creatives');
+  const tenantLimited = isRead ? null : checkTenantLimit(tenantId, 'creatives');
   if (tenantLimited) return tenantLimited;
   // The cap column arrives with add_ai_generation_cap.sql; business_fields
   // with add_business_fields.sql. Both applied by hand, possibly not yet run

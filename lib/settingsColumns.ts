@@ -55,6 +55,9 @@ export const SETTINGS_EDITABLE_COLUMNS = [
   'working_hours_end',
   // Tax
   'business_tax_status',
+  // When she actually chose it (add_business_tax_status_set_at.sql). The live column defaults to 'exempt', so the type alone
+  // cannot say whether she picked it. Optional: the save route drops it when the column is not there yet.
+  'business_tax_status_set_at',
   // Automation toggles
   'bot_active',
   'bot_mode',
@@ -80,7 +83,9 @@ export const AUTOMATIONS_STORED_WINS_KEYS = ['onboarding_tour_seen', 'onboarding
 // Keys inside `automations` that belong to the platform, not the tenant.
 // calendar_feed_nonce: the secret part of her calendar-feed link (lib/calendarFeed.ts). Only
 // app/api/calendar-feed/link writes it, so a Settings screen opened before a reset can't bring the old link back.
-export const AUTOMATIONS_PROTECTED_KEYS = ['feature_flags', 'calendar_feed_nonce'] as const;
+// greetings: the personal-greetings switches, texts and unticked names (lib/greetings). Only app/api/greetings writes it, so a Settings
+// screen opened before she turned a greeting on cannot switch it off again, or the other way round, when she saves something else.
+export const AUTOMATIONS_PROTECTED_KEYS = ['feature_flags', 'calendar_feed_nonce', 'greetings'] as const;
 
 export type PickedSettings = {
   /** Exactly the editable columns that were present in the input. */

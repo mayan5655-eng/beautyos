@@ -51,6 +51,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           display: "flex",
           alignItems: "center",
           gap: 9,
+          flexWrap: "wrap",
           background: pcTint,
           border: "1px solid var(--line)",
           borderRadius:"var(--r-md)",
@@ -65,6 +66,8 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: "var(--ink-2)" }}>
           {trialGentleHe(days, plan.trialEndsAt)}
         </p>
+        {/* Only with the upgrade buttons on (BillingNotices passes a small text button); null otherwise. */}
+        {cta}
       </div>
     );
   }

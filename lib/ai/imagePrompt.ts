@@ -68,7 +68,11 @@ export type ImagePromptSpec = {
 export const FORMAT_SIZES: Record<ImageFormat, string> = {
   feed45: '1024x1280', // Instagram feed 4:5 - the default
   square: '1024x1024',
-  story: '1024x1536',  // 2:3, the closest recommended size to 9:16; cropped by the design layer
+  // 9:16 at full reel width (2026-10-21). It was 1024x1536 (2:3): to cover the canvas the picture was blown up 1.25x
+  // and its sides cropped, so every story and reel photo came out soft. 1080x1920 itself is not valid
+  // (1080 is not a multiple of 16); 1088x1920 covers the 1080x1920 canvas with 8 px to spare. About a third more
+  // pixels than 1024x1536, so a few cents more per picture.
+  story: '1088x1920',
 };
 
 export const HARD_CONSTRAINTS =

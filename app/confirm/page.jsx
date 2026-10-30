@@ -19,7 +19,7 @@ function ConfirmContent() {
   //
   // The opening status is a pure function of the URL, so it is computed here
   // rather than in an effect that immediately overwrites a placeholder. That
-  // also removes a frame where a cancel link rendered "מעדכן את התור שלך…"
+  // also removes a frame where a cancel link rendered "מעדכנת את התור שלך…"
   // before the effect got a chance to say otherwise.
   const [status, setStatus] = useState(() =>
     !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
@@ -75,6 +75,24 @@ function ConfirmContent() {
     if (id && action === 'confirm') send();
   }, [id, action, send]);
 
+  // A cancel link says WHICH appointment before she decides: a read-only peek (changes nothing).
+  // A failed peek just leaves the question without the details.
+  const [peekAppt, setPeekAppt] = useState(null);
+  useEffect(() => {
+    if (!id || action !== 'cancel') return;
+    let gone = false;
+    fetch('/api/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action, token, peek: true }) })
+      .then(r => r.json())
+      .then(d => {
+        if (gone || !d?.success || !d.peek) return;
+        setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
+        setPeekAppt(d.appointment || null);
+        if (d.status === 'cancelled') { setStatus('already'); setMessage('התור כבר בוטל בעבר'); }
+      })
+      .catch(() => {});
+    return () => { gone = true; };
+  }, [id, action, token]);
+
   const getStyles = () => {
     // No hourglass emoji: it was the last colour glyph on a page that is
     // otherwise monochrome, and minHeight on the mark slot keeps the layout
@@ -120,8 +138,13 @@ function ConfirmContent() {
           {markKind ? mark(markKind, styles.color) : null}
         </div>
         <h1 className="pub-h1">{styles.title}</h1>
+        {status === 'ready' && peekAppt && (peekAppt.service || peekAppt.date) && (
+          <p data-testid="cancel-which" className="pub-p" style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>
+            {[peekAppt.service, peekAppt.date, peekAppt.time].filter(Boolean).join(' · ')}
+          </p>
+        )}
         <p className="pub-p">
-          {status === 'working' ? <Spinner inline label="מעדכן את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהלינק הזה. אם התכוונת לאשר את התור — סגרי את החלון ופתחי את הלינק השני בהודעה.'
+          {status === 'working' ? <Spinner inline label="מעדכנת את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.'
             : status === 'declined' ? 'לא שינינו כלום. נתראה בתור.'
             : message}
         </p>

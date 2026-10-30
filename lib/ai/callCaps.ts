@@ -24,22 +24,22 @@
 // applied by hand.
 //
 // ── The arithmetic behind each number ───────────────────────────────────────
-// Per-call costs at Haiku 4.5 ($1/$5 per Mtok) and Sonnet 5 ($2/$10 per Mtok),
-// using each call site's real max_tokens. Ceilings sit roughly an order of
-// magnitude above heavy honest use, so tripping one means a loop or an abuser,
-// never a busy week:
+// Per-call costs on the models in lib/ai/models.ts as of 2026-10-21: Haiku 5.5
+// ($0.10/$0.50 per Mtok), Sonnet 5.5 ($2/$10) and Opus 5.5 ($4/$20), thinking
+// included. Ceilings sit roughly an order of magnitude above heavy honest use,
+// so tripping one means a loop or an abuser, never a busy week:
 //
 //   site                     ~$/call   cap   worst case   heavy honest use
-//   whatsapp-webhook          0.0035   1500     $5.25      ~300 inbound/mo
-//   advisor                   0.007     400     $2.80      ~50 questions
-//   voice-intent              0.002     600     $1.20      a few a day
-//   score-lead                0.005    1000     $5.00      one per new lead
-//   leads/map-headers         0.012     100     $1.20      one per import
-//   marketing/groups          0.045     150     $6.75
-//   marketing/reel            0.17       80    $13.60      ~10 reels
+//   whatsapp-webhook          0.0005   1500     $0.75      ~300 inbound/mo
+//   advisor (Opus, low)       0.05      400    $20.00      ~50 questions
+//   voice-intent              0.0003    600     $0.18      a few a day
+//   score-lead                0.0006   1000     $0.60      one per new lead
+//   leads/map-headers         0.001     100     $0.10      one per import
+//   marketing/groups          0.012     150     $1.80
+//   marketing/reel (Opus)     0.09       80     $7.20      ~10 reels
 //
-// Worst case if a tenant pinned every ceiling in one month: about $51.
-// Realistic use is $4-11. This is a ceiling, not a budget.
+// The count caps are a backstop; the per-tenant dollar ceiling below bounds the
+// sum. Realistic use is $3-6 a month. This is a ceiling, not a budget.
 //
 // ── skin-scan is deliberately ABSENT ────────────────────────────────────────
 // It already has a dedicated, env-tunable ceiling in lib/skinScanQuota.ts that
@@ -77,6 +77,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { readAllRows } from '../pagedRead.js';
 import { capRefusalHe } from './capMessages.ts';
+import { addonPacksEnabled, addonPackForCallSite } from '../pricing.ts';
+import { purchasedAddons, totalUsd, type PurchasedByPack } from '../addonQuota.ts';
 
 /** Monthly ceiling per tenant, per call site. Absent = uncapped by this file. */
 export const MONTHLY_CALL_CAPS: Record<string, number> = {
@@ -215,7 +217,20 @@ export type CapStatus = {
   exceeded: boolean;
   /** true when the count could not be read (and `exceeded` is therefore true) */
   unknown: boolean;
+  /** Add-on units bought for this feature this month (lib/pricing.ts ADDON_PACKS), already inside `cap`. 0 with packs off. */
+  purchased?: number;
 };
+
+/**
+ * The monthly cap for one feature. With add-on packs ON (lib/pricing.ts), a feature that has a pack gets its INCLUDED amount plus the
+ * units she bought this month instead of the anti-abuse ceiling; with packs OFF, or for a feature without a pack, nothing changes.
+ */
+export function capWithPacks(callSite: string, purchased: PurchasedByPack | null, enabled: boolean = addonPacksEnabled()): { cap: number | null; purchased: number } {
+  const pack = enabled ? addonPackForCallSite(callSite) : null;
+  if (!pack) return { cap: capFor(callSite), purchased: 0 };
+  const bought = purchased?.[pack.key]?.units || 0;
+  return { cap: pack.included + bought, purchased: bought };
+}
 
 /**
  * How much of this month's allowance for one feature a tenant has used.
@@ -230,11 +245,13 @@ export type CapStatus = {
 export async function getCallCapStatus(
   tenantId: string | null | undefined,
   callSite: string,
-  opts: { now?: Date; db?: CountQuery } = {}
+  opts: { now?: Date; db?: CountQuery; purchased?: PurchasedByPack } = {}
 ): Promise<CapStatus> {
-  const cap = capFor(callSite);
+  const packsOn = addonPacksEnabled() && !!addonPackForCallSite(callSite);
+  const bought = packsOn && tenantId ? (opts.purchased ?? await purchasedAddons(tenantId, { now: opts.now })) : null;
+  const { cap, purchased } = capWithPacks(callSite, bought, packsOn);
   if (cap === null || !tenantId) {
-    return { used: 0, cap, exceeded: false, unknown: false };
+    return { used: 0, cap, exceeded: false, unknown: false, purchased };
   }
 
   const since = monthStartIso(opts.now);
@@ -258,7 +275,7 @@ export async function getCallCapStatus(
     }
 
     const used = Number(count) || 0;
-    return { used, cap, exceeded: used >= cap, unknown: false };
+    return { used, cap, exceeded: used >= cap, unknown: false, purchased };
   } catch (e) {
     console.error(
       `[ai-cap] threw for tenant ${tenantId} / ${callSite}: ` +
@@ -444,19 +461,23 @@ async function checkAiAllowanceUnsafe(
   callSite: string,
   opts: { client?: Client; now?: Date; alert?: AlertFn; noCache?: boolean; alertThrottle?: Map<string, number>; callsCap?: number }
 ): Promise<Allowance> {
-  const usdCap = tenantMonthlyUsdCeiling();
+  const client: Client | null = tenantId ? (opts.client ?? (admin() as unknown as Client)) : null;
+  // Add-on packs bought this month (lib/pricing.ts): they raise this feature's count cap AND the dollar ceiling by what they can cost, so a
+  // paid pack is never stopped by the ceiling. With packs off nothing is read and nothing changes.
+  const packsOn = addonPacksEnabled();
+  const bought = packsOn && tenantId && client ? await purchasedAddons(tenantId, { client: opts.client, now: opts.now, noCache: opts.noCache }) : null;
+  const usdCap = tenantMonthlyUsdCeiling() + (bought ? totalUsd(bought) : 0);
   // A caller may raise the per-feature ceiling for one call (the pictures of a generation scale with that
-  // tenant's own generation cap). The dollar ceiling below is never overridden.
-  const callsCap = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? Math.floor(opts.callsCap) : capFor(callSite);
+  // tenant's own generation cap). The dollar ceiling above is never overridden by a caller.
+  const callsCap = typeof opts.callsCap === 'number' && opts.callsCap > 0 ? Math.floor(opts.callsCap) : capWithPacks(callSite, bought, packsOn).cap;
   const base = { callSite, callsUsed: 0, callsCap, spentUsd: 0, usdCap, near: false } as const;
-  if (!tenantId) return { ...base, allowed: true, reason: 'ok' };
+  if (!tenantId || !client) return { ...base, allowed: true, reason: 'ok' };
 
-  const client: Client = opts.client ?? (admin() as unknown as Client);
   const send = opts.alert ?? defaultAlert;
   const throttle = opts.alertThrottle ?? alertedAt;
   const since = monthStartIso(opts.now);
 
-  const status = await getCallCapStatus(tenantId, callSite, { now: opts.now, db: client.from('ai_usage') as CountQuery });
+  const status = await getCallCapStatus(tenantId, callSite, { now: opts.now, db: client.from('ai_usage') as CountQuery, ...(bought ? { purchased: bought } : {}) });
   if (status.unknown) {
     await raise({ reason: 'unreadable', tenantId, callSite, detail: 'ספירת הקריאות נכשלה' }, send, throttle);
     return { ...base, allowed: false, reason: 'unreadable', spentUsd: null };

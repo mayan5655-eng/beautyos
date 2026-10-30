@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import InstallBannerCard from "./InstallBannerCard";
+import { isOwnerSurface, hasBottomNav } from "@/lib/ownerSurface";
 
 const DISMISS_KEY = "bloomos-install-prompt-dismissed";
 
@@ -65,7 +67,10 @@ export default function InstallPromptBanner() {
     window.setTimeout(() => setRender(false), 220);
   }
 
+  // Only on her own screens: a client on the booking page has no use for "install Kalmea" (lib/ownerSurface.js).
+  const pathname = usePathname() || "";
   useEffect(() => {
+    if (!isOwnerSurface(pathname, document.cookie)) { setEnter(false); setRender(false); return; }
     if (remembered()) return;
     // Belt and braces: Chromium suppresses the event once installed, but a
     // standalone launch should never show an install banner regardless.
@@ -103,7 +108,7 @@ export default function InstallPromptBanner() {
       window.removeEventListener("bloomos:installprompt", show);
       window.removeEventListener("appinstalled", onInstalled);
     };
-  }, []);
+  }, [pathname]);
 
   function dismiss() {
     remember();
@@ -135,6 +140,7 @@ export default function InstallPromptBanner() {
       ariaLabel="התקנת האפליקציה למסך הבית"
       enter={enter}
       onDismiss={dismiss}
+      aboveNav={hasBottomNav(pathname)}
       title="התקיני את קלמיה למסך הבית"
       icon={
         /* phone with a download arrow */

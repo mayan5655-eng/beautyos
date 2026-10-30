@@ -128,7 +128,7 @@ export async function POST(request) {
     // failure: a single, user-initiated send, so hand the caller the wa.me
     // link to open right now rather than leaving it only in the queue.
     if (result.queued) {
-      return Response.json({ success: true, queued: true, waLink: result.waLink });
+      return Response.json({ success: true, queued: true, waLink: result.waLink, messageId: result.messageId || null });
     }
     if (!result.ok) {
       return Response.json(

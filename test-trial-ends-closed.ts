@@ -48,4 +48,20 @@ for (const p of ['./app/api/send-reminders/route.js', './app/api/send-smart-remi
   assert.ok(!/tenantIsBlocked|requireActiveTenant|isBlocked/.test(src), `${p} is not plan-gated: booked clients keep their reminders`);
 }
 
+// ── after payment the screen reopens by itself (no refresh) ──
+assert.ok(/visibilitychange/.test(screen) && /setInterval\(check, 30000\)/.test(screen), 'the closed screen re-checks her plan when she comes back and every 30 seconds');
+assert.ok(/!error && data && !planState\(data\)\.isBlocked\) window\.location\.reload\(\)/.test(screen), 'only a row that was read and is not blocked reopens, so a failed read never loops');
+
+// ── the database read block (SQL, run by hand) ──
+const sql = read('./supabase/migrations/add_closed_read_block_2026-10-25.sql');
+assert.ok(/as restrictive for select to authenticated/.test(sql), 'a RESTRICTIVE select policy, scoped to authenticated (anon and service role untouched)');
+assert.ok(/\(select public\.is_tenant_active\(\)\)/.test(sql), 'the same fail-open predicate as the write block, evaluated once per query');
+assert.ok(/00000000-0000-0000-0000-000000000001/.test(sql) && /00000000-0000-0000-0000-000000000002/.test(sql), 'the demo businesses are exempt');
+const targets = (sql.match(/targets text\[\] := array\[([\s\S]*?)\];/) || [])[1] || '';
+for (const t of ['appointments', 'clients', 'receipts', 'leads']) assert.ok(targets.includes(`'${t}'`), `${t} is read-blocked`);
+for (const t of ['tenants', 'tenant_members', 'settings', 'service_prices', 'reviews', 'billing_subscriptions', 'billing_payments', 'grow_accounts']) {
+  assert.ok(!targets.includes(`'${t}'`), `${t} stays readable (closed screen, public page or paying)`);
+}
+assert.ok(!/delete from|truncate|drop table/i.test(sql.replace(/^--.*$/gm, '')), 'the SQL never deletes data');
+
 console.log('trial-ends-closed: all checks passed');

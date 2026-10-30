@@ -3,10 +3,11 @@
 // "Her data" on the client card: download everything held about her and erase her for real.
 // Erasing asks for the client's name to be typed (or the word "מחיקה" when the card has no name); the server checks it again
 // (app/api/clients/erase). What is deleted and what stays without her identity is written in lib/clientData.ts and said here in plain words
-// before the button can be pressed. A client who only wants the messages to stop does not need any of this: the card has "ביקשה הסרה מדיוור".
+// before the button can be pressed. A client who only wants the messages to stop does not need any of this: the card has "הסירה את עצמה מדיוור".
 
 import { useEffect, useRef, useState } from "react";
 import Spinner from "./Spinner";
+import { deliverFile, deliveryToast } from "@/lib/deliverFile";
 
 const small = { fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 };
 const btn = { padding: "10px 14px", minHeight: 44, borderRadius: "var(--r-sm)", border: "1px solid var(--line-2)", background: "var(--surface)", color: "var(--ink)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer" };
@@ -31,11 +32,10 @@ export default function ClientPrivacyPanel({ client, toast, onErased, historyRea
       const res = await fetch("/api/clients/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client.id, format }) });
       if (!res.ok) { let m = ""; try { m = (await res.json()).error; } catch { /* not json */ } toast(m || "לא הצלחנו להכין את הקובץ. אפשר לנסות שוב בעוד רגע.", "error"); return; }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = `${(client.name || "client").replace(/[^\p{L}\p{N}_-]+/gu, "_")}-data.${format}`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      toast("הקובץ הורד");
+      // After the fetch her tap is used up, so the share sheet is skipped; the home-screen app and in-app browsers get an honest "blocked".
+      const outcome = await deliverFile(blob, `${(client.name || "client").replace(/[^\p{L}\p{N}_-]+/gu, "_")}-data.${format}`);
+      const t = deliveryToast(outcome, { downloaded: "הקובץ הורד" });
+      if (t) toast(t.text, t.kind);
     } catch { toast("לא הצלחנו להכין את הקובץ. אפשר לנסות שוב בעוד רגע.", "error"); }
     finally { setBusy(""); }
   };
@@ -62,7 +62,7 @@ export default function ClientPrivacyPanel({ client, toast, onErased, historyRea
         <button type="button" onClick={() => download("json")} disabled={!!busy} style={btn}>{busy === "json" ? <Spinner inline label="מכינה" /> : "הורדת כל המידע"}</button>
         <button type="button" onClick={() => download("csv")} disabled={!!busy} style={btn}>{busy === "csv" ? <Spinner inline label="מכינה" /> : "הורדה לאקסל"}</button>
       </div>
-      <p style={{ ...small, marginBottom: 14 }}>אם היא רק רוצה להפסיק לקבל הודעות שיווק, אין צורך למחוק: אפשר לסמן למעלה &quot;ביקשה הסרה מדיוור&quot;.</p>
+      <p style={{ ...small, marginBottom: 14 }}>אם היא רק רוצה להפסיק לקבל הודעות שיווק, אין צורך למחוק: אפשר לסמן למעלה &quot;הסירה את עצמה מדיוור&quot;.</p>
       {!erasing ? (
         <button type="button" onClick={() => setErasing(true)} disabled={!historyReady} style={{ ...btn, color: "var(--danger)", borderColor: "var(--danger)" }}>מחיקת הלקוחה לצמיתות</button>
       ) : (

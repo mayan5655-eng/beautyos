@@ -8,6 +8,7 @@
 // turns it into a video. Saving writes the same designs row a static
 // design uses (format 'reel', values and images namespaced sN_).
 
+import { WRITE_BLOCKED_TOAST_HE } from '@/lib/planCopy';
 import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
@@ -44,7 +45,7 @@ export default function ReelEditor({ design, reel, settings, readOnly, previousI
   };
 
   const save = async () => {
-    if (readOnly) { toast?.('החשבון במצב קריאה בלבד', 'error'); return; }
+    if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; }
     setSaving(true); setError('');
     try { const saved = await patch({ name, values, images, overrides: { consent, brand } }); setDirty(false); onSaved?.(saved); toast?.('הרילס נשמר'); }
     catch (e) { setError(String(e.message || e)); } finally { setSaving(false); }
@@ -61,7 +62,7 @@ export default function ReelEditor({ design, reel, settings, readOnly, previousI
     if (readOnly || !settings?.tenant_id) return;
     // Throws on failure: ReelRender reports it. The download itself still works either way.
     const path = await uploadReel(blob, settings.tenant_id, design.id, ext, design.export_path);
-    await patch({ export_path: path });
+    onSaved?.(await patch({ export_path: path })); // an exported reel is kept (DesignStudio removes untouched opens)
   };
 
   return (

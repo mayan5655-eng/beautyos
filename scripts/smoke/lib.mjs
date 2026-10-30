@@ -11,7 +11,8 @@ export const PASSWORD = 'Smoke-Test-2026!';
 
 export const admin = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
-export const newEmail = (label) => `kalmea-smoke-${label}-${Date.now().toString(36)}@example.com`;
+// A random tail too: two accounts made in the same millisecond used to get the SAME address (a parallel test then "lost" accounts to duplicate keys).
+export const newEmail = (label) => `kalmea-smoke-${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}@example.com`;
 
 export async function launch(opts = {}) {
   const browser = await chromium.launch();

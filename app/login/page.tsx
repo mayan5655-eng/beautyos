@@ -64,6 +64,10 @@ export default function LoginPage() {
   const [resetNotice, setResetNotice] = useState('')
   const [needsConfirm, setNeedsConfirm] = useState(false)
   const [resendNote, setResendNote] = useState('')
+  // The page is drawn on the server before its script runs. A tap on "כניסה" in that gap is a plain form submit: the page reloads,
+  // the fields empty and nothing says why (a slow phone on mobile data, 2026-10-24 phone review). Disabled until the script is live.
+  const [ready, setReady] = useState(false)
+  useEffect(() => setReady(true), [])
   const router = useRouter()
   // /auth/confirm and /auth/callback send ?error=auth when an email link could not become a session: it expired or was already
   // used. If she already confirmed, signing in works.
@@ -212,6 +216,7 @@ export default function LoginPage() {
             <input
               className="auth-input"
               type="email"
+              autoComplete="email"
               placeholder="אימייל"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -222,6 +227,7 @@ export default function LoginPage() {
               <input
                 className="auth-input"
                 type="password"
+                autoComplete="current-password"
                 placeholder="סיסמה"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -253,10 +259,10 @@ export default function LoginPage() {
             )}
             {resetNotice && <div style={noticeStyle('ok')}>{resetNotice}</div>}
 
-            <button type="submit" disabled={loading} className="brand-pill-btn" style={btnStyle()}>
+            <button type="submit" disabled={loading || !ready} className="brand-pill-btn" style={btnStyle()}>
               {mode === 'login'
                 ? (loading ? <Spinner inline label="מתחברת" /> : <>כניסה<span className="chevron" aria-hidden> ←</span></>)
-                : (loading ? <Spinner inline label="שולח" /> : <>שליחת קישור לאיפוס<span className="chevron" aria-hidden> ←</span></>)}
+                : (loading ? <Spinner inline label="שולחת" /> : <>שליחת קישור לאיפוס<span className="chevron" aria-hidden> ←</span></>)}
             </button>
           </form>
 

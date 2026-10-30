@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   const db = admin();
   const [{ data: tenant }, { data: st }, { data: sub }] = await Promise.all([
-    db.from('tenants').select('id, name, plan_status, trial_ends_at, plan_price').eq('id', c.tenantId).maybeSingle(),
+    db.from('tenants').select('id, name, plan_status, trial_ends_at, plan_price, created_at').eq('id', c.tenantId).maybeSingle(),
     db.from('settings').select('business_name, therapist_name, business_phone, automations').eq('tenant_id', c.tenantId).maybeSingle(),
     db.from('billing_subscriptions').select('price').eq('tenant_id', c.tenantId).maybeSingle(),
   ]);
