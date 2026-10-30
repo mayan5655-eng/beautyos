@@ -93,6 +93,13 @@ const HERO_PHOTOS = [
   { src: "/defaults/nails-manicure.jpg", alt: "ציפורניסטית עובדת על הציפורניים של לקוחה", position: "center 45%" },
 ];
 
+// The videos from /tutorials. The files stay where the tutorials page reads them; demo-20s stays in public/media.
+const VIDEOS = [
+  { id: "welcome", title: "מה קלמיה עושה בשבילך" },
+  { id: "booking", title: "איך לקוחה קובעת תור לבד" },
+  { id: "tour", title: "סיור בכל המסכים" },
+];
+
 const pillBtn = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
   background: "var(--brand-accent)", color: "var(--brand-cream)",
@@ -138,18 +145,18 @@ export default function LandingPage() {
           <p>לקוסמטיקאיות ולציפורניסטיות עצמאיות</p>
         </Reveal>
         <Reveal immediate as="h1" className="serif" style={{ fontSize: "var(--t-display, 40px)", fontWeight: 900, color: "var(--brand-accent)", lineHeight: 1.15, letterSpacing: "-0.01em", marginBottom: 14 }}>
-          כל העסק שלך בטלפון אחד
+          עונה לוואטסאפים באמצע טיפול?
         </Reveal>
         <Reveal immediate delay={80} style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 26 }}>
-          <p>יומן תורים, כרטיסי לקוחות, תשלומים ופוסטים מוכנים לרשתות.<br />בנתה אותה קוסמטיקאית שעובדת בזה כל יום.</p>
+          <p>מהיום הלקוחות קובעות תור לבד, גם בלילה, ואת רואה הכל בטלפון אחד.<br />בנתה אותה קוסמטיקאית שעובדת בזה כל יום.</p>
         </Reveal>
         <Reveal immediate delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
-            אני רוצה חודש ראשון חינם
+            בואי נתחיל, חודש ראשון חינם
           </Link>
         </Reveal>
-        <Reveal immediate delay={200} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
-          <p>בלי כרטיס אשראי</p>
+        <Reveal immediate delay={200} style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginTop: 12 }}>
+          <p>בלי כרטיס אשראי ובלי התחייבות</p>
         </Reveal>
         <Reveal immediate delay={240} style={{ marginTop: 6 }}>
           <Link href="/demo" className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "underline", textUnderlineOffset: 3 }}>
@@ -192,7 +199,7 @@ export default function LandingPage() {
           </p>
           {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
           <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר היכרות {priceHe(PLAN_PRICES.launch)} לזמן מוגבל</p>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)" }}>החודש הראשון חינם, בלי כרטיס אשראי.</p>
+          <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>החודש הראשון עלינו, בלי כרטיס אשראי.</p>
           {/* The value in her own terms, next to the price: what one month has to save for the price to pay itself back. */}
           <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--line)" }}>
             שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, וקלמיה כבר מחזירה את עצמה.
@@ -214,20 +221,42 @@ export default function LandingPage() {
       </section>
 
       {/* ── 6b. DEMO VIDEO ────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px", textAlign: "center" }}>
-        <SectionEyebrow>תראי איך זה עובד</SectionEyebrow>
-        <DemoVideo
-          mp4="/media/kalmea-demo-20s.mp4"
-          webm="/media/kalmea-demo-20s.webm"
-          poster="/media/kalmea-demo-poster.jpg"
-          label="סרטון קצר של קלמיה בעבודה, בנתוני דמו"
-        />
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 16 }}>
-          מהיומן ועד אישור התשלום, בפחות מחצי דקה. אלה נתוני דמו.
+      <section style={{ maxWidth: 800, margin: "0 auto", padding: "56px 0 10px", textAlign: "center" }}>
+        <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
+          תראי בעצמך, זה לוקח דקה
+        </Reveal>
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 18 }}>
+          הסרטונים צולמו על עסק לדוגמה, אלה נתוני דמו.
         </p>
+        {/* A row wider than a phone scrolls inside itself, so the next video peeks in; on a desktop all three sit side by side. */}
+        <div data-testid="landing-videos" style={{ overflowX: "auto", scrollSnapType: "x mandatory", padding: "4px 20px 16px" }}>
+          <div style={{ display: "flex", gap: 18, width: "max-content", margin: "0 auto" }}>
+            {VIDEOS.map((v) => (
+              <div key={v.id} style={{ width: 230, scrollSnapAlign: "center" }}>
+                <p style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 10 }}>{v.title}</p>
+                <DemoVideo mp4={`/tutorials/kalmea-${v.id}.mp4`} poster={`/tutorials/kalmea-${v.id}.jpg`} label={v.title} width={230} sound />
+              </div>
+            ))}
+          </div>
+        </div>
         <noscript>
-          <p style={{ marginTop: 8 }}><a href="/media/kalmea-demo-20s.mp4" style={{ color: "var(--brand-accent)" }}>לצפייה בסרטון</a></p>
+          <p style={{ marginTop: 8 }}><a href="/tutorials" style={{ color: "var(--brand-accent)" }}>לצפייה בסרטונים</a></p>
         </noscript>
+      </section>
+
+      {/* ── 6c. CALL AFTER THE VIDEOS ─────────────────────────────────────── */}
+      <section style={{ maxWidth: 560, margin: "0 auto", padding: "34px 20px 10px", textAlign: "center" }}>
+        <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 16 }}>
+          נראה לך? עכשיו תורך
+        </Reveal>
+        <Reveal delay={80}>
+          <Link href="/signup" className="kl-press" style={pillBtn}>
+            בואי נתחיל, חודש ראשון חינם
+          </Link>
+        </Reveal>
+        <Reveal delay={140} style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginTop: 12 }}>
+          <p>בלי כרטיס אשראי</p>
+        </Reveal>
       </section>
 
       {/* ── 7. THREE PILLARS ──────────────────────────────────────────────── */}
@@ -315,15 +344,15 @@ export default function LandingPage() {
           <BrandImage width={48} height={48} alt="" src={ICON_FLOWER} className="kl-flower-in" style={{ width: 48, height: 48, objectFit: "contain", margin: "0 auto 14px", display: "block" }} />
         </Reveal>
         <Reveal delay={60} as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
-          מוכנה לעסק מסודר יותר? החודש הראשון חינם
+          החודש הראשון עלינו, כל מה שנשאר זה להתחיל
         </Reveal>
         <Reveal delay={120}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
-            להתחיל עכשיו
+            בואי נתחיל
           </Link>
         </Reveal>
-        <Reveal delay={180} style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginTop: 10 }}>
-          <p>בלי כרטיס אשראי</p>
+        <Reveal delay={180} style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginTop: 12 }}>
+          <p>בלי כרטיס אשראי ובלי התחייבות</p>
         </Reveal>
       </section>
 

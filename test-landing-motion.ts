@@ -77,7 +77,8 @@ console.log(`${n} passed`);
 {
   const pg = rd('app/LandingPage.jsx');
   assert.doesNotMatch(pg, /kalmea-before-after/);
-  assert.match(pg, /kalmea-demo-20s.mp4/); // the existing demo clip stays
+  assert.match(pg, /kalmea-\$\{v\.id\}\.mp4/); // the page shows the /tutorials videos now (owner, 2026-10-30)
+  for (const f of ['mp4', 'webm']) assert.ok(statSync(`public/media/kalmea-demo-20s.${f}`).size > 0); // the older clip stays in the product
   for (const f of ['mp4', 'webm', 'jpg']) assert.ok(statSync(`public/media/kalmea-before-after.${f}`).size > 0);
   console.log('ok - before/after clip not on the landing page, files kept');
 }

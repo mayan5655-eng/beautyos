@@ -23,6 +23,7 @@ for (const [name, width, height] of [['phone', 430, 932], ['desktop', 1280, 800]
     photos: [...document.images].filter((i) => /facial-classic|nails-manicure|kalmea-wordmark/.test(i.currentSrc)).map((i) => i.naturalWidth),
     h1Bottom: Math.round(document.querySelector('h1')?.getBoundingClientRect().bottom || 0),
     dashes: (document.body.innerText.match(/[—–←]| -- /g) || []).length,
+    videos: [...document.querySelectorAll('[data-testid=landing-videos] p')].map((p) => p.innerText),
   }));
   console.log(name, JSON.stringify(facts));
   if (facts.sideways > 0 || facts.dashes > 0 || facts.photos.length !== 3 || facts.photos.some((w) => !w)) failed = true;
