@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import { parseDb } from "@/lib/dbTime";
 import { normalizeIsraeliMobile } from "@/lib/phone";
@@ -112,6 +112,7 @@ import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import GreetingsPanel from "./GreetingsPanel";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
 const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
@@ -2206,7 +2207,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const { data, error } = await supabase.auth.getUser();
       if (data?.user) return;
       if (isAuthTransportFailure(error)) return;
-      router.replace("/login");
+      router.replace(loginPathForScreen(window.location.pathname, window.location.search) || "/login");
     } catch { /* unverifiable is not logged out */ }
   };
 
@@ -2286,7 +2287,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setLoadError({ tables: [], message: authErr?.message || "", code: isOffline ? "offline" : "auth", offline: true });
         return; // the `finally` still clears `loading`
       }
-      if (!user) { router.replace("/login"); return; }
+      if (!user) { router.replace(loginPathForScreen(window.location.pathname, window.location.search) || "/login"); return; }
       setAuthEmail(user.email || "");
       // Resolve the tenant with the SAME function the RLS policies use.
       // Reading tenant_members directly from the client is itself gated by
@@ -7184,6 +7185,53 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const waDeliveryLabel = waStatusLabel;
 
 
+
+  // ── A link of its own for every screen (lib/screenLink.ts). The address follows the screen, Back and forward follow the
+  // address. It is read only once the data has loaded: until then settings has no flags, so a tab a tenant opted into
+  // looks hidden, and the screens' loaders need the tenant. Layout effects, so a refresh never paints היום first. The
+  // write hook stays above the read hook: in the commit that reads the address it must still be switched off.
+  const screenLinkReady = useRef(false);
+  useLayoutEffect(() => {
+    if (!screenLinkReady.current) return;
+    const at = { tab: activeTab, section: showSettings ? settingsGroup : null, view: viewOf(activeTab, { waView, marketingView, aiPostsView }) };
+    const { pathname, search, hash } = window.location;
+    if (!sameScreen(screenFromSearch(search), at)) window.history.pushState(null, "", pathname + searchForScreen(search, at) + hash);
+  }, [activeTab, showSettings, settingsGroup, waView, marketingView, aiPostsView]);
+  const openScreenRef = useRef(null);
+  openScreenRef.current = () => {
+    const { pathname, search, hash } = window.location;
+    const wanted = screenFromSearch(search);
+    if (wanted.tab && !isTabVisible(settings, wanted.tab)) wanted.tab = "dashboard";
+    if (showSettings && !wanted.section && panelDirty) {
+      // Back while she has unsaved changes: the panel stays until she answers, and the address with it.
+      window.history.pushState(null, "", pathname + searchForScreen(search, { tab: null, section: settingsGroup, view: null }) + hash);
+      closeSettings();
+      return;
+    }
+    const clean = searchForScreen(search, wanted);
+    if (clean !== search) window.history.replaceState(null, "", pathname + clean + hash);
+    if (wanted.section) { setSettingsGroup(wanted.section); if (!showSettings) openSettings(); return; }
+    if (showSettings) closeSettings();
+    setActiveTab(wanted.tab);
+    if (wanted.tab === "whatsapp") {
+      setWaView(wanted.view || "send");
+      if (wanted.view === "log" && waMessages === null) loadWaMessages();
+    }
+    if (wanted.tab === "campaigns") {
+      setMarketingView(wanted.view === "campaigns" ? "campaigns" : "posts");
+      setAiPostsView(wanted.view === "reels" ? "reels" : "studio");
+    }
+  };
+  useLayoutEffect(() => {
+    if (loading || screenLinkReady.current) return;
+    screenLinkReady.current = true;
+    openScreenRef.current();
+  }, [loading]);
+  useEffect(() => {
+    const onPop = () => { if (screenLinkReady.current) openScreenRef.current(); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   if(loading) return (
     <div style={{minHeight:"100dvh",background:"linear-gradient(180deg,var(--surface-2) 0%,#FFFFFF 340px)",padding:"22px 18px",fontFamily:"var(--font-heebo),'Heebo',sans-serif"}}>
