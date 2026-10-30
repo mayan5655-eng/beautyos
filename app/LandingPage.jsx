@@ -141,7 +141,7 @@ export default function LandingPage() {
           כל העסק שלך בטלפון אחד
         </Reveal>
         <Reveal immediate delay={80} style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 26 }}>
-          <p>יומן תורים, כרטיסי לקוחות, תשלומים ופוסטים מוכנים לרשתות. בנתה אותה קוסמטיקאית שעובדת בזה כל יום.</p>
+          <p>יומן תורים, כרטיסי לקוחות, תשלומים ופוסטים מוכנים לרשתות.<br />בנתה אותה קוסמטיקאית שעובדת בזה כל יום.</p>
         </Reveal>
         <Reveal immediate delay={160} style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/signup" className="kl-press" style={pillBtn}>
