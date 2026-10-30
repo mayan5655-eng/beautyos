@@ -8,6 +8,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifiedUserFromSession } from './sessionGate';
+import { loginPathForScreen } from '../screenLink';
 
 // Public routes that must never require login (clients/leads use these).
 const PUBLIC_PREFIXES = [
@@ -79,10 +80,13 @@ export async function updateSession(request: NextRequest) {
   // Every API route and write still calls auth.getUser().
   const user = await verifiedUserFromSession(supabase);
 
-  // Protected pages (everything that is not public) require a session.
-  if (!user && !isPublicPath(request.nextUrl.pathname)) {
+  // Protected pages (everything that is not public) require a session. A link to one screen of the system
+  // (lib/screenLink.ts) comes back to that screen after login, also from "/", which is otherwise the public landing page.
+  const screenLogin = user ? null : loginPathForScreen(request.nextUrl.pathname, request.nextUrl.search);
+  if (!user && (screenLogin || !isPublicPath(request.nextUrl.pathname))) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    if (screenLogin) url.search = screenLogin.slice('/login'.length);
     const redirectResponse = NextResponse.redirect(url);
     // Preserve the refreshed auth cookies on the redirect response.
     supabaseResponse.cookies.getAll().forEach((c) =>
