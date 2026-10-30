@@ -12,8 +12,9 @@ import Reveal from "./landing/Reveal";
 import CostTable from "./landing/CostTable";
 import PhoneMock from "./landing/PhoneMock";
 import DemoVideo from "./landing/DemoVideo";
+import BeforeAfter from "./landing/BeforeAfter";
 import {
-  ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER,
+  ICON_CALENDAR, ICON_FRAME, ICON_WALLET, ICON_MICROPHONE, ICON_FLOWER, ICON_QUESTION,
 } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import PublicFooterLinks from "./PublicFooterLinks";
@@ -33,18 +34,27 @@ const TOTAL_LOW = COST_ROWS.reduce((s, r) => s + r.low, 0);
 const TOTAL_HIGH = COST_ROWS.reduce((s, r) => s + r.high, 0);
 
 const BEFORE_AFTER = [
-  { before: "מחברת תורים שמתבלבלת", after: "יומן דיגיטלי שמכין לך את התזכורות" },
-  { before: "וואטסאפים שנשכחים בלי מענה", after: "תזכורות מוכנות לשליחה, יום לפני" },
-  { before: "לקוחה כותבת ואת בטיפול", after: "היא קובעת תור לבד, מהדף שלך, גם בלילה" },
-  { before: "פנקס תשלומים ביד", after: "קופה שמסדרת את כל התשלומים במקום אחד" },
-  { before: "שעות על עיצוב פוסט אחד", after: "פוסט מוכן בלחיצה, בצבעים שלך" },
-  { before: "לקוחות שנעלמות ולא חוזרות", after: "הודעת חזרה מוכנה אחרי 90 יום, ואת קובעת את מספר הימים" },
+  { icon: ICON_CALENDAR, before: "מחברת תורים שמתבלבלת", after: "יומן דיגיטלי שמכין לך את התזכורות" },
+  { icon: ICON_QUESTION, before: "וואטסאפים שנשכחים בלי מענה", after: "תזכורות מוכנות לשליחה, יום לפני" },
+  { icon: ICON_FLOWER, before: "לקוחה כותבת ואת בטיפול", after: "היא קובעת תור לבד, מהדף שלך, גם בלילה" },
+  { icon: ICON_WALLET, before: "פנקס תשלומים ביד", after: "קופה שמסדרת את כל התשלומים במקום אחד" },
+  { icon: ICON_FRAME, before: "שעות על עיצוב פוסט אחד", after: "פוסט מוכן בלחיצה, בצבעים שלך" },
+  { icon: ICON_FLOWER, before: "לקוחות שנעלמות ולא חוזרות", after: "הודעת חזרה מוכנה אחרי 90 יום, ואת קובעת את מספר הימים" },
 ];
 
 const PILLARS = [
   { icon: ICON_CALENDAR, title: "יומן מלא", text: "לקוחה קובעת תור לבד מהקישור שלך, ואת רואה הכל במקום אחד." },
   { icon: ICON_FRAME, title: "נוכחות ברשתות", text: "פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
   { icon: ICON_WALLET, title: "לקוחות שחוזרות", text: "תזכורת מוכנה ללקוחה שלא הגיעה מזמן, כדי שהיא תקבע שוב." },
+];
+
+// One ordinary working day. Every line is something the app really does; messages are offered to her, never sent for her.
+const A_DAY = [
+  { time: "08:00", text: "פותחת את הטלפון ורואה את כל היום שלך, ואת מה שהכנסת." },
+  { time: "11:30", text: "את באמצע טיפול. לקוחה חדשה קובעת תור לבד מהקישור שלך." },
+  { time: "14:00", text: "תור התפנה. קלמיה שואלת אם להציע אותו ללקוחות מתאימות." },
+  { time: "18:00", text: "סיימת לעבוד. פוסט מוכן בלחיצה, בצבעים ובלוגו שלך." },
+  { time: "22:40", text: "את על הספה. לקוחה קובעת לעצמה תור, ובבוקר הוא כבר ביומן." },
 ];
 
 const VOICE_LINES = [
@@ -118,15 +128,15 @@ function SectionEyebrow({ children }) {
   return <p style={{ textAlign: "center", fontSize: "var(--t-sm)", color: "var(--brand-sage-text)", fontWeight: 600, letterSpacing: "0.04em", marginBottom: 8 }}>{children}</p>;
 }
 
-export default function LandingPage() {
+export default function LandingPage({ signedIn = false }) {
   return (
     <div dir="rtl" style={{ background: "var(--brand-cream, #F0EADE)", fontFamily: "var(--sans)", overflowX: "hidden" }}>
       {/* ── 1. HEADER ─────────────────────────────────────────────────────── */}
       <header style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
           <Image src="/kalmea-wordmark.png" alt="קלמיה" width={WORDMARK_W} height={WORDMARK_H} priority style={{ width: "auto", height: 34 }} />
-          <Link href="/login" className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "none" }}>
-            להתחבר
+          <Link href={signedIn ? "/dashboard" : "/login"} className="kl-press" style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "none" }}>
+            {signedIn ? "כניסה למערכת" : "להתחבר"}
           </Link>
         </div>
         {/* Two photos so both audiences see their own work in the first second. */}
@@ -173,10 +183,10 @@ export default function LandingPage() {
       {/* ── 4. "נבנתה למי שעובדת לבד" ─────────────────────────────────────── */}
       <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 24px 10px", textAlign: "center" }}>
         <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 14 }}>
-          עובדת לבד? זה בדיוק בשבילך
+          את המטפלת, המזכירה, המעצבת וגם מנהלת החשבונות
         </Reveal>
         <Reveal delay={80} style={{ fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginBottom: 16 }}>
-          <p>בין לקוחה ללקוחה את קובעת תורים, עונה להודעות, מתכננת פוסטים ובודקת כמה הכנסת. את עושה הכל לבד.</p>
+          <p>בין לקוחה ללקוחה את קובעת תורים, עונה להודעות, מתכננת פוסטים ובודקת כמה הכנסת. בלילה את עוד עונה ללקוחות מהמיטה.</p>
         </Reveal>
         <Reveal delay={160} style={{ fontFamily: "var(--font-hand), cursive", fontSize: "var(--t-2xl)", color: "var(--brand-highlight)" }}>
           ומשלמת על כל כלי בנפרד.
@@ -208,16 +218,29 @@ export default function LandingPage() {
       </section>
 
       {/* ── 6. לפני / אחרי ────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 760, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>מה משתנה ביום יום שלך</SectionEyebrow>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginTop: 18 }}>
-          {BEFORE_AFTER.map((pair, i) => (
-            <Reveal key={pair.before} delay={(i % 3) * 80} style={{ background: "var(--surface)", borderRadius: "var(--r-md)", border: "1px solid var(--line)", padding: "16px 18px" }}>
-              <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textDecoration: "line-through", marginBottom: 6 }}>{pair.before}</p>
-              <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600 }}>{pair.after}</p>
+      <section style={{ maxWidth: 620, margin: "0 auto", padding: "56px 20px 10px" }}>
+        <Reveal as="h2" className="serif" style={{ textAlign: "center", fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 10 }}>
+          ככה נראה היום שלך לפני ואחרי
+        </Reveal>
+        <BeforeAfter rows={BEFORE_AFTER} />
+      </section>
+
+      {/* ── 6a. A REAL DAY ───────────────────────────────────────────────── */}
+      <section style={{ maxWidth: 560, margin: "0 auto", padding: "56px 20px 10px" }}>
+        <Reveal as="h2" className="serif" style={{ textAlign: "center", fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 20 }}>
+          ככה נראה יום רגיל עם קלמיה
+        </Reveal>
+        <div data-testid="landing-day" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {A_DAY.map((m, i) => (
+            <Reveal key={m.time} delay={i * 70} style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "12px 16px" }}>
+              <span dir="ltr" className="serif" style={{ flexShrink: 0, fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>{m.time}</span>
+              <span style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.5 }}>{m.text}</span>
             </Reveal>
           ))}
         </div>
+        <Reveal delay={420} style={{ textAlign: "center", fontFamily: "var(--font-hand), cursive", fontSize: "var(--t-2xl)", color: "var(--brand-highlight)", marginTop: 18 }}>
+          ואת נשארת עם הראש על הלקוחה שמולך.
+        </Reveal>
       </section>
 
       {/* ── 6b. DEMO VIDEO ────────────────────────────────────────────────── */}
@@ -359,7 +382,7 @@ export default function LandingPage() {
       <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
         <PublicFooterLinks style={{ padding: "0 0 8px" }} />
         <p>© {new Date().getFullYear()} קלמיה</p>
-        <KalmeaLegalFooter style={{ marginTop: 6 }} />
+        <KalmeaLegalFooter showBusinessLine={false} style={{ marginTop: 6 }} />
       </footer>
     </div>
   );

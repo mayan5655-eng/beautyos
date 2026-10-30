@@ -113,7 +113,7 @@ export default function LoginPage() {
       // signed in, and continues to Facebook right after. A full navigation, since it may be a route that redirects.
       const next = safeNext(new URLSearchParams(window.location.search).get('next'), '')
       if (next) { window.location.assign(next); return }
-      router.push('/')
+      router.push('/dashboard')
       router.refresh()
     }
   }

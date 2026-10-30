@@ -38,7 +38,7 @@ self.addEventListener("push", (event) => {
       dir: "rtl",
       tag: data.notificationId ? String(data.notificationId) : data.tag ? String(data.tag) : undefined,
       // A same-site path to open on click (the owner's morning digest opens her subscribers screen).
-      data: { url: typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/" },
+      data: { url: typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/dashboard" },
     })
   );
 });
@@ -50,10 +50,10 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      const url = (event.notification.data && event.notification.data.url) || "/";
+      const url = (event.notification.data && event.notification.data.url) || "/dashboard";
       for (const client of clients) {
         if ("focus" in client) {
-          if (url !== "/" && "navigate" in client) return client.navigate(url).then((c) => (c || client).focus());
+          if (url !== "/dashboard" && "navigate" in client) return client.navigate(url).then((c) => (c || client).focus());
           return client.focus();
         }
       }

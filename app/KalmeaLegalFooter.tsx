@@ -8,11 +8,11 @@ import type { CSSProperties } from 'react';
 import { footerBusinessLine } from '@/lib/kalmeaBusiness';
 import { KALMEA_SUPPORT_WHATSAPP_DISPLAY } from '@/lib/support';
 
-export default function KalmeaLegalFooter({ style }: { style?: CSSProperties }) {
+// showBusinessLine: off on the landing page (owner, 2026-10-30). The line stays on terms and privacy.
+export default function KalmeaLegalFooter({ style, showBusinessLine = true }: { style?: CSSProperties; showBusinessLine?: boolean }) {
   return (
     <p data-testid="kalmea-business-line" style={{ textAlign: 'center', fontSize: 13, lineHeight: 1.6, color: '#3F4F47', direction: 'rtl', margin: 0, padding: '0 16px', ...style }}>
-      {footerBusinessLine()}
-      <br />
+      {showBusinessLine && <>{footerBusinessLine()}<br /></>}
       <span data-testid="kalmea-phone">טלפון לפניות (וואטסאפ): <span dir="ltr">{KALMEA_SUPPORT_WHATSAPP_DISPLAY}</span></span>
     </p>
   );

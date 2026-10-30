@@ -1,24 +1,11 @@
 // app/page.tsx
 //
-// The root route branches on the session, server-side, before anything
-// paints: logged in -> the real dashboard (BeautyOS, unchanged); logged
-// out -> the public landing page. This used to be a single client
-// component (BeautyOS) that discovered mid-render it had no session and
-// client-navigated to /login - a loading spinner, then a redirect, and
-// nothing for an ad click to actually read. A Server Component checking
-// the session before the first paint is both faster and the only way to
-// serve a logged-out visitor real, crawlable HTML here at all.
-//
-// BeautyOS keeps its own client-side session check too (app/beautyos.jsx,
-// deep in loadAll) - that one is NOT redundant, it's what catches a
-// session that expires mid-use after this server check already passed.
+// The public landing page, for every visitor. A Server Component, so an ad click and a crawler both get real HTML before anything paints.
+// The app itself lives at /dashboard.
 
 import { createClient } from "@/lib/supabase/server";
 import { verifiedUserFromSession } from "@/lib/supabase/sessionGate";
 import LandingPage from "./LandingPage";
-import BeautyOSLoader from "./BeautyOSLoader";
-import OwnerEntry from "./dashboard/owner/OwnerEntry";
-import { wantsLandingPreview } from "@/lib/homeRoute";
 
 // Only meaningfully seen by a crawler or a social-share unfurl, both of
 // which hit this route with no session - so this describes the landing
@@ -40,18 +27,11 @@ export const metadata = {
   },
 };
 
-export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  // "/?landing=1" is the deliberate way to look at the public page while logged in (lib/homeRoute.ts). Answered before any
-  // session work, so it is also the cheapest path.
-  if (wantsLandingPreview(await searchParams)) return <LandingPage />;
-
-  const supabase = await createClient();
-  // Page-level gate only: the token's signature is verified locally
+export default async function Page() {
+  // The landing page for everyone, signed in or not (owner, 2026-10-30): each address is one thing, and the app lives at /dashboard.
+  // The session only decides what the header link says. Page-level gate only: the token's signature is verified locally
   // (lib/supabase/sessionGate.ts) instead of a round trip to the Auth server.
-  // Every API route and write still calls auth.getUser().
+  const supabase = await createClient();
   const user = await verifiedUserFromSession(supabase);
-
-  // OwnerEntry decides on the server, and streams: it renders nothing for anyone who is not a platform admin.
-  if (user) return <BeautyOSLoader ownerEntry={<OwnerEntry />} />;
-  return <LandingPage />;
+  return <LandingPage signedIn={!!user} />;
 }

@@ -691,3 +691,25 @@ body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none 
    consent box of the photo-to-post sheet). While a sheet is open the sheet is the thing she is doing; the card is back
    when it closes. Browsers without :has() just keep the old behaviour. */
 body:has(.sheet-backdrop) [role="dialog"][aria-label="פתיחה בדפדפן של הטלפון"] { display: none !important; }
+
+/* Landing, before and after (app/landing/BeforeAfter.jsx). Without JS or with reduced motion this is the finished picture. */
+.ba-row { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: right; cursor: pointer; }
+.ba-before, .ba-after { display: flex; align-items: center; gap: 10px; border-radius: var(--r-md); padding: 12px 16px; }
+.ba-before { background: #FBE3E0; color: #9E2A22; font-size: var(--t-md); }
+.ba-after { position: relative; margin-top: -4px; background: var(--k-green, #1F3A30); color: #FBF8F1; font-size: var(--t-lg); font-weight: 700; box-shadow: var(--shadow-md); }
+.ba-tag { display: block; flex-shrink: 0; font-size: var(--t-xs); font-weight: 700; opacity: .85; }
+.ba-before .ba-tag { padding: 2px 8px; border-radius: var(--r-full); background: #C8372D; color: #fff; opacity: 1; }
+.ba-after .ba-tag { color: #DCE4D5; margin-bottom: 2px; }
+.ba-text { position: relative; display: inline-block; line-height: 1.4; }
+.ba-strike { position: absolute; inset-inline: -4px; top: 52%; height: 3px; border-radius: 2px; background: #C8372D; transform-origin: right center; }
+.ba-icon { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #FBF8F1; }
+.ba-sound { background: none; border: 1px solid var(--line); border-radius: var(--r-full); padding: 8px 16px; min-height: 40px; font: inherit; font-size: var(--t-sm); font-weight: 600; color: var(--brand-accent); cursor: pointer; }
+.ba-row[data-ba="armed"] .ba-strike { transform: scaleX(0); }
+.ba-row[data-ba="armed"] .ba-after { opacity: 0; transform: translateY(14px) scale(.9); }
+.ba-row[data-ba="play"] .ba-strike { animation: baStrike .42s ease-out .12s both; }
+.ba-row[data-ba="play"] .ba-after { animation: baPop .5s cubic-bezier(.2, 1.5, .4, 1) .62s both; }
+@keyframes baStrike { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes baPop { from { opacity: 0; transform: translateY(14px) scale(.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ba-row .ba-strike, .ba-row .ba-after { opacity: 1 !important; transform: none !important; animation: none !important; }
+}
