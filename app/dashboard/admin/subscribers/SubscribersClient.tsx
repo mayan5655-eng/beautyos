@@ -21,6 +21,8 @@ import type { SubscriberRow, Filter, Segment, ContactStatus } from '@/lib/subscr
 import { dateHe } from '@/lib/ownerControl'
 import { buildDigest } from '@/lib/subscriberDigest'
 import { daysHe } from '@/lib/planCopy'
+import { FEEDBACK_QUESTIONS, NOT_YET, faceFor } from '@/lib/feedbackBanner'
+import type { FeedbackRow } from '@/lib/feedbackBanner'
 
 // ── tokens (all from app/globals.css) ──────────────────────────────────────
 const ink = 'var(--ink)'
@@ -101,23 +103,49 @@ function CopyText({ text, label }: { text: string; label: string }) {
   )
 }
 
-export default function SubscribersClient({ rows: initialRows, notesAvailable, metricsAvailable, nowIso }: {
+/** What she answered in the feedback banner: the stars and date, every question she answered, and her own words. */
+function FeedbackBlock({ answer }: { answer: FeedbackRow }) {
+  return (
+    <div data-testid="subscriber-feedback" style={{ marginTop: 12, padding: '10px 12px', background: cream, borderRadius: 'var(--r-md)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>המשוב שלה</span>
+        <span aria-label={`${answer.rating} כוכבים`} style={{ fontSize: 16, color: green, letterSpacing: 1 }}>{'★'.repeat(answer.rating)}{'☆'.repeat(5 - answer.rating)}</span>
+        <span style={{ fontSize: 12, color: ink3 }}>{dateHe(answer.created_at)}</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', marginTop: 4 }}>
+        {FEEDBACK_QUESTIONS.map((q) => {
+          const a = answer.answers?.[q.id]
+          const shown = a === NOT_YET ? 'עוד לא צפתה' : faceFor(a)
+          return shown ? <span key={q.id} style={{ fontSize: 13, color: ink2 }}>{q.shortLabel} {shown}</span> : null
+        })}
+      </div>
+      {answer.free_text && <p style={{ ...muted, color: ink, marginTop: 6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{answer.free_text}</p>}
+    </div>
+  )
+}
+
+export default function SubscribersClient({ rows: initialRows, notesAvailable, metricsAvailable, feedback, feedbackAvailable, nowIso }: {
   rows: SubscriberRow[]
   notesAvailable: boolean
   metricsAvailable: boolean
+  feedback: Record<string, FeedbackRow>
+  feedbackAvailable: boolean
   nowIso: string
 }) {
   const now = useMemo(() => new Date(nowIso), [nowIso])
   const [rows, setRows] = useState(initialRows)
   const [filter, setFilter] = useState<'all' | Segment>('all')
   const [onlyWaiting, setOnlyWaiting] = useState(false)
+  const [onlyFeedback, setOnlyFeedback] = useState(false)
   const [query, setQuery] = useState('')
 
   const counts = useMemo(() => segmentCounts(rows), [rows])
   const visible = useMemo(() => {
     const f = filterSubscribers(rows, filter as Filter, query)
-    return onlyWaiting ? f.filter((r) => r.contact.status === 'not_contacted') : f
-  }, [rows, filter, query, onlyWaiting])
+    const waitingOnly = onlyWaiting ? f.filter((r) => r.contact.status === 'not_contacted') : f
+    return onlyFeedback ? waitingOnly.filter((r) => feedback[r.id]) : waitingOnly
+  }, [rows, filter, query, onlyWaiting, onlyFeedback, feedback])
+  const feedbackCount = useMemo(() => rows.filter((r) => feedback[r.id]).length, [rows, feedback])
   const waiting = useMemo(() => rows.filter((r) => needsFirstContact(r, now)).length, [rows, now])
   // The same summary as her morning digest (/api/owner-digest), live: what is due today besides the new signups.
   const today = useMemo(() => buildDigest(rows, now), [rows, now])
@@ -142,10 +170,11 @@ export default function SubscribersClient({ rows: initialRows, notesAvailable, m
         כל מי שנרשמה לקלמיה, באיזה שלב היא, ודרך קצרה לדבר איתה. ההודעה נפתחת אצלך מוכנה, ואת שולחת אותה בעצמך.
       </p>
 
-      {(!notesAvailable || !metricsAvailable) && (
+      {(!notesAvailable || !metricsAvailable || !feedbackAvailable) && (
         <div style={{ ...card, background: petal, borderColor: petal, boxShadow: 'none' }}>
           {!notesAvailable && <p style={{ ...muted, color: rose }}>שמירת הערות עוד לא זמינה: צריך להריץ את kalmea-sql-admin-tenant-contacts. עד אז כולן מופיעות כ&quot;עוד לא דיברנו&quot;.</p>}
           {!metricsAvailable && <p style={{ ...muted, color: rose, marginTop: notesAvailable ? 0 : 6 }}>נתוני הגדרה ופעילות באפליקציה עוד לא זמינים (platform-admin-view.sql). הפעילות מוצגת לפי הכניסה האחרונה.</p>}
+          {!feedbackAvailable && <p style={{ ...muted, color: rose, marginTop: notesAvailable && metricsAvailable ? 0 : 6 }}>המשובים של הלקוחות עוד לא זמינים: צריך להריץ את kalmea-sql-product-feedback. עד אז הבאנר לא קופץ לאף אחת.</p>}
         </div>
       )}
 
@@ -229,10 +258,18 @@ export default function SubscribersClient({ rows: initialRows, notesAvailable, m
           )
         })}
       </div>
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink2, marginBottom: 14, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginBottom: 14 }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink2, cursor: 'pointer' }}>
         <input type="checkbox" checked={onlyWaiting} onChange={(e) => setOnlyWaiting(e.target.checked)} style={{ accentColor: 'var(--k-green)', width: 16, height: 16 }} />
         רק מי שעוד לא דיברנו איתה ({counts.not_contacted})
       </label>
+      {feedbackAvailable && (
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, color: ink2, cursor: 'pointer' }}>
+          <input type="checkbox" checked={onlyFeedback} onChange={(e) => setOnlyFeedback(e.target.checked)} style={{ accentColor: 'var(--k-green)', width: 16, height: 16 }} />
+          רק מי שענתה על המשוב ({feedbackCount})
+        </label>
+      )}
+      </div>
 
       {visible.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: '28px 16px' }}>
@@ -241,16 +278,17 @@ export default function SubscribersClient({ rows: initialRows, notesAvailable, m
           <p style={{ ...muted, fontSize: 15, marginTop: 8 }}>{rows.length === 0 ? 'עוד אין הרשמות.' : 'אין מי שמתאימה לסינון הזה.'}</p>
         </div>
       ) : visible.map((r) => (
-        <SubscriberCard key={r.id} row={r} now={now} notesAvailable={notesAvailable} onSaved={onSaved} />
+        <SubscriberCard key={r.id} row={r} now={now} notesAvailable={notesAvailable} answer={feedback[r.id]} onSaved={onSaved} />
       ))}
     </div>
   )
 }
 
-function SubscriberCard({ row: r, now, notesAvailable, onSaved }: {
+function SubscriberCard({ row: r, now, notesAvailable, answer, onSaved }: {
   row: SubscriberRow
   now: Date
   notesAvailable: boolean
+  answer?: FeedbackRow
   onSaved: (id: string, contact: SubscriberRow['contact']) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -343,6 +381,8 @@ function SubscriberCard({ row: r, now, notesAvailable, onSaved }: {
           </button>
         )}
       </div>
+
+      {answer && <FeedbackBlock answer={answer} />}
 
       {notesAvailable && !open && (r.contact.status !== 'not_contacted' || r.contact.note) && (
         <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${line}` }}>

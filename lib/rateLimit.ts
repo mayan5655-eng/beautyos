@@ -169,6 +169,14 @@ export const RATE_POLICIES = {
       `נשלחו כבר כמה הודעות. אפשר לשלוח שוב ${m}, או לכתוב לנו ישירות בוואטסאפ.`,
   },
 
+  // The feedback banner. One answer per business, so this only stops a retry loop.
+  feedback: {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלח כבר כמה פעמים. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלח כבר כמה פעמים. אפשר לנסות שוב ${m}.`,
+  },
+
   // Opening a consent form. A read, and the client is standing in the clinic
   // waiting to sign, so it must not be the limit anyone trips. Loose, like
   // 'availability', for the same reason: making this fail is worse than not

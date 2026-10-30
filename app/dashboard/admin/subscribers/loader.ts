@@ -12,9 +12,10 @@ import { createClient as createSessionClient } from '@/lib/supabase/server'
 import { readSubscriberRows } from '@/lib/subscribersData'
 import { sortSubscribers } from '@/lib/subscribers'
 import type { SubscriberRow } from '@/lib/subscribers'
+import type { FeedbackRow } from '@/lib/feedbackBanner'
 
 export type SubscribersPage =
-  | { ok: true; rows: SubscriberRow[]; notesAvailable: boolean; metricsAvailable: boolean; now: string }
+  | { ok: true; rows: SubscriberRow[]; notesAvailable: boolean; metricsAvailable: boolean; feedback: Record<string, FeedbackRow>; feedbackAvailable: boolean; now: string }
   | { ok: false }
 
 export async function loadSubscribers(): Promise<SubscribersPage> {
@@ -33,5 +34,9 @@ export async function loadSubscribers(): Promise<SubscribersPage> {
   const now = new Date()
   const r = await readSubscriberRows(db, ownTenantId ? [ownTenantId] : [], now)
   if (!r.ok) return { ok: false }
-  return { ok: true, rows: sortSubscribers(r.rows, now), notesAvailable: r.notesAvailable, metricsAvailable: r.metricsAvailable, now: now.toISOString() }
+  // What each business answered in the feedback banner. Until add_product_feedback_2026-10-30.sql runs the list still loads and says so.
+  const fb = await db.from('product_feedback').select('tenant_id, rating, answers, free_text, created_at')
+  if (fb.error) console.error('[subscribers] product_feedback read failed:', fb.error.message)
+  const feedback = Object.fromEntries(((fb.data || []) as FeedbackRow[]).map((row) => [row.tenant_id, row]))
+  return { ok: true, rows: sortSubscribers(r.rows, now), notesAvailable: r.notesAvailable, metricsAvailable: r.metricsAvailable, feedback, feedbackAvailable: !fb.error, now: now.toISOString() }
 }

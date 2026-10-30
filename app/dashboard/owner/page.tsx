@@ -12,6 +12,7 @@ const TILES = [
   { href: '/dashboard/owner/signups', title: 'הרשמות', body: 'כמה נרשמו היום, בשבוע ובחודש, ומאיפה הן הגיעו.' },
   { href: '/dashboard/owner/trials', title: 'ניסיונות', body: 'מי מסיימת את החודש החינם בקרוב, ומי זכאית למחיר 349.' },
   { href: '/dashboard/owner/activity', title: 'פעילות', body: 'מתי כל עסק יצר משהו לאחרונה בקלמיה.' },
+  { href: '/dashboard/owner/feedback', title: 'משובים', body: 'מה העסקים ענו בבאנר המשוב: כוכבים, חמש השאלות וכתיבה חופשית.' },
 ]
 
 export default async function OwnerHubPage() {

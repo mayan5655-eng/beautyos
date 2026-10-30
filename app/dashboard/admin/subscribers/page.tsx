@@ -22,5 +22,5 @@ export default async function SubscribersPage() {
       </div>
     )
   }
-  return <SubscribersClient rows={r.rows} notesAvailable={r.notesAvailable} metricsAvailable={r.metricsAvailable} nowIso={r.now} />
+  return <SubscribersClient rows={r.rows} notesAvailable={r.notesAvailable} metricsAvailable={r.metricsAvailable} feedback={r.feedback} feedbackAvailable={r.feedbackAvailable} nowIso={r.now} />
 }

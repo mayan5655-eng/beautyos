@@ -156,7 +156,7 @@ ok('only tenant-level columns are selected, and the only tables and functions to
   const readers = ownerFiles.filter((f) => !norm(f).endsWith('signups/contacts.ts'));
   const code = readers.map((f) => strip(rd(f))).join('\n') + '\n' + strip(rd('lib/ownerControl.ts'));
   const from = [...code.matchAll(/\.from\('([^']+)'\)/g)].map((m) => m[1]);
-  assert.deepEqual([...new Set(from)], ['tenants']);
+  assert.deepEqual([...new Set(from)].sort(), ['product_feedback', 'tenants']);
   const rpc = [...code.matchAll(/\.rpc\('([^']+)'\)/g)].map((m) => m[1]).sort();
   assert.deepEqual([...new Set(rpc)], ['get_user_tenant_id', 'platform_tenant_metrics']);
   const display = /signups\/(page\.tsx|CopyButton\.tsx)$/;
