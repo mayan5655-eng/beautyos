@@ -189,6 +189,7 @@ try {
   const subs = (await page.innerText('body')).replace(/\s+/g, ' ');
   check(reallyDegraded ? subs.includes('kalmea-sql-product-feedback') : subs.includes('רק מי שענתה על המשוב'), 'the tracking page shows the feedback state');
   await page.screenshot({ path: `${SHOTS}/smoke-feedback-8-tracking.png` });
+  log('tracking page width', await page.evaluate(() => [document.documentElement.scrollWidth, document.body.scrollWidth, document.querySelector('h1').getBoundingClientRect().left]));
 } catch (e) {
   fails.push(String(e?.message || e));
   console.error('[feedback] threw', e);
