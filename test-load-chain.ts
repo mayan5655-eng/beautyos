@@ -63,14 +63,14 @@ const vStart = src.indexOf('const verifySession = async () => {');
 ok(vStart > 0 && vStart < start, 'verifySession exists, defined before loadAll');
 const verifySrc = src.slice(vStart, start);
 ok(verifySrc.includes('supabase.auth.getUser()'), 'verifySession does the network check');
-ok(verifySrc.includes('isAuthTransportFailure(error)') && verifySrc.includes('router.replace("/login")'), 'verifySession sends her to /login only on a definite no-user, never on a transport failure');
+ok(verifySrc.includes('isAuthTransportFailure(error)') && verifySrc.includes('|| "/login")'), 'verifySession sends her to /login only on a definite no-user, never on a transport failure');
 ok(src.includes('function isAuthTransportFailure(authErr)') && loadAll.includes('isAuthTransportFailure(authErr)'), 'one shared offline-is-not-logged-out predicate, used by the boot check');
 ok(loadAll.includes('verifySession();'), 'loadAll starts verifySession after the core load');
 
 // The decisions that make the early results trustworthy must still sit
 // between the awaits and the first use of any result.
 const iTransport = loadAll.indexOf('authTransportFailure');
-const iRedirect = loadAll.indexOf('router.replace("/login")');
+const iRedirect = loadAll.indexOf('|| "/login")');
 const iRpcErr = loadAll.indexOf('if (rpcErr)');
 const iFirstSet = loadAll.lastIndexOf('setAppointments(');
 const iCoreCheck = loadAll.indexOf('failedReads');
