@@ -222,7 +222,7 @@ export default function LandingPage({ signedIn = false }) {
           <div className="lp-areas" data-testid="landing-videos">
             {IN_ACTION.map((v) => (
               <div key={v.id} className="lp-area">
-                <DemoVideo mp4={`/media/landing-${v.id}.mp4`} poster={`/media/landing-${v.id}.jpg`} label={v.title} width={220} />
+                <DemoVideo mp4={`/media/landing-${v.id}.mp4`} poster={`/media/landing-${v.id}.jpg`} label={v.title} width={178} />
                 <h3 className="lp-area-title">{v.title}</h3>
                 <p className="lp-area-text">{v.text}</p>
               </div>
