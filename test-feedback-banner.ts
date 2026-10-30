@@ -119,4 +119,6 @@ assert.match(subs, /\{answer && <FeedbackBlock answer=\{answer\} \/>\}/);
 assert.match(subs, /kalmea-sql-product-feedback/);
 assert.match(subs, /answer\.free_text/);
 
+assert.match(rd('app/dashboard/owner/feedback/page.tsx'), /\.filter\(Boolean\)\.join\(' · '\) \|\| 'אין תשובות'/, '"not yet" alone is still an answer');
+
 console.log('feedback-banner: ok');

@@ -24,6 +24,8 @@ if (!tenantId || tenantId === REAL_TENANT) throw new Error('bad tenant');
 log('base', BASE, 'account', email, 'tenant', tenantId);
 
 const { browser, page } = await launch();
+let second = null;
+let secondBrowser = null;
 const banner = page.locator('[data-testid="feedback-banner"]');
 const visible = (sel) => page.locator(sel).filter({ visible: true }).first();
 const skipTour = async () => { for (let i = 0; i < 6; i++) { const sk = visible('button:has-text("דלגי")'); if (await sk.count()) { await sk.click().catch(() => {}); await page.waitForTimeout(300); } else break; } };
@@ -188,15 +190,50 @@ try {
   await page.goto(`${BASE}/dashboard/admin/subscribers`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(2000);
   const subs = (await page.innerText('body')).replace(/\s+/g, ' ');
   check(reallyDegraded ? subs.includes('kalmea-sql-product-feedback') : subs.includes('רק מי שענתה על המשוב'), 'the tracking page shows the feedback state');
-  await page.screenshot({ path: `${SHOTS}/smoke-feedback-8-tracking.png` });
+  if (reallyDegraded) await page.screenshot({ path: `${SHOTS}/smoke-feedback-8-tracking.png` });
   log('tracking page width', await page.evaluate(() => [document.documentElement.scrollWidth, document.body.scrollWidth, document.querySelector('h1').getBoundingClientRect().left]));
+
+  // A second account as the admin: a business is never shown to its own admin, so only this proves the answer reaches her screens.
+  if (!reallyDegraded) {
+    const adminEmail = newEmail('feedback-admin');
+    const { data: made, error: mErr } = await db.auth.admin.createUser({ email: adminEmail, password: PASSWORD, email_confirm: true });
+    if (mErr) throw mErr;
+    await new Promise((r) => setTimeout(r, 1500));
+    second = { userId: made.user.id, tenantId: await tenantIdOf(made.user.id) };
+    await db.from('platform_admins').insert({ user_id: second.userId });
+    const other = await launch();
+    secondBrowser = other.browser;
+    await other.page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await other.page.waitForTimeout(1500);
+    await other.page.fill('input[type=email]', adminEmail); await other.page.fill('input[type=password]', PASSWORD); await other.page.click('button[type=submit]');
+    await other.page.waitForTimeout(5000);
+
+    await other.page.goto(`${BASE}/dashboard/admin/subscribers`, { waitUntil: 'domcontentloaded' }); await other.page.waitForTimeout(2500);
+    await other.page.locator('label:has-text("רק מי שענתה על המשוב")').click();
+    await other.page.waitForTimeout(500);
+    const card = other.page.locator('section', { hasText: 'קליניקת בדיקה משוב' }).filter({ has: other.page.locator('[data-testid="subscriber-feedback"]') });
+    check(await card.count() === 1, 'tracking page: this business has its feedback on its card');
+    const block = (await card.first().locator('[data-testid="subscriber-feedback"]').innerText().catch(() => '')).replace(/\s+/g, ' ');
+    check(block.includes('המשוב שלה') && block.includes('היומן מעולה, חסר לי דוח חודשי') && block.includes('עוד לא צפתה') && block.includes('קלות שימוש'), `tracking page: stars, answers and her words: ${block}`);
+    await card.first().scrollIntoViewIfNeeded();
+    await card.first().screenshot({ path: `${SHOTS}/smoke-feedback-9-tracking-card.png` });
+    log('tracking page width', await other.page.evaluate(() => document.body.scrollWidth));
+
+    await other.page.goto(`${BASE}/dashboard/owner/feedback`, { waitUntil: 'domcontentloaded' }); await other.page.waitForTimeout(2000);
+    const ownerText = (await other.page.innerText('body')).replace(/\s+/g, ' ');
+    check(ownerText.includes('קליניקת בדיקה משוב') && ownerText.includes('היומן מעולה, חסר לי דוח חודשי'), 'owner feedback screen: the answer is there');
+    check(ownerText.includes('1 לא צפו'), 'owner feedback screen: "not yet" on the videos counts as an answer');
+    await other.page.screenshot({ path: `${SHOTS}/smoke-feedback-10-owner-answers.png`, fullPage: true });
+  }
 } catch (e) {
   fails.push(String(e?.message || e));
   console.error('[feedback] threw', e);
   await page.screenshot({ path: `${SHOTS}/smoke-feedback-crash.png` }).catch(() => {});
 } finally {
   await db.from('platform_admins').delete().eq('user_id', userId);
+  if (second) await db.from('platform_admins').delete().eq('user_id', second.userId);
   await browser.close();
+  if (secondBrowser) await secondBrowser.close();
+  if (second) log('purged admin', second.tenantId, (await purgeTenant(second.tenantId, second.userId)).length || 'clean');
   const left = await purgeTenant(tenantId, userId);
   log('purged', tenantId, left.length ? left : 'clean');
 }
