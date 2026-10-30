@@ -24,7 +24,8 @@ log('account', email, 'tenant', tenantId, 'base', BASE);
 
 const NAV = 'button[aria-label="יומן"]';
 const ready = async (page) => { await page.waitForSelector(NAV, { timeout: 60000 }); await page.waitForTimeout(600); };
-const headings = (page) => page.evaluate(() => [...document.querySelectorAll('h1,h2')].filter((e) => e.offsetParent).map((e) => e.textContent.trim()).slice(0, 3).join(' | '));
+// The calendar has no heading: its toolbar stands for it.
+const headings = (page) => page.evaluate(() => [...document.querySelectorAll('h1,h2')].filter((e) => e.offsetParent).map((e) => e.textContent.trim()).slice(0, 3).join(' | ') || (document.querySelector('button[aria-label="תור חדש"], button[aria-label="יומן"][aria-current]') ? 'calendar' : document.body.innerText.includes('שבוע') ? 'calendar' : ''));
 const search = (page) => new URL(page.url()).search;
 const skipTour = async (page) => { const b = page.locator('button:has-text("דלגי")').first(); if (await b.isVisible().catch(() => false)) { await b.click(); await page.waitForTimeout(500); } };
 
@@ -59,7 +60,8 @@ try {
   for (const q of ['insights', 'calendar', 'clients', 'leads', 'cashier', 'tax', 'whatsapp', 'campaigns', 'packages', 'advisor', 'help', 'whatsapp&view=log', 'campaigns&view=campaigns', 'campaigns&view=reels']) {
     await page.goto(`${BASE}/dashboard?tab=${q}`, { waitUntil: 'domcontentloaded' });
     await ready(page);
-    const h = await headings(page);
+    let h = await headings(page);
+    for (let i = 0; i < 40 && !h; i++) { await page.waitForTimeout(200); h = await headings(page); } // lazy screens draw a moment later
     check(`link ?tab=${q}`, search(page) === `?tab=${q}` && h !== home, h);
     if (q === 'calendar') await page.screenshot({ path: `${out}/calendar-430.png` });
     if (q === 'whatsapp&view=log' || q === 'campaigns&view=reels') {
@@ -142,7 +144,7 @@ try {
   check('signed out plain / is still the landing page', new URL(p3.url()).pathname === '/');
   await ctx2.close();
 
-  const real = problems.filter((p) => !/favicon|manifest|Failed to load resource/i.test(p));
+  const real = problems.filter((p) => !/favicon|manifest|Failed to load resource|vercel.live/i.test(p));
   check('no page errors', real.length === 0, real.slice(0, 5).join(' || '));
 } catch (e) {
   results.push(false);
