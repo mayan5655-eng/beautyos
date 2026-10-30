@@ -42,7 +42,7 @@ export default async function OwnerFeedbackPage() {
       <section style={card}>
         <h2 style={h2}>לפי שאלה (מתוך 5)</h2>
         {summary.questions.map((q) => (
-          <Row key={q.id} left={q.label} right={q.avg === null ? 'אין תשובות' : `${q.avg} · ${q.answered} ענו${q.notYet ? ` · ${q.notYet} לא צפו` : ''}`} />
+          <Row key={q.id} left={q.label} right={[q.avg === null ? '' : `${q.avg} · ${q.answered} ענו`, q.notYet ? `${q.notYet} לא צפו` : ''].filter(Boolean).join(' · ') || 'אין תשובות'} />
         ))}
       </section>
 
