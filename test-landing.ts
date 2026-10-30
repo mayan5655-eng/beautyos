@@ -1,7 +1,7 @@
 // Landing page (2026-10-12): claims that must stay true, and the things that must never regress. Source-level, since the
 // page is a server component with no render harness here.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { PLAN_PRICES } from './lib/pricing.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
@@ -74,14 +74,37 @@ ok('FAQ has the five documented answers and the WhatsApp button uses the support
 });
 
 ok('nail techs are addressed and the nails demo link is still there', () => {
-  assert.match(page, /טכנאיות ציפורניים/);
+  assert.match(page, /ציפורניסטיות/);
   assert.match(page, /\/demo\/nails/);
 });
 
 ok('the share card title matches the Hebrew page title', () => {
-  const title = 'title: "קלמיה — עסק פורח, חיים עם יותר שקט"';
+  const title = 'title: "קלמיה: ניהול העסק לקוסמטיקאיות ולציפורניסטיות"';
   assert.equal(meta.split(title).length - 1, 3); // page, openGraph, twitter
   assert.match(meta, /twitter: \{/);
+});
+
+ok('the page carries no long dashes or arrows, and says who it is for in the hero', () => {
+  const copy = (s: string) => s.replace(/^\s*(\/\/|\{?\/\*).*$/gm, '');
+  for (const src of [page, cost, rd('app/landing/PhoneMock.jsx'), meta]) assert.doesNotMatch(copy(src), /[—–←]| -- /);
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. PHONE MOCK'));
+  assert.match(hero, /לקוסמטיקאיות ולציפורניסטיות/);
+  assert.match(page, /facial-classic\.jpg/);
+  assert.match(page, /nails-manicure\.jpg/);
+});
+
+ok('the three tutorial videos are on the page and every one of them exists, nothing loads before play', () => {
+  const ids = [...page.matchAll(/\{ id: "(\w+)", title:/g)].map((m) => m[1]);
+  assert.deepEqual(ids, ['welcome', 'booking', 'tour']);
+  for (const id of ids) for (const ext of ['mp4', 'jpg']) assert.ok(existsSync(`public/tutorials/kalmea-${id}.${ext}`));
+  assert.match(rd('app/landing/DemoVideo.jsx'), /preload="none"/);
+});
+
+ok('the free month without a credit card is said at every call to action', () => {
+  const links = page.split('href="/signup"').length - 1;
+  assert.equal(links, 3);
+  assert.ok((page.match(/בלי כרטיס אשראי/g) || []).length >= 4);
+  assert.match(page, /בלי כרטיס אשראי ובלי התחייבות/);
 });
 
 console.log(`${n} passed`);
@@ -96,7 +119,7 @@ console.log(`${n} passed`);
   const demo = page.slice(page.indexOf('9. DEMO'), page.indexOf('9b. FAQ'));
   assert.doesNotMatch(demo, /boxShadow: "var\(--shadow-sm\)"/); // the two big cards are gone
   assert.match(demo, /DEMOS\.map/);
-  assert.match(demo, /טכנאיות ציפורניים/);
+  assert.match(demo, /ציפורניסטיות/);
   const finalCta = page.slice(page.indexOf('10. FINAL CTA'));
   assert.equal((finalCta.match(/style=\{pillBtn\}/g) || []).length, 1);
   console.log('ok - landing focus: one prominent action in the hero and at the end, demo as quiet links');

@@ -75,7 +75,7 @@ export default function PhoneMock() {
               <BrandImage width={20} height={20} alt="" src={ICON_QUESTION} style={{ width: 20, height: 20, objectFit: "contain" }} />
               <span style={{ fontFamily: "var(--font-hand), cursive", fontSize: 13, color: "#A8544B" }}>שאלה אחת</span>
             </div>
-            <p style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.5 }}>התפנה תור ב-14:00 — להציע אותו בוואטסאפ ללקוחות מתאימות?</p>
+            <p style={{ fontSize: 10.5, color: "var(--ink-2)", lineHeight: 1.5 }}>התפנה תור ב-14:00. להציע אותו בוואטסאפ ללקוחות מתאימות?</p>
           </div>
         </div>
 
