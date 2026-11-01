@@ -13,5 +13,6 @@ export const metadata: Metadata = {
 
 export default async function PayPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  return <PayClient token={token} />;
+  // Grow: Apple Pay needs this script in the page's head (React moves an async script there).
+  return <><script async src="https://meshulam.co.il/_media/js/apple_pay_sdk/sdk.min.js" /><PayClient token={token} /></>;
 }

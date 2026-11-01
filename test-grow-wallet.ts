@@ -2,7 +2,7 @@
 // only, the refund and the status route. Fake fetch and in-memory repos: nothing reaches Grow or a database. The real thing against Grow's
 // sandbox is scripts/smoke/grow-wallet.mjs.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import { walletCredentials, walletAsCreds, walletLink, startWalletSession, walletLinkState, paymentMethodLabel, LINK_LIFETIME_HOURS } from './lib/grow/wallet.ts';
 import type { WalletCreds } from './lib/grow/wallet.ts';
 import { createCharge, applyNotification } from './lib/grow/service.ts';
@@ -175,3 +175,11 @@ await ok('the migration adds a status and one server-only column, no table, and 
 });
 
 console.log(`grow wallet: ${n} ok`);
+
+// Apple reads the domain verification file without a session, under this exact name; the wallet page loads Grow's Apple Pay script.
+{
+  assert.ok(fs.statSync('public/.well-known/apple-developer-merchantid-domain-association').size > 1000);
+  assert.match(fs.readFileSync('lib/supabase/middleware.ts', 'utf8'), /'\/\.well-known'/);
+  assert.match(fs.readFileSync('app/pay/[token]/page.tsx', 'utf8'), /meshulam\.co\.il\/_media\/js\/apple_pay_sdk\/sdk\.min\.js/);
+  assert.ok(GROW_WALLET_ORIGINS.includes('https://meshulam.co.il'), 'the script host is the bare domain, which *.meshulam.co.il does not cover');
+}

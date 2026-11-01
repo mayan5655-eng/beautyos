@@ -16,6 +16,7 @@ const PUBLIC_PREFIXES = [
   '/auth',
   '/signup',
   '/book',
+  '/.well-known', // Apple reads its domain verification file here (Grow wallet, Apple Pay); it has no session
   '/pay', // /pay/<token>: the Grow payment page a client opens from a link she sent (lib/grow/wallet.ts); the token in the link is the authorisation
   '/skin-scan',
   '/form',

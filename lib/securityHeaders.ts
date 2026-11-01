@@ -57,7 +57,7 @@ function supabaseOrigin(env: Record<string, string | undefined>): string | null 
  * The origins Grow's wallet needs on the payment page /pay/<token> and nowhere else: its own hosts and the wallet providers' (Google Pay).
  * Every other page keeps the strict policy: nothing here is added unless `grow` is passed.
  */
-export const GROW_WALLET_ORIGINS = ['https://*.meshulam.co.il', 'https://*.grow.link', 'https://*.grow.business', 'https://pay.google.com'];
+export const GROW_WALLET_ORIGINS = ['https://meshulam.co.il', 'https://*.meshulam.co.il', 'https://*.grow.link', 'https://*.grow.business', 'https://pay.google.com'];
 /** Google Pay's readiness check inside the wallet connects here. */
 const GROW_WALLET_CONNECT_EXTRA = ['https://google.com'];
 /** The card form itself is Grow's card processor's page (sandbox ppsuat., live pps.), drawn in a frame. */
