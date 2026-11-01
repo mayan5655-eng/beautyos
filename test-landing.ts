@@ -121,8 +121,8 @@ ok('before and after: soft red and green in pairs, finished picture without JS, 
   assert.match(css, /\.lp-ba-cell\.is-after \{ background: #EEF4EE/);
 });
 
-ok('the landing page leaves out the business line, terms and privacy keep it', () => {
-  assert.match(page, /<KalmeaLegalFooter showBusinessLine=\{false\}/);
+ok('the business line is on the landing page, as told to Grow, and on terms and privacy', () => {
+  assert.doesNotMatch(page, /showBusinessLine/);
   for (const f of ['app/terms/page.tsx', 'app/privacy/page.tsx']) assert.doesNotMatch(rd(f), /showBusinessLine/);
 });
 

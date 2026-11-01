@@ -319,7 +319,7 @@ export default function LandingPage({ signedIn = false }) {
       <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
         <PublicFooterLinks style={{ padding: "0 0 8px" }} />
         <p>© {new Date().getFullYear()} Kalmea</p>
-        <KalmeaLegalFooter showBusinessLine={false} style={{ marginTop: 6 }} />
+        <KalmeaLegalFooter style={{ marginTop: 6 }} />
       </footer>
     </div>
   );

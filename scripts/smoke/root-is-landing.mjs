@@ -29,7 +29,7 @@ try {
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
   check('signed out: landing page', await page.locator('h1').innerText() === 'עונה לוואטסאפים באמצע טיפול?');
   check('signed out: header says login', await page.locator('header a[href="/login"]').count() === 1);
-  check('no business line on the landing page', await page.locator('[data-testid=kalmea-business-line]').innerText().then((t) => !t.includes('עוסק פטור')));
+  check('business line on the landing page', await page.locator('[data-testid=kalmea-business-line]').innerText().then((t) => t.includes('עוסק פטור')));
 
   await page.locator('button.ba-sound').click();
   check('sound button turns on', await page.locator('button.ba-sound').getAttribute('aria-pressed') === 'true');
