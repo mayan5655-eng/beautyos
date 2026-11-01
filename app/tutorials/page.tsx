@@ -16,7 +16,7 @@ import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/suppo
 
 export const metadata: Metadata = {
   title: "סרטוני הדרכה · Kalmea",
-  description: "שלושה סרטונים קצרים: מה יש בקלמיה, סיור בכל המסכים, ואיך קובעים תור.",
+  description: "ארבעה סרטונים קצרים: מה יש בקלמיה, סיור בכל המסכים, איך קובעים תור ואיך מוסיפים את קלמיה למסך הבית.",
   robots: { index: false },
 };
 
@@ -24,6 +24,7 @@ const TUTORIALS = [
   { id: "welcome", title: "מה מיוחד בקלמיה", sub: "כל מה שקלמיה עושה בשבילך, בדקה אחת" },
   { id: "tour", title: "סיור בכל המסכים", sub: "היומן, הלקוחות, התשלומים, התוכן וההגדרות" },
   { id: "booking", title: "איך קובעים תור", sub: "ביומן שלך, ואיך הלקוחה קובעת לבד בדף שלך" },
+  { id: "home", title: "קלמיה על מסך הבית", sub: "איך מוסיפים אותה לטלפון, באייפון ובאנדרואיד" },
 ] as const;
 
 export default function TutorialsPage() {
@@ -34,7 +35,7 @@ export default function TutorialsPage() {
         <header style={{ marginBottom: 6 }}>
           <p style={brandStyle}>Kalmea</p>
           <h1 style={titleStyle}>ברוכה הבאה לקלמיה</h1>
-          <p style={leadStyle}>שלושה סרטונים קצרים שיעזרו לך להתחיל.</p>
+          <p style={leadStyle}>ארבעה סרטונים קצרים שיעזרו לך להתחיל.</p>
         </header>
 
         {TUTORIALS.map((t) => (

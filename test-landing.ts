@@ -74,12 +74,12 @@ ok('FAQ has the five documented answers and the WhatsApp button uses the support
 });
 
 ok('nail techs are addressed and the nails demo link is still there', () => {
-  assert.match(page, /ציפורניסטיות/);
+  assert.match(page, /מניקוריסטיות/);
   assert.match(page, /\/demo\/nails/);
 });
 
 ok('the share card title matches the Hebrew page title', () => {
-  const title = 'title: "קלמיה: ניהול העסק לקוסמטיקאיות ולציפורניסטיות"';
+  const title = 'title: "קלמיה: ניהול העסק לקוסמטיקאיות ולמניקוריסטיות"';
   assert.equal(meta.split(title).length - 1, 3); // page, openGraph, twitter
   assert.match(meta, /twitter: \{/);
 });
@@ -151,7 +151,7 @@ console.log(`${n} passed`);
   const demo = page.slice(page.indexOf('9. DEMO'), page.indexOf('9b. FAQ'));
   assert.doesNotMatch(demo, /boxShadow: "var\(--shadow-sm\)"/); // the two big cards are gone
   assert.match(demo, /DEMOS\.map/);
-  assert.match(demo, /ציפורניסטיות/);
+  assert.match(demo, /מניקוריסטיות/);
   const finalCta = page.slice(page.indexOf('10. FINAL CTA'));
   assert.equal((finalCta.match(/style=\{pillBtn\}/g) || []).length, 1);
   console.log('ok - landing focus: one prominent action in the hero and at the end, demo as quiet links');

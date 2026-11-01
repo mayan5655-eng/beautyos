@@ -9,7 +9,7 @@ const raw = (f: string) => fs.readFileSync(f, 'utf8');
 const page = raw('app/tutorials/page.tsx');
 
 const ids = [...page.matchAll(/\{ id: "([a-z]+)"/g)].map((m) => m[1]);
-assert.deepEqual(ids, ['welcome', 'tour', 'booking'], 'three videos, the welcome explainer first');
+assert.deepEqual(ids, ['welcome', 'tour', 'booking', 'home'], 'four videos, the welcome explainer first');
 for (const id of ids) {
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `public/tutorials/kalmea-${id}.mp4 exists`);
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.jpg`), `and its poster`);

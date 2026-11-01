@@ -92,7 +92,7 @@ const FAQ = [
     a: "כן. Kalmea בנויה לעבוד מהטלפון, ואפשר להוסיף אותה למסך הבית כמו אפליקציה.",
   },
   {
-    q: "זה מתאים גם לציפורניסטיות?",
+    q: "זה מתאים גם למניקוריסטיות?",
     a: "כן. יש תחום ציפורניים ודמו משלו, שאפשר לראות לפני שנרשמים.",
   },
 ];
@@ -117,7 +117,7 @@ const IN_ACTION = [
 
 const HERO_PHOTOS = [
   { src: "/landing/photo-cosmetician.jpg", alt: "קוסמטיקאית מבצעת טיפול פנים ללקוחה", position: "center 58%" },
-  { src: "/landing/photo-manicure.jpg", alt: "ציפורניסטית מורחת לק על ציפורני לקוחה", position: "center 40%" },
+  { src: "/landing/photo-manicure.jpg", alt: "מניקוריסטית מורחת לק על ציפורני לקוחה", position: "center 40%" },
 ];
 
 const pillBtn = {
@@ -266,7 +266,7 @@ export default function LandingPage({ signedIn = false }) {
       <section style={{ maxWidth: 760, margin: "0 auto", padding: "56px 20px 10px" }}>
         <SectionEyebrow>נסי לפני שנרשמים</SectionEyebrow>
         <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 4 }}>
-          יש דמו נפרד לקוסמטיקאיות ודמו נפרד לציפורניסטיות.
+          יש דמו נפרד לקוסמטיקאיות ודמו נפרד למניקוריסטיות.
         </p>
         <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 6 }}>
           אפשר להיכנס לדמו של{" "}
