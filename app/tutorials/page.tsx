@@ -7,6 +7,9 @@
 // one from marketing/welcome-motion.mjs. To update one, re-run its script and copy the file over
 // public/tutorials/kalmea-<id>.mp4 (and its poster .jpg). preload="none": nothing is downloaded until she presses play,
 // which is why these clips have their own size limit in test-asset-budget.ts.
+//
+// Owner, 2026-11-01: no AI figures. The last seconds of these three files were covered with the Kalmea flower, because the scripts here still draw
+// the AI presenter on their end cards: a new render must drop it (marketing/motion-lib.mjs endCard, marketing/tutorials.mjs).
 
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
