@@ -33,8 +33,11 @@ export async function POST(request: Request) {
   if (!/^[0-9a-f-]{32,40}$/i.test(paymentId)) return NextResponse.json({ success: false, error: 'בקשה לא תקינה' }, { status: 400 });
 
   const db = admin();
-  const { data: p } = await db.from('grow_payments').select('id, tenant_id, status, amount, process_id, description, receipt_id, transaction_id, transaction_token').eq('id', paymentId).eq('tenant_id', c.tenantId).maybeSingle();
+  const { data: p } = await db.from('grow_payments').select('id, tenant_id, status, amount, process_id, description, receipt_id, transaction_id, transaction_token, error').eq('id', paymentId).eq('tenant_id', c.tenantId).maybeSingle();
   if (!p) return NextResponse.json({ success: false, error: 'התשלום לא נמצא' }, { status: 404 });
+  // Before add_grow_wallet.sql a refunded payment keeps status 'paid' with error 'refunded' (below): refused like a refunded one, or a
+  // second tap would send a second refund (2026-11-02 audit).
+  if (p.status === 'paid' && (p as { error?: unknown }).error === 'refunded') return NextResponse.json({ success: false, error: 'התשלום הזה כבר הוחזר' }, { status: 409 });
   if (p.status !== 'paid') return NextResponse.json({ success: false, error: p.status === 'refunded' ? 'התשלום הזה כבר הוחזר' : 'אפשר להחזיר רק תשלום ששולם' }, { status: 409 });
   if (/^מקדמה/.test(String(p.description || ''))) return NextResponse.json({ success: false, error: 'מקדמה לא מחזירים מכאן. אפשר לבטל אותה דרך מדיניות הביטולים.' }, { status: 409 });
   if (!p.process_id) return NextResponse.json({ success: false, error: 'לא מצאנו את התשלום אצל Grow' }, { status: 409 });
@@ -71,7 +74,11 @@ export async function POST(request: Request) {
   let upd = await db.from('grow_payments').update({ status: 'refunded', error: null, updated_at: now }).eq('id', p.id).eq('tenant_id', c.tenantId);
   if (upd.error) upd = await db.from('grow_payments').update({ error: 'refunded', updated_at: now }).eq('id', p.id).eq('tenant_id', c.tenantId);
   if (p.receipt_id) {
-    await db.from('receipts').update({ note: `הוחזר דרך Grow ב-${now.slice(0, 10)}` }).eq('id', p.receipt_id).eq('tenant_id', c.tenantId);
+    // Appended, never replacing what the note already said (a deposit or credit line).
+    const { data: rc } = await db.from('receipts').select('note').eq('id', p.receipt_id).eq('tenant_id', c.tenantId).maybeSingle();
+    const refundNote = `הוחזר דרך Grow ב-${now.slice(0, 10)}`;
+    const prior = String((rc as { note?: unknown } | null)?.note || '').trim();
+    await db.from('receipts').update({ note: prior ? `${prior} · ${refundNote}` : refundNote }).eq('id', p.receipt_id).eq('tenant_id', c.tenantId);
     // The money went back, so the payment leaves her takings through the normal void (and a legal credit note where one is due).
     const v = await db.from('receipt_voids').insert({ receipt_id: p.receipt_id, tenant_id: c.tenantId, reason: 'הוחזר ללקוחה דרך Grow' });
     if (v.error && !/duplicate|23505/i.test(`${v.error.code} ${v.error.message}`)) console.error('[grow] void of the refunded payment receipt failed:', p.id, v.error.message);

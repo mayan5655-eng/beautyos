@@ -63,7 +63,7 @@ export async function GET() {
     const status = d.consumed_at ? 'approved' : String(d.status || 'waiting');
     out.registration = { status, message: d.status_message ? String(d.status_message) : null, url: status === 'waiting' && d.link_url ? String(d.link_url) : null, at: String(d.updated_at || d.created_at || '') || null };
   }
-  const COLS = 'id, status, amount, client_name, description, invoice_url, receipt_id, paid_at, created_at';
+  const COLS = 'id, status, amount, client_name, description, invoice_url, receipt_id, paid_at, created_at, error';
   const read = (cols: string) => admin().from('grow_payments').select(cols).eq('tenant_id', c.tenantId).order('created_at', { ascending: false }).limit(20);
   // kind (charge / deposit / fee) is a column of add_grow_cancellation.sql: without it the list still loads.
   let pay = await read(`${COLS}, kind`);

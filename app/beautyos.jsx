@@ -5296,6 +5296,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setTimeout(() => openNewAppt(), wasInSettings ? 220 : 0);
   }, [showSettings, closeSettings, persistTourPatch, openNewAppt]);
 
+  // What a payment at the till changes besides the receipt: a Grow deposit deducted, client credit used, a package session drawn. ONE
+  // place, called by "רשמי תשלום" AND by a card payment through Grow (GrowChargePanel onPaid): before 2026-11-02 a card payment through
+  // Grow skipped all three, so the same credit was offered again and a package visit was charged ₪0 without drawing a session. `snap`
+  // carries the values from the moment she pressed (a Grow payment can complete minutes later, after the till moved on).
+  const applyCashierAdjustments = async (receiptId, snap) => {
+    const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+      .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||"");})
+      .catch(()=>toast(`אישור התשלום נשמר, אבל לא הצלחנו לסמן ש${what} נוצל. בדקי לפני שמנכים אותו שוב בתור הבא.`,"error"));
+    // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used.
+    if (snap.depositUsed > 0 && snap.appt?.id) growMark("/api/grow/deposit",{appointmentId:String(snap.appt.id),receiptId,used:snap.depositUsed},"המקדמה");
+    if (snap.creditUsed > 0 && snap.client?.id) growMark("/api/grow/credit",{clientId:String(snap.client.id),amount:snap.creditUsed,receiptId},"הקרדיט");
+    // The package draw, AFTER the receipt: a receipt with no deduction is one session she can draw by hand from the packages tab, and the
+    // toast tells her to, by name. The appointment goes onto the entry, so the unique index refuses a second draw for the same visit.
+    if (snap.pkg) {
+      const fresh = await writePackageEntry(snap.pkg, -1, { appointmentId: snap.appt?.id || null, reason: "ניכוי בקופה" });
+      if (!fresh) toast(`התשלום נרשם, אך הטיפול לא נוכה מהחבילה של ${snap.pkg.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
+    }
+  };
+
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
@@ -5376,32 +5395,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
-      // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used. The
-      // receipt is already saved and never fails because of this, but a failed mark is said out loud: unmarked, the same deposit or credit
-      // would be offered again at the next visit.
-      const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
-        .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||"");})
-        .catch(()=>toast(`אישור התשלום נשמר, אבל לא הצלחנו לסמן ש${what} נוצל. בדקי לפני שמנכים אותו שוב בתור הבא.`,"error"));
-      if (growDepositUsed > 0 && cashierAppt?.id) growMark("/api/grow/deposit",{appointmentId:String(cashierAppt.id),receiptId:String(data[0].id),used:growDepositUsed},"המקדמה");
-      if (growCreditUsed > 0 && cashierClient?.id) growMark("/api/grow/credit",{clientId:String(cashierClient.id),amount:growCreditUsed,receiptId:String(data[0].id)},"הקרדיט");
-
-      // The deduction, AFTER the receipt, ordered by which failure is
-      // recoverable: a drawn session with no receipt is money she has to chase,
-      // while a receipt with no deduction is one session she can draw by hand
-      // from the packages tab - and the toast tells her to, by name.
-      //
-      // The appointment goes onto the entry so the ledger records which visit
-      // spent it, and so the unique index refuses a second draw against the
-      // same visit rather than leaving her to notice.
-      if (drewFromPackage) {
-        const fresh = await writePackageEntry(cashierPackage, -1, {
-          appointmentId: cashierAppt?.id || null,
-          reason: "ניכוי בקופה",
-        });
-        if (!fresh) {
-          toast(`התשלום נרשם, אך הטיפול לא נוכה מהחבילה של ${cashierPackage.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
-        }
-      }
+      await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null });
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
       // failure. Uses the same sendReceiptToClient the manual button uses.
@@ -5410,8 +5404,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       setCashierItems([]);setCashierClient(null);setCashierSearch("");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setCashierNote("");setCashierAppt(null);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});
       // No business type means the legal document is SKIPPED (lib/legalReceipts/service.js, tax_status_missing): say so now, never
       // "מפיקה מסמך…" for a document that will not come (2026-10-21 audit).
-      const legalBlocked=legalAccount?.connected&&needsLegalDoc(data[0])&&!settings.business_tax_status;
-      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalBlocked?" · לא יופק מסמך חוקי: חסר סוג העסק בהגדרות (העסק שלי)":legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`, legalBlocked?"error":undefined);
+      const legalBlocked=legalAccount?.connected&&needsLegalDoc(data[0])&&(!settings.business_tax_status||taxStatusUnconfirmed(settings));
+      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalBlocked?" · לא יופק מסמך חוקי עד שתבחרי או תאשרי את סוג העסק בהגדרות (העסק שלי)":legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`, legalBlocked?"error":undefined);
     } finally {
       setBusyKey("saveReceipt", false);
     }
@@ -9758,7 +9752,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
- {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
+ {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>מסמך Grow</a>}
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontSize:"var(--t-lg)",fontWeight:600,color:voided?"var(--ink-3)":pc,textDecoration:voided?"line-through":"none"}}>₪{r.amount}</p>
  </div>
                 );
@@ -11384,7 +11378,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
- {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -13120,7 +13114,7 @@ ${MARKETING_FOOTER}`)}`;
  <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
  <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{fmtDateHe(localDayKey(r.created_at))} · {r.payment_method}</p></div>
- {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>קבלה Grow</a>}
+ {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>מסמך Grow</a>}
  <span className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{r.amount}</span>
  </div>
                     ))

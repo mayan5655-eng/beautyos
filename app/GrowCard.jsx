@@ -115,10 +115,11 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
                 <span>{p.client_name || 'לקוחה'} · {money(p.amount)}</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{STATUS_HE[p.status] || p.status}</b>
-                  {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>קבלה</a>}
+                  {/^second_tx:/.test(p.error || '') && <b data-testid="grow-paid-twice" style={{ color: 'var(--danger)' }}>שולם פעמיים · צריך להחזיר אחד בלוח הבקרה של Grow</b>}
+                  {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>מסמך Grow</a>}
                   {p.status === 'paid' && s.wallet && !isDemo && !/^מקדמה/.test(p.description || '') && (refunding === p.id ? (
                     <>
-                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה')) setRefunding(null); }}>כן, להחזיר {money(p.amount)}</button>
+                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה. את מסמך הזיכוי על המסמך של Grow מפיקים בחשבון Grow.')) setRefunding(null); }}>כן, להחזיר {money(p.amount)}</button>
                       <button type="button" style={ghost} onClick={() => setRefunding(null)}>ביטול</button>
                     </>
                   ) : (

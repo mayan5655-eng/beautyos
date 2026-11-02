@@ -97,8 +97,9 @@ await ok('the WhatsApp bot replies only when bot_active is explicitly on; new bu
 // ── ב: the till says when no legal document will come ────────────────────────
 await ok('a payment recorded with no business type says the legal document will NOT be issued', () => {
   const a = rd('app/beautyos.jsx');
-  assert.match(a, /const legalBlocked=legalAccount\?\.connected&&needsLegalDoc\(data\[0\]\)&&!settings\.business_tax_status;/);
-  assert.match(a, /לא יופק מסמך חוקי: חסר סוג העסק בהגדרות/);
+  // Widened 2026-11-02: a type that is only the database default (never confirmed) blocks the document too.
+  assert.match(a, /const legalBlocked=legalAccount\?\.connected&&needsLegalDoc\(data\[0\]\)&&\(!settings\.business_tax_status\|\|taxStatusUnconfirmed\(settings\)\);/);
+  assert.match(a, /לא יופק מסמך חוקי עד שתבחרי או תאשרי את סוג העסק בהגדרות/);
 });
 
 // ── י: small first-day fixes ──────────────────────────────────────────────────

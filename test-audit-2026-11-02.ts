@@ -111,4 +111,82 @@ await ok('reminder copy says they wait for her, unless the central number really
   assert.match(app, /ההודעות כאן עוד לא נשלחו/);
 });
 
+// ── money ────────────────────────────────────────────────────────────────────
+
+await ok('a card payment through Grow at the till does the same bookkeeping as "רשמי תשלום": deposit, credit, package', () => {
+  const app = src('app/beautyos.jsx');
+  assert.match(app, /const applyCashierAdjustments = async \(receiptId, snap\)/);
+  const panel = app.slice(app.indexOf('<GrowChargePanel'), app.indexOf('<GrowChargePanel') + 900);
+  assert.match(panel, /onPaid=\{async\(receiptId\)=>\{await applyCashierAdjustments\(String\(receiptId\),\{depositUsed:growDepositUsed,creditUsed:growCreditUsed/);
+  assert.match(panel, /pkg:drawFromPackage&&cashierPackage\?cashierPackage:null/);
+  const save = app.slice(app.indexOf('const handleSaveReceipt'), app.indexOf('const handleSaveReceipt') + 9000);
+  assert.match(save, /await applyCashierAdjustments\(String\(data\[0\]\.id\)/);
+});
+
+function memoryGrow(over: Record<string, unknown> = {}) {
+  const row: Record<string, unknown> = { id: '3f2a9c1e-5b7d-4e2a-9c1f-2b3d4e5f6a7b', tenant_id: 't1', status: 'created', amount: 100, process_id: 'P1', receipt_id: null, client_id: null,
+    client_name: 'דנה', appointment_id: null, description: 'טיפול', notify_token: 'x'.repeat(48), invoice_url: null, ...over };
+  const docs: [string, string][] = [];
+  const repo = {
+    async updatePayment(_id: string, patch: Record<string, unknown>) { Object.assign(row, patch); },
+    async findByToken() { return { ...row }; },
+    async findByProcessId() { return { ...row }; },
+    async markPaid(_id: string, patch: Record<string, unknown>) { if (row.status !== 'created') return null; Object.assign(row, patch); return { ...row }; },
+    async insertReceipt() { return { id: 'R1' }; },
+    async setReceiptDocument(id: string, url: string) { docs.push([id, url]); },
+  };
+  return { row, docs, deps: { repo, creds: { apiKey: '', pageCode: '', apiBase: '' }, appUrl: 'https://k', newToken: () => 'n' } };
+}
+const paidCb = (tx: string) => ({ 'data[processId]': 'P1', 'data[transactionId]': tx, 'data[sum]': '100', 'data[statusCode]': '2' });
+
+await ok('a client who pays twice is flagged on the payment, not only in a server log', async () => {
+  const { applyNotification } = await import('./lib/grow/service.ts');
+  const w = memoryGrow();
+  assert.equal((await applyNotification(paidCb('TX1'), 'x'.repeat(48), w.deps as never)).status, 'paid');
+  assert.equal((await applyNotification(paidCb('TX2'), 'x'.repeat(48), w.deps as never)).status, 'already');
+  assert.equal(w.row.error, 'second_tx:TX2');
+  assert.match(src('app/GrowCard.jsx'), /grow-paid-twice/);
+  assert.match(src('app/api/grow/status/route.ts'), /created_at, error'/);
+});
+
+await ok("Grow's document that arrived before the payment confirmation still reaches the receipt", async () => {
+  const { applyNotification } = await import('./lib/grow/service.ts');
+  const w = memoryGrow({ invoice_url: 'https://grow.test/doc/9' });
+  assert.equal((await applyNotification(paidCb('TX1'), 'x'.repeat(48), w.deps as never)).status, 'paid');
+  assert.deepEqual(w.docs, [['R1', 'https://grow.test/doc/9']]);
+  assert.match(src('lib/grow/repo.ts'), /transaction_id, invoice_url'/);
+});
+
+await ok('a refunded payment cannot be refunded again before add_grow_wallet.sql, and the receipt note is appended, not replaced', () => {
+  const r = src('app/api/grow/refund/route.ts');
+  assert.ok(r.indexOf("error === 'refunded'") > 0 && r.indexOf("error === 'refunded'") < r.indexOf('createLiveOps('), 'refused before Grow is called');
+  assert.match(r, /prior \? `\$\{prior\} · \$\{refundNote\}` : refundNote/);
+  assert.match(src('app/GrowCard.jsx'), /את מסמך הזיכוי על המסמך של Grow מפיקים בחשבון Grow/);
+});
+
+await ok('the booking page hands back an open payment link for the same visit instead of a second one', () => {
+  const r = src('app/api/grow/booking-pay/route.ts');
+  assert.ok(r.indexOf(".eq('status', 'created')") > 0 && r.indexOf(".eq('status', 'created')") < r.indexOf('createCharge('));
+});
+
+await ok('a legal document is not filed while her business type is only the database default', () => {
+  assert.match(src('lib/legalReceipts/service.js'), /skipped: "tax_status_unconfirmed"/);
+});
+
+await ok('a document filed by the next-day retry keeps the day the money was received on its payment lines', async () => {
+  const { buildDocument } = await import('./lib/legalReceipts/spec.js');
+  const d = buildDocument({ receipt: { id: 'r', amount: 300, payment_method: 'מזומן', service: 'פנים', items: '[]' }, taxStatus: 'exempt', date: '2026-11-01', paymentDate: '2026-10-31' });
+  assert.equal(d.date, '2026-11-01');
+  assert.ok(d.payment.length > 0 && d.payment.every((p: { date: string }) => p.date === '2026-10-31'), JSON.stringify(d.payment));
+});
+
+await ok('the nightly check reports a Grow payment whose receipt never got Grow\'s document', () => {
+  assert.match(src('lib/invariants.js'), /grow_receipt_without_grow_document/);
+});
+
+await ok('Grow documents are named "מסמך Grow", not "קבלה" (for a licensed dealer it is a tax invoice-receipt)', () => {
+  for (const f of ['app/GrowCard.jsx', 'app/GrowPaymentRequests.jsx']) assert.ok(!/>קבלה<\/a>/.test(src(f)), f);
+  assert.ok(!src('app/beautyos.jsx').includes('>קבלה Grow<'));
+});
+
 console.log(`audit 2026-11-02: ${n} ok`);

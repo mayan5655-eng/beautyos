@@ -235,6 +235,18 @@ const withCreds = (s: any) => { s.legal_receipt_accounts.forEach((a: any) => { a
   assert.equal(db.tables.receipts[0].legal_status, 'none', 'the record is untouched');
 }
 
+// ---- a type that is only the database default (never confirmed): nothing is filed (2026-11-02 audit) ----
+{
+  const sd: any = seed(); sd.settings[0].business_tax_status = 'exempt'; sd.settings[0].business_tax_status_set_at = null;
+  const db: any = makeDb(withCreds(sd)); const ad = fakeAdapter(() => OK());
+  const r: any = await svc.issueForReceipt({ db, tenantId: TENANT, receiptId: 'r1', adapter: ad as any });
+  assert.deepEqual([r.status, r.skipped], ['none', 'tax_status_unconfirmed']);
+  assert.equal(ad.calls.length, 0, 'the default "exempt" is not trusted as her choice');
+  const sd2: any = seed(); sd2.settings[0].business_tax_status = 'exempt'; sd2.settings[0].business_tax_status_set_at = '2026-11-01T10:00:00Z';
+  const r2: any = await svc.issueForReceipt({ db: makeDb(withCreds(sd2)), tenantId: TENANT, receiptId: 'r1', adapter: fakeAdapter(() => OK()) as any });
+  assert.equal(r2.status, 'issued', 'once she confirmed, the document is issued');
+}
+
 // ---- a normal issue ----
 {
   const db: any = makeDb(withCreds(seed())); const ad = fakeAdapter(() => OK('1042'));

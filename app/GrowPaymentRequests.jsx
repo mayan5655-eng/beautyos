@@ -141,7 +141,7 @@ export default function GrowPaymentRequests({ clients, pc, pcTint, toast }) {
               <span>{p.client_name || 'לקוחה'} · {isDepositRequest(p.description) ? 'מקדמה' : 'תשלום'} {money(p.amount)}</span>
               <span style={{ display: 'flex', gap: 8 }}>
                 <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{REQUEST_STATUS_HE[p.status] || p.status}</b>
-                {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>קבלה</a>}
+                {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>מסמך Grow</a>}
               </span>
             </div>
           ))}

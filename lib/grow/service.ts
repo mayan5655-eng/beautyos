@@ -40,6 +40,8 @@ export type GrowPayment = {
   payer_phone?: string | null;
   /** Grow's transaction on a paid row (selected by the repo): a second, different one on the same payment means a double payment. */
   transaction_id?: string | null;
+  /** Grow's document link, when its invoice callback already arrived (selected by the repo). */
+  invoice_url?: string | null;
   created_at?: string | null;
 };
 
@@ -184,6 +186,13 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       grow_payment_id: p.id,
     });
     await d.repo.updatePayment(p.id, { receipt_id: r.id });
+    // Grow's invoice callback can land BEFORE this one; it then stored the link on the payment only (there was no receipt yet), and Grow
+    // does not send it again. Read it back now so the receipt shows Grow's document (2026-11-02 audit).
+    try {
+      const fresh = await d.repo.findByToken(p.notify_token);
+      const url = fresh?.invoice_url || p.invoice_url;
+      if (url) await d.repo.setReceiptDocument(r.id, String(url));
+    } catch { /* the receipt stands; the link is still on the payment */ }
     return r.id;
   } catch (e) {
     console.error('[grow] receipt creation failed for payment', p.id, (e as Error)?.message);
@@ -249,6 +258,8 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
     }
     if (p.status === 'paid' && p.transaction_id && n.transactionId && String(p.transaction_id) !== String(n.transactionId)) {
       console.error('[grow] payment', p.id, 'received a SECOND transaction', n.transactionId, '- the client may have paid twice; check Grow and refund one');
+      // Said where she looks, not only in a server log: her Grow card shows "שולם פעמיים" on this payment (2026-11-02 audit).
+      try { await d.repo.updatePayment(p.id, { error: `second_tx:${String(n.transactionId).slice(0, 40)}` }); } catch { /* the log line above stays */ }
     }
     return { status: 'already' };
   }

@@ -13,7 +13,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { growUiEnabled, resolveGrow } from '@/lib/grow/adapter';
 import { createCharge } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { walletAsCreds } from '@/lib/grow/wallet';
+import { walletAsCreds, walletLink, LINK_LIFETIME_HOURS } from '@/lib/grow/wallet';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { admin } from '../_shared';
 
@@ -55,6 +55,17 @@ export async function POST(request: Request) {
   // Already paid (a second press after a successful payment): nothing new is opened.
   const paid = await db.from('grow_payments').select('id').eq('tenant_id', t).eq('appointment_id', a.id).eq('status', 'paid').limit(1);
   if (!paid.error && paid.data && paid.data.length > 0) return fail('התור הזה כבר שולם. תודה!', 409);
+
+  // A wallet link already open for this visit is handed back instead of a second one: two open links for one visit could both be paid
+  // (2026-11-02 audit). The wallet page itself opens a fresh Grow process each time, so reusing the link costs nothing.
+  if (grow.wallet) {
+    const open = await db.from('grow_payments').select('notify_token, created_at, amount').eq('tenant_id', t).eq('appointment_id', a.id).eq('status', 'created')
+      .order('created_at', { ascending: false }).limit(1);
+    const o = !open.error && open.data && open.data[0];
+    if (o && Number(o.amount) === Number(a.price) && Date.now() - new Date(String(o.created_at)).getTime() < LINK_LIFETIME_HOURS * 3600_000) {
+      return NextResponse.json({ success: true, url: walletLink(APP_URL, String(o.notify_token)) }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+  }
 
   const result = await createCharge(
     {
