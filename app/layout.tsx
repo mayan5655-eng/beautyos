@@ -120,7 +120,7 @@ const hand = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: "קלמיה: עסק פורח, חיים עם יותר שקט",
-  description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
+  description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולמניקוריסטיות.",
   applicationName: "Kalmea",
   manifest: "/manifest.json",
   // No openGraph/twitter existed here before this rebrand - a share of the
@@ -129,7 +129,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     title: "קלמיה: עסק פורח, חיים עם יותר שקט",
-    description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולטכנאיות ציפורניים.",
+    description: "יומן, לקוחות, תשלומים ותוכן שיווקי במקום אחד, לקוסמטיקאיות ולמניקוריסטיות.",
     url: APP_URL,
     locale: "he_IL",
     siteName: "Kalmea",

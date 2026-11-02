@@ -189,4 +189,56 @@ await ok('Grow documents are named "מסמך Grow", not "קבלה" (for a licens
   assert.ok(!src('app/beautyos.jsx').includes('>קבלה Grow<'));
 });
 
+// ── new user / conversion ────────────────────────────────────────────────────
+
+await ok('a failed card page is said under the button (the blocked screen has no toasts)', () => {
+  const b = src('app/BillingCard.jsx');
+  assert.match(b, /setCardErr\(m\); toast\?\.\(m, 'error'\)/);
+  assert.match(b, /data-testid="billing-card-error"/);
+});
+
+await ok('a trial business whose first charge fails keeps working through the grace days', () => {
+  const svc = src('lib/billing/service.ts');
+  assert.match(svc, /async function keepWorkingInGrace\(d: Deps, tenant: TenantRow \| null, tenantId: string\) \{\n  if \(tenant\?\.plan_status === 'trial'\) await d\.repo\.setPlanStatus\(tenantId, 'active'\);/);
+  assert.equal((svc.match(/await keepWorkingInGrace\(d, tenant, sub\.tenant_id\);/g) || []).length, 2, 'on a failure and on an unsettled outcome');
+});
+
+await ok('an empty business is not sent to share a booking link that can book nothing', () => {
+  const app = src('app/beautyos.jsx');
+  const fn = app.slice(app.indexOf('const copyPublicLink = async'), app.indexOf('const copyPublicLink = async') + 1600);
+  assert.match(fn, /if \(kind === "book" && activeServices\.length === 0\) \{/);
+});
+
+await ok('coming back from the card page says what happened; the tour waits for the import screen', () => {
+  const app = src('app/beautyos.jsx');
+  assert.match(app, /if \(p\.get\("billing"\) !== "card"\) return;/);
+  assert.match(app, /if \(showImportModal \|\| showImportHub\) return;/);
+});
+
+await ok('a paused account is pointed to WhatsApp and shown no card form that cannot reopen it', () => {
+  const b = src('app/BillingCard.jsx');
+  assert.ok(!b.includes('כתבי לנו ב"תקועה?"'));
+  assert.equal((b.match(/status !== 'paused'/g) || []).length, 3);
+});
+
+await ok('money buttons on her colour use the contrast text colour; one price line from day 23 on', () => {
+  assert.ok(!src('app/BillingNotices.jsx').includes("color: 'var(--surface)'"));
+  const n = src('lib/trialNudges.ts');
+  assert.match(n, /\$\{PRICE_LINE_HE\} כתבי לנו/);
+  assert.ok(!n.includes('המחיר הרגיל הוא'));
+});
+
+await ok('nail technicians are "מניקוריסטית" everywhere a client or the AI reads it', () => {
+  assert.ok(!src('lib/ai/marketingAI.ts').includes('מעצבת ציפורניים'));
+  assert.ok(!src('app/c/[token]/not-found.tsx').includes('מהקוסמטיקאית שלך'));
+  assert.ok(!src('app/layout.tsx').includes('טכנאיות ציפורניים'));
+});
+
+await ok('the landing FAQ says the system closes at the end of the trial and nothing is deleted', () => {
+  const l = src('app/LandingPage.jsx');
+  assert.ok(!l.includes('נסדר את ההמשך יחד'));
+  assert.match(l, /בסוף החודש המערכת נסגרת עד שמצטרפים למנוי, ושום דבר לא נמחק/);
+  assert.match(l, /כשמבקשים למחוק את החשבון, הנתונים נמחקים תוך 30 יום/);
+});
+
 console.log(`audit 2026-11-02: ${n} ok`);

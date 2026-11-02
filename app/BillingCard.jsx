@@ -22,6 +22,9 @@ const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
 export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   const [s, setS] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Shown under the button, not only as a toast: on the blocked screen (PlanBlockedScreen) there is no toast stack, so a failed card
+  // page was a button that did nothing (2026-11-02 audit).
+  const [cardErr, setCardErr] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   // The required tick before the card page opens (lib/billing/consent.ts); the server refuses without it too.
   const [consentOk, setConsentOk] = useState(false);
@@ -60,13 +63,14 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   const openCardPage = async () => {
     if (busy) return;
     setBusy(true);
+    setCardErr('');
     try {
       const r = await fetch('/api/billing/card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consent: consentOk === true }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח את דף הכרטיס', 'error'); return; }
+      if (!r.ok || !j?.success) { const m = j?.error || 'לא הצלחנו לפתוח את דף הכרטיס'; setCardErr(m); toast?.(m, 'error'); return; }
       window.location.assign(j.url);
     } catch {
-      toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
+      setCardErr('אין חיבור. דף הכרטיס לא נפתח, נסי שוב'); toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -115,7 +119,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     let line;
     if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
-    else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו ב"תקועה?" ונחזיר אותו לפעילות.';
+    else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו בוואטסאפ ונחזיר אותו לפעילות.';
     else if (status === 'expired') line = 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.';
     else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
     else if (sub?.next_charge_at) line = `החיוב הבא: ${day(sub.next_charge_at)}.`;
@@ -127,18 +131,20 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         <p data-testid="billing-line" style={{ ...text, marginBottom: 10 }}>{line}</p>
 
         {hasCard && <p style={{ ...text, marginBottom: 8 }}>כרטיס שמור: <b dir="ltr">•••• {sub.card_last4}</b></p>}
-        {!isDemo && s.configured && (
+        {/* Paused is an arrangement with us: a saved card does not reopen it (lib/billing/service.ts), so no card form (2026-11-02 audit). */}
+        {!isDemo && s.configured && status !== 'paused' && (
           <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
             <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
             <span>{billingConsentTextHe(s.plan.price).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
           </label>
         )}
-        {!isDemo && s.configured && sub?.status !== 'canceled' && (
+        {!isDemo && s.configured && status !== 'paused' && sub?.status !== 'canceled' && (
           <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>{hasCard ? 'עדכון כרטיס' : 'הוספת כרטיס אשראי'}</button>
         )}
-        {!isDemo && s.configured && sub?.status === 'canceled' && (
+        {!isDemo && s.configured && status !== 'paused' && sub?.status === 'canceled' && (
           <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
         )}
+        {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
         {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
 
         {Array.isArray(s.addons) && s.addons.length > 0 && (

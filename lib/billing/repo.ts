@@ -5,6 +5,7 @@
 // deliberately NOT in the trial gate: a blocked tenant must still be able to reach billing to pay.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingRepo, Subscription, PaymentRecord, TenantRow } from './service.ts';
+import { billingPayerPhone } from './payerPhone.ts';
 
 const num = (v: unknown) => Number(v);
 const subOf = (r: Record<string, unknown>): Subscription => ({ ...(r as unknown as Subscription), price: num(r.price), failed_attempts: Number(r.failed_attempts) || 0 });
@@ -74,7 +75,8 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       // empty, which chargeToken refuses as before; it never blocks reading the tenant itself.
       const st = await db.from('settings').select('business_phone, automations').eq('tenant_id', tenantId).maybeSingle();
       const autos = (st.data?.automations && typeof st.data.automations === 'object' ? st.data.automations : {}) as Record<string, unknown>;
-      const phone = String(autos.owner_phone || st.data?.business_phone || '').trim() || null;
+      // Only an Israeli mobile counts, with the SMS-verified one as the last fallback (lib/billing/payerPhone.ts, 2026-11-02 audit).
+      const phone = await billingPayerPhone(db, tenantId, [autos.owner_phone, st.data?.business_phone]);
       return { ...(data as TenantRow), phone } as TenantRow;
     },
     async insertAddon(row) {

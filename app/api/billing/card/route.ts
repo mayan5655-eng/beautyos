@@ -13,6 +13,7 @@ import { signCardSession } from '@/lib/billing/session';
 import { priceOf } from '@/lib/billing/service';
 import { billingConsentTextHe, BILLING_CONSENT_VERSION } from '@/lib/billing/consent';
 import { admin, billing, caller, tableMissing } from '../_shared';
+import { billingPayerPhone } from '@/lib/billing/payerPhone';
 
 export async function POST(request: Request) {
   const c = await caller();
@@ -49,13 +50,18 @@ export async function POST(request: Request) {
 
   const autos = st?.automations && typeof st.automations === 'object' ? (st.automations as Record<string, unknown>) : {};
   const base = APP_URL.replace(/\/+$/, '');
+  // Grow needs an Israeli mobile: the typed numbers first, then the one she verified by SMS (lib/billing/payerPhone.ts).
+  const payerPhone = await billingPayerPhone(db, c.tenantId, [autos.owner_phone, st?.business_phone]);
+  if (!payerPhone) {
+    return NextResponse.json({ success: false, code: 'no-mobile', error: 'כדי לשמור כרטיס צריך מספר נייד שלך. אפשר להוסיף אותו בהגדרות > העסק שלי, או לכתוב לנו בוואטסאפ ונעזור.' }, { status: 409 });
+  }
   try {
     const session = await b.payments.createCardSession({
       tenantId: c.tenantId,
       businessName: String(st?.business_name || tenant?.name || ''),
       email: c.email,
       fullName: String(st?.therapist_name || st?.business_name || tenant?.name || ''),
-      phone: String(autos.owner_phone || st?.business_phone || ''),
+      phone: payerPhone,
       returnUrl: `${base}/dashboard?billing=card`,
       // Grow posts the saved card here; the signed session ties it to THIS business (lib/billing/session.ts).
       notifyUrl: `${base}/api/billing/grow-notify?s=${encodeURIComponent(signCardSession(c.tenantId))}`,

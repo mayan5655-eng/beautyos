@@ -9,7 +9,7 @@ export default function ClientPageGone() {
       <div className="pub-card">
         <LineIcon src={ICON_QUESTION} />
         <h1 className="pub-h1">הקישור הזה כבר לא פעיל</h1>
-        <p className="pub-p">אפשר לבקש מהקוסמטיקאית שלך קישור חדש לדף האישי.</p>
+        <p className="pub-p">אפשר לבקש מבעלת העסק קישור חדש לדף האישי.</p>
       </div>
     </PublicPage>
   );

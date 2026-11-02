@@ -7,8 +7,8 @@ import { buildBusinessContext, personaLabel, GROUNDING_RULES } from './lib/ai/ma
 assert.equal(personaLabel(), 'קוסמטיקאית', 'unset reads as the long-standing default');
 assert.equal(personaLabel([]), 'קוסמטיקאית', 'empty reads the same as unset');
 assert.equal(personaLabel(['cosmetics']), 'קוסמטיקאית');
-assert.equal(personaLabel(['nails']), 'מעצבת ציפורניים');
-assert.equal(personaLabel(['cosmetics', 'nails']), 'קוסמטיקאית ומעצבת ציפורניים');
+assert.equal(personaLabel(['nails']), 'מניקוריסטית');
+assert.equal(personaLabel(['cosmetics', 'nails']), 'קוסמטיקאית ומניקוריסטית');
 
 // ── buildBusinessContext: the persona label threads through, everything else is unchanged ──
 assert.equal(
@@ -16,7 +16,7 @@ assert.equal(
   'שם הקוסמטיקאית: מאיה',
   'no fields set: byte-identical to the hardcoded string every prompt used before business_fields existed'
 );
-assert.equal(buildBusinessContext({ therapist_name: 'מאיה', fields: ['nails'] }), 'שם המעצבת ציפורניים: מאיה');
+assert.equal(buildBusinessContext({ therapist_name: 'מאיה', fields: ['nails'] }), 'שם המניקוריסטית: מאיה');
 assert.equal(
   buildBusinessContext({}),
   'אין מידע על העסק - יש לתת המלצות כלליות לקוסמטיקאית בישראל.',
@@ -24,7 +24,7 @@ assert.equal(
 );
 assert.equal(
   buildBusinessContext({ fields: ['nails'] }),
-  'אין מידע על העסק - יש לתת המלצות כלליות למעצבת ציפורניים בישראל.'
+  'אין מידע על העסק - יש לתת המלצות כלליות למניקוריסטית בישראל.'
 );
 
 // GROUNDING_RULES stays a single unconditional constant — the Botox/filler

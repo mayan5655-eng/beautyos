@@ -1141,6 +1141,22 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   }, []);
 
+  // Back from Grow's card page for HER subscription (app/api/billing/card returns to /dashboard?billing=card&grow=paid|cancelled): say
+  // what happened, instead of landing on the calendar with no word (2026-11-02 audit). The card itself is recorded by Grow's callback,
+  // which can arrive a few seconds later, so "נשמר" is said as received from Grow's page, not as a fact from our database.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("billing") !== "card") return;
+    const result = p.get("grow");
+    if (result === "paid") toast("הכרטיס התקבל 🌸 תוך רגע הוא יופיע בהגדרות > המנוי שלך");
+    else if (result === "cancelled") toast("שמירת הכרטיס לא הושלמה. אפשר לנסות שוב מהגדרות > המנוי שלך", "info");
+    p.delete("billing"); p.delete("grow");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Escape closes the sheet, matching every other overlay in the app.
   useEffect(() => {
     if (!showMoreSheet) return;
@@ -1569,13 +1585,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   useEffect(() => {
     if (tourTriggeredRef.current) return;
     if (!settings?.tenant_id) return; // settings row not loaded yet
+    // Not on top of the import screen onboarding opened: the tour points at buttons hidden behind it. It starts once she closes the
+    // import (2026-11-02 audit).
+    if (showImportModal || showImportHub) return;
     tourTriggeredRef.current = true;
     const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
     if (autos.onboarding_tour_seen === true) return;
     const resumeAt = tourResumeStep(autos.onboarding_tour_step, TOUR_STEPS); // never a step whose card cannot be drawn (the Settings one)
     if (resumeAt == null) return;
     setTourStep(resumeAt);
-  }, [settings?.tenant_id, settings?.automations]);
+  }, [settings?.tenant_id, settings?.automations, showImportModal, showImportHub]);
 
   // Fire-and-forget: merges into the existing automations bag (the save
   // route replaces the WHOLE column, not a per-key patch - sending just
@@ -6948,6 +6967,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         toast(url, "info");
       }
       return;
+    }
+
+    // A booking link with no treatment on it can book nothing ("רשימת הטיפולים עדיין בהכנה"): first a treatment, then the link. The
+    // day-1 nudge, the setup checklist and the tour all copy it, and copying ticked the checklist step (2026-11-02 audit).
+    if (kind === "book" && activeServices.length === 0) {
+      toast("קודם מוסיפים לפחות טיפול אחד, ואז הקישור מוכן לשליחה", "info");
+      openSetupTab("services", "newService");
+      return false;
     }
 
     // Her readable URL when she has claimed one; the original otherwise. Both

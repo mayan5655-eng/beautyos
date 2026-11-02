@@ -56,8 +56,8 @@ export interface BusinessProfile {
  */
 export function personaLabel(fields?: FieldKey[] | null): string {
   const has = (f: FieldKey) => !!fields && fields.includes(f)
-  if (has('cosmetics') && has('nails')) return 'קוסמטיקאית ומעצבת ציפורניים'
-  if (has('nails') && !has('cosmetics')) return 'מעצבת ציפורניים'
+  if (has('cosmetics') && has('nails')) return 'קוסמטיקאית ומניקוריסטית'
+  if (has('nails') && !has('cosmetics')) return 'מניקוריסטית' // the one word chosen for her job (2026-11-02 audit)
   return 'קוסמטיקאית' // cosmetics, or fields unset — the long-standing default
 }
 

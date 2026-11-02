@@ -276,9 +276,18 @@ await ok('live path: with no mobile on file the charge is refused BEFORE Grow, a
 
 await ok('the billing repo reads the payer phone from the same place as the card page', () => {
   const repo = src('lib/billing/repo.ts');
-  assert.match(repo, /autos\.owner_phone \|\| st\.data\?\.business_phone/);
-  assert.match(src('app/api/billing/card/route.ts'), /autos\.owner_phone \|\| st\?\.business_phone/);
+  // One helper for both since 2026-11-02 (lib/billing/payerPhone.ts): the typed numbers in the same order, then the SMS-verified mobile.
+  assert.match(repo, /billingPayerPhone\(db, tenantId, \[autos\.owner_phone, st\.data\?\.business_phone\]\)/);
+  assert.match(src('app/api/billing/card/route.ts'), /billingPayerPhone\(db, c\.tenantId, \[autos\.owner_phone, st\?\.business_phone\]\)/);
   assert.match(src('lib/billing/service.ts'), /phone: tenant\?\.phone \|\| undefined/);
+});
+
+await ok('the payer phone: a typed Israeli mobile first, a landline skipped, then the SMS-verified mobile; null when there is none', async () => {
+  const { billingPayerPhone } = await import('./lib/billing/payerPhone.ts');
+  const db = (rows: unknown[]) => ({ from: () => ({ select: () => ({ eq: () => ({ limit: async () => ({ data: rows, error: null }) }) }) }) });
+  assert.equal(await billingPayerPhone(db([]), 't', ['', '0501234567']), '972501234567');
+  assert.equal(await billingPayerPhone(db([{ phone_e164: '+972541112222' }]), 't', ['03-5551234', '']), '972541112222', 'a studio landline is not used');
+  assert.equal(await billingPayerPhone(db([]), 't', ['', null]), null);
 });
 
 console.log(`billing grow: ${n} ok`);

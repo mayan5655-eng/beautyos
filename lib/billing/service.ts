@@ -210,6 +210,7 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
       await d.repo.updatePayment(pay.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
       await d.repo.updateSub(sub.id, { last_attempt_at: iso(now) });
       console.warn('[billing] charge outcome unknown for tenant', sub.tenant_id, 'identifier', uid);
+      await keepWorkingInGrace(d, tenant, sub.tenant_id);
       return 'skipped';
     }
   }
@@ -217,7 +218,18 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   await d.repo.updatePayment(pay.id, { status: 'failed', error: String(res.error).slice(0, 200) });
   await d.repo.updateSub(sub.id, { status: 'past_due', failed_attempts: attemptNo, past_due_since: sub.past_due_since || iso(now), last_attempt_at: iso(now) });
   console.warn('[billing] charge failed for tenant', sub.tenant_id, 'attempt', attemptNo, res.code);
+  await keepWorkingInGrace(d, tenant, sub.tenant_id);
   return 'failed';
+}
+
+/**
+ * A business that saved a card during her trial, whose first charge failed (or is not settled yet), keeps working through the grace
+ * days like any paying business (the header above, and the billing card's own words). Left on 'trial', the elapsed-trial rule closed
+ * her the moment the trial ended, with the past-due notice hidden behind the closed screen (2026-11-02 audit). blockTenant() still
+ * closes her once the grace days pass.
+ */
+async function keepWorkingInGrace(d: Deps, tenant: TenantRow | null, tenantId: string) {
+  if (tenant?.plan_status === 'trial') await d.repo.setPlanStatus(tenantId, 'active');
 }
 
 async function succeed(d: Deps, sub: Subscription, tenant: TenantRow | null, pay: PaymentRecord, providerPaymentId: string, periodEnd: Date, now: Date, invoiceNumber?: string, invoiceUrl?: string): Promise<Outcome> {

@@ -58,7 +58,7 @@ export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner 
       onClick={onOpenBilling}
       data-testid={upgrade ? 'upgrade-cta' : 'billing-cta'}
       className="primary-btn"
-      style={{ background: banner.pcGrad, color: 'var(--surface)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-accent)', flexShrink: 0 }}
+      style={{ background: banner.pcGrad, color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-accent)', flexShrink: 0 }}
     >
       {label}
     </button>
@@ -83,7 +83,7 @@ export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner 
               {sub.graceEndsAt ? `כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס עד ${trialEndDateHe(new Date(sub.graceEndsAt))}. ` : ''}ננסה שוב אוטומטית, וכל מה שיצרת נשאר שלך.
             </p>
           </div>
-          <button type="button" onClick={onOpenBilling} className="primary-btn" style={{ background: banner.pcGrad, color: 'var(--surface)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>עדכון כרטיס</button>
+          <button type="button" onClick={onOpenBilling} className="primary-btn" style={{ background: banner.pcGrad, color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>עדכון כרטיס</button>
         </div>
       )}
     </>
