@@ -90,13 +90,13 @@ Use **your own** business and your own card. No client is involved.
 - Grow's review (2026-10-27): the wallet payment's `approveTransaction` was sent with the token page code. Grow posts a payment's callback to its
   notifyUrl AND the account webhook; the webhook approved with the card credentials (the token page in the sandbox). Both routes now take the
   credentials from the payment (`approveCredsFor`, `lib/grow/wallet.ts`), and a refused approve is logged with Grow's error id.
-- Sandbox proof with the fixes (2026-11-02, branch preview, Grow's real callback, no `getPaymentProcessInfo`, payer 0542845655, sandbox business
-  `a80322a4f13571a4`): save only processId 811312; charge and save 564815; token charge 564814 (transactionUniqueIdentifier 2278003370 only);
+- Sandbox proof with the fixes (2026-11-02, branch preview, Grow's real callback, no `getPaymentProcessInfo`, payer 0542845655, the sandbox business of
+  `GROW_TOKEN_USER_ID_TEST`): save only processId 811312; charge and save 564815; token charge 564814 (transactionUniqueIdentifier 2278003370 only);
   wallet payment 564816 (asmachta 133119841), refunded 564817. Preview logs had no `approveTransaction refused`. Videos sent to Grow.
 - Apple Pay domain file: `/.well-known/apple-developer-merchantid-domain-association` was downloaded as a file; it is now served as
   `text/plain`, inline (`next.config.ts`), checked live on 2026-11-02.
 - Merchant onboarding, second test (2026-11-02): fictitious business number 255300212, mobile 0542845655, filled up to ID verification.
-  The "Maple System" approval Grow sent is their sandbox test business (its business code is the sandbox userId above), not a real merchant.
+  The "Maple System" approval Grow sent is their sandbox test business (its business code is the `GROW_TOKEN_USER_ID_TEST` value), not a real merchant.
 - Site check (https://grow.business/Site_check, a PDF): every payment page now has a required terms tick linking `/terms#payments` (`lib/paymentTerms.ts`;
   `/api/grow/wallet` refuses without it); the terms cover delivery of the service, the 18+ purchase limit, privacy, liability and cancellation under the
   Consumer Protection Law; Kalmea's footer shows the contact number. The address is the city only (`KALMEA_ADDRESS`): Grow may ask for a street address.
