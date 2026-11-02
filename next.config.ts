@@ -65,6 +65,15 @@ const nextConfig: NextConfig = {
         source: "/pay/:token*",
         headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", grow: true }),
       },
+      // Apple Pay domain verification (Grow wallet): the file has no extension, so it was served as application/octet-stream and a
+      // browser downloaded it. Apple and Grow want it readable as text at this exact path.
+      {
+        source: "/.well-known/apple-developer-merchantid-domain-association",
+        headers: [
+          { key: "Content-Type", value: "text/plain; charset=utf-8" },
+          { key: "Content-Disposition", value: "inline" },
+        ],
+      },
     ];
   },
 };
