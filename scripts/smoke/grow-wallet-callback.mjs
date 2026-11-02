@@ -16,7 +16,8 @@ mkdirSync(`${out}/video`, { recursive: true });
 const log = (...a) => console.log('[wallet-cb]', ...a);
 const db = admin();
 const PHONE = '0500000000'; // a test number: never a real client's
-const ids = { growSandboxUserId: process.env.GROW_TOKEN_USER_ID_TEST, payerPhone: PHONE };
+const PAYER = (process.env.SMOKE_PAYER_PHONE || '').replace(/\D/g, '') || PHONE; // Maayan's own mobile when set, never a client's
+const ids = { growSandboxUserId: process.env.GROW_TOKEN_USER_ID_TEST, businessPhone: PHONE, payerPhone: PAYER };
 
 const email = newEmail('walletcb');
 const { data: created, error: cErr } = await db.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
@@ -51,7 +52,7 @@ try {
   const charge = await page.evaluate(async (b) => {
     const r = await fetch('/api/grow/charge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
     return { status: r.status, json: await r.json().catch(() => ({})) };
-  }, { amount: 10, description: 'טיפול בדיקה', clientName: 'לקוחה בדיקה', phone: PHONE });
+  }, { amount: 10, description: 'טיפול בדיקה', clientName: 'לקוחה בדיקה', phone: PAYER });
   log('charge', charge.status, charge.json.success, charge.json.code || '');
   if (!charge.json.success) throw new Error(`charge failed: ${charge.json.error}`);
   const paymentId = charge.json.paymentId;
