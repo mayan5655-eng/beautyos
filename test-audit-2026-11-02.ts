@@ -241,4 +241,39 @@ await ok('the landing FAQ says the system closes at the end of the trial and not
   assert.match(l, /כשמבקשים למחוק את החשבון, הנתונים נמחקים תוך 30 יום/);
 });
 
+// ── design, copy, performance ────────────────────────────────────────────────
+
+await ok('status colours hold 4.5:1 as text on white and cream', async () => {
+  const { contrastRatio } = await import('./lib/theme.ts');
+  const css = src('app/globals.css');
+  for (const v of ['success', 'warning', 'danger']) {
+    const hex = (css.match(new RegExp(`--${v}: (#[0-9A-Fa-f]{6});`)) || [])[1];
+    assert.ok(hex, v);
+    for (const bg of ['#FFFFFF', '#FBF8F1']) assert.ok(contrastRatio(hex, bg) >= 4.5, `${v} ${hex} on ${bg}: ${contrastRatio(hex, bg).toFixed(2)}`);
+  }
+});
+
+await ok('the client pay page uses her colour with readable text, and says why the button waits', () => {
+  const p = src('app/pay/[token]/PayClient.jsx');
+  assert.match(p, /const accent = info\?\.accent \|\| DEFAULT_ACCENT;/);
+  assert.match(p, /color: onAccent/);
+  assert.match(p, /style=\{\{ color: accentText, fontWeight: 700/);
+  assert.match(p, /data-testid="pay-tick-hint"/);
+});
+
+await ok('no promise of a receipt "sent to you", no "already received" for a queued greeting, no masculine apology', () => {
+  assert.ok(!src('app/BookingPage.jsx').includes('והקבלה נשלחת אלייך'));
+  assert.ok(!src('app/GreetingsPanel.jsx').includes('כבר קיבלו השנה'));
+  const claim = src('app/claim/[token]/page.tsx');
+  assert.ok(!claim.includes('מצטערים') && !claim.includes('—'));
+});
+
+await ok('settings and till panels are loaded when first shown, not in the dashboard first download', () => {
+  const app = src('app/beautyos.jsx');
+  for (const n of ['ClientPrivacyPanel', 'ImportChooser', 'WaitlistOfferSetting', 'GrowChargePanel', 'GrowCashierCredit', 'DepositLinkSheet', 'RebookNextSheet', 'ClientPageSheet', 'GreetingsPanel', 'FieldPicker']) {
+    assert.ok(app.includes(`const ${n} = dynamic(() => import("./${n}"), { ssr: false });`), n);
+    assert.ok(!app.includes(`import ${n} from "./${n}";`), n);
+  }
+});
+
 console.log(`audit 2026-11-02: ${n} ok`);

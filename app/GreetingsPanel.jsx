@@ -22,7 +22,7 @@ const OCC_LABEL = { birthday: 'יום הולדת', anniversary: 'שנה אצלי
 const HELD_LABEL = {
   no_consent: (n) => `${n} לקוחות בלי אישור דיוור לא יקבלו`,
   no_phone: (n) => `${n} בלי מספר טלפון תקין`,
-  already_sent: (n) => `${n} כבר קיבלו השנה`,
+  already_sent: (n) => `${n} כבר הוכנה להן ברכה השנה`,
   one_a_day: (n) => `${n} יחכו ליום אחר (ברכה אחת ביום ללקוחה)`,
 };
 const WINDOW_NOTE = {

@@ -65,7 +65,7 @@ export default function MyDayCard({ model, loading = false, brandNew = false, pc
 
       {done.length > 0 && (
         <button type="button" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone} style={{ background: "none", border: "none", padding: "6px 2px", minHeight: 36, color: MUTED, fontFamily: "inherit", fontSize: 12.5, cursor: "pointer" }}>
-          {showDone ? "הסתרת מה שהסתיים" : `${done.length === 1 ? "תור אחד כבר הסתיים" : `${done.length} תורים כבר הסתיימו`}`}
+          {showDone ? "להסתיר את מה שהסתיים" : `${done.length === 1 ? "תור אחד כבר הסתיים" : `${done.length} תורים כבר הסתיימו`}`}
         </button>
       )}
 

@@ -868,7 +868,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         <div className="bk-stack" style={{ paddingBottom: barShown ? "calc(112px + env(safe-area-inset-bottom, 0px))" : 0 }}>
           {growReturn && (
             <div role="status" data-testid="grow-return" style={{ width: "100%", maxWidth: 540, boxSizing: "border-box", padding: "14px 18px", background: cream, borderBottom: `1px solid ${hair}`, textAlign: "center", fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
-              {growReturn === "paid" ? "✓ הפעולה בדף המאובטח הושלמה. תודה! אין צורך לקבוע את התור שוב." : "התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק."}
+              {growReturn === "paid" ? "✓ הכל הושלם, תודה! 🌸 התור שלך שמור, אין צורך לקבוע אותו שוב." : "התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק."}
               <button type="button" onClick={() => setGrowReturn(null)} aria-label="סגירת ההודעה" style={{ marginInlineStart: 10, border: "none", background: "none", color: ink, cursor: "pointer", fontSize: "var(--t-md)", fontFamily: "inherit" }}>✕</button>
             </div>
           )}
@@ -1494,7 +1494,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 {policyStep && policyStep.url && (
                   <div data-testid="grow-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
-                      {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "כדי להשלים את ההזמנה, שומרים כרטיס אשראי בדף מאובטח. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
+                      {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "התור נקבע. נשאר רק לשמור כרטיס אשראי בדף מאובטח, לפי מדיניות הביטולים. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
                     </p>
                     <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</button>
                     {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
@@ -1502,7 +1502,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 )}
                 {cardPay && bookedId && !policyStep && Number(selectedService?.price) > 0 && (
                   <div data-testid="booking-pay-now" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
-                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה, והקבלה נשלחת אלייך.</p>
+                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה. אחרי התשלום יופיע כאן אישור.</p>
                     <button type="button" className="bk-btn" disabled={payBusy} onClick={payNow} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : `💳 לתשלום ₪${Number(selectedService.price)} בכרטיס אשראי`}</button>
                     {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>

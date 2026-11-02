@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { openGrowWallet, preloadGrowSdk } from '@/lib/grow/walletClient';
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '@/lib/paymentTerms';
+import { contrastOn, readableAccentText, DEFAULT_ACCENT } from '@/lib/theme';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 
@@ -84,7 +85,11 @@ export default function PayClient({ token }) {
     }
   };
 
-  const accent = info?.accent || '#1F3A30';
+  // Her colour, as on her booking page (the same default pink when she has none), with text that stays readable on it: white on
+  // petal pink was about 2:1 (2026-11-02 audit).
+  const accent = info?.accent || DEFAULT_ACCENT;
+  const onAccent = contrastOn(accent);
+  const accentText = readableAccentText(accent);
   const closed = info && info.state !== 'open' && info.state !== 'paid';
   const card = { background: '#fff', border: '1px solid #E8DFD0', borderRadius: 20, padding: '28px 22px', maxWidth: 420, margin: '0 auto', textAlign: 'center', boxShadow: '0 6px 24px rgba(31,58,48,.06)' };
 
@@ -109,11 +114,13 @@ export default function PayClient({ token }) {
               <>
                 <label data-testid="pay-terms" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'right', padding: '12px', borderRadius: 14, border: `1px solid ${termsOk ? accent : '#E8DFD0'}`, background: '#FDFBF9', marginBottom: 14, cursor: 'pointer', fontSize: 15, lineHeight: 1.6 }}>
                   <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setMsg(''); }} aria-label="אישור תנאי התשלום" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: accent }} />
-                  <span>{PAY_TERMS_BEFORE_HE}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: accent, fontWeight: 700, textDecoration: 'underline' }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}</span>
+                  <span>{PAY_TERMS_BEFORE_HE}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: accentText, fontWeight: 700, textDecoration: 'underline' }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}</span>
                 </label>
-                <button type="button" data-testid="pay-start" onClick={start} disabled={phase === 'opening' || !termsOk} style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: accent, color: '#fff', fontSize: 18, fontWeight: 700, cursor: termsOk ? 'pointer' : 'default', opacity: termsOk ? 1 : 0.55, fontFamily: 'inherit' }}>
+                <button type="button" data-testid="pay-start" onClick={start} disabled={phase === 'opening' || !termsOk} style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: accent, color: onAccent, fontSize: 18, fontWeight: 700, cursor: termsOk ? 'pointer' : 'default', opacity: termsOk ? 1 : 0.55, fontFamily: 'inherit' }}>
                   {phase === 'opening' ? 'פותחת את התשלום…' : `לתשלום ${money(info.amount)}`}
                 </button>
+                {/* The button waits for the tick (Grow's site check); without this line a greyed button gave no reason (2026-11-02 audit). */}
+                {!termsOk && <p data-testid="pay-tick-hint" style={{ fontSize: 'var(--t-sm)', color: '#656A56', marginTop: 8 }}>כדי להמשיך לתשלום, מסמנים את האישור למעלה.</p>}
                 <p style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>כרטיס אשראי, ביט, Apple Pay או Google Pay.<br />התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.</p>
               </>
             )}

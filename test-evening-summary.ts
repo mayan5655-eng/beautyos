@@ -19,7 +19,7 @@ const m = buildEveningSummary({ date, appointments: [
 assert.ok(m.startsWith('מחר, '), m);
 assert.ok(m.includes('4 לקוחות.'), 'counts the live ones only: ' + m);
 assert.ok(m.includes('הראשונה ב-09:30 (דנה, פילינג)'), m);
-assert.ok(m.includes('נגמר ב-16:30'), 'ends when the last one ends: ' + m);
+assert.ok(m.includes('ואת מסיימת ב-16:30'), 'ends when the last one ends: ' + m);
 assert.ok(m.includes('עוד לא אישרו: ליאת ונועה.'), m);
 assert.ok(m.trim().endsWith('לילה טוב.'));
 

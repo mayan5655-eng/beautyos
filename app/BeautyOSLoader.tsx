@@ -5,7 +5,7 @@
 // The signed-in dashboard, loaded as its own chunk. app/page.tsx is the
 // landing page for a logged-out visitor AND the dashboard for a logged-in one,
 // and with beautyos.jsx imported there - statically or through a server-side
-// import() - its whole client bundle (~190 KB gzipped, an ~880 KB source file)
+// import() - its whole client bundle (~180 KB gzipped, measured 2026-11-02 after the settings and till panels were made lazy; an ~880 KB source file)
 // belongs to the route, so a stranger reading the landing page downloaded the
 // entire app behind a login they had not made yet. Lighthouse listed it as the
 // largest block of unused JavaScript on /.

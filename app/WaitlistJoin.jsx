@@ -48,7 +48,7 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
   if (done) {
     return (
       <div data-testid="waitlist-done" role="status" style={{ marginTop: 18, padding: "14px 16px", borderRadius: "var(--r-md)", border: `1px solid ${pc}`, color: ink, fontSize: "var(--t-md)", lineHeight: 1.7, textAlign: "right" }}>
-        {done === "already" ? "את כבר ברשימת ההמתנה לטיפול הזה." : "נרשמת לרשימת ההמתנה."} {done === "added-nowindow" ? `את הימים והשעות לא הצלחנו לשמור, אז נציע לך כל תור שמתפנה ל${service}. ` : ""}כשיתפנה תור ל{service}{done === "added" && (days.length || windowKey !== "any") ? " שמתאים לך" : ""}, נשלח לך הודעה עם קישור לתפוס אותו.
+        {done === "already" ? "את כבר ברשימת ההמתנה לטיפול הזה." : "נרשמת לרשימת ההמתנה."} {done === "added-nowindow" ? `את הימים והשעות לא הצלחנו לשמור, אז נציע לך כל תור שמתפנה ל${service}. ` : ""}כשיתפנה תור ל{service}{done === "added" && (days.length || windowKey !== "any") ? " שמתאים לך" : ""}, תקבלי מאיתנו הודעה עם קישור לתפוס אותו.
       </div>
     );
   }
@@ -65,7 +65,7 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
   return (
     <div data-testid="waitlist-form" style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(31,58,48,0.12)", textAlign: "right" }}>
       <p style={{ fontSize: "var(--t-md)", fontWeight: 700, color: ink, marginBottom: 4 }}>רשימת המתנה ל{service}</p>
-      <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginBottom: 12 }}>כשיתפנה תור, נשלח לך הודעה בוואטסאפ עם קישור לתפוס אותו. הראשונה שלוחצת מקבלת.</p>
+      <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginBottom: 12 }}>כשיתפנה תור, תקבלי מאיתנו הודעה בוואטסאפ עם קישור לתפוס אותו. הראשונה שלוחצת מקבלת.</p>
       <input aria-label="שם" placeholder="שם" value={name} onChange={(e) => setName(e.target.value)} style={field} autoComplete="name" />
       <input aria-label="טלפון נייד" placeholder="טלפון נייד" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...field, direction: "ltr", textAlign: "right" }} inputMode="tel" autoComplete="tel" />
       <p id="wl-days-label" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: ink, margin: "2px 0 6px" }}>באילו ימים מתאים לך? (אפשר לדלג)</p>

@@ -97,7 +97,7 @@ export default function ClaimPage() {
         {state === "available" && (
           <>
             <h1 className="pub-h1">{details.clientName ? `${details.clientName}, ` : ""}התפנה תור!</h1>
-            <p style={{ fontSize: "var(--t-md)", color: MUTED, margin: "0 0 20px" }}>רוצה לתפוס אותו? הראשונה שתלחץ — התור שלה.</p>
+            <p style={{ fontSize: "var(--t-md)", color: MUTED, margin: "0 0 20px" }}>רוצה לתפוס אותו? הראשונה שלוחצת מקבלת את התור.</p>
             <div style={{ background: "var(--pc-tint, #FDF6F6)", borderRadius: "var(--r-md)", padding: "16px 16px", margin: "0 0 22px", textAlign: "right" }}>
               <SlotRow label="טיפול" value={details.service || "טיפול"} />
               <SlotRow label="תאריך" value={formatDate(details.slotDate)} />
@@ -115,7 +115,7 @@ export default function ClaimPage() {
         )}
 
         {state === "taken" && (
-          <Result icon={ICON_HEART} title="התור נתפס, מצטערים"
+          <Result icon={ICON_HEART} title="אוי, התור כבר נתפס"
             body="מישהי הקדימה אותך הפעם. נעדכן אותך בהזדמנות הבאה שמתפנה תור." />
         )}
 

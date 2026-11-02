@@ -30,9 +30,11 @@
   --bg: var(--k-cream);     /* app background: cream */
   --primary: var(--k-sage); /* soft sage — tints, accents, chart fills */
   --dark: var(--k-green);   /* deep green — actions, headings, brand ink */
-  --success: #46B37B;
-  --warning: #F2B84B;
-  --danger: #E05B6F;
+  /* Status colours are used as TEXT in ~140 places, so they hold 4.5:1 on white and cream (2026-11-02 audit; before: green 2.6:1,
+     amber 1.7:1, red 3.6:1). White text on them passes too. */
+  --success: #2E7D57;
+  --warning: #8A5A00;
+  --danger: #C0394F;
 
   /* — Derived brand tones — */
   --plum-700: var(--k-green-deep);
