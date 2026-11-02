@@ -87,6 +87,11 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
         style={{ width: "100%", padding: "14px 0", minHeight: 48, borderRadius: "var(--r-md)", background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", fontSize: "var(--t-md)", fontWeight: 700, cursor: busy ? "default" : "pointer", fontFamily: "inherit", opacity: busy ? 0.7 : 1 }}>
         {busy ? "שולחת…" : "הוסיפו אותי לרשימה"}
       </button>
+      {/* The duty to inform (Privacy Protection Law, Amendment 13): who keeps the name and phone, and why, before she sends them. */}
+      <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginTop: 8, textAlign: "center" }}>
+        השם והטלפון נשמרים אצל העסק רק כדי להציע לך תור שמתפנה.{" "}
+        <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+      </p>
     </div>
   );
 }

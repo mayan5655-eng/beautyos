@@ -70,7 +70,8 @@ export async function POST(request) {
     const digits = (p) => String(p || "").replace(/\D/g, "").replace(/^972/, "0");
     const mine = digits(phoneCheck.e164);
     if ((existing.data || []).some((w) => digits(w.phone) === mine)) {
-      return Response.json({ success: true, already: true });
+      // The same answer as a new entry: a different one would tell a stranger whether this phone is already waiting here (2026-11-02 audit).
+      return Response.json({ success: true });
     }
 
     // The client card, when this phone is already hers. Gap-fill reaches a waitlist entry by its phone either way.
@@ -98,7 +99,7 @@ export async function POST(request) {
       ({ error } = await admin.from("waitlist").insert(row));
     }
     // 23505: a double tap raced the duplicate check above; the unique index (add_audit_fixes_2026-10-20.sql) kept one row.
-    if (error && error.code === "23505") return Response.json({ success: true, already: true });
+    if (error && error.code === "23505") return Response.json({ success: true });
     if (error) { console.error("[waitlist/join] insert failed:", error.code || "", error.message); return Response.json({ success: false, error: STUCK }, { status: 500 }); }
 
     const when = preferredDate ? ` (מעדיפה ${preferredDate.split("-").reverse().join("/")})` : "";

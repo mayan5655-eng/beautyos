@@ -183,7 +183,7 @@ const seed = (o: any = {}) => ({
   receipts: [baseReceipt(o.receipt)],
   receipt_voids: o.voids || [],
   settings: [{ tenant_id: TENANT, business_tax_status: o.tax || 'exempt' }],
-  clients: [{ id: 'c1', name: 'דנה כהן', phone: '0501234567' }],
+  clients: [{ id: 'c1', tenant_id: TENANT, name: 'דנה כהן', phone: '0501234567' }],
   legal_receipt_accounts: o.noAccount ? [] : [{ tenant_id: TENANT, provider: 'morning', credentials_encrypted: '', environment: 'sandbox', needs_reconnect: false }],
 });
 const fakeAdapter = (script: (doc: any, n: number) => any) => {

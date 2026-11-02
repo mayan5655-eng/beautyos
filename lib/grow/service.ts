@@ -223,7 +223,8 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
   const exact = !!p.process_id && notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) });
-  const earlierTap = viaSecret && !exact && !!n.processId && n.paymentRef === String(p.id)
+  // cField1 is sent with the dashes removed (payload.ts buildProcessFields), so the id is compared the same way (2026-11-02 audit).
+  const earlierTap = viaSecret && !exact && !!n.processId && n.paymentRef === String(p.id).replace(/-/g, '')
     && notificationMatches(n, { processId: n.processId, amount: Number(p.amount) });
   if (!exact && !earlierTap) return { status: 'mismatch' };
   if (earlierTap) console.warn('[grow] payment', p.id, 'paid through an earlier process of the same payment; accepted via its secret URL');

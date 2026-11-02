@@ -13,7 +13,7 @@ const ok = async (name: string, fn: () => void | Promise<void>) => { await fn();
 const TOKEN = 'x'.repeat(24);
 function walletWorld(p: Partial<GrowPayment> = {}) {
   const row: GrowPayment = {
-    id: 'pay-1', tenant_id: 't1', status: 'created', amount: 250, process_id: 'PROC-B', receipt_id: null, client_id: null, client_name: 'דנה',
+    id: '3f2a9c1e-5b7d-4e2a-9c1f-2b3d4e5f6a7b', tenant_id: 't1', status: 'created', amount: 250, process_id: 'PROC-B', receipt_id: null, client_id: null, client_name: 'דנה',
     appointment_id: null, description: 'טיפול', notify_token: TOKEN, ...p,
   };
   const log: string[] = [];
@@ -31,7 +31,7 @@ function walletWorld(p: Partial<GrowPayment> = {}) {
   return { row, log, deps };
 }
 const cb = (processId: string, extra: Record<string, unknown> = {}) => ({
-  data: { processId, transactionId: 'TX-' + processId, sum: '250.00', statusCode: '2', customFields: { cField1: 'pay-1' }, ...extra },
+  data: { processId, transactionId: 'TX-' + processId, sum: '250.00', statusCode: '2', customFields: { cField1: '3f2a9c1e5b7d4e2a9c1f2b3d4e5f6a7b' }, ...extra },
 });
 
 await ok('a callback for an earlier process of the SAME payment, through its secret URL, is recorded (not "mismatch")', async () => {

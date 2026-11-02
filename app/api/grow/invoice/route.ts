@@ -9,10 +9,18 @@ import { applyInvoice } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { randomBytes } from 'node:crypto';
 import { admin } from '../_shared';
+import { clientIp, ipAllowed, ipCheckEnforced } from '@/lib/grow/webhook';
 
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  // Only Grow's published addresses, as on /api/grow/webhook. The ?t= secret alone is not enough: the same token is in the /pay/<token>
+  // link the client receives, so without this a client could post a forged invoice link or payment update (2026-11-02 audit).
+  const ip = clientIp(request.headers);
+  if (ipCheckEnforced() && !ipAllowed(ip)) {
+    console.warn('[grow] invoice refused: address is not on Grow\'s list', ip || '(none)');
+    return NextResponse.json({ success: false, error: 'forbidden' }, { status: 403 });
+  }
   const token = new URL(request.url).searchParams.get('t') || '';
   let raw: unknown = {};
   const ct = request.headers.get('content-type') || '';

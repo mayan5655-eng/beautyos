@@ -38,6 +38,16 @@ export async function POST(request: Request) {
   }
 
   const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  // The client and the appointment must be HERS: the ids are copied onto the payment and its receipt (and a legal document reads the
+  // client by them), so an id from another business is refused rather than trusted (2026-11-02 audit). Absent ids stay allowed.
+  const clientId = b.clientId != null && String(b.clientId).trim() ? String(b.clientId).trim() : null;
+  const appointmentId = b.appointmentId != null && String(b.appointmentId).trim() ? String(b.appointmentId).trim() : null;
+  const [cl, ap] = await Promise.all([
+    clientId ? db.from('clients').select('id').eq('tenant_id', c.tenantId).eq('id', clientId).maybeSingle() : Promise.resolve({ data: true, error: null }),
+    appointmentId ? db.from('appointments').select('id').eq('tenant_id', c.tenantId).eq('id', appointmentId).maybeSingle() : Promise.resolve({ data: true, error: null }),
+  ]);
+  if (cl.error || ap.error) return NextResponse.json({ success: false, error: 'שגיאה, נסי שוב' }, { status: 500 });
+  if (!cl.data || !ap.data) return NextResponse.json({ success: false, error: 'הלקוחה או התור לא נמצאו' }, { status: 404 });
   const result = await createCharge(
     {
       tenantId: c.tenantId,
@@ -46,8 +56,8 @@ export async function POST(request: Request) {
       description: String(b.description ?? 'טיפול'),
       clientName: String(b.clientName ?? ''),
       phone: b.phone,
-      clientId: b.clientId != null ? String(b.clientId) : null,
-      appointmentId: b.appointmentId != null ? String(b.appointmentId) : null,
+      clientId,
+      appointmentId,
       method: isPayMethod(b.method) ? b.method : undefined,
       wallet: !!grow.wallet,
     },
