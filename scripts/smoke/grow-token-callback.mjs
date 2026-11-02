@@ -70,7 +70,7 @@ const { browser, page } = await launch();
 const body = async (p = page) => (await p.innerText('body')).replace(/\s+/g, ' ');
 const visible = (sel, p = page) => p.locator(sel).filter({ visible: true }).first();
 const skipTour = async () => { for (let i = 0; i < 6; i++) { const sk = visible('button:has-text("דלגי")'); if (await sk.count()) { await sk.click().catch(() => {}); await page.waitForTimeout(300); } else break; } };
-const home = async () => { await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1800); await skipTour(); };
+const home = async () => { await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' }); await page.waitForSelector('button[aria-label="יומן"]', { timeout: 60000 }); await page.waitForTimeout(1800); await skipTour(); };
 
 // The public booking page in a recorded context. Shows that booking is refused until the card-save tick is ticked, then ticks it.
 async function bookAndOpenGrow(label, time) {
@@ -86,7 +86,7 @@ async function bookAndOpenGrow(label, time) {
   await pub.locator('input[aria-label="אישור מדיניות הביטולים"]').check(); await pub.waitForTimeout(1200);
   const cardBox = pub.locator('[data-testid="grow-card-consent"]');
   await cardBox.scrollIntoViewIfNeeded(); await pub.waitForTimeout(1500);
-  check((await cardBox.count()) === 1 && (await cardBox.innerText()).includes('לחייב אותו בעתיד'), `${label}: the card-save and future-charge tick is shown before the card page`);
+  check((await cardBox.count()) === 1 && (await cardBox.innerText()).includes('חיובים עתידיים'), `${label}: the card-save and future-charge tick is shown before the card page`);
   await pub.locator('button:has-text("קביעת תור")').filter({ visible: true }).last().click(); await pub.waitForTimeout(2500);
   check((await body(pub)).includes('לאשר את שמירת פרטי האשראי') && !/התור נקבע|התור שמור עבורך/.test(await body(pub)), `${label}: booking is refused while the card-save tick is empty`);
   await pub.screenshot({ path: `${out}/${label}-refused.png` });
