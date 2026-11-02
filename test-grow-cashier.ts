@@ -7,7 +7,7 @@ import {
 } from './lib/grow/methods.ts';
 import { createCharge, approveTransaction } from './lib/grow/service.ts';
 import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
-import { readNotification } from './lib/grow/payload.ts';
+import { readNotification, callbackKeyShape } from './lib/grow/payload.ts';
 import { resolveGrow } from './lib/grow/adapter.ts';
 import { approveCredsFor, opensOnWallet } from './lib/grow/wallet.ts';
 import { applyNotification, applyNotificationByProcess } from './lib/grow/service.ts';
@@ -92,6 +92,24 @@ await ok('approveTransaction uses the page code of the page the client paid on, 
   }
   // Both routes decide by the payment: neither falls back to the route's own credentials.
   for (const f of ['app/api/grow/notify/route.ts', 'app/api/grow/webhook/route.ts']) assert.ok(readFileSync(f, 'utf8').includes('approveCredsFor(p, grow)'), f);
+});
+
+await ok('an invoice callback we cannot fully read logs its field NAMES only, never values (to pin the document-number key on the first live one)', async () => {
+  const raw = { 'data[processId]': '77', 'data[docNum]': 'SECRET-123', 'data[customFields][cField2]': 'abc', payer: { phone: '0501234567', name: 'דנה' } };
+  const shape = callbackKeyShape(raw);
+  assert.deepEqual(shape, ['data.processId', 'data.docNum', 'data.customFields.cField2', 'payer.phone', 'payer.name']);
+  assert.ok(!shape.join(',').includes('SECRET') && !shape.join(',').includes('0501234567'), 'no values');
+  const logs: string[] = []; const warn = console.warn; console.warn = (...a: unknown[]) => { logs.push(a.map(String).join(' ')); };
+  try {
+    const { applyInvoice } = await import('./lib/grow/service.ts');
+    const p = { id: 'p1', tenant_id: 't1', receipt_id: 'r1', notify_token: 'x'.repeat(48) } as GrowPayment;
+    const repo = { async findByToken() { return p; }, async updatePayment() {}, async setReceiptDocument() {} } as unknown as GrowRepo;
+    const deps = { repo, creds: { apiKey: '', pageCode: '', apiBase: '' }, appUrl: 'https://k.test', newToken: () => 'y' };
+    await applyInvoice({ 'data[invoiceUrl]': 'https://grow.test/doc/1', 'data[docNum]': 'SECRET-123' }, p.notify_token, deps);
+    await applyInvoice({ 'data[invoiceUrl]': 'https://grow.test/doc/2', 'data[documentNumber]': '501' }, p.notify_token, deps);
+  } finally { console.warn = warn; }
+  assert.equal(logs.length, 1, 'only the callback whose number we could not find is logged');
+  assert.ok(logs[0].includes('no-number') && logs[0].includes('data.docNum') && !logs[0].includes('SECRET'), logs[0]);
 });
 
 function memoryRepo() {

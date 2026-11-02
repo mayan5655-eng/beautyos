@@ -206,6 +206,26 @@ export function findInvoiceNumber(raw: unknown): string {
 }
 
 /**
+ * The field NAMES of a callback, flattened (data[x][y] -> data.x.y), never its values: what is logged when an invoice callback has no
+ * document link or number we recognise, so the first live one tells us the real key for findInvoiceNumber without logging anything personal.
+ */
+export function callbackKeyShape(raw: unknown, max = 60): string[] {
+  const out: string[] = [];
+  const seen = new Set<unknown>();
+  const walk = (v: unknown, prefix: string, depth: number) => {
+    if (depth > 4 || !v || typeof v !== 'object' || seen.has(v) || out.length >= max) return;
+    seen.add(v);
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      const key = (prefix ? `${prefix}.` : '') + k.replace(/\]\[/g, '.').replace(/[[\]]/g, '.').replace(/\.+$/, '');
+      if (x && typeof x === 'object') walk(x, key, depth + 1);
+      else if (out.length < max) out.push(key.slice(0, 60));
+    }
+  };
+  walk(raw, '', 0);
+  return out;
+}
+
+/**
  * A custom field (cField1, cField2) wherever an invoice notification carries it: top level, nested under customFields, or
  * PHP-style data[customFields][cField2]. Returns '' when absent.
  */

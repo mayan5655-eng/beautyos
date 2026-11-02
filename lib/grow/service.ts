@@ -18,7 +18,7 @@
 
 import { isPayMethod, methodProblem, pageCodeFor, pageCodeForTypeId } from './methods.ts';
 import type { PayMethod, PageCodes } from './methods.ts';
-import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, tenantRefOf, growPhone, parseChargeAmount, growText, withGrowResult } from './payload.ts';
+import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, callbackKeyShape, tenantRefOf, growPhone, parseChargeAmount, growText, withGrowResult } from './payload.ts';
 import type { Notification } from './payload.ts';
 import { walletLink, paymentMethodLabel } from './wallet.ts';
 
@@ -257,6 +257,11 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
 
+/** TODO(grow-docs) helper: an invoice callback we could not fully read logs its field names (no values) once per call. */
+function logInvoiceShape(raw: unknown, why: 'no-url' | 'no-number'): void {
+  console.warn('[grow] invoice callback', why, '- field names:', callbackKeyShape(raw).join(','));
+}
+
 export async function applyInvoice(raw: unknown, token: string, d: Deps): Promise<{ status: 'stored' | 'unknown-token' | 'no-url' | 'mismatch' }> {
   if (!token || token.length < 16) return { status: 'unknown-token' };
   const p = await d.repo.findByToken(token);
@@ -264,6 +269,7 @@ export async function applyInvoice(raw: unknown, token: string, d: Deps): Promis
   const ref = tenantRefOf(findCustomField(raw, 'cField2'));
   if (ref && ref !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
   const url = findInvoiceUrl(raw);
+  if (!url || !findInvoiceNumber(raw)) logInvoiceShape(raw, url ? 'no-number' : 'no-url');
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
   if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);
@@ -294,6 +300,7 @@ export async function applyInvoiceByProcess(raw: unknown, d: Deps): Promise<{ st
   const ref = tenantRefOf(findCustomField(raw, 'cField2'));
   if (ref && ref !== tenantRefOf(p.tenant_id)) return { status: 'mismatch' };
   const url = findInvoiceUrl(raw);
+  if (!url || !findInvoiceNumber(raw)) logInvoiceShape(raw, url ? 'no-number' : 'no-url');
   if (!url) return { status: 'no-url' };
   await d.repo.updatePayment(p.id, { invoice_url: url, updated_at: (d.now || (() => new Date()))().toISOString() });
   if (p.receipt_id) await d.repo.setReceiptDocument(p.receipt_id, url, findInvoiceNumber(raw) || undefined);

@@ -3,20 +3,26 @@
 Kalmea is an exempt dealer (osek patur). Both Grow accounts bill without VAT: subscriptions get a **receipt (kabala)**, no VAT line, the price is final.
 Switching to a licensed dealer later is one line: `KALMEA_TAX_STATUS` in `lib/kalmeaBusiness.ts`.
 
-**Honest status.** The cosmetician payment platform (account 2) is built for Grow, but its live calls are **unverified** (`TODO(grow-docs)` in `lib/grow/ops.ts`).
-Kalmea's own subscription billing (account 1) has **no live provider code yet**: `lib/billing/live.ts` answers "not configured". So `BILLING_MODE=live` today
-charges nobody, and the billing steps below need one coding session after Grow answers. Everything marked **(not wired)** is that.
+**Honest status (2026-11-02).** The cosmetician payment platform (account 2) passed Grow's sandbox review rounds with the real server callback:
+save only, charge and save, a token charge with one identifier, and a wallet payment approved with the wallet page code (IDs below). It now
+waits for Grow's approval and the production values. Kalmea's own subscription billing (account 1) has provider code (`lib/billing/growBilling.ts`),
+read only from the `GROW_BILLING_*` variables; with any of them missing it answers "not configured", so `BILLING_MODE=live` charges nobody by
+accident. It has not run against Grow yet, and Grow must still confirm that a Grow Light account may use the token APIs (docs/BILLING_SETUP.md).
+
+The database side was checked on 2026-11-02 with read-only queries: every Grow, saved-card, cancellation, legal-receipt and reminder table,
+column and index this checklist needs exists. Nothing in step 1 below is left for these features.
 
 ## What you receive from Grow, and where each value goes
 
-### Account 1: Kalmea's own billing (Kalmea charges cosmeticians) (not wired)
+### Account 1: Kalmea's own billing (Kalmea charges cosmeticians)
 
 | You receive | Vercel env var |
 |---|---|
-| API key / credentials of the billing account | `BILLING_API_KEY` (name proposed; fixed when live.ts is written) |
-| Page / terminal code for the hosted card page | `BILLING_PAGE_CODE` (proposed) |
-| API base URL (production) | `BILLING_API_BASE` (proposed) |
-| Sandbox credentials, for a test run | the same three, with the sandbox values, before switching |
+| Kalmea's own Grow business id | `GROW_BILLING_USER_ID` |
+| API key of that account | `GROW_BILLING_API_KEY` |
+| Its credit-card TOKEN page code | `GROW_BILLING_PAGE_CODE` |
+| (you set) production or sandbox | `GROW_BILLING_ENV` = `production` (anything else = sandbox) |
+| Only if Grow gives another address | `GROW_BILLING_API_BASE` (optional; defaults to Grow's documented bases) |
 
 Ask Grow: saved-token charge on a schedule for your own subscription; the **receipt** (kabala, not tax invoice) issued by Grow for each charge, its number and link in the response;
 webhook field list; whether they sign webhooks.
@@ -30,6 +36,8 @@ webhook field list; whether they sign webhooks.
 | Production API base URL (not in the public docs) | `GROW_API_BASE` |
 | Saved-card (token) API key, production | `GROW_TOKEN_API_KEY` |
 | Credit-card token page code, production | `GROW_TOKEN_PAGE_CODE` |
+| Wallet page code (card, Bit, Apple Pay, Google Pay on one page) | `GROW_WALLET_PAGE_CODE` |
+| Optional per-method page codes, if Grow issues them | `GROW_PAGE_CODE_BIT`, `GROW_PAGE_CODE_APPLE_PAY`, `GROW_PAGE_CODE_GOOGLE_PAY` |
 | (you set) | `GROW_ENV` = `production` |
 | (you set) | `GROW_MODE` = `live` |
 | Only if Grow's IP list changes | `GROW_WEBHOOK_IPS` (optional) |
@@ -79,6 +87,16 @@ Use **your own** business and your own card. No client is involved.
   (the group id stays in our ledger). New proof, real callback, no `getPaymentProcessInfo`:
   `SMOKE_BASE=https://<preview> node --env-file=.env.local scripts/smoke/grow-token-callback.mjs <outDir>` (a public deployment with
   `GROW_MODE=live` and the sandbox token triple; it records the required card-save tick, refused-then-ticked, as video).
+- Grow's review (2026-10-27): the wallet payment's `approveTransaction` was sent with the token page code. Grow posts a payment's callback to its
+  notifyUrl AND the account webhook; the webhook approved with the card credentials (the token page in the sandbox). Both routes now take the
+  credentials from the payment (`approveCredsFor`, `lib/grow/wallet.ts`), and a refused approve is logged with Grow's error id.
+- Sandbox proof with the fixes (2026-11-02, branch preview, Grow's real callback, no `getPaymentProcessInfo`, payer 0542845655, sandbox business
+  `a80322a4f13571a4`): save only processId 811312; charge and save 564815; token charge 564814 (transactionUniqueIdentifier 2278003370 only);
+  wallet payment 564816 (asmachta 133119841), refunded 564817. Preview logs had no `approveTransaction refused`. Videos sent to Grow.
+- Apple Pay domain file: `/.well-known/apple-developer-merchantid-domain-association` was downloaded as a file; it is now served as
+  `text/plain`, inline (`next.config.ts`), checked live on 2026-11-02.
+- Merchant onboarding, second test (2026-11-02): fictitious business number 255300212, mobile 0542845655, filled up to ID verification.
+  The "Maple System" approval Grow sent is their sandbox test business (its business code is the sandbox userId above), not a real merchant.
 - Site check (https://grow.business/Site_check, a PDF): every payment page now has a required terms tick linking `/terms#payments` (`lib/paymentTerms.ts`;
   `/api/grow/wallet` refuses without it); the terms cover delivery of the service, the 18+ purchase limit, privacy, liability and cancellation under the
   Consumer Protection Law; Kalmea's footer shows the contact number. The address is the city only (`KALMEA_ADDRESS`): Grow may ask for a street address.
