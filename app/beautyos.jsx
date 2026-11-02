@@ -60,7 +60,14 @@ import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from "@/l
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
-import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink } from "@/lib/messages.js";
+import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink, hebrewDate as msgHebrewDate } from "@/lib/messages.js";
+
+// " היום" / " מחר" from the appointment's own date at the moment the text is built, never assumed (2026-11-02 audit).
+function dayWordFor(dateStr) {
+  const todayIL = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(new Date());
+  const diff = Math.round((Date.parse(String(dateStr).slice(0, 10)) - Date.parse(todayIL)) / 86_400_000);
+  return diff === 0 ? " היום" : diff === 1 ? " מחר" : "";
+}
 import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE, notUploadable } from "@/lib/imageResize";
 import { readAllRows } from "@/lib/pagedRead";
 import { historyCutoff, mergeById } from "@/lib/historyWindow";
@@ -659,10 +666,10 @@ function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
     phone,
     msgLines(
       msgGreet(name),
-      businessName ? `תזכורת לתור שלך ב${businessName} מחר.` : "תזכורת לתור מחר.",
+      businessName ? `תזכורת לתור שלך ב${businessName}${dayWordFor(date)}.` : `תזכורת לתור${dayWordFor(date)}.`,
       "",
       service,
-      `${date}, ${time}`,
+      `${msgHebrewDate(date)}, ${time}`,
       address ? "" : null,
       address ? `📍 ${address}` : null,
       address ? msgMapsLink(address) : null,
@@ -3464,7 +3471,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === "visible") loadPendingQuestion(); };
+    // The ready-to-send queue too: reminders are queued in the afternoon, often while the app is already open (2026-11-02 audit).
+    const onVisible = () => { if (document.visibilityState === "visible") { loadPendingQuestion(); refreshWaQueue(); } };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3832,6 +3840,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     });
     const opened = w ? (w.location.href = link, true) : !!window.open(link, "_blank");
     if (!opened) { toast("הדפדפן חסם את פתיחת וואטסאפ, אפשר לנסות שוב", "info"); return false; }
+    // Tell the server this appointment's reminder went: the daily run will not queue it again, and a copy already waiting in the
+    // queue is dismissed (lib/reminders/handled.js; a client used to get two, 2026-11-02 audit). Best effort, never blocks her.
+    fetch("/api/reminders/handled", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) })
+      .then(() => refreshWaQueue()).catch(() => {});
     const {data, error}=await supabase.from("appointments").update({confirmation_sent:true}).eq("id",appt.id).select();
     if (error) { handleDbError(error, "mark confirmation_sent"); return true; }
     if(data)setAppointments(prev=>prev.map(a=>a.id===appt.id?data[0]:a));
@@ -3840,7 +3852,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   const handleSendAllConfirmations = async () => {
     if (guardWrite()) return;
-    const pending=tomorrowAppts.filter(a=>!a.confirmation_sent);
+    // A cancelled or no-show booking gets no reminder (the cron and the "היום שלי" card already skip them; 2026-11-02 audit).
+    const pending=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
     if(pending.length===0){toast("כבר הכנת תזכורות לכל התורים של מחר", "info");return;}
     askConfirm({
       title: "שליחת תזכורות",
@@ -5984,10 +5997,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const cancelLink = links.cancelUrl;
     return msgLines(
       msgGreet(appt.name),
-      `תזכורת לתור שלך ב${businessName} מחר.`,
+      `תזכורת לתור שלך ב${businessName}${dayWordFor(appt.date)}.`,
       "",
       appt.service,
-      `${appt.date}, ${fmtApptTime(appt)}`,
+      `${msgHebrewDate(appt.date)}, ${fmtApptTime(appt)}`,
       address ? "" : null,
       address ? `📍 ${address}` : null,
       address ? msgMapsLink(address) : null,
@@ -8025,7 +8038,7 @@ ${MARKETING_FOOTER}`)}`;
           trusting her tap is the whole mechanism, same as every prepare flow. */}
       {showWaQueue&&(
  <Sheet open onClose={()=>setShowWaQueue(false)} width={440} zIndex={4000} title="הודעות מוכנות לשליחה">
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:14}}>כל הודעה כאן יצאה מהתור ולא מהוואטסאפ המרכזי — לחיצה פותחת את השיחה עם הטקסט מוכן, ואת רק שולחת.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:14}}>ההודעות כאן עוד לא נשלחו. לחיצה על &quot;שליחה&quot; פותחת את הוואטסאפ שלך עם הטקסט מוכן, ונשאר רק ללחוץ שליחה.</p>
           {whatsappPending.length===0?(
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"20px 0"}}>אין הודעות שמחכות לשליחה.</p>
           ):(whatsappPending.map((m,i)=>{
@@ -8519,7 +8532,7 @@ ${MARKETING_FOOTER}`)}`;
  <div key={a.id} style={{background:"linear-gradient(90deg,var(--surface-2),#FFFFFF)",borderRight:`3px solid ${getApptColor(a)}`,borderRadius:"var(--r-sm)",padding:"6px 8px",marginBottom:5}}>
  <p style={{fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink)"}}>{a.name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{entrySubtitle(a)}</p>
-                    {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&(
+                    {!isPersonal(a)&&client?.phone&&!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW&&(
  <button onClick={()=>handleSendConfirmation(a)} style={{background:"#25D366",color:"#fff",border:"none",borderRadius:"var(--r-md)",padding:"3px 8px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",marginTop:3}}>שלחי תזכורת</button>
                     )}
                     {a.confirmation_sent&&<span style={{fontSize:"var(--t-sm)",color:confColor,fontWeight:700}}>{a.confirmation_status==="confirmed"?"אישרה":a.confirmation_status==="cancelled"?"ביטלה":a.confirmation_status===NO_SHOW?"לא הגיעה":"נפתחה"}</span>}
@@ -8916,7 +8929,7 @@ ${MARKETING_FOOTER}`)}`;
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
                       if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
-                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent);
+                      const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
                       if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:"פתחי מרכז הודעות",run:()=>setActiveTab("whatsapp")});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
                       (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
@@ -8966,9 +8979,10 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
+                        if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -11915,7 +11929,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)"}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 4px"}}>וואטסאפ</p>
- <p style={{fontSize:"var(--t-sm)",lineHeight:1.6,margin:0,color:waCentralConnected===true?"var(--success)":waCentralConnected===false?"var(--warning)":"var(--ink-3)"}}>{waCentralConnected===true?"✓ המספר המרכזי מחובר: תזכורות ואישורים יוצאים אוטומטית.":waCentralConnected===false?"המספר המרכזי לא מחובר כרגע. ההודעות מחכות ב\"הודעות מוכנות לשליחה\" ושולחים אותן בלחיצה אחת.":"בודקת את מצב החיבור..."}</p>
+ <p style={{fontSize:"var(--t-sm)",lineHeight:1.6,margin:0,color:waCentralConnected===true?"var(--success)":waCentralConnected===false?"var(--warning)":"var(--ink-3)"}}>{waCentralConnected===true?"✓ המספר המרכזי מחובר: תזכורות ואישורים יוצאים אוטומטית.":waCentralConnected===false?"בשלב הזה ההודעות לא יוצאות לבד: הן מחכות לך ב\"הודעות מוכנות לשליחה\", לחיצה אחת לכל הודעה.":"בודקת את מצב החיבור..."}</p>
  </div>
  </>)}
  {inG("business")&&(<>
@@ -12387,7 +12401,7 @@ ${MARKETING_FOOTER}`)}`;
  {inG("messages")&&(<>
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
- <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc="נשלחת אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל; אחרת מוכנה בתור השליחה הידנית שלך." />
+ <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc={waCentralConnected===true?"נשלחת אוטומטית בוואטסאפ, יום לפני התור.":"מוכנה לשליחה בלחיצה אחת, כל יום אחר הצהריים, לקראת התורים של מחר."} />
  <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
  <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
@@ -12514,7 +12528,7 @@ ${MARKETING_FOOTER}`)}`;
  {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה, רק כשהחיבור המרכזי פעיל ותקין — כל הודעה שלא יצאה ממתינה בתור השליחה הידנית שלך, ולא נעלמת. הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין — את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>{waCentralConnected===true?"תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה. הודעה שלא יצאה מחכה בתור השליחה שלך, ולא נעלמת.":"תזכורות, אישורי תורים ואישורי תשלום מחכים לך מוכנים ב\"הודעות מוכנות לשליחה\", לחיצה אחת לכל הודעה מהוואטסאפ שלך. התזכורות לתורים של מחר מוכנות כל יום אחר הצהריים, ובמוצאי שבת בערב."} הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין — את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
  </>)}

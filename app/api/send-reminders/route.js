@@ -23,7 +23,8 @@ import { startMinute } from "../../../lib/apptTime";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 import { isDemoTenantId } from "../../../lib/demoTenants.ts";
-import { runDailyReminders } from "../../../lib/reminders/dailyReminders.js";
+import { runDailyReminders, queuedByTenant } from "../../../lib/reminders/dailyReminders.js";
+import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { describeMissed } from "../../../lib/cronFanout.js";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
 import { clientCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
@@ -95,6 +96,17 @@ export async function POST(request) {
 
     if (run.empty) {
       return Response.json({ success: true, sent: 0, message: "אין תורים מחר" });
+    }
+
+    // Each business with reminders waiting for her: one notice (and push), so she sends them today instead of finding them tomorrow.
+    for (const [tenantId, n] of queuedByTenant(run.results)) {
+      try {
+        await notifyOwner({
+          tenantId, kind: "reminders_ready",
+          title: n === 1 ? "תזכורת אחת למחר מחכה לך" : `${n} תזכורות למחר מחכות לך`,
+          body: "הן מוכנות ב'הודעות מוכנות לשליחה'. לחיצה אחת לכל אחת, מהוואטסאפ שלך.",
+        });
+      } catch (e) { console.warn("[send-reminders] owner notice failed:", e?.message); }
     }
 
     // Anything the run did not finish is said out loud, never left to be

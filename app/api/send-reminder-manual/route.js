@@ -24,6 +24,7 @@ import { startMinute } from "../../../lib/apptTime";
 import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
+import { markReminderHandled } from "../../../lib/reminders/handled.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -172,6 +173,9 @@ export async function POST(request) {
     // failure: this is a single, user-initiated send, so instead of making
     // her go find it in a queue later, hand the caller the wa.me link to
     // open immediately - the one tap replaces the automatic send right now.
+    // One reminder per appointment and day, whichever button sent it: the cron will not queue this one again, and an older copy
+    // still waiting in her queue is dismissed (lib/reminders/handled.js, 2026-11-02 audit).
+    if (result.queued || result.ok) await markReminderHandled(supabase, { tenantId, appointmentId: appt.id, date: appt.date, keepMessageId: result.messageId || null });
     if (result.queued) {
       return Response.json({ success: true, queued: true, waLink: result.waLink, messageId: result.messageId || null });
     }
