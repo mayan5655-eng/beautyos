@@ -20,6 +20,7 @@ import { saveCard } from '@/lib/billing/service';
 import { encryptToken } from '@/lib/facebook/encryption';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 import { admin, billing } from '../_shared';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 const done = (status = 200) => NextResponse.json({ ok: status === 200 }, { status });
 
@@ -55,7 +56,12 @@ export async function POST(request: Request) {
     const r = await saveCard({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, tenantId, { tokenRef: encryptToken(n.cardToken), last4: n.last4, brand: n.brand });
     console.log('[billing] card saved through Grow for tenant', tenantId, 'charged:', r.charged);
   } catch (e) {
+    // The card was NOT stored. Answer 503 and skip the approve, so Grow sends the callback again: a 200 here lost the card for
+    // good (she saw it accepted, the first charge then failed with no card on file). A retry is safe: saveCard re-writes the
+    // token on the existing row and attempt() checks the ledger before charging.
     console.error('[billing] saveCard after Grow token failed:', (e as Error)?.message);
+    await moneyAlert('billing:grow-notify', 'saveCard failed after a Grow card token; answered 503 so Grow retries', { tenantId });
+    return done(503);
   }
 
   // approveTransaction for the first token transaction, with the BILLING account's key and page code (never the platform's).
@@ -66,7 +72,7 @@ export async function POST(request: Request) {
       form.append('apiKey', creds.apiKey);
       form.append('pageCode', creds.pageCode);
       for (const [k, v] of Object.entries(n.echo)) form.append(k, v);
-      await fetch(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
+      await fetch(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form, signal: AbortSignal.timeout(8000) });
     } catch (e) {
       console.error('[billing] approveTransaction failed:', (e as Error)?.message);
     }

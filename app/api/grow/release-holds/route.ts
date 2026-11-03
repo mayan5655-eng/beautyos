@@ -10,6 +10,7 @@ import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '../_cancel';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export const maxDuration = 60;
 
@@ -21,12 +22,14 @@ export async function POST(request: Request) {
   if (!deps) return NextResponse.json({ success: true, skipped: 'not-configured' });
   try {
     const r = await releaseExpiredHolds(deps);
-    if (r.released || r.confirmed) console.log(`[grow] holds: ${JSON.stringify(r)}`);
+    if (r.released || r.confirmed || r.errors) console.log(`[grow] holds: ${JSON.stringify(r)}`);
+    if (r.errors) await moneyAlert('grow:release-holds', 'some deposit holds could not be released', r, { key: 'errors' });
     return NextResponse.json({ success: true, ...r });
   } catch (e) {
     // The consent table does not exist yet (add_grow_cancellation.sql not run): nothing to release.
     if (/does not exist|schema cache/i.test((e as Error)?.message || '')) return NextResponse.json({ success: true, skipped: 'tables-missing' });
     console.error('[grow] hold release failed:', (e as Error)?.message);
+    await moneyAlert('grow:release-holds', 'hold release run failed', null, { key: 'run' });
     return NextResponse.json({ success: false, error: 'internal' }, { status: 500 });
   }
 }

@@ -10,8 +10,9 @@ import { billingUiEnabled } from '@/lib/billing/adapter';
 import { runDue } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 import { admin, billing } from '../_shared';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
@@ -20,13 +21,15 @@ export async function POST(request: Request) {
   const b = billing();
   if (!b.configured || !b.payments || !b.invoicing) return NextResponse.json({ success: true, skipped: 'not-configured' });
   try {
-    const r = await runDue({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing });
+    // Stop starting new businesses at 240 s, leaving a minute for the last charge and the invoices before the 300 s limit.
+    const r = await runDue({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, { budgetMs: 240_000 });
     console.log(`[billing] daily run: ${JSON.stringify(r)}`);
+    if (r.notStarted) await moneyAlert('billing:run', 'daily billing ran out of time; the rest are charged on the next run', { notStarted: r.notStarted }, { severity: 'warning', key: 'budget' });
     return NextResponse.json({ success: true, ...r });
   } catch (e) {
     // add_kalmea_billing.sql has not been run yet: nothing to charge, not an error.
     if (/does not exist|schema cache/i.test((e as Error)?.message || '')) return NextResponse.json({ success: true, skipped: 'tables-missing' });
-    console.error('[billing] daily run threw:', (e as Error)?.message);
+    console.error('[billing] daily run threw:', (e as Error)?.message); await moneyAlert('billing:run', 'daily billing run threw', null);
     return NextResponse.json({ success: false, error: 'internal' }, { status: 500 });
   }
 }

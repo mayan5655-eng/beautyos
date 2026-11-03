@@ -14,8 +14,9 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json({ success: true, balance: await deps.repo.creditBalance(c.tenantId, clientId) });
   } catch (e) {
+    // A failed read is not a zero balance (see the deposit route).
     console.warn('[grow] credit lookup failed:', (e as Error)?.message);
-    return NextResponse.json({ success: true, balance: 0 });
+    return NextResponse.json({ success: false, error: 'lookup_failed' }, { status: 503 });
   }
 }
 

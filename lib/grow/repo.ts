@@ -6,7 +6,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
 
 const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at, transaction_id, invoice_url';
-const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || /column|schema cache/i.test(e.message || ''));
+// Codes only: a NOT NULL violation (23502, "null value in column ...") also says "column" and must not take the reduced-insert path.
+const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204' || (!e.code && /could not find the .* column|schema cache/i.test(e.message || '')));
 
 export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
   return {

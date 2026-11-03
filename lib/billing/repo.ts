@@ -6,6 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BillingRepo, Subscription, PaymentRecord, TenantRow } from './service.ts';
 import { billingPayerPhone } from './payerPhone.ts';
+import { readAllRows } from '../pagedRead.js';
 
 const num = (v: unknown) => Number(v);
 const subOf = (r: Record<string, unknown>): Subscription => ({ ...(r as unknown as Subscription), price: num(r.price), failed_attempts: Number(r.failed_attempts) || 0 });
@@ -20,9 +21,11 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       return data ? subOf(data) : null;
     },
     async listSubs() {
-      const { data, error } = await db.from('billing_subscriptions').select('*').order('created_at', { ascending: true }).limit(2000);
-      if (error) fail(error, 'listSubs');
-      return (data || []).map(subOf);
+      // Every row, paged: one select stops at the server's 1000-row cap without saying so, and the businesses past it were never charged.
+      const r = await readAllRows(db, 'billing_subscriptions', { order: ['created_at', 'id'] as unknown as string });
+      if (r.error) fail(r.error, 'listSubs');
+      if (!r.complete) fail({ message: `listSubs: read ${r.fetched} of ${r.total} subscriptions` }, 'listSubs');
+      return (r.data || []).map(subOf);
     },
     async insertSub(row) {
       const { data, error } = await db.from('billing_subscriptions').insert(row).select('*').single();
