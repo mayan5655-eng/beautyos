@@ -41,9 +41,14 @@ export function clientIp(headers: { get(name: string): string | null }): string 
   return xff ? normalizeIp(xff.split(',')[0]) : '';
 }
 
+/**
+ * Grow's published list PLUS any address in GROW_WEBHOOK_IPS. Adding, never replacing (2026-11-03): Grow's onboarding update was refused
+ * with 403 from an address on their current list but not on our copy, and the fix is to add that one address in Vercel without a deploy;
+ * a replace would have dropped the other 29 with one typo.
+ */
 export function allowedIps(env: Env = process.env): Set<string> {
   const custom = (env.GROW_WEBHOOK_IPS || '').split(/[,\s]+/).map(normalizeIp).filter(Boolean);
-  return new Set(custom.length ? custom : [...GROW_IPS]);
+  return new Set([...GROW_IPS, ...custom]);
 }
 
 /**

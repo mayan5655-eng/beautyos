@@ -11,7 +11,7 @@ below exist, `GROW_MODE=live` is set and a cosmetician opts in. Nothing here was
 | `GROW_MODE` | `mock` (default): no network; the payment page is `/api/grow/mock-pay` on our own origin with "paid" / "failed" buttons, and it feeds the same callback logic as the real thing, including a sample receipt. `live`: the real API. Mock is **refused on the Vercel production deployment** (`VERCEL_ENV=production`). |
 | `GROW_API_KEY`, `GROW_PAGE_CODE` | Live only. The platform `apiKey` (sent as `x-api-key`) and the card payment-page code. |
 | `GROW_ENV`, `GROW_API_BASE` | Live only. `production` needs `GROW_API_BASE` (given by Grow, not in the public docs). The sandbox default is `https://sandbox.meshulam.co.il/api/light/server/1.0`. |
-| `GROW_WEBHOOK_IPS`, `GROW_WEBHOOK_IP_CHECK` | Optional. Override Grow's published webhook IP list; the check can only be relaxed outside production. |
+| `GROW_WEBHOOK_IPS`, `GROW_WEBHOOK_IP_CHECK` | Optional. Addresses ADDED to Grow's published webhook IP list (comma-separated); the check can only be relaxed outside production. |
 
 `.env.example` lists all of them with placeholders.
 

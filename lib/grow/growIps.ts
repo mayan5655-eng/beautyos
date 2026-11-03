@@ -2,7 +2,7 @@
 //
 // Grow's published IP addresses, from https://developers.grow.business/reference/ip-address (read 2026-10-14,
 // 2026-10-15 and 2026-10-21, unchanged: 30 rows, 18.156.94.176 listed twice, so 29 distinct). Kept in this one file so a change on Grow's side is a
-// one-file edit, and GROW_WEBHOOK_IPS (comma-separated) can replace it without a deploy.
+// one-file edit, and GROW_WEBHOOK_IPS (comma-separated) ADDS addresses to it without a deploy.
 //
 // What the page says: "The following IP addresses must be allowed at the firewall for testing and production
 // transactions". It does not label test vs live, and it does not literally say these are the sources of webhooks;

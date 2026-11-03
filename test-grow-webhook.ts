@@ -88,9 +88,11 @@ await ok('enforced by default and in production; relaxed only with the flag AND 
   assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off' }), true); // GROW_ENV forgotten: counts as production
   assert.equal(ipCheckEnforced({ GROW_WEBHOOK_IP_CHECK: 'off', GROW_ENV: 'production' }), true); // cannot weaken live
   assert.equal(ipCheckEnforced({ GROW_ENV: 'production' }), true);
-  assert.deepEqual([...allowedIps({ GROW_WEBHOOK_IPS: '10.0.0.1, 10.0.0.2' })], ['10.0.0.1', '10.0.0.2']);
+  // GROW_WEBHOOK_IPS ADDS to Grow's list (2026-11-03): one missing address is added in Vercel, the published ones stay.
+  assert.ok(['10.0.0.1', '10.0.0.2', GROW_IP].every((ip) => allowedIps({ GROW_WEBHOOK_IPS: '10.0.0.1, 10.0.0.2' }).has(ip)));
   assert.equal(ipAllowed('10.0.0.1', { GROW_WEBHOOK_IPS: '10.0.0.1' }), true);
-  assert.equal(ipAllowed(GROW_IP, { GROW_WEBHOOK_IPS: '10.0.0.1' }), false);
+  assert.equal(ipAllowed(GROW_IP, { GROW_WEBHOOK_IPS: '10.0.0.1' }), true, 'the published list is never dropped');
+  assert.equal(ipAllowed('10.0.0.9', { GROW_WEBHOOK_IPS: '10.0.0.1' }), false, 'anything else is still refused');
 });
 
 // ── dispatch by shape ──────────────────────────────────────────────────────────
