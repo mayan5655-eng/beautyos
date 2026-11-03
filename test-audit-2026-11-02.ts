@@ -102,7 +102,9 @@ await ok('both manual reminder paths tell the server; cancelled and no-show book
   assert.match(src('app/api/send-reminder-manual/route.js'), /markReminderHandled\(supabase/);
   const app = src('app/beautyos.jsx');
   assert.match(app, /fetch\("\/api\/reminders\/handled"/);
-  assert.equal((app.match(/a\.confirmation_status!=="cancelled"&&a\.confirmation_status!==NO_SHOW/g) || []).length, 3);
+  // Three reminder paths, plus (2026-11-03 UX review) the Messages center's reminder list and the till's quick-pay list.
+  assert.equal((app.match(/a\.confirmation_status!=="cancelled"&&a\.confirmation_status!==NO_SHOW/g) || []).length, 5);
+  assert.match(app, /const reminderTargets=tomorrowAppts\.filter\(a=>!a\.confirmation_sent&&a\.confirmation_status!=="cancelled"&&a\.confirmation_status!==NO_SHOW\)/);
 });
 
 await ok('reminder copy says they wait for her, unless the central number really sends', () => {
