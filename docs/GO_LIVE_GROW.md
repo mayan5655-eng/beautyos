@@ -40,7 +40,7 @@ webhook field list; whether they sign webhooks.
 | Optional per-method page codes, if Grow issues them | `GROW_PAGE_CODE_BIT`, `GROW_PAGE_CODE_APPLE_PAY`, `GROW_PAGE_CODE_GOOGLE_PAY` |
 | (you set) | `GROW_ENV` = `production` |
 | (you set) | `GROW_MODE` = `live` |
-| Only if Grow's IP list changes | `GROW_WEBHOOK_IPS` (optional) |
+| Only if Grow sends from an address missing from `lib/grow/growIps.ts` (a 403 in the logs) | `GROW_WEBHOOK_IPS` (optional, comma-separated, ADDED to the list) |
 
 Already set and not from Grow: `CRON_SECRET` (the crons), `SUPABASE_SERVICE_ROLE_KEY`, `TOKEN_ENCRYPTION_KEY` (saved-card tokens are stored encrypted with it).
 
