@@ -256,7 +256,8 @@ export async function recordTake(browser, dir, { owner = true, setup, play, labe
 }
 
 export async function openBrowser() {
-  try { return await chromium.launch(); } catch (e) {
+  // KALMEA_CHROMIUM: a Chromium already on the machine (a cloud session has one at /opt/pw-browsers/chromium) instead of playwright's own.
+  try { return await chromium.launch(process.env.KALMEA_CHROMIUM ? { executablePath: process.env.KALMEA_CHROMIUM } : {}); } catch (e) {
     console.error('[tour] could not start Chromium. First time on this machine? Run:  npx playwright-core install chromium');
     throw e;
   }
