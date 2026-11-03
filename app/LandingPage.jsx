@@ -20,6 +20,7 @@ import PublicFooterLinks from "./PublicFooterLinks";
 import KalmeaLegalFooter from "./KalmeaLegalFooter";
 import { supportWhatsAppUrl } from "@/lib/support";
 import { PLAN_PRICES, priceHe } from "@/lib/pricing";
+import PublicAnalytics from "./PublicAnalytics";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -141,6 +142,7 @@ function SectionEyebrow({ children }) {
 export default function LandingPage({ signedIn = false }) {
   return (
     <div dir="rtl" className="lp-page">
+      <PublicAnalytics />
       {/* ── 1. HEADER ─────────────────────────────────────────────────────── */}
       <header className="lp-top">
         <Image src="/kalmea-wordmark.png" alt="Kalmea" width={WORDMARK_W} height={WORDMARK_H} priority style={{ width: "auto", height: 32 }} />

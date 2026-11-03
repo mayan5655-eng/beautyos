@@ -11,6 +11,7 @@
 // Owner, 2026-11-01: no AI figures. The last seconds of these three files were covered with the Kalmea flower, because the scripts here still draw
 // the AI presenter on their end cards: a new render must drop it (marketing/motion-lib.mjs endCard, marketing/tutorials.mjs).
 
+import PublicAnalytics from "../PublicAnalytics";
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, BRAND_WASH_SOFT } from "@/lib/brand";
@@ -35,6 +36,7 @@ export default function TutorialsPage() {
   const wa = supportWhatsAppUrl("היי, יש לי שאלה על קלמיה");
   return (
     <div dir="rtl" style={pageStyle}>
+      <PublicAnalytics />
       <article style={cardStyle}>
         <header style={{ marginBottom: 6 }}>
           <p style={brandStyle}>Kalmea</p>

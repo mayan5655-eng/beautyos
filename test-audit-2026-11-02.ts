@@ -286,4 +286,10 @@ await ok('automatic WhatsApp options are hidden until the central number sends (
   }
 });
 
+await ok('visitor analytics run on the public marketing pages only, never in the app or on token links (owner, 2026-11-03)', () => {
+  assert.match(src('app/PublicAnalytics.tsx'), /src="\/_vercel\/insights\/script\.js"/);
+  for (const f of ['app/LandingPage.jsx', 'app/signup/layout.tsx', 'app/tutorials/page.tsx']) assert.match(src(f), /<PublicAnalytics \/>/, f);
+  for (const f of ['app/layout.tsx', 'app/beautyos.jsx', 'app/pay/[token]/PayClient.jsx']) assert.ok(!src(f).includes('PublicAnalytics') && !src(f).includes('_vercel/insights'), `${f}: no analytics`);
+});
+
 console.log(`audit 2026-11-02: ${n} ok`);
