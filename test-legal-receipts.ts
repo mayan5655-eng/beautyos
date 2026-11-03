@@ -69,18 +69,25 @@ const dl = spec.buildDocument({ receipt, taxStatus: 'licensed', date: '2026-09-3
 assert.equal(dl.type, 320); assert.equal(dl.income[0].vatType, 1, 'authorized dealer: her prices include VAT');
 // split payment: each line, tip never in the document
 const split = spec.buildDocument({ receipt: { ...receipt, tip: 30, payment_method: 'מפוצל', payments: [{ method: 'ביט', amount: 150 }, { method: 'מזומן', amount: 100 }] }, taxStatus: 'exempt', date: '2026-09-30' });
-assert.deepEqual(split.payment.map((p: any) => [p.type, p.price]), [[10, 150], [1, 100]]);
+assert.deepEqual(split.payment.map((p: any) => [p.type, p.price]), [[11, 150], [1, 100]], 'Bit as "other" until its appType is confirmed');
 assert.equal(split.payment.reduce((s: number, p: any) => s + p.price, 0), 250, 'the tip is not part of the document');
 assert.equal(spec.paymentFor('העברה', 10, 'd').type, 4);
-assert.equal(spec.paymentFor('פייבוקס', 10, 'd').type, 10);
+assert.equal(spec.paymentFor('פייבוקס', 10, 'd').type, 11);
 assert.equal(spec.paymentFor('משהו', 10, 'd').type, 11);
 // rows that do not add up -> one honest line, never a wrong document
 const odd = spec.incomeRows({ ...receipt, items: JSON.stringify([{ name: 'x', price: 10, qty: 1 }]), discount: 0 }, 'exempt');
 assert.deepEqual(odd.map((r: any) => [r.description, r.price]), [['פילינג', 250]]);
 assert.equal(spec.incomeRows({ amount: 99, service: 'טיפול', items: null }, 'exempt')[0].price, 99, 'no items: one line');
+// Bit/PayBox: Morning refuses type 10 without appType; until the number is confirmed it is filed as "other", never as a wrong app.
+assert.deepEqual(spec.paymentFor('ביט', 100, '2026-11-03'), { date: '2026-11-03', price: 100, currency: 'ILS', type: 11 });
+assert.equal(spec.MORNING_APP_TYPES['ביט'], null, 'filled in only from a sandbox document that names the app');
 // the credit
 const c = spec.buildCredit({ receipt, originalDocId: 'doc-1', taxStatus: 'exempt', date: '2026-09-30', reason: 'סכום שגוי' });
-assert.equal(c.type, 330); assert.deepEqual(c.linkedDocumentIds, ['doc-1']); assert.equal(c.linkType, 'cancel');
+// Exempt dealer: Morning refuses a 330 (sandbox 2026-11-03, error 2403); her receipt is cancelled by a linked 400 with negative rows.
+assert.equal(c.type, 400); assert.deepEqual(c.linkedDocumentIds, ['doc-1']); assert.equal(c.linkType, 'cancel');
+assert.ok(c.description.startsWith('ביטול'));
+const lc = spec.buildCredit({ receipt, originalDocId: 'doc-2', taxStatus: 'licensed', date: '2026-09-30' });
+assert.equal(lc.type, 330, 'a licensed dealer still gets a credit invoice'); assert.ok(lc.description.startsWith('זיכוי'));
 assert.equal(c.remarks, 'BOS:r1:credit');
 assert.deepEqual(c.income.map((r: any) => r.price), [-200, -100, 50], 'every row negated');
 assert.equal(c.payment[0].price, -250);
@@ -108,13 +115,17 @@ const mkFetch = (script: (url: string, init: any) => any) => {
   const cfg = morningConfig({});
   const { f, calls } = mkFetch((url) =>
     url === cfg.tokenUrl ? { status: 200, body: { accessToken: 'TKN', expiresAt: Math.floor(Date.now() / 1000) + 3600 } }
-    : url.endsWith('/v1/users/me') ? { status: 200, body: { name: 'קליניקה של דנה' } }
+    : url.endsWith('/v1/businesses/me') ? { status: 200, body: { name: 'קליניקה של דנה' } }
     : url.endsWith('/v1/documents') ? { status: 201, body: { id: 'doc-9', number: 1042, url: { origin: 'https://pdf/9', he: 'https://pdf/9he' } } }
     : { status: 404 });
   const m = createMorning({ fetchImpl: f, config: cfg });
   const creds = { keyId: 'KID', secret: 'SEC' };
   const v = await m.verify(creds);
   assert.deepEqual([v.ok, v.businessName], [true, 'קליניקה של דנה']);
+  // Valid keys are valid even when the name lookup answers 404 (the sandbox's /v1/users/me did, 2026-11-03).
+  const noName = createMorning({ fetchImpl: mkFetch((url) => url === cfg.tokenUrl ? { status: 200, body: { accessToken: 'T2', expiresAt: Math.floor(Date.now() / 1000) + 3600 } } : { status: 404 }).f, config: cfg });
+  const v2 = await noName.verify({ keyId: 'K2', secret: 'S2' });
+  assert.deepEqual([v2.ok, v2.businessName], [true, '']);
   assert.deepEqual(JSON.parse(calls[0].init.body), { grant_type: 'client_credentials', client_id: 'KID', client_secret: 'SEC' }, 'OAuth client-credentials request');
   assert.equal(calls[1].init.headers.Authorization, 'Bearer TKN');
   const made = await m.createDocument(creds, { type: 400 });
@@ -356,7 +367,7 @@ for (const rc of [{ amount: 0, payment_method: 'חבילה' }, { amount: 0 }]) {
   const db: any = makeDb(withCreds(s)); const ad = fakeAdapter(() => OK('C-77'));
   const r: any = await svc.creditForVoid({ db, tenantId: TENANT, voidId: 'v1', adapter: ad as any, now: new Date('2026-09-30T10:00:00Z') });
   assert.equal(r.status, 'issued');
-  assert.equal(ad.calls[0].type, 330); assert.deepEqual(ad.calls[0].linkedDocumentIds, ['doc-1042']); assert.equal(ad.calls[0].linkType, 'cancel');
+  assert.equal(ad.calls[0].type, 400, 'exempt: a linked cancelling receipt'); assert.deepEqual(ad.calls[0].linkedDocumentIds, ['doc-1042']); assert.equal(ad.calls[0].linkType, 'cancel');
   assert.ok(ad.calls[0].description.includes('סכום שגוי'));
   const v = db.tables.receipt_voids[0];
   assert.deepEqual([v.credit_status, v.credit_doc_number, v.credit_doc_url], ['issued', 'C-77', 'https://pdf/C-77']);

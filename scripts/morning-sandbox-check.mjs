@@ -69,7 +69,7 @@ for (const [label, receipt] of cases) {
 if (first) {
   const credit = buildCredit({ receipt: first.receipt, originalDocId: first.docId, taxStatus, client: { name: 'לקוחת בדיקה' }, reason: 'בדיקת זיכוי' });
   const r = await m.createDocument(creds, credit);
-  show('credit (330, linkType cancel) of the first document', credit, r);
+  show(`cancelling document (type ${credit.type}, linkType cancel) of the first document`, credit, r);
 } else {
   console.log('No document was created, so the credit was not tried.');
 }
