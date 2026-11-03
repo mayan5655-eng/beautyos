@@ -276,4 +276,14 @@ await ok('settings and till panels are loaded when first shown, not in the dashb
   }
 });
 
+await ok('automatic WhatsApp options are hidden until the central number sends (owner, 2026-11-03); stored values are kept', () => {
+  const app = src('app/beautyos.jsx');
+  for (const marker of ['<p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 4px"}}>וואטסאפ</p>', 'label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)"', 'label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום"']) {
+    const i = app.indexOf(marker);
+    assert.ok(i > 0, marker);
+    const gate = app.lastIndexOf('{waCentralConnected===true&&(', i);
+    assert.ok(gate > 0 && i - gate < 400, `hidden behind the central-number check: ${marker.slice(0, 40)}`);
+  }
+});
+
 console.log(`audit 2026-11-02: ${n} ok`);

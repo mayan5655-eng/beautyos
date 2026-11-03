@@ -11950,10 +11950,14 @@ ${MARKETING_FOOTER}`)}`;
  {fbPages&&fbPages.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>חיבור מחדש מרענן את ההרשאות (למשל כדי לראות נתוני קמפיינים) ומאפשר להוסיף דף נוסף. הדפים שכבר מחוברים נשארים.</p>}
  <button data-testid="fb-reconnect" onClick={()=>{window.location.href="/api/facebook/oauth/start";}} className="primary-btn" style={{padding:"9px 14px",background:"#1877F2",color:"#fff",fontSize:"var(--t-sm)",alignSelf:"flex-start"}}>{fbPages&&fbPages.length>0?"התחברי מחדש לפייסבוק":"התחברי לפייסבוק"}</button>
  </div>
+ {/* Automatic WhatsApp sending is not live yet (the central number is not connected): the box appears only once it is (owner,
+     2026-11-03). Messages meanwhile wait in "הודעות מוכנות לשליחה", which the messages group explains. */}
+ {waCentralConnected===true&&(
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)"}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 4px"}}>וואטסאפ</p>
  <p style={{fontSize:"var(--t-sm)",lineHeight:1.6,margin:0,color:waCentralConnected===true?"var(--success)":waCentralConnected===false?"var(--warning)":"var(--ink-3)"}}>{waCentralConnected===true?"✓ המספר המרכזי מחובר: תזכורות ואישורים יוצאים אוטומטית.":waCentralConnected===false?"בשלב הזה ההודעות לא יוצאות לבד: הן מחכות לך ב\"הודעות מוכנות לשליחה\", לחיצה אחת לכל הודעה.":"בודקת את מצב החיבור..."}</p>
  </div>
+ )}
  </>)}
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם העסק</p><input value={editSettings.business_name||""} onChange={e=>setEditSettings({...editSettings,business_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
@@ -12412,12 +12416,15 @@ ${MARKETING_FOOTER}`)}`;
 
  {inG("messages")&&(<>
  <div>
+ {/* The WhatsApp copy of her alerts needs the central number: hidden until it sends (owner, 2026-11-03). The app alert always comes. */}
+ {waCentralConnected===true&&(<>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>התראות אליך</p>
  <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
    const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
    setEditSettings(prev=>({...prev,automations:{...a,owner_alert_whatsapp:!(a.owner_alert_whatsapp===true)}}));
  }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר ההתראות שהגדרת (בקבוצה &quot;העסק שלי&quot;), ואם לא הגדרת, למספר העסק — שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
           {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — ההתראה בוואטסאפ תחכה ב&quot;הודעות מוכנות לשליחה&quot;, ותצטרכי ללחוץ כדי לקבל אותה. באפליקציה ההתראה תמיד מגיעה.</p>}
+ </>)}
  </div>
 
  </>)}
@@ -12603,7 +12610,8 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
  <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
- <AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />
+ {/* Sent automatically only through the central number: hidden until it is connected (owner, 2026-11-03). A stored "on" is kept. */}
+ {waCentralConnected===true&&(<AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />)}
  </div>
  </>)}
  </div>
