@@ -11,6 +11,7 @@ import { cancelDeps } from '@/app/api/grow/_cancel';
 import { hebrewDate } from '@/lib/messages.js';
 import { fmtApptTime } from '@/lib/apptTime';
 import { runWaitlistOffer } from '@/lib/waitlistRuntime';
+import { publicContactFor, type PublicContact } from '@/lib/publicContact';
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -38,7 +39,10 @@ import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 // Branding rides only on the SUCCESS path, after the signature check: the
 // same public logo and name her booking page shows, and nothing else - the
 // no-data rule above still holds for everything about the appointment.
-const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {}) =>
+// The message says WHEN, in her words, instead of a system "succeeded" (2026-11-03 UX review). `when` is the day and time her own
+// message already told the client; `contact` is her public booking link and WhatsApp (lib/publicContact.ts), so a client who
+// cancelled has somewhere to book again.
+const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {}, when = '', contact: PublicContact = { bookUrl: '', whatsapp: '' }) =>
   NextResponse.json({
     success: true,
     action,
@@ -46,9 +50,12 @@ const okResponse = (action: string, alreadyDone = false, brand: { businessName?:
     businessName: brand.businessName || '',
     logoUrl: brand.logoUrl || '',
     primaryColor: brand.primaryColor || '',
+    ...contact,
     message: alreadyDone
-      ? action === 'confirm' ? 'התור כבר אושר בעבר' : 'התור כבר בוטל בעבר'
-      : action === 'confirm' ? 'התור אושר בהצלחה' : 'התור בוטל בהצלחה',
+      ? action === 'confirm' ? (when ? `התור כבר אושר בעבר. נתראה ${when} 🌸` : 'התור כבר אושר בעבר') : 'התור כבר בוטל בעבר'
+      : action === 'confirm'
+        ? (when ? `נתראה ${when} 🌸` : 'נתראה בתור 🌸')
+        : (when ? `התור ${when} בוטל, והשעה התפנתה.` : 'התור בוטל, והשעה התפנתה.'),
   });
 
 // One body for every failure - unknown id, wrong token, bad action. Varying it
@@ -89,12 +96,14 @@ export async function POST(request: NextRequest) {
     // leaves the confirmation working, just unbranded.
     let brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {};
     let cancelWindowHours = 0;
+    let settingsRow: { business_phone?: string | null; branding?: unknown } | null = null;
     try {
       const { data: st } = await supabase
         .from('settings')
-        .select('business_name, branding, primary_color')
+        .select('business_name, branding, primary_color, business_phone')
         .eq('tenant_id', appt.tenant_id)
         .maybeSingle();
+      settingsRow = st;
       cancelWindowHours = resolveBookingRules(st?.branding).cancelWindowHours;
       brand = {
         businessName: st?.business_name || '',
@@ -120,13 +129,19 @@ export async function POST(request: NextRequest) {
     // Idempotent, and compared against the requested ACTION rather than the
     // status alone - otherwise a confirmed appointment could never be cancelled
     // through its own link.
-    if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand);
-    if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand);
+    // (The day and time, and where she can book again: past the signature check and after the peek, which stays
+    // treatment, day and time only. Used by the answers below.)
+    const when = appt.date ? `ב${hebrewDate(appt.date)}${fmtApptTime(appt) ? `, בשעה ${fmtApptTime(appt)}` : ''}` : '';
+    const contact = await publicContactFor(supabase, appt.tenant_id, settingsRow);
+
+    if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand, when, contact);
+    if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand, when, contact);
     // A cancelled appointment is never brought back through a public link: the slot may already be taken by someone else.
     if (action === 'confirm' && appt.confirmation_status === 'cancelled') {
       return NextResponse.json({
         success: false,
         businessName: brand.businessName || '',
+        ...contact,
         error: `התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`,
       }, { status: 409 });
     }
@@ -135,18 +150,18 @@ export async function POST(request: NextRequest) {
     // already happened is not cancelled afterwards (which also opened a gap-fill question for a slot in the past), and a booking
     // held for an unpaid deposit is confirmed by paying, not by tapping "confirm".
     if (appt.confirmation_status && !['pending', 'confirmed'].includes(String(appt.confirmation_status))) {
-      return NextResponse.json({ success: false, businessName: brand.businessName || '', error: `התור הזה כבר עודכן אצל ${brand.businessName || 'העסק'}. לכל שינוי אפשר ליצור קשר ישירות.` }, { status: 409 });
+      return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: `התור הזה כבר עודכן אצל ${brand.businessName || 'העסק'}. לכל שינוי אפשר ליצור קשר ישירות.` }, { status: 409 });
     }
     {
       const sm = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
       if (sm !== null && minutesUntilIsrael(String(appt.date), Number(sm)) <= 0) {
-        return NextResponse.json({ success: false, businessName: brand.businessName || '', error: 'מועד התור כבר עבר, אז אי אפשר לשנות אותו דרך הקישור.' }, { status: 409 });
+        return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: 'מועד התור כבר עבר, אז אי אפשר לשנות אותו דרך הקישור.' }, { status: 409 });
       }
     }
     if (action === 'confirm' && appt.confirmation_status === 'pending') {
       const { data: hold } = await supabase.from('appointment_policy_consents').select('status').eq('appointment_id', appointmentId).eq('tenant_id', appt.tenant_id).maybeSingle();
       if (hold && hold.status === 'awaiting_deposit') {
-        return NextResponse.json({ success: false, businessName: brand.businessName || '', error: 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.' }, { status: 409 });
+        return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.' }, { status: 409 });
       }
     }
 
@@ -169,6 +184,7 @@ export async function POST(request: NextRequest) {
           success: false,
           tooLate: true,
           businessName: brand.businessName || '',
+          ...contact,
           error: `אפשר לבטל דרך הקישור עד ${cancelWindowHours} שעות לפני התור. כדי לבטל עכשיו, אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`,
         }, { status: 409 });
       }
@@ -217,7 +233,7 @@ export async function POST(request: NextRequest) {
       }));
     }
 
-    return okResponse(action, false, brand);
+    return okResponse(action, false, brand, when, contact);
   } catch (error) {
     console.error('confirm: unexpected error', error);
     return NextResponse.json({ error: 'שגיאה בשרת' }, { status: 500 });
