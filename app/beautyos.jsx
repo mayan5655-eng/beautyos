@@ -9873,7 +9873,7 @@ ${MARKETING_FOOTER}`)}`;
             const groups=[
               // Categorical: the four groups must stay distinguishable from one
               // another, so these are literal values rather than tokens.
-              {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:"אין תורים מחר"},
+              {key:"reminders",icon:"◴",title:"תזכורות לתורי מחר",color:"#E0913A",targets:reminderTargets,empty:tomorrowAppts.length?"כל התזכורות למחר כבר יצאו":"אין תורים מחר"},
               {key:"birthdays",icon:"🎀",title:"ברכות יום הולדת",color:pc,targets:birthdayTargets,empty:"אין ימי הולדת ב-30 הימים הקרובים"},
               {key:"cold",icon:"✦",title:`לקוחות להתחדשות (${winbackDays}+ יום)`,color:"#5580C4",targets:coldTargets,empty:"כל הלקוחות פעילות! "},
               {key:"review",icon:"⭐",title:"בקשת ביקורת (השבוע האחרון)",color:"#9C27B0",targets:reviewTargets,empty:"אין ביקורים בשבוע האחרון"},
