@@ -56,6 +56,29 @@ export function nextOpenDay(settings: HoursSettings | null | undefined, from: Da
   return from;
 }
 
+// Where a NEW appointment opens (2026-11-03 UX review). On an open day that is today: the next half hour from now, never before
+// she opens. When nothing of that length still fits before she closes today, the next open day at its opening hour instead of a
+// time that has already passed. Any other day: its opening hour.
+export function newApptStart(
+  settings: HoursSettings | null | undefined,
+  now: Date = new Date(),
+  duration = 60,
+): { date: Date; minute: number } {
+  const first = nextOpenDay(settings, now);
+  const sameDay = first.getFullYear() === now.getFullYear() && first.getMonth() === now.getMonth() && first.getDate() === now.getDate();
+  const openOf = (d: Date) => { const h = dayHoursFrom(settings, d.getDay()); return h ? h.open * 60 : (Number(settings?.working_hours_start) || 9) * 60; };
+  if (!sameDay) return { date: first, minute: openOf(first) };
+  const h = dayHoursFrom(settings, now.getDay());
+  if (!h) return { date: first, minute: openOf(first) }; // never open at all: today, as nextOpenDay does
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const next = Math.ceil(nowMin / 30) * 30;
+  const start = Math.max(h.open * 60, next);
+  if (start + Math.max(0, Number(duration) || 0) <= h.close * 60) return { date: first, minute: start };
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const later = nextOpenDay(settings, tomorrow);
+  return { date: later, minute: openOf(later) };
+}
+
 // Derive the legacy single-range columns from a per-day map, so un-migrated
 // readers stay correct when the Settings UI saves.
 export function legacyHoursFromMap(bh: Record<number, DayHours>): {

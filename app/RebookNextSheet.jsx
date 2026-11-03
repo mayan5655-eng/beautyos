@@ -177,7 +177,7 @@ export default function RebookNextSheet({
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     {CHIPS.map((w) => (
                       <button key={w} type="button" onClick={() => { setChip(chip === w ? null : w); setPick(null); setPickOpen(false); }} aria-label={`מרווח של ${w} שבועות`} aria-pressed={chip === w}
-                        style={{ minWidth: 36, minHeight: 36, borderRadius: 'var(--r-xs)', fontSize: 'var(--t-sm)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: chip === w ? `1.5px solid ${pc}` : '1px solid var(--line-2)', background: chip === w ? 'var(--surface)' : 'transparent', color: chip === w ? pcDeep : 'var(--ink-3)' }}>{w}</button>
+                        style={{ minWidth: 44, minHeight: 44, borderRadius: 'var(--r-xs)', fontSize: 'var(--t-sm)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: chip === w ? `1.5px solid ${pc}` : '1px solid var(--line-2)', background: chip === w ? 'var(--surface)' : 'transparent', color: chip === w ? pcDeep : 'var(--ink-3)' }}>{w}</button>
                     ))}
                     <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>שב׳</span>
                   </div>
