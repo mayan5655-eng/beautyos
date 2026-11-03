@@ -24,7 +24,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
-import { clientCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
+import { reminderCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
+import { isYomTov } from "../../../lib/greetings/calendar.ts";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
 import { markCronRun } from '../../../lib/cronHeartbeat.js';
 import { APP_URL } from "@/lib/appUrl";
@@ -54,7 +55,8 @@ export async function POST(request) {
 
     // Shabbat: nothing to clients on Saturday; the run goes out at 20:00 Saturday night instead (lib/shabbat.js).
     // A dry run sends nothing, so it may run any time.
-    const slot = clientCronSlot(new Date());
+    // Yom tov and the eves too, since 2026-11-02 (lib/shabbat.js reminderCronSlot): early on Friday / an eve, held on a rest day.
+    const slot = reminderCronSlot(new Date(), { isYomTov });
     if (!slot.run && !dryRun) return Response.json({ success: true, sent: 0, held: slot.reason, message: slotMessageHe(slot.reason) });
 
     const { results, stats } = await runSmartReminders({
