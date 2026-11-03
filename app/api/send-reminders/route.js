@@ -27,7 +27,8 @@ import { runDailyReminders, queuedByTenant } from "../../../lib/reminders/dailyR
 import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { describeMissed } from "../../../lib/cronFanout.js";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
-import { clientCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
+import { reminderCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
+import { isYomTov } from "../../../lib/greetings/calendar.ts";
 
 // 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
 // tenant may take longer than 60 s, so it always ends by 260 s on its own terms
@@ -65,7 +66,8 @@ export async function POST(request) {
     const only = onlyParam ? onlyParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
 
     // Shabbat: Saturday's run is held and goes out at 20:00 (lib/shabbat.js). "Tomorrow" is still Sunday then.
-    const slot = clientCronSlot(new Date(), { retry: !!only });
+    // Yom tov and the eves too, since 2026-11-02 (lib/shabbat.js reminderCronSlot): early on Friday / an eve, held on a rest day.
+    const slot = reminderCronSlot(new Date(), { retry: !!only, isYomTov });
     if (!slot.run) return Response.json({ success: true, sent: 0, held: slot.reason, message: slotMessageHe(slot.reason) });
 
     // Is the central WhatsApp session actually logged in? GreenAPI answers 200 to a send either way, so without this a logged-out

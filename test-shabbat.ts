@@ -52,14 +52,36 @@ assert.equal(isQuietEvening(at('2026-10-25T17:00:00Z')), false, 'Sunday evening:
 const rd = (p: string) => readFileSync(p, 'utf8');
 const crons = JSON.parse(rd('vercel.json')).crons as Array<{ path: string; schedule: string }>;
 const has = (path: string, schedule: string) => crons.some((c) => c.path === path && c.schedule === schedule);
-assert.ok(has('/api/send-reminders', '0 14 * * *') && has('/api/send-reminders', '0 17,18 * * 6'), 'reminders: daily + Saturday night');
-assert.ok(has('/api/send-smart-reminders', '0 14 * * *') && has('/api/send-smart-reminders', '0 17,18 * * 6'), 'smart reminders: daily + Saturday night');
+// The reminder runs: early (an eve), regular, and a night entry every day (yom tov ends on any weekday); reminderCronSlot picks one.
+for (const p of ['/api/send-reminders', '/api/send-smart-reminders']) {
+  assert.ok(has(p, '0 10 * * *') && has(p, '0 14 * * *') && has(p, '0 17,18 * * *'), `${p}: early, regular and night entries`);
+}
 assert.ok(has('/api/send-owner-evening', '0 17 * * *') && has('/api/send-owner-evening', '0 18 * * 6'), 'evening summary: daily + Saturday 18Z');
 for (const p of ['app/api/send-reminders/route.js', 'app/api/send-smart-reminders/route.js']) {
   const src = rd(p);
-  const gate = src.indexOf('clientCronSlot(');
+  const gate = src.indexOf('reminderCronSlot(');
+  assert.match(src, /isYomTov \}\)|isYomTov\s*\}\)/, `${p} passes the yom tov calendar`);
   assert.ok(gate > 0, `${p} asks the Shabbat slot`);
   assert.ok(gate < src.indexOf('run' + (p.includes('smart') ? 'SmartReminders({' : 'DailyReminders({')), `${p} asks before it sends`);
+}
+
+// reminderCronSlot (2026-11-02): eves early, rest days held to the night they end, ordinary days at the regular run only.
+{
+  const { reminderCronSlot } = await import('./lib/shabbat.js');
+  const run = (iso: string, yt: string[] = [], retry = false) => reminderCronSlot(at(iso), { retry, isYomTov: (d: string) => yt.includes(d) }).run;
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-04T${h}:00:00Z`)), [true, false, false, false], 'winter Friday: only the early run (before Shabbat)');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-05T${h}:00:00Z`)), [false, false, false, true], 'winter Saturday: only 20:00 Israel');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-06-05T${h}:00:00Z`)), [false, false, true, false], 'summer Saturday: only 20:00 Israel');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-08T${h}:00:00Z`)), [false, true, false, false], 'an ordinary Tuesday: the regular run only');
+  const pesach = ['2027-04-22'];
+  assert.deepEqual(['10', '14'].map((h) => run(`2027-04-21T${h}:00:00Z`, pesach)), [true, false], 'erev Pesach: early, before the holiday comes in');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-04-22T${h}:00:00Z`, pesach)), [false, false, true, false], 'Pesach: held to 20:00 Israel');
+  const rh = ['2027-10-02', '2027-10-03'];
+  assert.equal(run('2027-10-02T17:00:00Z', rh), false, 'Rosh Hashana day 1 night: tomorrow is still yom tov, held');
+  assert.equal(run('2027-10-03T17:00:00Z', rh), true, 'day 2 night: the rest days end, it runs');
+  assert.equal(run('2027-05-28T17:00:00Z', ['2027-05-28']), false, 'a yom tov on Friday: held through Shabbat');
+  assert.equal(run('2026-12-05T14:00:00Z', [], true), false, 'a manual retry is still held on Shabbat');
+  assert.equal(run('2026-12-08T08:00:00Z', [], true), true, 'a manual retry on an ordinary day runs at any hour');
 }
 
 console.log('shabbat: all checks passed');
