@@ -10816,6 +10816,16 @@ ${MARKETING_FOOTER}`)}`;
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>{HELP_TITLE}</h2>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>{HELP_INTRO}</p>
  </div>
+ {/* The tutorial videos (app/tutorials), by topic. Until 2026-11-04 the only door to them inside the app was the feedback sheet. */}
+ <a href="/tutorials" target="_blank" rel="noopener noreferrer" data-testid="help-tutorials-link"
+    style={{display:"flex",alignItems:"center",gap:12,minHeight:56,padding:"12px 14px",marginBottom:14,background:pcTint,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",textDecoration:"none",color:"var(--ink)",boxShadow:"var(--shadow-sm)"}}>
+ <span aria-hidden style={{fontSize:"var(--t-xl)",flexShrink:0}}>🎬</span>
+ <span style={{flex:1,minWidth:0}}>
+ <span style={{display:"block",fontSize:"var(--t-md)",fontWeight:700}}>סרטוני הדרכה</span>
+ <span style={{display:"block",fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>סרטונים קצרים לפי נושאים: יומן, לקוחות, תשלומים, AI והגדרות</span>
+ </span>
+ <span aria-hidden style={{fontSize:"var(--t-md)",color:pc,flexShrink:0}}>←</span>
+ </a>
  <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden",boxShadow:"var(--shadow-sm)"}}>
                 {helpSections.map((sec,i)=>{
                   const open = openKey===sec.key;
