@@ -22,6 +22,7 @@ import type { Allowance } from './callCaps.ts';
 /** Feminine plural nouns, each "the ___ of the month", keyed by call site. */
 const NOUN: Record<string, string> = {
   'advisor': 'השאלות לעוזרת החכמה',
+  'help_chat': 'השאלות על המערכת',
   'voice-intent': 'הפקודות הקוליות',
   'marketing/groups': 'ההצעות לקבוצות',
   'marketing/reel': 'יצירות הוידאו',

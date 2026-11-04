@@ -82,6 +82,7 @@ import { slugError } from "@/lib/slug";
 import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
 import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
+import HelpChat from "./HelpChat";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
 const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });
 // Loaded after the home screen is up: it pulls the template catalogue for today's post suggestion.
@@ -104,6 +105,7 @@ const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: fa
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
+const FormAnswersSheet = dynamic(() => import("./FormAnswersSheet"), { ssr: false });
 const GreetingsPanel = dynamic(() => import("./GreetingsPanel"), { ssr: false });
 const FieldPicker = dynamic(() => import("./FieldPicker"), { ssr: false });
 const GrowPaymentRequests = dynamic(() => import("./GrowPaymentRequests"), { ssr: false });
@@ -384,6 +386,8 @@ const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה
 // `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
 const FORM_TYPES = [
   {key:"general",label:"הצהרת בריאות כללית",only:["cosmetics"]},
+  // 2026-11-04: the first-visit intake (questions in lib/formTemplates.ts). Cosmetics only, like the facial forms.
+  {key:"skin_anamnesis",label:"אבחון עור ואנמנזה",only:["cosmetics"]},
   {key:"plasma",label:"טיפול פלזמה",only:["cosmetics"]},
   {key:"device",label:"מכשור מתקדם",only:["cosmetics"]},
   {key:"laser",label:"הסרת שיער בלייזר",only:["cosmetics"]},
@@ -391,6 +395,8 @@ const FORM_TYPES = [
   {key:"nails_general",label:"הצהרת בריאות ואישור טיפול (ציפורניים)",only:["nails"]},
   {key:"nails_media",label:"אישור צילום עבודות",only:["nails"]},
 ];
+// What the boot reads of public.forms: enough to list them. form_data and signature stay in the database until asked for.
+const FORM_LIST_COLUMNS = "id, tenant_id, client_id, client_name, form_type, status, signed_at";
 // The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
 const LEAD_SOURCES = [...DEFAULT_LEAD_SOURCES];
 // Canonical manual workflow statuses. These KEYS must stay in sync with
@@ -893,6 +899,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
   // "קבעי לה שוב" (client card / finished appointment): { client, appt } while the sheet is open.
   const [rebookNext,        setRebookNext]         = useState(null);
+  const [formAnswersFor,    setFormAnswersFor]     = useState(null); // "צפייה בתשובות": the signed form whose answers are open (app/FormAnswersSheet)
   const [clientPageFor,     setClientPageFor]      = useState(null); // "שליחת הדף שלה": the client whose personal results page is being prepared
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
@@ -1066,6 +1073,21 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [showMonthlyReport, setShowMonthlyReport]  = useState(false);
   const [helpText,          setHelpText]           = useState("");
   const [helpState,         setHelpState]          = useState("idle"); // idle|sending|sent|failed
+  // "שאלי את העוזרת" at the top of the sheet (app/HelpChat.jsx). Kept here so closing the sheet keeps the conversation.
+  const [helpChat,          setHelpChat]           = useState([]);
+  const helpTextRef = useRef(null);
+  // "לא עזר?": her question goes into the human form below, ready to send. Nothing is sent until she taps שליחה.
+  const askHumanFromChat = useCallback((question) => {
+    const q = String(question || "").trim();
+    setHelpText((t) => (!t.trim() ? q : t.includes(q) ? t : `${t.trim()}\n${q}`));
+    setHelpState("idle");
+    setTimeout(() => {
+      const el = helpTextRef.current;
+      if (!el) return;
+      try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* old browser */ }
+      try { el.focus({ preventScroll: true }); } catch { el.focus(); }
+    }, 0);
+  }, []);
 
   const sendHelp = useCallback(async () => {
     const message = helpText.trim();
@@ -2173,7 +2195,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const loadDeferred = async () => {
     try {
       const [f, ex, wl] = await Promise.all([
-        readAllRows(supabase, "forms"),
+        // The list only: no form_data, no signature. The answers are read one form at a time, when she opens them
+        // (app/FormAnswersSheet). If the narrowed read fails for any reason, the full read it replaced runs instead.
+        readAllRows(supabase, "forms", { columns: FORM_LIST_COLUMNS }).then(r => (r?.error ? readAllRows(supabase, "forms") : r)),
         readAllRows(supabase, "expenses"),
         readAllRows(supabase, "waitlist"),
       ]);
@@ -7945,10 +7969,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
                   <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,margin:0,color:"var(--ink)"}}>תקועה?</h3>
                 </div>
+                <HelpChat messages={helpChat} setMessages={setHelpChat} activeTab={activeTab} onAskHuman={askHumanFromChat} pcGrad={pcGrad} pcDeep={pcDeep}/>
+                <div role="separator" aria-hidden style={{height:1,background:"var(--line-2)",margin:"16px 0 14px"}}/>
+                <h4 className="serif" data-testid="help-human-title" style={{fontSize:"var(--t-lg)",fontWeight:600,margin:"0 0 4px",color:"var(--ink)"}}>לא מצאת תשובה? שלחי לנו הודעה</h4>
                 <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:12}}>
                   כתבי מה קרה, ותקבלי תשובה מ{SUPPORT_TEAM_HE}. נשלח גם באיזה מסך את נמצאת, כדי שלא תצטרכי להסביר.
                 </p>
                 <textarea
+                  ref={helpTextRef}
+                  aria-label="ההודעה שלך אלינו"
                   value={helpText}
                   onChange={(e)=>{setHelpText(e.target.value); if(helpState==="failed") setHelpState("idle");}}
                   rows={5}
@@ -7975,8 +8004,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   </div>
                 )}
                 <div style={{display:"flex",gap:8,marginTop:12}}>
-                  <button type="button" onClick={()=>setShowHelp(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1.5px solid var(--line-2)",borderRadius:"var(--r-xl)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
-                  <button type="button" onClick={sendHelp} disabled={!helpText.trim()||helpState==="sending"} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-xl)",fontSize:"var(--t-sm)",opacity:(!helpText.trim()||helpState==="sending")?0.55:1}}>
+                  <button type="button" onClick={()=>setShowHelp(false)} className="primary-btn" style={{flex:1,minHeight:44,padding:"11px 0",border:"1.5px solid var(--line-2)",borderRadius:"var(--r-xl)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
+                  <button type="button" onClick={sendHelp} disabled={!helpText.trim()||helpState==="sending"} className="primary-btn" style={{flex:2,minHeight:44,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-xl)",fontSize:"var(--t-sm)",opacity:(!helpText.trim()||helpState==="sending")?0.55:1}}>
                     {helpState==="sending"?<Spinner inline label="שולחת"/>:helpState==="failed"?"נסי לשלוח שוב":"שליחה"}
                   </button>
                 </div>
@@ -10874,6 +10903,7 @@ ${MARKETING_FOOTER}`)}`;
         today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
         onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
         pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
+      {formAnswersFor&&(<FormAnswersSheet form={formAnswersFor} tenantId={settings?.tenant_id} label={FORM_TYPES.find(ft=>ft.key===formAnswersFor.form_type)?.label} onClose={()=>setFormAnswersFor(null)} pcTint={pcTint}/>)}
       {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
@@ -13271,6 +13301,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-sm)"}}>{f.status==="signed"?"✓":"⏳"}</span>
  <p style={{flex:1,minWidth:0,fontSize:"var(--t-sm)",color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
  <span style={{fontSize:"var(--t-xs)",color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?"נחתם":"ממתין"}</span>
+ {f.status==="signed"&&<button type="button" data-testid="form-view-answers" onClick={()=>setFormAnswersFor(f)} style={{minHeight:44,padding:"0 12px",background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>צפייה בתשובות</button>}
  </div>
                         ))}
  </>}
