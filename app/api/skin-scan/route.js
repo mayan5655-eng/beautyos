@@ -4,6 +4,8 @@
 // Includes a precise clinical treatment + matched in-house service,
 // and a full AM/PM skincare routine with active ingredients.
 // Uses Claude vision.
+// 2026-11-04: concern_levels (קל / בינוני / בולט per concern) added, additively: the page shows a severity meter
+// only when a recognised level is present (lib/skinScanView.ts), so older or partial reports render unchanged.
 
 import { createClient } from "@supabase/supabase-js";
 import { tenantIsBlocked } from "@/lib/tenantActive";
@@ -158,7 +160,8 @@ ${servicesText}
 
 הנחיות:
 1. skin_type: שורה אחת על סוג העור ומצבו.
-2. concerns: בדיוק 3 ממצאים עיקריים, משפט קצר אחד לכל ממצא. כשמציינים מקום בפנים, משתמשים רק באחד מהאזורים האלה, בדיוק בניסוח הזה: מצח, אף, לחיים, סנטר, אזור העיניים. אין אזורים אחרים ואין ניסוחים אחרים (לא "אזור T", לא "חוד", לא "קו הלסת").
+2. concerns: בדיוק 3 ממצאים עיקריים, משפט קצר אחד לכל ממצא. כשמציינים מקום בפנים, משתמשים רק באחד מהאזורים האלה, בדיוק בניסוח הזה: מצח, אף, לחיים, סנטר, אזור העיניים. אין אזורים אחרים ואין ניסוחים אחרים (לא "אזור T", לא "חוד", לא "קו הלסת"). הממצא החשוב ביותר ראשון.
+2א. concern_levels: לכל ממצא, באותו סדר, מילה אחת בלבד שמתארת כמה הוא בולט: קל, בינוני או בולט. בלי מספרים ובלי מילים אחרות.
 3. clinical_treatment: טיפול קליני מומלץ אחד או שניים (למשל: פילינג כימי עדין, הידרהפיל), בשורה אחת. אם יש שירות תואם ברשימת העסק, ציני אותו ב-matched_service, אחרת השאירי ריק.
 4. routine_morning: בדיוק 3 שלבים. routine_evening: בדיוק 3 שלבים. כל שלב עם מרכיב או מוצר ספציפי.
 5. אל תאבחני מצבים רפואיים. הערכה קוסמטית בלבד.
@@ -172,6 +175,7 @@ ${servicesText}
   "skin_type": "שורה אחת",
   "score": 78,
   "concerns": ["ממצא 1", "ממצא 2", "ממצא 3"],
+  "concern_levels": ["רמת ממצא 1", "רמת ממצא 2", "רמת ממצא 3"],
   "clinical_treatment": "טיפול אחד או שניים",
   "matched_service": "שם שירות מרשימת העסק אם תואם, אחרת ריק",
   "routine_morning": ["שלב 1", "שלב 2", "שלב 3"],
