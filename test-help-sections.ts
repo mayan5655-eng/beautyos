@@ -32,3 +32,20 @@ assert.equal(lines(HELP_SECTIONS) - lines(nails), 6, 'exactly the 6 facial-only 
 // the text itself was not edited for cosmetics
 assert.ok(original.includes('סריקת עור AI'), 'cosmetics help is unchanged');
 console.log('help sections: ok');
+
+// 2026-11-04: every help section's videos exist on /tutorials, with the same title, and the help page renders them.
+{
+  const { TUTORIAL_TITLES, tutorialHref } = await import('./lib/helpSections.ts');
+  const fs = await import('node:fs');
+  const page = fs.readFileSync('app/tutorials/page.tsx', 'utf8');
+  for (const [id, title] of Object.entries(TUTORIAL_TITLES)) {
+    assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `video file for ${id}`);
+    assert.ok(page.includes(`id: "${id}", title: "${title}"`), `same title on /tutorials for ${id}`);
+  }
+  assert.equal(tutorialHref('till'), '/tutorials#t-till');
+  for (const sec of HELP_SECTIONS) for (const v of sec.videos || []) assert.ok(TUTORIAL_TITLES[v], `${sec.key}: known video ${v}`);
+  assert.ok(HELP_SECTIONS.filter((s) => (s.videos || []).length).length >= 8, 'most sections point to a video');
+  const app = fs.readFileSync('app/beautyos.jsx', 'utf8');
+  assert.ok(app.includes('data-testid="help-tutorials-link"') && app.includes('href={tutorialHref(v)}'));
+  console.log('help videos ok');
+}

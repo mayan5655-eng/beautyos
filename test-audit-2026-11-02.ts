@@ -289,7 +289,10 @@ await ok('automatic WhatsApp options are hidden until the central number sends (
 });
 
 await ok('visitor analytics run on the public marketing pages only, never in the app or on token links (owner, 2026-11-03)', () => {
-  assert.match(src('app/PublicAnalytics.tsx'), /src="\/_vercel\/insights\/script\.js"/);
+  const pa = src('app/PublicAnalytics.tsx');
+  assert.ok(pa.includes('ANALYTICS_SRC = "/_vercel/insights/script.js"'));
+  // Her own browser opts out with ?no-track=1 (and back in with ?track=1); the script is then never loaded there.
+  assert.ok(pa.includes('no-track=1') && pa.includes('localStorage.setItem') && pa.includes('track=1') && pa.includes('return;}catch'));
   for (const f of ['app/LandingPage.jsx', 'app/signup/layout.tsx', 'app/tutorials/page.tsx']) assert.match(src(f), /<PublicAnalytics \/>/, f);
   for (const f of ['app/layout.tsx', 'app/beautyos.jsx', 'app/pay/[token]/PayClient.jsx']) assert.ok(!src(f).includes('PublicAnalytics') && !src(f).includes('_vercel/insights'), `${f}: no analytics`);
 });
