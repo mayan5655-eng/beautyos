@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { pickTrialNudge, nudgeCopy, nudgeStorageKey } from "@/lib/trialNudges";
 import { supportWhatsAppUrl } from "@/lib/support";
 
-export default function TrialNudge({ plan, tenantId, counts, suppress, onCopyLink, onOpenCashier, onContact, pc, pcDeep, pcTint, pcGrad }) {
+export default function TrialNudge({ plan, tenantId, counts, suppress, quietKeys, onCopyLink, onOpenCashier, onContact, pc, pcDeep, pcTint, pcGrad }) {
   const nudge = plan ? pickTrialNudge({ status: plan.status, trialStartedAt: plan.trialStartedAt }) : null;
   const storageKey = nudge ? nudgeStorageKey(tenantId, nudge.key) : null;
   // Hidden until we know: reading localStorage on the server would differ from the browser and flash the card.
@@ -21,6 +21,8 @@ export default function TrialNudge({ plan, tenantId, counts, suppress, onCopyLin
   }, [storageKey]);
 
   if (!nudge || dismissed || suppress) return null;
+  // The day-1 and day-10 nudges say "send your link", which the 3-step card on Today already says (app/FirstBookingCard.jsx).
+  if (Array.isArray(quietKeys) && quietKeys.includes(nudge.key)) return null;
   if (nudge.key === "day23" && plan.tone === "urgent") return null;
   const copy = nudgeCopy(nudge.key, counts || { appointments: 0, clients: 0 });
 
