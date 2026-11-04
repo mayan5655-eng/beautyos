@@ -16,11 +16,11 @@ assert.deepEqual(topics, [
   { title: 'יומן ותורים', ids: ['booking', 'appointment-actions', 'reminders'] },
   { title: 'לקוחות', ids: ['clients'] },
   { title: 'תשלומים וקבלות', ids: ['till', 'morning'] },
-  { title: 'AI בעסק', ids: ['ai'] },
+  { title: 'AI בעסק', ids: ['ai', 'skin-scan'] },
   { title: 'הדף שלי והגדרות', ids: ['my-page', 'services-hours'] },
-], 'twelve videos in six topics, the welcome explainer first, the AI topic before the settings');
+], 'thirteen videos in six topics, the welcome explainer first, the AI topic (with the skin scan after the advisor) before the settings');
 const ids = [...page.matchAll(/\{ id: "([a-z-]+)"/g)].map((m) => m[1]);
-assert.equal(ids.length, 12, 'every video on the page is in a topic');
+assert.equal(ids.length, 13, 'every video on the page is in a topic');
 assert.equal(new Set(ids).size, ids.length, 'no video twice');
 for (const id of ids) {
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `public/tutorials/kalmea-${id}.mp4 exists`);
@@ -43,9 +43,26 @@ assert.ok(topicsScript.includes("ai: videoAi"), 'the AI video is built by the to
 assert.ok(topicsScript.includes('תשובה לדוגמה'), 'the advisor answer in the video is labelled as an example');
 assert.ok(topicsScript.includes('את תמיד מאשרת לפני שמפרסמים'), 'the video says she approves before anything is published');
 assert.ok(topicsScript.includes('מתחדשות בראשון לחודש'), 'and that the AI allowance renews on the first of the month (lib/ai/capMessages.ts)');
-const aiPart = topicsScript.slice(topicsScript.indexOf('// 7. ai:'), topicsScript.indexOf('// ── build, check, render'));
+const aiPart = topicsScript.slice(topicsScript.indexOf('// 7. ai:'), topicsScript.indexOf('// 8. skin:'));
+assert.ok(aiPart.length > 1000, 'the AI section is found');
 assert.ok(!/תוכנית תוכן|לוח תוכן|פרסום אוטומטי|דמות|רובוט/.test(aiPart.replace(/^\s*\/\/.*$/gm, '')), 'no content plan, auto-publishing or AI figure in the AI video');
 assert.ok(!/[\u2013\u2014]/.test(aiPart), 'no en or em dash in the AI video');
+// The skin scan video (2026-11-04): no person, face or figure (the client's photo is an abstract oval), the report is marked as
+// an example, it says the scan is not a diagnosis, the report the client asks for on WhatsApp is shown as waiting ("הבקשה
+// התקבלה", never as delivered), the monthly ceiling is said plainly, and the follow-up suggestions (off by default) are not shown.
+assert.ok(topicsScript.includes('skin: videoSkin'), 'the skin scan video is built by the topic script');
+assert.ok(/PUBLISHED_AS = \{ skin: 'skin-scan' \}/.test(topicsScript), 'and published under the id /tutorials uses');
+const skinPart = topicsScript.slice(topicsScript.indexOf('// 8. skin:'), topicsScript.indexOf('// ── build, check, render'));
+const skinCode = skinPart.replace(/^\s*\/\/.*$/gm, '');
+assert.ok(skinPart.length > 1000, 'the skin section is found');
+assert.ok(skinCode.includes('דוח לדוגמה'), 'the report in the video is labelled as an example');
+assert.ok(skinCode.includes('לא אבחון'), 'the video says the scan is not a diagnosis');
+assert.ok(skinCode.includes('המיקום משוער'), 'the zone map says the position is an estimate');
+assert.ok(skinCode.includes('הבקשה התקבלה') && !skinCode.includes('הדוח בדרך לוואטסאפ שלך'), 'the WhatsApp report is shown as queued, not as delivered');
+assert.ok(skinCode.includes('הסורק מלא לחודש הזה'), 'the monthly ceiling is shown');
+assert.ok(!/<img[^>]+(presenter|face|avatar)/i.test(skinCode) && !/PRESENTER/.test(skinPart), 'no photo of a person in the skin video');
+assert.ok(!/הצעות מעקב|באישור/.test(skinCode), 'no skin follow-up suggestions (off by default)');
+assert.ok(!/[–—]/.test(skinPart), 'no en or em dash in the skin video');
 assert.ok(/preload="none"/.test(page), 'nothing is downloaded before she presses play');
 assert.ok(/playsInline/.test(page), 'plays inside the page on iPhone, not full screen on load');
 assert.ok(/robots: \{ index: false/.test(page), 'not indexed (it is a link for signups, not a landing page)');

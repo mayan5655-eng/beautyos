@@ -8,8 +8,9 @@
 //   welcome                  marketing/welcome-motion.mjs
 //   home                     marketing/home-icon-motion.mjs
 //   morning                  marketing/morning-motion.mjs
-//   appointment-actions, clients, till, reminders, my-page, services-hours, ai
-//                            marketing/topics-motion.mjs (drawn screens, every label copied from the app's code)
+//   appointment-actions, clients, till, reminders, my-page, services-hours, ai, skin-scan
+//                            marketing/topics-motion.mjs (drawn screens, every label copied from the app's code;
+//                            skin-scan is its "skin" mode, published as kalmea-skin-scan.mp4)
 // To update one, re-run its script and copy the file over public/tutorials/kalmea-<id>.mp4 (and its poster .jpg). preload="none":
 // nothing is downloaded until she presses play, which is why these clips have their own size limit in test-asset-budget.ts.
 //
@@ -69,6 +70,7 @@ const TOPICS = [
     title: "AI בעסק",
     videos: [
       { id: "ai", title: "היועצת, הפוסטים והרילסים", sub: "שואלים את היועצת העסקית, ומקבלים פוסט, רעיונות לצילום ותסריט לרילס. את מאשרת כל דבר לפני שמפרסמים" },
+      { id: "skin-scan", title: "סריקת עור AI", sub: "הלקוחה מצלמת את הפנים מהקישור שלך, ומקבלת דוח עור והמלצה לטיפול מהשירותים שלך. הכוונה קוסמטית, לא אבחון" },
     ],
   },
   {

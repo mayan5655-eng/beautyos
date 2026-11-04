@@ -39,6 +39,11 @@
 //                        off by default: the weekly content plan and publishing to Instagram/Facebook (content_plan,
 //                        content_publish_meta), the old campaign texts, the CE.SDK reel POC, add-on packs; nor anything that
 //                        sends WhatsApp automatically.
+//   skin                 the AI skin scan (published as kalmea-skin-scan): her scanner link and QR in Settings, the scan button
+//                        in the client card, the client's page (app/skin-scan/page.jsx, lib/skinScanView.ts), what reaches her
+//                        afterwards (the hot-lead notification, the "סורק העור" lead, the card's scan history) and the monthly
+//                        ceiling (lib/skinScanQuota.ts). The report is an EXAMPLE and says so; the photo is an abstract oval.
+//                        Details in section 8 below.
 // Where the app's own line has an em or en dash it is shortened, never re-worded (the owner's copy rule for new text): e.g. the
 // till's title "קופה — תשלום חדש" is drawn as "קופה". Names, phones and sums are made up; the phones are the app's placeholders.
 //
@@ -572,7 +577,7 @@ const needsRow = `<div style="margin-top:6px;padding-top:8px;border-top:1px soli
 const attention = (over = '') => `<div class="scr"><p class="h" style="margin-bottom:8px">היום</p>
     <div class="card nw"><p style="font:700 17px KF;margin-bottom:8px">דורש תשומת לב</p>
       <div style="border-right:3px solid #2E7D57;background:${PCT};border-radius:10px;padding:9px 10px">
-        <div class="row" style="gap:5px"><b style="font-size:13px">הודעות מוכנות לשליחה</b><span class="badge" style="background:#fff;border:1px solid #E4DCCF;color:#6B756F">וואטסאפ</span><span class="badge" style="background:rgba(242,184,75,.18);color:#8A5D06">ממתין</span></div>
+        <div class="row" style="gap:4px"><b style="font-size:12px">הודעות מוכנות לשליחה</b><span class="badge" style="background:#fff;border:1px solid #E4DCCF;color:#6B756F">וואטסאפ</span><span class="badge" style="background:rgba(242,184,75,.18);color:#8A5D06">ממתין</span></div>
         <p style="font-size:12px;margin-top:2px">3 הודעות</p><p class="mu">כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך</p>
         <div class="row" style="gap:6px;margin-top:8px"><span class="pill" style="background:linear-gradient(135deg,#F2C2BA,${PC})" ${k('open')}>פתיחת הרשימה</span><span class="pill ghost">הסתרה</span></div></div></div>
     ${myDay({ needs: needsRow })}${nav('היום')}${over}</div>`;
@@ -1199,6 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // she picks "באישור"), add-on scan packs (lib/pricing.ts). Nor anything sent from the central number by itself.
 
 const SKIN_CSS = `
+.scr.nw,.scr.nw *{white-space:nowrap}
 .ss{position:absolute;inset:0;background:#FBF8F1;padding:10px 12px 0;direction:rtl;font:600 12.5px/1.45 KA;color:#1F3A30;overflow:hidden;text-align:right}
 .ss *{box-sizing:border-box;white-space:nowrap}
 .ss p{margin:0}
@@ -1220,7 +1226,7 @@ const SKIN_CSS = `
 .ck .bx b{position:absolute;inset:0;border-radius:5px;background:#C48E87;color:#fff;display:flex;align-items:center;justify-content:center;font:700 12px KA}
 .priv{display:flex;gap:7px;align-items:flex-start;margin-top:5px;padding:8px 10px;border-radius:11px;background:#F4EFE4;font:600 11px/1.5 KA;color:#44594F}
 .vf{position:relative;margin:0 auto;border-radius:18px;overflow:hidden;border:1px solid #E8E1D1}
-.vf svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vf > svg{position:absolute;inset:0;width:100%;height:100%;display:block}
 .vf .em{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:700 11.5px KA;color:#1F3A30}
 .vf .sw{position:absolute;inset:0}
 .vf .sl{position:absolute;left:7%;right:7%;top:50%;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#fff 18%,#fff 82%,transparent);box-shadow:0 0 12px 3px rgba(233,169,161,.6)}
@@ -1230,7 +1236,7 @@ const SKIN_CSS = `
 .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .slot{position:relative;height:96px;border-radius:13px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#FBF8F1;border:1.5px dashed #DAD2BF;text-align:center}
 .slot.req{border-color:#C48E87}
-.slot .cap{position:absolute;bottom:0;left:0;right:0;background:rgba(20,24,22,.62);color:#fff;font:600 9.5px KA;padding:3px 0;text-align:center}
+.slot .cap{position:absolute;bottom:0;left:0;right:0;background:rgba(20,24,22,.62);color:#fff;font:600 8.5px KA;padding:3px 0;text-align:center}
 .slot .ok{position:absolute;top:5px;left:5px;width:19px;height:19px;border-radius:50%;background:#1F3A30;color:#fff;display:flex;align-items:center;justify-content:center;font:700 11px KA}
 .slot .fill{position:absolute;inset:0}
 .sbar{height:4px;border-radius:4px;background:#F4EFE4;overflow:hidden;margin-top:7px;position:relative}
@@ -1290,8 +1296,8 @@ const SKIN_CSS = `
 .qr{width:84px;height:84px;flex:none;border:1px solid #E4DCCF;border-radius:8px;background:#fff;padding:5px}
 .att{border:1px solid #E4DCCF;background:#F6F2EA;border-radius:13px;padding:9px 10px;margin-bottom:7px}
 .att .ic{width:26px;height:26px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font:700 13px KA}
-.att .src{font:700 10.5px KA;color:#6B756F;background:#fff;border:1px solid #E4DCCF;border-radius:999px;padding:0 7px}
-.att .wt{font:700 10.5px KA;color:#B07A1E;background:rgba(242,184,75,.15);border-radius:999px;padding:0 7px}
+.att .src{font:700 9.5px KA;color:#6B756F;background:#fff;border:1px solid #E4DCCF;border-radius:999px;padding:0 5px}
+.att .wt{font:700 9.5px KA;color:#B07A1E;background:rgba(242,184,75,.15);border-radius:999px;padding:0 5px}
 .lead{background:#fff;border:1px solid #E4DCCF;border-radius:14px;padding:9px 10px;display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .lead .ic{width:32px;height:32px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font:700 15px KA}
 .scrow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #F4EFE4}
@@ -1374,7 +1380,7 @@ const miniPhoto = () => `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMi
 /** items[0] until times[0], items[1] until times[1], ... the last one from the last time on. */
 const seq = (times, items) => `<div style="position:relative">${items.map((it, i) => `<div ${vis(i ? times[i - 1] : 0, i < times.length ? times[i] : 999)} style="${i ? 'position:absolute;inset:0' : ''}">${it}</div>`).join('')}</div>`;
 /** Shown from t onward, over what was there (both stay in the layout box of the first). */
-const swapAt = (t, before, after, style = '') => `<div style="position:relative;${style}"><div ${vis(0, t)}>${before}</div><div ${vis(t)} style="position:absolute;inset:0">${after}</div></div>`;
+const swapAt = (t, before, after, style = '') => `<div style="position:relative;${style}"><div ${vis(0, t)} style="display:flow-root">${before}</div><div ${vis(t)} style="position:absolute;inset:0;display:flow-root">${after}</div></div>`;
 
 // ── the client's page ───────────────────────────────────────────────────────────────────────────
 const ssUrl = '<div class="url">kalmea.app/skin-scan?t=…&amp;s=…</div>';
@@ -1399,20 +1405,19 @@ function ssGates({ tick1, tick2 }) {
 
 const slotEmpty = (label, req, key) => `<div class="slot ${req ? 'req' : ''}" ${k(key)}>${I.cam(17)}<p style="font:700 11px KA;margin-top:3px">${label}</p><p style="font:${req ? 700 : 600} 10px KA;color:${req ? '#A75C52' : '#44594F'}">${req ? 'חובה' : 'רשות'}</p></div>`;
 const slotFull = (label) => `<div class="slot" style="border:1px solid #E8E1D1;background:#fff"><div class="fill">${miniPhoto()}</div><span class="ok">✓</span><span class="cap">${label} · החלפה</span></div>`;
-/** The capture card: guide, then the front photo, then the two optional profiles. */
-function ssCapture({ front, left, right }) {
-  const slots = [['חזית', true, 'sf', front], ['פרופיל שמאל', false, 'sl', left], ['פרופיל ימין', false, 'sr', right]];
-  const count = (n) => `<p style="font:600 10.5px KA;color:#44594F">${n} מתוך 3</p>`;
+/** The capture card at stage 0 (the guide) to 3 (front, left and right taken), each stage its own still screen. */
+function ssCapture(stage) {
+  const slots = [['חזית', true, 'sf'], ['פרופיל שמאל', false, 'sl'], ['פרופיל ימין', false, 'sr']];
   return `<div class="ss" style="padding-top:12px">${ssSteps(1)}
     <div class="sc" style="padding-top:12px">
-      ${swapAt(front, vf({ w: 168 }), vf({ w: 168, photo: true }), '')}
-      ${swapAt(front, '<p class="mut c" style="margin-top:6px">פנים בתוך האליפסה, העיניים בגובה הסימונים.</p>', '<p class="mut c" style="margin-top:6px">נראה טוב. אפשר להוסיף פרופילים, או להמשיך.</p>')}
-      ${swapAt(front, `<div class="tips"><div class="tip">${I.sun(15)}<div>אור טבעי ורך מולך</div></div><div class="tip">${I.smile(15)}<div>מבט ישר למצלמה</div></div><div class="tip">${I.drop(15)}<div>בלי איפור, שיער אסוף</div></div></div>`, '<div style="height:52px"></div>')}
-      <div class="row sb" style="margin:8px 0 6px"><p style="font:700 11.5px KA">זוויות צילום</p>
-        ${seq([front, left, right], [0, 1, 2, 3].map(count))}</div>
-      <div class="slots">${slots.map(([l, req, key, t]) => `<div style="position:relative" ${k(`w-${key}`)}>${swapAt(t, slotEmpty(l, req, key), slotFull(l))}</div>`).join('')}</div>
-      <div class="sbar"><span ${vis(front)} style="width:33.4%"></span><span ${vis(left)} style="width:66.7%"></span><span ${vis(right)} style="width:100%"></span></div>
-      <div ${vis(front)} style="margin-top:9px"><div class="prim" ${k('analyze')}>${I.spark(15)} קבלי את הניתוח שלך</div></div>
+      ${vf({ w: 168, photo: stage > 0 })}
+      <p class="mut c" style="margin-top:6px">${stage ? 'נראה טוב. אפשר להוסיף פרופילים, או להמשיך לניתוח.' : 'פנים בתוך האליפסה, העיניים בגובה הסימונים שבצדדים.'}</p>
+      ${stage ? '' : `<div class="tips" ${k('tips')}><div class="tip">${I.sun(15)}<div>אור טבעי ורך מולך</div></div><div class="tip">${I.smile(15)}<div>מבט ישר למצלמה</div></div><div class="tip">${I.drop(15)}<div>בלי איפור, שיער אסוף</div></div></div>`}
+      <div class="row sb" style="margin:8px 0 6px"><p style="font:700 11.5px KA">זוויות צילום</p><p style="font:600 10.5px KA;color:#44594F">${stage} מתוך 3</p></div>
+      <div class="slots">${slots.map(([l, req, key], i) => `<div ${k(`w-${key}`)}>${i < stage ? slotFull(l) : slotEmpty(l, req, key)}</div>`).join('')}</div>
+      <div class="sbar"><span style="width:${((stage / 3) * 100).toFixed(1)}%"></span></div>
+      <div class="mut c" style="margin-top:7px;font-size:10.5px"><div><b style="color:#1F3A30">תמונת חזית</b> היא כל מה שצריך לניתוח. אפשר</div><div>להוסיף גם פרופיל שמאל וימין אם תרצי (רשות).</div></div>
+      ${stage ? `<div style="margin-top:9px"><div class="prim" ${k('analyze')}>${I.spark(15)} קבלי את הניתוח שלך</div></div>` : ''}
     </div></div>`;
 }
 
@@ -1460,14 +1465,16 @@ function ssSummary({ t0 }) {
           <div class="mut" style="font-size:11px;margin-top:3px"><div>יש לך בסיס יפה לעבודה. עם ליווי</div><div>מותאם אפשר לראות שיפור נעים וברור.</div></div></div></div>
       <div class="meta"><span class="sch">3 ממצאים</span><span class="sch">4 אזורים בפנים</span><span class="sch">שגרה לבוקר ולערב</span></div>
       <p class="clos">זו הערכה ראשונית. בפגישה נתאים לך הכול.</p>
-    </div></div>`;
+    </div>
+    <div class="sc"><p class="eb">מפת אזורים</p><p class="h2" style="margin-bottom:8px">איפה זה בפנים</p>${vf({ w: 236, mode: 'map', photo: true })}</div></div>`;
 }
 function ssMap({ t0 }) {
   const marks = REPORT.marks.map((m, i) => ({ ...m, at: +(t0 + 0.6 + i * 0.45).toFixed(2) }));
   return `<div class="ss" style="padding-top:14px"><div class="sc" style="padding:12px"><p class="eb">מפת אזורים</p><p class="h2" style="margin-bottom:8px">איפה זה בפנים</p>
-    ${vf({ w: 200, mode: 'map', photo: true, marks })}
+    ${vf({ w: 236, mode: 'map', photo: true, marks })}
     <div class="leg">${REPORT.marks.map((m) => `<span><span class="cn">${m.n}</span>${m.he}</span>`).join('')}</div>
-    <p class="mut c" style="font-size:10.5px;margin-top:6px" ${k('approx')}>המיקום משוער, לפי אזורי הפנים שצוינו בדוח.</p></div></div>`;
+    <p class="mut c" style="font-size:10.5px;margin-top:6px" ${k('approx')}>המיקום משוער, לפי אזורי הפנים שצוינו בדוח.</p></div>
+    <div class="sc"><p class="eb">ממצאים</p><p class="h2">מה שכדאי לשים לב אליו</p></div></div>`;
 }
 function ssConcerns({ t0 }) {
   return `<div class="ss" style="padding-top:14px"><div class="sc"><p class="eb">ממצאים</p><p class="h2" style="margin-bottom:4px">מה שכדאי לשים לב אליו</p>
@@ -1476,7 +1483,7 @@ function ssConcerns({ t0 }) {
       ${i === 0 ? '<div class="mut" style="margin-top:4px"><div>מכאן הכי כדאי להתחיל. הטיפול שנמליץ</div><div>עליו מטפל בדיוק בזה.</div></div>' : '<p class="mut" style="margin-top:4px">ניתן לשיפור עם ליווי וטיפול מותאם</p>'}</div></div>`).join('')}
     </div></div>`;
 }
-const treatCard = () => `<div class="sc treat" ${k('treat')}><p class="eb">הטיפול המקצועי שהכי מתאים לך</p><p style="font:700 19px/1.3 KF">${REPORT.treatment}</p>
+const treatCard = () => `<div class="sc treat" ${k('treat')}><p class="eb">הטיפול המקצועי שהכי מתאים לך</p><p style="font:700 19px/1.3 KF;margin-top:4px">${REPORT.treatment}</p>
     <p class="svc" ${k('svc')}>${I.spa(13)} אצלנו בקליניקה: ${REPORT.matched}</p>
     <div class="mut" style="margin:8px 0 10px"><div>נבחר במיוחד עבורך, כדי לטפל במה</div><div>שזוהה בעור ולחדד את התוצאה.</div></div>
     <div class="prim" ${k('book1')}>${I.cal(15)} קביעת תור</div><p style="font:600 10px KA;color:#44594F;margin-top:7px">נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p></div>`;
@@ -1492,7 +1499,7 @@ function ssRoutine({ pmAt }) {
   return `<div class="ss" style="padding-top:14px">
     <div class="sc treat" style="padding:10px 12px;opacity:.85"><div class="prim" style="height:36px;font-size:13px">${I.cal(14)} קביעת תור</div></div>
     ${routineToggle(true)}
-    <div class="sc">${swapAt(pmAt, `${rtabs('am')}${routineCol(REPORT.am)}`, `${rtabs('pm')}${routineCol(REPORT.pm)}`)}</div></div>`;
+    <div class="sc">${swapAt(pmAt, `${rtabs('am')}${routineCol(REPORT.am)}`, `${rtabs('pm')}${routineCol(REPORT.pm)}`)}</div>${nextStep()}</div>`;
 }
 const howItWorks = () => `<div class="sc" style="background:#FBF8F1;box-shadow:none"><p style="font:700 12px KA;margin-bottom:5px">איך זה עובד</p>
     ${['הניתוח מבוסס על התמונה והמידע שהעלית.', 'התוצאות מיועדות כהכוונה קוסמטית', 'פגישת ייעוץ בקליניקה תאפשר התאמה'].map((l, i) => `<div class="row" style="gap:6px;align-items:flex-start;margin-bottom:3px" ${k(`how${i}`)}><span style="color:#44594F;margin-top:2px">${I.check(11)}</span><div class="mut" style="font-size:11px"><div>${l}</div>${i === 1 ? '<div>מקצועית, לא כאבחון רפואי.</div>' : i === 2 ? '<div>אישית מלאה עבורך.</div>' : ''}</div></div>`).join('')}</div>`;
@@ -1553,7 +1560,7 @@ function quotaRow(used, limit) {
 const scanSettings = ({ used = 37, limit = 200, toastText = '' } = {}) => `<div class="scr nw"><p class="h">הגדרות</p>${settingsTabs('לקוחות ופניות')}
     <p class="mu b" style="color:#6B756F;margin-bottom:6px">קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
     <div class="card" style="background:#F6F2EA;padding:10px 11px" ${k('scancard')}><p class="b" style="margin-bottom:6px">סורק העור</p>
-      <div class="row" style="gap:6px;margin-bottom:8px"><div class="inp f" style="flex:1;min-width:0;direction:ltr;display:block;line-height:34px;text-overflow:ellipsis;font-size:11px;color:#3B4842">kalmea.app/skin-scan?t=…&amp;s=…</div><span class="pill" style="background:linear-gradient(135deg,#F2C2BA,${PC});color:#1F3A30;border-radius:10px;height:36px" ${k('copy')}>העתקת קישור</span></div>
+      <div class="row" style="gap:6px;margin-bottom:8px"><div class="inp f" style="flex:1;min-width:0;direction:ltr;display:block;line-height:34px;text-overflow:ellipsis;font-size:11px;color:#3B4842">kalmea.app/skin-scan?t=…&amp;s=…</div><span class="pill" style="background:linear-gradient(135deg,#F2C2BA,${PC});color:#1F3A30;border-radius:10px;height:36px;flex:none" ${k('copy')}>העתקת קישור</span></div>
       <div class="row" style="gap:10px;align-items:center"><div class="qr">${QR}</div><div style="flex:1"><div class="mu" style="line-height:1.5;color:#3B4842"><div>אותו קישור בדיוק, כקוד לסריקה:</div><div>לשלט בעסק, לכרטיס ביקור</div><div>או לסטורי.</div></div>
         <span class="pill ghost" style="height:28px;margin-top:5px;font-size:11.5px;color:${PCD}">${I.dl(12)} הורדת ה-QR (PNG)</span></div></div></div>
     <div class="card" style="padding:10px 11px">${quotaRow(used, limit)}</div>
@@ -1576,17 +1583,17 @@ function skinDrawer({ tab = 'info', scansAt = null } = {}) {
     <div style="padding:4px 14px" ${k('scanlist')}>${tab === 'scans' ? rows.map(([d, s], i) => `<div class="scrow" ${scansAt != null ? vis(+(scansAt + i * 0.3).toFixed(2)) : ''}><span class="im">${miniPhoto()}</span>
         <div style="flex:1;min-width:0"><p style="font:700 12.5px KA">עור מעורב, נוטה לשומניות</p><p class="mu" style="overflow:hidden;text-overflow:ellipsis">${d} · ${REPORT.treatment}</p></div>
         <span class="sco" style="border:3px solid #E0A93B;color:#B07A1E">${s}</span></div>`).join('')
-      : `<div class="kv"><span>הגיעה מ</span><span class="b">סורק העור</span></div><div class="kv"><span>סוג עור</span><span class="b">מעורב</span></div>`}</div></div>`;
+      : `<div class="kv"><span>הגיעה מ</span><span class="b">אינסטגרם</span></div><div class="kv"><span>סוג עור</span><span class="b">מעורב</span></div>`}</div></div>`;
 }
 /** "דורש תשומת לב" on the home screen: the hot-lead notification and the report waiting in her queue. */
 const ownerHome = (over = '') => `<div class="scr nw"><p class="h" style="margin-bottom:8px">היום</p>
     <div class="card"><p style="font:700 17px KF;margin-bottom:8px">דורש תשומת לב</p>
       <div class="att" ${k('hot')}><div class="row" style="gap:8px;align-items:flex-start"><span class="ic" style="background:rgba(46,125,87,.12);color:#2E7D57">🧴</span><div style="flex:1;min-width:0">
-        <div class="row" style="gap:5px"><b style="font-size:13px">ליד חם מסורק העור</b><span class="src">התראה</span><span class="wt">ממתין</span></div>
+        <div class="row" style="gap:4px"><b style="font-size:12px">ליד חם מסורק העור</b><span class="src">התראה</span><span class="wt">ממתין</span></div>
         <p class="mu" style="overflow:hidden;text-overflow:ellipsis;margin-top:2px">🔥 ליד חדש מסורק העור! 👤 שם: נועה</p>
         <div class="row" style="gap:6px;margin-top:7px"><span class="pill" style="height:28px;background:linear-gradient(135deg,#F2C2BA,${PC})">סימון כנקרא</span><span class="pill ghost" style="height:28px">הסתרה</span></div></div></div></div>
       <div class="att" ${k('queue')}><div class="row" style="gap:8px;align-items:flex-start"><span class="ic" style="background:rgba(46,125,87,.12);color:#2E7D57">✆</span><div style="flex:1;min-width:0">
-        <div class="row" style="gap:5px"><b style="font-size:13px">הודעות מוכנות לשליחה</b><span class="src">וואטסאפ</span><span class="wt">ממתין</span></div>
+        <div class="row" style="gap:4px"><b style="font-size:12px">הודעות מוכנות לשליחה</b><span class="src">וואטסאפ</span><span class="wt">ממתין</span></div>
         <p style="font-size:12px;margin-top:2px">הודעה אחת</p><p class="mu">הראשונה ממתינה 3 דק׳</p>
         <div class="row" style="gap:6px;margin-top:7px"><span class="pill" style="height:28px;background:linear-gradient(135deg,#F2C2BA,${PC})">פתיחת הרשימה</span><span class="pill ghost" style="height:28px">הסתרה</span></div></div></div></div>
     </div>${nav('היום')}${over}</div>`;
@@ -1607,29 +1614,31 @@ const leadsScr = () => `<div class="scr nw">
 function videoSkin(tl) {
   intro(tl, 'סריקת עור AI', '', ['הלקוחה מצלמת את הפנים, ומקבלת', 'דוח והמלצה מהשירותים שלך']);
 
-  tl.scene(8, (at, end) => `
+  tl.scene(7.6, (at, end) => `
   ${title(at(0.1), end, 'הקישור לסורק')}
-  ${step(at(0.3), end, 1)}${mock(at(0.1), at(4.6), scanSettings())}${ring(at(1.1), at(2.4), 'copy')}${tap(at(2.1), 'copy')}
-  ${mock(at(2.6), at(4.6), scanSettings({ toastText: 'קישור הסורק הועתק' }), 'none')}
-  ${mock(at(4.4), end, skinDrawer())}${ring(at(5.2), end, 'scanbtn')}
-  ${hint(at(0.9), at(4.6), ['הגדרות ← ״לקוחות ופניות״:', 'הקישור שלך, וגם קוד QR לשלט'])}
-  ${hint(at(4.8), end, ['או סורקים יחד בעסק:', 'בכרטיס הלקוחה, ״✦ סריקת עור AI״'])}`);
+  ${step(at(0.3), end, 1)}${mock(at(0.1), at(4.4), scanSettings())}${ring(at(1.1), at(2.4), 'copy')}${tap(at(2.1), 'copy')}
+  ${mock(at(2.6), at(4.4), scanSettings({ toastText: 'קישור הסורק הועתק' }), 'none')}
+  ${mock(at(4.2), end, skinDrawer())}${ring(at(5.0), end, 'scanbtn')}
+  ${hint(at(0.9), at(4.4), ['הגדרות ← ״לקוחות ופניות״:', 'הקישור שלך, וגם קוד QR לשלט'])}
+  ${hint(at(4.6), end, ['או סורקים יחד בעסק:', 'בכרטיס הלקוחה, ״✦ סריקת עור AI״'])}`);
 
   tl.scene(6.2, (at, end) => `
   ${title(at(0.1), end, 'אצל הלקוחה')}
   ${step(at(0.3), end, 2)}${mock(at(0.1), end, ssGates({ tick1: at(2.0), tick2: at(3.0) }))}${tap(at(1.5), 'ck1')}${tap(at(2.5), 'ck2')}${ring(at(3.7), end, 'priv')}
   ${hint(at(0.9), end, ['שלושה שלבים. קודם שתי הסכמות,', 'והתמונה לא נשמרת אצלך'])}`);
 
-  tl.scene(8.4, (at, end) => `
+  tl.scene(8, (at, end) => `
   ${title(at(0.1), end, 'צילום')}
-  ${step(at(0.3), end, 3)}${mock(at(0.1), end, ssCapture({ front: at(2.9), left: at(4.3), right: at(5.3) }))}
-  ${tap(at(2.3), 'w-sf')}${tap(at(3.8), 'w-sl')}${tap(at(4.8), 'w-sr')}${tap(at(6.9), 'analyze')}
-  ${hint(at(0.9), at(4.2), ['פנים בתוך האליפסה,', 'באור טבעי ובלי איפור'])}
-  ${hint(at(4.4), end, ['תמונת החזית היא שנבדקת.', 'שני הפרופילים רשות'])}`);
+  ${step(at(0.3), end, 3)}${mock(at(0.1), at(2.9), ssCapture(0))}${ring(at(0.9), at(2.0), 'tips')}${tap(at(2.1), 'w-sf')}
+  ${mock(at(2.7), at(4.2), ssCapture(1), 'none')}${tap(at(3.5), 'w-sl')}
+  ${mock(at(4.0), at(5.1), ssCapture(2), 'none')}${tap(at(4.4), 'w-sr')}
+  ${mock(at(4.9), end, ssCapture(3), 'none')}${tap(at(6.5), 'analyze')}
+  ${hint(at(0.9), at(4.0), ['פנים בתוך האליפסה,', 'באור טבעי ובלי איפור'])}
+  ${hint(at(4.2), end, ['תמונת החזית היא שנבדקת.', 'שני הפרופילים רשות'])}`);
 
-  tl.scene(11, (at, end) => `
+  tl.scene(10.2, (at, end) => `
   ${title(at(0.1), end, 'הסריקה')}
-  ${step(at(0.3), end, 4)}${mock(at(0.1), end, ssScanning({ t0: at(0.6), dt: 1.45 }))}
+  ${step(at(0.3), end, 4)}${mock(at(0.1), end, ssScanning({ t0: at(0.6), dt: 1.4 }))}
   ${hint(at(0.9), end, ['האזורים נדלקים אחד אחרי השני,', 'ותוך פחות מדקה הדוח מוכן'])}`);
 
   tl.scene(6.2, (at, end) => `
@@ -1639,7 +1648,7 @@ function videoSkin(tl) {
   ${hint(at(0.9), at(3.9), ['מדד העור וסוג העור שלה,', 'בשפה נעימה וברורה'])}
   ${hint(at(4.0), end, ['ובראש הדוח: הערכה ראשונית,', 'לא אבחון'])}`);
 
-  tl.scene(8.2, (at, end) => `
+  tl.scene(7.8, (at, end) => `
   ${title(at(0.1), end, 'איפה בפנים')}
   ${step(at(0.3), end, 6)}${mock(at(0.1), at(4.3), ssMap({ t0: at(0) }))}${ring(at(2.8), at(4.2), 'approx')}
   ${mock(at(4.1), end, ssConcerns({ t0: at(4.1) }))}${ring(at(6.0), end, 'ct0')}
@@ -1653,23 +1662,23 @@ function videoSkin(tl) {
   ${el('tagex', at(0.2), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
   ${hint(at(0.9), end, ['הטיפול נבחר מהשירותים שלך,', 'עם כפתור ״קביעת תור״'])}`);
 
-  tl.scene(6, (at, end) => `
+  tl.scene(5.6, (at, end) => `
   ${title(at(0.1), end, 'שגרה לבית')}
   ${step(at(0.3), end, 8)}${mock(at(0.1), end, ssRoutine({ pmAt: at(3.3) }))}${tap(at(2.8), 'tab-pm')}
   ${el('tagex', at(0.2), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
   ${hint(at(0.9), end, ['בוקר וערב, צעד אחרי צעד,', 'עם המרכיבים הפעילים'])}`);
 
-  tl.scene(6, (at, end) => `
+  tl.scene(5.8, (at, end) => `
   ${title(at(0.1), end, 'החלק למטפלת')}
   ${step(at(0.3), end, 9)}${mock(at(0.1), at(2.9), ssPro({ open: false }))}${ring(at(0.8), at(1.9), 'how1')}${tap(at(2.1), 'pro')}
   ${mock(at(2.7), end, ssPro({ open: true }))}
   ${hint(at(0.9), at(2.8), ['הכוונה קוסמטית, לא אבחון רפואי.', 'ובתחתית, מאחורי כפתור:'])}
   ${hint(at(3.0), end, ['תקציר מקצועי בשבילך,', 'עם הממצאים והמרכיבים'])}`);
 
-  tl.scene(6.6, (at, end) => `
+  tl.scene(6.4, (at, end) => `
   ${title(at(0.1), end, 'הדוח והתור')}
   ${step(at(0.3), end, 10)}${mock(at(0.1), end, ssSend({ t0: at(0), sentAt: at(3.6) }))}${tap(at(3.0), 'send')}${ring(at(4.6), end, 'book2')}
-  ${hint(at(0.9), at(4.4), ['היא משאירה מספר,', 'והדוח מחכה לשליחה ממך'])}
+  ${hint(at(0.9), at(4.4), ['היא משאירה מספר. אם הדוח לא יצא', 'מיד, הוא מחכה לשליחה ממך'])}
   ${hint(at(4.5), end, ['או קובעת תור', 'ישר מהדוח'])}`);
 
   tl.scene(6.2, (at, end) => `
@@ -1682,9 +1691,9 @@ function videoSkin(tl) {
   tl.scene(4.8, (at, end) => `
   ${title(at(0.1), end, 'בכרטיס הלקוחה')}
   ${step(at(0.3), end, 12)}${mock(at(0.1), end, skinDrawer({ tab: 'scans', scansAt: at(0.5) }))}${ring(at(1.2), end, 'scanlist')}
-  ${hint(at(0.9), end, ['סריקה מהכרטיס נשמרת בו,', 'וכך רואים את ההתקדמות'])}`);
+  ${hint(at(0.9), end, ['סריקה מהכרטיס נשמרת בו,', 'וכך נבנית היסטוריה של העור'])}`);
 
-  tl.scene(6, (at, end) => `
+  tl.scene(5.8, (at, end) => `
   ${title(at(0.1), end, 'מכסה חודשית')}
   ${step(at(0.3), end, 13)}${mock(at(0.1), at(3.3), scanSettings({ used: 188 }))}${ring(at(0.9), at(3.2), 'quota')}
   ${mock(at(3.1), end, ssFull())}
@@ -1709,7 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const z of zones) {
       let p = 0, a0 = 0;
       for (const [a, b] of z.w) { const q = c((t - a) / .5) * (1 - c((t - b) / .5)); if (q > p) { p = q; a0 = a; } }
-      const pulse = .18 + .22 * (1 - Math.cos(2 * Math.PI * (t - a0) / 1.6)) / 2;
+      const pulse = .38 + .34 * (1 - Math.cos(2 * Math.PI * (t - a0) / 1.6)) / 2;
       z.e.style.fillOpacity = (p * pulse).toFixed(3); z.e.style.strokeOpacity = (p * .9).toFixed(3);
     }
     for (const s of steps) { const cur = Math.max(0, Math.min(s.n - 1, Math.floor((t - s.a) / s.d))); s.li.forEach((li, i) => { li.dataset.state = i < cur ? 'done' : i === cur ? 'now' : 'next'; }); }
@@ -1731,6 +1740,8 @@ const VIDEOS = {
   'my-page': videoMyPage,
   'services-hours': videoServicesHours,
 };
+// The skin scan is "skin-scan" on /tutorials and in lib/helpSections.ts.
+const PUBLISHED_AS = { skin: 'skin-scan' };
 if (!VIDEOS[id]) { console.error(`usage: node topics-motion.mjs <${Object.keys(VIDEOS).join('|')}> [--publish] [--frame=t]`); process.exit(1); }
 
 const tl = timeline();
@@ -1818,8 +1829,9 @@ if (stills) {
   log(`video -> ${outFile} (${seconds.toFixed(1)} s, ${Math.round(fs.statSync(outFile).size / 1024)} KB)`);
   if (PUBLISH) {
     const pub = path.join(path.dirname(OUT), '..', 'public', 'tutorials');
-    fs.copyFileSync(outFile, path.join(pub, `kalmea-${id}.mp4`));
-    fs.copyFileSync(poster, path.join(pub, `kalmea-${id}.jpg`));
-    log(`published -> public/tutorials/kalmea-${id}.{mp4,jpg}`);
+    const name = PUBLISHED_AS[id] || id; // the id /tutorials knows it by (app/tutorials/page.tsx)
+    fs.copyFileSync(outFile, path.join(pub, `kalmea-${name}.mp4`));
+    fs.copyFileSync(poster, path.join(pub, `kalmea-${name}.jpg`));
+    log(`published -> public/tutorials/kalmea-${name}.{mp4,jpg}`);
   }
 }
