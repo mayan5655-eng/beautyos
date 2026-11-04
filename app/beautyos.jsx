@@ -104,6 +104,7 @@ const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: fa
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
+const FormAnswersSheet = dynamic(() => import("./FormAnswersSheet"), { ssr: false });
 const GreetingsPanel = dynamic(() => import("./GreetingsPanel"), { ssr: false });
 const FieldPicker = dynamic(() => import("./FieldPicker"), { ssr: false });
 const GrowPaymentRequests = dynamic(() => import("./GrowPaymentRequests"), { ssr: false });
@@ -384,6 +385,8 @@ const STATUS_LABELS = {"VIP":"VIP","active":"פעילה","cold":"לא פעילה
 // `only`: shown just to businesses in these fields. A nail technician is offered the nail forms, not plasma, laser or peel.
 const FORM_TYPES = [
   {key:"general",label:"הצהרת בריאות כללית",only:["cosmetics"]},
+  // 2026-11-04: the first-visit intake (questions in lib/formTemplates.ts). Cosmetics only, like the facial forms.
+  {key:"skin_anamnesis",label:"אבחון עור ואנמנזה",only:["cosmetics"]},
   {key:"plasma",label:"טיפול פלזמה",only:["cosmetics"]},
   {key:"device",label:"מכשור מתקדם",only:["cosmetics"]},
   {key:"laser",label:"הסרת שיער בלייזר",only:["cosmetics"]},
@@ -391,6 +394,8 @@ const FORM_TYPES = [
   {key:"nails_general",label:"הצהרת בריאות ואישור טיפול (ציפורניים)",only:["nails"]},
   {key:"nails_media",label:"אישור צילום עבודות",only:["nails"]},
 ];
+// What the boot reads of public.forms: enough to list them. form_data and signature stay in the database until asked for.
+const FORM_LIST_COLUMNS = "id, tenant_id, client_id, client_name, form_type, status, signed_at";
 // The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
 const LEAD_SOURCES = [...DEFAULT_LEAD_SOURCES];
 // Canonical manual workflow statuses. These KEYS must stay in sync with
@@ -893,6 +898,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [rebookPickOpen,    setRebookPickOpen]     = useState(false);
   // "קבעי לה שוב" (client card / finished appointment): { client, appt } while the sheet is open.
   const [rebookNext,        setRebookNext]         = useState(null);
+  const [formAnswersFor,    setFormAnswersFor]     = useState(null); // "צפייה בתשובות": the signed form whose answers are open (app/FormAnswersSheet)
   const [clientPageFor,     setClientPageFor]      = useState(null); // "שליחת הדף שלה": the client whose personal results page is being prepared
   const [showPackageModal,  setShowPackageModal]   = useState(false);
   const [showWaitlistModal, setShowWaitlistModal]  = useState(false);
@@ -2173,7 +2179,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const loadDeferred = async () => {
     try {
       const [f, ex, wl] = await Promise.all([
-        readAllRows(supabase, "forms"),
+        // The list only: no form_data, no signature. The answers are read one form at a time, when she opens them
+        // (app/FormAnswersSheet). If the narrowed read fails for any reason, the full read it replaced runs instead.
+        readAllRows(supabase, "forms", { columns: FORM_LIST_COLUMNS }).then(r => (r?.error ? readAllRows(supabase, "forms") : r)),
         readAllRows(supabase, "expenses"),
         readAllRows(supabase, "waitlist"),
       ]);
@@ -10874,6 +10882,7 @@ ${MARKETING_FOOTER}`)}`;
         today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
         onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
         pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
+      {formAnswersFor&&(<FormAnswersSheet form={formAnswersFor} tenantId={settings?.tenant_id} label={FORM_TYPES.find(ft=>ft.key===formAnswersFor.form_type)?.label} onClose={()=>setFormAnswersFor(null)} pcTint={pcTint}/>)}
       {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
@@ -13271,6 +13280,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-sm)"}}>{f.status==="signed"?"✓":"⏳"}</span>
  <p style={{flex:1,minWidth:0,fontSize:"var(--t-sm)",color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
  <span style={{fontSize:"var(--t-xs)",color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?"נחתם":"ממתין"}</span>
+ {f.status==="signed"&&<button type="button" data-testid="form-view-answers" onClick={()=>setFormAnswersFor(f)} style={{minHeight:44,padding:"0 12px",background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>צפייה בתשובות</button>}
  </div>
                         ))}
  </>}
