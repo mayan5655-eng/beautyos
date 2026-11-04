@@ -29,6 +29,7 @@ import { afterPaidHook, cancelDeps } from '../_cancel';
 import { onCardTokenNotification } from '@/lib/grow/cancelFees';
 import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
 import { readNotification } from '@/lib/grow/payload';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export const maxDuration = 30;
 
@@ -50,7 +51,7 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 export async function POST(request: Request) {
   const ip = clientIp(request.headers);
   if (ipCheckEnforced() && !ipAllowed(ip)) {
-    console.warn('[grow] webhook refused: address is not on Grow\'s list', ip || '(none)');
+    console.warn('[grow] webhook refused: address is not on Grow\'s list', ip || '(none)'); await moneyAlert('grow:ip-refused', 'Grow webhook refused: sender IP not on the allow list (add it to GROW_WEBHOOK_IPS if it is Grow)', { ip: ip || null, route: 'webhook' }, { key: ip || 'none' });
     return NextResponse.json({ success: false, error: 'forbidden' }, { status: 403 });
   }
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
     // A well-formed object we do not recognise: acknowledged, not stored, not retried.
     return NextResponse.json({ success: true, kind: 'unknown', status: 'ignored' });
   } catch (e) {
-    console.error('[grow] webhook storage failed:', kind, (e as Error)?.message);
+    console.error('[grow] webhook storage failed:', kind, (e as Error)?.message); await moneyAlert('grow:webhook', 'Grow webhook storage failed; answered 503 so Grow retries', { kind }, { key: String(kind) });
     return NextResponse.json({ success: false, error: 'try-again' }, { status: 503 });
   }
 }

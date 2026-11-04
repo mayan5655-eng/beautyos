@@ -21,6 +21,7 @@ import type { PayMethod, PageCodes } from './methods.ts';
 import { buildProcessFields, parseProcessResponse, readNotification, notificationMatches, findInvoiceUrl, findInvoiceNumber, findCustomField, callbackKeyShape, tenantRefOf, growPhone, parseChargeAmount, growText, withGrowResult } from './payload.ts';
 import type { Notification } from './payload.ts';
 import { walletLink, paymentMethodLabel } from './wallet.ts';
+import { moneyAlert } from '../moneyAlert.js';
 
 export type GrowPayment = {
   id: string;
@@ -195,7 +196,7 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
     } catch { /* the receipt stands; the link is still on the payment */ }
     return r.id;
   } catch (e) {
-    console.error('[grow] receipt creation failed for payment', p.id, (e as Error)?.message);
+    console.error('[grow] receipt creation failed for payment', p.id, (e as Error)?.message); await moneyAlert('grow:receipt', 'paid Grow payment has no Kalmea receipt', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
     return null;
   }
 }
@@ -257,15 +258,15 @@ async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: D
       return { status: 'paid', paymentId: p.id, receiptId: rid };
     }
     if (p.status === 'paid' && p.transaction_id && n.transactionId && String(p.transaction_id) !== String(n.transactionId)) {
-      console.error('[grow] payment', p.id, 'received a SECOND transaction', n.transactionId, '- the client may have paid twice; check Grow and refund one');
+      console.error('[grow] payment', p.id, 'received a SECOND transaction', n.transactionId, '- the client may have paid twice; check Grow and refund one'); await moneyAlert('grow:double-payment', 'a payment received a second Grow transaction: the client may have paid twice', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
       // Said where she looks, not only in a server log: her Grow card shows "שולם פעמיים" on this payment (2026-11-02 audit).
       try { await d.repo.updatePayment(p.id, { error: `second_tx:${String(n.transactionId).slice(0, 40)}` }); } catch { /* the log line above stays */ }
     }
     return { status: 'already' };
   }
   const receiptId = await createReceiptFor(flipped, n, d);
-  if (d.afterPaid) { try { await d.afterPaid(flipped, raw); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); } }
-  if (approve) { try { await approve(n, flipped); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); } }
+  if (d.afterPaid) { try { await d.afterPaid(flipped, raw); } catch (e) { console.error('[grow] afterPaid failed for payment', flipped.id, (e as Error)?.message); await moneyAlert('grow:after-paid', 'follow-up after a paid Grow payment failed (booking confirm / credit)', { paymentId: flipped.id, tenantId: flipped.tenant_id }, { key: String(flipped.id) }); } }
+  if (approve) { try { await approve(n, flipped); } catch (e) { console.error('[grow] approveTransaction failed:', (e as Error)?.message); await moneyAlert('grow:approve', 'approveTransaction call failed', { paymentId: flipped.id }, { key: String(flipped.id) }); } }
   return { status: 'paid', paymentId: flipped.id, receiptId };
 }
 
@@ -326,11 +327,11 @@ export async function approveTransaction(n: Notification, creds: Creds, fetchImp
   // The page the client paid on: a Bit or Apple Pay payment is approved with ITS page code (lib/grow/methods.ts).
   form.append('pageCode', pageCodeForTypeId(n.echo.transactionTypeId, creds.pageCodes || {}, creds.pageCode));
   for (const [k, v] of Object.entries(n.echo)) form.append(k, v);
-  const res = await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form });
+  const res = await fetchImpl(`${creds.apiBase}/approveTransaction`, { method: 'POST', body: form, signal: AbortSignal.timeout(10_000) });
   // Grow answers 200 with status 0 when it refuses (a wrong page code, for one): say so in the logs, without the payload.
   const j = (await res.json().catch(() => null)) as { status?: unknown; err?: { id?: unknown; message?: unknown } | unknown } | null;
   if (j && String(j.status) !== '1') {
     const err = (j.err && typeof j.err === 'object' ? j.err : {}) as { id?: unknown; message?: unknown };
-    console.error('[grow] approveTransaction refused for transaction', n.transactionId, '-', String(err.id ?? ''), String(err.message ?? '').slice(0, 120));
+    console.error('[grow] approveTransaction refused for transaction', n.transactionId, '-', String(err.id ?? ''), String(err.message ?? '').slice(0, 120)); await moneyAlert('grow:approve', 'Grow refused approveTransaction', { transactionId: n.transactionId, code: String(err.id ?? '') }, { key: String(n.transactionId) });
   }
 }

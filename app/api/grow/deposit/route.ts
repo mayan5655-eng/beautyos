@@ -16,8 +16,9 @@ export async function GET(request: Request) {
   try {
     return NextResponse.json({ success: true, deposit: await depositForCashier(deps, c.tenantId, appointmentId) });
   } catch (e) {
+    // A failed read is not "no deposit": answering null here made the deposit line vanish and the client was charged in full.
     console.warn('[grow] deposit lookup failed:', (e as Error)?.message);
-    return NextResponse.json({ success: true, deposit: null });
+    return NextResponse.json({ success: false, error: 'lookup_failed' }, { status: 503 });
   }
 }
 

@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { admin } from '../_shared';
 import { clientIp, ipAllowed, ipCheckEnforced } from '@/lib/grow/webhook';
 import { afterPaidHook } from '../_cancel';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export const maxDuration = 30;
 
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   // link the client receives, so without this a client could post a forged invoice link or payment update (2026-11-02 audit).
   const ip = clientIp(request.headers);
   if (ipCheckEnforced() && !ipAllowed(ip)) {
-    console.warn('[grow] notify refused: address is not on Grow\'s list', ip || '(none)');
+    console.warn('[grow] notify refused: address is not on Grow\'s list', ip || '(none)'); await moneyAlert('grow:ip-refused', 'Grow notify refused: sender IP not on the allow list (add it to GROW_WEBHOOK_IPS if it is Grow)', { ip: ip || null, route: 'notify' }, { key: ip || 'none' });
     return NextResponse.json({ success: false, error: 'forbidden' }, { status: 403 });
   }
   const token = new URL(request.url).searchParams.get('t') || '';
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     if (result.status === 'unknown-token') return NextResponse.json({ success: false }, { status: 404 });
     return NextResponse.json({ success: true, status: result.status });
   } catch (e) {
-    console.error('[grow] notify failed:', (e as Error)?.message);
+    console.error('[grow] notify failed:', (e as Error)?.message); await moneyAlert('grow:notify', 'Grow payment callback failed', null);
     // 500 so Grow retries: nothing was recorded.
     return NextResponse.json({ success: false }, { status: 500 });
   }

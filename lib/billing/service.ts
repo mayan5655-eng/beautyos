@@ -25,6 +25,7 @@ import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
 import { PLAN_PRICES, defaultPlanPrice, type AddonPack } from '../pricing.ts';
 import { LAUNCH_PRICE_CUTOFF_ISO } from '../ownerControl.ts';
 import { periodMonth } from '../addonQuota.ts';
+import { moneyAlert } from '../moneyAlert.js';
 
 /** From lib/pricing.ts, the one place prices live. */
 export const REGULAR_PRICE: number = PLAN_PRICES.regular;
@@ -209,7 +210,7 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
     if (!(r && r.ok && (r.status === 'failed' || !r.found))) {
       await d.repo.updatePayment(pay.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
       await d.repo.updateSub(sub.id, { last_attempt_at: iso(now) });
-      console.warn('[billing] charge outcome unknown for tenant', sub.tenant_id, 'identifier', uid);
+      console.warn('[billing] charge outcome unknown for tenant', sub.tenant_id, 'identifier', uid); await moneyAlert('billing:unknown', 'subscription charge outcome unknown; check Grow', { tenantId: sub.tenant_id, identifier: uid }, { key: String(uid), severity: 'warning' });
       await keepWorkingInGrace(d, tenant, sub.tenant_id);
       return 'skipped';
     }
@@ -327,7 +328,7 @@ export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack): Prom
     if (r && r.ok && r.found && r.status === 'paid') return credit(r.providerPaymentId || `uid:${uid}`);
     if (!(r && r.ok && (r.status === 'failed' || !r.found))) {
       await d.repo.updatePayment(row.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
-      console.warn('[billing] add-on charge outcome unknown for tenant', tenantId, 'identifier', uid);
+      console.warn('[billing] add-on charge outcome unknown for tenant', tenantId, 'identifier', uid); await moneyAlert('billing:unknown', 'add-on charge outcome unknown; check Grow', { tenantId, identifier: uid }, { key: String(uid), severity: 'warning' });
       return { ok: false, reason: 'pending', error: 'waiting for the provider' };
     }
   }
@@ -387,13 +388,19 @@ export async function saveCard(d: Deps, tenantId: string, card: { tokenRef: stri
 
 // ── the daily run ────────────────────────────────────────────────────────────
 
-export type RunSummary = { checked: number; charged: number; failed: number; blocked: number; invoices: number; skipped: number };
+export type RunSummary = { checked: number; charged: number; failed: number; blocked: number; invoices: number; skipped: number; notStarted?: number };
 
-export async function runDue(d: Deps): Promise<RunSummary> {
+export async function runDue(d: Deps, opts: { budgetMs?: number } = {}): Promise<RunSummary> {
   const now = clock(d);
   const sum: RunSummary = { checked: 0, charged: 0, failed: 0, blocked: 0, invoices: 0, skipped: 0 };
+  // A time budget (real time, not the injected clock): charges are serial at a few seconds each, so a day with many trials ending
+  // used to run until Vercel killed the function mid-list, with no summary. Past the budget no NEW business is started; the rest
+  // are counted and charged on the next run (each charge is keyed by its period, so a late one is never doubled).
+  const started = Date.now();
+  const subs = await d.repo.listSubs();
 
-  for (const sub of await d.repo.listSubs()) {
+  for (const [idx, sub] of subs.entries()) {
+    if (opts.budgetMs && Date.now() - started > opts.budgetMs) { sum.notStarted = subs.length - idx; break; }
     sum.checked++;
     try {
       const tenant = await d.repo.getTenant(sub.tenant_id);
@@ -423,7 +430,7 @@ export async function runDue(d: Deps): Promise<RunSummary> {
       const out = await attempt(d, sub, tenant, new Date(due), now);
       if (out === 'charged') sum.charged++; else if (out === 'failed' || out === 'no-card') sum.failed++; else sum.skipped++;
     } catch (e) {
-      console.error('[billing] run failed for tenant', sub.tenant_id, (e as Error)?.message);
+      console.error('[billing] run failed for tenant', sub.tenant_id, (e as Error)?.message); await moneyAlert('billing:run', 'daily billing failed for a business', { tenantId: sub.tenant_id }, { key: String(sub.tenant_id) });
     }
   }
 

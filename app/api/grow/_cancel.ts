@@ -17,6 +17,7 @@ import { sanitizePolicy } from '@/lib/cancellationPolicy';
 import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { admin } from './_shared';
 import { isDepositRequest } from '@/lib/grow/paymentRequest';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
@@ -44,8 +45,13 @@ export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>)
     // A deposit she asked for with a payment link (lib/grow/paymentRequest.ts): no booking to confirm. The money becomes the
     // client's credit, which the cashier deducts at the visit, so the visit is never counted twice.
     if (isDepositRequest(p.description) && p.client_id) {
-      const { error } = await admin().from('client_credits').insert({ tenant_id: p.tenant_id, client_id: p.client_id, amount: Number(p.amount), source: 'deposit_request' });
-      if (error) console.error('[grow] deposit request credit failed for payment', p.id, error.message);
+      const row = { tenant_id: p.tenant_id, client_id: p.client_id, amount: Number(p.amount), source: 'deposit_request' };
+      // Names the payment (grow_money_hardening_2026-11-03.sql), so one payment makes at most one credit and a retry is safe.
+      // Before that migration runs the column is missing and the credit is written exactly as before.
+      let { error } = await admin().from('client_credits').insert({ ...row, grow_payment_id: p.id });
+      if (error && (error.code === 'PGRST204' || error.code === '42703')) ({ error } = await admin().from('client_credits').insert(row));
+      if (error && error.code === '23505') error = null; // this payment's credit is already there
+      if (error) { console.error('[grow] deposit request credit failed for payment', p.id, error.message); await moneyAlert('grow:credit', 'client paid a deposit request but the credit was not recorded: add it by hand', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) }); }
       return;
     }
     if (!/^מקדמה/.test(p.description || '')) return;
@@ -53,7 +59,7 @@ export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>)
     if (!deps) return;
     // The deposit page also saved the card (the client gave the card-save tick): store the sealed token for this booking's business and client.
     const ct = raw ? readCardTokenNotification(raw) : null;
-    if (ct) { try { await onDepositCardToken(deps, ct, p); } catch (e) { console.error('[grow] deposit card token failed:', (e as Error)?.message); } }
+    if (ct) { try { await onDepositCardToken(deps, ct, p); } catch (e) { console.error('[grow] deposit card token failed:', (e as Error)?.message); await moneyAlert('grow:deposit-token', 'saving the card token after a deposit failed', { paymentId: p.id }, { key: String(p.id) }); } }
     const r = await onDepositPaid(deps, { tenantId: p.tenant_id, appointmentId: p.appointment_id, paymentId: p.id });
     if (r.outcome !== 'confirmed' && r.outcome !== 'restored') return;
     after(async () => {

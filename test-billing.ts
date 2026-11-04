@@ -363,4 +363,19 @@ await ok('a subscription charge asks for a RECEIPT with no VAT (exempt dealer); 
   assert.ok(/[?&]t=r(&|$)/.test(w.payments[0].invoice_url || ''), 'the mock document is a receipt');
 });
 
+await ok('the daily run has a time budget: past it no new business is started, they are counted, and the next run charges them', async () => {
+  const T2 = '22222222-2222-2222-2222-222222222222';
+  const w = world('2026-11-01T08:00:00Z');
+  w.addTenant(T, { trial_ends_at: '2026-11-10T08:00:00Z', plan_price: 349 });
+  w.addTenant(T2, { trial_ends_at: '2026-11-10T08:00:00Z', plan_price: 349 });
+  await saveCard(w.deps(), T, OK()); await saveCard(w.deps(), T2, OK());
+  w.at('2026-11-10T05:00:00Z');
+  const slow: BillingRepo = { ...w.repo, async getTenant(id) { await new Promise((r) => setTimeout(r, 40)); return w.repo.getTenant(id); } };
+  const first = await runDue(w.deps({ repo: slow }), { budgetMs: 20 });
+  assert.equal(first.checked, 1); assert.equal(first.charged, 1); assert.equal(first.notStarted, 1);
+  const second = await runDue(w.deps());
+  assert.equal(second.charged, 1, 'the one left over is charged on the next run'); assert.equal(second.notStarted, undefined);
+  assert.equal(w.payments.filter((p) => p.status === 'succeeded' && p.kind === 'subscription').length, 2, 'each business charged exactly once');
+});
+
 console.log(`billing: ${n} ok`);

@@ -16,20 +16,25 @@ export default function GrowCashierCredit({ appointmentId, clientId, onChange, p
   const [deposit, setDeposit] = useState(0);
   const [credit, setCredit] = useState(0);
   const [creditOn, setCreditOn] = useState(false);
+  // A lookup that failed (network, 5xx) is NOT "nothing paid": she is told to check before charging, instead of the line just vanishing.
+  const [lookupFailed, setLookupFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    setDeposit(0); setCredit(0); setCreditOn(false);
-    if (appointmentId) fetch(`/api/grow/deposit?appointmentId=${encodeURIComponent(appointmentId)}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive && j?.deposit?.amount > 0) setDeposit(j.deposit.amount); }).catch(() => {});
-    if (clientId) fetch(`/api/grow/credit?clientId=${encodeURIComponent(clientId)}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive && j?.balance > 0) setCredit(j.balance); }).catch(() => {});
+    setDeposit(0); setCredit(0); setCreditOn(false); setLookupFailed(false);
+    const failed = () => { if (alive) setLookupFailed(true); };
+    const read = (r) => (r.ok ? r.json() : r.status >= 500 ? Promise.reject(new Error(String(r.status))) : null);
+    if (appointmentId) fetch(`/api/grow/deposit?appointmentId=${encodeURIComponent(appointmentId)}`).then(read).then((j) => { if (alive && j?.deposit?.amount > 0) setDeposit(j.deposit.amount); }).catch(failed);
+    if (clientId) fetch(`/api/grow/credit?clientId=${encodeURIComponent(clientId)}`).then(read).then((j) => { if (alive && j?.balance > 0) setCredit(j.balance); }).catch(failed);
     return () => { alive = false; };
   }, [appointmentId, clientId]);
 
   useEffect(() => { onChange?.({ deposit, creditAvail: credit, creditOn }); }, [deposit, credit, creditOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!(deposit > 0) && !(credit > 0)) return null;
+  if (!(deposit > 0) && !(credit > 0) && !lookupFailed) return null;
   return (
     <div data-testid="grow-cashier-credit" style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
+      {lookupFailed && <p data-testid="deposit-lookup-failed" role="alert" style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--warning)', marginBottom: deposit > 0 || credit > 0 ? 6 : 0 }}>לא הצלחנו לבדוק אם שולמה מקדמה או שיש קרדיט. כדאי לבדוק לפני החיוב.</p>}
       {deposit > 0 && <p data-testid="deposit-deducted" style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: credit > 0 ? 6 : 0 }}>מקדמה ששולמה מראש: {money(deposit)}. היא מנוכית מהסכום.</p>}
       {credit > 0 && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>

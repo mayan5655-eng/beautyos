@@ -472,16 +472,32 @@ await ok('deposit hold: booked as PENDING for 30 minutes, the slot stays blocked
   assert.equal(consent.hold_expires_at, '2026-11-10T06:30:00.000Z'); assert.equal(consent.status, 'awaiting_deposit');
 
   w.at('2026-11-10T06:29:00Z');                                           // 29 minutes: still held
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0, errors: 0 });
   assert.equal(w.appts.get('a1')!.confirmation_status, 'pending', 'the slot is still blocked');
 
   w.at('2026-11-10T06:31:00Z');                                           // 31 minutes: released
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0, errors: 0 });
   assert.equal(w.appts.get('a1')!.confirmation_status, 'cancelled', 'cancelled, so the calendar and the availability list show the slot free');
   assert.equal(w.consents[0].status, 'hold_expired'); assert.equal(w.consents[0].hold_expires_at, null);
   assert.equal([...w.payments.values()][0].status, 'cancelled', 'the unpaid payment page is closed');
   assert.equal(w.fees.length, 0, 'no fee item, nothing to charge or refund'); assert.equal(w.calls.chargeToken, 0);
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 }, 'running it again changes nothing');
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0, errors: 0 }, 'running it again changes nothing');
+});
+
+await ok('deposit holds: one hold that errors does not stop the others from being released (the cron used to fail for everyone)', async () => {
+  const w = world('2026-11-10T06:00:00Z');
+  const policy = w.setPolicy({ mode: 'deposit' });
+  await book(w, 'a1', policy);
+  await book(w, 'a2', policy, { start_minute: 720, hour: 12 });
+  w.at('2026-11-10T06:31:00Z');
+  const d = w.deps();
+  const real = d.repo.getDepositPayment.bind(d.repo);
+  d.repo = { ...d.repo, getDepositPayment: async (t: string, id: string) => { if (id === 'a1') throw new Error('db blip'); return real(t, id); } };
+  const r = await releaseExpiredHolds(d);
+  assert.deepEqual(r, { released: 1, confirmed: 0, errors: 1 });
+  assert.equal(w.appts.get('a2')!.confirmation_status, 'cancelled', 'the healthy hold was released');
+  assert.equal(w.appts.get('a1')!.confirmation_status, 'pending', 'the failing one stays for the next run');
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0, errors: 0 }, 'and is released once the error clears');
 });
 
 await ok('deposit hold: a paid deposit CONFIRMS the booking and ends the hold (a later release does nothing)', async () => {
@@ -493,7 +509,7 @@ await ok('deposit hold: a paid deposit CONFIRMS the booking and ends the hold (a
   assert.equal((await payLater(w, p)).status, 'paid');
   assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed'); assert.equal(w.consents[0].status, 'deposit_paid'); assert.equal(w.consents[0].hold_expires_at, null);
   w.at('2026-11-10T07:00:00Z');
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 0, errors: 0 });
   assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed');
 });
 
@@ -504,7 +520,7 @@ await ok('deposit hold: paid just before the end but not yet processed -> confir
   const p = [...w.payments.values()][0];
   Object.assign(p, { status: 'paid', transaction_id: 'tx1' });            // the callback has not run its confirm step yet
   w.at('2026-11-10T06:31:00Z');
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 1 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 0, confirmed: 1, errors: 0 });
   assert.equal(w.appts.get('a1')!.confirmation_status, 'confirmed');
 });
 
@@ -541,7 +557,7 @@ await ok('deposit hold: other modes and a zero deposit are never held; a release
   const z = await book(w, 'a2', zero, { price: 0 });
   assert.equal(z.consent.hold_expires_at, null); assert.equal(w.appts.get('a2')!.confirmation_status, 'confirmed', 'no real deposit: nothing to hold for');
   w.at('2026-11-10T09:00:00Z');
-  assert.deepEqual(await releaseExpiredHolds(w.deps(), '99999999-9999-9999-9999-999999999999'), { released: 0, confirmed: 0 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps(), '99999999-9999-9999-9999-999999999999'), { released: 0, confirmed: 0, errors: 0 });
 });
 
 
@@ -588,7 +604,7 @@ await ok('manual booking: "request deposit?" is pre-set from the service; on -> 
   assert.equal((await requestDepositForAppointment(w.deps(), { tenantId: TENANT, appointmentId: 'm1', returnUrl: ORIGIN })).ok, false, 'asked once');
   // unpaid -> released
   w.at('2026-11-10T06:31:00Z');
-  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0 });
+  assert.deepEqual(await releaseExpiredHolds(w.deps()), { released: 1, confirmed: 0, errors: 0 });
   assert.equal(w.appts.get('m1')!.confirmation_status, 'cancelled');
 
   // paid in time -> confirmed, and a later timely cancel refunds like any deposit
