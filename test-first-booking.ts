@@ -75,6 +75,8 @@ ok('not two checklists: the 8-step card is on Today only when the 3-step card is
   assert.match(a, /const setupOnToday = fbView !== "pending" && showSetupOnToday\(fbView, setupDone, setupTotal\);/);
   assert.match(a, /\{setupOnToday && \(\n <div className="glass-card card-boxed card-boxed-accent" style=\{\{order:7/);
   assert.doesNotMatch(a, /\{setupDone < setupTotal && \(/, 'the dashboard checklist no longer decides on its own');
+  // neither card is decided before the whole history and this phone's record are in (no flash of the wrong one)
+  assert.match(a, /\(!settings\?\.tenant_id \|\| firstLocal === null \|\| !historyReady\) \? "pending"/);
   // the old welcome cards step aside too (they are the flag-off path)
   assert.equal((a.match(/\{!fbShowing&&historyReady&&deferred\.leads==="ok"&&clients\.length===0/g) || []).length, 2);
   // the 8-step list itself is kept, whole, behind the header button and in Settings
