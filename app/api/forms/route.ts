@@ -41,6 +41,7 @@ import { createClient } from '@supabase/supabase-js';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { publicAccent } from '@/lib/branding';
 import { consentFields } from '@/lib/marketingConsent.js';
+import { isStorableAnswers } from '@/lib/formTemplates';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -159,9 +160,18 @@ export async function POST(request: Request) {
     }
 
     const answers = body?.answers;
-    if (!answers || typeof answers !== 'object') {
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
       return Response.json(
         { success: false, error: 'התשובות חסרות' },
+        { status: 400 }
+      );
+    }
+    // The shape every template stores (lib/formTemplates.ts): keys are a question's index or "<index>_note", values
+    // are strings (a multi answer is already joined with ", "). Anything else is not something the page sends, and
+    // nested objects would let a forwarded link park arbitrary JSON in her health records.
+    if (!isStorableAnswers(answers)) {
+      return Response.json(
+        { success: false, error: 'התשובות אינן תקינות' },
         { status: 400 }
       );
     }
