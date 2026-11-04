@@ -19,6 +19,7 @@ export const TUTORIAL_TITLES: Record<string, string> = {
   till: "תשלום בקופה",
   morning: "קבלות חוקיות ממורנינג",
   ai: "היועצת, הפוסטים והרילסים",
+  "skin-scan": "סריקת עור AI",
   "my-page": "הדף שלך ללקוחות",
   "services-hours": "טיפולים ושעות פעילות",
 };
@@ -62,7 +63,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
     "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
   ]},
-  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", videos:["clients"], body:[
+  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", videos:["clients","skin-scan"], body:[
     "לחיצה על לקוחה פותחת חלון צד עם הכל עליה. למעלה, שם, טלפון, סוג עור, וכמה הוציאה אצלך בסך הכל. לפעמים יופיע שם גם רמז אוטומטי, כמו \"לא ביקרה 60 ימים, שווה הודעת התחדשות\".",
     "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.",
     "### הלשוניות",
@@ -164,9 +165,16 @@ const NAILS_HELP_DROP: string[] = [
   "⚠️ יש מכסת סריקות חודשית",
   "⚠️ טיפולים רפואיים כמו בוטוקס",
 ];
+/** Videos about facial cosmetics only: a nails-only business is never pointed to them (help page and help chat alike). */
+export const COSMETICS_ONLY_VIDEOS: readonly string[] = ["skin-scan"];
+export const isNailsOnly = (fields: unknown): boolean =>
+  Array.isArray(fields) && fields.includes("nails") && !fields.includes("cosmetics");
+/** The tutorial videos this business may be pointed to. */
+export const tutorialIdsFor = (fields: unknown): string[] =>
+  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)));
 export const helpSectionsFor = (fields: unknown): HelpSection[] => {
   if (!Array.isArray(fields) || fields.includes("cosmetics") || !fields.includes("nails")) return HELP_SECTIONS;
-  return HELP_SECTIONS.map((sec) => ({...sec, body: sec.body
+  return HELP_SECTIONS.map((sec) => ({...sec, videos: sec.videos?.filter((v) => !COSMETICS_ONLY_VIDEOS.includes(v)), body: sec.body
     .filter((line: string) => !NAILS_HELP_DROP.some(d => line.startsWith(d)))
     .map((line: string) => NAILS_HELP_REPLACE.reduce((t, [a, b]) => t.split(a).join(b), line)
       .split("תוכנית טיפול בקליניקה").join("תוכנית טיפול")

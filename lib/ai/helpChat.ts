@@ -27,7 +27,7 @@ import { MODELS, EFFORT } from './models.ts';
 import { mapAiError, userMessageForAiError } from './aiErrorResponse.ts';
 import { AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from './callCaps.ts';
 import { capNoticeOf } from './capMessages.ts';
-import { helpSectionsFor, TUTORIAL_TITLES, type HelpSection } from '../helpSections.ts';
+import { helpSectionsFor, TUTORIAL_TITLES, tutorialIdsFor, type HelpSection } from '../helpSections.ts';
 import { businessFieldsOf } from '../businessFields.ts';
 import { isMissingColumnError } from '../pgError.ts';
 import { checkIpLimit, checkTenantLimit } from '../rateLimit.ts';
@@ -60,7 +60,8 @@ function renderSections(sections: HelpSection[]): string {
 export function buildHelpPrompt(fields: unknown): string {
   const sections = helpSectionsFor(fields);
   const nailsOnly = Array.isArray(fields) && fields.includes('nails') && !fields.includes('cosmetics');
-  const videos = Object.entries(TUTORIAL_TITLES).map(([id, title]) => `${id}: ${title}`).join('\n');
+  // Only the videos this business may be pointed to: a nails-only business never hears about the skin scanner.
+  const videos = tutorialIdsFor(fields).map((id) => `${id}: ${TUTORIAL_TITLES[id]}`).join('\n');
   return `את העוזרת של קלמיה, מערכת לניהול עסק יופי. בעלת העסק שואלת איך עושים משהו במערכת, ואת עונה לה.
 
 החומר היחיד שמותר לך לענות ממנו הוא מדריך העזרה ורשימת הסרטונים שלמטה. אין לך שום מידע אחר על המערכת ואין לך גישה לנתונים של העסק שלה.

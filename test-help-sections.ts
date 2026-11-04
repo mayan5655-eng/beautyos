@@ -49,3 +49,13 @@ console.log('help sections: ok');
   assert.ok(app.includes('data-testid="help-tutorials-link"') && app.includes('href={tutorialHref(v)}'));
   console.log('help videos ok');
 }
+
+// 2026-11-04: a nails-only business is never pointed to the skin-scan video, in the help page or the help chat.
+{
+  const { tutorialIdsFor, COSMETICS_ONLY_VIDEOS } = await import('./lib/helpSections.ts');
+  const nails = helpSectionsFor(['nails']);
+  for (const sec of nails) for (const v of sec.videos || []) assert.ok(!COSMETICS_ONLY_VIDEOS.includes(v), `nails help section ${sec.key} has no ${v}`);
+  assert.ok(!tutorialIdsFor(['nails']).includes('skin-scan'));
+  assert.ok(tutorialIdsFor(['cosmetics']).includes('skin-scan') && tutorialIdsFor(['nails', 'cosmetics']).includes('skin-scan'));
+  console.log('nails videos ok');
+}
