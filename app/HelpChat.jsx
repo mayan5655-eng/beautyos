@@ -28,7 +28,12 @@ const tap = { minHeight: 44, fontFamily: 'inherit', cursor: 'pointer' };
 
 export default function HelpChat({ messages, setMessages, activeTab, onAskHuman, pcGrad, pcDeep }) {
   const [input, setInput] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  // The conversation outlives this component (it lives in the dashboard), but local state does not: closing and reopening the
+  // sheet mid-answer used to reset "sending" and let a second question overlap the first. A question still waiting for its reply
+  // is the last message, so that alone keeps her from asking again until the first one is answered (or fails).
+  const awaitingReply = messages.length > 0 && messages[messages.length - 1].role === 'user';
+  const busy = sending || awaitingReply;
   const logRef = useRef(null);
 
   useEffect(() => {
@@ -48,7 +53,7 @@ export default function HelpChat({ messages, setMessages, activeTab, onAskHuman,
       .map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [...prev, { role: 'user', content: q }]);
     setInput('');
-    setBusy(true);
+    setSending(true);
     try {
       const res = await fetch('/api/help-chat', {
         method: 'POST',
@@ -66,7 +71,7 @@ export default function HelpChat({ messages, setMessages, activeTab, onAskHuman,
     } catch {
       setMessages((prev) => [...prev, { role: 'note', kind: 'error', reason: 'network', content: FALLBACK_ERROR }]);
     } finally {
-      setBusy(false);
+      setSending(false);
     }
   }
 

@@ -260,3 +260,10 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
 }
 
 console.log('help chat: ok');
+
+// Bot review 2026-11-04: closing and reopening the sheet mid-answer must not allow a second, overlapping question.
+{
+  const src = (await import('node:fs')).readFileSync('app/HelpChat.jsx', 'utf8');
+  if (!/const awaitingReply = messages\.length > 0 && messages\[messages\.length - 1\]\.role === 'user'/.test(src) || !/const busy = sending \|\| awaitingReply/.test(src)) throw new Error('busy must include a question still waiting for its reply');
+  console.log('ok - an unanswered question keeps the chat busy across close and reopen');
+}
