@@ -267,7 +267,7 @@ const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","�
 // Reassuring steps cycled through while the AI skin scan is processing, so the
 // wait feels alive and progressing rather than frozen.
 const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
-import { HELP_TITLE, HELP_INTRO, helpSectionsFor } from "@/lib/helpSections";
+import { HELP_TITLE, HELP_INTRO, helpSectionsFor, TUTORIAL_TITLES, tutorialHref } from "@/lib/helpSections";
 
 // "**x**" -> <b>x</b>; everything else passes through untouched.
 const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
@@ -10845,6 +10845,16 @@ ${MARKETING_FOOTER}`)}`;
                             if(line.startsWith("- ")) return <p key={j} style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.75,margin:"0 0 3px",paddingRight:14,textIndent:-14}}>• {helpInline(line.slice(2))}</p>;
                             return <p key={j} style={{fontSize:"var(--t-sm)",color:"var(--ink)",lineHeight:1.75,margin:"0 0 9px"}}>{helpInline(line)}</p>;
                           })}
+                          {(sec.videos||[]).filter(v=>TUTORIAL_TITLES[v]).length>0&&(
+ <div data-testid={`help-videos-${sec.key}`} style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+                              {(sec.videos||[]).filter(v=>TUTORIAL_TITLES[v]).map(v=>(
+ <a key={v} href={tutorialHref(v)} target="_blank" rel="noopener noreferrer"
+    style={{display:"inline-flex",alignItems:"center",gap:6,minHeight:44,padding:"0 14px",borderRadius:"var(--r-full)",background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:600,textDecoration:"none"}}>
+ <span aria-hidden style={{color:pc}}>▶</span> סרטון: {TUTORIAL_TITLES[v]}
+ </a>
+                              ))}
+ </div>
+                          )}
  </div>
                       )}
  </div>
