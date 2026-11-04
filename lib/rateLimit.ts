@@ -169,6 +169,17 @@ export const RATE_POLICIES = {
       `נשלחו כבר כמה הודעות. אפשר לשלוח שוב ${m}, או לכתוב לנו ישירות בוואטסאפ.`,
   },
 
+  // The help chat at the top of the "תקועה?" sheet (app/api/help-chat). One question at a time, a few seconds each; the
+  // monthly cap (callCaps.ts 'help_chat') is the budget, this only stops a loop.
+  'help-chat': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נשאלו הרבה שאלות ברצף. אפשר לשאול שוב ${m}, או לשלוח לנו הודעה למטה.`,
+    tenantMessage: (m: string) =>
+      `נשאלו הרבה שאלות ברצף. אפשר לשאול שוב ${m}, או לשלוח לנו הודעה למטה.`,
+  },
+
   // The feedback banner. One answer per business, so this only stops a retry loop.
   feedback: {
     perIp: { limit: 20, windowMs: 10 * MINUTE },

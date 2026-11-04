@@ -3,102 +3,21 @@ import { useState, useEffect, useRef } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { accentStyle } from "@/lib/theme";
+// The templates live in lib/formTemplates.ts (2026-11-04), shared with the owner's answers view in the client card.
+// Every template that was defined here is there word for word under the same key, so a link already sent opens the
+// same form, and answers are still keyed by the question's index.
+import { templateFor, isSection, normalizeQuestion, isAnswered, missingRequired, progressOf, showsNote, toggleMulti, splitMulti, answersToStore, YES, NO } from "@/lib/formTemplates";
 
-const FORMS = {
-  "general": {
-    title: "הצהרת בריאות כללית",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם יש לך מחלות עור (פסוריאזיס, אקזמה, רוזציאה)?",
-      "האם יש לך אלרגיות ידועות לקוסמטיקה?",
-      "האם את סובלת מסוכרת?",
-      "האם את נוטלת תרופות מדללות דם?",
-      "האם עברת ניתוחים באזור הפנים בשנה האחרונה?",
-      "האם יש לך בעיות לב או לחץ דם גבוה?",
-      "האם את סובלת מאפילפסיה?",
-      "האם יש לך שתלים מתכתיים בגוף?",
-    ]
-  },
-  "nails_general": {
-    title: "הצהרת בריאות ואישור טיפול (ציפורניים)",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם יש לך אלרגיה לג'ל, לאקריליק, ללק או לחומרי חיטוי?",
-      "האם יש לך פטרת, דלקת או פצע פתוח בציפורניים או בעור סביבן?",
-      "האם את סובלת מסוכרת או מבעיות במחזור הדם בכפות הידיים או הרגליים?",
-      "האם את נוטלת תרופות מדללות דם?",
-      "האם היו לך תגובות לא נעימות אחרי טיפול ציפורניים בעבר?",
-      "האם יש משהו נוסף שחשוב שאדע לפני הטיפול?",
-    ]
-  },
-  "nails_media": {
-    title: "אישור צילום עבודות",
-    questions: [
-      "האם את מסכימה שאצלם את העבודה שנעשתה בציפורניים שלך?",
-      "האם את מסכימה שהתמונות יפורסמו בעמודי העסק (ללא פרטים מזהים)?",
-      "האם ידוע לך שאפשר לבקש להסיר תמונה בכל עת?",
-    ]
-  },
-  "plasma": {
-    title: "הצהרת בריאות — טיפול פלזמה",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם יש לך קוצב לב או שתל מתכתי?",
-      "האם את סובלת מאפילפסיה?",
-      "האם יש לך בעיות קרישת דם?",
-      "האם את נוטלת תרופות מדללות דם?",
-      "האם יש לך פצעים פתוחים או דלקות עור פעילות באזור הטיפול?",
-      "האם יש לך הרפס חוזר באזור הטיפול?",
-      "האם את סובלת מסוכרת?",
-      "האם עברת טיפול פלזמה בחודש האחרון?",
-      "האם יש לך רגישות יתר לחום?",
-    ]
-  },
-  "device": {
-    title: "הצהרת בריאות — טיפול במכשור מתקדם",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם יש לך קוצב לב או דפיברילטור?",
-      "האם יש לך שתלים מתכתיים באזור הטיפול?",
-      "האם את סובלת מאפילפסיה?",
-      "האם יש לך בעיות לב או לחץ דם?",
-      "האם את סובלת מסרטן פעיל?",
-      "האם יש לך בעיות קרישת דם?",
-      "האם את נוטלת תרופות מדללות דם?",
-      "האם יש לך פצעים פתוחים באזור הטיפול?",
-      "האם עברת ניתוח בשנה האחרונה באזור הטיפול?",
-    ]
-  },
-  "laser": {
-    title: "הצהרת בריאות — הסרת שיער בלייזר",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם את נוטלת תרופות פוטוסנסיטיביות (מינוציקלין, טטרציקלין)?",
-      "האם את נוטלת רואקוטן? (אם כן, האם עצרת לפני 6 חודשים?)",
-      "האם יש לך קעקועים באזור הטיפול?",
-      "האם היית חשופה לשמש עזה בשבועיים האחרונים?",
-      "האם יש לך הרפס חוזר באזור הטיפול?",
-      "האם עברת טיפול לייזר בחודש האחרון?",
-      "האם יש לך מחלות עור פעילות באזור הטיפול?",
-      "האם את סובלת מסוכרת?",
-      "האם יש לך נטייה להיצטלקות (קלואידים)?",
-    ]
-  },
-  "peel": {
-    title: "הצהרת בריאות — טיפול פילינג",
-    questions: [
-      "האם את בהריון או מניקה?",
-      "האם את נוטלת רואקוטן?",
-      "האם יש לך פצעים פתוחים או דלקות עור פעילות?",
-      "האם היית חשופה לשמש עזה בשבוע האחרון?",
-      "האם יש לך אלרגיה לחומצות (AHA/BHA/TCA)?",
-      "האם עברת פילינג בחודש האחרון?",
-      "האם יש לך הרפס חוזר בפנים?",
-      "האם את נוטלת תרופות מדללות דם?",
-      "האם יש לך נטייה להיצטלקות?",
-    ]
-  }
-};
+// One look for every answer button: the yes/no pair, the choice chips and the multi chips. 44px tall at least, the
+// phone's touch target.
+const chipStyle = (selected, { grow = false, yes = false } = {}) => ({
+  flex: grow ? 1 : "0 1 auto", minHeight: 44, padding: "10px 14px", border: "1.5px solid",
+  borderColor: selected ? "var(--ink, #1F3A30)" : "var(--pc-soft)", borderRadius: "var(--r-sm)",
+  background: selected ? (yes ? "var(--pc-tint, #FDF6F6)" : grow ? "var(--success, #46B37B)" : "var(--pc-tint, #FDF6F6)") : "var(--brand-cream, #FBF8F1)",
+  color: "var(--ink, #1F3A30)", fontSize: "var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", lineHeight: 1.3,
+});
+const noteStyle = { width: "100%", marginTop: 8, border: "1.5px solid var(--pc-tint-2)", borderRadius: "var(--r-xs)", padding: "8px 12px", fontSize: "var(--t-md)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--pc-tint, #FDF6F6)", resize: "none", boxSizing: "border-box" };
+const textStyle = { ...noteStyle, marginTop: 0, minHeight: 44, background: "var(--brand-cream, #FBF8F1)", border: "1.5px solid var(--pc-soft)", fontSize: 16 };
 
 export default function FormPage() {
   const [formId, setFormId] = useState(null);
@@ -121,6 +40,8 @@ export default function FormPage() {
   // is not RTL, and dismissing it leaves her with no record of what was wrong.
   // This banner sits above the submit button where the problem is.
   const [submitError, setSubmitError] = useState("");
+  // Set by a submit with questions still open: from then on each unanswered required question is outlined.
+  const [showMissing, setShowMissing] = useState(false);
   const canvasRef = useRef(null);
   const lastPos = useRef(null);
 
@@ -166,7 +87,7 @@ export default function FormPage() {
     }
   };
 
-  const formTemplate = formData ? FORMS[formData.form_type] : null;
+  const formTemplate = formData ? templateFor(formData.form_type) : null;
 
   const startDraw = (e) => {
     setDrawing(true);
@@ -205,14 +126,17 @@ export default function FormPage() {
 
   const handleSubmit = async () => {
     setSubmitError("");
-    if (!signed) { setSubmitError("חסרה חתימה, אפשר לחתום ואז לשלוח"); return; }
-    const unanswered = formTemplate.questions.filter((_,i) => !answers[i]);
+    // Only required questions count; a heading or an optional question never blocks signing. The ones still missing
+    // are marked where they are, so on a long form she does not have to hunt for them.
+    const unanswered = missingRequired(formTemplate, answers);
     if (unanswered.length > 0) {
+      setShowMissing(true);
       setSubmitError(unanswered.length === 1
-        ? "נשארה שאלה אחת בלי תשובה"
-        : `נשארו ${unanswered.length} שאלות בלי תשובה`);
+        ? "נשארה שאלה אחת בלי תשובה, היא מסומנת למעלה"
+        : `נשארו ${unanswered.length} שאלות בלי תשובה, הן מסומנות למעלה`);
       return;
     }
+    if (!signed) { setSubmitError("חסרה חתימה, אפשר לחתום ואז לשלוח"); return; }
     if (submitting) return;
     const canvas = canvasRef.current;
     const signature = canvas.toDataURL();
@@ -226,7 +150,7 @@ export default function FormPage() {
       const res = await fetch("/api/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: formId, answers, signature, marketingConsent: marketingOk === true }),
+        body: JSON.stringify({ id: formId, answers: answersToStore(formTemplate, answers), signature, marketingConsent: marketingOk === true }),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.success) {
@@ -307,8 +231,11 @@ export default function FormPage() {
     </div>
   );
 
-  const answeredCount = formTemplate.questions.filter((_,i) => answers[i]).length;
-  const progress = Math.round((answeredCount / formTemplate.questions.length) * 100);
+  // Counts only required real questions: a heading is not a question, and an optional one never holds the bar back.
+  const { done: answeredCount, total: requiredCount, pct: progress } = progressOf(formTemplate, answers);
+  const hasSections = formTemplate.questions.some(isSection);
+  const setAnswer = (key, value) => setAnswers((prev) => ({ ...prev, [key]: value }));
+  let questionNo = 0;
 
   return (
     <div dir="rtl" style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FBF8F1)",minHeight:"100dvh",padding:"24px 16px"}}>
@@ -333,7 +260,7 @@ export default function FormPage() {
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-sm)",padding:"10px 16px",marginBottom:16,border:"1px solid var(--pc-soft)"}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",marginBottom:6}}>
             <span>התקדמות</span>
-            <span>{answeredCount}/{formTemplate.questions.length} שאלות</span>
+            <span>{answeredCount}/{requiredCount} שאלות</span>
           </div>
           <div style={{background:"var(--pc-soft)",borderRadius:"var(--r-sm)",height:8}}>
             <div style={{background:"var(--pc, #E9A9A1)",borderRadius:"var(--r-sm)",height:8,width:`${progress}%`,transition:"width 0.3s"}}/>
@@ -344,26 +271,82 @@ export default function FormPage() {
           ⚠️ כדאי לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
         </div>
 
+        {formTemplate.intro && (
+          <p data-testid="form-intro" style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.7,margin:"-6px 0 20px",padding:"0 4px"}}>{formTemplate.intro}</p>
+        )}
+
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
-          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:16}}>שאלות רפואיות</h3>
-          {formTemplate.questions.map((q, i) => (
-            <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<formTemplate.questions.length-1?"1px solid var(--brand-cream, #FBF8F1)":"none"}}>
-              <p style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",marginBottom:8,lineHeight:1.5}}>{i+1}. {q}</p>
-              <div style={{display:"flex",gap:8}}>
-                {["כן","לא"].map(ans => (
-                  <button key={ans} onClick={()=>setAnswers({...answers,[i]:ans})}
-                    style={{flex:1,padding:"10px",border:"1.5px solid",borderColor:answers[i]===ans?"var(--ink, #1F3A30)":"var(--pc-soft)",borderRadius:"var(--r-sm)",background:answers[i]===ans?(ans==="כן"?"var(--pc-tint, #FDF6F6)":"var(--success, #46B37B)"):"var(--brand-cream, #FBF8F1)",fontSize:"var(--t-md)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
-                    {ans==="כן"?"✓ כן":"✗ לא"}
-                  </button>
-                ))}
-              </div>
-              {answers[i]==="כן" && (
-                <textarea onChange={e=>setAnswers({...answers,[`${i}_note`]:e.target.value})}
-                  placeholder="פרטים נוספים..." rows={2}
-                  style={{width:"100%",marginTop:8,border:"1.5px solid var(--pc-tint-2)",borderRadius:"var(--r-xs)",padding:"8px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--pc-tint, #FDF6F6)",resize:"none"}}/>
+          {/* A template with its own headings shows them; the older ones keep their single heading. */}
+          {!hasSections && <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:16}}>שאלות רפואיות</h3>}
+          {formTemplate.questions.map((item, i) => {
+            const last = i === formTemplate.questions.length - 1;
+            if (isSection(item)) return (
+              <h3 key={i} data-testid="form-section" style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",margin:i===0?"0 0 14px":"22px 0 14px",paddingBottom:6,borderBottom:"2px solid var(--pc-soft)"}}>{item.section}</h3>
+            );
+            const q = normalizeQuestion(item);
+            questionNo += 1;
+            const value = typeof answers[i] === "string" ? answers[i] : "";
+            const missing = showMissing && !q.optional && !isAnswered(item, answers, i);
+            const nextIsSection = !last && isSection(formTemplate.questions[i + 1]);
+            return (
+            <div key={i} data-testid="form-question" data-missing={missing ? "true" : undefined}
+              style={{marginBottom:16,paddingBottom:16,borderBottom:last||nextIsSection?"none":"1px solid var(--brand-cream, #FBF8F1)",...(missing?{borderInlineStart:"3px solid var(--danger, #C2557A)",paddingInlineStart:10}:{})}}>
+              <p style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",marginBottom:8,lineHeight:1.5}}>
+                {questionNo}. {q.q}
+                {q.optional && <span style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)"}}> (לא חובה)</span>}
+              </p>
+              {q.type === "yesno" && (
+                <div style={{display:"flex",gap:8}}>
+                  {[YES, NO].map(ans => (
+                    <button key={ans} type="button" aria-pressed={value===ans} onClick={()=>setAnswer(i, ans)} style={chipStyle(value===ans, { grow: true, yes: ans===YES })}>
+                      {ans===YES?"✓ כן":"✗ לא"}
+                    </button>
+                  ))}
+                </div>
               )}
+              {q.type === "choice" && (
+                <div role="radiogroup" aria-label={q.q} style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {(q.options || []).map(opt => (
+                    <button key={opt} type="button" role="radio" aria-checked={value===opt} onClick={()=>setAnswer(i, opt)} style={chipStyle(value===opt)}>
+                      {value===opt ? `✓ ${opt}` : opt}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {q.type === "multi" && (() => {
+                const picked = splitMulti(value);
+                return (
+                  <>
+                    <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",margin:"-4px 0 8px"}}>אפשר לבחור כמה</p>
+                    <div role="group" aria-label={q.q} style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                      {(q.options || []).map(opt => {
+                        const on = picked.includes(opt);
+                        return (
+                          <button key={opt} type="button" aria-pressed={on} onClick={()=>setAnswer(i, toggleMulti(q, value, opt))} style={chipStyle(on)}>
+                            {on ? `✓ ${opt}` : opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+              {q.type === "text" && (
+                <input type="text" value={value} maxLength={500} aria-label={q.q} placeholder={q.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={textStyle}/>
+              )}
+              {q.type === "longtext" && (
+                <textarea value={value} maxLength={2000} rows={3} aria-label={q.q} placeholder={q.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={{...textStyle, resize:"vertical"}}/>
+              )}
+              {showsNote(item, answers, i) && (
+                <textarea value={typeof answers[`${i}_note`] === "string" ? answers[`${i}_note`] : ""} onChange={e=>setAnswer(`${i}_note`, e.target.value)}
+                  maxLength={1000} aria-label={q.type === "multi" ? "אחר, פירוט" : "פרטים נוספים"}
+                  placeholder={q.type === "multi" ? "מה עוד?" : "פרטים נוספים..."} rows={2}
+                  style={noteStyle}/>
+              )}
+              {missing && <p style={{fontSize:"var(--t-sm)",color:"var(--danger, #C2557A)",fontWeight:600,margin:"6px 0 0"}}>חסרה כאן תשובה</p>}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>

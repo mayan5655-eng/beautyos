@@ -37,6 +37,7 @@
 //   leads/map-headers         0.001     100     $0.10      one per import
 //   marketing/groups          0.012     150     $1.80
 //   marketing/reel (Opus)     0.09       80     $7.20      ~10 reels
+//   help_chat (Haiku)         0.001     300     $0.30      a few questions a week
 //
 // The count caps are a backstop; the per-tenant dollar ceiling below bounds the
 // sum. Realistic use is $3-6 a month. This is a ceiling, not a budget.
@@ -104,6 +105,9 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   // The weekly content plan (lib/content/pack.ts): ONE Claude call writes every caption of a week's plan. Plans are
   // unlimited by decision (spec decision 5); this ceiling only stops a runaway (about 6 regenerations a week).
   'content/pack': 24,
+  // The help chat in the "תקועה?" sheet (lib/ai/helpChat.ts): Haiku 5.5, ~$0.001 a question. Heavy honest use is a
+  // few questions on a hard week; 300 a month is only reached by a loop (worst case about $0.30).
+  'help_chat': 300,
 };
 
 /**

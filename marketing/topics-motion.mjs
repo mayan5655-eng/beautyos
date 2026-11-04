@@ -10,7 +10,7 @@
 //   node topics-motion.mjs <id> --stills=all -> a draft still every 1.5 s (or --stills=3,7.5), out/motion/s-<id>-<t>.png
 //   Needs KALMEA_BASE serving public/ with CORS for the fonts (production, or a local static server) and, in a cloud
 //   session, KALMEA_CHROMIUM=/opt/pw-browsers/chromium.
-//   ids: appointment-actions | clients | till | reminders | my-page | services-hours | ai
+//   ids: appointment-actions | clients | till | reminders | my-page | services-hours | ai | skin
 //
 // Every word drawn inside the phone is the app's own text, copied from the code (2026-11-04):
 //   appointment-actions  app/MyDayCard.jsx (rows open the appointment, "✦ תור חדש"), lib/myDay.js (headline, gap line),
@@ -39,6 +39,11 @@
 //                        off by default: the weekly content plan and publishing to Instagram/Facebook (content_plan,
 //                        content_publish_meta), the old campaign texts, the CE.SDK reel POC, add-on packs; nor anything that
 //                        sends WhatsApp automatically.
+//   skin                 the AI skin scan (published as kalmea-skin-scan): her scanner link and QR in Settings, the scan button
+//                        in the client card, the client's page (app/skin-scan/page.jsx, lib/skinScanView.ts), what reaches her
+//                        afterwards (the hot-lead notification, the "סורק העור" lead, the card's scan history) and the monthly
+//                        ceiling (lib/skinScanQuota.ts). The report is an EXAMPLE and says so; the photo is an abstract oval.
+//                        Details in section 8 below.
 // Where the app's own line has an em or en dash it is shortened, never re-worded (the owner's copy rule for new text): e.g. the
 // till's title "קופה — תשלום חדש" is drawn as "קופה". Names, phones and sums are made up; the phones are the app's placeholders.
 //
@@ -572,7 +577,7 @@ const needsRow = `<div style="margin-top:6px;padding-top:8px;border-top:1px soli
 const attention = (over = '') => `<div class="scr"><p class="h" style="margin-bottom:8px">היום</p>
     <div class="card nw"><p style="font:700 17px KF;margin-bottom:8px">דורש תשומת לב</p>
       <div style="border-right:3px solid #2E7D57;background:${PCT};border-radius:10px;padding:9px 10px">
-        <div class="row" style="gap:5px"><b style="font-size:13px">הודעות מוכנות לשליחה</b><span class="badge" style="background:#fff;border:1px solid #E4DCCF;color:#6B756F">וואטסאפ</span><span class="badge" style="background:rgba(242,184,75,.18);color:#8A5D06">ממתין</span></div>
+        <div class="row" style="gap:4px"><b style="font-size:12px">הודעות מוכנות לשליחה</b><span class="badge" style="background:#fff;border:1px solid #E4DCCF;color:#6B756F">וואטסאפ</span><span class="badge" style="background:rgba(242,184,75,.18);color:#8A5D06">ממתין</span></div>
         <p style="font-size:12px;margin-top:2px">3 הודעות</p><p class="mu">כל אחת שלוחה בלחיצה אחת מהוואטסאפ שלך</p>
         <div class="row" style="gap:6px;margin-top:8px"><span class="pill" style="background:linear-gradient(135deg,#F2C2BA,${PC})" ${k('open')}>פתיחת הרשימה</span><span class="pill ghost">הסתרה</span></div></div></div>
     ${myDay({ needs: needsRow })}${nav('היום')}${over}</div>`;
@@ -1179,9 +1184,555 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>`;
 
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// 8. skin: the AI skin scan, from her link to the client's report and back to her
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// Her side: Settings > לקוחות ופניות, the scanner card (beautyos.jsx: "קישורים ללקוחות", the signed link from /api/skin-scan/link,
+// "העתקת קישור" and its toast, the QR, "סריקות החודש" used / limit), and "✦ סריקת עור AI" in the client card. Both are shown
+// only when skinScanVisible() is true, which it is by default for a cosmetics business (lib/featureFlags.ts).
+// The client's side is app/skin-scan/page.jsx as redesigned (2026-11-04) and lib/skinScanView.ts: the three steps, the two
+// consent boxes, the privacy line, the framing guide and its tips, front + optional profiles, the scan (SCAN_STEPS, zones per
+// step), and the results: summary ring, zone map ("המיקום משוער"), concern cards with the severity meter (concern_levels),
+// the treatment with "אצלנו בקליניקה" and "קביעת תור" (lib/branding.ts DEFAULT_CTA), the AM/PM tabs with ingredient chips,
+// "איך זה עובד", the therapist section behind "חלק מקצועי למטפלת", the WhatsApp card and its QUEUED answer ("הבקשה התקבלה",
+// /api/skin-scan/send: sendWhatsApp falls back to her manual queue), and the quota refusal ("הסורק מלא לחודש הזה").
+// Afterwards: the owner notification "ליד חם מסורק העור" in "דורש תשומת לב" (lib/ownerNotify.js), the lead with source
+// "סורק העור" (lib/leads upsertScanLead), and the "סריקות עור" tab, which holds the scans she makes from the card (skin_scans).
+// The report is an EXAMPLE written for the video, built only from fields the model returns, and says so on screen.
+// The client's photo is never shown: an abstract, skin-toned oval stands in for it (owner: no person, face or figure).
+// Not shown, because they are off by default: the skin follow-up suggestions (automations.skin_followup.mode is "off" until
+// she picks "באישור"), add-on scan packs (lib/pricing.ts). Nor anything sent from the central number by itself.
+
+const SKIN_CSS = `
+.scr.nw,.scr.nw *{white-space:nowrap}
+.ss{position:absolute;inset:0;background:#FBF8F1;padding:10px 12px 0;direction:rtl;font:600 12.5px/1.45 KA;color:#1F3A30;overflow:hidden;text-align:right}
+.ss *{box-sizing:border-box;white-space:nowrap}
+.ss p{margin:0}
+.ss .c{text-align:center}
+.ss .biz{font:700 16px KF;color:#1F3A30;text-align:center}
+.ss .eb{font:700 10.5px KA;color:#A75C52;letter-spacing:.03em}
+.ss .h1{font:700 20px/1.22 KF;color:#1F3A30;text-align:center}
+.ss .mut{font:600 11.5px/1.5 KA;color:#44594F}
+.ss .h2{font:700 16.5px/1.3 KF;color:#1F3A30}
+.sch{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #E8E1D1;border-radius:999px;padding:2px 9px;font:600 10.5px KA;color:#44594F}
+.stps{display:flex;justify-content:center;gap:5px;margin:8px 0 9px}
+.stp{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 7px;border-radius:999px;font:700 11px KA;color:#44594F;border:1px solid #E8E1D1}
+.stp i{font-style:normal;width:17px;height:17px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:700 9.5px KA;background:#F4EFE4;color:#44594F}
+.stp.now{border-color:#C48E87;background:#fff;color:#1F3A30}.stp.now i{background:${PC};color:#14261F}
+.stp.done i{background:#1F3A30;color:#fff}
+.sc{background:#fff;border:1px solid #E8E1D1;border-radius:16px;padding:11px 12px;margin-bottom:9px;box-shadow:0 2px 8px -4px rgba(31,58,48,.16)}
+.ck{display:flex;gap:9px;align-items:flex-start;padding:5px 0}
+.ck .bx{width:19px;height:19px;border-radius:5px;box-shadow:inset 0 0 0 1.5px #8A948F;flex:none;margin-top:1px;background:#fff;position:relative}
+.ck .bx b{position:absolute;inset:0;border-radius:5px;background:#C48E87;color:#fff;display:flex;align-items:center;justify-content:center;font:700 12px KA}
+.priv{display:flex;gap:7px;align-items:flex-start;margin-top:5px;padding:8px 10px;border-radius:11px;background:#F4EFE4;font:600 11px/1.5 KA;color:#44594F}
+.vf{position:relative;margin:0 auto;border-radius:18px;overflow:hidden;border:1px solid #E8E1D1}
+.vf > svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.vf .em{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:700 11.5px KA;color:#1F3A30}
+.vf .sw{position:absolute;inset:0}
+.vf .sl{position:absolute;left:7%;right:7%;top:50%;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#fff 18%,#fff 82%,transparent);box-shadow:0 0 12px 3px rgba(233,169,161,.6)}
+.vf .sl::before{content:'';position:absolute;left:0;right:0;bottom:2px;height:46px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.24))}
+.tips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.tip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 3px;border-radius:11px;background:#F4EFE4;font:600 9.5px/1.35 KA;color:#44594F;text-align:center}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.slot{position:relative;height:96px;border-radius:13px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#FBF8F1;border:1.5px dashed #DAD2BF;text-align:center}
+.slot.req{border-color:#C48E87}
+.slot .cap{position:absolute;bottom:0;left:0;right:0;background:rgba(20,24,22,.62);color:#fff;font:600 8.5px KA;padding:3px 0;text-align:center}
+.slot .ok{position:absolute;top:5px;left:5px;width:19px;height:19px;border-radius:50%;background:#1F3A30;color:#fff;display:flex;align-items:center;justify-content:center;font:700 11px KA}
+.slot .fill{position:absolute;inset:0}
+.sbar{height:4px;border-radius:4px;background:#F4EFE4;overflow:hidden;margin-top:7px;position:relative}
+.sbar span{position:absolute;top:0;bottom:0;right:0;background:#C48E87}
+.prim{display:flex;align-items:center;justify-content:center;gap:7px;height:42px;border-radius:999px;background:${PC};border:1px solid #C48E87;color:#14261F;font:700 14px KA}
+.wab{display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:13px;background:#25D366;color:#0B2A1A;font:700 12.5px KA}
+.quiet{display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:13px;background:#fff;border:1px solid #DAD2BF;color:#1F3A30;font:700 12.5px KA}
+.slist{margin-top:8px}
+.slist li{list-style:none;display:flex;align-items:center;gap:9px;height:24px;font:600 12px KA;color:#44594F}
+.slist ol{margin:0;padding:0}
+.slist .d{width:19px;height:19px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid #DAD2BF;font:700 9px KA;overflow:hidden;color:transparent;position:relative}
+.slist li[data-state="done"] .d{background:#1F3A30;border-color:#1F3A30;color:#fff}
+.slist li[data-state="now"]{color:#1F3A30;font-weight:700}
+.slist li[data-state="now"] .d{border-color:#C48E87}
+.slist li[data-state="now"] .d::after{content:'';position:absolute;width:7px;height:7px;border-radius:50%;background:#C48E87}
+.slist li[data-state="next"]{color:#546860}
+.sum{display:flex;gap:12px;align-items:center}
+.rg{position:relative;width:84px;height:84px;flex:none}
+.rg svg{width:84px;height:84px;transform:rotate(-90deg)}
+.rg .v{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.rg .v b{font:700 27px KF;color:#1F3A30}
+.rg .v small{font:600 9.5px KA;color:#44594F;margin-top:3px}
+.meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.clos{margin-top:9px;padding:7px 10px;border-radius:11px;background:#FDF6F6;font:600 11.5px KA;color:#1F3A30}
+.leg{display:flex;justify-content:center;gap:9px;margin-top:8px}
+.leg span{display:inline-flex;align-items:center;gap:4px;font:600 11.5px KA;color:#1F3A30}
+.cn{width:19px;height:19px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:700 10px KA;background:${PC};color:#14261F;flex:none}
+.cc{display:flex;gap:9px;align-items:flex-start;padding:9px 0;border-top:1px solid #E8E1D1}
+.cc:first-of-type{border-top:none;padding-top:4px}
+.cc .t{font:700 13px KA;color:#1F3A30}
+.ctg{display:flex;align-items:center;gap:5px 7px;margin-top:5px}
+.zt{display:inline-flex;align-items:center;gap:3px;font:600 10px KA;color:#44594F;background:#F4EFE4;border-radius:999px;padding:1px 8px}
+.foc{font:700 10px KA;color:#A75C52;border:1px solid ${PC};border-radius:999px;padding:0 8px}
+.sev{display:inline-flex;align-items:center;gap:5px;font:600 10px KA;color:#44594F}
+.sev i{display:inline-block;width:13px;height:5px;border-radius:3px;background:#DAD2BF;margin-left:2px}
+.sev i.on{background:#44594F}
+.treat{border-top:4px solid ${PC};background:linear-gradient(180deg,#FDF6F6 0%,#fff 70%);text-align:center;padding:14px 12px}
+.svc-match{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:4px 11px;border-radius:999px;background:#fff;border:1px solid #E8E1D1;font:600 11.5px KA;color:#1F3A30}
+.tgl{display:flex;justify-content:space-between;align-items:center;height:42px;padding:0 13px;border-radius:14px;background:#fff;border:1px solid #E8E1D1;font:700 12.5px KA;color:#1F3A30;margin-bottom:9px}
+.rtabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border-radius:999px;background:#F4EFE4;margin-bottom:10px}
+.rtabs span{height:34px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:700 12.5px KA;color:#44594F}
+.rtabs span.on{background:#fff;color:#1F3A30;box-shadow:0 1px 3px rgba(31,58,48,.15)}
+.tl li{list-style:none;position:relative;display:flex;gap:10px;padding-bottom:11px}
+.tl ol{margin:0;padding:0}
+.tl li:not(:last-child)::before{content:'';position:absolute;right:10px;top:22px;bottom:0;width:1.5px;background:#E8E1D1}
+.tl .n{width:21px;height:21px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font:700 10px KA;border:1.5px solid #C48E87;background:#fff;position:relative}
+.tl .tt{font:600 12.5px KA;color:#1F3A30;padding-top:1px}
+.ings{display:flex;gap:4px;margin-top:4px}
+.ing{display:inline-block;font:700 10.5px KA;color:#1F3A30;background:#FDF6F6;border:1px solid #F5DEDA;border-radius:6px;padding:1px 7px;direction:ltr;unicode-bidi:isolate}
+.pr{padding:6px 0;border-top:1px solid #E8E1D1}
+.pr:first-of-type{border-top:none}
+.pr .k{font:700 10.5px KA;color:#44594F}
+.pr .v{font:600 12px/1.5 KA;color:#1F3A30}
+.sin{height:38px;border:1.5px solid #DAD2BF;border-radius:11px;padding:0 12px;display:flex;align-items:center;font:600 13px KA;color:#9AA29E;background:#fff;margin-bottom:7px;position:relative;overflow:hidden}
+.sin.f{color:#1F3A30}
+.okc{width:40px;height:40px;border-radius:50%;background:#2E7D57;color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 7px}
+.qr{width:84px;height:84px;flex:none;border:1px solid #E4DCCF;border-radius:8px;background:#fff;padding:5px}
+.att{border:1px solid #E4DCCF;background:#F6F2EA;border-radius:13px;padding:9px 10px;margin-bottom:7px}
+.att .ic{width:26px;height:26px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font:700 13px KA}
+.att .src{font:700 9.5px KA;color:#6B756F;background:#fff;border:1px solid #E4DCCF;border-radius:999px;padding:0 5px}
+.att .wt{font:700 9.5px KA;color:#B07A1E;background:rgba(242,184,75,.15);border-radius:999px;padding:0 5px}
+.lead{background:#fff;border:1px solid #E4DCCF;border-radius:14px;padding:9px 10px;display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.lead .ic{width:32px;height:32px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;font:700 15px KA}
+.scrow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid #F4EFE4}
+.scrow .im{width:40px;height:40px;border-radius:10px;flex:none;overflow:hidden;position:relative;background:${PCT};display:flex;align-items:center;justify-content:center;color:${PCD};font:700 17px KA}
+.scrow .sco{width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font:800 12px KA}`;
+
+// ── small drawn icons (the page uses app/Icon.jsx line icons; these are the same shapes, simplified) ──
+const ico = (d, s = 14, w = 1.8) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" style="flex:none;fill:none;stroke:currentColor;stroke-width:${w};stroke-linecap:round;stroke-linejoin:round">${d}</svg>`;
+const I = {
+  lock: (s) => ico('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', s),
+  cam: (s) => ico('<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.4"/>', s),
+  sun: (s) => ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>', s),
+  moon: (s) => ico('<path d="M19 14.5A7.5 7.5 0 1 1 9.5 5a6 6 0 0 0 9.5 9.5z"/>', s),
+  smile: (s) => ico('<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2a4.4 4.4 0 0 0 7 0M9.3 9.8h.01M14.7 9.8h.01"/>', s),
+  drop: (s) => ico('<path d="M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z"/>', s),
+  info: (s) => ico('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/>', s),
+  pin: (s) => ico('<path d="M12 20s6-5.6 6-10a6 6 0 0 0-12 0c0 4.4 6 10 6 10z"/><circle cx="12" cy="10" r="2.2"/>', s),
+  cal: (s) => ico('<rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>', s),
+  spa: (s) => ico('<path d="M12 20c-4-2-6-5-6-9 3 0 5 1.5 6 4 1-2.5 3-4 6-4 0 4-2 7-6 9zM12 15V5"/>', s),
+  spark: (s) => ico('<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2L5 10.5l5.2-1.8z"/><path d="M18.5 16l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>', s),
+  check: (s) => ico('<path d="M5 12.5l4.5 4.5L19 7.5"/>', s, 2.6),
+  clock: (s) => ico('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', s, 2.2),
+  glass: (s) => ico('<path d="M7 3.5h10M7 20.5h10M8 3.5c0 5 8 5 8 8.5s-8 3.5-8 8.5M16 3.5c0 5-8 5-8 8.5s8 3.5 8 8.5"/>', s),
+  wa: (s) => ico('<path d="M5 19l1.2-3.6A7.5 7.5 0 1 1 9 18.3z"/><path d="M9.5 9.5c.3 2 2.5 4.2 4.6 4.6l1-1.2-1.6-.9-.8.6c-.8-.4-1.4-1-1.8-1.8l.6-.8-.9-1.6z"/>', s),
+  refresh: (s) => ico('<path d="M19 12a7 7 0 1 1-2.1-5M19 4.5V8h-3.5"/>', s),
+  dl: (s) => ico('<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>', s),
+};
+
+// ── the viewfinder (app/skin-scan/page.jsx Viewfinder): the same 300x400 geometry, oval and marks ──
+const OV = { cx: 150, cy: 192, rx: 102, ry: 160 };
+const ovX = (p) => +(OV.cx + ((p - 50) / 50) * OV.rx).toFixed(1);
+const ovY = (p) => +(OV.cy + ((p - 50) / 50) * OV.ry).toFixed(1);
+const OVAL_D = `M${OV.cx - OV.rx} ${OV.cy}a${OV.rx} ${OV.ry} 0 1 0 ${OV.rx * 2} 0a${OV.rx} ${OV.ry} 0 1 0 ${-OV.rx * 2} 0Z`;
+const SCAN_SHAPES = {
+  forehead: [{ x: 50, y: 22, rx: 21, ry: 8 }],
+  eyes: [{ x: 35, y: 47, rx: 10, ry: 3.6 }, { x: 65, y: 47, rx: 10, ry: 3.6 }],
+  nose: [{ x: 50, y: 55, rx: 7, ry: 11 }],
+  cheeks: [{ x: 27, y: 63, rx: 12, ry: 9 }, { x: 73, y: 63, rx: 12, ry: 9 }],
+  chin: [{ x: 50, y: 86, rx: 11, ry: 5 }],
+};
+// SCAN_STEPS, in order, with the zones each one lights (copied from the page).
+const SCAN_STEPS = [
+  ['מזהה את אזורי הפנים', ['forehead', 'eyes', 'nose', 'cheeks', 'chin']],
+  ['בודקת לחות ומרקם', ['cheeks']],
+  ['מעריכה גוון והארה במצח ובאף', ['forehead', 'nose']],
+  ['בודקת את אזור העיניים', ['eyes']],
+  ['מתאימה טיפול מהשירותים של העסק', []],
+  ['מסכמת עבורך את הדוח', []],
+];
+// lib/skinScanView.ts ZONES: the marker points, a percentage of the face oval.
+const ZPTS = { forehead: [[50, 21]], eyes: [[35, 43], [65, 43]], nose: [[50, 54]], cheeks: [[28, 62], [72, 62]], chin: [[50, 85]] };
+
+// The abstract stand-in for her front photo: a soft skin-toned oval on a muted backdrop. No face, no features.
+const SKIN_DEFS = `<defs>
+  <radialGradient id="skG" cx="46%" cy="36%" r="70%"><stop offset="0" stop-color="#F6D7C6"/><stop offset=".55" stop-color="#E7B39B"/><stop offset="1" stop-color="#D49A82"/></radialGradient>
+  <linearGradient id="bgG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#99A39C"/><stop offset="1" stop-color="#6F7A73"/></linearGradient>
+  <radialGradient id="ppG" cx="50%" cy="46%" r="65%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".45" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F4EFE4"/></radialGradient></defs>`;
+const skinPhoto = () => `<rect width="300" height="400" fill="url(#bgG)"/><ellipse cx="150" cy="196" rx="100" ry="158" fill="url(#skG)"/>`;
+
+/** mode: guide | scan | map. photo: the stand-in oval is in. zoneAt: { key: [[a,b],...] } lit windows. marks: [{ n, key, at }]. */
+function vf({ w = 180, mode = 'guide', photo = false, label = 'צילום תמונת חזית', zoneAt = null, sweep = null, marks = [] }) {
+  const line = photo ? 'rgba(255,255,255,0.92)' : '#C48E87';
+  const br = photo ? 'rgba(255,255,255,0.95)' : '#1F3A30';
+  const eyeY = ovY(43);
+  const zones = mode === 'scan' && zoneAt ? Object.entries(SCAN_SHAPES).map(([key, shapes]) => shapes.map((s) =>
+    `<ellipse class="zn" data-zon="${(zoneAt[key] || []).map((x) => x.join('-')).join('|')}" cx="${ovX(s.x)}" cy="${ovY(s.y)}" rx="${+((s.rx / 50) * OV.rx).toFixed(1)}" ry="${+((s.ry / 50) * OV.ry).toFixed(1)}" style="fill:${PC};fill-opacity:0;stroke:#fff;stroke-opacity:0;stroke-width:1.5"/>`).join('')).join('') : '';
+  const mk = mode === 'map' ? marks.map((m) => ZPTS[m.key].map(([x, y]) => `<g ${vis(m.at)}><circle cx="${ovX(x)}" cy="${ovY(y)}" r="15" fill="rgba(255,255,255,0.35)"/><circle cx="${ovX(x)}" cy="${ovY(y)}" r="11" fill="${PC}" stroke="#fff" stroke-width="2"/><text x="${ovX(x)}" y="${ovY(y)}" text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="700" fill="#14261F">${m.n}</text></g>`).join('')).join('') : '';
+  return `<div class="vf" style="width:${w}px;height:${Math.round((w * 4) / 3)}px"><svg viewBox="0 0 300 400">${SKIN_DEFS}
+    ${photo ? skinPhoto() : '<rect width="300" height="400" fill="url(#ppG)"/>'}
+    ${photo ? `<path d="M0 0H300V400H0Z ${OVAL_D}" fill-rule="evenodd" fill="${mode === 'map' ? 'rgba(20,24,22,0.22)' : 'rgba(20,24,22,0.34)'}"/>` : ''}
+    <ellipse cx="${OV.cx}" cy="${OV.cy}" rx="${OV.rx}" ry="${OV.ry}" fill="none" stroke="${line}" stroke-width="${mode === 'guide' && !photo ? 2 : 1.5}" ${mode === 'guide' ? 'stroke-dasharray="7 7"' : ''} opacity="${mode === 'map' ? 0.7 : 1}"/>
+    ${mode !== 'map' ? `<g stroke="${line}" stroke-width="2" stroke-linecap="round"><path d="M${OV.cx - OV.rx - 16} ${eyeY}H${OV.cx - OV.rx - 4}M${OV.cx + OV.rx + 4} ${eyeY}H${OV.cx + OV.rx + 16}"/><path d="M150 ${OV.cy - OV.ry - 14}V${OV.cy - OV.ry - 4}M150 ${OV.cy + OV.ry + 4}V${OV.cy + OV.ry + 14}"/></g>` : ''}
+    <g fill="none" stroke="${br}" stroke-width="3" stroke-linecap="round" opacity="${mode === 'map' ? 0.6 : 1}"><path d="M16 54V28a12 12 0 0 1 12-12h26"/><path d="M284 54V28a12 12 0 0 0-12-12h-26"/><path d="M16 346v26a12 12 0 0 0 12 12h26"/><path d="M284 346v26a12 12 0 0 1-12 12h-26"/></g>
+    ${zones}${mk}</svg>
+    ${mode === 'scan' && sweep != null ? `<div class="sw" data-sweep="${sweep}"><div class="sl"></div></div>` : ''}
+    ${mode === 'guide' && !photo ? `<div class="em">${I.cam(22)}<span>${label}</span></div>` : ''}</div>`;
+}
+/** A small square of the same stand-in, for the angle slots and the card's scan list. */
+const miniPhoto = () => `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;width:100%;height:100%">${SKIN_DEFS}${skinPhoto()}</svg>`;
+/** items[0] until times[0], items[1] until times[1], ... the last one from the last time on. */
+const seq = (times, items) => `<div style="position:relative">${items.map((it, i) => `<div ${vis(i ? times[i - 1] : 0, i < times.length ? times[i] : 999)} style="${i ? 'position:absolute;inset:0' : ''}">${it}</div>`).join('')}</div>`;
+/** Shown from t onward, over what was there (both stay in the layout box of the first). */
+const swapAt = (t, before, after, style = '') => `<div style="position:relative;${style}"><div ${vis(0, t)} style="display:flow-root">${before}</div><div ${vis(t)} style="position:absolute;inset:0;display:flow-root">${after}</div></div>`;
+
+// ── the client's page ───────────────────────────────────────────────────────────────────────────
+const ssUrl = '<div class="url">kalmea.app/skin-scan?t=…&amp;s=…</div>';
+const ssHead = (h1 = ['הכירי את העור שלך', 'וקבלי המלצה מקצועית']) => `<p class="biz">סטודיו ליה</p><p class="eb c">ניתוח עור אישי</p>${h1.map((l) => `<p class="h1">${l}</p>`).join('')}`;
+const ssSteps = (stage) => `<div class="stps">${['אישור', 'צילום', 'ניתוח'].map((s, i) => {
+  const st = i < stage ? 'done' : i === stage ? 'now' : 'next';
+  return `<span class="stp ${st}" ${k(`st${i}`)}><i>${st === 'done' ? I.check(10) : i + 1}</i>${s}</span>`;
+}).join('')}</div>`;
+
+function ssGates({ tick1, tick2 }) {
+  const box = (t) => `<span class="bx"><b ${vis(t)}>${I.check(13)}</b></span>`;
+  return `<div class="ss">${ssUrl}${ssHead()}
+    <p class="mut c" style="margin-top:3px">העלי תמונה אחת, וקבלי ניתוח אישי</p><p class="mut c">והמלצת טיפול תוך כדקה.</p>
+    <div class="row" style="justify-content:center;gap:5px;margin-top:7px"><span class="sch">${I.spark(11)} ניתוח אישי</span><span class="sch">${I.spa(11)} המלצה מקצועית</span><span class="sch">${I.clock(11)} כדקה</span></div>
+    ${swapAt(tick2 + 0.2, ssSteps(0), ssSteps(1))}
+    <div class="sc" ${k('gates')}><p class="h2" style="margin-bottom:3px">לפני שמתחילות</p>
+      <div class="ck" ${k('ck1')}>${box(tick1)}<div class="mut" style="font-size:12px"><div><b style="color:#1F3A30">אני בת 18 ומעלה.</b> הסריקה מיועדת</div><div>לבגירות בלבד.</div></div></div>
+      <div class="ck" ${k('ck2')}>${box(tick2)}<div class="mut" style="font-size:12px"><div>אני מסכימה שתמונת הפנים שלי תישלח</div><div>לניתוח אוטומטי לצורך הערכה קוסמטית</div><div>בלבד, ושהתוצאה תוצג לי ולעסק.</div><div style="color:#A75C52;text-decoration:underline;font-weight:700">מדיניות הפרטיות</div></div></div>
+      <div class="priv" ${k('priv')}>${I.lock(14)}<div><div>התמונה משמשת רק לניתוח הזה ולא נשמרת</div><div>במערכת של העסק.</div></div></div>
+    </div></div>`;
+}
+
+const slotEmpty = (label, req, key) => `<div class="slot ${req ? 'req' : ''}" ${k(key)}>${I.cam(17)}<p style="font:700 11px KA;margin-top:3px">${label}</p><p style="font:${req ? 700 : 600} 10px KA;color:${req ? '#A75C52' : '#44594F'}">${req ? 'חובה' : 'רשות'}</p></div>`;
+const slotFull = (label) => `<div class="slot" style="border:1px solid #E8E1D1;background:#fff"><div class="fill">${miniPhoto()}</div><span class="ok">✓</span><span class="cap">${label} · החלפה</span></div>`;
+/** The capture card at stage 0 (the guide) to 3 (front, left and right taken), each stage its own still screen. */
+function ssCapture(stage) {
+  const slots = [['חזית', true, 'sf'], ['פרופיל שמאל', false, 'sl'], ['פרופיל ימין', false, 'sr']];
+  return `<div class="ss" style="padding-top:12px">${ssSteps(1)}
+    <div class="sc" style="padding-top:12px">
+      ${vf({ w: 168, photo: stage > 0 })}
+      <p class="mut c" style="margin-top:6px">${stage ? 'נראה טוב. אפשר להוסיף פרופילים, או להמשיך לניתוח.' : 'פנים בתוך האליפסה, העיניים בגובה הסימונים שבצדדים.'}</p>
+      ${stage ? '' : `<div class="tips" ${k('tips')}><div class="tip">${I.sun(15)}<div>אור טבעי ורך מולך</div></div><div class="tip">${I.smile(15)}<div>מבט ישר למצלמה</div></div><div class="tip">${I.drop(15)}<div>בלי איפור, שיער אסוף</div></div></div>`}
+      <div class="row sb" style="margin:8px 0 6px"><p style="font:700 11.5px KA">זוויות צילום</p><p style="font:600 10.5px KA;color:#44594F">${stage} מתוך 3</p></div>
+      <div class="slots">${slots.map(([l, req, key], i) => `<div ${k(`w-${key}`)}>${i < stage ? slotFull(l) : slotEmpty(l, req, key)}</div>`).join('')}</div>
+      <div class="sbar"><span style="width:${((stage / 3) * 100).toFixed(1)}%"></span></div>
+      <div class="mut c" style="margin-top:7px;font-size:10.5px"><div><b style="color:#1F3A30">תמונת חזית</b> היא כל מה שצריך לניתוח. אפשר</div><div>להוסיף גם פרופיל שמאל וימין אם תרצי (רשות).</div></div>
+      ${stage ? `<div style="margin-top:9px"><div class="prim" ${k('analyze')}>${I.spark(15)} קבלי את הניתוח שלך</div></div>` : ''}
+    </div></div>`;
+}
+
+/** The wait: the scan line and the zone highlights over the stand-in, and the step list advancing (STEP_MS, sped up). */
+function ssScanning({ t0, dt }) {
+  const zoneAt = {};
+  SCAN_STEPS.forEach(([, zs], i) => {
+    const a = +(t0 + i * dt).toFixed(2), b = i === SCAN_STEPS.length - 1 ? 999 : +(a + dt).toFixed(2);
+    for (const z of zs) (zoneAt[z] ||= []).push([a, b]);
+  });
+  return `<div class="ss" style="padding-top:14px">${ssHead()}${ssSteps(2)}
+    <div class="sc" style="padding:10px 12px"><p class="eb c" style="margin-bottom:5px">סריקה בתהליך</p>
+      ${vf({ w: 150, mode: 'scan', photo: true, zoneAt, sweep: t0 })}
+      <div class="slist"><ol data-steps="${t0},${dt},${SCAN_STEPS.length}">${SCAN_STEPS.map(([s]) => `<li data-state="next"><span class="d">${I.check(11)}</span>${s}</li>`).join('')}</ol></div>
+      <p class="mut c" style="margin-top:6px">רגע אחד, מכינות עבורך ניתוח אישי.</p><p class="mut c">זה לוקח בדרך כלל פחות מדקה.</p>
+    </div></div>`;
+}
+
+// ── the report: an EXAMPLE, only fields the model returns (score, skin_type, summary, concerns, concern_levels, ...) ──
+const REPORT = {
+  score: 74,
+  skinType: ['עור מעורב,', 'נוטה לשומניות'],
+  concerns: [
+    { t: 'נקבוביות מורחבות באף ובמצח', zones: ['מצח', 'אף'], lvl: 2 },
+    { t: 'אדמומיות קלה בלחיים', zones: ['לחיים'], lvl: 1 },
+    { t: 'כהות עדינה באזור העיניים', zones: ['אזור העיניים'], lvl: 1 },
+  ],
+  marks: [{ n: 1, key: 'forehead', he: 'מצח' }, { n: 1, key: 'nose', he: 'אף' }, { n: 2, key: 'cheeks', he: 'לחיים' }, { n: 3, key: 'eyes', he: 'אזור העיניים' }],
+  treatment: 'ניקוי עמוק ופילינג עדין',
+  matched: 'ניקוי פנים עמוק',
+  am: [['ניקוי עדין בג׳ל מאזן', []], ['סרום niacinamide 5%', ['niacinamide 5%']], ['קרם הגנה SPF 50', ['SPF 50']]],
+  pm: [['ניקוי כפול עדין', []], ['סרום hyaluronic acid', ['hyaluronic acid']], ['קרם לילה עם ceramides', ['ceramides']]],
+};
+const LV = ['קל', 'בינוני', 'בולט'];
+const sev = (v) => `<span class="sev"><span>${[1, 2, 3].map((b) => `<i class="${b <= v ? 'on' : ''}"></i>`).join('')}</span><span>${LV[v - 1]}</span></span>`;
+const ssReportHead = () => `<p class="biz">סטודיו ליה</p><p class="eb c">ניתוח עור אישי</p><p class="h1" style="margin-bottom:8px">דוח העור שלך מוכן</p>`;
+
+function ssSummary({ t0 }) {
+  return `<div class="ss">${ssUrl}${ssReportHead()}
+    <div class="sc" style="background:#F4EFE4;border:none;box-shadow:none;display:flex;gap:8px;padding:9px 11px" ${k('disc')}>${I.info(14)}<div class="mut" style="font-size:11px"><div>הסריקה נועדה להתרשמות ראשונית בלבד</div><div>ואינה מחליפה ייעוץ או אבחון מקצועי. אין</div><div>להסתמך על ההמלצות כאבחנה סופית.</div></div></div>
+    <div class="sc"><p class="eb" style="margin-bottom:6px">סיכום · סטודיו ליה</p>
+      <div class="sum"><div class="rg" ${k('ring')}><svg viewBox="0 0 104 104"><circle cx="52" cy="52" r="45" fill="none" stroke="#FBF0EE" stroke-width="8"/><circle data-arc="${t0},${REPORT.score}" cx="52" cy="52" r="45" fill="none" stroke="#C48E87" stroke-width="8" stroke-linecap="round" stroke-dasharray="0 282.7"/></svg>
+        <div class="v"><b data-count="${t0},${REPORT.score}">0</b><small>מתוך 100</small></div></div>
+        <div ${k('type')}><p style="font:700 10.5px KA;color:#44594F">מדד בריאות העור שלך</p>${REPORT.skinType.map((l) => `<p style="font:700 15.5px/1.3 KF">${l}</p>`).join('')}
+          <div class="mut" style="font-size:11px;margin-top:3px"><div>יש לך בסיס יפה לעבודה. עם ליווי</div><div>מותאם אפשר לראות שיפור נעים וברור.</div></div></div></div>
+      <div class="meta"><span class="sch">3 ממצאים</span><span class="sch">4 אזורים בפנים</span><span class="sch">שגרה לבוקר ולערב</span></div>
+      <p class="clos">זו הערכה ראשונית. בפגישה נתאים לך הכול.</p>
+    </div>
+    <div class="sc"><p class="eb">מפת אזורים</p><p class="h2" style="margin-bottom:8px">איפה זה בפנים</p>${vf({ w: 236, mode: 'map', photo: true })}</div></div>`;
+}
+function ssMap({ t0 }) {
+  const marks = REPORT.marks.map((m, i) => ({ ...m, at: +(t0 + 0.6 + i * 0.45).toFixed(2) }));
+  return `<div class="ss" style="padding-top:14px"><div class="sc" style="padding:12px"><p class="eb">מפת אזורים</p><p class="h2" style="margin-bottom:8px">איפה זה בפנים</p>
+    ${vf({ w: 236, mode: 'map', photo: true, marks })}
+    <div class="leg">${REPORT.marks.map((m) => `<span><span class="cn">${m.n}</span>${m.he}</span>`).join('')}</div>
+    <p class="mut c" style="font-size:10.5px;margin-top:6px" ${k('approx')}>המיקום משוער, לפי אזורי הפנים שצוינו בדוח.</p></div>
+    <div class="sc"><p class="eb">ממצאים</p><p class="h2">מה שכדאי לשים לב אליו</p></div></div>`;
+}
+function ssConcerns({ t0 }) {
+  return `<div class="ss" style="padding-top:14px"><div class="sc"><p class="eb">ממצאים</p><p class="h2" style="margin-bottom:4px">מה שכדאי לשים לב אליו</p>
+    ${REPORT.concerns.map((c, i) => `<div class="cc" ${vis(+(t0 + 0.3 + i * 0.5).toFixed(2))}><span class="cn">${i + 1}</span><div style="flex:1;min-width:0"><p class="t">${c.t}</p>
+      <div class="ctg" ${k(`ct${i}`)}>${i === 0 ? '<span class="foc">במוקד</span>' : ''}${c.zones.map((z) => `<span class="zt">${I.pin(10)}${z}</span>`).join('')}${sev(c.lvl)}</div>
+      ${i === 0 ? '<div class="mut" style="margin-top:4px"><div>מכאן הכי כדאי להתחיל. הטיפול שנמליץ</div><div>עליו מטפל בדיוק בזה.</div></div>' : '<p class="mut" style="margin-top:4px">ניתן לשיפור עם ליווי וטיפול מותאם</p>'}</div></div>`).join('')}
+    </div></div>`;
+}
+const treatCard = () => `<div class="sc treat" ${k('treat')}><p class="eb">הטיפול המקצועי שהכי מתאים לך</p><p style="font:700 19px/1.3 KF;margin-top:4px">${REPORT.treatment}</p>
+    <p class="svc-match" ${k('svc')}>${I.spa(13)} אצלנו בקליניקה: ${REPORT.matched}</p>
+    <div class="mut" style="margin:8px 0 10px"><div>נבחר במיוחד עבורך, כדי לטפל במה</div><div>שזוהה בעור ולחדד את התוצאה.</div></div>
+    <div class="prim" ${k('book1')}>${I.cal(15)} קביעת תור</div><p style="font:600 10px KA;color:#44594F;margin-top:7px">נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p></div>`;
+const routineToggle = (open) => `<div class="tgl" ${k('rtoggle')}><span class="row" style="gap:7px">${I.drop(15)} שגרת הטיפוח האישית שלך לבית</span><span style="color:#44594F;font-size:11px">${open ? '▲' : '▼'}</span></div>`;
+function ssTreat() {
+  return `<div class="ss" style="padding-top:14px">
+    <div class="sc" style="padding:10px 12px;opacity:.9">${REPORT.concerns.slice(1).map((c, i) => `<div class="cc" style="${i ? '' : 'border-top:none;padding-top:0'}"><span class="cn">${i + 2}</span><div style="flex:1"><p class="t">${c.t}</p><div class="ctg">${c.zones.map((z) => `<span class="zt">${I.pin(10)}${z}</span>`).join('')}${sev(c.lvl)}</div></div></div>`).join('')}</div>
+    ${treatCard()}${routineToggle(false)}</div>`;
+}
+const routineCol = (steps) => `<div class="tl"><ol>${steps.map(([t, ings], i) => `<li><span class="n">${i + 1}</span><div><p class="tt">${t}</p>${ings.length ? `<div class="ings">${ings.map((g) => `<span class="ing">${g}</span>`).join('')}</div>` : ''}</div></li>`).join('')}</ol></div>`;
+const rtabs = (on) => `<div class="rtabs"><span class="${on === 'am' ? 'on' : ''}" ${k('tab-am')}>${I.sun(14)} בוקר</span><span class="${on === 'pm' ? 'on' : ''}" ${k('tab-pm')}>${I.moon(14)} ערב</span></div>`;
+function ssRoutine({ pmAt }) {
+  return `<div class="ss" style="padding-top:14px">
+    <div class="sc treat" style="padding:10px 12px;opacity:.85"><div class="prim" style="height:36px;font-size:13px">${I.cal(14)} קביעת תור</div></div>
+    ${routineToggle(true)}
+    <div class="sc">${swapAt(pmAt, `${rtabs('am')}${routineCol(REPORT.am)}`, `${rtabs('pm')}${routineCol(REPORT.pm)}`)}</div>${nextStep()}</div>`;
+}
+const howItWorks = () => `<div class="sc" style="background:#FBF8F1;box-shadow:none"><p style="font:700 12px KA;margin-bottom:5px">איך זה עובד</p>
+    ${['הניתוח מבוסס על התמונה והמידע שהעלית.', 'התוצאות מיועדות כהכוונה קוסמטית', 'פגישת ייעוץ בקליניקה תאפשר התאמה'].map((l, i) => `<div class="row" style="gap:6px;align-items:flex-start;margin-bottom:3px" ${k(`how${i}`)}><span style="color:#44594F;margin-top:2px">${I.check(11)}</span><div class="mut" style="font-size:11px"><div>${l}</div>${i === 1 ? '<div>מקצועית, לא כאבחון רפואי.</div>' : i === 2 ? '<div>אישית מלאה עבורך.</div>' : ''}</div></div>`).join('')}</div>`;
+const proBtn = (open) => `<div class="quiet" style="background:transparent;color:#44594F;margin-bottom:9px" ${k('pro')}>${open ? 'הסתרת החלק המקצועי' : 'חלק מקצועי למטפלת'}</div>`;
+function ssPro({ open }) {
+  if (!open) {
+    return `<div class="ss" style="padding-top:14px">${howItWorks()}${proBtn(false)}<div class="quiet" style="background:transparent;border:none;color:#44594F">${I.refresh(14)} סריקה חדשה</div></div>`;
+  }
+  return `<div class="ss" style="padding-top:14px">${proBtn(true)}
+    <div class="sc"><p class="eb">למטפלת</p><p class="h2" style="margin-bottom:4px">תקציר קליני</p>
+      <div class="pr"><p class="k">סוג עור</p><p class="v">עור מעורב, נוטה לשומניות · מדד 74/100</p></div>
+      <div class="pr"><p class="k">ממצאים</p>${REPORT.concerns.map((c, i) => `<p class="v">${i + 1}. ${c.t} (${LV[c.lvl - 1]})</p>`).join('')}</div>
+      <div class="pr"><p class="k">טיפול מוצע</p><p class="v">${REPORT.treatment} · שירות תואם:</p><p class="v">${REPORT.matched}</p></div>
+      <div class="pr"><p class="k">מרכיבים פעילים בשגרה</p><div class="ings" style="flex-wrap:wrap;margin-top:4px">${[...REPORT.am, ...REPORT.pm].flatMap(([, g]) => g).map((g) => `<span class="ing">${g}</span>`).join('')}</div></div>
+    </div></div>`;
+}
+const nextStep = () => `<div class="sc c"><p class="eb">הצעד הבא</p><p style="font:700 17px KF;margin-bottom:2px">מוכנה להתחיל?</p>
+    <div class="mut" style="margin-bottom:9px"><div>נשריין לך תור לטיפול המומלץ.</div><div>הפרטים שלך כבר נשמרים.</div></div>
+    <div class="prim" ${k('book2')}>קביעת תור</div><div class="wab" style="margin-top:7px">${I.wa(15)} ייעוץ נוסף בוואטסאפ</div></div>`;
+function ssSend({ t0, sentAt }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  const form = `<div class="sc"><p class="eb">הדוח המלא לנייד</p><p style="font:700 16px KF;margin-bottom:1px">מעדיפה בוואטסאפ? נדבר.</p>
+      <div class="mut" style="margin-bottom:8px"><div>נשלח לך את הניתוח המלא לנייד,</div><div>ונשמח לענות על כל שאלה.</div></div>
+      <div class="sin"><span ${vis(0, T(1.0))} style="position:absolute;right:12px">שם (לא חובה)</span><span class="f" ${wipe(T(1.0), T(1.6))} style="position:absolute;right:12px;color:#1F3A30">נועה</span></div>
+      <div class="sin"><span ${vis(0, T(1.8))} style="position:absolute;right:12px">טלפון נייד</span><span ${wipe(T(1.8), T(2.6))} style="position:absolute;right:12px;color:#1F3A30;direction:ltr">054-1234567</span></div>
+      <div class="wab" ${k('send')}>${I.wa(15)} שליחה לוואטסאפ שלי</div></div>`;
+  const queued = `<div class="sc c" style="padding:16px 12px"><div class="okc">${I.clock(20)}</div><p style="font:700 17px KF">הבקשה התקבלה</p>
+      <div class="mut" style="margin-top:3px"><div>הדוח ממתין לשליחה מהעסק, ויגיע אלייך</div><div>לוואטסאפ בהקדם. שמרנו לך גם את</div><div>הפרטים לקביעת התור.</div></div></div>`;
+  return `<div class="ss" style="padding-top:14px">${nextStep()}${swapAt(sentAt, form, queued)}</div>`;
+}
+function ssFull() {
+  return `<div class="ss" style="padding-top:28px">${ssHead()}
+    <div class="sc c" style="margin-top:14px;padding:18px 12px"><div style="width:46px;height:46px;border-radius:50%;background:#F4EFE4;display:flex;align-items:center;justify-content:center;margin:0 auto 9px">${I.glass(21)}</div>
+      <p style="font:700 17px KF;margin-bottom:4px">הסורק מלא לחודש הזה</p>
+      <div class="mut" style="font-size:12px"><div>סורק העור הגיע למכסת הסריקות החודשית</div><div>של העסק. אפשר לפנות ישירות</div><div>לקוסמטיקאית והיא תשמח לעזור.</div></div>
+      <div class="wab" style="margin-top:12px">${I.wa(15)} לכתוב לקוסמטיקאית בוואטסאפ</div><div class="quiet" style="margin-top:7px">${I.cal(14)} קביעת תור</div></div></div>`;
+}
+
+// ── her side ────────────────────────────────────────────────────────────────────────────────────
+// A drawn QR: three finder squares and a fixed pattern (the real one is drawn from her signed link).
+const QR = (() => {
+  const n = 21, cells = [];
+  const finder = (x, y) => x < 7 && y < 7 || x >= n - 7 && y < 7 || x < 7 && y >= n - 7;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    let on;
+    if (finder(x, y)) { const fx = x >= n - 7 ? x - (n - 7) : x, fy = y >= n - 7 ? y - (n - 7) : y; on = fx === 0 || fx === 6 || fy === 0 || fy === 6 || (fx >= 2 && fx <= 4 && fy >= 2 && fy <= 4); }
+    else on = ((x * 7 + y * 13 + x * y) % 5) < 2;
+    if (on) cells.push(`<rect x="${x}" y="${y}" width="1" height="1"/>`);
+  }
+  return `<svg viewBox="0 0 ${n} ${n}" width="72" height="72" fill="#1F3A30" shape-rendering="crispEdges">${cells.join('')}</svg>`;
+})();
+function quotaRow(used, limit) {
+  const pct = used / limit, tone = pct >= 1 ? '#C0394F' : pct >= 0.8 ? '#B26B00' : '#6B756F';
+  return `<div ${k('quota')}><div class="row sb"><span class="mu">סריקות החודש</span><span style="font:700 11.5px KA;color:${tone};direction:ltr">${used} / ${limit}</span></div>
+    <div style="height:4px;border-radius:4px;background:#E4DCCF;overflow:hidden;margin-top:4px;position:relative"><div style="position:absolute;top:0;bottom:0;right:0;width:${Math.round(pct * 100)}%;background:${tone === '#6B756F' ? PC : tone}"></div></div>
+    ${pct >= 0.8 ? `<p style="font:600 12px KA;color:${tone};margin-top:4px">נשארו ${limit - used} סריקות החודש.</p>` : ''}</div>`;
+}
+const scanSettings = ({ used = 37, limit = 200, toastText = '' } = {}) => `<div class="scr nw"><p class="h">הגדרות</p>${settingsTabs('לקוחות ופניות')}
+    <p class="mu b" style="color:#6B756F;margin-bottom:6px">קישורים ללקוחות (לשליחה בוואטסאפ / ביו)</p>
+    <div class="card" style="background:#F6F2EA;padding:10px 11px" ${k('scancard')}><p class="b" style="margin-bottom:6px">סורק העור</p>
+      <div class="row" style="gap:6px;margin-bottom:8px"><div class="inp f" style="flex:1;min-width:0;direction:ltr;display:block;line-height:34px;text-overflow:ellipsis;font-size:11px;color:#3B4842">kalmea.app/skin-scan?t=…&amp;s=…</div><span class="pill" style="background:linear-gradient(135deg,#F2C2BA,${PC});color:#1F3A30;border-radius:10px;height:36px;flex:none" ${k('copy')}>העתקת קישור</span></div>
+      <div class="row" style="gap:10px;align-items:center"><div class="qr">${QR}</div><div style="flex:1"><div class="mu" style="line-height:1.5;color:#3B4842"><div>אותו קישור בדיוק, כקוד לסריקה:</div><div>לשלט בעסק, לכרטיס ביקור</div><div>או לסטורי.</div></div>
+        <span class="pill ghost" style="height:28px;margin-top:5px;font-size:11.5px;color:${PCD}">${I.dl(12)} הורדת ה-QR (PNG)</span></div></div></div>
+    <div class="card" style="padding:10px 11px">${quotaRow(used, limit)}</div>
+    <div class="btn line" style="height:36px;font-size:12.5px">${I.cal(13)} העתקת קישור לקביעת תור</div>
+    ${toastText ? toast(toastText) : ''}</div>`;
+/** The client card, scrolled to its action buttons (CLIENT DRAWER in beautyos.jsx), with the tabs under them. */
+function skinDrawer({ tab = 'info', scansAt = null } = {}) {
+  const w = (s, key = '') => `<div class="row" style="margin-top:6px"><span class="dbtn w" ${key ? k(key) : ''}>${s}</span></div>`;
+  const rows = [['4.11.2026', 74], ['12.8.2026', 68]];
+  return `<div class="scr nw" style="padding:0">
+    <div class="drawer" style="position:relative;padding-top:14px">
+      <div class="row" style="gap:12px"><span class="av">נ</span><div style="flex:1"><h3>נועה לוי</h3>
+        <p style="font:600 12px KA;opacity:.95;direction:ltr;text-align:right">054-1234567</p></div></div>
+      <div class="row" style="gap:6px;margin-top:9px"><span class="dbtn w">וואטסאפ</span><span class="dbtn t">עריכה</span></div>
+      <div class="row" style="gap:6px;margin-top:6px"><span class="dbtn w" style="flex:2">✦ קביעת תור</span><span class="dbtn w">₪ תשלום</span></div>
+      <div class="row" style="margin-top:6px"><span class="dbtn o">↻ קבעי לה שוב</span></div>
+      ${w('✦ שליחת הדף שלה')}${w('✦ צילום אחרי טיפול')}${w('✦ סריקת עור AI', 'scanbtn')}
+    </div>
+    <div class="tabs" style="margin-top:6px"><span class="${tab === 'info' ? 'on' : ''}">פרטים</span><span>היסטוריה (6)</span><span class="${tab === 'scans' ? 'on' : ''}" ${k('scantab')}>סריקות עור (2)</span><span>תשלומים (6)</span></div>
+    <div style="padding:4px 14px" ${k('scanlist')}>${tab === 'scans' ? rows.map(([d, s], i) => `<div class="scrow" ${scansAt != null ? vis(+(scansAt + i * 0.3).toFixed(2)) : ''}><span class="im">${miniPhoto()}</span>
+        <div style="flex:1;min-width:0"><p style="font:700 12.5px KA">עור מעורב, נוטה לשומניות</p><p class="mu" style="overflow:hidden;text-overflow:ellipsis">${d} · ${REPORT.treatment}</p></div>
+        <span class="sco" style="border:3px solid #E0A93B;color:#B07A1E">${s}</span></div>`).join('')
+      : `<div class="kv"><span>הגיעה מ</span><span class="b">אינסטגרם</span></div><div class="kv"><span>סוג עור</span><span class="b">מעורב</span></div>`}</div></div>`;
+}
+/** "דורש תשומת לב" on the home screen: the hot-lead notification and the report waiting in her queue. */
+const ownerHome = (over = '') => `<div class="scr nw"><p class="h" style="margin-bottom:8px">היום</p>
+    <div class="card"><p style="font:700 17px KF;margin-bottom:8px">דורש תשומת לב</p>
+      <div class="att" ${k('hot')}><div class="row" style="gap:8px;align-items:flex-start"><span class="ic" style="background:rgba(46,125,87,.12);color:#2E7D57">🧴</span><div style="flex:1;min-width:0">
+        <div class="row" style="gap:4px"><b style="font-size:12px">ליד חם מסורק העור</b><span class="src">התראה</span><span class="wt">ממתין</span></div>
+        <p class="mu" style="overflow:hidden;text-overflow:ellipsis;margin-top:2px">🔥 ליד חדש מסורק העור! 👤 שם: נועה</p>
+        <div class="row" style="gap:6px;margin-top:7px"><span class="pill" style="height:28px;background:linear-gradient(135deg,#F2C2BA,${PC})">סימון כנקרא</span><span class="pill ghost" style="height:28px">הסתרה</span></div></div></div></div>
+      <div class="att" ${k('queue')}><div class="row" style="gap:8px;align-items:flex-start"><span class="ic" style="background:rgba(46,125,87,.12);color:#2E7D57">✆</span><div style="flex:1;min-width:0">
+        <div class="row" style="gap:4px"><b style="font-size:12px">הודעות מוכנות לשליחה</b><span class="src">וואטסאפ</span><span class="wt">ממתין</span></div>
+        <p style="font-size:12px;margin-top:2px">הודעה אחת</p><p class="mu">הראשונה ממתינה 3 דק׳</p>
+        <div class="row" style="gap:6px;margin-top:7px"><span class="pill" style="height:28px;background:linear-gradient(135deg,#F2C2BA,${PC})">פתיחת הרשימה</span><span class="pill ghost" style="height:28px">הסתרה</span></div></div></div></div>
+    </div>${nav('היום')}${over}</div>`;
+const LEADS = [
+  ['נועה לוי', 'חדשה', '054-123-4567 · ✦ סורק העור · ניקוי פנים עמוק', '✦', 'nl'],
+  ['יעל פרץ', 'בטיפול', '052-987-6543 · ◦ אינסטגרם · טיפול פנים קלאסי', '◦', ''],
+  ['הדס ביטון', 'נקבע תור', '050-000-0000 · ◦ המלצה · הרמת ריסים', '◦', ''],
+];
+const leadsScr = () => `<div class="scr nw">
+    <div class="row" style="gap:3px;background:#fff;border:1px solid #E4DCCF;border-radius:12px;padding:3px;margin-bottom:10px;display:inline-flex"><span class="chip" style="height:30px;border:none">לקוחות</span><span class="chip on" style="height:30px">פניות <span class="badge" style="background:rgba(255,255,255,.4);margin-inline-start:4px">1</span></span><span class="chip" style="height:30px;border:none">הודעות</span></div>
+    <p class="kick">צינור מכירות</p><p class="h" style="margin:0 0 8px">פניות <span style="color:#8A948F;font-weight:400">(3)</span></p>
+    <div class="inp" style="margin-bottom:9px">חיפוש פנייה</div>
+    ${LEADS.map(([n, st, sub, ic, key]) => `<div class="lead" ${key ? k(key) : ''}><span class="ic" style="background:${st === 'חדשה' ? PCT : '#F0EAE0'};color:${PCD}">${ic}</span><div style="flex:1;min-width:0">
+      <div class="row" style="gap:5px"><b style="font-size:13px">${n}</b><span class="badge" style="${st === 'חדשה' ? '' : 'background:#F0EAE0;color:#3B4842'}">${st}</span></div>
+      <p class="mu" style="overflow:hidden;text-overflow:ellipsis">${sub}</p></div><span class="pill" style="height:26px;padding:0 8px;background:#25D366;color:#fff">✆</span></div>`).join('')}
+    ${nav('לקוחות')}</div>`;
+
+function videoSkin(tl) {
+  intro(tl, 'סריקת עור AI', '', ['הלקוחה מצלמת את הפנים, ומקבלת', 'דוח והמלצה מהשירותים שלך']);
+
+  tl.scene(7.6, (at, end) => `
+  ${title(at(0.1), end, 'הקישור לסורק')}
+  ${step(at(0.3), end, 1)}${mock(at(0.1), at(4.4), scanSettings())}${ring(at(1.1), at(2.4), 'copy')}${tap(at(2.1), 'copy')}
+  ${mock(at(2.6), at(4.4), scanSettings({ toastText: 'קישור הסורק הועתק' }), 'none')}
+  ${mock(at(4.2), end, skinDrawer())}${ring(at(5.0), end, 'scanbtn')}
+  ${hint(at(0.9), at(4.4), ['הגדרות ← ״לקוחות ופניות״:', 'הקישור שלך, וגם קוד QR לשלט'])}
+  ${hint(at(4.6), end, ['או סורקים יחד בעסק:', 'בכרטיס הלקוחה, ״✦ סריקת עור AI״'])}`);
+
+  tl.scene(6.2, (at, end) => `
+  ${title(at(0.1), end, 'אצל הלקוחה')}
+  ${step(at(0.3), end, 2)}${mock(at(0.1), end, ssGates({ tick1: at(2.0), tick2: at(3.0) }))}${tap(at(1.5), 'ck1')}${tap(at(2.5), 'ck2')}${ring(at(3.7), end, 'priv')}
+  ${hint(at(0.9), end, ['שלושה שלבים. קודם שתי הסכמות,', 'והתמונה לא נשמרת אצלך'])}`);
+
+  tl.scene(8, (at, end) => `
+  ${title(at(0.1), end, 'צילום')}
+  ${step(at(0.3), end, 3)}${mock(at(0.1), at(2.9), ssCapture(0))}${ring(at(0.9), at(2.0), 'tips')}${tap(at(2.1), 'w-sf')}
+  ${mock(at(2.7), at(4.2), ssCapture(1), 'none')}${tap(at(3.5), 'w-sl')}
+  ${mock(at(4.0), at(5.1), ssCapture(2), 'none')}${tap(at(4.4), 'w-sr')}
+  ${mock(at(4.9), end, ssCapture(3), 'none')}${tap(at(6.5), 'analyze')}
+  ${hint(at(0.9), at(4.0), ['פנים בתוך האליפסה,', 'באור טבעי ובלי איפור'])}
+  ${hint(at(4.2), end, ['תמונת החזית היא שנבדקת.', 'שני הפרופילים רשות'])}`);
+
+  tl.scene(10.2, (at, end) => `
+  ${title(at(0.1), end, 'הסריקה')}
+  ${step(at(0.3), end, 4)}${mock(at(0.1), end, ssScanning({ t0: at(0.6), dt: 1.4 }))}
+  ${hint(at(0.9), end, ['האזורים נדלקים אחד אחרי השני,', 'ותוך פחות מדקה הדוח מוכן'])}`);
+
+  tl.scene(6.2, (at, end) => `
+  ${title(at(0.1), end, 'דוח העור')}
+  ${step(at(0.3), end, 5)}${mock(at(0.1), end, ssSummary({ t0: at(0.5) }))}${ring(at(4.0), end, 'disc')}
+  ${el('tagex', at(0.6), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
+  ${hint(at(0.9), at(3.9), ['מדד העור וסוג העור שלה,', 'בשפה נעימה וברורה'])}
+  ${hint(at(4.0), end, ['ובראש הדוח: הערכה ראשונית,', 'לא אבחון'])}`);
+
+  tl.scene(7.8, (at, end) => `
+  ${title(at(0.1), end, 'איפה בפנים')}
+  ${step(at(0.3), end, 6)}${mock(at(0.1), at(4.3), ssMap({ t0: at(0) }))}${ring(at(2.8), at(4.2), 'approx')}
+  ${mock(at(4.1), end, ssConcerns({ t0: at(4.1) }))}${ring(at(6.0), end, 'ct0')}
+  ${el('tagex', at(0.2), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
+  ${hint(at(0.9), at(4.2), ['כל ממצא מסומן על מפת הפנים.', 'המיקום משוער'])}
+  ${hint(at(4.4), end, ['לכל ממצא האזור שלו, ורמה:', 'קל, בינוני או בולט'])}`);
+
+  tl.scene(5.6, (at, end) => `
+  ${title(at(0.1), end, 'מהשירותים שלך')}
+  ${step(at(0.3), end, 7)}${mock(at(0.1), end, ssTreat())}${ring(at(1.3), at(3.4), 'svc')}${ring(at(3.4), end, 'book1')}
+  ${el('tagex', at(0.2), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
+  ${hint(at(0.9), end, ['הטיפול נבחר מהשירותים שלך,', 'עם כפתור ״קביעת תור״'])}`);
+
+  tl.scene(5.6, (at, end) => `
+  ${title(at(0.1), end, 'שגרה לבית')}
+  ${step(at(0.3), end, 8)}${mock(at(0.1), end, ssRoutine({ pmAt: at(3.3) }))}${tap(at(2.8), 'tab-pm')}
+  ${el('tagex', at(0.2), end, 'fade', '<span>דוח לדוגמה</span>', 'top:192px')}
+  ${hint(at(0.9), end, ['בוקר וערב, צעד אחרי צעד,', 'עם המרכיבים הפעילים'])}`);
+
+  tl.scene(5.8, (at, end) => `
+  ${title(at(0.1), end, 'החלק למטפלת')}
+  ${step(at(0.3), end, 9)}${mock(at(0.1), at(2.9), ssPro({ open: false }))}${ring(at(0.8), at(1.9), 'how1')}${tap(at(2.1), 'pro')}
+  ${mock(at(2.7), end, ssPro({ open: true }))}
+  ${hint(at(0.9), at(2.8), ['הכוונה קוסמטית, לא אבחון רפואי.', 'ובתחתית, מאחורי כפתור:'])}
+  ${hint(at(3.0), end, ['תקציר מקצועי בשבילך,', 'עם הממצאים והמרכיבים'])}`);
+
+  tl.scene(6.4, (at, end) => `
+  ${title(at(0.1), end, 'הדוח והתור')}
+  ${step(at(0.3), end, 10)}${mock(at(0.1), end, ssSend({ t0: at(0), sentAt: at(3.6) }))}${tap(at(3.0), 'send')}${ring(at(4.6), end, 'book2')}
+  ${hint(at(0.9), at(4.4), ['היא משאירה מספר. אם הדוח לא יצא', 'מיד, הוא מחכה לשליחה ממך'])}
+  ${hint(at(4.5), end, ['או קובעת תור', 'ישר מהדוח'])}`);
+
+  tl.scene(6.2, (at, end) => `
+  ${title(at(0.1), end, 'ואצלך')}
+  ${step(at(0.3), end, 11)}${mock(at(0.1), at(3.4), ownerHome())}${ring(at(0.9), at(2.1), 'hot')}${ring(at(2.0), at(3.3), 'queue')}
+  ${mock(at(3.2), end, leadsScr())}${ring(at(3.9), end, 'nl')}
+  ${hint(at(0.9), at(3.3), ['התראה על ליד חם, והדוח', 'מחכה ב״הודעות מוכנות לשליחה״'])}
+  ${hint(at(3.5), end, ['ובפניות: ליד מ״סורק העור״,', 'עם הטיפול שהומלץ לה'])}`);
+
+  tl.scene(4.8, (at, end) => `
+  ${title(at(0.1), end, 'בכרטיס הלקוחה')}
+  ${step(at(0.3), end, 12)}${mock(at(0.1), end, skinDrawer({ tab: 'scans', scansAt: at(0.5) }))}${ring(at(1.2), end, 'scanlist')}
+  ${hint(at(0.9), end, ['סריקה מהכרטיס נשמרת בו,', 'וכך נבנית היסטוריה של העור'])}`);
+
+  tl.scene(5.8, (at, end) => `
+  ${title(at(0.1), end, 'מכסה חודשית')}
+  ${step(at(0.3), end, 13)}${mock(at(0.1), at(3.3), scanSettings({ used: 188 }))}${ring(at(0.9), at(3.2), 'quota')}
+  ${mock(at(3.1), end, ssFull())}
+  ${hint(at(0.9), at(3.2), ['בהגדרות רואים כמה סריקות', 'נשארו החודש'])}
+  ${hint(at(3.3), end, ['כשהמכסה נגמרת, הלקוחה', 'מתבקשת לפנות אלייך ישירות'])}`);
+  ending(tl);
+}
+// The skin video's moving parts (scan line, zones, step list, score ring), one more layer over the shared runtime.
+const SKIN_RUNTIME = `<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const base = window.__t;
+  const c = (x) => Math.max(0, Math.min(1, x));
+  const ease = (x) => 1 - Math.pow(1 - c(x), 3);
+  const sweeps = [...document.querySelectorAll('[data-sweep]')].map((e) => ({ e, a: +e.dataset.sweep }));
+  const zones = [...document.querySelectorAll('[data-zon]')].map((e) => ({ e, w: e.dataset.zon ? e.dataset.zon.split('|').map((s) => s.split('-').map(Number)) : [] }));
+  const steps = [...document.querySelectorAll('[data-steps]')].map((e) => { const [a, d, n] = e.dataset.steps.split(',').map(Number); return { li: [...e.children], a, d, n }; });
+  const arcs = [...document.querySelectorAll('[data-arc]')].map((e) => { const [a, v] = e.dataset.arc.split(',').map(Number); return { e, a, v }; });
+  const counts = [...document.querySelectorAll('[data-count]')].map((e) => { const [a, v] = e.dataset.count.split(',').map(Number); return { e, a, v }; });
+  window.__t = async (t) => {
+    // ssScan: 2.8 s each way, alternate, from -36% to 38% of the frame
+    for (const s of sweeps) { const ph = Math.max(0, t - s.a) / 2.8; const x = (1 - Math.cos(Math.PI * ph)) / 2; s.e.style.transform = 'translateY(' + (-36 + 74 * x).toFixed(2) + '%)'; }
+    for (const z of zones) {
+      let p = 0, a0 = 0;
+      for (const [a, b] of z.w) { const q = c((t - a) / .5) * (1 - c((t - b) / .5)); if (q > p) { p = q; a0 = a; } }
+      const pulse = .38 + .34 * (1 - Math.cos(2 * Math.PI * (t - a0) / 1.6)) / 2;
+      z.e.style.fillOpacity = (p * pulse).toFixed(3); z.e.style.strokeOpacity = (p * .9).toFixed(3);
+    }
+    for (const s of steps) { const cur = Math.max(0, Math.min(s.n - 1, Math.floor((t - s.a) / s.d))); s.li.forEach((li, i) => { li.dataset.state = i < cur ? 'done' : i === cur ? 'now' : 'next'; }); }
+    for (const r of arcs) r.e.setAttribute('stroke-dasharray', ((r.v / 100) * 282.7 * ease((t - r.a) / 1.4)).toFixed(1) + ' 282.7');
+    for (const n of counts) n.e.textContent = String(Math.round(n.v * ease((t - n.a) / 1.4)));
+    return base(t);
+  };
+});
+</script>`;
+
 // ── build, check, render ─────────────────────────────────────────────────────────────────────────
 const VIDEOS = {
   ai: videoAi,
+  skin: videoSkin,
   'appointment-actions': videoAppointmentActions,
   clients: videoClients,
   till: videoTill,
@@ -1189,6 +1740,8 @@ const VIDEOS = {
   'my-page': videoMyPage,
   'services-hours': videoServicesHours,
 };
+// The skin scan is "skin-scan" on /tutorials and in lib/helpSections.ts.
+const PUBLISHED_AS = { skin: 'skin-scan' };
 if (!VIDEOS[id]) { console.error(`usage: node topics-motion.mjs <${Object.keys(VIDEOS).join('|')}> [--publish] [--frame=t]`); process.exit(1); }
 
 const tl = timeline();
@@ -1209,7 +1762,7 @@ document.fonts.ready.then(() => {
   window.__missing = missing; window.__placed = true;
 });
 </script>`;
-const html = page(tl.html + PLACE + AI_RUNTIME, CSS + AI_CSS);
+const html = page(tl.html + PLACE + AI_RUNTIME + SKIN_RUNTIME, CSS + AI_CSS + SKIN_CSS);
 
 /** Fails on any line wider than its box, anything leaving the phone's screen or the frame, and any tap with no target. */
 async function check() {
@@ -1230,7 +1783,7 @@ async function check() {
           if (b.left < l - 1 || b.right > r + 1) bad.push(`${s.id} leaves the screen: "${(e.innerText || e.className).slice(0, 40)}" ${Math.round(b.left)}-${Math.round(b.right)}`);
           const own = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
           if (own && !/^(KA|KF|KG)\b/.test(getComputedStyle(e).fontFamily)) bad.push(`${s.id} not in a brand font: "${e.textContent.trim().slice(0, 30)}" (${getComputedStyle(e).fontFamily})`);
-          if (getComputedStyle(e).whiteSpace === 'nowrap' && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis' && e.clientWidth) bad.push(`${s.id} line too wide: "${(e.innerText || '').slice(0, 40)}"`);
+          if (getComputedStyle(e).whiteSpace === 'nowrap' && e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis' && e.clientWidth) bad.push(`${s.id} line too wide: "${(e.innerText || e.getAttribute('class') || e.tagName).slice(0, 40)}" ${e.scrollWidth}>${e.clientWidth}`);
         }
       }
       for (const e of document.querySelectorAll('.hint div,.title div,.chk div,.under span')) {
@@ -1276,8 +1829,9 @@ if (stills) {
   log(`video -> ${outFile} (${seconds.toFixed(1)} s, ${Math.round(fs.statSync(outFile).size / 1024)} KB)`);
   if (PUBLISH) {
     const pub = path.join(path.dirname(OUT), '..', 'public', 'tutorials');
-    fs.copyFileSync(outFile, path.join(pub, `kalmea-${id}.mp4`));
-    fs.copyFileSync(poster, path.join(pub, `kalmea-${id}.jpg`));
-    log(`published -> public/tutorials/kalmea-${id}.{mp4,jpg}`);
+    const name = PUBLISHED_AS[id] || id; // the id /tutorials knows it by (app/tutorials/page.tsx)
+    fs.copyFileSync(outFile, path.join(pub, `kalmea-${name}.mp4`));
+    fs.copyFileSync(poster, path.join(pub, `kalmea-${name}.jpg`));
+    log(`published -> public/tutorials/kalmea-${name}.{mp4,jpg}`);
   }
 }
