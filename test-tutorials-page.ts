@@ -8,12 +8,33 @@ import { RESERVED_SLUGS, slugError } from './lib/slug.ts';
 const raw = (f: string) => fs.readFileSync(f, 'utf8');
 const page = raw('app/tutorials/page.tsx');
 
-const ids = [...page.matchAll(/\{ id: "([a-z]+)"/g)].map((m) => m[1]);
-assert.deepEqual(ids, ['welcome', 'tour', 'booking', 'home', 'morning'], 'five videos, the welcome explainer first; Morning (legal receipts) added 2026-11-03');
+// Grouped by topic (2026-11-04): each topic's heading, then its videos in order.
+const topics = [...page.matchAll(/key: "([a-z]+)",\s*title: "([^"]+)",\s*videos: \[([\s\S]*?)\],\s*\}/g)]
+  .map((m) => ({ title: m[2], ids: [...m[3].matchAll(/\{ id: "([a-z-]+)"/g)].map((v) => v[1]) }));
+assert.deepEqual(topics, [
+  { title: 'להתחיל', ids: ['welcome', 'tour', 'home'] },
+  { title: 'יומן ותורים', ids: ['booking', 'appointment-actions', 'reminders'] },
+  { title: 'לקוחות', ids: ['clients'] },
+  { title: 'תשלומים וקבלות', ids: ['till', 'morning'] },
+  { title: 'הדף שלי והגדרות', ids: ['my-page', 'services-hours'] },
+], 'eleven videos in five topics, the welcome explainer first');
+const ids = [...page.matchAll(/\{ id: "([a-z-]+)"/g)].map((m) => m[1]);
+assert.equal(ids.length, 11, 'every video on the page is in a topic');
+assert.equal(new Set(ids).size, ids.length, 'no video twice');
 for (const id of ids) {
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `public/tutorials/kalmea-${id}.mp4 exists`);
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.jpg`), `and its poster`);
 }
+assert.ok(/<h2[^>]*>\{g\.title\}<\/h2>/.test(page), 'each topic has its own heading');
+// The lead and the description once said "ארבעה סרטונים" when there were five: a count in the copy goes stale with every new video.
+assert.ok(!/(ארבעה|חמישה|שישה|אחד עשר) סרטונים/.test(page), 'no video count in the copy');
+assert.ok(/<PublicAnalytics \/>/.test(page), 'the page view is still counted');
+// The topic videos are drawn and end on the flower card: no AI figure (owner, 2026-10-30), and automatic WhatsApp sending is not
+// shown while it is hidden in the app (waCentralConnected).
+const topicsScript = raw('marketing/topics-motion.mjs');
+assert.ok(topicsScript.includes('050-7321978'), 'the topic videos end on the support line');
+assert.ok(!/PRESENTER|endCard\(/.test(topicsScript), 'no AI presenter in the topic videos');
+assert.ok(!/יוצאות אוטומטית|נשלחת אוטומטית|שליחה אוטומטית/.test(topicsScript.replace(/^\s*\/\/.*$/gm, '')), 'no automatic sending shown');
 assert.ok(/preload="none"/.test(page), 'nothing is downloaded before she presses play');
 assert.ok(/playsInline/.test(page), 'plays inside the page on iPhone, not full screen on load');
 assert.ok(/robots: \{ index: false/.test(page), 'not indexed (it is a link for signups, not a landing page)');
