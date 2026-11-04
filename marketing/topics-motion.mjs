@@ -10,7 +10,7 @@
 //   node topics-motion.mjs <id> --stills=all -> a draft still every 1.5 s (or --stills=3,7.5), out/motion/s-<id>-<t>.png
 //   Needs KALMEA_BASE serving public/ with CORS for the fonts (production, or a local static server) and, in a cloud
 //   session, KALMEA_CHROMIUM=/opt/pw-browsers/chromium.
-//   ids: appointment-actions | clients | till | reminders | my-page | services-hours
+//   ids: appointment-actions | clients | till | reminders | my-page | services-hours | ai
 //
 // Every word drawn inside the phone is the app's own text, copied from the code (2026-11-04):
 //   appointment-actions  app/MyDayCard.jsx (rows open the appointment, "✦ תור חדש"), lib/myDay.js (headline, gap line),
@@ -29,6 +29,16 @@
 //                        app/BookingPage.jsx (services, day and hour, summary, consent, "התור נקבע!", address + "ניווט ב-Waze").
 //   services-hours       Settings > יומן ושירותים (empty state, "רשימת טיפולים מוכנה", the price and minutes row, "+ הוסיפי
 //                        שירות"), the seven-day hours list, "הפסקה שלי", the settings bar's "שמירה ✓" and "ההגדרות נשמרו".
+//   ai                   the business advisor (activeTab "advisor": reached from "עוד" on a phone, the sidebar on a computer;
+//                        its empty state, the four suggested questions, lib/advisorWait.js, advisorAction's button) and the AI
+//                        block of the content tab (app/design/DesignStudio.jsx "עם AI", Generate.jsx with its "3 מתוך 9 החודש"
+//                        counter, AiFill.jsx "מילוי עם AI", WeekView.jsx "מה לצלם השבוע", the reel script view in beautyos.jsx),
+//                        and the limits (lib/ai/callCaps.ts designs/generate = 9 a month, lib/ai/capMessages.ts "מתחדשות בראשון
+//                        לחודש"). The advisor's answer, the posts and the scripts are EXAMPLES written for the video and say so on
+//                        screen where it matters; the posts are drawn as soft shapes, never a person. Not shown, because they are
+//                        off by default: the weekly content plan and publishing to Instagram/Facebook (content_plan,
+//                        content_publish_meta), the old campaign texts, the CE.SDK reel POC, add-on packs; nor anything that
+//                        sends WhatsApp automatically.
 // Where the app's own line has an em or en dash it is shortened, never re-worded (the owner's copy rule for new text): e.g. the
 // till's title "קופה — תשלום חדש" is drawn as "קופה". Names, phones and sums are made up; the phones are the app's placeholders.
 //
@@ -819,8 +829,359 @@ function videoServicesHours(tl) {
   ending(tl);
 }
 
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// 7. ai: the business advisor and the AI in the content tab
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// Inside a phone screen, a line can be WRITTEN (wipe: revealed from the right, the way Hebrew is read) or SHOWN (vis: fades
+// in and rises a little) at its own moment, so a post or an answer grows line by line without swapping the whole screen.
+// Both are absolute seconds, set by the runtime below (AI_RUNTIME). The text itself is still one element per line.
+const wipe = (a, b) => `data-wipe="${a},${b}"`;
+const vis = (a, b = 999) => `data-vis="${a},${b}"`;
+
+const AI_CSS = `
+.navx{position:absolute;left:0;right:0;bottom:0;height:52px;background:#fff;border-top:1px solid #E4DCCF;display:flex;justify-content:space-around;align-items:center;font:600 11px KA;color:#8A948F}
+.navx span{flex:1;text-align:center}
+.navx span.on{color:#1F3A30;font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.tile{display:flex;align-items:center;justify-content:center;height:58px;border-radius:12px;border:1px solid #E4DCCF;background:#F6F2EA;font:600 12.5px KA;color:#3B4842;white-space:nowrap}
+.adv-h{text-align:center}
+.adv-h .kk{font:600 11px KA;color:#6B756F;letter-spacing:.04em}
+.adv-h img{width:34px;height:34px;display:block;margin:2px auto 0}
+.adv-h b{display:block;font:700 22px KF;color:#1F3A30}
+.adv-h small{display:block;font:600 11.5px KA;color:#3B4842;margin-top:2px}
+.qchip{display:inline-flex;align-items:center;height:30px;padding:0 11px;border-radius:14px;background:${PCT};border:1px solid #D9D1C4;font:600 11.5px KA;color:${PCD};white-space:nowrap}
+.ubub{align-self:flex-start;background:linear-gradient(135deg,#F2C2BA,${PC});color:#1F3A30;border-radius:16px 16px 16px 4px;padding:9px 12px;font:600 12px/1.5 KA;white-space:nowrap}
+.abub{align-self:flex-end;background:#F6F2EA;border:1px solid #E4DCCF;color:#1F3A30;border-radius:16px 16px 4px 16px;padding:9px 11px;font:600 11.5px/1.6 KA;width:252px}
+.abub div{white-space:nowrap}
+.abub .q{color:${PCD}}
+.act{display:inline-flex;align-items:center;margin-top:8px;height:30px;padding:0 13px;border-radius:10px;background:linear-gradient(135deg,#F2C2BA,${PC});font:700 11.5px KA;color:#1F3A30;white-space:nowrap}
+.gen{background:${PCT};border:1px solid ${PC};border-radius:16px;padding:12px}
+.gen .gt{font:700 14.5px KF;color:#1F3A30}
+.cnt{font:700 12px KA;color:${PCD};white-space:nowrap}
+.aiblk{border:1px dashed #D9D1C4;border-radius:16px;padding:11px 11px 4px;background:#F6F2EA}
+.aiblk .at{font:700 17px KF;color:#1F3A30}
+.post{position:relative;border-radius:10px;overflow:hidden;border:1px solid #E4DCCF;aspect-ratio:4/5;background:linear-gradient(160deg,#FBEDE9,#F2C2BA)}
+.post .c1{position:absolute;border-radius:50%;background:rgba(255,255,255,.55)}
+.post .lf{position:absolute;border-radius:0 100% 0 100%;background:#DCE4D5}
+.post .pt{position:absolute;left:6px;right:6px;text-align:center;font:700 13px/1.15 KF;color:#1F3A30;white-space:nowrap}
+.post .ps{position:absolute;left:6px;right:6px;text-align:center;font:600 9px KA;color:#3B4842;white-space:nowrap}
+.post .pb{position:absolute;left:50%;transform:translateX(-50%);font:700 8.5px KA;background:#1F3A30;color:#FBF8F1;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.mini{display:flex;align-items:center;justify-content:center;height:26px;border-radius:9px;font:700 11px KA;white-space:nowrap;background:linear-gradient(135deg,#F2C2BA,${PC});color:#1F3A30;margin-top:5px}
+.txtbox{background:#fff;border:1px solid #E4DCCF;border-radius:10px;padding:8px 10px}
+.txtbox div{white-space:nowrap;font:600 12px/1.6 KA;color:#1F3A30}
+.wait{background:#fff;border:1px solid #E4DCCF;border-radius:10px;padding:10px;text-align:center}
+.bar{height:4px;border-radius:4px;background:#E4DCCF;overflow:hidden;margin-top:8px;position:relative}
+.bar i{position:absolute;top:0;bottom:0;width:40%;border-radius:4px;background:${PC}}
+.idea{border-top:1px solid #E4DCCF;padding-top:5px;margin-top:4px}
+.idea b{display:block;font:700 12.5px KA;color:#1F3A30}
+.idea small{display:block;font:600 11px/1.45 KA;color:#3B4842}
+.sbtn{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:9px;border:1px solid #D9D1C4;background:#fff;font:600 11px KA;color:${PCD};white-space:nowrap;margin-top:3px}
+.cover{border-radius:14px;background:linear-gradient(135deg,#F2C2BA,${PC});padding:12px;text-align:center;color:#1F3A30}
+.cover small{display:block;font:600 11px KA;opacity:.85}
+.cover b{display:block;font:700 19px KF;margin:2px 0 4px}
+.cover p{font:600 11.5px KA}
+.scene{position:relative;background:#fff;border:1px solid #E4DCCF;border-radius:12px;padding:9px 12px 8px 10px;margin-top:8px;overflow:hidden}
+.scene::before{content:'';position:absolute;top:0;right:0;bottom:0;width:4px;background:linear-gradient(135deg,#F2C2BA,${PC})}
+.scene .sl{font:600 10.5px KA;color:#6B756F;margin-top:3px}
+.scene .sv{font:600 12px/1.45 KA;color:#1F3A30}
+.scene .sv2{font:600 11px/1.45 KA;color:#3B4842}
+.mtoast{position:absolute;left:14px;right:14px;bottom:16px;background:#1F3A30;color:#FBF8F1;border-radius:14px;padding:10px 12px;font:700 12px KA;white-space:nowrap;box-shadow:0 10px 24px -10px rgba(31,58,48,.6);text-align:center}
+.mt{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid #E4DCCF}
+.mt .ic{color:${PC};font:700 15px KA;width:14px}
+.mt .lb{flex:1;font:600 12.5px/1.45 KA;color:#1F3A30}
+.mt .lb small{display:block;font:600 10.5px KA;color:#6B756F}
+.tagex{left:0;right:0;text-align:center}
+.tagex span{display:inline-block;background:#fff;border:1px solid #E4DCCF;border-radius:999px;padding:3px 12px;font:600 14px KA;color:#6B756F}`;
+
+/** The bottom bar as it really is on a phone: the five day screens and "עוד" (app/beautyos.jsx BOTTOM_NAV + the "עוד" button). */
+const navMore = (on) => `<div class="navx">${['היום', 'יומן', 'לקוחות', 'תשלום', 'תוכן', 'עוד'].map((l) => `<span class="${l === on ? 'on' : ''}" ${k(`nx-${l}`)}>${l}</span>`).join('')}</div>`;
+/** "עוד": the screens that are not in the bar (MORE_NAV, with the stub tabs hidden by default as in lib/featureFlags.ts). */
+const moreSheet = () => `<div class="dim"></div><div class="sheet" style="padding-bottom:70px"><div style="width:42px;height:4px;border-radius:4px;background:#D9D1C4;margin:0 auto 12px"></div>
+  <div class="tiles">${['תובנות', 'סיכום הכנסות', 'מנויים', 'יועץ AI', 'עזרה'].map((l) => `<span class="tile" ${k(`t-${l}`)}>${l}</span>`).join('')}</div></div>`;
+const homeScr = (inner = '', on = 'היום') => `<div class="scr"><p class="h" style="margin-bottom:8px">היום</p>${myDay()}${inner}${navMore(on)}</div>`;
+
+const ADV_Q = ['איך אחזיר לקוחות רדומות?', 'איך אעלה את ההכנסות החודש?', 'מה כדאי לתמחר מחדש?', 'רעיון לקמפיין לחודש חלש'];
+// The advisor's header (activeTab "advisor"). The line under the title has a dash in the app; it is drawn without its second half.
+const advHead = (small = false) => `<div class="adv-h nw"><p class="kk">בינה מלאכותית</p>${small ? '' : `<img src="${BASE}/brand-icons/icon-sparkle.png" alt="">`}<b>יועץ עסקי AI</b>${small ? '' : '<small>יועצת אישית שמכירה את הנתונים של סטודיו ליה</small>'}</div>`;
+const advInput = (text = '', at = null) => `<div class="row" style="position:absolute;left:14px;right:14px;bottom:62px;gap:6px">
+  <div class="inp f" style="flex:1;position:relative">${text ? `<span ${at ? wipe(at[0], at[1]) : ''}>${text}</span>` : '<span style="color:#9AA29E">כתבי שאלה עסקית…</span>'}</div>
+  <div class="btn pc" style="height:36px;padding:0 14px;font-size:13px" ${k('send')}>שליחה</div></div>`;
+function advEmpty({ fillAt = null } = {}) {
+  return `<div class="scr">${advHead()}
+  <div class="card" style="margin-top:10px;text-align:center;padding:14px 10px">
+    <p class="nw" style="font:700 15px KA;margin-bottom:5px">איך אפשר לעזור לעסק שלך היום?</p>
+    <div class="nw mu" style="line-height:1.55;margin-bottom:10px"><div>היועצת רואה את הנתונים האמיתיים שלך</div><div>ונותנת פתרונות ותוכניות עבודה.</div><div>נסי אחת מהשאלות:</div></div>
+    <div class="chips" style="justify-content:center;gap:6px">${ADV_Q.map((q, i) => `<span class="qchip" ${k(`q${i}`)}>${q}</span>`).join('')}</div>
+  </div>
+  ${advInput()}${fillAt ? `<div ${vis(fillAt)} style="position:absolute;inset:0">${advInput(ADV_Q[0])}</div>` : ''}
+  ${navMore('עוד')}</div>`;
+}
+// An EXAMPLE answer (written for this video, labelled as one on screen): built only on what the advisor's snapshot really
+// holds (app/api/advisor/route.ts: dormant clients at 60+ days, the top services), and it promises nothing.
+const ADV_A = [
+  'לפי הנתונים שלך יש 23 לקוחות', 'רדומות, בלי ביקור מעל 60 יום.', '',
+  '• התחילי מ-8 שעשו אצלך טיפול', 'פנים קלאסי, השירות המוביל שלך.',
+  '• הודעה אישית לכל אחת,', 'לא הודעה אחת כללית לכולן.', '',
+  '• הצעה לנוסח:', '<span class="q">״היי נועה, מזמן לא התראינו!</span>', '<span class="q">התפנה לי מקום השבוע, לשמור לך?</span>', '<span class="q">סטודיו ליה״</span>',
+];
+function advChat({ t0 = 0, full = false } = {}) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  let c = T(2.9);
+  const ans = ADV_A.map((l) => {
+    if (!l) return '<div style="height:6px"></div>';
+    const a = c; c = +(c + 0.5).toFixed(2);
+    return `<div ${full ? '' : wipe(a, +(a + 0.45).toFixed(2))}>${l}</div>`;
+  }).join('');
+  return `<div class="scr">${advHead(true)}
+  <div style="display:flex;flex-direction:column;gap:9px;margin-top:10px">
+    <div class="ubub" ${full ? '' : vis(T(0.9))}>${ADV_Q[0]}</div>
+    ${full ? '' : `<div class="abub nw" style="width:auto;position:absolute;left:14px;top:118px" ${vis(T(1.3), T(2.8))}>היועצת קוראת את המספרים של העסק שלך…</div>`}
+    <div class="abub" ${full ? '' : `${vis(T(2.8))} data-down="${T(2.8)},${+(c + 0.5).toFixed(2)}"`}>${ans}<div ${full ? '' : vis(c)}><span class="act" ${k('act')}>← פתחי משימות ממתינות</span></div></div>
+  </div>
+  ${full ? advInput() : `<div ${vis(0, T(0.9))} style="position:absolute;inset:0">${advInput(ADV_Q[0])}</div><div ${vis(T(0.9))} style="position:absolute;inset:0">${advInput()}</div>`}
+  ${navMore('עוד')}</div>`;
+}
+/** Further down the home screen (MarketingToday sits under the day's cards): "שיווק היום". */
+const todayLower = () => `<div class="scr" style="padding-top:14px">
+  <div class="card" style="padding:10px 12px 2px"><p style="font:700 15px KF;margin-bottom:2px">שיווק היום</p>
+  <div class="mt nw" ${k('winback')}><span class="ic">✦</span><span class="lb">15 לקוחות לא הגיעו מעל 90 יום<small>הודעה אישית קטנה מחזירה הרבה מהן</small></span><span class="pill okb" style="height:30px;padding:0 9px;font-size:12px;border-color:${PC};color:#1F3A30">לרשימה</span></div>
+  <div class="mt nw"><span class="ic">★</span><span class="lb">4 לקוחות היו אצלך השבוע<small>ביקורת טובה מביאה</small><small>לקוחות חדשות</small></span><span class="pill okb" style="height:30px;padding:0 9px;font-size:12px;border-color:${PC};color:#1F3A30">לבקש ביקורת</span></div></div>
+  ${navMore('היום')}</div>`;
+/** The content tab with the studio's AI block in view (app/beautyos.jsx "campaigns" + app/design/DesignStudio.jsx). */
+const contentHead = () => `<p class="kick nw">פוסטים, רילסים וקמפיינים</p><p class="h" style="margin:0 0 8px">תוכן</p>
+  <div class="row nw" style="gap:3px;background:#fff;border:1px solid #E4DCCF;border-radius:12px;padding:3px;margin-bottom:8px;display:inline-flex"><span class="chip on" style="height:28px">פוסטים ותבניות</span><span class="chip" style="height:28px;border:none">קמפיינים בפייסבוק</span></div>
+  <div class="chips" style="margin-bottom:9px"><span class="chip on" style="height:27px">השבוע</span><span class="chip" style="height:27px">תבניות</span><span class="chip" style="height:27px">רעיונות</span><span class="chip" style="height:27px">שלי</span></div>`;
+const aiBlockHead = () => `<p class="at nw">✦ עם AI</p><div class="mu nw" style="line-height:1.5;margin-bottom:8px"><div>כאן ה-AI מציע וכותב בשבילך. התבניות,</div><div>העיצובים שלך והפוסטים המוכנים</div><div>פתוחים תמיד, גם כשה-AI לא זמין.</div></div>`;
+function contentScr() {
+  return `<div class="scr">${contentHead()}
+  <div class="card nw" style="padding:10px 12px;margin-bottom:9px"><p style="font:700 15px KF">מה מפרסמים השבוע</p><p class="mu">פוסטים שכבר מוכנים בצבעים שלך</p></div>
+  <div class="aiblk" ${k('aiblk')}>${aiBlockHead()}
+    <div class="card nw" style="padding:9px 10px;margin-bottom:7px"><p class="b">מה לצלם השבוע</p><p class="mu2">רעיונות של עשר דקות בעסק</p></div>
+    <div class="card nw" style="padding:9px 10px;margin-bottom:7px"><p class="b">תסריט לצילום</p><p class="mu2">סצנה אחרי סצנה, על נושא שתבחרי</p></div>
+    <div class="gen nw" style="padding:9px 10px"><p class="gt">כתבי מה תרצי, ותקבלי פוסט מוכן</p><p class="cnt">3 מתוך 9 החודש</p></div>
+  </div>${navMore('תוכן')}</div>`;
+}
+/** A post as the AI or a template draws it: her colours, soft shapes, the words. No person in it. */
+function postArt({ title1, title2 = '', sub = 'סטודיו ליה', badge = '', tone = 0, w = 84, textAt = null }) {
+  const bg = ['linear-gradient(160deg,#FBEDE9,#F2C2BA)', 'linear-gradient(160deg,#DCE4D5,#FBF8F1)', 'linear-gradient(160deg,#FBF8F1,#E9A9A1)'][tone % 3];
+  const s = w / 84;
+  const tx = (cls, top, txt, i) => `<div class="${cls}" style="top:${Math.round(top * s)}px;font-size:${cls === 'pt' ? Math.round(13 * s) : Math.round(9 * s)}px" ${textAt ? wipe(+(textAt + i * 0.35).toFixed(2), +(textAt + i * 0.35 + 0.4).toFixed(2)) : ''}>${txt}</div>`;
+  return `<div class="post" style="width:${w}px;background:${bg}">
+    <div class="c1" style="width:${Math.round(70 * s)}px;height:${Math.round(70 * s)}px;left:${Math.round(-18 * s)}px;top:${Math.round(-14 * s)}px"></div>
+    <div class="lf" style="width:${Math.round(30 * s)}px;height:${Math.round(30 * s)}px;right:${Math.round(8 * s)}px;bottom:${Math.round(10 * s)}px;opacity:.9"></div>
+    <div class="c1" style="width:${Math.round(18 * s)}px;height:${Math.round(18 * s)}px;right:${Math.round(14 * s)}px;top:${Math.round(14 * s)}px;background:rgba(233,169,161,.6)"></div>
+    ${tx('pt', 34, title1, 0)}${title2 ? tx('pt', 50, title2, 1) : ''}${tx('ps', 70, sub, 2)}
+    ${badge ? `<div class="pb" style="top:${Math.round(84 * s)}px;font-size:${Math.round(8.5 * s)}px">${badge}</div>` : ''}</div>`;
+}
+const BRIEF = 'מבצע על טיפול פנים לפני החגים';
+function genForm({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  return `<div class="scr">${contentHead()}
+  <div class="gen">
+    <div class="row sb nw" style="margin-bottom:3px"><span class="gt">כתבי מה תרצי, ותקבלי פוסט מוכן</span></div>
+    <p class="cnt" style="margin-bottom:5px">3 מתוך 9 החודש</p>
+    <div class="nw mu" style="line-height:1.5;margin-bottom:8px;color:#3B4842"><div>משפט אחד. ה-AI בוחר תבנית, כותב את</div><div>הטקסטים ומצייר תמונה, ומחזיר שלוש</div><div>אפשרויות לבחירה.</div></div>
+    <div class="inp f" style="height:40px;margin-bottom:8px"><span ${wipe(T(0.7), T(2.2))}>${BRIEF}</span></div>
+    <div class="row nw" style="gap:4px;margin-bottom:8px"><span class="chip on" style="height:28px">פוסט 4:5</span><span class="chip" style="height:28px">סטורי 9:16</span><span class="chip" style="height:28px">רילס</span></div>
+    <div class="btn pc" ${k('make')}>צרי לי פוסט</div>
+    <div class="wait nw" style="margin-top:8px" ${vis(T(3.0))}><p style="font:700 13px KA;color:${PCD}">מכינה לך 3 עיצובים, זה לוקח כדקה</p><p class="mu2">אפשר להישאר בדף, זה לא נתקע.</p><div class="bar"><i data-slide="${T(3.0)}"></i></div></div>
+  </div>${navMore('תוכן')}</div>`;
+}
+const POST_TEXT = ['החגים מתקרבים, והעור שלך', 'מבקש רגע של שקט.', 'טיפול פנים קלאסי במחיר מיוחד', 'עד ערב החג. המקומות מוגבלים.', 'לקביעת תור: הקישור בביו'];
+function genResult({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  const opts = [
+    { title1: 'לפני החגים', title2: 'טיפול פנים', badge: 'מחיר מיוחד', tone: 0, angle: 'מחיר לפני החג' },
+    { title1: 'רגע של שקט', title2: 'לעור שלך', badge: 'לקביעת תור', tone: 1, angle: 'רוגע לפני החג' },
+    { title1: 'מתכוננות', title2: 'לחגים?', badge: 'המקומות מוגבלים', tone: 2, angle: 'מקומות אחרונים' },
+  ];
+  return `<div class="scr" style="padding-top:16px">
+  <div class="gen" style="padding:10px">
+    <div class="row sb nw"><span class="gt">כתבי מה תרצי, ותקבלי פוסט מוכן</span></div>
+    <div style="position:relative;height:18px"><p class="cnt" style="position:absolute;right:0" ${vis(0, T(0.5))}>3 מתוך 9 החודש</p><p class="cnt" style="position:absolute;right:0" ${vis(T(0.5))}>4 מתוך 9 החודש</p></div>
+    <div class="row" style="gap:7px;align-items:flex-start;margin-top:6px">${opts.map((o, i) => `<div style="width:82px" ${vis(T(0.3 + i * 0.35))}>${postArt({ ...o, w: 82 })}
+      <p class="mu2 nw" style="margin-top:4px">${i + 1}. ${o.angle}</p><div class="mini" ${k(`open${i}`)}>לפתוח ולערוך</div></div>`).join('')}</div>
+    <div class="txtbox" style="margin-top:10px" ${vis(T(1.6))}>
+      <div class="row sb nw" style="margin-bottom:2px"><span style="font:700 11px KA;color:#6B756F">טקסט לפוסט</span><span class="sbtn" style="margin:0">העתקה</span></div>
+      ${POST_TEXT.map((l, i) => `<div ${wipe(T(2.0 + i * 0.55), T(2.45 + i * 0.55))}>${l}</div>`).join('')}
+      <div style="color:${PCD};font-size:11px" ${wipe(T(4.9), T(5.3))}>#טיפולפנים #סטודיוליה</div>
+    </div>
+  </div>${navMore('תוכן')}</div>`;
+}
+/** The template gallery (DesignStudio "תבניות") and the editor's "מילוי עם AI" (app/design/AiFill.jsx). */
+function gallery() {
+  return `<div class="scr">${contentHead().replace('<span class="chip on" style="height:27px">השבוע</span><span class="chip" style="height:27px">תבניות</span>', '<span class="chip" style="height:27px">השבוע</span><span class="chip on" style="height:27px">תבניות</span>')}
+  <div class="row" style="gap:10px;align-items:flex-start">${[0, 1, 2].map((i) => `<div style="width:80px">${postArt({ title1: ['טיפול פנים', 'מבצע החודש', 'לקוחה חדשה?'][i], sub: 'סטודיו ליה', tone: i, w: 80 })}
+    <p class="b nw" style="font-size:11.5px;margin-top:4px">${['טיפול בפוקוס', 'מבצע', 'היכרות'][i]}</p><div class="mini" ${k(`use${i}`)}>להשתמש בתבנית</div></div>`).join('')}</div>
+  ${navMore('תוכן')}</div>`;
+}
+function editor({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  return `<div class="scr">
+  <div class="row" style="gap:12px;align-items:flex-start;margin-bottom:10px">
+    <div style="position:relative;width:132px;flex:none">
+      <div ${vis(0, T(2.4))}>${postArt({ title1: 'טיפול פנים', title2: '', sub: 'סטודיו ליה', tone: 0, w: 132 })}</div>
+      <div style="position:absolute;inset:0" ${vis(T(2.3))}>${postArt({ title1: 'הטיפול הראשון', title2: 'במחיר היכרות', sub: 'סטודיו ליה', badge: '₪249 לטיפול הראשון', tone: 0, w: 132, textAt: T(2.4) })}</div>
+    </div>
+    <div class="nw" style="padding-top:6px"><p style="font:700 16px KF">טיפול בפוקוס</p><p class="mu2">פוסט 4:5</p><p class="mu2" style="margin-top:8px">ככה זה נראה עם הלוגו,</p><p class="mu2">הצבע והשם שלך.</p></div>
+  </div>
+  <div style="border:1px dashed ${PC};border-radius:14px;padding:11px;background:${PCT}">
+    <p class="b nw" style="font-size:13.5px;margin-bottom:3px">✦ מילוי עם AI</p>
+    <div class="nw mu" style="line-height:1.5;margin-bottom:8px;color:#3B4842"><div>משפט אחד, וה-AI כותב את הטקסטים לתבנית,</div><div>טקסט לפוסט ושלושה כיוונים לתמונה.</div></div>
+    <div class="row" style="gap:6px"><div class="inp f" style="flex:1"><span ${wipe(T(0.5), T(1.6))}>הטיפול הראשון במבצע ₪249</span></div><div class="btn pc" style="height:36px;padding:0 16px;font-size:13px" ${k('fill')}>מלאי</div></div>
+    <div class="txtbox" style="margin-top:9px" ${vis(T(3.0))}><div class="row sb nw"><span style="font:700 11px KA;color:#6B756F">טקסט לפוסט</span><span class="sbtn" style="margin:0">העתקה</span></div>
+      <div ${wipe(T(3.3), T(3.8))}>הטיפול הראשון שלך אצלי, במחיר היכרות.</div><div ${wipe(T(3.9), T(4.4))}>לקביעת תור: הקישור בביו</div></div>
+  </div>
+  <div class="mtoast" ${vis(T(2.6), T(5.2))}>הטקסטים מולאו. אפשר לשנות כל מילה.</div>
+  </div>`;
+}
+const IDEAS = [
+  { title: 'לפני ואחרי: ניקוי פנים עמוק', brief: 'העור לפני ואחרי, באור יום מהחלון', day: 'יום ראשון' },
+  { title: 'שלושה טיפים לעור בחורף', brief: 'את מדברת למצלמה, שלוש נקודות קצרות', day: 'יום שלישי' },
+  { title: 'ככה נראה הבוקר בסטודיו', brief: 'מסדרים את החדר לפני הלקוחה הראשונה', day: 'יום רביעי' },
+  { title: 'שאלה שלקוחות שואלות אותי', brief: 'תשובה אחת קצרה, עד עשרים שניות', day: 'יום חמישי' },
+];
+function shootScr({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  return `<div class="scr"><div class="aiblk" style="padding-bottom:8px">${aiBlockHead()}
+  <div class="card" style="padding:10px 11px;margin-bottom:6px">
+    <p class="b nw" style="font-size:13.5px">◦ מה לצלם השבוע</p>
+    <div class="nw mu2" style="line-height:1.45;color:#3B4842"><div>3 עד 5 רעיונות של עשר דקות בעסק, לפי</div><div>השירותים והיומן שלך. כל רעיון יכול להפוך לרילס.</div></div>
+    <div style="position:relative;height:34px;margin-top:6px">
+      <span class="sbtn" style="position:absolute;right:0;top:0;height:32px;font-size:12.5px" ${vis(0, T(1.5))} ${k('ideas')}>תני לי רעיונות</span>
+      <span class="sbtn" style="position:absolute;right:0;top:0;height:32px;font-size:12.5px" ${vis(T(1.5), T(2.7))}>חושבת…</span>
+      <p class="nw" style="position:absolute;right:0;top:8px;font:700 11.5px KA;color:${PCD}" ${wipe(T(2.7), T(3.3))}>השבוע: עור בחורף, לפני שהחגים מתמלאים</p>
+    </div>
+    ${IDEAS.map((d, i) => `<div class="idea nw" ${vis(T(3.3 + i * 0.75))}><b>${d.title}</b><small>${d.brief}</small><small>${d.day} · 10 דק'</small><span class="sbtn">להפוך לרילס</span></div>`).join('')}
+  </div></div></div>`;
+}
+function scriptCard() {
+  return `<div class="scr"><div class="aiblk" style="padding-bottom:8px">${aiBlockHead()}
+  <div class="card nw" style="padding:10px 11px"><p class="b" style="font-size:13.5px">◦ תסריט לצילום</p><p class="mu2" style="color:#3B4842">ה-AI כותב תסריט קצר לרילס, סצנה אחרי סצנה,</p><p class="mu2" style="color:#3B4842">על נושא שתבחרי.</p><span class="sbtn" style="height:32px;font-size:12.5px;margin-top:6px" ${k('script')}>לכתוב תסריט</span></div>
+  <div class="gen nw" style="padding:9px 10px;margin-top:2px"><p class="gt">כתבי מה תרצי, ותקבלי פוסט מוכן</p><p class="cnt">4 מתוך 9 החודש</p></div>
+  </div>${navMore('תוכן')}</div>`;
+}
+const REEL_TOPIC = 'לפני ואחרי: ניקוי פנים עמוק';
+function reelForm({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  return `<div class="scr"><div class="sel nw" style="direction:rtl;display:inline-block;margin-bottom:10px;padding:5px 12px">← חזרה לפוסטים ותבניות</div>
+  <div class="card">
+    <p class="lbl">על מה הרילס?</p>
+    <div class="inp f" style="height:52px;align-items:flex-start;padding-top:8px;margin-bottom:10px"><span ${wipe(T(0.4), T(1.5))}>${REEL_TOPIC}</span></div>
+    <p class="lbl">אורך</p>
+    <div class="row" style="gap:5px;margin-bottom:10px">${['15 שניות', '30 שניות', '60 שניות'].map((l) => `<span class="chip ${l === '30 שניות' ? 'on' : ''}" style="flex:1;border-radius:999px">${l}</span>`).join('')}</div>
+    <p class="lbl">ווייב (לא חובה)</p>
+    <div class="chips" style="margin-bottom:12px">${['רגוע ומפנק', 'אנרגטי וקצבי', 'חם ואישי', 'מקצועי ומסביר', 'כיפי וצעיר'].map((l) => `<span class="chip" style="border-radius:999px;position:relative" ${l === 'רגוע ומפנק' ? k('vibe') : ''}>${l}${l === 'רגוע ומפנק' ? `<span class="chip on" style="position:absolute;inset:-1px;border-radius:999px" ${vis(T(2.0))}>${l}</span>` : ''}</span>`).join('')}</div>
+    <div class="btn pc" ${k('reel')}>צרי לי רילס</div>
+  </div>
+  <p class="nw" style="text-align:center;font:600 12.5px KA;color:${PCD};margin-top:14px" ${vis(T(3.0))}>ה-AI כותב לך תסריט, הוראות צילום והכל...</p>
+  ${navMore('תוכן')}</div>`;
+}
+const SCENES = [
+  { n: 1, sec: 4, spoken: ['בואי תראי מה קורה', 'בניקוי פנים עמוק אצלי'], screen: 'ניקוי פנים עמוק', film: ['קרוב על הידיים והמגבת,', 'אור רך מהחלון'] },
+  { n: 2, sec: 8, spoken: ['קודם ניקוי עדין,', 'ואז אדים שמכינים את העור'], screen: 'שלב ראשון', film: ['מהצד, הטלפון על חצובה', 'בגובה הכתפיים'] },
+];
+function reelResult({ t0 }) {
+  const T = (s) => +(t0 + s).toFixed(2);
+  return `<div class="scr" style="padding-top:16px">
+  <div class="cover nw" ${vis(0)}><small>כותרת לכריכה</small><b ${wipe(T(0.3), T(0.9))}>ניקוי פנים עמוק, מקרוב</b><p ${wipe(T(1.0), T(1.7))}>ככה נראה טיפול אצלי, מההתחלה ועד הסוף</p></div>
+  <div class="btn line" style="height:34px;margin-top:8px;border-color:${PC};color:#1F3A30;font-size:12.5px" ${vis(T(1.5))}>העתיקי את כל הרילס</div>
+  ${SCENES.map((s, i) => {
+    const a = 2.0 + i * 2.2;
+    return `<div class="scene nw" ${vis(T(a))}><div class="row" style="gap:7px"><span style="font:700 17px KF;color:${PCD}">${s.n}</span><span class="badge">סצנה · ${s.sec} שניות</span></div>
+      <p class="sl">מה אומרים</p>${s.spoken.map((l, j) => `<div class="sv" ${wipe(T(a + 0.3 + j * 0.4), T(a + 0.65 + j * 0.4))}>${l}</div>`).join('')}
+      <p class="sl">טקסט על המסך</p><div class="sv2">${s.screen}</div>
+      <p class="sl">איך לצלם</p>${s.film.map((l) => `<div class="sv2">${l}</div>`).join('')}</div>`;
+  }).join('')}
+  ${navMore('תוכן')}</div>`;
+}
+
+function videoAi(tl) {
+  intro(tl, 'AI בעסק', '', ['יועצת שמכירה את המספרים שלך,', 'ופוסטים ורילסים שנכתבים בשבילך']);
+
+  tl.scene(6, (at, end) => `
+  ${title(at(0.1), end, 'איפה היועצת?')}
+  ${step(at(0.3), end, 1)}${mock(at(0.1), end, homeScr())}${tap(at(1.2), 'nx-עוד')}
+  ${mock(at(1.7), end, homeScr(moreSheet(), 'עוד'))}${ring(at(2.6), at(4.2), 't-יועץ AI')}${tap(at(3.8), 't-יועץ AI')}
+  ${hint(at(0.9), end, ['בטלפון: ״עוד״ ← ״יועץ AI״.', 'במחשב: ״יועץ AI״ בתפריט הצד'])}`);
+
+  tl.scene(6.4, (at, end) => `
+  ${title(at(0.1), end, 'יועץ עסקי AI')}
+  ${step(at(0.3), end, 2)}${mock(at(0.1), end, advEmpty({ fillAt: at(3.3) }))}${ring(at(1.4), at(3.0), 'q0')}${tap(at(2.7), 'q0')}
+  ${hint(at(0.9), end, ['שאלה מוכנה, או כל שאלה שלך.', 'לחיצה מכניסה אותה לתיבה'])}`);
+
+  tl.scene(10.6, (at, end) => `
+  ${title(at(0.1), end, 'שואלים')}
+  ${step(at(0.3), end, 3)}${mock(at(0.1), end, advChat({ t0: at(0) }))}${tap(at(0.4), 'send')}
+  ${el('tagex', at(3), end, 'fade', '<span>תשובה לדוגמה</span>', 'top:192px')}
+  ${hint(at(0.9), end, ['התשובה נכתבת לפי הנתונים שלך:', 'הלקוחות, התורים וההכנסות'])}`);
+
+  tl.scene(5.6, (at, end) => `
+  ${title(at(0.1), end, 'מהתשובה לפעולה')}
+  ${step(at(0.3), end, 4)}${mock(at(0.1), end, advChat({ full: true }))}${ring(at(0.7), at(2.1), 'act')}${tap(at(1.8), 'act')}
+  ${mock(at(2.3), at(3.9), homeScr())}${mock(at(3.6), end, todayLower())}
+  ${hint(at(0.9), end, ['הכפתור בתשובה פותח את המסך המתאים.', 'היועצת לא שולחת כלום בעצמה'])}`);
+
+  tl.scene(5.6, (at, end) => `
+  ${title(at(0.1), end, 'בלשונית תוכן')}
+  ${step(at(0.3), end, 5)}${mock(at(0.1), end, contentScr())}${ring(at(1.3), end, 'aiblk')}
+  ${hint(at(0.9), end, ['כל מה שה-AI עושה בתוכן', 'נמצא במסגרת אחת: ״עם AI״'])}`);
+
+  tl.scene(12.2, (at, end) => `
+  ${title(at(0.1), end, 'משפט אחד, פוסט מוכן')}
+  ${step(at(0.3), end, 6)}${mock(at(0.1), at(5.6), genForm({ t0: at(0) }))}${tap(at(2.6), 'make')}
+  ${mock(at(5.4), end, genResult({ t0: at(5.4) }))}
+  ${hint(at(0.9), at(5.6), ['כותבים מה רוצים לפרסם,', 'ומקבלים שלוש אפשרויות בצבעים שלך'])}
+  ${hint(at(5.9), end, ['וגם טקסט לפוסט.', 'כל אפשרות נשמרת אצלך לעריכה'])}`);
+
+  tl.scene(9.2, (at, end) => `
+  ${title(at(0.1), end, 'מתבנית לפוסט')}
+  ${step(at(0.3), end, 7)}${mock(at(0.1), end, gallery())}${tap(at(1.1), 'use0')}
+  ${mock(at(1.6), end, editor({ t0: at(1.6) }))}${tap(at(3.5), 'fill')}
+  ${hint(at(0.9), end, ['בתבנית שבחרת: ״מילוי עם AI״', 'כותב את הטקסטים לתוכה'])}`);
+
+  tl.scene(9.4, (at, end) => `
+  ${title(at(0.1), end, 'מה לצלם השבוע')}
+  ${step(at(0.3), end, 8)}${mock(at(0.1), end, shootScr({ t0: at(0) }))}${tap(at(1.1), 'ideas')}
+  ${hint(at(0.9), end, ['רעיונות קצרים לפי השירותים שלך,', 'כל אחד עם יום מומלץ'])}`);
+
+  tl.scene(11.4, (at, end) => `
+  ${title(at(0.1), end, 'תסריט לרילס')}
+  ${step(at(0.3), end, 9)}${mock(at(0.1), end, scriptCard())}${tap(at(0.8), 'script')}
+  ${mock(at(1.3), at(5.4), reelForm({ t0: at(1.3) }))}${tap(at(3.0), 'vibe')}${tap(at(3.8), 'reel')}
+  ${mock(at(5.2), end, reelResult({ t0: at(5.2) }))}
+  ${hint(at(0.9), end, ['סצנה אחרי סצנה: מה אומרים,', 'מה כתוב על המסך ואיך מצלמים'])}`);
+
+  tl.scene(7.4, (at, end) => `
+  ${title(at(0.1), end, 'טוב לדעת')}
+  ${chk2(at(0.6), end, 'את תמיד מאשרת לפני שמפרסמים', 'שום דבר לא עולה לרשת בלעדייך', 270)}
+  ${chk2(at(1.6), end, 'מכסה חודשית ליצירות AI', 'המונה מראה כמה נשאר, והן מתחדשות בראשון לחודש', 390)}
+  ${chk2(at(2.6), end, 'התבניות פתוחות תמיד', 'בלי הגבלה, גם כשה-AI לא זמין', 510)}`);
+  ending(tl);
+}
+// Writing and showing inside a phone screen (see wipe / vis above), run with every frame after the shared runtime.
+const AI_RUNTIME = `<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const base = window.__t;
+  const c = (x) => Math.max(0, Math.min(1, x));
+  const wipes = [...document.querySelectorAll('[data-wipe]')].map((e) => { const [a, b] = e.dataset.wipe.split(',').map(Number); return { e, a, b }; });
+  const shows = [...document.querySelectorAll('[data-vis]')].map((e) => { const [a, b] = e.dataset.vis.split(',').map(Number); return { e, a, b }; });
+  const slides = [...document.querySelectorAll('[data-slide]')].map((e) => ({ e, a: +e.dataset.slide }));
+  const downs = [...document.querySelectorAll('[data-down]')].map((e) => { const [a, b] = e.dataset.down.split(',').map(Number); return { e, a, b }; });
+  window.__t = async (t) => {
+    for (const w of wipes) { const p = c((t - w.a) / (w.b - w.a)); w.e.style.clipPath = 'inset(-4px 0 -4px ' + ((1 - p) * 100).toFixed(1) + '%)'; }
+    for (const s of shows) { const p = c((t - s.a) / .35) * (1 - c((t - s.b) / .3)); s.e.style.opacity = p.toFixed(3); s.e.style.transform = 'translateY(' + ((1 - c((t - s.a) / .35)) * 8).toFixed(1) + 'px)'; }
+    // A box that grows with what is written in it: revealed from the top down, its bottom edge 30px below the newest line.
+    for (const d of downs) { const h = d.e.offsetHeight || 1; const p = c((t - d.a) / (d.b - d.a)); const px = Math.min(h, 34 + p * (h - 34)); d.e.style.clipPath = 'inset(0 0 ' + (h - px).toFixed(1) + 'px 0 round 16px 16px 4px 16px)'; }
+    for (const s of slides) { const x = (Math.sin((t - s.a) * 2) + 1) / 2; s.e.style.insetInlineStart = (x * 60).toFixed(1) + '%'; }
+    return base(t);
+  };
+});
+</script>`;
+
 // ── build, check, render ─────────────────────────────────────────────────────────────────────────
 const VIDEOS = {
+  ai: videoAi,
   'appointment-actions': videoAppointmentActions,
   clients: videoClients,
   till: videoTill,
@@ -848,7 +1209,7 @@ document.fonts.ready.then(() => {
   window.__missing = missing; window.__placed = true;
 });
 </script>`;
-const html = page(tl.html + PLACE, CSS);
+const html = page(tl.html + PLACE + AI_RUNTIME, CSS + AI_CSS);
 
 /** Fails on any line wider than its box, anything leaving the phone's screen or the frame, and any tap with no target. */
 async function check() {

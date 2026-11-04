@@ -16,10 +16,11 @@ assert.deepEqual(topics, [
   { title: 'יומן ותורים', ids: ['booking', 'appointment-actions', 'reminders'] },
   { title: 'לקוחות', ids: ['clients'] },
   { title: 'תשלומים וקבלות', ids: ['till', 'morning'] },
+  { title: 'AI בעסק', ids: ['ai'] },
   { title: 'הדף שלי והגדרות', ids: ['my-page', 'services-hours'] },
-], 'eleven videos in five topics, the welcome explainer first');
+], 'twelve videos in six topics, the welcome explainer first, the AI topic before the settings');
 const ids = [...page.matchAll(/\{ id: "([a-z-]+)"/g)].map((m) => m[1]);
-assert.equal(ids.length, 11, 'every video on the page is in a topic');
+assert.equal(ids.length, 12, 'every video on the page is in a topic');
 assert.equal(new Set(ids).size, ids.length, 'no video twice');
 for (const id of ids) {
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `public/tutorials/kalmea-${id}.mp4 exists`);
@@ -35,6 +36,16 @@ const topicsScript = raw('marketing/topics-motion.mjs');
 assert.ok(topicsScript.includes('050-7321978'), 'the topic videos end on the support line');
 assert.ok(!/PRESENTER|endCard\(/.test(topicsScript), 'no AI presenter in the topic videos');
 assert.ok(!/יוצאות אוטומטית|נשלחת אוטומטית|שליחה אוטומטית/.test(topicsScript.replace(/^\s*\/\/.*$/gm, '')), 'no automatic sending shown');
+// The AI video (2026-11-04): no figure stands for the AI (owner, 2026-11-01), the advisor's answer is marked as an example, the
+// limits are said plainly, and nothing behind a flag that is off by default is shown (the weekly content plan, publishing to
+// Instagram and Facebook: lib/featureFlags.ts).
+assert.ok(topicsScript.includes("ai: videoAi"), 'the AI video is built by the topic script');
+assert.ok(topicsScript.includes('תשובה לדוגמה'), 'the advisor answer in the video is labelled as an example');
+assert.ok(topicsScript.includes('את תמיד מאשרת לפני שמפרסמים'), 'the video says she approves before anything is published');
+assert.ok(topicsScript.includes('מתחדשות בראשון לחודש'), 'and that the AI allowance renews on the first of the month (lib/ai/capMessages.ts)');
+const aiPart = topicsScript.slice(topicsScript.indexOf('// 7. ai:'), topicsScript.indexOf('// ── build, check, render'));
+assert.ok(!/תוכנית תוכן|לוח תוכן|פרסום אוטומטי|דמות|רובוט/.test(aiPart.replace(/^\s*\/\/.*$/gm, '')), 'no content plan, auto-publishing or AI figure in the AI video');
+assert.ok(!/[\u2013\u2014]/.test(aiPart), 'no en or em dash in the AI video');
 assert.ok(/preload="none"/.test(page), 'nothing is downloaded before she presses play');
 assert.ok(/playsInline/.test(page), 'plays inside the page on iPhone, not full screen on load');
 assert.ok(/robots: \{ index: false/.test(page), 'not indexed (it is a link for signups, not a landing page)');
