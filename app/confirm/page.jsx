@@ -29,6 +29,8 @@ function ConfirmContent() {
   );
   // Public branding from the API's success path; optional - no logo, no space.
   const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '', primaryColor: '' });
+  // Her booking page and WhatsApp (lib/publicContact.ts), sent only on a signed answer: where to go after a cancel or a refusal.
+  const [contact, setContact] = useState({ bookUrl: '', whatsapp: '' });
 
   // Does not set 'working' itself. On mount that is already the status for a
   // confirm link, and setting state synchronously from an effect is a
@@ -48,7 +50,9 @@ function ConfirmContent() {
         } else {
           setStatus('error');
           setMessage(data.error || 'משהו השתבש');
+          if (data.businessName) setBrandInfo((b) => ({ ...b, businessName: data.businessName }));
         }
+        setContact({ bookUrl: typeof data.bookUrl === 'string' && data.bookUrl.startsWith('/') ? data.bookUrl : '', whatsapp: /^\d{8,15}$/.test(String(data.whatsapp || '')) ? String(data.whatsapp) : '' });
       })
       .catch(err => {
         console.error(err);
@@ -160,6 +164,14 @@ function ConfirmContent() {
           <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
             נסי שוב
           </button>
+        )}
+
+        {/* After a cancel, or when the link could not change the booking: book another time, or write to her. */}
+        {((status === 'success' && action === 'cancel') || (status === 'already' && action === 'cancel') || status === 'error') && (contact.bookUrl || contact.whatsapp) && (
+          <div data-testid="confirm-next" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
+            {contact.bookUrl && <a href={contact.bookUrl} className="pub-pill" style={{ textDecoration: 'none' }}>קביעת מועד אחר</a>}
+            {contact.whatsapp && <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className="pub-pill pub-pill-quiet" style={{ textDecoration: 'none' }}>כתיבה ל{brandInfo.businessName || 'עסק'} בוואטסאפ</a>}
+          </div>
         )}
 
         {(status === 'success' || status === 'already' || status === 'declined') && (
