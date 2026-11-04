@@ -1274,7 +1274,7 @@ const SKIN_CSS = `
 .sev i{display:inline-block;width:13px;height:5px;border-radius:3px;background:#DAD2BF;margin-left:2px}
 .sev i.on{background:#44594F}
 .treat{border-top:4px solid ${PC};background:linear-gradient(180deg,#FDF6F6 0%,#fff 70%);text-align:center;padding:14px 12px}
-.svc{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:4px 11px;border-radius:999px;background:#fff;border:1px solid #E8E1D1;font:600 11.5px KA;color:#1F3A30}
+.svc-match{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:4px 11px;border-radius:999px;background:#fff;border:1px solid #E8E1D1;font:600 11.5px KA;color:#1F3A30}
 .tgl{display:flex;justify-content:space-between;align-items:center;height:42px;padding:0 13px;border-radius:14px;background:#fff;border:1px solid #E8E1D1;font:700 12.5px KA;color:#1F3A30;margin-bottom:9px}
 .rtabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border-radius:999px;background:#F4EFE4;margin-bottom:10px}
 .rtabs span{height:34px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:5px;font:700 12.5px KA;color:#44594F}
@@ -1484,7 +1484,7 @@ function ssConcerns({ t0 }) {
     </div></div>`;
 }
 const treatCard = () => `<div class="sc treat" ${k('treat')}><p class="eb">הטיפול המקצועי שהכי מתאים לך</p><p style="font:700 19px/1.3 KF;margin-top:4px">${REPORT.treatment}</p>
-    <p class="svc" ${k('svc')}>${I.spa(13)} אצלנו בקליניקה: ${REPORT.matched}</p>
+    <p class="svc-match" ${k('svc')}>${I.spa(13)} אצלנו בקליניקה: ${REPORT.matched}</p>
     <div class="mut" style="margin:8px 0 10px"><div>נבחר במיוחד עבורך, כדי לטפל במה</div><div>שזוהה בעור ולחדד את התוצאה.</div></div>
     <div class="prim" ${k('book1')}>${I.cal(15)} קביעת תור</div><p style="font:600 10px KA;color:#44594F;margin-top:7px">נשמור לך את הפרטים והטיפול, בלי למלא מחדש</p></div>`;
 const routineToggle = (open) => `<div class="tgl" ${k('rtoggle')}><span class="row" style="gap:7px">${I.drop(15)} שגרת הטיפוח האישית שלך לבית</span><span style="color:#44594F;font-size:11px">${open ? '▲' : '▼'}</span></div>`;
