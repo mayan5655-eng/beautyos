@@ -85,7 +85,7 @@ for (const f of sources) {
 assert.equal(MODELS.cheap, 'claude-haiku-5-5');
 assert.equal(MODEL_RATES['claude-haiku-5-5'].input, 0.1);
 assert.equal(MODEL_RATES['claude-haiku-5-5'].output, 0.5);
-for (const f of ['app/api/whatsapp-webhook/route.js', 'app/api/voice-intent/route.ts', 'lib/ai/scoreLeads.ts', 'lib/leads/mapHeaders.ts']) {
+for (const f of ['app/api/whatsapp-webhook/route.js', 'app/api/voice-intent/route.ts', 'lib/ai/scoreLeads.ts', 'lib/leads/mapHeaders.ts', 'lib/ai/helpChat.ts']) {
   const src = code(f);
   assert.ok(!/MODELS\.(writer|ideas)/.test(src), `${f} is a mechanical call and stays on the cheap model`);
   assert.ok(src.includes('MODELS.cheap'), `${f} takes its model from MODELS.cheap`);
@@ -93,6 +93,12 @@ for (const f of ['app/api/whatsapp-webhook/route.js', 'app/api/voice-intent/rout
   assert.ok(/output_config:\s*\{[^}]*effort:\s*EFFORT\.cheap/.test(src), `${f} sets effort (Haiku 5.5 defaults to medium)`);
   const tokens = [...src.matchAll(/max_tokens:\s*([0-9_]+)/g)].map((m) => Number(m[1].replace(/_/g, '')));
   assert.ok(tokens.length > 0 && tokens.every((n) => n >= 1500), `${f}: max_tokens ${tokens} leaves no room for Haiku 5.5's thinking (need >= 1500)`);
+}
+
+// The help chat (lib/ai/helpChat.ts) answers while she waits: its route sets an explicit time limit too.
+{
+  const m = /export const maxDuration\s*=\s*([0-9]+)/.exec(code('app/api/help-chat/route.ts'));
+  assert.ok(m && Number(m[1]) >= 30, 'app/api/help-chat/route.ts needs an explicit maxDuration: Haiku 5.5 thinks before it answers');
 }
 
 console.log('ai models: ok');
