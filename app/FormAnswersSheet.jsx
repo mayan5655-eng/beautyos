@@ -114,7 +114,9 @@ export default function FormAnswersSheet({ form, tenantId, label, onClose, pcTin
                 );
                 return (
                   <div key={i} data-testid="form-answer" data-flag={r.flag ? 'true' : undefined}
-                    style={{ padding: '8px 10px', margin: '0 -10px', borderRadius: 'var(--r-sm)', borderBottom: r.flag ? 'none' : '1px solid var(--line)', background: r.flag ? 'rgba(242,184,75,0.16)' : 'transparent', borderInlineStart: r.flag ? '3px solid var(--warning, #F2B84B)' : '3px solid transparent', marginBottom: r.flag ? 4 : 0 }}>
+                    style={r.flag
+                      ? { padding: '8px 10px', margin: '4px 0', borderRadius: 'var(--r-sm)', background: 'rgba(242,184,75,0.16)', borderInlineStart: '3px solid var(--warning, #F2B84B)' }
+                      : { padding: '8px 13px', borderBottom: '1px solid var(--line)' }}>
                     <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '0 0 3px', lineHeight: 1.5 }}>{r.n}. {r.q}</p>
                     <p style={{ fontSize: 'var(--t-md)', fontWeight: r.answer ? 700 : 400, color: r.answer ? 'var(--ink)' : 'var(--ink-3)', margin: 0, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
                       {r.answer || (r.optional ? 'לא ענתה (לא חובה)' : 'לא ענתה')}
