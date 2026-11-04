@@ -13,6 +13,7 @@ import { upsertScanLead } from "../../../../lib/leads";
 import { checkIpLimit, checkTenantLimit } from "../../../../lib/rateLimit";
 import { verifyScanReport } from "../../../../lib/scanToken";
 import { checkSendPayload, INVALID_LINK_HE } from "../../../../lib/skinScanGuard";
+import { buildOwnerMessage } from "../../../../lib/skinScanOwnerMessage";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -46,21 +47,6 @@ function buildClientMessage(report, businessName) {
     if (report.matched_service) lines.push(`   (אצלנו: ${report.matched_service})`);
   }
   lines.push(""); lines.push(`⚠️ הערכה קוסמטית כללית בלבד, אינה תחליף לייעוץ מקצועי.`);
-  return lines.join("\n");
-}
-
-// Build the owner's lead-notification message
-function buildOwnerMessage(report, clientName, clientPhone) {
-  const lines = [];
-  lines.push(`🔥 ליד חדש מסורק העור!`);
-  lines.push("");
-  if (clientName) lines.push(`👤 שם: ${clientName}`);
-  lines.push(`📞 טלפון: ${clientPhone}`);
-  lines.push(`💯 ציון עור: ${report.score}/100`);
-  lines.push(`🧴 סוג עור: ${report.skin_type}`);
-  if (report.clinical_treatment) lines.push(`💉 טיפול מומלץ: ${report.clinical_treatment}`);
-  lines.push("");
-  lines.push(`היא קיבלה את הדוח המלא לוואטסאפ. זה זמן מצוין ליצור קשר! 💗`);
   return lines.join("\n");
 }
 
@@ -128,7 +114,9 @@ export async function POST(request) {
     //    Scheduled via after(), not awaited: unlike the client report above,
     //    nothing in the response depends on this, so it must not be able to
     //    add its latency (or a failure) to what the visitor is waiting on.
-    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone);
+    //    The closing line follows clientResult: "she got it" only for a real send;
+    //    a queued report says it is waiting in her "הודעות מוכנות לשליחה".
+    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone, clientResult);
     after(() =>
       notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg, settingsRow }).catch((e) => {
         console.error("[skin-scan/send] owner notify failed:", e?.message || String(e));
