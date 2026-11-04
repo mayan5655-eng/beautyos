@@ -15,6 +15,7 @@ import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
 import { publicAccent } from "@/lib/branding";
 import { runWaitlistWin } from "@/lib/waitlistRuntime";
+import { publicContactFor } from "@/lib/publicContact";
 
 // Service-role client (bypasses RLS; every query is constrained by the token).
 function admin() {
@@ -53,11 +54,13 @@ async function loadOffer(supabase: ReturnType<typeof admin>, token: string) {
 
   const { data: settings } = await supabase
     .from("settings")
-    .select("business_name, primary_color")
+    .select("business_name, primary_color, business_phone, branding")
     .eq("tenant_id", offer.tenant_id)
     .maybeSingle();
 
-  return { offer, businessName: settings?.business_name || "העסק", primaryColor: publicAccent(settings) };
+  // Her booking link and WhatsApp, for a slot that was taken or ran out (lib/publicContact.ts): only after the token matched an offer.
+  const contact = await publicContactFor(supabase, offer.tenant_id, settings);
+  return { offer, businessName: settings?.business_name || "העסק", primaryColor: publicAccent(settings), contact };
 }
 
 export async function GET(request: NextRequest) {
@@ -68,7 +71,7 @@ export async function GET(request: NextRequest) {
   const loaded = await loadOffer(supabase, token);
   if (!loaded) return NextResponse.json({ state: "invalid" });
 
-  const { offer, businessName, primaryColor } = loaded;
+  const { offer, businessName, primaryColor, contact } = loaded;
   return NextResponse.json({
     state: stateOf(offer),
     service: offer.service,
@@ -78,6 +81,8 @@ export async function GET(request: NextRequest) {
     clientName: offer.client_name,
     businessName,
     primaryColor,
+    bookUrl: contact.bookUrl,
+    whatsapp: contact.whatsapp,
   });
 }
 

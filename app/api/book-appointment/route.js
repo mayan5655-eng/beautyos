@@ -350,7 +350,7 @@ export async function POST(request) {
     //      not say why: a visitor does not need to know it is lunch.
     if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration)) {
       return Response.json(
-        { success: false, error: "השעה הזו כבר לא פנויה, אפשר לבחור שעה אחרת?" },
+        { success: false, code: "slot_taken", error: "השעה הזו כבר לא פנויה, אפשר לבחור שעה אחרת?" },
         { status: 409 }
       );
     }
@@ -372,7 +372,7 @@ export async function POST(request) {
       );
       if (clash) {
         return Response.json(
-          { success: false, error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
+          { success: false, code: "slot_taken", error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
           { status: 409 }
         );
       }
@@ -495,7 +495,7 @@ export async function POST(request) {
       //         writer: both requests can read "free" before either inserts.
       if (error.code === "23505" || error.code === "23P01") {
         return Response.json(
-          { success: false, error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
+          { success: false, code: "slot_taken", error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
           { status: 409 }
         );
       }

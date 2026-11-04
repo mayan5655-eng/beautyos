@@ -25,6 +25,8 @@ type Details = {
   clientName?: string | null;
   businessName?: string | null;
   primaryColor?: string | null;
+  bookUrl?: string | null;
+  whatsapp?: string | null;
 };
 
 // "YYYY-MM-DD" -> "יום רביעי, 5 באוגוסט"
@@ -133,6 +135,11 @@ export default function ClaimPage() {
           <Result icon={ICON_QUESTION} title="משהו השתבש"
             body="לא הצלחנו להשלים את הפעולה. נסי שוב עוד רגע, או פני אלינו בוואטסאפ." />
         )}
+
+        {/* The slot went to someone else or ran out: another time on her booking page, or a word with her (lib/publicContact.ts). */}
+        {(state === "taken" || state === "expired" || state === "error") && (
+          <NextSteps bookUrl={details.bookUrl} whatsapp={details.whatsapp} businessName={details.businessName} />
+        )}
       </div>
     </PublicPage>
   );
@@ -151,6 +158,18 @@ function SlotRow({ label, value, last }: { label: string; value: string; last?: 
 }
 
 // An outcome with a brand line icon (empty and error states carry the quiet line icons, per the public-page language).
+function NextSteps({ bookUrl, whatsapp, businessName }: { bookUrl?: string | null; whatsapp?: string | null; businessName?: string | null }) {
+  const book = typeof bookUrl === "string" && bookUrl.startsWith("/") ? bookUrl : "";
+  const wa = /^\d{8,15}$/.test(String(whatsapp || "")) ? String(whatsapp) : "";
+  if (!book && !wa) return null;
+  return (
+    <div data-testid="claim-next" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
+      {book && <a href={book} className="pub-pill" style={{ textDecoration: "none" }}>קביעת מועד אחר</a>}
+      {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="pub-pill pub-pill-quiet" style={{ textDecoration: "none" }}>כתיבה ל{businessName || "עסק"} בוואטסאפ</a>}
+    </div>
+  );
+}
+
 function Result({ icon, title, body }: { icon: string; title: string; body: string }) {
   return (
     <div style={{ padding: "6px 0" }}>

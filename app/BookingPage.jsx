@@ -334,6 +334,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  // The time she picked was taken by someone else while she typed her details: said on the time step she is sent back to.
+  const [slotTakenMsg, setSlotTakenMsg] = useState("");
   // Consent to the booking's data use, ticked before submit. Interim wording
   // until the lawyer's answer; the point is that nothing is stored or sent
   // before she has been told what for and has said yes.
@@ -399,6 +401,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     return () => { alive = false; };
   }, [tenantId]);
 
+  // A new step starts at its top. On a phone the details step used to open scrolled to where the time grid had been, below its
+  // own summary and the back button (2026-11-03 UX review). Not on the first render: the page opens where the browser put it.
+  const stepSeen = useRef(false);
+  useEffect(() => {
+    if (!stepSeen.current) { stepSeen.current = true; return; }
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* old browser: stays put */ }
+  }, [step]);
+
   // Read the tenant from the URL (?t=...) on mount, then load that tenant's data.
   useEffect(() => {
     setMounted(true);
@@ -431,6 +441,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     // add a dependency that cannot change and re-run the whole load if it did.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The busy times again, after the server said her pick was taken: the grid she goes back to shows it taken.
+  const refetchAvailability = async () => {
+    if (!tenantId) return;
+    try {
+      const ap = await fetch(`/api/availability?t=${encodeURIComponent(tenantId)}`, { cache: "no-store" }).then((r) => r.json());
+      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setAvailabilityError(false); }
+      else setAvailabilityError(true);
+    } catch { setAvailabilityError(true); }
+  };
 
   const loadData = async (t, prefillServiceName) => {
     try {
@@ -665,6 +685,15 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const result = await res.json();
       // Prefer the server's specific message (e.g. "slot taken") when provided,
       // otherwise fall back to the generic error.
+      // Someone else took that time a moment ago: back to the times, nothing picked, the grid read again so it shows as taken.
+      if (!result.success && result.code === "slot_taken") {
+        setSelectedStart(null);
+        setSlotTakenMsg(result.error || "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?");
+        setStep(2);
+        setSubmitting(false);
+        refetchAvailability();
+        return;
+      }
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
       setPolicyStep(result.policyStep || null);
@@ -1297,7 +1326,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {/* STEP 2 — CHOOSE DATE + TIME */}
             {step === 2 && (
               <div className="bk-card">
-                <button onClick={() => setStep(1)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה לעמוד העסק</button>
+                <button onClick={() => { setSlotTakenMsg(""); setStep(1); }} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>→ חזרה לעמוד העסק</button>
                 <div style={{ background: cream, borderRadius:"var(--r-md)", padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 11, border: `1px solid ${hair}` }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedService.color || pc }} />
                   <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink, flex: 1 }}>{selectedService.name}</p>
@@ -1318,7 +1347,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
                       <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={"יום " + DAYS_HE[d.getDay()] + " " + d.getDate() + " " + MONTHS_HE[d.getMonth()]}
-                        onClick={() => { setSelectedDate(d); setSelectedStart(null); }}
+                        onClick={() => { setSelectedDate(d); setSelectedStart(null); setSlotTakenMsg(""); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(d); setSelectedStart(null); } }}
                         style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--pc-contrast, #FFFFFF)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                         <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
@@ -1345,6 +1374,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
                       </div>
                     )}
+                    {slotTakenMsg && <div role="alert" data-testid="slot-taken" style={{ ...noticeBox, fontWeight: 600 }}>{slotTakenMsg}</div>}
                     <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
                     {visibleSlots.length === 0 && (
                       <div style={noticeBox}>אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.</div>
@@ -1357,7 +1387,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         const taken = slotTaken(h);
                         const isSel = selectedStart === h;
                         return (
-                          <button key={h} disabled={taken} onClick={() => setSelectedStart(h)}
+                          <button key={h} disabled={taken} onClick={() => { setSelectedStart(h); setSlotTakenMsg(""); }}
                             className="bk-btn"
                             style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--pc-contrast, #FFFFFF)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}
@@ -1385,7 +1415,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {/* STEP 3 — DETAILS */}
             {step === 3 && (
               <div className="bk-card">
-                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px" }}>← חזרה</button>
+                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>→ חזרה</button>
 
                 <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
                   <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
@@ -1545,6 +1575,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     </div>
                   );
                 })()}
+                {/* Where to come: her address, and Waze straight to it (2026-11-03 UX review). Only when she has an address. */}
+                {addr && (
+                  <div data-testid="booking-address" style={{ marginBottom: 18 }}>
+                    <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, marginBottom: 8 }}>📍 {addr}</p>
+                    <a href={`https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`} target="_blank" rel="noreferrer" data-testid="booking-waze"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, fontFamily: "inherit" }}>ניווט ב-Waze</a>
+                  </div>
+                )}
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
                 <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
               </div>
