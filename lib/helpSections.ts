@@ -165,9 +165,16 @@ const NAILS_HELP_DROP: string[] = [
   "⚠️ יש מכסת סריקות חודשית",
   "⚠️ טיפולים רפואיים כמו בוטוקס",
 ];
+/** Videos about facial cosmetics only: a nails-only business is never pointed to them (help page and help chat alike). */
+export const COSMETICS_ONLY_VIDEOS: readonly string[] = ["skin-scan"];
+export const isNailsOnly = (fields: unknown): boolean =>
+  Array.isArray(fields) && fields.includes("nails") && !fields.includes("cosmetics");
+/** The tutorial videos this business may be pointed to. */
+export const tutorialIdsFor = (fields: unknown): string[] =>
+  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)));
 export const helpSectionsFor = (fields: unknown): HelpSection[] => {
   if (!Array.isArray(fields) || fields.includes("cosmetics") || !fields.includes("nails")) return HELP_SECTIONS;
-  return HELP_SECTIONS.map((sec) => ({...sec, body: sec.body
+  return HELP_SECTIONS.map((sec) => ({...sec, videos: sec.videos?.filter((v) => !COSMETICS_ONLY_VIDEOS.includes(v)), body: sec.body
     .filter((line: string) => !NAILS_HELP_DROP.some(d => line.startsWith(d)))
     .map((line: string) => NAILS_HELP_REPLACE.reduce((t, [a, b]) => t.split(a).join(b), line)
       .split("תוכנית טיפול בקליניקה").join("תוכנית טיפול")
