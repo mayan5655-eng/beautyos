@@ -81,7 +81,7 @@ export default function PhoneMock() {
 
         {/* bottom nav, decorative */}
         <div style={{ display: "flex", justifyContent: "space-around", padding: "8px 0 14px", borderTop: "1px solid var(--line)", background: "var(--surface)" }}>
-          {["היום", "יומן", "לקוחות", "תשלום", "תוכן"].map((l, i) => (
+          {["היום", "יומן", "לקוחות", "קופה", "תוכן"].map((l, i) => (
             <span key={l} style={{ fontSize: 8.5, fontWeight: i === 0 ? 700 : 500, color: i === 0 ? "var(--brand-accent)" : "var(--ink-2)" }}>{l}</span>
           ))}
         </div>

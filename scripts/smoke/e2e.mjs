@@ -103,7 +103,7 @@ try {
 
   // ── payment (cash, no real charge) ──
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-  await page.click('button[aria-label="תשלום"]'); await page.waitForTimeout(800);
+  await page.click('button[aria-label="קופה"]'); await page.waitForTimeout(800);
   await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
   // the treatment is added from the "+ הוסיפי שירות" menu inside the payment sheet
   const addSvc = page.locator('.sheet select, [role=dialog] select').filter({ visible: true }).first();

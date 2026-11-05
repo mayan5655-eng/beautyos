@@ -53,7 +53,7 @@ for (const field of fields) {
 
   // the five main tabs
   await check('היום', { mustInclude: ['הגדרת המערכת'] });
-  for (const tab of ['יומן', 'לקוחות', 'תשלום', 'תוכן']) { await page.click(`button[aria-label="${tab}"]`); await check(tab); }
+  for (const tab of ['יומן', 'לקוחות', 'קופה', 'תוכן']) { await page.click(`button[aria-label="${tab}"]`); await check(tab); }
   // the people segments inside "לקוחות"
   await page.click('button[aria-label="לקוחות"]'); await page.waitForTimeout(600);
   for (const seg of ['פניות', 'הודעות']) {

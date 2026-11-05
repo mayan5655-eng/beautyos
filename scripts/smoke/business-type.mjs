@@ -59,7 +59,7 @@ try {
   // ── till with a type: no warning ──
   const skipTour = async () => { for (let i = 0; i < 6; i++) { const sk = visible('button:has-text("דלגי")'); if (await sk.count()) { await sk.click().catch(() => {}); await page.waitForTimeout(300); } else break; } };
   await skipTour();
-  await page.click('button[aria-label="תשלום"]'); await page.waitForTimeout(800);
+  await page.click('button[aria-label="קופה"]'); await page.waitForTimeout(800);
   await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
   check(await page.locator('[data-testid="cashier-tax-warning"]').count() === 0, 'with a type chosen, the till has no warning');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
@@ -89,7 +89,7 @@ try {
     await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 }); await page.waitForTimeout(1200);
     await skipTour();
-    await page.click('button[aria-label="תשלום"]'); await page.waitForTimeout(800);
+    await page.click('button[aria-label="קופה"]'); await page.waitForTimeout(800);
     await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
   };
   await openTill();

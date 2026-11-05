@@ -36,6 +36,8 @@
 //                                  taken from the client
 //   facebook_*                     legacy columns nothing writes
 
+import { moveEveningSummaryOnSave } from './eveningSummarySetting.ts';
+
 export const SETTINGS_EDITABLE_COLUMNS = [
   // Identity she shows clients
   'business_name',
@@ -188,5 +190,7 @@ export function mergeStoredBags(
   const storedBranding = asObj(stored?.branding);
   const incomingBranding = asObj(payload.branding);
   if (incomingBranding && storedBranding) next.branding = { ...storedBranding, ...incomingBranding };
-  return next;
+  // The evening-summary switch moved from the public branding bag to automations (lib/eveningSummarySetting.ts): a save
+  // that writes both bags carries an old value across and removes it from branding.
+  return moveEveningSummaryOnSave(next);
 }

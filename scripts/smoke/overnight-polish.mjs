@@ -87,7 +87,7 @@ try {
 
   // ── F2: the till ──
   await home();
-  await visible('button[aria-label="תשלום"]').click(); await page.waitForTimeout(800);
+  await visible('button[aria-label="קופה"]').click(); await page.waitForTimeout(800);
   await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
   const sel = page.locator('.sheet select, [role=dialog] select').filter({ visible: true }).first();
   const opts = await sel.locator('option').allInnerTexts();
