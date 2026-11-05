@@ -185,4 +185,19 @@ ok('admin: the column reads only tenant_id and one timestamp, and shows X/3 or a
   assert.match(ui, /tenant\.first_steps == null \? '—' :[\s\S]{0,200}\{tenant\.first_steps\}\/3/);
 });
 
+// Vercel review 2026-11-05: a large folded contact PHOTO must not make parsing quadratic (it used to re-scan and re-copy the growing
+// line on every folded row). About 6 MB of photo in 75-character rows, the shape iPhone writes, parses in well under a second.
+await ok('a vCard with a huge folded photo parses fast, keeps the contact and drops the photo', () => {
+  const row = ' ' + 'A'.repeat(74);
+  const photo = 'PHOTO;ENCODING=b;TYPE=JPEG:' + 'B'.repeat(48) + '\n' + Array.from({ length: 80000 }, () => row).join('\n');
+  const vcf = ['BEGIN:VCARD', 'VERSION:3.0', 'FN:דנה כהן', 'N:כהן;דנה;;;', photo, 'TEL;TYPE=CELL:054-123-4567', 'END:VCARD'].join('\n');
+  const t0 = Date.now();
+  const cards = parseVCards(vcf);
+  const ms = Date.now() - t0;
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].phones.length, 1, 'the TEL after the photo is still read');
+  assert.ok(ms < 1500, `parsed in ${ms} ms`);
+  assert.ok(!JSON.stringify(cards[0]).includes('AAAA'), 'the photo bytes are not kept');
+});
+
 console.log(`${n} passed`);
