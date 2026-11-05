@@ -75,8 +75,9 @@ const PALETTES = {
   nails: ['#2f3a36', '#c98b8b', '#e9c9a8', '#f7efe6'],
   facial: ['#33403a', '#8fa79a', '#dce4d5', '#fbf8f1'],
 };
-/** Draw an abstract "shot" for slot `i` at time `t` (s) onto a small canvas: soft blobs and arcs drifting. */
-export function drawPlaceholder(c, group, i, t) {
+/** Draw an abstract "shot" for slot `i` at time `t` (s) onto a small canvas: soft blobs and arcs drifting. `seed` varies it per template. */
+export function drawPlaceholder(c, group, i0, t, seed = 0) {
+  const i = i0 + seed * 3;
   const ctx = c.getContext('2d');
   const w = c.width, h = c.height, pal = PALETTES[group] || PALETTES.lashes;
   const g = ctx.createLinearGradient(0, 0, w, h);

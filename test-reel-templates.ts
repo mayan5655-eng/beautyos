@@ -3,31 +3,33 @@
 // really different from each other, her field comes first, and the clip speeds are what the effects say.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {
+// The template module is plain JS with inferred types; the test reads it untyped.
+import * as reelTemplates from './lib/design/reelTemplates.js';
+const {
   REEL_TEMPLATES, GROUPS, FIELD_OF_GROUP, MOODS, LOOKS, TEXT_STYLES, TRANSITIONS, EFFECTS, LINE_MAX,
   templateProblems, planTemplateReel, resolveTexts, groupsFor, templatesFor, templatesIn, getReelTemplate, seasonWord,
   hebrewFirst, tidyLine, rateAt, clipPlan, sourceMsAt, filmSeconds, zoomAt, transitionMs, transitionHits, textBlock, beatMsOf,
-} from './lib/design/reelTemplates.js';
+}: any = reelTemplates;
 import { MAX_ITEMS, MEDIA_BUDGET_MS, END_MS } from './lib/design/ownReel.js';
 import { reelTemplatesVisible } from './lib/featureFlags.ts';
 import { REEL_SAFE } from './lib/design/safeZone.ts';
 
 // ── every template is valid ─────────────────────────────────────────────────
 for (const t of REEL_TEMPLATES) assert.deepEqual(templateProblems(t), [], `${t.id} is valid`);
-assert.equal(new Set(REEL_TEMPLATES.map((t) => t.id)).size, REEL_TEMPLATES.length, 'template ids are unique');
+assert.equal(new Set(REEL_TEMPLATES.map((t: any) => t.id)).size, REEL_TEMPLATES.length, 'template ids are unique');
 assert.ok(templatesIn('lashes').length >= 5, 'lashes first and best: at least the five asked for');
 assert.ok(templatesIn('nails').length >= 5, 'nails at the same level');
 assert.ok(templatesIn('facial').length >= 2, 'a few for facial');
 for (const id of ['lash_reveal', 'lash_before_after', 'lash_bts', 'lash_lift3', 'lash_client']) assert.ok(getReelTemplate(id), `${id} exists`);
 for (const id of ['nail_reveal', 'nail_before_after', 'nail_process', 'nail_color', 'nail_season']) assert.ok(getReelTemplate(id), `${id} exists`);
-assert.ok(GROUPS.every((g) => FIELD_OF_GROUP[g] === 'cosmetics' || FIELD_OF_GROUP[g] === 'nails'));
+assert.ok(GROUPS.every((g: any) => FIELD_OF_GROUP[g] === 'cosmetics' || FIELD_OF_GROUP[g] === 'nails'));
 assert.ok(MOODS.length >= 6, 'six moods or so');
 {
-  const bpms = MOODS.map((m) => m.bpm);
-  assert.ok(bpms.some((b) => b >= 70 && b <= 78), 'a calm one near 75');
-  assert.ok(bpms.some((b) => b >= 92 && b <= 100), 'a groove near 95');
-  assert.ok(bpms.some((b) => b >= 118 && b <= 122), 'pop near 120');
-  assert.ok(bpms.some((b) => b >= 126 && b <= 130), 'energetic near 128');
+  const bpms = MOODS.map((m: any) => m.bpm);
+  assert.ok(bpms.some((b: any) => b >= 70 && b <= 78), 'a calm one near 75');
+  assert.ok(bpms.some((b: any) => b >= 92 && b <= 100), 'a groove near 95');
+  assert.ok(bpms.some((b: any) => b >= 118 && b <= 122), 'pop near 120');
+  assert.ok(bpms.some((b: any) => b >= 126 && b <= 130), 'energetic near 128');
 }
 
 // the validator really catches things (it is the net the data above passed through)
@@ -45,36 +47,36 @@ assert.ok(MOODS.length >= 6, 'six moods or so');
 // no dashes anywhere in the source of the templates, the music or the screen (em, en, figure dash, bar)
 for (const f of ['lib/design/reelTemplates.js', 'lib/design/reelMusic.js', 'app/design/ReelTemplates.jsx', 'app/design/reelTemplateDraw.js']) {
   const src = readFileSync(f, 'utf8');
-  const hebrewLines = src.split('\n').filter((l) => /[֐-׿]/.test(l));
+  const hebrewLines = src.split('\n').filter((l: any) => /[֐-׿]/.test(l));
   for (const l of hebrewLines) assert.ok(!/[‒-―]/.test(l), `${f}: no dash in Hebrew copy: ${l.trim().slice(0, 80)}`);
 }
 
 // ── distinct templates, and distinct variants inside each ──────────────────
 for (const g of GROUPS) {
   const list = templatesIn(g);
-  const sig = (t) => `${t.variants[0].look}|${t.variants[0].textStyle}|${t.variants[0].mood}`;
-  const shape = (t) => t.slots.map((s) => `${s.beats}${s.effect}${s.transition}`).join(',');
+  const sig = (t: any) => `${t.variants[0].look}|${t.variants[0].textStyle}|${t.variants[0].mood}`;
+  const shape = (t: any) => t.slots.map((s: any) => `${s.beats}${s.effect}${s.transition}`).join(',');
   assert.equal(new Set(list.map(shape)).size, list.length, `${g}: no two templates share a structure`);
   const sigs = list.map(sig);
   assert.equal(new Set(sigs).size, sigs.length, `${g}: no two templates share look + text style + mood by default`);
 }
 for (const t of REEL_TEMPLATES) {
-  const vs = t.variants.map((v) => `${v.look}|${v.textStyle}|${v.mood}`);
+  const vs = t.variants.map((v: any) => `${v.look}|${v.textStyle}|${v.mood}`);
   assert.equal(new Set(vs).size, vs.length, `${t.id}: its variants are different reels`);
-  assert.ok(new Set(t.variants.map((v) => v.mood)).size >= 2, `${t.id}: variants offer more than one mood`);
+  assert.ok(new Set(t.variants.map((v: any) => v.mood)).size >= 2, `${t.id}: variants offer more than one mood`);
 }
 // pacing really differs: the quick-cut reels cut at least twice as often as the calm ones
 {
-  const cutsPerSec = (id) => { const p = planTemplateReel(getReelTemplate(id)); return (p.scenes.length - 1) / (p.mediaMs / 1000); };
+  const cutsPerSec = (id: any) => { const p = planTemplateReel(getReelTemplate(id)); return (p.scenes.length - 1) / (p.mediaMs / 1000); };
   assert.ok(cutsPerSec('nail_trend') > 2 * cutsPerSec('nail_reveal'), 'trend cuts faster than the reveal');
   assert.ok(cutsPerSec('lash_promo') > 2 * cutsPerSec('lash_client'), 'promo cuts faster than the client quote');
 }
 // across all templates the palette of looks, text styles and transitions is used
-assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t) => t.variants.map((v) => v.look))), new Set(LOOKS));
-assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t) => t.variants.map((v) => v.textStyle))), new Set(TEXT_STYLES));
-assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t) => t.slots.map((s) => s.transition))), new Set(TRANSITIONS));
-assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t) => t.slots.map((s) => s.effect))), new Set(EFFECTS));
-assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t) => t.variants.map((v) => v.mood))), new Set(MOODS.map((m) => m.id)));
+assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t: any) => t.variants.map((v: any) => v.look))), new Set(LOOKS));
+assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t: any) => t.variants.map((v: any) => v.textStyle))), new Set(TEXT_STYLES));
+assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t: any) => t.slots.map((s: any) => s.transition))), new Set(TRANSITIONS));
+assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t: any) => t.slots.map((s: any) => s.effect))), new Set(EFFECTS));
+assert.deepEqual(new Set(REEL_TEMPLATES.flatMap((t: any) => t.variants.map((v: any) => v.mood))), new Set(MOODS.map((m: any) => m.id)));
 
 // ── the beat grid, the budgets, at every tempo ──────────────────────────────
 for (const t of REEL_TEMPLATES) for (const m of MOODS) {
@@ -108,7 +110,7 @@ for (const t of REEL_TEMPLATES) for (const m of MOODS) {
   long.slots.forEach((s: any) => { s.beats = 20; });
   const p = planTemplateReel(long, { bpm: 96 });
   assert.ok(p.mediaMs <= MEDIA_BUDGET_MS);
-  assert.ok(p.scenes.every((s) => Number.isInteger(s.beats)));
+  assert.ok(p.scenes.every((s: any) => Number.isInteger(s.beats)));
 }
 // the first slot opens on a cut whatever the data says; the closing card dissolves in
 for (const t of REEL_TEMPLATES) { const p = planTemplateReel(t); assert.equal(p.scenes[0].transition, 'cut'); assert.equal(p.scenes[0].transMs, 0); }
@@ -119,7 +121,7 @@ assert.ok(transitionMs('split', 500) === 1000 && transitionMs('flash', 500) <= 2
 {
   const t = getReelTemplate('lash_reveal');
   const p = planTemplateReel(t, { items: [{ kind: 'photo' }, { kind: 'video', durationMs: 3000 }, { kind: 'video', durationMs: 9000 }, null] });
-  assert.deepEqual(p.scenes.map((s) => s.kind), ['photo', 'video', 'video', 'video', 'end']);
+  assert.deepEqual(p.scenes.map((s: any) => s.kind), ['photo', 'video', 'video', 'video', 'end']);
 }
 
 // ── clip speed: slow motion, sped up, the ramp ─────────────────────────────
@@ -155,7 +157,7 @@ assert.equal(Array.from(tidyLine('א'.repeat(60))).length, LINE_MAX);
 for (const t of REEL_TEMPLATES) for (const s of planTemplateReel(t).scenes) for (const tx of s.texts) {
   const b = textBlock(tx);
   assert.ok(b.top >= REEL_SAFE.top && b.bottom <= REEL_SAFE.bottom, `${t.id}: words inside the safe zone`);
-  assert.ok(tx.lines.length <= 2 && tx.lines.every((l) => !/\n/.test(l)));
+  assert.ok(tx.lines.length <= 2 && tx.lines.every((l: any) => !/\n/.test(l)));
 }
 {
   const t = getReelTemplate('lash_bts');
@@ -184,7 +186,7 @@ assert.equal(templatesFor(['nails'])[0].group, 'nails');
   const p = planTemplateReel(getReelTemplate('nail_trend'));
   const hits = transitionHits(p);
   assert.ok(hits.length >= 4);
-  for (const h of hits) assert.ok(p.scenes.some((s) => s.startMs === h.ms), 'each hit is on a cut');
+  for (const h of hits) assert.ok(p.scenes.some((s: any) => s.startMs === h.ms), 'each hit is on a cut');
 }
 
 // ── the feature flag: on by default, off only when she (or we) say so ──────

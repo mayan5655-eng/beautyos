@@ -35,6 +35,8 @@ import { preparePhoto, createPainter, drawPlaceholder, playRealtime, renderTempl
 const btn = { padding: '12px 16px', fontSize: 'var(--t-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 46, fontFamily: 'inherit', cursor: 'pointer', borderRadius: 'var(--r-sm)' };
 const solid = { ...btn, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', border: 'none' };
 const quiet = { ...btn, background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)' };
+// 16px, not a type token: under 16px an iPhone zooms the page when the field is tapped (same as OwnReel).
+// eslint-disable-next-line local/design-tokens
 const field = { fontSize: 16, padding: '8px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', fontFamily: 'inherit', width: '100%', minWidth: 0, background: 'var(--surface)' };
 const chip = (on) => ({ padding: '8px 12px', borderRadius: 'var(--r-full)', border: `1px solid ${on ? 'var(--pc)' : 'var(--line-2)'}`, background: on ? 'var(--pc-tint)' : 'var(--surface)', color: on ? 'var(--pc-deep)' : 'var(--ink-2)', fontSize: 'var(--t-xs)', fontWeight: on ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', minHeight: 38, whiteSpace: 'nowrap' });
 const small = { fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, margin: 0 };
@@ -51,7 +53,7 @@ const readTipsSeen = () => { try { return window.localStorage.getItem(TIPS_KEY) 
 const writeTipsSeen = () => { try { window.localStorage.setItem(TIPS_KEY, '1'); } catch { /* private mode: shown again next time */ } };
 
 /** A small looping preview of a template, drawn with abstract placeholder shapes (never faces). */
-function TemplatePreview({ tpl, variant, look, width = 150 }) {
+function TemplatePreview({ tpl, variant, look, width = 150, seed = 0 }) {
   const ref = useRef(null);
   useEffect(() => {
     const c = ref.current;
@@ -59,11 +61,11 @@ function TemplatePreview({ tpl, variant, look, width = 150 }) {
     c.width = 180; c.height = 320;
     const plan = planTemplateReel(tpl, { bpm: moodById(variant.mood)?.bpm });
     const mk = () => { const x = document.createElement('canvas'); x.width = 135; x.height = 240; return x; };
-    const photos = tpl.slots.map((_, i) => drawPlaceholder(mk(), tpl.group, i, 0));
+    const photos = tpl.slots.map((_, i) => drawPlaceholder(mk(), tpl.group, i, 0, seed));
     const vid = mk();
     const painter = createPainter({ canvas: c, plan, look, lookId: variant.look, textStyle: variant.textStyle, photos });
     let raf = 0, last = 0, visible = true;
-    const t0 = performance.now();
+    const t0 = performance.now() - seed * 1300; // the cards start at different moments, so the grid is not all title frames
     let io = null;
     if (typeof IntersectionObserver !== 'undefined') { io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }); io.observe(c); }
     const tick = (now) => {
@@ -72,12 +74,12 @@ function TemplatePreview({ tpl, variant, look, width = 150 }) {
       last = now;
       const el = (now - t0) % plan.totalMs;
       const s = plan.scenes[painter.sceneAt(el)];
-      const frame = s.kind === 'video' ? drawPlaceholder(vid, tpl.group, s.slot, ((el - s.startMs) / 1000) * rateAt(s.effect, (el - s.startMs) / s.ms)) : null;
+      const frame = s.kind === 'video' ? drawPlaceholder(vid, tpl.group, s.slot, ((el - s.startMs) / 1000) * rateAt(s.effect, (el - s.startMs) / s.ms), seed) : null;
       painter.paint(el, frame);
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); io?.disconnect(); };
-  }, [tpl, variant, look]);
+  }, [tpl, variant, look, seed]);
   return <canvas ref={ref} aria-hidden style={{ width, aspectRatio: '9 / 16', display: 'block', borderRadius: 'var(--r-sm)', background: '#1b1418' }} />;
 }
 
@@ -85,14 +87,14 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
   const groups = useMemo(() => groupsFor(fields), [fields]);
   const [step, setStep] = useState('pick'); // pick | shots | music | preview
-  const [group, setGroup] = useState(groups[0]);
+  const [group, setGroup] = useState(() => groups[0]);
   const [tplId, setTplId] = useState(null);
   const [vi, setVi] = useState(0); // variant index
   const [media, setMedia] = useState({}); // slot index -> { id, kind, file, url, img?, durationMs? }
   const [edits, setEdits] = useState({}); // text key -> lines
   const [music, setMusic] = useState(null); // null = the variant's mood | { type: 'mood', id } | { type: 'own', name, url } | { type: 'none' }
   const [look, setLook] = useState(null);
-  const [tipsSeen, setTipsSeen] = useState(true);
+  const [tipsSeen, setTipsSeen] = useState(() => (typeof window === 'undefined' ? true : readTipsSeen()));
   const [agreed, setAgreed] = useState(false);
   const [adding, setAdding] = useState(-1);
   const [busy, setBusy] = useState(false);
@@ -110,17 +112,18 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
   const audioRef = useRef(null);
   const musicCache = useRef(null); // { key, url }
   const mediaRef = useRef(media);
-  mediaRef.current = media;
+  useEffect(() => { mediaRef.current = media; }, [media]);
 
   const tpl = tplId ? getReelTemplate(tplId) : null;
   const variant = tpl ? tpl.variants[Math.min(vi, tpl.variants.length - 1)] : null;
   const chosen = music || (variant ? { type: 'mood', id: variant.mood } : null);
   const moodId = chosen?.type === 'mood' ? chosen.id : variant?.mood;
   const bpm = moodById(moodId)?.bpm || tpl?.bpm;
-  const items = useMemo(() => (tpl ? tpl.slots.map((_, i) => media[i] || null) : []), [tpl, media]);
-  const texts = useMemo(() => (tpl ? resolveTexts(tpl, { edits }) : []), [tpl, edits]);
-  const defaults = useMemo(() => (tpl ? resolveTexts(tpl) : []), [tpl]);
-  const plan = useMemo(() => (tpl ? planTemplateReel(tpl, { bpm, items, texts }) : null), [tpl, bpm, items, texts]);
+  const items = tpl ? tpl.slots.map((_, i) => media[i] || null) : [];
+  const texts = tpl ? resolveTexts(tpl, { edits }) : [];
+  const defaults = tpl ? resolveTexts(tpl) : [];
+  // plain values: the React Compiler memoizes them (manual useMemo here was skipped by it)
+  const plan = tpl ? planTemplateReel(tpl, { bpm, items, texts }) : null;
   const filled = items.filter(Boolean).length;
   const missing = tpl ? tpl.slots.length - filled : 0;
   const branding = settings?.branding && typeof settings.branding === 'object' ? settings.branding : {};
@@ -132,23 +135,17 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
   const stopSample = () => { try { audioRef.current?.pause(); } catch { /* ignore */ } setSample((s) => { if (s) URL.revokeObjectURL(s.url); return null; }); };
   const dropMusicCache = () => { if (musicCache.current) URL.revokeObjectURL(musicCache.current.url); musicCache.current = null; };
 
-  const reset = () => {
-    Object.values(mediaRef.current).forEach(dropItem);
-    setMedia({}); setEdits({}); setTplId(null); setVi(0); setStep('pick'); setAgreed(false); setBusy(false); setError('');
-    setCaption(null); setSharing(false); dropOut(); stopPreview(); stopSample(); dropMusicCache();
-    setMusic((m) => { if (m?.type === 'own') URL.revokeObjectURL(m.url); return null; });
-  };
-  useEffect(() => { if (!open) reset(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { Object.values(mediaRef.current).forEach(dropItem); stopPreview(); dropMusicCache(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setGroup(groups[0]); }, [groups]);
-  useEffect(() => { setTipsSeen(readTipsSeen()); }, []);
+
+  // The parents mount this only while it is open, so closing it unmounts it: everything local is dropped here.
+  useEffect(() => () => { Object.values(mediaRef.current).forEach(dropItem); playerRef.current?.stop(); dropMusicCache(); try { audioRef.current?.pause(); } catch { /* ignore */ } }, []);
   useEffect(() => {
     if (!open) return undefined;
     let alive = true;
     loadLook(settings).then((l) => { if (alive) setLook({ ...l, lines: endLinesWithLink(l.lines) }); }).catch(() => {});
     return () => { alive = false; };
   }, [open, settings]);
-  useEffect(() => { stopPreview(); }, [step, tplId, vi, music, media, edits]); // eslint-disable-line react-hooks/exhaustive-deps
+  // anything she changes stops a running preview (play() resets `playing` when it ends)
+  useEffect(() => { playerRef.current?.stop(); playerRef.current = null; }, [step, tplId, vi, music, media, edits]);
 
   const choose = (id) => { setTplId(id); setVi(0); setMusic((m) => (m?.type === 'own' || m?.type === 'none' ? m : null)); setEdits({}); setStep('shots'); setError(''); dropOut(); };
 
@@ -201,9 +198,9 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
     if (sample?.id === id) return;
     const { channels, sampleRate } = renderMood(id, { durationMs: 9000, endStartMs: 9000, sampleRate: 24000 });
     const url = URL.createObjectURL(new Blob([encodeWav(channels, sampleRate)], { type: 'audio/wav' }));
-    const a = audioRef.current || new Audio();
+    const a = new Audio(url);
+    a.onended = () => stopSample();
     audioRef.current = a;
-    a.src = url; a.onended = () => stopSample();
     a.play().catch(() => {});
     setSample({ id, url });
   };
@@ -305,13 +302,13 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
                 {groups.map((g) => <button key={g} type="button" onClick={() => setGroup(g)} style={chip(group === g)}>{GROUP_LABELS[g]}</button>)}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }} data-testid="reel-tpl-list">
-                {templatesIn(group).map((t) => {
+                {templatesIn(group).map((t, ti) => {
                   const v = t.variants[0];
                   const p = planTemplateReel(t, { bpm: moodById(v.mood)?.bpm });
                   return (
                     <button key={t.id} type="button" onClick={() => choose(t.id)} data-testid="reel-tpl-card" data-id={t.id}
                       style={{ textAlign: 'right', border: '1px solid var(--line)', background: 'var(--surface)', borderRadius: 'var(--r-md)', padding: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'grid', gap: 6, alignContent: 'start', minWidth: 0 }}>
-                      <TemplatePreview tpl={t} variant={v} look={look} width="100%" />
+                      <TemplatePreview tpl={t} variant={v} look={look} width="100%" seed={ti} />
                       <span style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</span>
                       <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>{t.blurb}</span>
                       <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{t.slots.length} צילומים · {Math.round(p.totalMs / 1000)} שניות · {moodById(v.mood)?.label}</span>
@@ -443,7 +440,7 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
                 <canvas ref={previewRef} width={360} height={640} data-testid="reel-tpl-preview" style={{ width: '100%', aspectRatio: '9 / 16', display: 'block', borderRadius: 'var(--r-md)', background: '#1b1418' }} />
                 {!playing && (
                   <button type="button" onClick={play} aria-label="לצפות בתצוגה המקדימה" data-testid="reel-tpl-play"
-                    style={{ position: 'absolute', inset: 0, margin: 'auto', width: 74, height: 74, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.9)', color: 'var(--pc-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 6px 24px rgba(0,0,0,0.25)' }}>
+                    style={{ position: 'absolute', inset: 0, margin: 'auto', width: 74, height: 74, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.9)', color: 'var(--pc-deep)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: 'var(--shadow-lg)' }}>
                     <Icon name="play" size={28} />
                   </button>
                 )}

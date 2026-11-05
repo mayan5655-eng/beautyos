@@ -1,7 +1,8 @@
 // The generated music for "תבניות רילס" (lib/design/reelMusic.js): deterministic, the right length, never clipping,
 // at a sensible loudness, not harsh, quiet where the drums drop out, and a valid WAV.
 import assert from 'node:assert/strict';
-import { MOODS, moodById, renderMood, audioStats, encodeWav, PEAK_MAX } from './lib/design/reelMusic.js';
+import * as reelMusic from './lib/design/reelMusic.js';
+const { MOODS, moodById, renderMood, audioStats, encodeWav, PEAK_MAX }: any = reelMusic;
 
 const SR = 22050; // the tests render at half rate to stay quick; the same code runs at 48 kHz in the browser
 
@@ -19,7 +20,7 @@ const brightness = (ch: Float32Array) => {
   return Math.sqrt(d / s);
 };
 
-assert.equal(new Set(MOODS.map((m) => m.id)).size, MOODS.length);
+assert.equal(new Set(MOODS.map((m: any) => m.id)).size, MOODS.length);
 for (const m of MOODS) {
   assert.ok(m.bpm >= 60 && m.bpm <= 140 && m.label && m.hint);
   assert.ok(!/[‒-―]/.test(m.label + m.hint), 'no dashes in the mood copy');
