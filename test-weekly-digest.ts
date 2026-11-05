@@ -143,6 +143,8 @@ const empty: DigestInput = { now: SUN, receipts: [], appointments: [], clients: 
 
 ok('an empty business gets no digest; a quiet week with something waiting still does', () => {
   assert.equal(buildDigest(empty), null);
+  // A brand new business on the default hours (no business_hours at all): the empty diary is not an action.
+  assert.equal(buildDigest({ ...empty, settings: { automations: {} } }), null);
   assert.equal(buildDigest({ ...empty, pendingMessages: null, newLeads: null }), null);
   const d = buildDigest({ ...empty, newLeads: 2 });
   assert.ok(d);

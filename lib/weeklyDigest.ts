@@ -329,14 +329,15 @@ export function buildDigest(i: DigestInput): Digest | null {
     newClients: compare(cur.newClients, prev.newClients),
     noShows: compare(cur.noShows, prev.noShows),
   };
+  const anyNumbers = [cur, prev].some((w) => w.revenue > 0 || w.visits > 0 || w.newClients > 0 || w.noShows > 0);
   const actions = pickActions({
     pendingMessages: i.pendingMessages,
     newLeads: i.newLeads,
     overdueClients: overdueClientCount(rows.clients, rows.appointments, i.now, i.settings?.automations),
-    freeMinutes: freeMinutesByDay(weeks.coming, i.settings, rows.appointments, i.isYomTov),
+    // A business with no visits in two weeks has a whole empty diary: "54 free hours" would be noise, not a nudge.
+    freeMinutes: anyNumbers ? freeMinutesByDay(weeks.coming, i.settings, rows.appointments, i.isYomTov) : [],
     birthdays: birthdaysIn(weeks.coming, rows.clients),
   });
-  const anyNumbers = [cur, prev].some((w) => w.revenue > 0 || w.visits > 0 || w.newClients > 0 || w.noShows > 0);
   if (!anyNumbers && actions.length === 0) return null;
 
   const positive = positiveLine(weeks.last, rows.receipts, rows.appointments, cur.visits);
