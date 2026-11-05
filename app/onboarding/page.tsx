@@ -627,12 +627,12 @@ export default function OnboardingPage() {
               {!showChooser ? (
                 <>
                   <p style={subtitleStyle}>
-                    אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות — בלי להקליד הכל מחדש.
+                    אם את עוברת ממערכת אחרת, אפשר להעביר את רשימת הלקוחות והמחירון לכאן בכמה דקות, בלי להקליד הכל מחדש.
                     מייצאים מהתוכנה הקודמת לאקסל, מעתיקים ומדביקים. אנחנו נשאל מה כל עמודה מייצגת.
                   </p>
                   <div style={{ background: pcTint, border: "1px solid var(--line)", borderRadius:"var(--r-md)", padding: "13px 15px", marginTop: 4 }}>
                     <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>
-                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח. ההגדרות תמיד מחכות לך תחת <strong style={{ color: pc }}>הגדרות ← ייבוא נתונים</strong>.
+                      אפשר גם לדלג עכשיו ולעשות את זה מתי שנוח. הייבוא תמיד מחכה לך תחת <strong style={{ color: pc }}>הגדרות ← לקוחות ופניות</strong>, וגם בכרטיס "3 צעדים לתור הראשון" במסך הבית.
                     </p>
                   </div>
                 </>

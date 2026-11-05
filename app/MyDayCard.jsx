@@ -10,7 +10,7 @@ import { apptStatusWord } from "../lib/apptStatus.js";
 const GREEN = "var(--ink)";
 const MUTED = "var(--brand-muted)";
 
-export default function MyDayCard({ model, loading = false, brandNew = false, pc, pcTint, onRemind, onPay, onNewAppt, onOpen, style }) {
+export default function MyDayCard({ model, loading = false, brandNew = false, noHistory = false, pc, pcTint, onRemind, onPay, onNewAppt, onOpen, style }) {
   const [showDone, setShowDone] = useState(false);
   const [busy, setBusy] = useState("");
   // A tenant with nothing at all gets the welcome card the dashboard already shows; two big cards would only crowd it.
@@ -78,7 +78,8 @@ export default function MyDayCard({ model, loading = false, brandNew = false, pc
 
       {model.rows.length === 0 && (
         <p style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 4px" }}>
-          זה הזמן לנשום, או להציע תור ללקוחה שהתגעגעת אליה.
+          {/* A business with no appointment ever has no client she missed yet: the line said so to a brand-new account. */}
+          {noHistory ? "זה הזמן לקבוע את התור הראשון." : "זה הזמן לנשום, או להציע תור ללקוחה שהתגעגעת אליה."}
           {onNewAppt && <> <button type="button" onClick={onNewAppt} data-testid="my-day-new" style={{ background: "none", border: "none", padding: 0, minHeight: 44, color: GREEN, fontWeight: 700, textDecoration: "underline", fontFamily: "inherit", fontSize: 14, cursor: "pointer" }}>קביעת תור</button></>}
         </p>
       )}

@@ -22,6 +22,8 @@ import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCE
 import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialNudge from "./TrialNudge";
+import FirstBookingCard from "./FirstBookingCard";
+import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
 import FeedbackBanner from "./FeedbackBanner";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import BillingNotices from "./BillingNotices";
@@ -293,7 +295,7 @@ const TOUR_STEPS = [
   { id:"clients", tab:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
     title:"הלקוחות שלך", text:"כל לקוחה שלך, עם ההיסטוריה שלה, במקום אחד שתמיד זמין." },
   { id:"cashier", tab:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
-    title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן — פשוט ומסודר." },
+    title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן, פשוט ומסודר." },
   { id:"content", tab:"campaigns", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
     title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
   // requiresSettings: the tour's advance handler opens Settings at settingsTab before switching to this step. The booking-link
@@ -301,7 +303,7 @@ const TOUR_STEPS = [
   // (2026-10-21 audit).
   { id:"booking-link", selector:'[data-tour="booking-link"]', icon: ICON_CALENDAR,
     title:"הקישור שלך להזמנות", requiresSettings:true, settingsTab:"import",
-    text:"זה הקישור שהלקוחות שלך יזמינו דרכו. אפשר לשלוח אותו עכשיו — או פשוט לקבוע את התור הראשון בעצמך.",
+    text:"זה הקישור שהלקוחות שלך יזמינו דרכו. אפשר לשלוח אותו עכשיו, או פשוט לקבוע את התור הראשון בעצמך.",
     cta:"קביעת תור ראשון ✦" },
 ];
 
@@ -1050,6 +1052,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // (2026-10-21 audit: the step only ticked once an appointment or ANY client existed, so sending the link never ticked it,
   // and adding a client by hand did). Per device, in localStorage: a convenience mark, never business data.
   const [linkShared,        setLinkShared]         = useState(false);
+  // "3 צעדים לתור הראשון" (lib/firstBooking.js): what this phone remembers ({shown_at, done_at}); null until read, so the card
+  // and the 8-step checklist never flash in before the answer is known. fbCelebrate holds the one-time completion line for this visit.
+  const [firstLocal,        setFirstLocal]         = useState(null);
+  const [fbCelebrate,       setFbCelebrate]        = useState(false);
   // Which account this browser is signed in to, shown where she signs out: a page that answers "not found" because she is in
   // another account (a test one) must not look like a bug.
   const [authEmail,         setAuthEmail]          = useState("");
@@ -1671,7 +1677,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"tax",      done: !!settings.business_tax_status, label:"סוג העסק (פטור, מורשה או חברה)", hint:"קובע איזה מסמך חוקי אפשר להפיק", onClick:()=>openSetupTab("general") },
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
-    { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", onClick:()=>copyPublicLink("book") },
+    { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", cta:"העתקת הקישור", onClick:()=>copyPublicLink("book") },
     { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
     { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
     { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
@@ -1742,7 +1748,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             {open&&(
               <div style={{padding:"0 11px 10px 11px",display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}>
                 <p style={{flex:1,minWidth:110,fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>{s.hint}</p>
-                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-lg)",padding:"6px 16px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>הגדרה ←</button>
+                <button onClick={s.onClick} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-lg)",padding:"6px 16px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,flexShrink:0,whiteSpace:"nowrap",cursor:"pointer",fontFamily:"inherit"}}>{s.cta||"הגדרה ←"}</button>
               </div>
             )}
           </div>
@@ -1785,6 +1791,44 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = useMemo(() => services.filter(s=>s.active!==false), [services]);
+
+  // ── "3 צעדים לתור הראשון" (lib/firstBooking.js, app/FirstBookingCard.jsx) ──
+  // Pending until her settings, the full appointment history and this phone's record are all in: before that the
+  // answer could be wrong in either direction (a card for a busy business, or no card for a new one).
+  const fbEnabled = firstBookingCardEnabled(settings?.automations);
+  useEffect(() => {
+    const t = settings?.tenant_id;
+    if (!t) return;
+    let rec = {};
+    try { rec = JSON.parse(localStorage.getItem(firstBookingStorageKey(t)) || "{}") || {}; } catch { rec = {}; }
+    setFirstLocal(rec && typeof rec === "object" ? rec : {});
+  }, [settings?.tenant_id]);
+  const fbSteps = firstBookingSteps({ services, clients, appointments, linkShared, linkSharedAt: settings?.automations?.link_shared_at });
+  const fbRecord = firstBookingRecord(settings?.automations, firstLocal);
+  const fbComputed = !fbEnabled ? "off"
+    : (!settings?.tenant_id || firstLocal === null || !historyReady) ? "pending"
+    : firstBookingView({ enabled: true, steps: fbSteps, record: fbRecord, appointments });
+  const fbView = fbCelebrate ? "celebrate" : fbComputed;
+  const fbWriteLocal = (patch) => {
+    const t = settings?.tenant_id; if (!t) return;
+    const next = { ...(firstLocal || {}), ...patch };
+    setFirstLocal(next);
+    try { localStorage.setItem(firstBookingStorageKey(t), JSON.stringify(next)); } catch { /* storage blocked: her account copy still counts */ }
+  };
+  useEffect(() => {
+    // The first time the card is on screen, this phone remembers it, so finishing later earns the completion line.
+    if (fbComputed === "active" && !fbRecord.shown_at) fbWriteLocal({ shown_at: new Date().toISOString() });
+    // All three just became done: show the line for this visit, and record done_at so it never comes back.
+    if (fbComputed === "celebrate" && !fbCelebrate) {
+      const at = new Date().toISOString();
+      setFbCelebrate(true);
+      fbWriteLocal({ done_at: at });
+      persistTourPatch({ [FIRST_BOOKING_KEY]: { shown_at: fbRecord.shown_at || at, done_at: at } });
+    }
+  }, [fbComputed]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The 8-step "הגדרת המערכת" card is never on Today next to the 3-step one (and not while the answer is pending).
+  const setupOnToday = fbView !== "pending" && showSetupOnToday(fbView, setupDone, setupTotal);
+  const fbShowing = fbView === "active" || fbView === "celebrate" || fbView === "pending";
 
   // Her menu, ordered by how often she actually books each treatment.
   //
@@ -7038,7 +7082,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק");
+      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
       if (kind === "book") {
         setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
         // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
@@ -7050,11 +7094,36 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     } catch {
       // No clipboard here (the in-app browsers of Instagram and Facebook): hand the link to the phone's share sheet while the tap is still
       // live, and only then fall back to showing it. A bare address in a toast that vanishes in three seconds cannot be copied.
-      try { if (typeof navigator.share === "function") { await navigator.share({ url }); if (kind === "book") setLinkShared(true); return true; } }
+      // Shared through the share sheet counts like a copy, on this phone AND on her account (it used to tick only until the next reload).
+      try { if (typeof navigator.share === "function") { await navigator.share({ url }); if (kind === "book") rememberLinkShared(); return true; } }
       catch (e) { if (e && e.name === "AbortError") return false; }
       toast(`אי אפשר להעתיק כאן. הקישור: ${url}`, "info");
       return false;   // not copied: the day-1 nudge stays so she can try again
     }
+  };
+  // The tick for "she sent her booking link", on this phone and once on her account. Same three marks the copy path writes above.
+  const rememberLinkShared = () => {
+    const t = settings.tenant_id;
+    setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
+    if (!settings?.automations?.link_shared_at) persistTourPatch({ link_shared_at: new Date().toISOString() });
+  };
+  // "שליחה בוואטסאפ" on the 3-step card: opens HER WhatsApp with the message and link ready, and she picks the client and presses send.
+  // Nothing is sent by us. The same no-treatment guard as copyPublicLink: a link with no treatment on it can book nothing.
+  const shareBookingWhatsApp = () => {
+    const t = settings.tenant_id;
+    if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return; }
+    if (activeServices.length === 0) {
+      toast("קודם מוסיפים לפחות טיפול אחד, ואז הקישור מוכן לשליחה", "info");
+      openSetupTab("services", "newService");
+      return;
+    }
+    const base = (typeof window !== "undefined" && window.location.origin) || APP_URL;
+    const url = withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, "whatsapp");
+    const w = window.open(`https://wa.me/?text=${encodeURIComponent(firstLinkMessage(url, settings?.business_name))}`, "_blank", "noopener,noreferrer");
+    // noopener makes window.open return null even when it worked, so a null is not proof of a block: the tick is kept either way,
+    // because the button only ever opens her own WhatsApp and she decides whether to send.
+    void w;
+    rememberLinkShared();
   };
 
   // Load the community feed posts for this tenant (newest first)
@@ -8668,7 +8737,7 @@ ${MARKETING_FOOTER}`)}`;
    :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
  </div>
  )}
- <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} quietKeys={fbShowing?["day1","day10"]:null} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
  <FeedbackBanner plan={planInfo} tenantId={settings.tenant_id} isDemo={isDemoTenantId(settings?.tenant_id)} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={(tourStep!==null&&tourStep!==undefined)||activeTab!=="dashboard"||showSettings||showModal||showMoreSheet}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
@@ -8701,7 +8770,15 @@ ${MARKETING_FOOTER}`)}`;
  <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:21,color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
  <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
  </div>
- {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0}
+ {/* 3 צעדים לתור הראשון: first thing under the greeting for a new business, until it is done (lib/firstBooking.js). */}
+ <FirstBookingCard view={fbView} steps={fbSteps} name={displayName(settings.therapist_name)} style={{order:1}}
+              onAddServices={()=>openSettings("services","newService")}
+              onImportClients={()=>openImportFor("clients")}
+              onNewClient={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}}
+              onShareWhatsApp={shareBookingWhatsApp}
+              onCopyLink={()=>copyPublicLink("book")}
+              onClose={()=>setFbCelebrate(false)}/>
+ {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0} noHistory={historyReady&&appointments.length===0}
               pc={pc} pcTint={pcTint} style={{order:1}}
               onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt} onOpen={handleApptClick}/>}
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
@@ -8712,7 +8789,8 @@ ${MARKETING_FOOTER}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- <div className="glass-card card-boxed" style={{order:2,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ {/* Not while the 3-step card is on: a big ₪0 is the first thing a new business saw, before there was anything to count. */}
+ {fbView!=="active"&&<div className="glass-card card-boxed" style={{order:2,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
  <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
@@ -8721,7 +8799,7 @@ ${MARKETING_FOOTER}`)}`;
                   {todayTotals.tips>0&&` · טיפים ${todayTotals.tips.toLocaleString()}`}
  </p>
               )}
- </div>
+ </div>}
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
  <button type="button" onClick={()=>{if(guardWrite())return;setPhotoPost({clientName:""});}} data-testid="photo-to-post-open" className="glass-card card-boxed" style={{order:3,display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:1180,marginInline:"auto",marginBottom:12,padding:"14px 17px",textAlign:"right",cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line)"}}>
  <span aria-hidden style={{width:40,height:40,borderRadius:"50%",background:"var(--ink)",color:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",flex:"none"}}><Icon name="camera" size={18}/></span>
@@ -8732,14 +8810,14 @@ ${MARKETING_FOOTER}`)}`;
  </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
- <MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>
+ {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>}
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
- <MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
+ {fbView!=="active"&&<MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
             pageUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}
             pc={pc} pcTint={pcTint} toast={toast}
             onOpenWinback={()=>setShowLapsed(true)}
-            onOpenContent={()=>{setActiveTab("campaigns");setAiPostsView("studio");}}/>
+            onOpenContent={()=>{setActiveTab("campaigns");setAiPostsView("studio");}}/>}
             {/* THE ONE QUESTION - at most one, above everything. Today's only
                 kind: a cancellation opened a slot; offer it over WhatsApp?
                 The footer is the yes-rate, measured from day one. */}
@@ -8782,24 +8860,24 @@ ${MARKETING_FOOTER}`)}`;
                 checked services at all. Once she has services, the rest of
                 this screen (today's appointments, needs-attention) already
                 carries an empty day fine on its own. */}
-            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
+            {!fbShowing&&historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&(
               <div style={{order:3}}><EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
-                body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים — בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
+                body="המסך הזה יתמלא מעצמו ברגע שיהיה מה להראות. הדבר הראשון שכדאי לעשות הוא להוסיף את הטיפולים והמחירים. בלעדיהם אי אפשר לקבוע תור ועמוד ההזמנות שלך ריק."
                 actions={[
                   {label:"הטיפולים והמחירים שלי",onClick:()=>openSettings("services")},
-                  {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
+                  {label:"ייבוא לקוחות קיימות",onClick:()=>openImportFor("clients")},
                   {label:"רשימת ההגדרות",onClick:()=>setShowSetup(true)},
                 ]}/></div>
             )}
-            {historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
+            {!fbShowing&&historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length>0&&(
               <div style={{order:3}}><EmptyState icon="home" moment accent={pc} accentTint={pcTint}
                 title={<><span className="brand-rose-word">ברוכה הבאה</span>{displayName(settings.therapist_name)?", "+displayName(settings.therapist_name):""}</>}
-                body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך — הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
+                body="ההגדרות מוכנות. הדבר הראשון שכדאי לעשות עכשיו הוא להביא את הלקוחה הראשונה שלך: הוסיפי אותה ידנית, או שלחי לה את קישור ההזמנות שלך."
                 actions={[
                   {label:"לקוחה חדשה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                   {label:"העתקת קישור ההזמנות",onClick:()=>copyPublicLink("book")},
-                  {label:"ייבוא לקוחות קיימות",onClick:openImportHub},
+                  {label:"ייבוא לקוחות קיימות",onClick:()=>openImportFor("clients")},
                 ]}/></div>
             )}
             {(()=>{
@@ -8842,7 +8920,7 @@ ${MARKETING_FOOTER}`)}`;
                 {/* SETUP CHECKLIST — prominent on the dashboard ONLY while incomplete.
                     Once every item is done it disappears from here and lives compactly
                     inside Settings (+ the always-on header ☑ button / modal). */}
-                {setupDone < setupTotal && (
+                {setupOnToday && (
  <div className="glass-card card-boxed card-boxed-accent" style={{order:7,maxWidth:1180,margin:"0 auto 12px",padding:"16px 17px",borderInlineStart:`3px solid ${pc}`}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:6}}>
  <h3 className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>הגדרת המערכת</h3>
@@ -8930,7 +9008,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{textAlign:"center",padding:"20px 14px"}}>
  <div style={{width:52,height:52,borderRadius:"var(--r-md)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",background:"var(--pc-tint)"}}>☕</div>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>אין תורים להיום</p>
- <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי — הזדמנות טובה לקבוע תור או להתארגן</p>
+ <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",marginBottom:16,lineHeight:1.5}}>יום פנוי. הזדמנות טובה לקבוע תור או להתארגן</p>
  <button className="empty-cta" onClick={openNewAppt} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"10px 20px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-accent)"}}>✦ קביעת תור</button>
  </div>
                       );
@@ -9538,7 +9616,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
  <button onClick={()=>setShowLapsed(true)} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>מזמן לא הגיעו</button>
- <button onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
+ <button onClick={()=>openImportFor("clients")} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
  <button className="primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
  </div>
  </div>
@@ -9570,7 +9648,7 @@ ${MARKETING_FOOTER}`)}`;
  {!(searchQuery||filterStatus!=="all")&&(
  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
  <button className="empty-cta primary-btn" onClick={()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"11px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ לקוחה חדשה</button>
- <button className="empty-cta" onClick={openImportHub} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"11px 22px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
+ <button className="empty-cta" onClick={()=>openImportFor("clients")} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"11px 22px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="upload" size={14}/> ייבוא לקוחות</button>
  </div>
  )}
  </div>
@@ -10207,7 +10285,7 @@ ${MARKETING_FOOTER}`)}`;
               {clients.length===0?<EmptyState compact icon="people" accent={pc} accentTint={pcTint}
                  title="אין עדיין ממי ללמוד"
                  body="הפילוח הזה מתמלא מעצמו ככל שנרשמות לקוחות. אחרי חמש-שש כבר רואים מאיפה מגיעות הכי הרבה."
-                 actions={[{label:"הוספת לקוחה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},{label:"ייבוא מאנשי קשר",onClick:openImportHub}]}/>
+                 actions={[{label:"הוספת לקוחה",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},{label:"ייבוא לקוחות",onClick:()=>openImportFor("clients")}]}/>
                 :clientSourceStats.map((s)=>{
                   const pct=clients.length>0?Math.round((s.clients/clients.length)*100):0;
                   const unknown=s.key==="__unknown__";
@@ -11115,7 +11193,7 @@ ${MARKETING_FOOTER}`)}`;
           and the drawers still come out on top. */}
       {showImportHub&&(
  <Sheet open onClose={()=>setShowImportHub(false)} width={440} zIndex={1050} className="pop-in" title="ייבוא נתונים">
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                 {renderImportChooser()}
  <button onClick={()=>setShowImportHub(false)} style={{width:"100%",marginTop:14,padding:"11px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>אולי מאוחר יותר</button>
  </Sheet>
@@ -11132,7 +11210,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
  {importTarget==="clients"&&(<>{/* The contact picker exists only on Chrome for Android: on an iPhone the button could never work, so it is not shown there (2026-10-24 phone review). */}{typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>}
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(עובד בעיקר בטלפונים אנדרואיד. באייפון/מחשב — השתמשי בהדבקה למטה)</p></>)}
+ {typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(או הדביקי רשימה למטה, שורה לכל לקוחה)</p>}</>)}
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
  <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={importSpec.placeholder} style={{width:"100%",padding:"11px 13px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
@@ -12876,7 +12954,7 @@ ${MARKETING_FOOTER}`)}`;
               {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("clients")&&(
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>עוברת מתוכנה אחרת? אפשר להעביר את הנתונים לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                   {renderImportChooser()}
  <LeadSourcesEditor sources={resolveLeadSources(editSettings.automations)} pc={pc} pcTint={pcTint} onChange={(list)=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,lead_sources:list}};})}/>
  </div>

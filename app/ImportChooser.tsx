@@ -28,7 +28,7 @@ export const IMPORT_KINDS: {
 }[] = [
   { id:'clients',  icon:'people', title:'לקוחות',          blurb:'שמות, טלפונים, הערות, אלרגיות', ready:true },
   { id:'services', icon:'sparkle',  title:'שירותים ומחירים', blurb:'שם הטיפול, מחיר ומשך',          ready:true },
-  { id:'appts',    icon:'clock',  title:'תורים עתידיים',    blurb:'תאריך, שעה ולקוחה — היסטוריה לא מיובאת', ready:true },
+  { id:'appts',    icon:'clock',  title:'תורים עתידיים',    blurb:'תאריך, שעה ולקוחה. תורים שעברו לא מיובאים', ready:true },
 ];
 
 export default function ImportChooser({
@@ -69,7 +69,7 @@ export default function ImportChooser({
         </button>
       ))}
       <p style={{ fontSize:"var(--t-sm)", color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
-        איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת — ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
+        איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת, ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
       </p>
     </div>
   );

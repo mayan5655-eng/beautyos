@@ -52,7 +52,7 @@ assert.ok(src.includes('{activeTab==="insights"&&!historyReady&&') && src.includ
 const taxStart = src.indexOf('{activeTab==="tax"&&(()=>{');
 assert.ok(/if \(!historyReady\) return <div className="glass-card"/.test(src.slice(taxStart, taxStart + 1800)), 'the tax screen is gated on the history');
 assert.ok(src.includes('{activeTab==="leads"&&deferred.leads!=="ok"&&') && src.includes('{activeTab==="leads"&&deferred.leads==="ok"&&(<>'), 'the leads screen is gated on the leads');
-assert.ok(src.includes('{historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&('), 'a "brand new account" empty state is never shown before the older rows and the leads are known');
+assert.ok(src.includes('{!fbShowing&&historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0&&services.length===0&&('), 'a "brand new account" empty state is never shown before the older rows and the leads are known');
 assert.ok(src.includes('{historyReady&&appointments.length===0&&('), 'the empty calendar message waits too');
 assert.ok(src.includes('(clientTab==="history"||clientTab==="receipts")&&!historyReady'), "a client's visit and payment history waits for the history");
 assert.ok(src.includes('data-testid="history-strip"') && src.includes('onClick={loadHistory}'), 'a status strip says the history is loading, and offers a retry if it fails');
