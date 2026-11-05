@@ -93,6 +93,9 @@ const st = (receipts: any[], o: Record<string, any> = {}) =>
   const red = [{ client_id: 'c1', receipt_id: grow.id, created_at: grow.created_at, reward: '50%' }];
   assert.equal(st([...five, grow], { redemptions: red }).stamps, 0, 'the Grow reward visit, known only from the table row, earns no stamp');
   assert.equal(st([...five, grow], { redemptions: red, voids: [{ receipt_id: grow.id }] }).ready, true);
+  // a Grow reward visit in the morning does not take the day's stamp from a paid visit later the same day
+  const later = rc(5, { created_at: new Date(Date.parse(grow.created_at) + 3 * 3600000).toISOString() });
+  assert.equal(st([...five, grow, later], { redemptions: red }).stamps, 1, 'the later paid visit that day still earns its stamp');
   // a reward given by hand (no receipt)
   assert.equal(st(five, { redemptions: [{ client_id: 'c1', receipt_id: null, created_at: day(1) }] }).stamps, 0);
   // visits beyond a full card carry to the next one
