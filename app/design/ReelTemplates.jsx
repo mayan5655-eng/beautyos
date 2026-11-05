@@ -53,17 +53,17 @@ const readTipsSeen = () => { try { return window.localStorage.getItem(TIPS_KEY) 
 const writeTipsSeen = () => { try { window.localStorage.setItem(TIPS_KEY, '1'); } catch { /* private mode: shown again next time */ } };
 
 /** A small looping preview of a template, drawn with abstract placeholder shapes (never faces). */
-function TemplatePreview({ tpl, variant, look, width = 150, seed = 0 }) {
+function TemplatePreview({ template, style, look, width = 150, seed = 0 }) {
   const ref = useRef(null);
   useEffect(() => {
     const c = ref.current;
     if (!c || !look) return undefined;
     c.width = 180; c.height = 320;
-    const plan = planTemplateReel(tpl, { bpm: moodById(variant.mood)?.bpm });
+    const plan = planTemplateReel(template, { bpm: moodById(style.mood)?.bpm });
     const mk = () => { const x = document.createElement('canvas'); x.width = 135; x.height = 240; return x; };
-    const photos = tpl.slots.map((_, i) => drawPlaceholder(mk(), tpl.group, i, 0, seed));
+    const photos = template.slots.map((_, i) => drawPlaceholder(mk(), template.group, i, 0, seed));
     const vid = mk();
-    const painter = createPainter({ canvas: c, plan, look, lookId: variant.look, textStyle: variant.textStyle, photos });
+    const painter = createPainter({ canvas: c, plan, look, lookId: style.look, textStyle: style.textStyle, photos });
     let raf = 0, last = 0, visible = true;
     const t0 = performance.now() - seed * 1300; // the cards start at different moments, so the grid is not all title frames
     let io = null;
@@ -74,12 +74,12 @@ function TemplatePreview({ tpl, variant, look, width = 150, seed = 0 }) {
       last = now;
       const el = (now - t0) % plan.totalMs;
       const s = plan.scenes[painter.sceneAt(el)];
-      const frame = s.kind === 'video' ? drawPlaceholder(vid, tpl.group, s.slot, ((el - s.startMs) / 1000) * rateAt(s.effect, (el - s.startMs) / s.ms), seed) : null;
+      const frame = s.kind === 'video' ? drawPlaceholder(vid, template.group, s.slot, ((el - s.startMs) / 1000) * rateAt(s.effect, (el - s.startMs) / s.ms), seed) : null;
       painter.paint(el, frame);
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); io?.disconnect(); };
-  }, [tpl, variant, look, seed]);
+  }, [template, style, look, seed]);
   return <canvas ref={ref} aria-hidden style={{ width, aspectRatio: '9 / 16', display: 'block', borderRadius: 'var(--r-sm)', background: '#1b1418' }} />;
 }
 
@@ -308,7 +308,7 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
                   return (
                     <button key={t.id} type="button" onClick={() => choose(t.id)} data-testid="reel-tpl-card" data-id={t.id}
                       style={{ textAlign: 'right', border: '1px solid var(--line)', background: 'var(--surface)', borderRadius: 'var(--r-md)', padding: 8, cursor: 'pointer', fontFamily: 'inherit', display: 'grid', gap: 6, alignContent: 'start', minWidth: 0 }}>
-                      <TemplatePreview tpl={t} variant={v} look={look} width="100%" seed={ti} />
+                      <TemplatePreview template={t} style={v} look={look} width="100%" seed={ti} />
                       <span style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{t.name}</span>
                       <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>{t.blurb}</span>
                       <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{t.slots.length} צילומים · {Math.round(p.totalMs / 1000)} שניות · {moodById(v.mood)?.label}</span>
