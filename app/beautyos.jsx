@@ -11327,7 +11327,7 @@ ${MARKETING_FOOTER}`)}`;
    {preview.map((r,ri)=>(
  <tr key={ri} style={{background:ri%2?"var(--surface-2)":"var(--surface)"}}>
      {r.map((cell,ci)=>(
- <td key={ci} style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
+ <td key={ci} dir="auto" style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",unicodeBidi:"plaintext",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
      ))}
  </tr>
    ))}
