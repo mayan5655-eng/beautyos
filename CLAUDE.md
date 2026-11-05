@@ -4,6 +4,9 @@
 
 - Implement your own report recommendations straight away, in priority order. Do not stop to ask which numbers to do;
   make reasonable decisions and list them in the final report.
+- Be proactive about the product: at the end of every piece of work, propose the next most valuable improvements
+  (benchmarked against the best tools in the market, ranked by impact) without waiting to be asked for each feature,
+  and then build them under the rule above. She wants "the top of the top".
 - SQL / migrations: write them as files only (supabase/migrations + a copy on her Desktop as kalmea-sql-*.txt) and never
   run them. List them in the order she must run them.
 - Never touch her real tenant 448e9e45-2251-4572-b665-886c5bc7a4c8 and never send real messages to clients. Test on the
