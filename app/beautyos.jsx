@@ -11741,8 +11741,12 @@ ${MARKETING_FOOTER}`)}`;
                 // message offered afterwards. Prefilled with what she just paid for and anchored on this visit. Booking
                 // there marks this receipt's "התור הבא נקבע" line through the same rebookDone the strip uses.
                 const rbClient = showReceipt.client_id ? clients.find(c=>String(c.id)===String(showReceipt.client_id)) : null;
-                const rbAnchor = showReceipt.appointment_id ? appointments.find(a=>String(a.id)===String(showReceipt.appointment_id))||null : null;
+                const rbLinked = showReceipt.appointment_id ? appointments.find(a=>String(a.id)===String(showReceipt.appointment_id))||null : null;
                 const rbService = String(showReceipt.service||"").split(",").map(x=>x.trim()).find(n=>activeServices.some(sv=>sv.name===n))||"";
+                // A walk-in sale has no appointment: anchor on the visit she just paid for (the receipt's own day), not on
+                // her previous calendar visit, so the next one is not proposed too soon. No time of day, so no anchor minute.
+                const rbDay = (()=>{ const t=new Date(showReceipt.created_at||Date.now()); return isNaN(t)?today:`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })();
+                const rbAnchor = rbLinked || (showReceipt.client_id ? {client_id:showReceipt.client_id,date:rbDay,service:rbService} : null);
                 const openRebookSheet = rbClient ? ()=>setRebookNext({client:rbClient,appt:rbAnchor,receiptId:showReceipt.id,service:rbService}) : null;
                 const sheetButton = openRebookSheet && (
  <button data-testid="rebook-receipt" onClick={openRebookSheet} style={{display:"block",width:"100%",minHeight:44,marginTop:8,background:"transparent",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>↻ קבעי לה שוב לפי הקצב שלה</button>

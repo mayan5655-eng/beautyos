@@ -64,7 +64,11 @@ type ApptLike = { service?: unknown; kind?: unknown } | null | undefined;
  */
 export function bufferLookup(services: ServiceLike[] | null | undefined, businessDefault = 0): (appt: ApptLike) => number {
   const byName = new Map<string, number>();
-  for (const s of services || []) {
+  // An active service wins over an archived one of the same name (first of each kind otherwise), so an old archived row
+  // never hides the buffer of the service she offers today.
+  const isArchived = (s: ServiceLike) => (s as { active?: unknown } | null | undefined)?.active === false;
+  const ordered = [...(services || [])].sort((a, b) => Number(isArchived(a)) - Number(isArchived(b)));
+  for (const s of ordered) {
     const name = typeof s?.name === 'string' ? s.name.trim() : '';
     if (name && !byName.has(name)) byName.set(name, serviceBufferMinutes(s, businessDefault));
   }

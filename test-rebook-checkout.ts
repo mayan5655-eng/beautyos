@@ -24,6 +24,8 @@ ok(receipt.includes('data-testid="rebook-receipt"'), 'the payment-done screen ha
 ok(receipt.includes('↻ קבעי לה שוב לפי הקצב שלה'), 'worded like the other two entries, plus "her rhythm"');
 ok(/setRebookNext\(\{client:rbClient,appt:rbAnchor,receiptId:showReceipt\.id,service:rbService\}\)/.test(receipt), 'opens the existing sheet with the client, this visit, the receipt and the service');
 ok(/showReceipt\.appointment_id \? appointments\.find/.test(receipt), 'anchored on the appointment this payment was for');
+ok(/const rbAnchor = rbLinked \|\| \(showReceipt\.client_id \? \{client_id:showReceipt\.client_id,date:rbDay,service:rbService\} : null\)/.test(receipt), 'a walk-in sale anchors on the day she just paid, not her previous calendar visit');
+ok(/startMinute\(anchor\) !== null/.test(sheet), 'a time-less anchor never claims her usual time is taken');
 ok(/split\(","\)\.map\(x=>x\.trim\(\)\)\.find\(n=>activeServices\.some\(sv=>sv\.name===n\)\)/.test(receipt), 'prefilled with the first paid line that is still on her menu');
 ok(/if \(!rebookPlan\) return openRebookSheet \?/.test(receipt), 'offered even when the inline strip has no proposal (a walk-in sale, an unknown service)');
 ok((receipt.match(/\{sheetButton\}/g) || []).length === 2, 'and under the inline strip when it has one');

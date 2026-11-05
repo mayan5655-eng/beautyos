@@ -49,6 +49,7 @@ eq(of({ service: 'שירות שנמחק' }), 5, 'a service no longer on the menu
 eq(of({ service: 'ריסים', kind: 'personal' }), 0, 'a personal block never carries a buffer');
 eq(of(null), 0, 'nothing: 0');
 eq(bufferLookup(null, 0)({ service: 'x' }), 0, 'no services at all, no default: 0 (a brand-new tenant)');
+eq(bufferLookup([{ name: 'ריסים', buffer_minutes: 0, active: false } as any, { name: 'ריסים', buffer_minutes: 30, active: true } as any], 0)({ service: 'ריסים' }), 30, 'an archived service never hides the active one of the same name');
 
 // ── The clash rule ─────────────────────────────────────────────────────────
 // Existing 10:00-11:00 with a 15-minute buffer is busy until 11:15.

@@ -197,7 +197,7 @@ export default function RebookNextSheet({
                 <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '4px 0 0' }}>{resolvedSvc.name} · {duration} דקות</p>
                 <p data-testid="rebook-why" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '4px 0 0' }}>{why}</p>
                 {proposal.date !== proposal.targetDate && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>ביום שיצא לפי הקצב היומן סגור או מלא, זה הפנוי הקרוב.</p>}
-                {!proposal.sameTime && minute === proposal.minute && anchor && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>השעה הרגילה שלה תפוסה, זה הזמן הפנוי הקרוב אליה.</p>}
+                {!proposal.sameTime && minute === proposal.minute && anchor && startMinute(anchor) !== null && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>השעה הרגילה שלה תפוסה, זה הזמן הפנוי הקרוב אליה.</p>}
                 {pickOpen && (
                   <div style={{ marginTop: 8, padding: '8px 8px 4px', borderRadius: 'var(--r-sm)', background: 'var(--surface)', border: '1px solid var(--line)' }}>
                     <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, margin: '0 0 6px' }}>שעות פנויות ביום הזה</p>
