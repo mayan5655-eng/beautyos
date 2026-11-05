@@ -51,7 +51,7 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
-import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable } from "@/lib/loyalty";
+import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
@@ -5575,7 +5575,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // in the wrong column of her breakdown. A split is the literal SPLIT
         // string, with the lines in `payments`.
         payment_method:coveredByPackage ? PACKAGE_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
-        note:[cashierNote, growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
+        note:[cashierNote, loyaltyApplied&&cashierLoyalty?.ready?`🎁 מתנת כרטיסיית נאמנות: ${loyaltyCfg.reward}`:"", growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
         items:JSON.stringify(loyaltyApplied&&cashierLoyalty?.ready?[...cashierItems,loyaltyApplied.marker]:cashierItems),
         discount:cashierDiscountIls,
         // The three new columns. Tip is never part of amount; discount_pct is
@@ -11790,6 +11790,7 @@ ${MARKETING_FOOTER}`)}`;
                 return(
  <div data-testid="loyalty-after-save" style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:ls.ready?"var(--k-petal)":pcTint,border:`1px solid ${ls.ready?"var(--k-pink)":"var(--line-2)"}`}}>
  <div style={{display:"flex",gap:3,marginBottom:8}} aria-hidden>{Array.from({length:ls.every},(_,i)=><span key={i} style={{flex:1,height:8,borderRadius:4,background:i<ls.filled?pc:"var(--surface)",border:`1px solid ${pc}`}}/>)}</div>
+ {isRewardReceipt(showReceipt)&&<p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,margin:"0 0 2px"}}>✦ המתנה ניתנה, והכרטיסייה מתחילה מחדש</p>}
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>🎁 {afterSaveLine(ls)}</p>
  {ls.ready&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:"2px 0 0"}}>המתנה: {ls.reward}</p>}
  {wa&&<a href={wa} target="_blank" rel="noreferrer" data-testid="loyalty-after-wa" className="wa-btn" style={{display:"inline-flex",marginTop:8,padding:"7px 12px",fontSize:"var(--t-sm)"}}>{moment==="ready"?"לספר לה שהמתנה מחכה":"לספר לה שנשאר ביקור אחד"}</a>}
