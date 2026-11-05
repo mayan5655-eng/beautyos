@@ -128,7 +128,7 @@ ok('the vCard text goes through the existing mapping, preview and dedupe unchang
   assert.deepEqual(built.rows[0], { name: 'מיכל כהן', phone: '0521111111', notes: 'טלפון נוסף: 035551234' });
   // an existing client stored the way online booking stores her (972...) is the same person
   const existing = new Set(['972521111111'].map(importPhoneKey));
-  assert.equal(built.rows.filter((r) => r.phone && existing.has(importPhoneKey(r.phone))).length, 1, 'she is skipped as already on file');
+  assert.equal((built.rows as { phone?: string }[]).filter((r) => r.phone && existing.has(importPhoneKey(r.phone))).length, 1, 'she is skipped as already on file');
 });
 
 ok('wired: the vCard button is in the clients import paste step, with the iPhone how-to', () => {

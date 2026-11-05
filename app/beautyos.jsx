@@ -11250,8 +11250,8 @@ ${MARKETING_FOOTER}`)}`;
  <input type="file" accept={VCARD_ACCEPT} onChange={importVcardFile} style={{position:"absolute",width:1,height:1,opacity:0,overflow:"hidden"}}/>
  </label>
  <details data-testid="import-vcf-howto" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,lineHeight:1.6}}>
- <summary style={{cursor:"pointer",fontWeight:600,color:"var(--ink)",minHeight:32,display:"flex",alignItems:"center"}}>איך שולחים אנשי קשר מהאייפון?</summary>
- <ol style={{margin:"6px 0 0",paddingInlineStart:20,display:"flex",flexDirection:"column",gap:4}}>
+ <summary style={{cursor:"pointer",fontWeight:600,color:"var(--ink)",padding:"6px 0",textDecoration:"underline",textUnderlineOffset:3}}>איך שולחים אנשי קשר מהאייפון?</summary>
+ <ol style={{margin:"6px 0 0",paddingInlineStart:22,listStyle:"decimal"}}>
  <li>פתחי את אנשי הקשר בטלפון.</li>
  <li>לקוחה אחת: פתחי את הכרטיס שלה ולחצי על שיתוף איש קשר.</li>
  <li>כמה לקוחות יחד: בגרסאות חדשות של האייפון אפשר לסמן כמה אנשי קשר ברשימה, ללחוץ לחיצה ארוכה ולבחור שיתוף. אם זה לא מופיע אצלך, אפשר לשתף אחת אחת.</li>
@@ -11301,7 +11301,7 @@ ${MARKETING_FOOTER}`)}`;
      return n;
    })();
    return (<>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך, ואפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
