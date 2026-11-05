@@ -476,6 +476,8 @@ export async function playRealtime({ canvas, painter, plan, items, audioCtx = nu
     try {
       const buf = await audioCtx.decodeAudioData(await (await fetch(musicUrl)).arrayBuffer());
       source = audioCtx.createBufferSource(); source.buffer = buf;
+      // Her own song can be shorter than the reel: loop it rather than leave the end silent (the generated moods are made to length).
+      if (buf.duration > 0 && buf.duration < plan.totalMs / 1000) source.loop = true;
       if (record) { dest = audioCtx.createMediaStreamDestination(); source.connect(dest); }
       if (toSpeakers) source.connect(audioCtx.destination);
     } catch { source = null; }

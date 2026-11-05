@@ -213,3 +213,13 @@ assert.equal(reelTemplatesVisible({ automations: { feature_flags: { reel_templat
 }
 
 console.log(`reel templates: ok (${REEL_TEMPLATES.length} templates x ${MOODS.length} moods)`);
+
+// Vercel review 2026-11-05: changing music drops a finished reel, and her own shorter song loops instead of going silent.
+{
+  const fs = await import('node:fs');
+  const ui = fs.readFileSync('app/design/ReelTemplates.jsx', 'utf8');
+  if (!/useEffect\(\(\) => \{ dropOut\(\); \}, \[music\]\)/.test(ui)) throw new Error('a music change must drop the finished reel');
+  const draw = fs.readFileSync('app/design/reelTemplateDraw.js', 'utf8');
+  if (!/buf\.duration < plan\.totalMs \/ 1000\) source\.loop = true/.test(draw)) throw new Error('a short own song must loop in preview and real-time recording');
+  console.log('ok - music change drops the reel; a short song loops');
+}

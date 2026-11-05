@@ -131,6 +131,9 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
 
   const dropItem = (it) => { if (it) { try { URL.revokeObjectURL(it.url); } catch { /* ignore */ } } };
   const dropOut = () => setOut((o) => { if (o) URL.revokeObjectURL(o.url); return null; });
+  // A finished reel carries the soundtrack it was made with: any change of music (a mood, her own file, or none) drops it, so
+  // preview and share can never hand out the old one (Vercel review, 2026-11-05).
+  useEffect(() => { dropOut(); }, [music]); // eslint-disable-line react-hooks/exhaustive-deps
   const stopPreview = () => { playerRef.current?.stop(); playerRef.current = null; setPlaying(false); };
   const stopSample = () => { try { audioRef.current?.pause(); } catch { /* ignore */ } setSample((s) => { if (s) URL.revokeObjectURL(s.url); return null; }); };
   const dropMusicCache = () => { if (musicCache.current) URL.revokeObjectURL(musicCache.current.url); musicCache.current = null; };
