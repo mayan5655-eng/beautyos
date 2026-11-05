@@ -114,6 +114,7 @@ ok(page.includes('overlaps(start, start + svcDuration + svcBuffer, bs, be)'), 'b
 ok(page.includes('e + (cleanBufferMinutes(a.buffer) ?? 0)'), 'booking page: busy ranges end after their buffer');
 const route = read('app/api/book-appointment/route.js');
 ok(route.includes('clashesWith(newStart, svcDuration, live) || clashesWithBuffer(newStart, svcDuration, svcBuffer, buffered)'), 'book-appointment: refuses a start inside a buffer');
+ok(route.includes('.select("name, buffer_minutes, active")'), 'book-appointment: reads active, so an archived namesake never hides the active buffer');
 ok(route.includes('overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration + svcBuffer)'), 'book-appointment: own buffer cannot eat her break');
 ok(/bookedEnd = newStart \+ svcDuration;/.test(route), 'book-appointment: closing time is checked on the treatment alone');
 const app = read('app/beautyos.jsx');

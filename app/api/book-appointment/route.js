@@ -200,7 +200,7 @@ export async function POST(request) {
       // this read errors and every service falls back to the business default (0 unless she set one).
       supabase
         .from("service_prices")
-        .select("name, buffer_minutes")
+        .select("name, buffer_minutes, active")
         .eq("tenant_id", activeTenantId),
     ]);
     if (svcError) {
