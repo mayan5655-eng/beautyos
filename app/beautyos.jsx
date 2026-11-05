@@ -49,6 +49,7 @@ import DeferredGate from "./DeferredGate";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
+import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
@@ -10493,6 +10494,9 @@ ${MARKETING_FOOTER}`)}`;
             const rangeLabel = periodLabel({mode, idx:taxPeriodIdx, year:taxYear, monthNames:MONTHS_HE});
             const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, vatRate);
             const yearGross = incomeTotals(inYear.map(r=>r.amount), status, vatRate).gross;
+            // תקרת עוסק פטור (lib/vatExemptCeiling.ts): this year so far, an exempt dealer only, from about 80%. An
+            // estimate from the payments recorded here; the ceiling is one constant there, checked every year.
+            const ceilingWarning = taxYear===new Date().getFullYear() ? exemptCeilingWarning({ status, yearToDate: yearGross }) : null;
             // Expenses filtered to the SAME period (by expense_date) — used for the
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
@@ -10549,6 +10553,12 @@ ${MARKETING_FOOTER}`)}`;
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>סיכום הכנסות</h2>
  </div>
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>סטטוס העסק: <b style={{color:pcDeep}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
+ {ceilingWarning&&(
+ <div role="status" data-testid="exempt-ceiling" data-level={ceilingWarning.level} style={{margin:"0 0 16px",padding:"12px 14px",borderRadius:"var(--r-md)",background:ceilingWarning.level==="over"?"rgba(242,184,75,0.16)":"var(--surface-2)",border:"1px solid var(--warning)"}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 3px"}}>{ceilingWarning.title}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,margin:0}}>{ceilingWarning.text}</p>
+ </div>
+ )}
 
                 {/* CONTROLS */}
  <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
