@@ -96,6 +96,7 @@ const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: fa
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
@@ -1344,6 +1345,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
   }, [toast]);
 
+  // One-tap links from the weekly digest (lib/weeklyDigest.ts DIGEST_GO, /dashboard/digest): ?go=queue|leads|winback|week|birthdays
+  // opens the screen the action is about. Anything else is ignored. A screen is handed to the screen link (?tab=, lib/screenLink.ts),
+  // which opens it once loading ends; a sheet opens by its own state. "go" is stripped so a refresh does not reopen the sheet.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const go = p.get("go");
+    if (!go) return;
+    const tabFor = { leads: "leads", week: "calendar", birthdays: "insights" };
+    if (go === "queue") setShowWaQueue(true);
+    else if (go === "winback") setShowLapsed(true);
+    if (tabFor[go]) p.set("tab", tabFor[go]);
+    if (go === "leads") setLeadFilter("new");
+    if (go === "week") setCalView("week");
+    p.delete("go");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, []);
+
   // Keyboard activation for clickable elements that aren't native buttons:
   // Enter/Space triggers the element's own onClick (via .click()).
   const onKbdActivate = (e) => {
@@ -1650,6 +1670,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       keepalive: true,
     }).catch(() => {});
   }, [settings.automations]);
+
+  // One automations key saved on its own, AND said when it did not save (unlike the tour's fire-and-forget above): the
+  // booking buttons card's "סימנתי שעשיתי" (app/BookingButtonsCard.jsx). Written into editSettings too, so saving the Settings
+  // panel afterwards carries the same value instead of an older copy.
+  const saveAutomationsKey = useCallback(async (key, value) => {
+    const base = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    try {
+      const r = await fetch("/api/settings/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: { automations: { ...base, [key]: value } } }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || String(r.status));
+    } catch {
+      toast("הסימון לא נשמר. אפשר לנסות שוב בעוד רגע", "error");
+      return false;
+    }
+    const put = (prev) => prev ? ({ ...prev, automations: { ...((prev.automations && typeof prev.automations === "object") ? prev.automations : {}), [key]: value } }) : prev;
+    setSettings(put);
+    setEditSettings(put);
+    return true;
+  }, [settings.automations, toast]);
 
   // The tour follows her (lib/tourFlow.js). It used to stay on step 1 ("היום שלך 1/6") over every screen until she pressed דלגי.
   // Going to the screen a step describes jumps to that step; going anywhere the tour has no step for ends it; closing Settings while the
@@ -9139,10 +9178,11 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
+                        if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -12358,6 +12398,15 @@ ${MARKETING_FOOTER}`)}`;
  </a>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
  </div>
+                    )}
+                    {/* Her booking link into Instagram, Google, Facebook and WhatsApp Business: guided steps, tagged links, ticks (lib/bookingButtons.ts). */}
+                    {settings?.tenant_id&&(
+ <BookingButtonsCard
+   bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`}
+   automations={settings.automations}
+   onCopy={(src)=>copyPublicLink("book",src)}
+   onSaveDone={(next)=>saveAutomationsKey("booking_buttons",next)}
+   pcDeep={pcDeep}/>
                     )}
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>
