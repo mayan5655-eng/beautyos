@@ -34,7 +34,7 @@ const toasts = (p) => p.locator('[role=status],[role=alert]').allInnerTexts();
 // 2. iPhone Safari: payments CSV goes to the share sheet; the phone keyboards; the clients search
 {
   const s = await phone('iphone'); const p = s.page; await login(p);
-  await p.locator('button[aria-label="תשלום"]').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
+  await p.locator('button[aria-label="קופה"]').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
   await p.evaluate(() => { window.__ev = []; });
   await p.locator('button:has-text("ייצוא לאקסל")').filter({ visible: true }).first().tap(); await p.waitForTimeout(1500);
   const e = await evs(p);
@@ -46,7 +46,7 @@ const toasts = (p) => p.locator('[role=status],[role=alert]').allInnerTexts();
 // 3. home-screen app: nothing can save a file, and she is told so (the old toast said "downloaded")
 for (const [name, extra] of [['iphone-sa', { share: false }], ['instagram', {}]]) {
   const s = await phone(name, extra); const p = s.page; await login(p);
-  await p.locator('button[aria-label="תשלום"]').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
+  await p.locator('button[aria-label="קופה"]').filter({ visible: true }).first().click(); await p.waitForTimeout(1500);
   await p.evaluate(() => { window.__ev = []; });
   await p.locator('button:has-text("ייצוא לאקסל")').filter({ visible: true }).first().tap(); await p.waitForTimeout(1200);
   const t = (await toasts(p)).join(' | ');

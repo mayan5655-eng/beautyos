@@ -48,6 +48,7 @@ import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
+import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
@@ -129,7 +130,7 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
-import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -217,7 +218,7 @@ const VOICE_COMMANDS = [
 const SEARCH_GROUPS = [
   { type: "client",  label: "לקוחות",  icon: "♥" },
   { type: "appt",    label: "תורים",   icon: "◴" },
-  { type: "lead",    label: "לידים",   icon: "✦" },
+  { type: "lead",    label: "פניות",   icon: "✦" },
   { type: "service", label: "שירותים", icon: "✂" },
   { type: "receipt", label: PAYMENT_NOTICES_HE,   icon: "🧾" },
 ];
@@ -295,8 +296,8 @@ const TOUR_STEPS = [
     title:"היומן", text:"הלוח שלך. תורים נקבעים כאן, ואת רואה את כל השבוע בלחיצה." },
   { id:"clients", tab:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
     title:"הלקוחות שלך", text:"כל לקוחה שלך, עם ההיסטוריה שלה, במקום אחד שתמיד זמין." },
-  { id:"cashier", tab:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
-    title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן, פשוט ומסודר." },
+  { id:"cashier", tab:"cashier", selector:'button[aria-label="קופה"]', icon: ICON_WALLET,
+    title:"הקופה", text:"כשתור מסתיים, התשלום נרשם כאן, פשוט ומסודר." },
   { id:"content", tab:"campaigns", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
     title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
   // requiresSettings: the tour's advance handler opens Settings at settingsTab before switching to this step. The booking-link
@@ -2112,7 +2113,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if(has("קמפיין","מבצע","שיווק","פוסט","סושיאל","אינסטגרם","פייסבוק"))
       return { label:"צרי קמפיין", run:()=>{ setMarketingView("campaigns"); setActiveTab("campaigns"); } };
     if(has("ליד","פנייה","פניות","לידים"))
-      return { label:"פתחי לידים", run:()=>setActiveTab("leads") };
+      return { label:"פתחי פניות", run:()=>setActiveTab("leads") };
     if(has("יומן","תור פנוי","תורים פנויים","למלא את היומן","זמינות"))
       return { label:"פתחי יומן", run:()=>setActiveTab("calendar") };
     if(has("תמחור","העלאת מחיר","המחיר","חבילת","חבילות"))
@@ -7507,17 +7508,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"dashboard", label:"היום"},
     {id:"calendar",  label:"יומן"},
     {id:"clients",   label:"לקוחות"},
-    {id:"cashier",   label:"תשלום"},
+    {id:"cashier",   label:"קופה"},
     {id:"campaigns", label:"תוכן"},
   ].filter(item => isTabVisible(settings, item.id));
   // Screens that highlight לקוחות in the bar: people, however they arrived.
   const PEOPLE_TABS = ["clients","leads","whatsapp"];
-  // The three one-insert stubs (community, packages, protocols) are filtered
-  // out of BOTH nav lists unless this tenant has opted back in. Hidden, not
-  // deleted: every loader, render block and table below is untouched, so the
-  // flag brings a tab back with its data intact. campaigns and insights are
-  // never filtered - see lib/featureFlags.ts for why that is a deliberate
-  // exception and not an oversight.
+  // The two stubs (community, protocols; lib/featureFlags.ts STUB_TABS) are
+  // filtered out of BOTH nav lists unless this tenant has opted back in, and
+  // packages, advisor and leads only when she switched them off herself
+  // (packages stopped being a stub on 2026-09-22). Hidden, not deleted: every
+  // loader, render block and table below is untouched, so the flag brings a
+  // tab back with its data intact. campaigns and insights are never filtered -
+  // see lib/featureFlags.ts for why that is a deliberate exception and not an
+  // oversight.
   const MORE_NAV = visibleTabIds(settings, ["insights","tax","packages","protocols","advisor","community","help"]);
 
   const NAV_ITEMS = [
@@ -7525,7 +7528,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"insights", label:"תובנות"},
     {id:"calendar", label:"יומן"},
     {id:"clients",  label:"לקוחות"},
-    {id:"leads",    label:"לידים"},
+    {id:"leads",    label:"פניות"},
     {id:"cashier",  label:"קופה"},
     {id:"tax",      label:"סיכום הכנסות"},
     {id:"whatsapp", label:"הודעות"},
@@ -8924,7 +8927,7 @@ ${MARKETING_FOOTER}`)}`;
               // this closure - see its own comment for why).
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
-                {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
+                {label:"קופה",hint:"רישום תשלום",icon:"₪",onClick:()=>handleOpenCashier(null)},
                 {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
@@ -9096,7 +9099,7 @@ ${MARKETING_FOOTER}`)}`;
                       // Each item carries its own primary action; nothing is sent — actions
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
-                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
+                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"פניות",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
                       // Lapsed clients, capped at three.
                       //
                       // This used to be `coldClients.forEach`, one card each,
@@ -9113,7 +9116,7 @@ ${MARKETING_FOOTER}`)}`;
                       const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
                       coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
-                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
+                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
                       if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
@@ -12684,7 +12687,8 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{marginTop:22}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>מסכים נוספים</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>מה שכבוי כאן יוצא מהתפריט; הנתונים נשארים, ואפשר להחזיר בכל רגע.</p>
-                    {SWITCHABLE_TABS.map((id)=>{
+                    {/* settingsToggleTabs: protocols is offered only to a tenant who already has it on (lib/featureFlags.ts). */}
+                    {settingsToggleTabs(settings).map((id)=>{
                       const on = isTabVisible(editSettings, id);
                       return <AutoToggleRow key={id} pc={pc} label={SWITCHABLE_LABELS[id]} on={on} onChange={()=>{
                         const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
@@ -13153,16 +13157,16 @@ ${MARKETING_FOOTER}`)}`;
  })()}
  {inG("messages")&&(()=>{
    // A message to HER the evening before: how many clients tomorrow, who is first,
-   // who has not confirmed. Off unless she turns it on (branding.evening_summary).
-   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
-   const on=b.evening_summary===true;
+   // who has not confirmed. Off unless she turns it on. Stored in automations.evening_summary; the old
+   // branding.evening_summary is still read (lib/eveningSummarySetting.ts) and never written again.
+   const on=eveningSummaryOn(editSettings);
    return(
  <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
  <div style={{flex:1}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות דפדפן (בקבוצה &quot;חיבורים&quot;)): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
- <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} label="סיכום ערב" />
+ <Toggle on={on} onChange={()=>setEditSettings(prev=>withEveningSummary(prev,!on))} pc={pc} label="סיכום ערב" />
  </div>
    );
  })()}

@@ -27,7 +27,7 @@ for (const w of [360, 375, 390, 430]) {
   // her tabs (the stored login is for kalmea.app: only meaningful when BASE is that origin)
   if (BASE.includes('kalmea.app')) {
     await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' }); await p.waitForSelector('button[aria-label="יומן"]', { timeout: 40000 }).catch(() => {});
-    for (const label of ['היום', 'יומן', 'לקוחות', 'תשלום', 'תוכן']) {
+    for (const label of ['היום', 'יומן', 'לקוחות', 'קופה', 'תוכן']) {
       for (let i = 0; i < 6; i++) { const k = p.locator('button:has-text("דלגי"), button:has-text("לא עכשיו")').filter({ visible: true }).first(); if (await k.count()) { await k.click().catch(() => {}); await p.waitForTimeout(250); } else break; }
       await p.locator('button[aria-label="' + label + '"]').filter({ visible: true }).first().click().catch(() => {}); await p.waitForTimeout(1500);
       const m = await p.evaluate(measure); const over = m.sw > m.iw + 1; if (over) bad++;
