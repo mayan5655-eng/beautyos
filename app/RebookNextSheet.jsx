@@ -37,11 +37,16 @@ const periodHe = (days) => {
 export default function RebookNextSheet({
   client, anchorAppt, appointments, services, settings, today, historyReady,
   createAppointment, onManual, onQueued, onOpened, onClose, toast, pc, pcGrad, pcTint, pcDeep,
+  // Her buffer after each treatment (lib/serviceBuffer.ts bufferLookup): appointment -> minutes. Absent = none.
+  bufferOf = null,
+  // The treatment to repeat when the caller knows it better than the anchor does: the till passes what she just paid
+  // for (a walk-in sale has no appointment to anchor on). Must be on her menu; otherwise the anchor's, as before.
+  initialService = '',
 }) {
   const [chip, setChip] = useState(null);            // weeks she picked, null = her rhythm
   const [pick, setPick] = useState(null);            // minute she picked from the day's free starts
   const [pickOpen, setPickOpen] = useState(false);
-  const [svcName, setSvcName] = useState('');
+  const [svcName, setSvcName] = useState(() => (initialService && (services || []).some((s) => s.name === initialService) ? initialService : ''));
   const [busyKey, setBusyKey] = useState('');
   const [booked, setBooked] = useState(null);        // the created appointment
   const [msg, setMsg] = useState({ state: 'idle', text: '', waLink: '', error: '' });
@@ -67,11 +72,12 @@ export default function RebookNextSheet({
 
   const lunch = useMemo(() => resolveLunch(settings?.branding), [settings]);
   const hoursFor = useMemo(() => (wd) => dayHoursFrom(settings, wd), [settings]);
+  // Each appointment is busy until its end plus its buffer; the visit being proposed brings its own (ownBuffer).
   const busy = useMemo(() => (appointments || []).flatMap((a) => {
     if (!a || a.confirmation_status === 'cancelled') return [];
     const s = startMinute(a), e = endMinute(a);
-    return s === null || e === null ? [] : [{ date: String(a.date).slice(0, 10), start: s, end: e }];
-  }), [appointments]);
+    return s === null || e === null ? [] : [{ date: String(a.date).slice(0, 10), start: s, end: e + (bufferOf ? bufferOf(a) : 0) }];
+  }), [appointments, bufferOf]);
 
   const interval = useMemo(
     () => rebookInterval({ visits: past.map((a) => ({ date: a.date, service: a.service })), service: resolvedSvc?.name, businessFields: businessFieldsOf(settings) }),
@@ -79,19 +85,20 @@ export default function RebookNextSheet({
   );
   const days = chip ? chip * 7 : interval.days;
   const duration = Number(resolvedSvc?.duration) || 60;
+  const ownBuffer = resolvedSvc && bufferOf ? bufferOf({ service: resolvedSvc.name }) : 0;
 
   const proposal = useMemo(() => {
     if (!resolvedSvc || !historyReady) return null;
     return proposeNextVisit({
       afterDate: anchor?.date || today,
       anchorMinute: anchor ? startMinute(anchor) : null,
-      duration, intervalDays: days, today, hoursFor, busy, lunch,
+      duration, intervalDays: days, today, hoursFor, busy, lunch, bufferAfter: ownBuffer,
     });
-  }, [resolvedSvc, historyReady, anchor, duration, days, today, hoursFor, busy, lunch]);
+  }, [resolvedSvc, historyReady, anchor, duration, days, today, hoursFor, busy, lunch, ownBuffer]);
 
   const dayStarts = useMemo(
-    () => (proposal ? freeStartsOn({ date: proposal.date, duration, hoursFor, busy, lunch }) : []),
-    [proposal, duration, hoursFor, busy, lunch]
+    () => (proposal ? freeStartsOn({ date: proposal.date, duration, hoursFor, busy, lunch, bufferAfter: ownBuffer }) : []),
+    [proposal, duration, hoursFor, busy, lunch, ownBuffer]
   );
   const minute = proposal ? (pick !== null && dayStarts.includes(pick) ? pick : proposal.minute) : null;
 

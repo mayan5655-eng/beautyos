@@ -29,6 +29,7 @@ import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadl
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
+import { cleanBufferMinutes } from "@/lib/serviceBuffer";
 import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPolicy";
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
@@ -308,6 +309,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // True until /api/availability has answered (either way). The day and time pickers do not render before then: an unchecked grid must
   // never look like a checked one (the "every slot is free" bug), and the first screen no longer waits for it.
   const [availabilityPending, setAvailabilityPending] = useState(true);
+  // Her buffer after each treatment (lib/serviceBuffer.ts), from /api/availability: { default, byService }.
+  // Absent (an older deployment, a failed read) means 0, which is what the page did before buffers existed.
+  const [buffers, setBuffers] = useState(null);
   const [brand, setBrand] = useState(() => (initialSettings ? resolveBranding(initialSettings) : null)); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   // Reviews written by clients. null until the read resolves, so "none yet" and
@@ -447,7 +451,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (!tenantId) return;
     try {
       const ap = await fetch(`/api/availability?t=${encodeURIComponent(tenantId)}`, { cache: "no-store" }).then((r) => r.json());
-      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setAvailabilityError(false); }
+      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setBuffers(ap.buffers || null); setAvailabilityError(false); }
       else setAvailabilityError(true);
     } catch { setAvailabilityError(true); }
   };
@@ -530,6 +534,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const ap = await availabilityP;
       if (ap && ap.success && Array.isArray(ap.busy)) {
         setAppointments(ap.busy);
+        setBuffers(ap.buffers || null);
         setAvailabilityError(false);
       } else {
         setAppointments([]);
@@ -578,10 +583,17 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // times with no title - it selects date, start_minute, hour and duration and
   // nothing else - so a day she has blocked out is busy to this page without it
   // needing to know what she blocked it for.
+  //
+  // Each busy range ends after HER BUFFER for that treatment (`buffer`, minutes, worked out by /api/availability from
+  // the service, lib/serviceBuffer.ts), and the treatment being booked brings its own (svcBuffer). The treatment must
+  // end by closing; its buffer may run past it. Same rule as /api/book-appointment, which refuses what this offers.
   const busyOn = (dateStr) => appointments
     .filter((a) => a.date === dateStr && a.confirmation_status !== "cancelled")
-    .map((a) => [startMinute(a), endMinute(a)])
+    .map((a) => { const s = startMinute(a), e = endMinute(a); return [s, e === null ? null : e + (cleanBufferMinutes(a.buffer) ?? 0)]; })
     .filter(([bs, be]) => bs !== null && be !== null);
+  const svcBuffer = selectedService
+    ? (cleanBufferMinutes(buffers?.byService?.[String(selectedService.name || "").trim()]) ?? cleanBufferMinutes(buffers?.default) ?? 0)
+    : 0;
 
   // Could this treatment actually be booked on this day?
   //
@@ -598,7 +610,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     const busy = busyOn(ds);
     return slotsBetween(dh.open, dh.close, SLOT_STEP, svcDuration).some((m) =>
       !isTooSoonForSelfBooking(ds, m, new Date(), bookingRules.minLeadMinutes) &&
-      !busy.some(([bs, be]) => overlaps(m, m + svcDuration, bs, be))
+      !busy.some(([bs, be]) => overlaps(m, m + svcDuration + svcBuffer, bs, be))
     );
   };
 
@@ -626,7 +638,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
   const busyToday = selectedDate ? busyOn(formatDate(selectedDate)) : [];
   const slotTaken = (start) =>
-    busyToday.some(([bs, be]) => overlaps(start, start + svcDuration, bs, be));
+    busyToday.some(([bs, be]) => overlaps(start, start + svcDuration + svcBuffer, bs, be));
 
   // Minimum notice for client self-booking. The server enforces the same rule -
   // this only keeps the page from offering a slot that would then be rejected.

@@ -582,9 +582,9 @@ await ok('per service: the booking route and the page apply the policy only to a
 
 await ok('per service: the toggle is in the services settings (default off, degrades without the column), and the migration adds the column', () => {
   const app = read('app/beautyos.jsx');
-  assert.ok(/SERVICE_FIELDS = \[[^\]]*"requires_deposit"\]/.test(app));
+  assert.ok(/SERVICE_FIELDS = \[[^\]]*"requires_deposit"[^\]]*\]/.test(app));
   assert.ok(/<ServiceDepositToggle checked=\{svc\.requires_deposit===true\}/.test(app), 'off unless true');
-  assert.ok(/const \{ field, requires_deposit, \.\.\.reduced \} = row;/.test(app) && /"requires_deposit" in patch/.test(app) && /const \{ field, requires_deposit, \.\.\.reduced \} = patch;/.test(app), 'a service save still works before the migration');
+  assert.ok(/const \{ field, requires_deposit, (buffer_minutes, )?\.\.\.reduced \} = row;/.test(app) && /"requires_deposit" in patch/.test(app) && /const \{ field, requires_deposit, (buffer_minutes, )?\.\.\.reduced \} = patch;/.test(app), 'a service save still works before the migration');
   assert.ok(/!state\.connected|!connected\) return null/.test(read('app/ServiceDepositToggle.jsx')), 'visible only when connected to Grow');
   assert.ok(/alter table public\.service_prices add column if not exists requires_deposit boolean not null default false/.test(read('supabase/migrations/add_grow_cancellation.sql')));
 });

@@ -14,6 +14,9 @@ import { toMinutes, clashesWith, startFields, fmtTime } from "../../../lib/apptT
 import { isTooSoonForSelfBooking, isTooFarAhead, resolveBookingRules, bookingTermsRequired } from "../../../lib/bookingPolicy";
 import { dayHoursFrom } from "../../../lib/businessHours";
 import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
+import { bufferLookup, businessBufferDefault, serviceBufferMinutes, bufferedRange, clashesWithBuffer } from "../../../lib/serviceBuffer";
+import { startMinute as apptStart, endMinute as apptEnd } from "../../../lib/apptTime";
+import { isMissingColumnError } from "../../../lib/pgError";
 
 
 
@@ -167,6 +170,7 @@ export async function POST(request) {
       { data: settingsRows, error: settingsErr },
       { data: sameDay },
       { data: existing },
+      { data: bufferRows },
     ] = await Promise.all([
       supabase
         .from("service_prices")
@@ -181,14 +185,22 @@ export async function POST(request) {
         .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding, automations")
         .eq("tenant_id", activeTenantId)
         .limit(1),
-      supabase
-        .from("appointments")
-        .select("start_minute, hour, duration, confirmation_status")
-        .eq("tenant_id", activeTenantId)
-        .eq("date", date),
+      // service + kind are read for the buffer after each treatment (lib/serviceBuffer.ts); kind is retried
+      // without when add_appointment_kind.sql has not run, so a missing column can never switch the clash check off.
+      (async () => {
+        const read = (cols) => supabase.from("appointments").select(cols).eq("tenant_id", activeTenantId).eq("date", date);
+        const first = await read("start_minute, hour, duration, confirmation_status, service, kind");
+        return first.error && isMissingColumnError(first.error) ? read("start_minute, hour, duration, confirmation_status, service") : first;
+      })(),
       supabase
         .from("clients")
         .select("id, phone")
+        .eq("tenant_id", activeTenantId),
+      // Per-service buffers (service_prices.buffer_minutes, add_service_buffer_2026-11-05.sql). Before that migration
+      // this read errors and every service falls back to the business default (0 unless she set one).
+      supabase
+        .from("service_prices")
+        .select("name, buffer_minutes")
         .eq("tenant_id", activeTenantId),
     ]);
     if (svcError) {
@@ -348,7 +360,11 @@ export async function POST(request) {
     //      self-booking cannot take. Enforced here and not only by the busy slots the
     //      page shows, for the same reason as the hours check above. The message does
     //      not say why: a visitor does not need to know it is lunch.
-    if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration)) {
+    // Her buffer after THIS treatment (lib/serviceBuffer.ts): it may run past closing (checked above without it),
+    // but not into her break or another appointment.
+    const bufferDefault = businessBufferDefault(settingsRow?.branding);
+    const svcBuffer = serviceBufferMinutes(svcRow, bufferDefault);
+    if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration + svcBuffer)) {
       return Response.json(
         { success: false, code: "slot_taken", error: "השעה הזו כבר לא פנויה, אפשר לבחור שעה אחרת?" },
         { status: 409 }
@@ -365,11 +381,15 @@ export async function POST(request) {
       // before the migration or by an older deployment mid-rollout. Doing this
       // arithmetic by hand here was what let a half-hour booking look free
       // against a full-hour one.
-      const clash = clashesWith(
-        newStart,
-        svcDuration,
-        (sameDay || []).filter((a) => a.confirmation_status !== "cancelled")
-      );
+      const live = (sameDay || []).filter((a) => a.confirmation_status !== "cancelled");
+      // Each existing appointment is busy until its end PLUS its buffer, and this booking brings its own buffer.
+      // With no buffers anywhere this is exactly clashesWith, which stays as the first test.
+      const bufferOf = bufferLookup(bufferRows || [], bufferDefault);
+      const buffered = live.flatMap((a) => {
+        const s = apptStart(a), e = apptEnd(a);
+        return s === null || e === null ? [] : [bufferedRange(s, e, bufferOf(a))];
+      });
+      const clash = clashesWith(newStart, svcDuration, live) || clashesWithBuffer(newStart, svcDuration, svcBuffer, buffered);
       if (clash) {
         return Response.json(
           { success: false, code: "slot_taken", error: "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?" },
