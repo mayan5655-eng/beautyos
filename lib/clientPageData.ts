@@ -104,7 +104,7 @@ export async function loadLoyaltyCard(db: Db, tenantId: string, clientId: string
     const [rq, sq, redq, adjq] = await Promise.all([
       db.from('receipts').select('id, client_id, appointment_id, service, amount, payment_method, items, created_at').eq('tenant_id', tenantId).eq('client_id', clientId).order('created_at', { ascending: true }).limit(1000),
       db.from('service_prices').select('name').eq('tenant_id', tenantId),
-      db.from('loyalty_redemptions').select('client_id, receipt_id, reward, created_at').eq('tenant_id', tenantId).eq('client_id', clientId),
+      db.from('loyalty_redemptions').select('client_id, receipt_id, reward, stamps_used, created_at').eq('tenant_id', tenantId).eq('client_id', clientId),
       db.from('loyalty_adjustments').select('client_id, delta, reason, created_at').eq('tenant_id', tenantId).eq('client_id', clientId),
     ]);
     if (rq.error) return null;

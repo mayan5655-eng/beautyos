@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   loyaltyConfig, loyaltyStored, loyaltyState, isStampReceipt, isRewardReceipt, afterSaveLine, clientLine, messageMoment, loyaltyMessage,
-  rewardAtTill, publicCard, isMissingLoyaltyTable, LOYALTY_DEFAULT_EVERY,
+  rewardAtTill, publicCard, isMissingLoyaltyTable, LOYALTY_DEFAULT_EVERY, loyaltyLedgersSettled, rewardIsStale,
 } from './lib/loyalty.js';
 
 const NOW = Date.UTC(2026, 10, 5, 12, 0, 0);
@@ -91,7 +91,7 @@ const st = (receipts: any[], o: Record<string, any> = {}) =>
   // a Grow payment: only the table row knows; voiding its receipt also gives it back
   const grow = rc(5, { amount: 150 });
   const red = [{ client_id: 'c1', receipt_id: grow.id, created_at: grow.created_at, reward: '50%' }];
-  assert.equal(st([...five, grow], { redemptions: red }).stamps, 1, 'the paid visit after the card counts once the card was redeemed');
+  assert.equal(st([...five, grow], { redemptions: red }).stamps, 0, 'the Grow reward visit, known only from the table row, earns no stamp');
   assert.equal(st([...five, grow], { redemptions: red, voids: [{ receipt_id: grow.id }] }).ready, true);
   // a reward given by hand (no receipt)
   assert.equal(st(five, { redemptions: [{ client_id: 'c1', receipt_id: null, created_at: day(1) }] }).stamps, 0);
@@ -208,6 +208,91 @@ const st = (receipts: any[], o: Record<string, any> = {}) =>
   for (const l of block) for (const t of he(l)) assert.ok(!/[–—]/.test(t), `no dash in loyalty copy: ${t}`);
   const help = readFileSync('lib/helpSections.ts', 'utf8');
   assert.ok(help.includes('כרטיסיית נאמנות'), 'the help mentions the card');
+}
+
+// ── review findings, PR #20 ────────────────────────────────────────────────
+{
+  // 3. A reward visit never earns a stamp, whether the mark is on the receipt or only a loyalty_redemptions row names it.
+  const five = [rc(50), rc(40), rc(30), rc(20), rc(10)];
+  const grow = rc(5, { amount: 150 });
+  const red = [{ client_id: 'c1', receipt_id: grow.id, created_at: grow.created_at, reward: '50%', stamps_used: 5 }];
+  const g = st([...five, grow], { redemptions: red });
+  assert.deepEqual([g.stamps, g.ready, g.remaining], [0, false, 5], 'Grow reward visit: the card restarts at zero');
+  const next = rc(2);
+  assert.equal(st([...five, grow, next], { redemptions: red }).stamps, 1, 'the visit after the reward counts');
+  // the reward receipt is excluded even when the redemption row is a moment AFTER it (the Grow callback writes it later)
+  const late = [{ ...red[0], created_at: new Date(Date.parse(grow.created_at) + 120000).toISOString() }];
+  assert.equal(st([...five, grow], { redemptions: late }).stamps, 0, 'a later row still excludes its receipt');
+  // a till marked receipt with a matching row stays one redemption and no stamp
+  const marked = rc(5, { amount: 0, items: JSON.stringify([{ name: 'טיפול פנים', price: 300, qty: 1 }, { name: '🎁 x', price: 0, qty: 1, loyalty_reward: true, loyalty_every: 5 }]) });
+  assert.equal(st([...five, marked], { redemptions: [{ client_id: 'c1', receipt_id: marked.id, created_at: marked.created_at }] }).stamps, 0);
+
+  // 5. Each redemption keeps what it took. Setting 10, she redeemed after 12 visits (2 carried); then she changes it to 5.
+  const twelve = Array.from({ length: 12 }, (_, i) => rc(200 - i * 10));
+  const r10 = { client_id: 'c1', receipt_id: null, created_at: day(60), stamps_used: 10 };
+  const at10 = st(twelve, { config: cfg({ every: 10 }), redemptions: [r10] });
+  const at5 = st(twelve, { config: cfg({ every: 5 }), redemptions: [r10] });
+  assert.equal(at10.stamps, 2, 'two visits carried past the card of 10');
+  assert.equal(at5.stamps, 2, 'changing the setting to 5 does not change the carry over');
+  assert.equal(at5.history[0].used, 10);
+  // the same through the receipt marker
+  const tillAt10 = rc(60, { amount: 0, items: JSON.stringify([{ name: 'טיפול פנים', price: 300, qty: 1 }, { name: '🎁 x', price: 0, qty: 1, loyalty_reward: true, loyalty_every: 10 }]) });
+  assert.equal(st([...twelve, tillAt10], { config: cfg({ every: 10 }) }).stamps, 2);
+  assert.equal(st([...twelve, tillAt10], { config: cfg({ every: 5 }) }).stamps, 2, 'marker: the setting change does not rewrite it');
+  // a legacy redemption with no number falls back to the current setting
+  assert.equal(st(twelve, { config: cfg({ every: 5 }), redemptions: [{ client_id: 'c1', receipt_id: null, created_at: day(60) }] }).stamps, 7, 'legacy: 12 visits, 5 taken under the current setting');
+  assert.equal(rewardAtTill(cfg({ every: 7 }), [{ name: 'טיפול פנים', price: 300 }]).marker.loyalty_every, 7, 'the marker carries the setting it was given under');
+
+  // 1. Ledgers: only read (true) or known missing (false) may be counted from.
+  assert.equal(loyaltyLedgersSettled(true), true);
+  assert.equal(loyaltyLedgersSettled(false), true, 'table missing: known empty');
+  assert.equal(loyaltyLedgersSettled(null), false, 'still loading');
+  assert.equal(loyaltyLedgersSettled('error'), false, 'a failed read');
+
+  // 4. A reward applied for one client is stale once the till's client changes.
+  assert.equal(rewardIsStale(null, 'c1'), false);
+  assert.equal(rewardIsStale({ clientId: 'c1' }, 'c1'), false);
+  assert.equal(rewardIsStale({ clientId: 'c1' }, 'c2'), true, 'another client');
+  assert.equal(rewardIsStale({ clientId: 'c1' }, null), true, 'the client was cleared');
+  assert.equal(rewardIsStale({ clientId: 1 }, '1'), false, 'id types do not matter');
+
+  // Wiring in the till (source level).
+  const app = readFileSync('app/beautyos.jsx', 'utf8');
+  const loyaltyForSrc = app.slice(app.indexOf('const loyaltyFor = useCallback'), app.indexOf('const cashierLoyalty ='));
+  assert.ok(/loyaltyLedgersSettled\(loyaltyDb\.ready\)/.test(loyaltyForSrc), 'loyaltyFor waits for the ledgers to settle');
+  const loadSrc = app.slice(app.indexOf('const loadLoyaltyRows = useCallback'), app.indexOf('const loyaltyFor = useCallback'));
+  assert.equal((loadSrc.match(/ready: "error"/g) || []).length, 2, 'a failed read (error or throw) marks the ledgers unknown');
+  assert.ok(/useEffect\(\(\) => \{\s*if \(rewardIsStale\(loyaltyApplied, cashierClient\?\.id\)\) clearLoyaltyReward\(\);/.test(app), 'a client change clears the applied reward');
+  const clearSrc = app.slice(app.indexOf('const clearLoyaltyReward = () =>'), app.indexOf('const applyLoyaltyReward = () =>'));
+  assert.ok(clearSrc.includes('setCashierDiscount(0)') && clearSrc.includes('setLoyaltyApplied(null)'), 'clearing reverts the discount and the mark');
+  assert.ok(/setLoyaltyApplied\(\{ \.\.\.r, clientId: String\(cashierClient\.id\) \}\)/.test(app), 'the reward remembers whose it is');
+  assert.ok(!/loyaltyApplied&&cashierLoyalty\?\.ready/.test(app), 'the receipt and Grow paths go through loyaltyRewardLive');
+  assert.ok(/stamps_used: used/.test(app), 'the redemption row stores the stamps it took');
+}
+
+// ── 2. the migration: one trigger function per table; the adjustments one never names receipt_id ──────────────────────
+{
+  const sql = readFileSync('supabase/migrations/add_loyalty_2026-11-05.sql', 'utf8');
+  const code = sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+  const fnOf = (table: string) => {
+    const m = code.match(new RegExp(`create trigger ${table}_same_tenant before insert or update on public\\.${table}\\s+for each row execute function public\\.(\\w+)\\(\\)`));
+    assert.ok(m, `${table} has its same business trigger`);
+    return m![1];
+  };
+  const bodyOf = (fn: string) => {
+    const start = code.indexOf(`create or replace function public.${fn}()`);
+    assert.ok(start >= 0, `${fn} is defined`);
+    return code.slice(start, code.indexOf('end $$;', start));
+  };
+  const adj = fnOf('loyalty_adjustments'), redf = fnOf('loyalty_redemptions');
+  assert.notEqual(adj, redf, 'a separate function per table');
+  const adjBody = bodyOf(adj), redBody = bodyOf(redf);
+  assert.ok(!/receipt_id/.test(adjBody), 'the adjustments trigger never references receipt_id');
+  assert.ok(/new\.client_id and c\.tenant_id = new\.tenant_id/.test(adjBody), 'adjustments: the client is of the same business');
+  assert.ok(/new\.client_id and c\.tenant_id = new\.tenant_id/.test(redBody), 'redemptions: the client is of the same business');
+  assert.ok(/r\.id = new\.receipt_id and r\.tenant_id = new\.tenant_id/.test(redBody), 'redemptions: the receipt is of the same business');
+  assert.ok(/stamps_used int\s+check \(stamps_used between 1 and 100\)/.test(code), 'stamps_used is in the table');
+  assert.ok(code.includes('add column if not exists stamps_used'), 'and added to an earlier draft table');
 }
 
 console.log('loyalty: ok');

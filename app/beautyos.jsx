@@ -51,7 +51,7 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError } from "@/lib/pgError";
-import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt } from "@/lib/loyalty";
+import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
@@ -1910,8 +1910,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // ── Loyalty stamp card (lib/loyalty.js) ─────────────────────────────────────
   // Stamps are derived from receipts; the two loyalty tables (add_loyalty_2026-11-05.sql, handed over by hand) only hold rewards
   // given and manual corrections. loyaltyDb.ready: null = not read yet, false = the tables are not there (the card still counts, and a
-  // reward at the till is marked on the receipt itself), true = read. Nothing is computed until the full history has arrived
-  // (historyReady): counting from the recent window alone would tell her a client is further from her gift than she is.
+  // reward at the till is marked on the receipt itself), true = read, "error" = the read failed. Nothing is computed until the full
+  // history has arrived (historyReady) AND the ledgers have settled (loyaltyLedgersSettled: true or false only): counting from the
+  // recent window alone would tell her a client is further from her gift than she is, and counting from ledgers still loading or
+  // failed to load could offer a reward she already gave through Grow. Unknown shows nothing, never a wrong number.
   const loyaltyCfg = useMemo(() => loyaltyConfig(settings), [settings]);
   const [loyaltyDb, setLoyaltyDb] = useState({ ready: null, redemptions: [], adjustments: [] });
   const [loyaltyApplied, setLoyaltyApplied] = useState(null);
@@ -1929,16 +1931,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         setLoyaltyDb({ ready: false, redemptions: [], adjustments: [] });
         return;
       }
-      if (rq.error || aq.error) { console.warn("[loyalty] read failed", rq.error || aq.error); return; }
+      if (rq.error || aq.error) { console.warn("[loyalty] read failed", rq.error || aq.error); setLoyaltyDb({ ready: "error", redemptions: [], adjustments: [] }); return; }
       setLoyaltyDb({ ready: true, redemptions: rq.data || [], adjustments: aq.data || [] });
-    } catch (e) { console.warn("[loyalty] read failed", e); }
+    } catch (e) { console.warn("[loyalty] read failed", e); setLoyaltyDb({ ready: "error", redemptions: [], adjustments: [] }); }
   }, []);
   useEffect(() => { if (loyaltyCfg.enabled && settings?.tenant_id) loadLoyaltyRows(); }, [loyaltyCfg.enabled, settings?.tenant_id, loadLoyaltyRows]);
   const loyaltyFor = useCallback((clientId) => {
-    if (!loyaltyCfg.enabled || !clientId || !historyReady) return null;
+    if (!loyaltyCfg.enabled || !clientId || !historyReady || !loyaltyLedgersSettled(loyaltyDb.ready)) return null;
     return loyaltyState({ config: loyaltyCfg, clientId, receipts, voids: receiptVoids, redemptions: loyaltyDb.redemptions, adjustments: loyaltyDb.adjustments, serviceNames: loyaltyServiceNames });
   }, [loyaltyCfg, historyReady, receipts, receiptVoids, loyaltyDb, loyaltyServiceNames]);
   const cashierLoyalty = useMemo(() => loyaltyFor(cashierClient?.id), [loyaltyFor, cashierClient]);
+  // The reward goes on the receipt only while it is still ready AND still for the till's own client (applied for one client, then the
+  // client was changed: rewardIsStale, and the effect beside applyLoyaltyReward takes it off).
+  const loyaltyRewardLive = !!(loyaltyApplied && cashierLoyalty?.ready && !rewardIsStale(loyaltyApplied, cashierClient?.id));
 
   // --- New-appointment modal timing (STAGE A: live end time, STAGE B: per-day hours) ---
   // Day-of-week of the picked date, parsed as LOCAL (not UTC) so it never shifts
@@ -5393,6 +5398,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
     setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
+    // A loyalty ledger read that failed shows no card at the till (see loyaltyFor): opening the till tries it again.
+    if (loyaltyCfg.enabled && loyaltyDb.ready === "error") loadLoyaltyRows();
   };
 
   // Opens the new-appointment modal pre-filled with her first active service.
@@ -5447,12 +5454,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // carries the values from the moment she pressed (a Grow payment can complete minutes later, after the till moved on).
   // Loyalty writes. A reward given at the till is ALSO marked on the receipt (its zero-priced 🎁 item), so before the migration the
   // card is still right; the table row is the record for the client card and the only record of a reward paid by card through Grow.
-  const recordLoyaltyRedemption = async (clientId, receiptId, { quiet = false } = {}) => {
+  // The ledger in memory: one new row is appended only to a ledger that was read whole. Otherwise (not read yet, failed, or the table
+  // just appeared) the whole ledger is read again, so the count never runs on a partial one.
+  const addLoyaltyRow = (key, row) => {
+    if (loyaltyDb.ready === true) setLoyaltyDb((prev) => (prev.ready === true ? { ...prev, [key]: [...prev[key], row] } : prev));
+    else loadLoyaltyRows();
+  };
+  const recordLoyaltyRedemption = async (clientId, receiptId, { quiet = false, stampsUsed = null } = {}) => {
     if (!clientId) return false;
     const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
     const tid = rpcTenant || settings?.tenant_id || null;
+    // stamps_used: what this reward took when it was given, so a later change of "every" never rewrites it (lib/loyalty.js).
+    const used = Number(stampsUsed) || loyaltyCfg.every;
     const { data, error } = await supabase.from("loyalty_redemptions").insert([{
-      client_id: clientId, receipt_id: receiptId || null, reward: loyaltyCfg.reward, every: loyaltyCfg.every, ...(tid ? { tenant_id: tid } : {}),
+      client_id: clientId, receipt_id: receiptId || null, reward: loyaltyCfg.reward, every: used, stamps_used: used, ...(tid ? { tenant_id: tid } : {}),
     }]).select();
     if (error) {
       if (error.code === "23505") return true; // this receipt's reward is already recorded
@@ -5465,7 +5480,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (!quiet) toast("התשלום נרשם, אבל המתנה לא סומנה בכרטיסייה. בדקי בכרטיס הלקוחה לפני שנותנים אותה שוב.", "error");
       return false;
     }
-    if (data && data[0]) setLoyaltyDb((prev) => ({ ...prev, ready: true, redemptions: [...prev.redemptions, data[0]] }));
+    if (data && data[0]) addLoyaltyRow("redemptions", data[0]);
     return true;
   };
   const writeLoyaltyAdjustment = async (clientId, delta, reason) => {
@@ -5485,23 +5500,31 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }
         handleDbError(error, "loyalty adjustment"); return false;
       }
-      if (data && data[0]) setLoyaltyDb((prev) => ({ ...prev, ready: true, adjustments: [...prev.adjustments, data[0]] }));
+      if (data && data[0]) addLoyaltyRow("adjustments", data[0]);
       toast(delta > 0 ? "נוסף ביקור לכרטיסייה ✦" : "הורד ביקור מהכרטיסייה");
       return true;
     } finally { setBusyKey("loyaltyAdjust", false); }
   };
   // One tap at the till: the reward goes onto this visit (a discount, or nothing for a present), and the receipt carries the mark.
+  // Taking the reward off: the discount it set is reverted, the mark is dropped (it rides on loyaltyApplied), the state is reset.
+  const clearLoyaltyReward = () => {
+    if (loyaltyApplied?.mode) { setCashierDiscountMode("ils"); setCashierDiscount(0); }
+    setLoyaltyApplied(null);
+  };
   const applyLoyaltyReward = () => {
-    if (loyaltyApplied) {
-      if (loyaltyApplied.mode) { setCashierDiscountMode("ils"); setCashierDiscount(0); }
-      setLoyaltyApplied(null);
-      return;
-    }
+    if (loyaltyApplied) { clearLoyaltyReward(); return; }
+    if (!cashierClient?.id || !cashierLoyalty?.ready) return;
     const r = rewardAtTill(loyaltyCfg, cashierItems);
     if (r.needsItem) { toast(loyaltyCfg.services.length ? "הוסיפי קודם את הטיפול שהמתנה עליו" : "הוסיפי קודם טיפול לקופה", "error"); return; }
     if (r.mode) { setCashierDiscountMode(r.mode); setCashierDiscount(r.discount); }
-    setLoyaltyApplied(r);
+    setLoyaltyApplied({ ...r, clientId: String(cashierClient.id) });
   };
+  // The till's client changed (picked another, or the search was cleared) after a reward was applied: that reward was the first
+  // client's, so it comes off here, discount and mark both. The new client's own offer is recomputed by cashierLoyalty.
+  useEffect(() => {
+    if (rewardIsStale(loyaltyApplied, cashierClient?.id)) clearLoyaltyReward();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cashierClient?.id, loyaltyApplied]);
 
   const applyCashierAdjustments = async (receiptId, snap) => {
     const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
@@ -5514,7 +5537,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // toast tells her to, by name. The appointment goes onto the entry, so the unique index refuses a second draw for the same visit.
     // The loyalty reward: the till's own receipt carries the 🎁 mark already (quiet: a missing table loses nothing there); a Grow
     // receipt is written by the server without it, so the table row is its only record and a failure is said out loud.
-    if (snap.loyalty && snap.client?.id) recordLoyaltyRedemption(String(snap.client.id), receiptId, { quiet: !!snap.loyaltyMarked });
+    if (snap.loyalty && snap.client?.id) recordLoyaltyRedemption(String(snap.client.id), receiptId, { quiet: !!snap.loyaltyMarked, stampsUsed: snap.loyaltyEvery });
     if (snap.pkg) {
       const fresh = await writePackageEntry(snap.pkg, -1, { appointmentId: snap.appt?.id || null, reason: "ניכוי בקופה" });
       if (!fresh) toast(`התשלום נרשם, אך הטיפול לא נוכה מהחבילה של ${snap.pkg.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
@@ -5575,8 +5598,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // in the wrong column of her breakdown. A split is the literal SPLIT
         // string, with the lines in `payments`.
         payment_method:coveredByPackage ? PACKAGE_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
-        note:[cashierNote, loyaltyApplied&&cashierLoyalty?.ready?`🎁 מתנת כרטיסיית נאמנות: ${loyaltyCfg.reward}`:"", growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
-        items:JSON.stringify(loyaltyApplied&&cashierLoyalty?.ready?[...cashierItems,loyaltyApplied.marker]:cashierItems),
+        note:[cashierNote, loyaltyRewardLive?`🎁 מתנת כרטיסיית נאמנות: ${loyaltyCfg.reward}`:"", growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
+        items:JSON.stringify(loyaltyRewardLive?[...cashierItems,loyaltyApplied.marker]:cashierItems),
         discount:cashierDiscountIls,
         // The three new columns. Tip is never part of amount; discount_pct is
         // the percentage she typed, if she typed one; payments are the split.
@@ -5601,8 +5624,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
-      const loyaltyUsed = !!(loyaltyApplied && cashierLoyalty?.ready);
-      await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed });
+      const loyaltyUsed = loyaltyRewardLive;
+      await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed, loyaltyEvery: loyaltyUsed ? loyaltyApplied.marker?.loyalty_every : null });
       setLoyaltyApplied(null);
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
@@ -11711,7 +11734,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
- {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:!!(loyaltyApplied&&cashierLoyalty?.ready),loyaltyMarked:false});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
