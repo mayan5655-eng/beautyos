@@ -41,7 +41,7 @@ export async function loadDigestInput(
   if (broken) throw new Error(`digest reads failed: ${broken.error?.message || 'incomplete read'}`);
 
   const ids = (rc.data || []).map((r: { id: unknown }) => r.id);
-  let voids: { receipt_id?: unknown; credit_status?: unknown }[] = [];
+  let voids: { receipt_id?: unknown; credit_status?: string | null }[] = [];
   for (let i = 0; i < ids.length; i += 200) {
     const v = await db.from('receipt_voids').select('receipt_id, credit_status').in('receipt_id', ids.slice(i, i + 200));
     // A failed read is not "nothing voided": voided receipts would count as income.

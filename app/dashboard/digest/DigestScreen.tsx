@@ -44,6 +44,7 @@ export default function DigestScreen() {
   const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-lg)', padding: '16px 16px', boxShadow: 'var(--shadow-xs)' };
 
   return (
+    <div style={{ background: 'var(--bg)', minHeight: '100dvh' }}>
     <main data-testid="weekly-digest" style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 48px', direction: 'rtl', color: 'var(--ink)', fontFamily: 'var(--sans)' }}>
       <a href="/dashboard" style={{ display: 'inline-block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}>→ חזרה לקלמיה</a>
       <h1 style={{ fontFamily: 'var(--display-heavy)', fontSize: 'var(--t-2xl)', fontWeight: 700, color: 'var(--brand-deep)', margin: 0 }}>הסיכום השבועי שלך</h1>
@@ -112,5 +113,6 @@ export default function DigestScreen() {
         );
       })()}
     </main>
+    </div>
   );
 }

@@ -175,11 +175,14 @@ ok('a full digest reads well, and nothing in it has a dash', () => {
     'לקוחות חדשות: 1 (בשבוע שלפניו 0)',
     'לא הגיעו לתור: 1 (בשבוע שלפניו 0)',
   ]);
-  assert.ok(d.body.includes('מה כדאי לעשות השבוע:'));
   assert.equal(d.actions.length, 3);
   assert.equal(d.positive, 'היום החזק שלך היה יום שלישי, עם ₪1,200 🌸');
-  for (const s of [d.body, ...d.actions.flatMap((a) => [a.title, a.detail, a.cta])]) assert.ok(!DASH.test(s), `dash in: ${s}`);
-  for (const line of d.body.split('\n').filter(Boolean)) assert.ok(!/^\d/.test(line), `a line starts with Hebrew, not a digit: ${line}`);
+  assert.equal(d.body, 'הכנסות: ₪1,600, עלייה של 60% לעומת השבוע שלפניו. ביקורים: 1, לקוחות חדשות: 1, לא הגיעו לתור: 1. '
+    + `מה כדאי לעשות השבוע: ${d.actions.map((a) => a.short).join(', ')}. היום החזק שלך היה יום שלישי, עם ₪1,200 🌸`);
+  assert.ok(!d.body.includes('\n'), 'one paragraph: the in-app list shows no line breaks');
+  assert.ok(d.body.length < 320, 'short enough for a push');
+  for (const s of [d.body, ...d.lines, d.positive || '', ...d.actions.flatMap((a) => [a.title, a.short, a.detail, a.cta])]) assert.ok(!DASH.test(s), `dash in: ${s}`);
+  for (const s of [d.body, ...d.lines, ...d.actions.map((a) => a.title)]) assert.ok(!/^\d/.test(s), `Hebrew first, not a digit: ${s}`);
 });
 
 // ── when it may go out ───────────────────────────────────────────────────────────────────────────────────────────────────

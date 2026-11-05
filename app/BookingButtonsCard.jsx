@@ -74,7 +74,7 @@ export default function BookingButtonsCard({ bookingUrl, automations, onCopy, on
                   </ol>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
                     <span data-testid={`booking-link-${p.key}`} dir="ltr" style={{ flex: '1 1 180px', minWidth: 0, fontSize: 'var(--t-xs)', color: 'var(--ink-2)', wordBreak: 'break-all', textAlign: 'left' }}>{link}</span>
-                    <button type="button" onClick={() => onCopy(p.src)} style={{ background: 'var(--brand-deep)', color: 'var(--brand-contrast)', border: 'none', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 40, fontSize: 'var(--t-xs)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>העתקת הקישור</button>
+                    <button type="button" onClick={() => onCopy(p.src, `הקישור הועתק. עכשיו הדביקי אותו ${p.inName} לפי השלבים`)} style={{ background: 'var(--brand-deep)', color: 'var(--brand-contrast)', border: 'none', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 40, fontSize: 'var(--t-xs)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>העתקת הקישור</button>
                   </div>
                   {p.note && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>{p.note}</p>}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: saving ? 'wait' : 'pointer', fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', minHeight: 40 }}>

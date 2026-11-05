@@ -187,7 +187,7 @@ export const DIGEST_GO = ['queue', 'leads', 'winback', 'week', 'birthdays'] as c
 export type DigestGo = (typeof DIGEST_GO)[number];
 export const digestHref = (go: DigestGo) => `/dashboard?go=${go}`;
 
-export type DigestAction = { key: DigestGo; title: string; detail: string; cta: string; href: string };
+export type DigestAction = { key: DigestGo; title: string; short: string; detail: string; cta: string; href: string };
 
 export type ActionSignals = {
   pendingMessages: number | null;
@@ -216,17 +216,18 @@ export function pickActions(s: ActionSignals): DigestAction[] {
 
   if ((s.pendingMessages || 0) > 0) {
     const n = s.pendingMessages as number;
-    out.push({ key: 'queue', title: n === 1 ? 'הודעה אחת מוכנה ומחכה לשליחה' : `הודעות שמוכנות ומחכות לשליחה: ${n}`, detail: 'כל אחת נשלחת בלחיצה מהוואטסאפ שלך', cta: 'לרשימת ההודעות', href: digestHref('queue') });
+    out.push({ key: 'queue', title: n === 1 ? 'הודעה אחת מוכנה ומחכה לשליחה' : `הודעות שמוכנות ומחכות לשליחה: ${n}`, short: n === 1 ? 'הודעה אחת מוכנה לשליחה' : `${n} הודעות מוכנות לשליחה`, detail: 'כל אחת נשלחת בלחיצה מהוואטסאפ שלך', cta: 'לרשימת ההודעות', href: digestHref('queue') });
   }
   if ((s.newLeads || 0) > 0) {
     const n = s.newLeads as number;
-    out.push({ key: 'leads', title: n === 1 ? 'פנייה אחת עוד מחכה לתשובה' : `פניות שעוד מחכות לתשובה: ${n}`, detail: 'מי שמקבלת תשובה מהר קובעת יותר', cta: 'לפניות החדשות', href: digestHref('leads') });
+    out.push({ key: 'leads', title: n === 1 ? 'פנייה אחת עוד מחכה לתשובה' : `פניות שעוד מחכות לתשובה: ${n}`, short: n === 1 ? 'פנייה אחת מחכה לתשובה' : `${n} פניות מחכות לתשובה`, detail: 'מי שמקבלת תשובה מהר קובעת יותר', cta: 'לפניות החדשות', href: digestHref('leads') });
   }
   if (s.overdueClients > 0) {
     const n = s.overdueClients;
     out.push({
       key: 'winback',
       title: n === 1 ? 'לקוחה אחת מזמן לא הגיעה' : `לקוחות שמזמן לא הגיעו: ${n}`,
+      short: n === 1 ? 'לקוחה אחת שמזמן לא הגיעה' : `${n} לקוחות שמזמן לא הגיעו`,
       detail: freeHours >= MIN_FREE_HOURS ? 'אפשר להציע להן את השעות הפנויות של השבוע' : 'הודעה קצרה ממך מחזירה הרבה מהן',
       cta: 'לרשימה', href: digestHref('winback'),
     });
@@ -235,6 +236,7 @@ export function pickActions(s: ActionSignals): DigestAction[] {
     out.push({
       key: 'week',
       title: `שעות פנויות ביומן השבוע: ${freeHours}`,
+      short: `${freeHours} שעות פנויות ביומן`,
       detail: `הכי פנוי ביום ${WEEKDAY_HE[weekdayOfKey(emptiest.day)]}`,
       cta: 'ליומן השבועי', href: digestHref('week'),
     });
@@ -246,6 +248,7 @@ export function pickActions(s: ActionSignals): DigestAction[] {
     out.push({
       key: 'birthdays',
       title: s.birthdays.length === 1 ? 'יום הולדת אחד השבוע' : `ימי הולדת השבוע: ${s.birthdays.length}`,
+      short: s.birthdays.length === 1 ? 'יום הולדת אחד' : `${s.birthdays.length} ימי הולדת`,
       detail: shown.length ? `${joinHe(shown)}${more > 0 ? ` ועוד ${more}` : ''}. ברכה קטנה עושה הרבה` : 'ברכה קטנה עושה הרבה',
       cta: 'לימי ההולדת', href: digestHref('birthdays'),
     });
@@ -299,8 +302,8 @@ export type Digest = {
   numbers: { revenue: Change; visits: Change; newClients: Change; noShows: Change };
   actions: DigestAction[];
   positive: string | null;
-  lines: string[];                    // the numbers as sentences, for the notification and the screen
-  body: string;                       // the notification body
+  lines: string[];                    // the numbers as sentences, each with the week before
+  body: string;                       // the notification body: one short paragraph
 };
 
 export const DIGEST_TITLE = 'הסיכום השבועי שלך';
@@ -343,11 +346,15 @@ export function buildDigest(i: DigestInput): Digest | null {
     countLine('לקוחות חדשות', numbers.newClients),
     ...(cur.noShows > 0 || prev.noShows > 0 ? [countLine('לא הגיעו לתור', numbers.noShows)] : []),
   ];
+  // The notification body is ONE short paragraph of whole sentences: the in-app list shows it without line breaks and a phone
+  // push cuts it after a few lines, and the full picture is one tap away on /dashboard/digest.
+  const counts = [`ביקורים: ${cur.visits}`, `לקוחות חדשות: ${cur.newClients}`, ...(cur.noShows > 0 ? [`לא הגיעו לתור: ${cur.noShows}`] : [])].join(', ');
   const body = [
-    ...lines,
-    ...(actions.length ? ['', 'מה כדאי לעשות השבוע:', ...actions.map((a) => `• ${a.title}`)] : []),
-    ...(positive ? ['', positive] : []),
-  ].join('\n');
+    `${revenueLine(numbers.revenue)}.`,
+    `${counts}.`,
+    ...(actions.length ? [`מה כדאי לעשות השבוע: ${actions.map((a) => a.short).join(', ')}.`] : []),
+    ...(positive ? [positive] : []),
+  ].join(' ');
   return { title: DIGEST_TITLE, weeks, numbers, actions, positive, lines, body };
 }
 

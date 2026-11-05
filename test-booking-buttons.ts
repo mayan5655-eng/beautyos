@@ -65,7 +65,7 @@ ok('the card lives in Settings > הדף שלי, copies through copyPublicLink, a
   const page = app.indexOf('{inG("page")&&(()=>{');
   const card = app.indexOf('<BookingButtonsCard');
   assert.ok(page > 0 && card > page, 'inside the הדף שלי group');
-  assert.match(app, /onCopy=\{\(src\)=>copyPublicLink\("book",src\)\}/);
+  assert.match(app, /onCopy=\{\(src,msg\)=>copyPublicLink\("book",src,msg\)\}/);
   assert.match(app, /onSaveDone=\{\(next\)=>saveAutomationsKey\("booking_buttons",next\)\}/);
   const save = app.slice(app.indexOf('const saveAutomationsKey'), app.indexOf('const saveAutomationsKey') + 1200);
   assert.match(save, /fetch\("\/api\/settings\/save"/);

@@ -7086,7 +7086,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   // channel: where she is about to paste it (lib/bookingSource.ts), so a booking from it is counted under that channel.
-  const copyPublicLink = async (kind, channel = "link") => {
+  // okMsg: the toast after a copy, when the caller knows better where it is going (the booking buttons card names the platform).
+  const copyPublicLink = async (kind, channel = "link", okMsg = "") => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
@@ -7121,7 +7122,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
+      toast(okMsg ? okMsg : kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
       if (kind === "book") {
         setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
         // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
@@ -12404,7 +12405,7 @@ ${MARKETING_FOOTER}`)}`;
  <BookingButtonsCard
    bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`}
    automations={settings.automations}
-   onCopy={(src)=>copyPublicLink("book",src)}
+   onCopy={(src,msg)=>copyPublicLink("book",src,msg)}
    onSaveDone={(next)=>saveAutomationsKey("booking_buttons",next)}
    pcDeep={pcDeep}/>
                     )}

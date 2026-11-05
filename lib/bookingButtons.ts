@@ -18,6 +18,7 @@ export type BookingPlatform = {
   key: 'instagram' | 'google' | 'facebook' | 'whatsapp';
   src: SourceChannel;
   name: string;
+  inName: string;     // "in" + name, for the copy toast (ב + ה does not join by itself)
   where: string;      // one line under the name: where the link ends up
   steps: string[];    // 3 to 5
   note?: string;      // the honest caveat
@@ -25,7 +26,7 @@ export type BookingPlatform = {
 
 export const BOOKING_PLATFORMS: BookingPlatform[] = [
   {
-    key: 'instagram', src: 'instagram', name: 'אינסטגרם', where: 'קישור בביו, מתחת לשם שלך בפרופיל',
+    key: 'instagram', src: 'instagram', name: 'אינסטגרם', inName: 'באינסטגרם', where: 'קישור בביו, מתחת לשם שלך בפרופיל',
     steps: [
       'פותחים את אינסטגרם ונכנסים לפרופיל שלך.',
       'לוחצים על "עריכת פרופיל", ואז על "קישורים" ועל "הוספת קישור חיצוני".',
@@ -35,9 +36,9 @@ export const BOOKING_PLATFORMS: BookingPlatform[] = [
     note: 'כפתור "הזמנה" שבכפתורי הפעולה של אינסטגרם עובד רק עם חברות שותפות של אינסטגרם, ולכן הדרך שעובדת עם הקישור שלך היא הקישור בביו. שמות התפריטים יכולים להשתנות קצת בין גרסאות של האפליקציה.',
   },
   {
-    key: 'google', src: 'google', name: 'הפרופיל העסקי בגוגל', where: 'קישור לקביעת תור בכרטיס העסק בחיפוש ובמפות',
+    key: 'google', src: 'google', name: 'הפרופיל העסקי בגוגל', inName: 'בפרופיל העסקי בגוגל', where: 'קישור לקביעת תור בכרטיס העסק בחיפוש ובמפות',
     steps: [
-      'נכנסים לפרופיל העסק שלך בגוגל: מחפשים בגוגל את שם העסק כשאת מחוברת לחשבון שלך, או נכנסים לכתובת business.google.com.',
+      'נכנסים לפרופיל העסק שלך בגוגל, כשאת מחוברת לחשבון שלך: מחפשים בגוגל את שם העסק, או פותחים את business.google.com בדפדפן.',
       'לוחצים על "עריכת הפרופיל" ומחפשים את האפשרות של הזמנות או קישור לקביעת תור. השם משתנה לפי סוג העסק.',
       'מדביקים את הקישור שהעתקת כאן בשדה הקישור לקביעת תורים, ושומרים.',
       'אם האפשרות לא מופיעה אצלך, מדביקים את הקישור בשדה האתר של הפרופיל.',
@@ -45,7 +46,7 @@ export const BOOKING_PLATFORMS: BookingPlatform[] = [
     note: 'צריך פרופיל עסקי מאומת. לפעמים עובר זמן עד שגוגל מציגה את השינוי ללקוחות.',
   },
   {
-    key: 'facebook', src: 'facebook', name: 'הדף העסקי בפייסבוק', where: 'הכפתור הגדול שמתחת לתמונת הנושא',
+    key: 'facebook', src: 'facebook', name: 'הדף העסקי בפייסבוק', inName: 'בדף העסקי בפייסבוק', where: 'הכפתור הגדול שמתחת לתמונת הנושא',
     steps: [
       'נכנסים לדף העסקי שלך בפייסבוק, כמנהלת הדף.',
       'לוחצים על הכפתור שמתחת לתמונת הנושא: "הוספת כפתור", או עריכה של הכפתור שכבר יש.',
@@ -56,7 +57,7 @@ export const BOOKING_PLATFORMS: BookingPlatform[] = [
     note: 'פייסבוק משנה מדי פעם את סוגי הכפתורים, אז ייתכן שהשמות אצלך יהיו קצת אחרים.',
   },
   {
-    key: 'whatsapp', src: 'whatsapp', name: 'וואטסאפ ביזנס', where: 'בפרופיל העסק ובהודעת ההיעדרות',
+    key: 'whatsapp', src: 'whatsapp', name: 'וואטסאפ ביזנס', inName: 'בוואטסאפ ביזנס', where: 'בפרופיל העסק ובהודעת ההיעדרות',
     steps: [
       'פותחים את וואטסאפ ביזנס ונכנסים להגדרות, ואז ל"כלים לעסקים".',
       'ב"פרופיל העסק" מדביקים את הקישור בשדה האתר, כך הוא מופיע לכל מי שפותחת את הפרופיל שלך.',
