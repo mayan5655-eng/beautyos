@@ -20,6 +20,7 @@ import DomPreview from './DomPreview';
 import DesignEditor from './DesignEditor';
 import ReelEditor from './ReelEditor';
 import OwnReel from './OwnReel';
+import ReelTemplates from './ReelTemplates';
 import Generate, { FORMAT_FOR_CHANNEL } from './Generate';
 import WeekView from './WeekView';
 import ContentPlan from './ContentPlan';
@@ -38,7 +39,7 @@ import { topicsForField, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank'
 import { designIdeaSuggestion } from '@/lib/design/suggestions';
 import { ICON_PLAY, ICON_FRAME } from '@/lib/brand';
 import BrandImage from "@/app/BrandImage";
-import { legacyCampaignTextsVisible } from '@/lib/featureFlags';
+import { legacyCampaignTextsVisible, reelTemplatesVisible } from '@/lib/featureFlags';
 
 const GROUPS = ['evergreen', 'seasonal', 'closer'];
 const REEL_GROUP = 'reels';
@@ -71,7 +72,7 @@ function openOccasions(fields) {
   return out;
 }
 
-export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [], onOpenScript }) {
+export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [], onOpenScript, bookingUrl = '' }) {
   const [view, setView] = useState('week'); // the door's views: week | templates | mine
   const [preset, setPreset] = useState(null); // a brief handed to the AI card, e.g. a filming idea as a reel
   const [presetKey, setPresetKey] = useState(0);
@@ -115,6 +116,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
   const [preview, setPreview] = useState(null); // template being looked at, large, before anything is created
   const [creating, setCreating] = useState('');
   const [ownReel, setOwnReel] = useState(false); // "רילס מהצילומים שלי" (OwnReel.jsx): her own photos and clips, nothing saved
+  const [reelTpl, setReelTpl] = useState(false); // "תבניות רילס" (ReelTemplates.jsx): a shot list, generated music, effects
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -339,6 +341,16 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
         <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>תמונות וסרטונים שלך מהעבודה, לפני ואחרי, ורילס מוכן בעיצוב שלך.</p>
       </div>
       <button type="button" onClick={() => { if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; } setOwnReel(true); }} data-testid="studio-own-reel-open" style={{ padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>בחירת תמונות</button>
+      {/* "תבניות רילס", right next to it (behind the reel_templates flag, on unless a tenant turned it off). */}
+      {reelTemplatesVisible(settings) && (
+        <div data-testid="studio-reel-templates" style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 2 }}><Icon name="sparkle" size={14} /> תבניות רילס</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.5 }}>רשימת צילומים מוכנה, מוזיקה, מעברים ואפקטים. מצלמות לפי הרשימה ומקבלות רילס מקצועי.</p>
+          </div>
+          <button type="button" onClick={() => { if (readOnly) { toast?.(WRITE_BLOCKED_TOAST_HE, 'error'); return; } setReelTpl(true); }} data-testid="studio-reel-templates-open" style={{ padding: '9px 14px', borderRadius: 'var(--r-sm)', border: 'none', background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>לבחירת תבנית</button>
+        </div>
+      )}
     </div>
   );
 
@@ -531,6 +543,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       </div>}
       <SaveShare open={!!mineReady} onClose={() => setMineReady(null)} blob={mineReady?.blob} kind="image" ext="png" source="mine" caption={mineReady?.caption || ''} toast={toast} />
       {ownReel && <OwnReel open onClose={() => setOwnReel(false)} settings={settings} toast={toast} readOnly={readOnly} />}
+      {reelTpl && <ReelTemplates open onClose={() => setReelTpl(false)} settings={settings} toast={toast} readOnly={readOnly} bookingUrl={bookingUrl} />}
     </>
   );
 }
