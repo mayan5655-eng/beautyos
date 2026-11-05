@@ -1,0 +1,54 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iPhone OS 17.5//EN
+N:כהן;מיכל;;;
+FN:מיכל כהן
+item1.TEL;type=pref:+972 52-111-1111
+item1.X-ABLabel:_$!<Mobile>!$_
+TEL;type=HOME;type=VOICE:03-555-1234
+EMAIL;type=INTERNET;type=HOME;type=pref:michal@example.com
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iPhone OS 17.5//EN
+N:לוי;דנה;;;
+FN:דנה לוי
+TEL;type=CELL;type=VOICE;type=pref:053-222-2222
+TEL;type=IPHONE;type=CELL;type=VOICE:054-333-3333
+NOTE:מעדיפה בוקר\, לא בשישי
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;;;;
+FN:
+ORG:סטודיו לק ג\;ל;
+TEL;type=WORK;type=VOICE:+972-54-444-4444
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Smith;Jane;;;
+FN:Jane Smith
+TEL;type=CELL:+44 7700 900123
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:כהן;מיכל;;;
+FN:מיכל כהן
+TEL;type=CELL:0521111111
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:ישראלי;נועה;;;
+FN:נועה בת שבע ישרא
+ לי
+TEL;type=CELL:050 
+ 666 6666
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:רק שם בלי טלפון
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;;;;
+END:VCARD
