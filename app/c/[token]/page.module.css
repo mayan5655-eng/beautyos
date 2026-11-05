@@ -29,3 +29,11 @@
 .cta { position: sticky; inset-block-end: 12px; z-index: 2; padding-top: 4px; }
 .cta a { box-shadow: 0 10px 24px -10px rgba(24, 48, 36, 0.45); }
 .note { margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--ink-3); }
+/* The loyalty stamp card: her colour, filled stamps solid, the last one the gift. */
+.stampCard { background: linear-gradient(160deg, var(--pc-tint, #FBEDE9), var(--brand-surface, #fff) 70%); }
+.stamps { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; justify-items: center; }
+.stamp { width: 100%; max-width: 54px; aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--pc, #E9A9A1); color: var(--ink-3); font-family: var(--display, 'Frank Ruhl Libre', Georgia, serif); font-size: 17px; font-weight: 600; background: rgba(255, 255, 255, 0.7); }
+.stampOn { border-style: solid; background: var(--pc, #E9A9A1); color: var(--pc-contrast, #fff); font-size: 20px; }
+.stampGift { border-style: solid; font-size: 24px; }
+.stampLine { margin: 0; text-align: center; font-family: var(--display, 'Frank Ruhl Libre', Georgia, serif); font-size: 20px; font-weight: 600; color: var(--ink); }
+.stampReward { margin: 4px 0 0; text-align: center; font-size: var(--t-sm); color: var(--ink-2); }
