@@ -211,3 +211,78 @@ const st = (receipts: any[], o: Record<string, any> = {}) =>
 }
 
 console.log('loyalty: ok');
+
+// ── the client page loader, against a fake database: only the card leaves, scoped to the link's own client ──────────────
+{
+  const { loadPublicClientPage, loadLoyaltyCard } = await import('./lib/clientPageData.ts');
+  const { buildPageToken } = await import('./lib/clientPage.ts');
+  const A = 'aaaaaaaa-0000-4000-8000-000000000001', B = 'bbbbbbbb-0000-4000-8000-000000000002';
+  const fake = (tables: Record<string, any>) => ({
+    from(name: string) {
+      const f: Array<(r: any) => boolean> = [];
+      const res = (single: boolean) => {
+        const t = tables[name];
+        if (t === undefined || t === 'missing') return { data: null, error: { code: '42P01', message: `relation "public.${name}" does not exist` } };
+        if (t === 'broken') return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+        const rows = t.filter((r: any) => f.every((p) => p(r)));
+        return single ? { data: rows[0] ?? null, error: null } : { data: rows, error: null };
+      };
+      const c: any = {
+        select: () => c, order: () => c, limit: () => c,
+        eq: (k: string, v: any) => (f.push((r) => r[k] === v), c),
+        lte: (k: string, v: any) => (f.push((r) => String(r[k] || '') <= v), c),
+        in: (k: string, vs: any[]) => (f.push((r) => vs.includes(r[k])), c),
+        maybeSingle: async () => res(true),
+        then: (ok: any, bad: any) => Promise.resolve(res(false)).then(ok, bad),
+      };
+      return c;
+    },
+  });
+  const tokenId = 'L1'.padEnd(22, 'a');
+  const exp = NOW + 30 * 86400000;
+  const loyaltyOn = { enabled: true, every: 5, reward: 'הטיפול השישי במתנה' };
+  const rcpt = (id: string, tenant: string, client: string, daysAgo: number, o: Record<string, unknown> = {}) => ({ id, tenant_id: tenant, client_id: client, appointment_id: 'a' + id, service: 'טיפול פנים', amount: 280, payment_method: 'אשראי', items: JSON.stringify([{ name: 'טיפול פנים', price: 280, qty: 1 }]), created_at: day(daysAgo), note: 'הערה פרטית', ...o });
+  const world = (o: Record<string, any> = {}) => ({
+    client_pages: [{ id: 'p1', tenant_id: A, client_id: 'c1', token_id: tokenId, aftercare: '', expires_at: new Date(exp).toISOString(), revoked_at: null }],
+    clients: [{ id: 'c1', tenant_id: A, name: 'רונית כהן' }],
+    settings: [{ tenant_id: A, business_name: 'סטודיו A', branding: {}, primary_color: '#5B8A8A', automations: { loyalty: loyaltyOn } }],
+    tenants: [{ id: A, slug: 'studio-a' }],
+    appointments: [],
+    treatment_results: [],
+    service_prices: [{ tenant_id: A, name: 'טיפול פנים' }],
+    receipts: [
+      rcpt('r1', A, 'c1', 30), rcpt('r2', A, 'c1', 20), rcpt('r3', A, 'c1', 10),
+      rcpt('x1', A, 'c2', 5), rcpt('x2', B, 'c1', 4), rcpt('x3', B, 'c1', 3), // another client, another business: never counted
+    ],
+    receipt_voids: [{ tenant_id: A, receipt_id: 'r2' }],
+    loyalty_redemptions: 'missing', loyalty_adjustments: 'missing',
+    ...o,
+  });
+  const token = buildPageToken(tokenId, exp);
+  const now = new Date(NOW);
+
+  const ok = await loadPublicClientPage(fake(world()), token, now);
+  assert.equal(ok.kind, 'ok');
+  const card = (ok as any).page.loyalty;
+  assert.deepEqual(card, { every: 5, filled: 2, remaining: 3, ready: false, reward: 'הטיפול השישי במתנה', line: 'עוד 3 ביקורים למתנה' }, 'two live visits of this client of this business, before the migration');
+  const json = JSON.stringify((ok as any).page);
+  for (const leak of ['r1', 'r3', '280', 'הערה פרטית', 'אשראי', A]) assert.ok(!json.includes(leak), `the page carries nothing of the receipts: ${leak}`);
+
+  // after the migration: a correction counts
+  const after = await loadPublicClientPage(fake(world({ loyalty_redemptions: [], loyalty_adjustments: [{ tenant_id: A, client_id: 'c1', delta: 1, reason: 'כרטיסייה מנייר', created_at: day(1) }] })), token, now);
+  assert.equal((after as any).page.loyalty.filled, 3);
+  assert.ok(!JSON.stringify((after as any).page).includes('כרטיסייה מנייר'), 'the reason never reaches the client');
+
+  // off: no card at all
+  const off = await loadPublicClientPage(fake(world({ settings: [{ tenant_id: A, business_name: 'סטודיו A', branding: {}, primary_color: '', automations: {} }] })), token, now);
+  assert.equal((off as any).page.loyalty, null);
+  // a failed read shows no card, never a wrong one; the rest of the page is unaffected
+  const broken = await loadPublicClientPage(fake(world({ receipt_voids: 'broken' })), token, now);
+  assert.equal(broken.kind, 'ok');
+  assert.equal((broken as any).page.loyalty, null, 'a void we cannot read: no card');
+  assert.equal(await loadLoyaltyCard(fake(world({ receipts: 'broken' })), A, 'c1', { automations: { loyalty: loyaltyOn } }, now), null);
+  // a bad token still reads nothing
+  assert.equal((await loadPublicClientPage(fake(world()), 'garbage', now)).kind, 'gone');
+}
+
+console.log('loyalty page loader: ok');
