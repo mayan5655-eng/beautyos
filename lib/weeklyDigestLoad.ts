@@ -29,8 +29,9 @@ export async function loadDigestInput(
 
   const [rc, ap, cl, wa, ld] = await Promise.all([
     readAllRows(db, 'receipts', { columns: 'id, amount, created_at, service, items', filter: (q: any) => byTenant(q).gte('created_at', since) }), // eslint-disable-line @typescript-eslint/no-explicit-any
-    // All of her appointments up to the end of the coming week: the win-back rule needs each client's last visit, however old.
-    readAllRows(db, 'appointments', { columns: 'id, client_id, date, confirmation_status, kind, start_minute, hour, duration, service', filter: (q: any) => byTenant(q).lte('date', weeks.coming.to) }), // eslint-disable-line @typescript-eslint/no-explicit-any
+    // All of her appointments, future ones included: the win-back rule needs each client's last visit however old, and a
+    // booking further out than the coming week still means she is coming back (not overdue). Every other use cuts by date.
+    readAllRows(db, 'appointments', { columns: 'id, client_id, date, confirmation_status, kind, start_minute, hour, duration, service', filter: byTenant }),
     readAllRows(db, 'clients', { columns: 'id, name, created_at, birthday', filter: byTenant }),
     db.from('whatsapp_messages').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'pending_manual'),
     isTabVisible(settings as never, 'leads')

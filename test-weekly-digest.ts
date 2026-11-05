@@ -96,6 +96,10 @@ ok('overdue clients: the win-back rule; a booked or never seen client is not ove
   ];
   assert.equal(overdueClientCount(clients, appts, now, {}), 1);
   assert.equal(overdueClientCount(clients, appts, now, { timing: { winback_days: 30 } }), 2, 'her own period');
+  // a booking further out than the coming week still means she is coming back, so the loader reads every appointment
+  assert.equal(overdueClientCount([{ id: 'far' }], [{ client_id: 'far', date: '2026-06-01' }, { client_id: 'far', date: '2026-12-20' }], now, {}), 0, 'booked a month ahead: not overdue');
+  const load = readFileSync('lib/weeklyDigestLoad.ts', 'utf8');
+  assert.ok(/readAllRows\(db, 'appointments', \{[^}]*filter: byTenant \}\)/.test(load), 'the loader does not cut future appointments');
 });
 
 ok('birthdays in the coming week, by month and day', () => {
