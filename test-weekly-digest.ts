@@ -258,4 +258,14 @@ ok('the screen and the deep links', () => {
   assert.ok(!/[–—]/.test(screen) && !/[–—]/.test(rd('lib/weeklyDigest.ts')), 'no long dashes in the screen or the copy');
 });
 
+ok('the digest API blocks an expired or paused business before any service-role read (demo tenants exempt, like RLS)', () => {
+  const r = readFileSync('app/api/weekly-digest/route.ts', 'utf8');
+  const guard = r.indexOf('const guard = await requireActiveTenant(session);');
+  const admin = r.indexOf('const admin = createClient(');
+  assert.ok(guard > 0 && admin > guard, 'the plan check runs before the service-role client is built');
+  assert.ok(r.includes('if (!guard.ok) return guard.response;'), 'answers with the shared 402');
+  assert.ok(/if \(!isDemoTenantId\(String\(tenantId\)\)\) \{\s*const guard/.test(r), 'the demo tenants keep their RLS exception');
+  assert.ok(r.indexOf("session.rpc('get_user_tenant_id')") < guard, 'tenant from her session first');
+});
+
 console.log(`\n${n} weekly digest checks passed`);

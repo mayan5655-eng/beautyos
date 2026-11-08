@@ -13,6 +13,8 @@ import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { buildDigest } from '@/lib/weeklyDigest';
 import { loadDigestInput } from '@/lib/weeklyDigestLoad';
 import { isYomTov } from '@/lib/greetings/calendar';
+import { requireActiveTenant } from '@/lib/planGuard';
+import { isDemoTenantId } from '@/lib/demoTenants';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,14 @@ export async function GET() {
     if (!user) return NextResponse.json({ success: false, error: 'לא מחוברת' }, { status: 401 });
     const { data: tenantId } = await session.rpc('get_user_tenant_id');
     if (!tenantId) return NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 400 });
+    // The plan gate BEFORE the service role (2026-11-08, a Vercel security finding): the reads below bypass RLS, so without
+    // this an expired or paused business could keep reading her numbers here while the closed-read RLS block
+    // (add_closed_read_block_2026-10-25.sql) hides them everywhere else. Same predicate as RLS (is_tenant_active), same
+    // demo-tenant exception, same 402 answer as every other gated route.
+    if (!isDemoTenantId(String(tenantId))) {
+      const guard = await requireActiveTenant(session);
+      if (!guard.ok) return guard.response;
+    }
 
     const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { autoRefreshToken: false, persistSession: false } });
     const { data: settings, error: sErr } = await admin.from('settings').select(SETTINGS_COLS).eq('tenant_id', tenantId).maybeSingle();
