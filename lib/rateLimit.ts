@@ -340,6 +340,30 @@ export const RATE_POLICIES = {
       `העמוד עמוס כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // "חברה מביאה חברה" (lib/referral.ts). The code lookup is PUBLIC (the signup page asks whether a link's code is real): it answers
+  // yes or no and nothing else, and a visitor opens a link once. 20 in ten minutes from one address is someone trying codes. The
+  // signed-in card asks once per Settings visit.
+  'referral-lookup': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+  'referral-card': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Monthly / yearly choice (app/api/billing/period): she taps it once; this only stops a loop.
+  'billing-period': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
   // Owner questions: one cheap row per event (a cancellation opens a gap-fill
   // question). Session-authenticated and written by the server only, so the
   // cap is against a runaway client loop, not a person.

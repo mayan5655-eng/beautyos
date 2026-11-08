@@ -186,14 +186,16 @@ export const priceOf = (tenant: Pick<TenantRow, 'plan_price' | 'created_at'> | n
 };
 
 /**
- * The period the NEXT due charge of this subscription is for. A pending switch is applied only with the annual flag on, and only when a
- * trialing / active subscription comes due (her renewal): a past-due retry stays on the period that failed, so the amount of a retry
- * never changes under her. Without the flag (or before the migration) everything is monthly, except a subscription already annual.
+ * The period the NEXT charge attempt of this subscription is for. A pending switch (annual flag on) applies to the next attempt, which
+ * is never before the end of what she already paid: her renewal, or the retry of a period she has not paid. It becomes her plan at that
+ * attempt (whatever its outcome), so the retries after a failed renewal are for the same period and amount; she may switch back while
+ * past due, and the next retry follows. Without the flag (or before the migration) everything is monthly, except a subscription that is
+ * already annual: she keeps the year she agreed to.
  */
 export function chargePeriodOf(sub: Pick<Subscription, 'status' | 'billing_period' | 'pending_period'>, flags: Pick<BillingFlags, 'annual'>): BillingPeriod {
   const current: BillingPeriod = sub.billing_period === 'annual' ? 'annual' : 'monthly';
-  if (!flags.annual) return current;
-  if ((sub.status === 'trialing' || sub.status === 'active') && (sub.pending_period === 'annual' || sub.pending_period === 'monthly')) return sub.pending_period;
+  if (!flags.annual || sub.status === 'canceled') return current;
+  if (sub.pending_period === 'annual' || sub.pending_period === 'monthly') return sub.pending_period;
   return current;
 }
 
@@ -249,11 +251,20 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
 
   // A free month she earned (lib/referral.ts) is used instead of this charge. Only after the claim above, so of two runs at the same
   // moment exactly one gets here; the month itself is claimed with its own compare-and-set.
+  // A referral read that fails lets the charge go on as usual; a failure AFTER a month was claimed for this period never does (that
+  // would be a free month and a charge): the run stops for her, and the next one finishes moving the date (creditForPeriod).
   if (flags.referrals && d.referrals) {
-    const freed = await useFreeMonth(d, sub, periodStart, periodKey, now).catch((e) => {
+    let freed = false;
+    try {
+      freed = await useFreeMonth(d, sub, periodStart, periodKey, now);
+    } catch (e) {
+      if (e instanceof MonthClaimedError) {
+        console.error('[billing] free month claimed but the period did not move for tenant', sub.tenant_id, e.message);
+        await moneyAlert('billing:referral', 'free month claimed, period not moved yet; the next run finishes it', { tenantId: sub.tenant_id }, { key: `${sub.id}:${periodKey}`, severity: 'warning' }).catch(() => {});
+        return 'skipped';
+      }
       console.error('[billing] free month check failed for tenant', sub.tenant_id, (e as Error)?.message);
-      return false;
-    });
+    }
     if (freed) return 'credited';
   }
 
@@ -264,10 +275,9 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   const attemptNo = sub.failed_attempts + 1;
   // period_months is written only on a yearly charge, so a monthly row is the same row as before the migration.
   const base = { tenant_id: sub.tenant_id, subscription_id: sub.id, kind: 'subscription' as const, amount, currency: CURRENCY, period_start: periodKey, period_end: iso(periodEnd).slice(0, 10), attempt: attemptNo, provider: 'card', note: null, ...(months === 12 ? { period_months: 12 } : {}) };
-  // A pending switch that this renewal applied becomes her plan on success (and stays pending if the charge fails). Nothing else is
-  // written, so a monthly success writes exactly what it wrote before the migration.
-  const switching = flags.annual && (sub.status === 'trialing' || sub.status === 'active') && !!sub.pending_period;
-  const periodPatch: Partial<Subscription> = switching ? { billing_period: period, pending_period: null } : {};
+  // A pending switch this attempt applies becomes her plan now, so the retries of this period are for the same period. Written only
+  // when there is a switch: a plain monthly attempt writes exactly what it wrote before the migration.
+  if (flags.annual && sub.status !== 'canceled' && sub.pending_period) await d.repo.updateSub(sub.id, { billing_period: period, pending_period: null });
 
   if (!sub.token_ref) {
     await d.repo.insertPayment({ ...base, status: 'failed', provider_payment_id: null, error: 'no card on file', invoice_status: 'none', invoice_number: null, invoice_url: null });
@@ -296,12 +306,12 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
     phone: tenant?.phone || undefined,
   }).catch((e) => ({ ok: false as const, code: 'unreachable' as const, error: String(e?.message || e) }));
 
-  if (res.ok) return succeed(d, sub, tenant, pay, res.providerPaymentId, periodEnd, now, res.invoiceNumber, res.invoiceUrl, periodPatch);
+  if (res.ok) return succeed(d, sub, tenant, pay, res.providerPaymentId, periodEnd, now, res.invoiceNumber, res.invoiceUrl);
 
   if (res.code === 'duplicate' || (res.code === 'unreachable' && d.payments.lookup)) {
     // Grow saw this identifier already, or we lost its reply: the money may have moved. Look it up; never charge a new identifier blindly.
     const r = d.payments.lookup ? await d.payments.lookup(sub.token_ref, uid).catch(() => null) : null;
-    if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, pay, r.providerPaymentId || `uid:${uid}`, periodEnd, now, undefined, undefined, periodPatch);
+    if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, pay, r.providerPaymentId || `uid:${uid}`, periodEnd, now);
     if (!(r && r.ok && (r.status === 'failed' || !r.found))) {
       await d.repo.updatePayment(pay.id, { status: 'unknown', error: `${res.code}: waiting for the provider` });
       await d.repo.updateSub(sub.id, { last_attempt_at: iso(now) });
@@ -377,12 +387,18 @@ export async function grantReferralMonths(d: Deps, tenantId: string, pay: Pick<P
  * moved one calendar month forward (whatever her plan). A month whose earning charge is no longer 'succeeded' (refunded, voided) or whose
  * referral was voided is voided here, never used.
  */
+class MonthClaimedError extends Error {}
+
 async function useFreeMonth(d: Deps, sub: Subscription, periodStart: Date, periodKey: string, now: Date): Promise<boolean> {
   const r = d.referrals!;
   const end = addMonths(periodStart, 1);
   const advance = async () => {
-    await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(end), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
-    await makeActive(d, sub.tenant_id);
+    try {
+      await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(end), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
+      await makeActive(d, sub.tenant_id);
+    } catch (e) {
+      throw new MonthClaimedError(String((e as Error)?.message || e));
+    }
   };
   // A month already taken for exactly this period (the run stopped before the date moved): finish moving it, never take a second one.
   if (await r.creditForPeriod(sub.id, periodKey)) { await advance(); return true; }

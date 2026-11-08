@@ -31,6 +31,7 @@ import { addonPackForMessage, openAddons, OPEN_ADDONS_EVENT } from "@/lib/addonO
 import { addonButtonHe } from "@/lib/pricing";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
+const BusinessReferralCard = dynamic(() => import("./BusinessReferralCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { installDemoOutboundGuard } from "@/lib/demoOutbound";
@@ -12468,6 +12469,7 @@ ${MARKETING_FOOTER}`)}`;
               {inG("business","clients","connections","advanced")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  {inG("business")&&(<BillingCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
+ {inG("business")&&(<BusinessReferralCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {inG("connections")&&(<>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>פייסבוק ואינסטגרם</p>
