@@ -118,7 +118,7 @@ export type TillSaleInput = {
 
 export type TillSaleResult =
   | { status: 'sold' | 'already'; voucher: VoucherRow; receipt: Record<string, unknown> | null }
-  | { status: 'missing' | 'failed'; error?: string; message?: string };
+  | { status: 'missing' | 'failed'; error?: string; message?: string; inFlight?: boolean };
 
 /** How long a sale may still be in flight (voucher written, receipt not yet) before a retry treats it as failed. */
 export const SALE_IN_FLIGHT_MS = 2 * 60 * 1000;
@@ -142,7 +142,8 @@ async function settleExistingSale(v: VoucherRow, i: TillSaleInput, d: Deps): Pro
     return { status: 'already', voucher: { ...v, receipt_id: r.id } as VoucherRow, receipt: null };
   }
   const age = (d.now || (() => new Date()))().getTime() - Date.parse(String(v.created_at || ''));
-  if (Number.isFinite(age) && age < SALE_IN_FLIGHT_MS) return { status: 'failed', message: SALE_IN_FLIGHT_HE };
+  // Still being written: the SAME sale key must be kept, so the next try finds this voucher again (never a second voucher).
+  if (Number.isFinite(age) && age < SALE_IN_FLIGHT_MS) return { status: 'failed', message: SALE_IN_FLIGHT_HE, inFlight: true };
   await d.repo.voidVoucher(String(v.id), 'התשלום לא נרשם, השובר לא נמסר', i.userId);
   return { status: 'failed', message: SALE_NOT_RECORDED_HE };
 }

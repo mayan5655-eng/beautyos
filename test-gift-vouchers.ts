@@ -286,6 +286,10 @@ await ok('review #1: a retry while the first sale is half written: linked if its
   m2.vouchers.push({ id: 'vx', tenant_id: T, code: 'ABCD2345', status: 'active', sale_key: 'sale-key-0006', receipt_id: null, created_at: new Date(now.getTime() - 10_000).toISOString() });
   const wait = await sellAtTill(sale({ saleKey: 'sale-key-0006' }), { repo: m2.repo, randomBytes: rnd, now: () => now });
   assert.equal(wait.status, 'failed'); assert.equal((wait as { message?: string }).message, SALE_IN_FLIGHT_HE); assert.equal(m2.vouchers[0].status, 'active');
+  assert.equal((wait as { inFlight?: boolean }).inFlight, true, 'in flight: the caller must keep the same sale key');
+  // the same key retried while still in flight never issues a second voucher
+  await sellAtTill(sale({ saleKey: 'sale-key-0006' }), { repo: m2.repo, randomBytes: rnd, now: () => now });
+  assert.equal(m2.vouchers.length, 1, 'one voucher, however often she taps');
   // no receipt, long ago: the first request died; voided now, and said
   const later = await sellAtTill(sale({ saleKey: 'sale-key-0006' }), { repo: m2.repo, randomBytes: rnd, now: () => new Date(now.getTime() + SALE_IN_FLIGHT_MS) });
   assert.equal(later.status, 'failed'); assert.equal(m2.vouchers[0].status, 'void');
@@ -295,8 +299,10 @@ await ok('review #1: a retry while the first sale is half written: linked if its
   const r3 = await sellAtTill(sale({ saleKey: 'sale-key-0007' }), { repo: m3.repo, randomBytes: rnd, now: () => now });
   assert.equal(r3.status, 'already'); assert.equal(m3.receipts.length, 1);
   // the route turns a failed retry into a 409 with the sentence, and the panel takes a fresh key
-  assert.match(rd('app/api/vouchers/route.ts'), /if \(r\.status === 'failed' && r\.message\) return json\(\{ success: false, retryWithNewSale: true, error: r\.message \}, 409\);/);
-  assert.match(rd('app/GiftVouchersPanel.jsx'), /if \(j\?\.retryWithNewSale \|\| r\.status >= 500\) setSaleKey\(newKey\(\)\)/);
+  // the route asks for a new key ONLY when the earlier sale was settled as not recorded, never while it is still in flight
+  assert.ok(rd('app/api/vouchers/route.ts').includes("retryWithNewSale: !('inFlight' in r && r.inFlight)"), 'no new key while the first sale is in flight');
+  const panel = rd('app/GiftVouchersPanel.jsx');
+  assert.ok(panel.includes('if (j?.retryWithNewSale === true) setSaleKey(newKey());') && !/r\.status >= 500\) setSaleKey/.test(panel), 'the panel keeps the key on a 500 or an in-flight sale');
 });
 
 // Vercel review on PR #25, finding 2: the voucher balance taken must equal what the receipt credits.

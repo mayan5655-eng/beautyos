@@ -77,7 +77,7 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
       }) });
       const j = await r.json().catch(() => null);
       // A failed sale gets a fresh key: a retry is a NEW sale, never the old one handed back (the server voids a half-written one).
-      if (!r.ok || !j?.success) { if (j?.retryWithNewSale || r.status >= 500) setSaleKey(newKey()); toast?.(j?.error || 'לא הצלחנו למכור את השובר. שום דבר לא נרשם, אפשר לנסות שוב.', 'error'); await load(); return; }
+      if (!r.ok || !j?.success) { if (j?.retryWithNewSale === true) setSaleKey(newKey()); /* same key on a 500 or a sale still being written: the retry finds that voucher, never a second one */ toast?.(j?.error || 'לא הצלחנו למכור את השובר. שום דבר לא נרשם, אפשר לנסות שוב.', 'error'); await load(); return; }
       if (j.receipt) onReceipt?.(j.receipt);
       setSold(j.voucher);
       setSelling(false); setForm(EMPTY); setSaleKey(newKey());

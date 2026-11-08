@@ -214,7 +214,9 @@ export async function POST(request: Request) {
       }, { repo: supabaseVoucherRepo(db), randomBytes: rnd });
       if (r.status === 'missing') return needsMigration();
       // A retry of a sale whose money was never recorded is a failure with a sentence, never a voucher handed over.
-      if (r.status === 'failed' && r.message) return json({ success: false, retryWithNewSale: true, error: r.message }, 409);
+      // A new sale key ONLY when the earlier sale is settled as not recorded (its voucher voided). While it is still being written the
+      // same key must be kept, or the next try would issue a second voucher and record the income twice (Vercel review 2026-11-08).
+      if (r.status === 'failed' && r.message) return json({ success: false, retryWithNewSale: !('inFlight' in r && r.inFlight), error: r.message }, 409);
       if (r.status !== 'sold' && r.status !== 'already') return oops('sell', ('error' in r && r.error) || 'failed');
       return json({ success: true, already: r.status === 'already', voucher: r.voucher, receipt: r.receipt });
     }
