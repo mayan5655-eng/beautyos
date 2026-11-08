@@ -18,3 +18,11 @@ export const GROW_IPS: readonly string[] = [
   '52.29.70.254', '52.59.159.234', '3.76.183.119', '18.157.106.67', '18.197.238.68', '3.66.129.154', '3.77.123.153',
   '3.70.40.72',
 ];
+
+/**
+ * The addresses Grow calls from for a NEW CUSTOMER'S REGISTRATION (the onboarding updates), which are not on the published page.
+ * Confirmed by Grow support (Adir) by email on 2026-11-05, after 18.193.24.45 was refused with 403 on that day. Until then it was
+ * let in through GROW_WEBHOOK_IPS in Vercel; it is in the code now so the setting can go without a gap.
+ */
+export const GROW_ONBOARDING_IPS: readonly string[] = ['3.125.27.86', '3.68.125.41', '18.193.24.45'];
+export const GROW_ONBOARDING_IPS_CONFIRMED_ON = '2026-11-05';
