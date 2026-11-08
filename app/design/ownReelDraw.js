@@ -68,7 +68,7 @@ const once = (el, ev, ms = 8000) => new Promise((resolve, reject) => {
 });
 
 /** A clip read by seeking a <video> element: `frameAt(sec)` returns something drawable (the element itself). */
-async function seekClip(url) {
+export async function seekClip(url) {
   const v = document.createElement('video');
   v.muted = true; v.playsInline = true; v.preload = 'auto'; v.crossOrigin = 'anonymous';
   v.src = url;
@@ -112,7 +112,7 @@ async function decodeClip(file, ms) {
   };
 }
 
-async function openClip(item, ms) {
+export async function openClip(item, ms) {
   try { return await decodeClip(item.file, ms); } catch { return seekClip(item.url); }
 }
 
