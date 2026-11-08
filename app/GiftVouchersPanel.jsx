@@ -3,8 +3,8 @@
 //
 // Cashier screen: "שוברי מתנה". Her vouchers (sold online or here), each with its balance, expiry and status; selling one in person
 // (a till sale with its own receipt, app/api/vouchers action 'sell'); voiding one (recorded, never deleted); and the wa.me link to
-// hand a voucher over. Renders NOTHING unless the platform flag is on (lib/giftVouchers.ts giftVouchersVisible). Before the
-// migration runs it says so in one sentence and offers nothing that would fail.
+// hand a voucher over. On for every business by default (lib/giftVouchers.ts giftVouchersVisible: only an explicit false hides it).
+// Before the migration runs it renders nothing at all (owner decision, 2026-11-08).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   giftVouchersVisible, voucherConfig, voucherStatus, STATUS_HE, formatCode, voucherTitle, dateHe, voucherShareText, waShareLink,
@@ -39,8 +39,14 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
     } catch { setData({ error: 'לא הצלחנו לטעון את השוברים' }); }
   }, []);
   useEffect(() => { if (visible) load(); }, [visible, load]);
+  // "מכירה בקופה" from the marketing card (app/GiftVoucherMarketingCard.jsx) lands here with the sale form open.
+  useEffect(() => {
+    if (!data?.ready) return;
+    try { if (sessionStorage.getItem('kalmea:voucher-sell') === '1') { sessionStorage.removeItem('kalmea:voucher-sell'); setSelling(true); setSold(null); setTimeout(() => document.querySelector('[data-testid="gift-vouchers"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300); } } catch { /* private mode: she taps "מכירת שובר" */ }
+  }, [data?.ready]);
 
-  if (!visible) return null;
+  // Before the migration runs nothing shows at all (owner decision, 2026-11-08): no sentence about a missing update.
+  if (!visible || data?.needsMigration) return null;
 
   const options = (() => {
     const out = cfg.amounts.map((a) => ({ key: `a:${a}`, label: money(a) }));
@@ -121,8 +127,7 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
       </div>
 
       {!data && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 6 }}>טוענת…</p>}
-      {data?.needsMigration && <p data-testid="voucher-needs-migration" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, marginTop: 6 }}>{data.error}</p>}
-      {data && !data.ready && !data.needsMigration && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 6 }}>{data.error} <button type="button" style={{ ...btn, minHeight: 32, padding: '4px 10px' }} onClick={load}>לנסות שוב</button></p>}
+      {data && !data.ready && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginTop: 6 }}>{data.error} <button type="button" style={{ ...btn, minHeight: 32, padding: '4px 10px' }} onClick={load}>לנסות שוב</button></p>}
 
       {data?.ready && (
         <>

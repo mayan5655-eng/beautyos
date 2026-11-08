@@ -8,6 +8,8 @@ import { PublicPage, BusinessHeader, LineIcon } from '@/app/PublicChrome';
 import { ICON_QUESTION } from '@/lib/brand';
 import { STATUS_HE, dateHe, voucherShareText, waShareLink, type PublicVoucher } from '@/lib/giftVouchers';
 import type { PublicVoucherState, PublicBrand } from '@/lib/giftVoucherView';
+import VoucherArt from '@/app/VoucherArt';
+import { voucherLook } from '@/lib/giftVoucherDesign';
 
 const money = (n: number) => `₪${(Math.round(n * 100) / 100).toLocaleString('he-IL')}`;
 const POLL_MS = 3000;
@@ -66,6 +68,7 @@ export default function VoucherView({ token, initial, buyer, growResult }: { tok
   const share = waShareLink(voucherShareText({ businessName: brand?.name || '', recipientName: v.recipientName, url }));
   const active = v.status === 'active';
   const partial = active && v.balance < v.initial - 0.005;
+  const look = voucherLook(st.design, brand?.primary || '#B5838D');
 
   return (
     <PublicPage primary={brand?.primary || null}>
@@ -82,27 +85,22 @@ export default function VoucherView({ token, initial, buyer, growResult }: { tok
         </div>
       )}
 
-      <div className="pub-card" data-testid="voucher-card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ background: 'var(--pc, #E9A9A1)', color: 'var(--pc-contrast, #1F3A30)', padding: '22px 20px 18px' }}>
-          <p style={{ margin: 0, fontWeight: 700, letterSpacing: '0.04em', fontSize: 'var(--t-sm)' }}>🎁 שובר מתנה</p>
-          {v.recipientName && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xl)', fontWeight: 700 }}>ל{v.recipientName}</p>}
-          <p className="serif" style={{ margin: '10px 0 0', fontFamily: "var(--display-heavy, 'Frank Ruhl Libre', serif)", fontWeight: 700, fontSize: v.kind === 'service' ? 28 : 44, lineHeight: 1.15 }}>
-            {v.kind === 'service' && v.serviceName ? v.serviceName : money(v.initial)}
-          </p>
-          {v.kind === 'service' && <p style={{ margin: '4px 0 0', fontSize: 'var(--t-sm)', opacity: 0.9 }}>בשווי {money(v.initial)}</p>}
-        </div>
-        <div style={{ padding: '18px 20px 22px' }}>
-          {v.message && <p style={{ margin: '0 0 10px', fontSize: 'var(--t-lg)', lineHeight: 1.6, color: 'var(--ink)', whiteSpace: 'pre-line' }}>״{v.message}״</p>}
-          {v.fromName && <p style={{ margin: '0 0 14px', fontSize: 'var(--t-md)', color: 'var(--ink-2)' }}>באהבה, {v.fromName}</p>}
-          {!active && <p data-testid="voucher-status" style={{ display: 'inline-block', margin: '0 0 12px', padding: '6px 12px', borderRadius: 999, background: 'var(--surface-2, #F4EFE4)', fontWeight: 700, color: 'var(--ink-2)' }}>{STATUS_HE[v.status]}</p>}
-          <p style={{ margin: '0 0 4px', fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>הקוד למימוש בעסק</p>
-          <p dir="ltr" data-testid="voucher-code" style={{ margin: '0 auto 12px', display: 'inline-block', padding: '10px 16px', borderRadius: 12, border: '1.5px dashed var(--pc-deep, #C48E87)', fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 24, fontWeight: 700, letterSpacing: '0.12em', color: active ? 'var(--ink)' : 'var(--ink-3)', textDecoration: active ? 'none' : 'line-through' }}>{v.code}</p>
-          {partial && <p style={{ margin: '0 0 4px', fontSize: 'var(--t-md)', color: 'var(--ink)', fontWeight: 700 }}>נשארו {money(v.balance)} מתוך {money(v.initial)}</p>}
-          {v.expiresAt && <p style={{ margin: 0, fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>{v.status === 'expired' ? 'פג תוקף ב-' : 'בתוקף עד '}{dateHe(v.expiresAt)}</p>}
-          {v.note && <p style={{ margin: '14px 0 0', fontSize: 'var(--t-md)', lineHeight: 1.6, color: 'var(--ink-2)' }}>{v.note}</p>}
-          {active && brand?.slug && <a className="pub-pill" href={`/${encodeURIComponent(brand.slug)}`} style={{ marginTop: 18 }}>לקביעת תור</a>}
-          {active && <p style={{ margin: '10px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6 }}>מציגים את הקוד בעסק ביום הטיפול. אפשר לממש בכמה ביקורים, עד שהיתרה נגמרת.</p>}
-        </div>
+      {/* The gift itself, in HER design (Settings > שוברי מתנה > עיצוב; lib/giftVoucherDesign.ts). */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <VoucherArt testId="voucher-card" look={look} width={340} content={{
+          recipientName: v.recipientName, title: v.kind === 'service' && v.serviceName ? v.serviceName : money(v.initial),
+          sub: v.kind === 'service' ? `בשווי ${money(v.initial)}` : undefined, message: v.message, fromName: v.fromName,
+          code: v.code, struck: !active, badge: active ? undefined : STATUS_HE[v.status], businessName: brand?.name, logoUrl: brand?.logoUrl || null,
+        }} />
+      </div>
+      <div className="pub-card" style={{ marginTop: 14, padding: '18px 20px' }}>
+        {!active && <p data-testid="voucher-status" style={{ margin: '0 0 8px', fontWeight: 700, color: 'var(--ink-2)' }}>{STATUS_HE[v.status]}</p>}
+        {partial && <p style={{ margin: '0 0 4px', fontSize: 'var(--t-md)', color: 'var(--ink)', fontWeight: 700 }}>נשארו {money(v.balance)} מתוך {money(v.initial)}</p>}
+        {v.expiresAt && <p style={{ margin: 0, fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>{v.status === 'expired' ? 'פג תוקף ב-' : 'בתוקף עד '}{dateHe(v.expiresAt)}</p>}
+        {v.note && <p style={{ margin: '12px 0 0', fontSize: 'var(--t-md)', lineHeight: 1.6, color: 'var(--ink-2)' }}>{v.note}</p>}
+        {active && brand?.slug && <a className="pub-pill" href={`/${encodeURIComponent(brand.slug)}`} style={{ marginTop: 16 }}>לקביעת תור</a>}
+        {active && <a className="pub-pill pub-pill-quiet" data-testid="voucher-image" href={`/api/vouchers/image?k=${encodeURIComponent(token)}`} download="gift-voucher.png" style={{ marginTop: 8 }}>שמירת השובר כתמונה</a>}
+        {active && <p style={{ margin: '10px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6 }}>מציגים את הקוד בעסק ביום הטיפול. אפשר לממש בכמה ביקורים, עד שהיתרה נגמרת.</p>}
       </div>
     </PublicPage>
   );

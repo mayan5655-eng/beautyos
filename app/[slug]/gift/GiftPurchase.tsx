@@ -6,13 +6,15 @@
 import { useState } from 'react';
 import { PublicPage, BusinessHeader } from '@/app/PublicChrome';
 import { MAX_MESSAGE } from '@/lib/giftVouchers';
+import { voucherLook, type VoucherDesign } from '@/lib/giftVoucherDesign';
+import VoucherArt from '@/app/VoucherArt';
 
 type Option = { key: string; kind: 'amount' | 'service'; amount: number; label: string };
 const money = (n: number) => `₪${n.toLocaleString('he-IL')}`;
 
-export default function GiftPurchase({ tenantId, slug, brand, options, validityMonths, note, online, contact }: {
+export default function GiftPurchase({ tenantId, slug, brand, options, validityMonths, note, online, contact, design }: {
   tenantId: string; slug: string; brand: { name: string; primary: string; logoUrl: string };
-  options: Option[]; validityMonths: number; note: string; online: boolean; contact: string | null;
+  options: Option[]; validityMonths: number; note: string; online: boolean; contact: string | null; design: VoucherDesign;
 }) {
   const [pick, setPick] = useState<string>(options[0]?.key || '');
   const [f, setF] = useState({ buyerName: '', buyerPhone: '', recipientName: '', message: '' });
@@ -40,6 +42,13 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
   return (
     <PublicPage primary={brand.primary}>
       <BusinessHeader logoUrl={brand.logoUrl} name={brand.name} />
+      {/* A live preview in her design: what the friend will open (the code appears after payment). */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+        <VoucherArt testId="gift-shop-preview" width={300} look={voucherLook(design, brand.primary)} content={{
+          recipientName: f.recipientName.trim(), title: chosen ? (chosen.kind === 'service' ? chosen.label : money(chosen.amount)) : 'שובר מתנה',
+          sub: chosen?.kind === 'service' ? `בשווי ${money(chosen.amount)}` : undefined, message: f.message.trim(), fromName: f.buyerName.trim().split(' ')[0], businessName: brand.name, logoUrl: brand.logoUrl || null,
+        }} />
+      </div>
       <div className="pub-card" data-testid="gift-shop" style={{ textAlign: 'right' }}>
         <h1 className="pub-h1" style={{ textAlign: 'center' }}>🎁 שובר מתנה</h1>
         <p className="pub-p" style={{ textAlign: 'center', fontSize: 'var(--t-md)' }}>מתנה מפנקת למישהי שאת אוהבת. היא תקבל דף אישי עם קוד, ותממש אותו אצלנו.</p>

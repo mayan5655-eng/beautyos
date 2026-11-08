@@ -9,6 +9,7 @@
 // If the sale does not go ahead, "ביטול הניצול" gives the amount back (action 'reverse'). One left behind by a till that was simply
 // closed shows in the vouchers list as "בלי תשלום רשום", with the same button.
 import { useState } from 'react';
+import { useVouchersReady } from './useVouchersReady';
 import { formatCode, voucherTitle, dateHe, usableAmount, voucherOverUsed, VOUCHER_OVER_USED_HE, REFUSAL_HE } from '@/lib/giftVouchers';
 
 const money = (n) => `₪${(Math.round(Number(n) * 100) / 100).toLocaleString('he-IL')}`;
@@ -22,6 +23,7 @@ export default function VoucherRedeemTill({ due, applied, onApplied, onCleared, 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [key, setKey] = useState(newKey);
+  const { ready } = useVouchersReady(true);
 
   const inp = { flex: 1, minWidth: 0, boxSizing: 'border-box', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', fontSize: 16, fontFamily: 'inherit', outline: 'none', background: 'var(--surface)', color: 'var(--ink)', minHeight: 44 };
   const btn = { padding: '10px 14px', minHeight: 44, borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontWeight: 700, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 };
@@ -31,6 +33,8 @@ export default function VoucherRedeemTill({ due, applied, onApplied, onCleared, 
     return { ok: r.ok && !!j?.success, j: j || {} };
   };
 
+  // Not installed yet (the migration has not run): no button at all (owner decision, 2026-11-08).
+  if (ready !== true && !applied) return null;
   if (applied) {
     const over = voucherOverUsed(applied, due);
     return (
