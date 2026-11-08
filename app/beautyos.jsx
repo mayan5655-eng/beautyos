@@ -53,7 +53,7 @@ import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
-import { isMissingColumnError } from "@/lib/pgError";
+import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
@@ -4897,6 +4897,24 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
     if (!draft) return { changed: 0, errors: [], bufferPending: false };
+    // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
+    // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
+    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes"];
+    const retryWithoutMissing = async (row, firstError, run) => {
+      if (!firstError || !isMissingColumnError(firstError)) return null;
+      let cur = { ...row }, err = firstError, result = null;
+      const cols = [];
+      for (let i = 0; i < OPTIONAL_SERVICE_COLS.length && err && isMissingColumnError(err); i++) {
+        const col = missingColumnName(err);
+        if (!col || !OPTIONAL_SERVICE_COLS.includes(col) || !(col in cur)) break;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
+        const { [col]: _gone, ...rest } = cur;
+        cur = rest; cols.push(col);
+        result = await run(cur);
+        err = result.error;
+      }
+      return result ? { result, cols } : null;
+    };
     const baseline = new Map(services.map(s => [s.id, s]));
     const errors = [];
     let changed = 0;
@@ -4927,12 +4945,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // field is added by supabase/migrations/add_business_fields.sql,
         // applied by hand and possibly not yet run — degrade rather than
         // break a plain service save for every tenant over one new column.
-        if (error && isMissingColumnError(error)) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-          const { field, requires_deposit, buffer_minutes, ...reduced } = row;
-          if (Number(buffer_minutes) > 0) bufferPending = true;
-          ({ data, error } = await supabase.from("service_prices").insert([reduced]).select());
-        }
+        // Drop ONLY the column the database says is missing, one at a time, and only from the optional ones; a dropped
+        // requires_deposit that she turned on is an error, never a silent save without the deposit.
+        const dropped = await retryWithoutMissing(row, error, (r) => supabase.from("service_prices").insert([r]).select());
+        if (dropped) ({ data, error } = dropped.result);
+        if (dropped?.cols.includes("buffer_minutes") && Number(row.buffer_minutes) > 0) bufferPending = true;
+        if (dropped?.cols.includes("requires_deposit") && row.requires_deposit === true) { errors.push(`הפיקדון של ${s.name} לא נשמר`); }
         if (error || !data || !data[0]) { errors.push(`הוספת ${s.name}`); continue; }
         changed++;
         continue;
@@ -4950,12 +4968,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (Object.keys(patch).length === 0) continue;
       let { data, error } = await supabase
         .from("service_prices").update(patch).eq("id", s.id).select();
-      if (error && isMissingColumnError(error) && ("field" in patch || "requires_deposit" in patch || "buffer_minutes" in patch)) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-        const { field, requires_deposit, buffer_minutes, ...reduced } = patch;
-        if ("buffer_minutes" in patch) bufferPending = true;
-        ({ data, error } = await supabase
-          .from("service_prices").update(reduced).eq("id", s.id).select());
+      {
+        const dropped = await retryWithoutMissing(patch, error, (r) => supabase.from("service_prices").update(r).eq("id", s.id).select());
+        if (dropped) ({ data, error } = dropped.result);
+        if (dropped?.cols.includes("buffer_minutes")) bufferPending = true;
+        if (dropped?.cols.includes("requires_deposit") && patch.requires_deposit === true) { errors.push(`הפיקדון של ${s.name} לא נשמר`); }
       }
       if (error || !data || !data[0]) { errors.push(`עדכון ${s.name}`); continue; }
       changed++;
