@@ -5470,7 +5470,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       client_id: clientId, receipt_id: receiptId || null, reward: loyaltyCfg.reward, every: used, stamps_used: used, ...(tid ? { tenant_id: tid } : {}),
     }]).select();
     if (error) {
-      if (error.code === "23505") return true; // this receipt's reward is already recorded
+      // This receipt's reward is already recorded: a Grow payment's row is written by the server before the till sees the receipt
+      // (lib/grow/service.ts), so this browser write is a harmless duplicate. The ledger is read again to show the server's row.
+      if (error.code === "23505") { if (loyaltyDb.ready === true) loadLoyaltyRows(); return true; }
       if (isMissingLoyaltyTable(error)) {
         console.error("[loyalty] migration missing: add_loyalty_2026-11-05.sql", error);
         if (!quiet) toast("התשלום נרשם, אבל המתנה לא סומנה בכרטיסייה: חסר עדכון קטן במערכת. אפשר לכתוב לנו ב'תקועה?' למטה ונפעיל.", "error");
@@ -5535,8 +5537,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (snap.creditUsed > 0 && snap.client?.id) growMark("/api/grow/credit",{clientId:String(snap.client.id),amount:snap.creditUsed,receiptId},"הקרדיט");
     // The package draw, AFTER the receipt: a receipt with no deduction is one session she can draw by hand from the packages tab, and the
     // toast tells her to, by name. The appointment goes onto the entry, so the unique index refuses a second draw for the same visit.
-    // The loyalty reward: the till's own receipt carries the 🎁 mark already (quiet: a missing table loses nothing there); a Grow
-    // receipt is written by the server without it, so the table row is its only record and a failure is said out loud.
+    // The loyalty reward: the till's own receipt carries the 🎁 mark already (quiet: a missing table loses nothing there). A Grow
+    // receipt is now marked AND recorded by the server when the link is paid (the reward travels with the charge, lib/grow/service.ts),
+    // so this write meets the unique index on receipt_id and is the same redemption, once. It stays for a charge made before the
+    // migration (no column to carry the reward): then it is the only record, and a failure is said out loud.
     if (snap.loyalty && snap.client?.id) recordLoyaltyRedemption(String(snap.client.id), receiptId, { quiet: !!snap.loyaltyMarked, stampsUsed: snap.loyaltyEvery });
     if (snap.pkg) {
       const fresh = await writePackageEntry(snap.pkg, -1, { appointmentId: snap.appt?.id || null, reason: "ניכוי בקופה" });
@@ -11734,7 +11738,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
- {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} loyalty={loyaltyRewardLive?{reward:loyaltyCfg.reward,stampsUsed:loyaltyApplied.marker?.loyalty_every??loyaltyCfg.every}:null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>

@@ -4,6 +4,7 @@
 // tenant it acts for; the notify secret is the only way into a row from a callback.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
+import { isMissingLoyaltyTable } from '../loyalty.js';
 
 const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at, transaction_id, invoice_url';
 // Codes only: a NOT NULL violation (23502, "null value in column ...") also says "column" and must not take the reduced-insert path.
@@ -12,7 +13,14 @@ const isMissingColumn = (e: { message?: string; code?: string } | null) => !!e &
 export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
   return {
     async insertPayment(row) {
-      const { data, error } = await db.from('grow_payments').insert(row).select(SELECT).single();
+      let { data, error } = await db.from('grow_payments').insert(row).select(SELECT).single();
+      if (error && isMissingColumn(error) && 'loyalty_redemption' in row) {
+        // loyalty_redemption is a column of add_loyalty_2026-11-05.sql. Until it runs the charge is still created, without the reward
+        // intent: the server then cannot consume the reward when the link is paid, so the receipt gets no 🎁 mark and the till's
+        // onPaid remains its only record (today's behaviour; the loyalty_redemptions table it writes comes with the same file).
+        const { loyalty_redemption: _l, ...rest } = row;
+        ({ data, error } = await db.from('grow_payments').insert(rest).select(SELECT).single());
+      }
       if (error || !data) throw new Error(error?.message || 'insert failed');
       return data as unknown as GrowPayment;
     },
@@ -63,6 +71,20 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
       }
       if (error || !data) throw new Error(error?.message || 'receipt insert failed');
       return { id: String((data as { id: unknown }).id) };
+    },
+    async loyaltyIntentOf(paymentId) {
+      const { data, error } = await db.from('grow_payments').select('loyalty_redemption').eq('id', paymentId).maybeSingle();
+      if (error && isMissingColumn(error)) return null; // the migration has not run: no payment can carry a reward yet
+      if (error) throw new Error(error.message);
+      return (data as { loyalty_redemption?: unknown } | null)?.loyalty_redemption ?? null;
+    },
+    async insertLoyaltyRedemption(row) {
+      // source: the column does not exist; a Grow redemption is told apart by its receipt (written by the server, legal_provider grow).
+      const { error } = await db.from('loyalty_redemptions').insert(row);
+      if (!error) return 'inserted';
+      if (error.code === '23505') return 'already'; // loyalty_redemptions_one_per_receipt: this receipt's reward is recorded
+      if (isMissingLoyaltyTable(error) || isMissingColumn(error)) return 'missing';
+      throw new Error(error.message);
     },
     async setReceiptDocument(receiptId, url, number) {
       const patch: Record<string, unknown> = { legal_status: 'issued', legal_provider: 'grow', legal_doc_url: url, legal_issued_at: new Date().toISOString() };

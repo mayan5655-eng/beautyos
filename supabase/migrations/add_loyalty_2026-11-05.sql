@@ -7,6 +7,10 @@
 -- nothing here holds a counter. Two append-only ledgers hold what a receipt cannot say:
 --   loyalty_redemptions  a reward she gave a client (at the till, or by hand from the client card)
 --   loyalty_adjustments  a manual +1 / -1 correction to a client's card, with the reason
+-- and one column on grow_payments:
+--   loyalty_redemption   the reward she applied at the till to a visit paid by a Grow link ({client_id, reward, stamps_used}). The
+--                        server consumes it when Grow says the link was paid (lib/grow/service.ts): a 🎁 mark on the receipt and a
+--                        loyalty_redemptions row, however late the client pays and whether or not her browser is still open.
 --
 -- BEFORE THIS RUNS the card already works: progress is counted from receipts, and a reward given at the till is marked on the receipt
 -- itself. What waits for this file: the +1 / -1 correction, a reward given outside the till, and the record of a reward paid by card
@@ -15,7 +19,8 @@
 -- APPEND ONLY, like package_entries and receipt_voids: select and insert policies, no update, no delete. A wrong correction is fixed by
 -- writing the opposite one, so the history stays whole.
 --
--- Run order: after trial-gate-policies.sql (it uses public.is_tenant_active()) and after add_till_and_calendar_small_things.sql.
+-- Run order: after trial-gate-policies.sql (it uses public.is_tenant_active()), after add_till_and_calendar_small_things.sql, and after
+-- add_grow_payments.sql (it adds a column to grow_payments).
 
 begin;
 
@@ -48,6 +53,11 @@ create table if not exists public.loyalty_adjustments (
   created_by  uuid default auth.uid()
 );
 create index if not exists loyalty_adjustments_tenant_client_idx on public.loyalty_adjustments (tenant_id, client_id, created_at);
+
+-- The reward intent of a Grow card charge, written by the charge route (service role) and read back by the paid callback. Nullable:
+-- every other payment has none. No policy change: grow_payments is written by the server only.
+alter table public.grow_payments add column if not exists loyalty_redemption jsonb;
+comment on column public.grow_payments.loyalty_redemption is 'Loyalty reward applied at the till to this charge: {client_id, reward, stamps_used}. Consumed server-side when paid.';
 
 -- The client (and, for a redemption, the receipt) must belong to the same business as the row (the same guard receipts got on
 -- 2026-11-02): RLS checks only tenant_id.
@@ -148,8 +158,11 @@ commit;
 --   rollback;
 -- (f) The stamps_used column is there:
 --   select column_name from information_schema.columns where table_name = 'loyalty_redemptions' and column_name = 'stamps_used';   -- 1 row
+-- (g) The reward intent column on grow_payments is there:
+--   select column_name, data_type from information_schema.columns where table_name = 'grow_payments' and column_name = 'loyalty_redemption';   -- 1 row, jsonb
 --
 -- ── ROLLBACK ───────────────────────────────────────────────────────────────
+--   alter table public.grow_payments drop column if exists loyalty_redemption;
 --   drop table if exists public.loyalty_adjustments;
 --   drop table if exists public.loyalty_redemptions;
 --   drop function if exists public.loyalty_client_same_tenant();

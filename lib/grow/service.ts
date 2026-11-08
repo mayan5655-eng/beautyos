@@ -22,6 +22,7 @@ import { buildProcessFields, parseProcessResponse, readNotification, notificatio
 import type { Notification } from './payload.ts';
 import { walletLink, paymentMethodLabel } from './wallet.ts';
 import { moneyAlert } from '../moneyAlert.js';
+import { loyaltyMarker, parseLoyaltyIntent } from '../loyalty.js';
 
 export type GrowPayment = {
   id: string;
@@ -56,7 +57,21 @@ export type GrowRepo = {
   findByProcessId?(processId: string): Promise<GrowPayment | null>;
   insertReceipt(row: Record<string, unknown>): Promise<{ id: string }>;
   setReceiptDocument(receiptId: string, url: string, number?: string): Promise<void>;
+  /**
+   * The loyalty reward stored with this payment (grow_payments.loyalty_redemption), or null: none, or the column is not there yet
+   * (add_loyalty_2026-11-05.sql has not run). Read on its own, NOT in the repo's SELECT: a missing column there would fail every callback.
+   */
+  loyaltyIntentOf?(paymentId: string): Promise<unknown>;
+  /**
+   * One loyalty_redemptions row. 'already': the unique index on receipt_id says this receipt's reward is recorded (a retried callback,
+   * or the till's own onPaid write got there first): that IS success. 'missing': the table is not there yet.
+   */
+  insertLoyaltyRedemption?(row: LoyaltyRedemptionRow): Promise<'inserted' | 'already' | 'missing'>;
 };
+
+export type LoyaltyRedemptionRow = { tenant_id: string; client_id: string; receipt_id: string; reward: string; every: number; stamps_used: number };
+/** What the charge route stores on the payment when she applied the loyalty reward to this visit (validated there). */
+export type LoyaltyIntent = { client_id: string; reward: string; stamps_used: number };
 
 export type Creds = { apiKey: string; pageCode: string; apiBase: string; pageCodes?: PageCodes };
 
@@ -80,6 +95,8 @@ export type ChargeInput = {
   method?: PayMethod;
   /** The wallet checkout (lib/grow/wallet.ts): the link is a Kalmea page that opens Grow's wallet when the client loads it; Grow is not asked yet. */
   wallet?: boolean;
+  /** The loyalty reward applied to this visit at the till, validated by the charge route (its client_id is clientId, checked as hers). */
+  loyalty?: LoyaltyIntent | null;
 };
 
 type Deps = {
@@ -112,6 +129,9 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     payer_phone: phone,
     notify_token: d.newToken(),
     ...(i.kind ? { kind: i.kind } : {}),
+    // The reward is consumed by the server when this payment is paid (createReceiptFor), not by her browser. Only for the payment's own
+    // client: an intent naming anyone else is never stored.
+    ...(i.loyalty && i.clientId && i.loyalty.client_id === i.clientId ? { loyalty_redemption: i.loyalty } : {}),
   });
 
   const base = d.appUrl.replace(/\/+$/, '');
@@ -166,7 +186,31 @@ export type NotifyResult =
   | { status: 'unknown-token' | 'ignored' | 'mismatch' | 'not-paid' | 'already' }
   | { status: 'paid'; paymentId: string; receiptId: string | null };
 
+/**
+ * The loyalty reward stored with a payment, re-validated (the column is jsonb and could hold anything): the same client as the
+ * payment, stamps_used 1..100. Null when there is none, when the repo cannot read it, or when the column is not there yet.
+ *
+ * BEFORE add_loyalty_2026-11-05.sql runs there is no column to keep the intent in (charge creation drops it, lib/grow/repo.ts), and no
+ * loyalty_redemptions table either. The server then has no way to know a reward was applied, so the receipt is written as before
+ * (no 🎁 mark) and the till's onPaid stays the only record, exactly today's behaviour. The intent is deliberately NOT smuggled into
+ * another column (description goes to Grow's page and the receipt; error drives other states).
+ */
+async function loyaltyIntentFor(p: GrowPayment, d: Deps): Promise<LoyaltyIntent | null> {
+  if (!d.repo.loyaltyIntentOf || !p.client_id) return null;
+  let raw: unknown = null;
+  try { raw = await d.repo.loyaltyIntentOf(p.id); } catch (e) {
+    console.error('[grow] could not read the loyalty reward of payment', p.id, (e as Error)?.message);
+    await moneyAlert('grow:loyalty', 'could not read the loyalty reward stored on a paid Grow payment: check the client card before giving it again', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
+    return null;
+  }
+  if (!raw || typeof raw !== 'object') return null;
+  if (String((raw as Record<string, unknown>).client_id ?? '') !== String(p.client_id)) return null;
+  const v = parseLoyaltyIntent(raw);
+  return v ? { client_id: String(p.client_id), ...v } : null;
+}
+
 async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promise<string | null> {
+  const loyalty = await loyaltyIntentFor(p, d);
   try {
     const r = await d.repo.insertReceipt({
       tenant_id: p.tenant_id,
@@ -178,14 +222,20 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
       service: p.description || 'טיפול',
       amount: Number(p.amount),
       payment_method: paymentMethodLabel(n.echo.transactionTypeId),
-      note: `שולם דרך Grow, ${paymentMethodLabel(n.echo.transactionTypeId)} (אסמכתא ${n.asmachta || n.transactionId})`,
-      items: '[]',
+      note: [`שולם דרך Grow, ${paymentMethodLabel(n.echo.transactionTypeId)} (אסמכתא ${n.asmachta || n.transactionId})`, loyalty ? `🎁 מתנת כרטיסיית נאמנות: ${loyalty.reward}` : ''].filter(Boolean).join(' · '),
+      // A reward visit carries the till's 🎁 mark (lib/loyalty.js loyaltyMarker), so the card counts it as the reward on its own, even
+      // with the ledger unread. Its id names the payment: one payment, one mark, however many callbacks arrive (a retry that loses the
+      // insert race is handed the first receipt back, mark and all).
+      items: loyalty ? JSON.stringify([loyaltyMarker({ id: `loyalty-${p.id}`, reward: loyalty.reward, stampsUsed: loyalty.stamps_used })]) : '[]',
       discount: 0,
       tip: 0,
       legal_provider: 'grow',
       // Lets the database refuse a second receipt for the same card charge (receipts_grow_payment_uniq, a hand-run migration).
       grow_payment_id: p.id,
     });
+    // The ledger row BEFORE receipt_id goes on the payment: the till's onPaid fires only once it sees receipt_id, so its own write of the
+    // same redemption then always meets the unique index (receipt_id) and is the same reward, once.
+    if (loyalty) await recordRedemption(p, r.id, loyalty, d);
     await d.repo.updatePayment(p.id, { receipt_id: r.id });
     // Grow's invoice callback can land BEFORE this one; it then stored the link on the payment only (there was no receipt yet), and Grow
     // does not send it again. Read it back now so the receipt shows Grow's document (2026-11-02 audit).
@@ -198,6 +248,18 @@ async function createReceiptFor(p: GrowPayment, n: Notification, d: Deps): Promi
   } catch (e) {
     console.error('[grow] receipt creation failed for payment', p.id, (e as Error)?.message); await moneyAlert('grow:receipt', 'paid Grow payment has no Kalmea receipt', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
     return null;
+  }
+}
+
+/** The loyalty_redemptions row of a reward paid through Grow. Never fails the receipt: the 🎁 mark on it already stops the reward being reused. */
+async function recordRedemption(p: GrowPayment, receiptId: string, l: LoyaltyIntent, d: Deps): Promise<void> {
+  if (!d.repo.insertLoyaltyRedemption) return;
+  try {
+    const res = await d.repo.insertLoyaltyRedemption({ tenant_id: p.tenant_id, client_id: l.client_id, receipt_id: receiptId, reward: l.reward, every: l.stamps_used, stamps_used: l.stamps_used });
+    if (res === 'missing') console.warn('[grow] loyalty_redemptions is missing (add_loyalty_2026-11-05.sql); the receipt of payment', p.id, 'carries the reward mark');
+  } catch (e) {
+    console.error('[grow] loyalty redemption write failed for payment', p.id, (e as Error)?.message);
+    await moneyAlert('grow:loyalty', 'a loyalty reward paid through Grow has no ledger row (the receipt carries its mark)', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
   }
 }
 

@@ -1,7 +1,11 @@
 // app/api/grow/charge/route.ts
 //
-// POST { amount, description, clientName, phone, clientId?, appointmentId?, method? } -> { url, paymentId }
+// POST { amount, description, clientName, phone, clientId?, appointmentId?, method?, loyalty? } -> { url, paymentId }
 // method: card (default) | bit | apple_pay | google_pay, each Grow page code from the environment (lib/grow/methods.ts).
+// loyalty: { reward, stampsUsed } when she applied the loyalty card's reward to this visit at the till. It is stored WITH the payment
+// (grow_payments.loyalty_redemption), so the server consumes the reward when Grow says the link was paid, however late and whether or
+// not her browser is still open (lib/grow/service.ts). Before 2026-11-08 only the browser's onPaid recorded it, so a link paid after
+// the till stopped polling left the card "ready" and the same reward could be given again (Vercel security review, PR #20).
 //
 // She asks, from the cashier, for a card payment page for a client. This does NOT charge anyone: it asks Grow
 // for a payment page on HER Grow account and returns the link; the client pays there. Refused, with a plain
@@ -16,6 +20,7 @@ import { createCharge } from '@/lib/grow/service';
 import { isPayMethod } from '@/lib/grow/methods';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { walletAsCreds } from '@/lib/grow/wallet';
+import { parseLoyaltyIntent } from '@/lib/loyalty';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
 
 export async function POST(request: Request) {
@@ -48,6 +53,15 @@ export async function POST(request: Request) {
   ]);
   if (cl.error || ap.error) return NextResponse.json({ success: false, error: 'שגיאה, נסי שוב' }, { status: 500 });
   if (!cl.data || !ap.data) return NextResponse.json({ success: false, error: 'הלקוחה או התור לא נמצאו' }, { status: 404 });
+  // The reward belongs to a client of HERS (checked just above) and nothing else is taken from the browser: the tenant is the caller's,
+  // the client is the payment's own. stamps_used must be a whole number from 1 to 100. A malformed reward, or one with no client, is
+  // refused rather than dropped: the discount on this link was given for it, so the card must be told.
+  let loyalty: { client_id: string; reward: string; stamps_used: number } | null = null;
+  if (b.loyalty != null) {
+    const intent = parseLoyaltyIntent(b.loyalty);
+    if (!intent || !clientId) return NextResponse.json({ success: false, error: 'מתנת הכרטיסייה לא תקינה. הסירי אותה ונסי שוב.' }, { status: 400 });
+    loyalty = { client_id: clientId, ...intent };
+  }
   const result = await createCharge(
     {
       tenantId: c.tenantId,
@@ -60,6 +74,7 @@ export async function POST(request: Request) {
       appointmentId,
       method: isPayMethod(b.method) ? b.method : undefined,
       wallet: !!grow.wallet,
+      loyalty,
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
