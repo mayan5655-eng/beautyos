@@ -86,6 +86,13 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       const { error } = await db.from('billing_addons').insert(row);
       if (error) fail(error, 'insertAddon');
     },
+    async coveredByAnnual(subId, periodStart) {
+      // add_referrals_annual_2026-11-08.sql adds period_months; before it runs there is no yearly charge to find.
+      const { data, error } = await db.from('billing_payments').select('id').eq('subscription_id', subId).eq('kind', 'subscription').eq('status', 'succeeded')
+        .eq('period_months', 12).lte('period_start', periodStart).gt('period_end', periodStart).limit(1);
+      if (error) return false;
+      return !!(data && data.length);
+    },
     async setPlanStatus(tenantId, status) {
       const { error } = await db.from('tenants').update({ plan_status: status }).eq('id', tenantId);
       if (error) fail(error, 'setPlanStatus');
