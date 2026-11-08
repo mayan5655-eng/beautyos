@@ -118,6 +118,13 @@ const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: fa
 const VoucherRedeemTill = dynamic(() => import("./VoucherRedeemTill"), { ssr: false });
 const GiftVoucherSettings = dynamic(() => import("./GiftVoucherSettings"), { ssr: false });
 const GiftVoucherMarketingCard = dynamic(() => import("./GiftVoucherMarketingCard"), { ssr: false });
+// Products and inventory (lib/products.ts): the catalog screen in the till tab, the till picker and its stock warnings. On by default;
+// each renders nothing when products are switched off (platform flag or her own switch) or before the migration has run.
+const ProductsPanel = dynamic(() => import("./ProductsPanel"), { ssr: false });
+const ProductSettings = dynamic(() => import("./ProductSettings"), { ssr: false });
+import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
+import useProducts from "./useProducts";
+import { lowStockAttention, productsConfig } from "@/lib/products";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -1307,6 +1314,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
   // A gift voucher used on this sale (app/VoucherRedeemTill.jsx): { ledgerId, voucherId, code, amount, balanceAfter, receiptId? }.
   const [voucherAdj, setVoucherAdj] = useState(null);
+  // Her products (app/useProducts.js): loads nothing when products are switched off. Stock only ever moves on the server.
+  const productsApi = useProducts(settings);
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -5556,6 +5565,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         handleDbError(error, "void receipt"); return;
       }
       if (data && data[0]) setReceiptVoids(prev => [...prev, data[0]]);
+      // Products on the voided receipt go back to stock, once (the database refuses a second time).
+      if (data && data[0]) productsApi.afterVoid(receipt);
       setVoidOpen(false); setVoidReason("");
       if (legal && data && data[0]) {
         const d = await requestCredit(data[0]);
@@ -5774,6 +5785,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Anything ambiguous stays unlinked, as before.
       const linkedApptId = cashierAppt?.id || (() => {
         if (!cashierClient?.id) return null;
+        // A products-only sale is not that visit's payment: never auto-link it, or her treatment would show as paid with only a
+        // cream bought (Vercel review 2026-11-08). Only a sale that has at least one treatment line is matched to today's visit.
+        if (!cashierItems.some(i => i && i.kind !== "product")) return null;
         const c = appointments.filter(a => String(a.client_id) === String(cashierClient.id) && a.date === today
           && a.confirmation_status !== "cancelled" && a.kind !== "personal"
           && !receipts.some(r => String(r.appointment_id) === String(a.id)));
@@ -5818,6 +5832,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
+      // Products on this receipt: the server moves their stock, once per line (app/useProducts.js). Never blocks the sale.
+      productsApi.afterReceipt(data[0], toast);
       const loyaltyUsed = loyaltyRewardLive;
       await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed, loyaltyEvery: loyaltyUsed ? loyaltyApplied.marker?.loyalty_every : null });
       setLoyaltyApplied(null);
@@ -9403,6 +9419,10 @@ ${MARKETING_FOOTER}`)}`;
                       // Each item carries its own primary action; nothing is sent — actions
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
+                      // UX pass 2026-11-08 (audit item 2): no item twice on Today. When "היום שלי" already lists every
+                      // person an item is about (its "מחכה לך" rows), the item here steps aside.
+                      const onMyDay=new Set(myDayOn?(myDayModel?.needs||[]).map(it=>String(it.appt?.id??it.lead?.id??"")):[]);
+                      const allOnMyDay=(rows)=>myDayOn&&rows.length>0&&rows.every(r=>onMyDay.has(String(r.id)));
                       leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"פניות",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
                       // Lapsed clients, capped at three.
                       //
@@ -9420,10 +9440,10 @@ ${MARKETING_FOOTER}`)}`;
                       const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
                       coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
-                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
+                      if(newLeadsCount>0&&!allOnMyDay(leads.filter(l=>l.status==="no_answer"||l.status==="new")))q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
-                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
+                      if(tomorrowNotSent.length>0&&!allOnMyDay(tomorrowNotSent))q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
                       (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
                       // Automated sends that FAILED in the last day, from the same log the
@@ -9472,7 +9492,14 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      // ── Low stock (lib/products.ts): one grouped line while anything is at or below its threshold. Its in-app
+                      // notifications (kind low_stock) are this same fact, so they are not listed again and are marked read here.
+                      {
+                        const ls=productsApi.visible&&productsApi.status==="ready"?lowStockAttention(productsApi.products):null;
+                        if(ls)q.push({key:ls.key,icon:"🧴",accent:"var(--warning)",source:"מלאי",what:"מלאי נמוך",who:ls.count===1?"מוצר אחד":`${ls.count} מוצרים`,why:ls.names,primaryLabel:"למוצרים ומלאי",run:()=>{const ids=ownerNotifs.filter(n=>n.kind==="low_stock").map(n=>n.id);if(ids.length){supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs(prev=>prev.filter(n=>n.kind!=="low_stock"));}setActiveTab("cashier");}});
+                      }
+                      const listedNotifs=ownerNotifs.filter(n=>n.kind!=="low_stock");
+                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
@@ -9483,7 +9510,7 @@ ${MARKETING_FOOTER}`)}`;
                           else toast("התור הזה כבר לא קיים");
                         }
                       }}));
-                      if(ownerNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${ownerNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
+                      if(listedNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${listedNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
@@ -10169,6 +10196,8 @@ ${MARKETING_FOOTER}`)}`;
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
  <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
+ {/* Products and inventory: renders nothing when switched off or before the migration. */}
+ <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's
@@ -11911,6 +11940,8 @@ ${MARKETING_FOOTER}`)}`;
                   )}
  </div>
  )}
+ {/* Products (PR #29): their own picker, next to the treatment chips. */}
+ <ProductTillPicker api={productsApi} pc={pc} pcTint={pcTint} onAdd={(item)=>setCashierItems(prev=>[...prev,item])}/>
               {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):null)
                 :cashierItems.map(item=>(
  <div key={item.id} style={{padding:"8px 9px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:4}}>
@@ -11929,6 +11960,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                 ))}
  </div>
+ {/* Products in this sale with less on record than she is selling: a warning, never a block (lib/products.ts). */}
+ <ProductTillWarnings api={productsApi} items={cashierItems}/>
  {/* Loyalty (lib/loyalty.js): a reward that is ready is one tap; otherwise one quiet line of progress. */}
  {cashierClient&&cashierLoyalty&&(cashierLoyalty.ready?(
  <div data-testid="loyalty-till" style={{background:loyaltyApplied?"var(--pc-tint)":"var(--k-petal)",border:`1px solid ${loyaltyApplied?pc:"var(--k-pink)"}`,borderRadius:"var(--r-sm)",padding:"11px 12px",marginBottom:10}}>
@@ -13441,6 +13474,7 @@ ${MARKETING_FOOTER}`)}`;
               )}
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} toast={toast} tenantId={settings?.tenant_id||null} brandPrimary={editSettings.primary_color||settings?.primary_color} businessName={editSettings.business_name||settings?.business_name||""} logoUrl={editSettings.branding?.logo_url||settings?.branding?.logo_url||null} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("business")&&(<ProductSettings api={productsApi} automations={editSettings.automations} pc={pc} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("clients")&&(
  <div>

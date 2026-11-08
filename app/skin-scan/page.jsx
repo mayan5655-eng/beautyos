@@ -7,6 +7,7 @@ import { fetchPublicBranding } from "@/lib/branding";
 import { accentStyle } from "@/lib/theme";
 import { viewOfReport, ingredientsOf, refusalOf, isTenantId, INVALID_LINK_HE } from "@/lib/skinScanView";
 import { Watermark, PoweredBy } from "../PublicChrome";
+import { recommendProducts, orderText } from "@/lib/products";
 
 // ============================================================
 // AI SKIN SCANNER PAGE  /skin-scan  (v7, clinical results view, 2026-11-04)
@@ -151,6 +152,9 @@ export default function SkinScanPage() {
   const [tenantId, setTenantId] = useState("");
   const [scanSig, setScanSig] = useState("");
   const [brand, setBrand] = useState(null); // resolved clinic branding (safe fallbacks)
+  // Her products tagged for the home routine (app/api/products/public): name, brand, price and step types only. Empty unless she
+  // turned products on, tagged some, and this is her signed link.
+  const [shelf, setShelf] = useState([]);
 
   const fileRef = useRef(null);
   const leftRef = useRef(null);
@@ -168,6 +172,16 @@ export default function SkinScanPage() {
       if (sig) setScanSig(sig);
     } catch {}
   }, []);
+
+  // The products she recommends: asked once a report is on screen, from her signed link only. A failure shows no products.
+  useEffect(() => {
+    if (!report || !tenantId || !scanSig) return;
+    let alive = true;
+    fetch(`/api/products/public?t=${encodeURIComponent(tenantId)}&s=${encodeURIComponent(scanSig)}`)
+      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (alive && Array.isArray(j?.products)) setShelf(j.products); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [report, tenantId, scanSig]);
 
   // Load the clinic's branding (public-safe fields only). Strictly tenant-scoped;
   // missing/invalid tenant or error -> neutral Kalmea defaults (never another clinic).
@@ -314,6 +328,7 @@ export default function SkinScanPage() {
   const hasPlan = !!(plan.sessions || plan.treatment_type);
   const actives = [...view.morning, ...view.evening].flatMap(ingredientsOf).filter((x, i, a) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
   const hasRoutine = view.morning.length > 0 || view.evening.length > 0;
+  const recs = recommendProducts(view, shelf);
   const tab = view.morning.length === 0 ? "pm" : view.evening.length === 0 ? "am" : routineTab;
   const stage = report ? 3 : loading ? 2 : gateOk ? 1 : 0;
   const book = bookHref();
@@ -769,6 +784,28 @@ export default function SkinScanPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 5b) HER PRODUCTS for this routine (lib/products.ts recommendProducts): name, brand, price. No online purchase: order or
+                buy at the business, with her WhatsApp. */}
+            {recs.length > 0 && (
+              <div className="ss-card" data-testid="scan-products">
+                <p className="ss-eyebrow">לשגרה בבית</p>
+                <p className="serif" style={{ fontSize: "var(--t-xl)", color: INK, fontWeight: 600, marginBottom: 10 }}>המוצרים שהיא ממליצה לך</p>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {recs.map((r) => (
+                    <li key={`${r.name}|${r.brand || ""}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid var(--line, #E8E2D6)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: "var(--t-md)", fontWeight: 700, color: INK, margin: 0 }}>{r.name}</p>
+                        <p style={{ fontSize: "var(--t-sm)", color: INK2, margin: 0 }}>{[r.brand, `שלב: ${r.step}`].filter(Boolean).join(" · ")}</p>
+                      </div>
+                      <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: INK, margin: 0, whiteSpace: "nowrap" }}>₪{Number(r.price).toLocaleString("he-IL")}</p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="ss-muted" style={{ marginTop: 8 }}>אפשר להזמין או לקנות אצלה בעסק.</p>
+                {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent(orderText(recs, brand?.businessName || ""))}`} target="_blank" rel="noreferrer" className="ss-wa" style={{ marginTop: 10 }}><Icon name="whatsapp" size={16} /> להזמנה בוואטסאפ</a>}
               </div>
             )}
 

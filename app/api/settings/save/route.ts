@@ -34,6 +34,7 @@ import { notifyOwnerOfSignup } from '@/lib/ownerSignupAlert';
 import { sendOwnerWelcome } from '@/lib/ownerWelcome';
 import { sanitizeVoucherAutomations } from '@/lib/giftVouchers';
 import { storageHostOf } from '@/lib/giftVoucherDesign';
+import { sanitizeProductAutomations } from '@/lib/products';
 
 function admin() {
   return createClient(
@@ -112,6 +113,9 @@ export async function POST(request: Request) {
 
   // Merge into the stored bags so a save from an older copy of the row cannot erase what another screen wrote since.
   // Gift voucher setup and design (lib/giftVouchers.ts): validated here, so only clean values are ever stored.
+  // Her products switch and default threshold (lib/products.ts automations.products) are validated first, the same way: the
+  // payload's automations bag is replaced by its cleaned copy before the voucher validation reads it.
+  Object.assign(payload, sanitizeProductAutomations(payload));
   const vouchersClean = sanitizeVoucherAutomations(payload, tenantId, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL));
   const toWrite = mergeStoredBags(preserveProtectedAutomations(vouchersClean, existing?.automations), existing);
 
