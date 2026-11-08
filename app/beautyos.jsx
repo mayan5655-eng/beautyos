@@ -4406,7 +4406,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
 
       if (inserted.length) setServices(prev => [...prev, ...inserted]);
-      setImportResult({ added: inserted.length, dupes, noName, nameIsService, failed,
+      setImportResult({ added: inserted.length, dupes, noName, nameIsService: 0, failed,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {

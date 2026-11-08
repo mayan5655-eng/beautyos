@@ -148,4 +148,13 @@ ok('payment confirmation: a voucher code in the note is its own LTR, no-wrap pie
   assert.match(app, /\["אמצעי תשלום", esc\(receiptMethodLabel\(receipt\)\)\],/);
 });
 
+{
+  // The services import has no "name is a service" skip; its result must not reference the clients-only variable.
+  const appSrc = readFileSync('app/beautyos.jsx', 'utf8');
+  const svcIdx = appSrc.indexOf('supabase.from("service_prices").insert(chunk)');
+  assert.ok(svcIdx > 0);
+  assert.match(appSrc.slice(svcIdx, svcIdx + 600), /setImportResult\(\{ added: inserted\.length, dupes, noName, nameIsService: 0, failed,/);
+  console.log('ok - services import result does not reference the clients-only nameIsService');
+}
+
 console.log(`\n${n} checks passed`);
