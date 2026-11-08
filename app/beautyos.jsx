@@ -142,7 +142,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
-import { giftVouchersVisible, voucherRedeemNote } from "@/lib/giftVouchers";
+import { giftVouchersVisible, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -5701,6 +5701,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
+    // The voucher balance taken must equal what this receipt credits (Vercel review on PR #25): a till whose total dropped below the
+    // amount already taken off the voucher is not saved until she gives the redemption back and applies it again.
+    if (voucherOverUsed(voucherAdj, voucherDue)) { toast(VOUCHER_OVER_USED_HE, "error"); return; }
     // Paying the same visit twice (from the calendar after the home list, or after a Grow payment) doubled her income.
     if(cashierAppt && !dupPayOk.current && liveRcpts.some(r=>r.appointment_id && String(r.appointment_id)===String(cashierAppt.id))){
       askConfirm({

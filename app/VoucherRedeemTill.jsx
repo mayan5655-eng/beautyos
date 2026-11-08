@@ -9,7 +9,7 @@
 // If the sale does not go ahead, "ביטול הניצול" gives the amount back (action 'reverse'). One left behind by a till that was simply
 // closed shows in the vouchers list as "בלי תשלום רשום", with the same button.
 import { useState } from 'react';
-import { formatCode, voucherTitle, dateHe, usableAmount, REFUSAL_HE } from '@/lib/giftVouchers';
+import { formatCode, voucherTitle, dateHe, usableAmount, voucherOverUsed, VOUCHER_OVER_USED_HE, REFUSAL_HE } from '@/lib/giftVouchers';
 
 const money = (n) => `₪${(Math.round(Number(n) * 100) / 100).toLocaleString('he-IL')}`;
 const newKey = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
@@ -32,12 +32,12 @@ export default function VoucherRedeemTill({ due, applied, onApplied, onCleared, 
   };
 
   if (applied) {
-    const over = Number(applied.amount) - Math.max(0, Number(due) || 0) > 0.005;
+    const over = voucherOverUsed(applied, due);
     return (
       <div data-testid="voucher-till-applied" style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
         <p style={{ margin: 0, fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>🎁 שובר <span dir="ltr">{formatCode(applied.code)}</span>: {money(applied.amount)} ירדו מהתשלום</p>
         <p style={{ margin: '2px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)' }}>נשארו בשובר {money(applied.balanceAfter)}.</p>
-        {over && <p role="alert" style={{ margin: '4px 0 0', fontSize: 'var(--t-xs)', color: 'var(--danger)' }}>הסכום לתשלום ירד מתחת למה שמומש מהשובר. בטלי את הניצול והחילי אותו שוב.</p>}
+        {over && <p role="alert" data-testid="voucher-till-over" style={{ margin: '4px 0 0', fontSize: 'var(--t-xs)', color: 'var(--danger)' }}>{VOUCHER_OVER_USED_HE}</p>}
         <button type="button" disabled={busy || isDemo} data-testid="voucher-till-undo" style={{ ...btn, minHeight: 36, padding: '6px 12px', marginTop: 6 }} onClick={async () => {
           setBusy(true);
           try {

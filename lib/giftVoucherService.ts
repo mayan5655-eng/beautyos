@@ -31,6 +31,8 @@ export type VoucherRepo = {
   setReceiptItems(receiptId: string, items: unknown[], service: string): Promise<void>;
   insertReceipt(row: Record<string, unknown>): Promise<{ id: string; row: Record<string, unknown> }>;
   setVoucherReceipt(voucherId: string, receiptId: string): Promise<void>;
+  /** The till-sale receipt that names this voucher's code (its note carries "קוד <code>"), when the link to it was never written. */
+  findSaleReceipt(tenantId: string, code: string): Promise<{ id: string } | null>;
   voidVoucher(voucherId: string, reason: string, by: string | null): Promise<void>;
 };
 
@@ -116,7 +118,34 @@ export type TillSaleInput = {
 
 export type TillSaleResult =
   | { status: 'sold' | 'already'; voucher: VoucherRow; receipt: Record<string, unknown> | null }
-  | { status: 'missing' | 'failed'; error?: string };
+  | { status: 'missing' | 'failed'; error?: string; message?: string };
+
+/** How long a sale may still be in flight (voucher written, receipt not yet) before a retry treats it as failed. */
+export const SALE_IN_FLIGHT_MS = 2 * 60 * 1000;
+export const SALE_NOT_RECORDED_HE = 'המכירה הקודמת לא נרשמה בקופה, והשובר שלה בוטל. אפשר למכור שוב.';
+export const SALE_IN_FLIGHT_HE = 'המכירה עדיין נרשמת. חכי רגע ובדקי ברשימת השוברים לפני שמוכרים שוב.';
+
+/**
+ * A retry with a sale key that already has a voucher (Vercel review on PR #25): success ONLY when that sale's money is recorded.
+ *   void                       its receipt failed and it was voided: a failure, never "sold".
+ *   linked to a receipt        the sale is complete: 'already'.
+ *   a receipt names its code   the receipt was written but the link was not: link it now, 'already'.
+ *   no receipt, still fresh    the first request may still be writing it: a failure that says "wait", nothing handed over.
+ *   no receipt, old            the first request died between the voucher and its receipt: void it now, and say so.
+ */
+async function settleExistingSale(v: VoucherRow, i: TillSaleInput, d: Deps): Promise<TillSaleResult> {
+  if (v.status === 'void') return { status: 'failed', message: SALE_NOT_RECORDED_HE };
+  if ((v as { receipt_id?: unknown }).receipt_id) return { status: 'already', voucher: v, receipt: null };
+  const r = await d.repo.findSaleReceipt(i.tenantId, String(v.code || ''));
+  if (r) {
+    await d.repo.setVoucherReceipt(String(v.id), r.id);
+    return { status: 'already', voucher: { ...v, receipt_id: r.id } as VoucherRow, receipt: null };
+  }
+  const age = (d.now || (() => new Date()))().getTime() - Date.parse(String(v.created_at || ''));
+  if (Number.isFinite(age) && age < SALE_IN_FLIGHT_MS) return { status: 'failed', message: SALE_IN_FLIGHT_HE };
+  await d.repo.voidVoucher(String(v.id), 'התשלום לא נרשם, השובר לא נמסר', i.userId);
+  return { status: 'failed', message: SALE_NOT_RECORDED_HE };
+}
 
 /**
  * A voucher sold in person. The voucher is written FIRST (unused, not yet handed over), then its receipt. If the receipt cannot be
@@ -124,7 +153,7 @@ export type TillSaleResult =
  */
 export async function sellAtTill(i: TillSaleInput, d: Deps): Promise<TillSaleResult> {
   const existing = await d.repo.findBySaleKey(i.tenantId, i.saleKey);
-  if (existing) return { status: 'already', voucher: existing, receipt: null };
+  if (existing) return settleExistingSale(existing, i, d);
   const now = (d.now || (() => new Date()))();
   const amount = Math.round(i.amount * 100) / 100;
   const r = await insertWithCode({
@@ -147,7 +176,7 @@ export async function sellAtTill(i: TillSaleInput, d: Deps): Promise<TillSaleRes
   if (r.status === 'missing') return { status: 'missing' };
   if (r.status === 'already') {
     const v = await d.repo.findBySaleKey(i.tenantId, i.saleKey);
-    return v ? { status: 'already', voucher: v, receipt: null } : { status: 'failed' };
+    return v ? settleExistingSale(v, i, d) : { status: 'failed' };
   }
   if (r.status !== 'inserted') return { status: 'failed' };
   const v = r.row;

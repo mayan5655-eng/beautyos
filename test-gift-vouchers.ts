@@ -10,9 +10,9 @@ import {
   giftVouchersVisible, voucherConfig, voucherStored, voucherOptions, resolveOption, newVoucherCode, normalizeCode, formatCode,
   newVoucherToken, isVoucherToken, voucherStatus, redeemProblem, usableAmount, expiryFrom, voucherItem, isVoucherSaleReceipt,
   publicVoucherView, voucherShareText, waShareLink, parseVoucherIntent, isMissingVoucherSchema, cleanMessage, CODE_ALPHABET,
-  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher,
+  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher, voucherOverUsed, VOUCHER_OVER_USED_HE,
 } from './lib/giftVouchers.ts';
-import { issueFromPayment, sellAtTill, readRpcOutcome } from './lib/giftVoucherService.ts';
+import { issueFromPayment, sellAtTill, readRpcOutcome, SALE_NOT_RECORDED_HE, SALE_IN_FLIGHT_HE, SALE_IN_FLIGHT_MS } from './lib/giftVoucherService.ts';
 import type { VoucherRepo } from './lib/giftVoucherService.ts';
 import { supabaseVoucherRepo } from './lib/giftVoucherRepo.ts';
 import { loadVoucherShop } from './lib/giftVoucherShop.ts';
@@ -147,9 +147,10 @@ function memRepo() {
     async setReceiptItems(id, items, service) { const r = receipts.find((x) => x.id === id); if (r) { r.items = JSON.stringify(items); r.service = service; } },
     async insertReceipt(row) { if (failReceipt) throw new Error('db down'); const r = { id: `r${receipts.length + 1}`, ...row }; receipts.push(r); return { id: r.id, row: r }; },
     async setVoucherReceipt(id, rid) { const v = vouchers.find((x) => x.id === id); if (v && !v.receipt_id) v.receipt_id = rid; },
+    async findSaleReceipt(t, code) { const r = receipts.find((x) => String(x.note || '').includes(`קוד ${code}`)); return r ? { id: r.id } : null; },
     async voidVoucher(id, reason) { const v = vouchers.find((x) => x.id === id); if (v && v.status === 'active') { v.status = 'void'; v.void_reason = reason; } },
   };
-  return { repo, vouchers, ledger, receipts, collide: (k: number) => { collideNext = k; }, breakReceipts: () => { failReceipt = true; } };
+  return { repo, vouchers, ledger, receipts, collide: (k: number) => { collideNext = k; }, breakReceipts: () => { failReceipt = true; }, fixReceipts: () => { failReceipt = false; } };
 }
 const intent = (o: Record<string, unknown> = {}) => ({ token: 'b'.repeat(48), kind: 'amount', service_name: null, amount: 300, buyer_name: 'מיכל לוי', recipient_name: 'דנה', message: 'מזל טוב', validity_months: 12, ...o });
 const paid = { id: 'pay-1', tenant_id: T, status: 'paid', amount: 300, payer_phone: '972521111111' };
@@ -256,6 +257,94 @@ await ok('a till sale whose receipt cannot be written leaves no live voucher beh
   assert.equal(m.vouchers.length, 1); assert.equal(m.vouchers[0].status, 'void'); assert.ok(m.vouchers[0].void_reason);
 });
 
+// Vercel review on PR #25, finding 1: a retry with the same sale key must never hand over a voucher whose money was not recorded.
+await ok('review #1: retrying a till sale after its receipt failed answers a failure, never the voided voucher', async () => {
+  const m = memRepo(); m.breakReceipts();
+  const first = await sellAtTill(sale({ saleKey: 'sale-key-0003' }), { repo: m.repo, randomBytes: rnd, now: () => now });
+  assert.equal(first.status, 'failed');
+  m.fixReceipts();
+  const retry = await sellAtTill(sale({ saleKey: 'sale-key-0003' }), { repo: m.repo, randomBytes: rnd, now: () => now });
+  assert.equal(retry.status, 'failed');
+  assert.equal((retry as { message?: string }).message, SALE_NOT_RECORDED_HE);
+  assert.ok(!('voucher' in retry));
+  assert.equal(m.vouchers.length, 1); assert.equal(m.vouchers[0].status, 'void');
+  assert.equal(m.receipts.filter((r) => r.amount === 300).length, 0, 'no money recorded, no voucher live');
+  // a NEW sale key sells properly
+  const fresh = await sellAtTill(sale({ saleKey: 'sale-key-0004' }), { repo: m.repo, randomBytes: rnd, now: () => now });
+  assert.equal(fresh.status, 'sold');
+});
+await ok('review #1: a retry while the first sale is half written: linked if its receipt exists, "wait" if fresh, voided if it died', async () => {
+  // receipt written, link lost
+  const m = memRepo(); m.receipts.length = 0;
+  const done = await sellAtTill(sale({ saleKey: 'sale-key-0005' }), { repo: m.repo, randomBytes: rnd, now: () => now });
+  assert.equal(done.status, 'sold');
+  m.vouchers[0].receipt_id = null;
+  const again = await sellAtTill(sale({ saleKey: 'sale-key-0005' }), { repo: m.repo, randomBytes: rnd, now: () => now });
+  assert.equal(again.status, 'already'); assert.equal(m.vouchers[0].receipt_id, m.receipts[0].id); assert.equal(m.receipts.length, 1, 'no second receipt');
+  // no receipt yet, created a moment ago: the first request may still be writing it
+  const m2 = memRepo();
+  m2.vouchers.push({ id: 'vx', tenant_id: T, code: 'ABCD2345', status: 'active', sale_key: 'sale-key-0006', receipt_id: null, created_at: new Date(now.getTime() - 10_000).toISOString() });
+  const wait = await sellAtTill(sale({ saleKey: 'sale-key-0006' }), { repo: m2.repo, randomBytes: rnd, now: () => now });
+  assert.equal(wait.status, 'failed'); assert.equal((wait as { message?: string }).message, SALE_IN_FLIGHT_HE); assert.equal(m2.vouchers[0].status, 'active');
+  // no receipt, long ago: the first request died; voided now, and said
+  const later = await sellAtTill(sale({ saleKey: 'sale-key-0006' }), { repo: m2.repo, randomBytes: rnd, now: () => new Date(now.getTime() + SALE_IN_FLIGHT_MS) });
+  assert.equal(later.status, 'failed'); assert.equal(m2.vouchers[0].status, 'void');
+  // a complete sale retried: the same voucher, no new receipt
+  const m3 = memRepo(); m3.receipts.length = 0;
+  await sellAtTill(sale({ saleKey: 'sale-key-0007' }), { repo: m3.repo, randomBytes: rnd, now: () => now });
+  const r3 = await sellAtTill(sale({ saleKey: 'sale-key-0007' }), { repo: m3.repo, randomBytes: rnd, now: () => now });
+  assert.equal(r3.status, 'already'); assert.equal(m3.receipts.length, 1);
+  // the route turns a failed retry into a 409 with the sentence, and the panel takes a fresh key
+  assert.match(rd('app/api/vouchers/route.ts'), /if \(r\.status === 'failed' && r\.message\) return json\(\{ success: false, retryWithNewSale: true, error: r\.message \}, 409\);/);
+  assert.match(rd('app/GiftVouchersPanel.jsx'), /if \(j\?\.retryWithNewSale \|\| r\.status >= 500\) setSaleKey\(newKey\(\)\)/);
+});
+
+// Vercel review on PR #25, finding 2: the voucher balance taken must equal what the receipt credits.
+await ok('review #2: a till whose total dropped below the redeemed amount cannot be saved', () => {
+  assert.equal(voucherOverUsed({ amount: 180 }, 100), true);
+  assert.equal(voucherOverUsed({ amount: 180 }, 180), false);
+  assert.equal(voucherOverUsed({ amount: 180 }, 280), false);
+  assert.equal(voucherOverUsed({ amount: 180 }, 179.999), false, 'agorot rounding is not a block');
+  assert.equal(voucherOverUsed(null, 0), false);
+  assert.ok(/[\u0590-\u05FF]/.test(VOUCHER_OVER_USED_HE) && !/[\u2013\u2014]/.test(VOUCHER_OVER_USED_HE));
+  const j = rd('app/beautyos.jsx');
+  const fn = j.slice(j.indexOf('const handleSaveReceipt = async () => {'));
+  const block = fn.indexOf('if (voucherOverUsed(voucherAdj, voucherDue)) { toast(VOUCHER_OVER_USED_HE, "error"); return; }');
+  assert.ok(block > 0, 'the block is in handleSaveReceipt');
+  assert.ok(block < fn.indexOf('supabase.from("receipts").insert'), 'before any receipt is written');
+  // when not blocked, the receipt credits exactly what was taken: voucherUsed = min(redeemed, due) = redeemed
+  assert.match(j, /const voucherUsed = voucherAdj \? Math\.min\(Number\(voucherAdj\.amount\) \|\| 0, voucherDue\) : 0;/);
+  // the Grow card panel needs a total above zero, and an over-used voucher leaves the total at zero
+  assert.match(j, /&&cashierTotal>0&&\(<GrowChargePanel/);
+  assert.match(rd('app/VoucherRedeemTill.jsx'), /const over = voucherOverUsed\(applied, due\);/);
+});
+
+// Vercel review on PR #25, findings 3 and 4: how the owner route reads the flag, and the plan gate before any read.
+await ok('review #3: the flag is read from the whole settings row, so a database without settings.feature_flags still works', () => {
+  const route = rd('app/api/vouchers/route.ts');
+  assert.match(route, /db\.from\('settings'\)\.select\('\*'\)\.eq\('tenant_id', tenantId\)/);
+  assert.doesNotMatch(route, /select\('automations, feature_flags'\)/);
+  // a row with no feature_flags column at all, flag in automations: on
+  assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: true } } }), true);
+  // a dedicated column, when present, wins key by key (lib/featureFlags.ts tenantFlags)
+  assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: true } }, feature_flags: { gift_vouchers: false } }), false);
+});
+await ok('review #4: the plan gate runs before ANY service-role read in the owner route, GET included, demo exempt', () => {
+  const route = rd('app/api/vouchers/route.ts');
+  const whoFn = route.slice(route.indexOf('async function who()'), route.indexOf('export async function GET'));
+  const gate = whoFn.indexOf('const guard = await requireActiveTenant(session);');
+  assert.ok(gate > 0);
+  assert.ok(gate < whoFn.indexOf('const db = admin();'), 'before the service-role client exists');
+  assert.match(whoFn, /if \(!isDemoTenantId\(tenantId\)\) \{\s*const guard = await requireActiveTenant\(session\);\s*if \(!guard\.ok\) return \{ error: guard\.response \} as const;/);
+  // GET and POST both go through who() before touching the database
+  for (const h of ['export async function GET', 'export async function POST']) {
+    const body = route.slice(route.indexOf(h), route.indexOf(h) + 400);
+    assert.ok(body.indexOf('await who()') > 0 && (body.indexOf('db.') === -1 || body.indexOf('await who()') < body.indexOf('db.')));
+  }
+  // the buy and public routes are not owner reads: the shop refuses a closed business itself (lib/giftVoucherShop.ts tenantIsBlocked)
+  assert.match(rd('lib/giftVoucherShop.ts'), /if \(await tenantIsBlocked\(db, tenantId\)/);
+});
+
 // ── no loyalty stamp, no treatment, no double income ────────────────────────
 await ok('a voucher sale receipt is not a visit: the real loyalty rule gives it no stamp', () => {
   const r = { client_id: 'c1', amount: 300, service: 'שובר מתנה: ₪300', appointment_id: null, items: JSON.stringify([voucherItem({ title: '₪300', amount: 300, code: 'K7M4X9Q2' })]) };
@@ -345,7 +434,7 @@ await ok('every write route is plan gated, refuses the demo businesses, and the 
   const route = rd('app/api/vouchers/route.ts');
   const writes = route.indexOf("// Everything below writes.");
   assert.ok(writes > 0 && route.indexOf("action === 'redeem'") > writes && route.indexOf("action === 'sell'") > writes && route.indexOf("action === 'void'") > writes);
-  assert.match(route.slice(writes, writes + 300), /isDemoTenantId\(tenantId\)[\s\S]*requireActiveTenant\(session\)/);
+  assert.match(route.slice(writes, writes + 300), /isDemoTenantId\(tenantId\)\) return json\(\{ success: false, demo: true/);
   assert.match(route, /checkIpLimit\(request, 'voucher-lookup'\)/);
   assert.match(route, /checkTenantLimit\(tenantId, 'voucher-lookup'\)/);
   assert.match(rd('app/api/vouchers/buy/route.ts'), /checkIpLimit\(request, 'voucher-buy'\)/);

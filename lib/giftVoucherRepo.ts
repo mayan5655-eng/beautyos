@@ -67,6 +67,12 @@ export function supabaseVoucherRepo(db: SupabaseClient): VoucherRepo {
       const { error } = await db.from('gift_vouchers').update({ receipt_id: receiptId, updated_at: new Date().toISOString() }).eq('id', voucherId).is('receipt_id', null);
       if (error) throw new Error(error.message);
     },
+    async findSaleReceipt(tenantId, code) {
+      if (!/^[0-9A-Z]{8}$/.test(code)) return null;
+      const { data, error } = await db.from('receipts').select('id').eq('tenant_id', tenantId).like('note', `%קוד ${code}%`).limit(1).maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? { id: String((data as { id: unknown }).id) } : null;
+    },
     async voidVoucher(voucherId, reason, by) {
       const { error } = await db.from('gift_vouchers').update({ status: 'void', voided_at: new Date().toISOString(), voided_by: by, void_reason: reason.slice(0, 200), updated_at: new Date().toISOString() }).eq('id', voucherId).eq('status', 'active');
       if (error) throw new Error(error.message);

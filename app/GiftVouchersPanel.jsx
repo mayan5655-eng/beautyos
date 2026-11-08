@@ -76,7 +76,8 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
         buyerName: form.buyerName, buyerPhone: form.buyerPhone, recipientName: form.recipientName, message: form.message,
       }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו למכור את השובר. שום דבר לא נרשם, אפשר לנסות שוב.', 'error'); return; }
+      // A failed sale gets a fresh key: a retry is a NEW sale, never the old one handed back (the server voids a half-written one).
+      if (!r.ok || !j?.success) { if (j?.retryWithNewSale || r.status >= 500) setSaleKey(newKey()); toast?.(j?.error || 'לא הצלחנו למכור את השובר. שום דבר לא נרשם, אפשר לנסות שוב.', 'error'); await load(); return; }
       if (j.receipt) onReceipt?.(j.receipt);
       setSold(j.voucher);
       setSelling(false); setForm(EMPTY); setSaleKey(newKey());

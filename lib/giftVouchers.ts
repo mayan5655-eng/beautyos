@@ -213,6 +213,16 @@ export function usableAmount(balance: unknown, due: unknown): number {
   return Math.round(Math.min(b, d) * 100) / 100;
 }
 
+/**
+ * At the till: more was taken off the voucher than this sale can credit (the total dropped after the voucher was applied). The
+ * payment must not be recorded like that, or the voucher would lose balance the receipt never accounts for.
+ */
+export function voucherOverUsed(applied: { amount?: unknown } | null | undefined, due: unknown): boolean {
+  if (!applied) return false;
+  return (Number(applied.amount) || 0) - Math.max(0, Number(due) || 0) > 0.005;
+}
+export const VOUCHER_OVER_USED_HE = 'הסכום לתשלום ירד מתחת למה שכבר מומש מהשובר. לחצי "ביטול הניצול" והחילי את השובר שוב, ואז רשמי את התשלום.';
+
 /** A pre-check of a voucher for the till; the database repeats it atomically when the redemption is written. */
 export function redeemProblem(v: VoucherRow | null, amount: number, now: Date = new Date()): string | null {
   if (!v) return 'not_found';

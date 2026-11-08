@@ -48,8 +48,19 @@ async function who() {
   if (!user) return { error: json({ success: false, error: 'לא מחוברת' }, 401) } as const;
   const tenantId = await callerTenantId(session);
   if (!tenantId) return { error: json({ success: false, error: 'לא זוהה עסק' }, 403) } as const;
+  // A closed business reads nothing from her business tables (add_closed_read_block_2026-10-25.sql), and everything below is a
+  // service-role read that RLS cannot see: so the plan is checked FIRST, for reads as well as writes. Same predicate, same demo
+  // exception and same 402 as app/api/weekly-digest (Vercel review on PR #25).
+  if (!isDemoTenantId(tenantId)) {
+    const guard = await requireActiveTenant(session);
+    if (!guard.ok) return { error: guard.response } as const;
+  }
   const db = admin();
-  const { data: settings } = await db.from('settings').select('automations, feature_flags').eq('tenant_id', tenantId).maybeSingle();
+  // The whole row, like every other reader of the flags (lib/featureFlags.ts tenantFlags reads automations.feature_flags and,
+  // when it exists, the optional settings.feature_flags column). Naming that column in the select failed the read on a
+  // database without it, and the feature then looked switched off (Vercel review on PR #25).
+  const { data: settings, error: settingsErr } = await db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle();
+  if (settingsErr) return { error: oops('settings', settingsErr) } as const;
   if (!giftVouchersVisible(settings as never)) return { error: json({ success: false, hidden: true, error: 'שוברי מתנה לא פעילים בחשבון' }, 404) } as const;
   return { session, user, tenantId, db, settings } as const;
 }
@@ -87,7 +98,7 @@ export async function POST(request: Request) {
   try {
     const w = await who();
     if ('error' in w) return w.error;
-    const { db, tenantId, session, user } = w;
+    const { db, tenantId, user } = w;
     const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const action = String(b.action || '');
 
@@ -107,9 +118,8 @@ export async function POST(request: Request) {
     }
 
     // Everything below writes.
+    // (The plan was checked in who(), before any read.) The demo businesses never write.
     if (isDemoTenantId(tenantId)) return json({ success: false, demo: true, error: DEMO_NOTE }, 403);
-    const guard = await requireActiveTenant(session);
-    if (!guard.ok) return guard.response;
 
     if (action === 'redeem') {
       const voucherId = String(b.voucherId || '');
@@ -203,6 +213,8 @@ export async function POST(request: Request) {
         buyerName, buyerPhone, recipientName, message: cleanMessage(b.message), clientId,
       }, { repo: supabaseVoucherRepo(db), randomBytes: rnd });
       if (r.status === 'missing') return needsMigration();
+      // A retry of a sale whose money was never recorded is a failure with a sentence, never a voucher handed over.
+      if (r.status === 'failed' && r.message) return json({ success: false, retryWithNewSale: true, error: r.message }, 409);
       if (r.status !== 'sold' && r.status !== 'already') return oops('sell', ('error' in r && r.error) || 'failed');
       return json({ success: true, already: r.status === 'already', voucher: r.voucher, receipt: r.receipt });
     }
