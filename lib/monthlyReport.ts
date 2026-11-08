@@ -60,6 +60,7 @@ export function treatmentShares(r: ReportReceipt): Treatment[] {
     const raw = typeof r.items === 'string' ? JSON.parse(r.items) : r.items;
     if (Array.isArray(raw)) {
       names = raw
+        .filter((i) => i?.loyalty_reward !== true) // the loyalty card's 🎁 mark (lib/loyalty.js) is not a treatment
         .map((i) => ({ name: String(i?.name ?? '').trim(), weight: Math.max(0, (Number(i?.price) || 0) * (Number(i?.qty) || 1)) }))
         .filter((i) => i.name);
     }
