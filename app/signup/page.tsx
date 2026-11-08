@@ -20,6 +20,7 @@ import {
 } from '@/lib/brand'
 import BrandImage from "@/app/BrandImage";
 import PhoneVerifyForm, { type PhoneVerified } from '../PhoneVerifyForm'
+import { referralsEnabled, normalizeReferralCode } from '@/lib/referral'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -42,6 +43,21 @@ export default function SignupPage() {
   const [ready, setReady] = useState(false)
   useEffect(() => setReady(true), [])
   const router = useRouter()
+  // "חברה מביאה חברה" (lib/referral.ts, NEXT_PUBLIC_REFERRALS): a /signup?ref=CODE link from another business. The code travels in
+  // her signup metadata (kl_ref); the DATABASE attributes her when her business is created (the tenants_attribute_referral trigger),
+  // so nothing the browser does later can add or change a referral. Shown only when the server says the code is real; the answer
+  // never names the business that invited her.
+  const [refCode, setRefCode] = useState<string | null>(null)
+  useEffect(() => {
+    if (!referralsEnabled()) return
+    let code: string | null = null
+    try { code = normalizeReferralCode(new URLSearchParams(window.location.search).get('ref')) } catch { /* no code */ }
+    if (!code) return
+    fetch(`/api/referrals/lookup?code=${encodeURIComponent(code)}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.valid === true) setRefCode(code) })
+      .catch(() => { /* signs up without it */ })
+  }, [])
 
   useEffect(() => {
     fetch('/api/phone/config', { cache: 'no-store' })
@@ -77,6 +93,7 @@ export default function SignupPage() {
         // inside and has a reason to answer.
         data: {
           ...(attr ? { kl_attr: attr } : {}),
+          ...(refCode ? { kl_ref: refCode } : {}),
           // The verified mobile and the server's signed proof of it. Claimed for her on her first signed-in request
           // (app/api/phone/status); the database refuses it if another account already holds the number.
           ...(phoneOk?.ticket ? { phone_e164: phoneOk.phone, phone_ticket: phoneOk.ticket } : {}),
@@ -174,6 +191,11 @@ export default function SignupPage() {
           </p>
           {/* Hairline with the actual flower mark, echoing the logo's own
               flower. Matches the same divider on /login. */}
+          {refCode && (
+            <p data-testid="signup-referral" role="status" style={{ ...welcomeSubtitleStyle, margin: '12px 0 0', padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--k-petal)', color: DEEP, fontWeight: 600 }}>
+              הגעת בהזמנה של עסק חבר 🌸 אחרי התשלום הראשון שלך תקבלי חודש מנוי במתנה, וגם היא.
+            </p>
+          )}
           <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16 }}>
             <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${ACCENT_LINE_2})` }} />
             <BrandImage src={FLOWER_MARK} alt="" width={14} height={14} style={{ display: 'block' }} />

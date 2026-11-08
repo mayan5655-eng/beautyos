@@ -15,6 +15,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { newMockToken } from '@/lib/billing/adapter';
 import { saveCard } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
+import { supabaseReferralRepo } from '@/lib/billing/referralRepo';
 import { verifyCardSession } from '@/lib/billing/session';
 import { admin, billing } from '../_shared';
 
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
   }
   try {
     const r = await saveCard(
-      { repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing },
+      { repo: supabaseBillingRepo(admin()), referrals: supabaseReferralRepo(admin()), payments: b.payments, invoicing: b.invoicing },
       tenantId,
       { tokenRef: newMockToken(result === 'ok' ? 'ok' : 'decline'), last4: result === 'ok' ? '4242' : '0002', brand: 'Visa' },
     );

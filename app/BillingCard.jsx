@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { trialEndDateHe } from '@/lib/planCopy';
 import { subscriptionDoc } from '@/lib/kalmeaBusiness';
-import { billingConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
+import { billingConsentTextHe, billingAnnualConsentTextHe, billingMonthlyConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
+import { annualOfferHe } from '@/lib/planCopy';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import { priceHe } from '@/lib/pricing';
 
@@ -30,6 +31,9 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   const [consentOk, setConsentOk] = useState(false);
   // Add-on packs (lib/pricing.ts, only when the status route sends `addons`): the pack she tapped, waiting for her "yes, charge".
   const [confirmPack, setConfirmPack] = useState(null);
+  // The yearly plan (only when the status route sends `annual`, NEXT_PUBLIC_ANNUAL_PLAN): the plan she tapped, waiting for her tick.
+  const [periodAsk, setPeriodAsk] = useState(null);
+  const [periodOk, setPeriodOk] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +93,21 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
+  const choosePeriod = async (period) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/billing/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period, consent: periodOk === true }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לשמור, נסי שוב', 'error'); return; }
+      toast?.(j.pendingPeriod ? 'נשמר. המעבר ייכנס לתוקף בחידוש הבא 🌸' : 'נשמר, המסלול נשאר כמו שהיה');
+      setPeriodAsk(null); setPeriodOk(false);
+      await load();
+    } catch {
+      toast?.('אין חיבור. לא נשמר, נסי שוב', 'error');
+    } finally { setBusy(false); }
+  };
+
   const cancel = async () => {
     if (busy) return;
     setBusy(true);
@@ -116,18 +135,22 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     const sub = s.subscription;
     const status = s.plan.status;
     const hasCard = !!sub?.card_last4;
+    // The yearly plan: her plan now, and a switch that waits for the renewal.
+    const an = s.annual || null;
+    const yearly = an?.billingPeriod === 'annual';
+    const nextPeriod = an?.pendingPeriod || an?.billingPeriod || 'monthly';
     let line;
     if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
     else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו בוואטסאפ ונחזיר אותו לפעילות.';
     else if (status === 'expired') line = 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.';
-    else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
+    else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(nextPeriod === 'annual' && an ? an.yearly : s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
     else if (sub?.next_charge_at) line = `החיוב הבא: ${day(sub.next_charge_at)}.`;
     else line = 'המנוי פעיל.';
 
     body = (
       <>
-        <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>לחודש</span></p>
+        <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{yearly ? money(an.yearly) : money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>{yearly ? 'לשנה' : 'לחודש'}</span></p>
         <p data-testid="billing-line" style={{ ...text, marginBottom: 10 }}>{line}</p>
 
         {hasCard && <p style={{ ...text, marginBottom: 8 }}>כרטיס שמור: <b dir="ltr">•••• {sub.card_last4}</b></p>}
@@ -135,7 +158,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         {!isDemo && s.configured && status !== 'paused' && (
           <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
             <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-            <span>{billingConsentTextHe(s.plan.price).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
+            <span>{(nextPeriod === 'annual' ? billingAnnualConsentTextHe(an.yearly, '') : billingConsentTextHe(s.plan.price)).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
           </label>
         )}
         {!isDemo && s.configured && status !== 'paused' && sub?.status !== 'canceled' && (
@@ -146,6 +169,53 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         )}
         {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
         {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
+
+        {an && (
+          <div data-testid="billing-period" style={{ marginTop: 16 }}>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מסלול תשלום</p>
+            {!an.ready ? (
+              <p style={text}>התשלום השנתי עוד לא פעיל בחשבון. נעדכן כשהוא זמין.</p>
+            ) : (
+              <>
+                <div role="radiogroup" aria-label="מסלול תשלום" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { k: 'monthly', title: 'חודשי', line: `${priceHe(an.monthly)} לחודש` },
+                    { k: 'annual', title: 'שנתי', line: annualOfferHe(an.monthly) },
+                  ].map((o) => {
+                    const on = nextPeriod === o.k;
+                    return (
+                      <button key={o.k} type="button" role="radio" aria-checked={on} data-testid={`billing-period-${o.k}`}
+                        disabled={busy || isDemo || !sub || sub.status === 'canceled'}
+                        onClick={() => { if (!on) { setPeriodAsk(o.k); setPeriodOk(false); } }}
+                        style={{ textAlign: 'right', background: on ? pcTint : 'var(--surface)', border: on ? `1.5px solid ${pc}` : '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', cursor: on ? 'default' : 'pointer', fontFamily: 'inherit', minHeight: 44, color: 'var(--ink)' }}>
+                        <b style={{ fontSize: 'var(--t-sm)' }}>{o.title}{on ? ' ✓' : ''}</b>
+                        <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', unicodeBidi: 'isolate' }}>{o.line}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {an.pendingPeriod && (
+                  <p data-testid="billing-period-pending" style={{ ...text, marginTop: 8 }}>
+                    {an.pendingPeriod === 'annual' ? 'המעבר לתשלום שנתי' : 'החזרה לתשלום חודשי'} ייכנס לתוקף בחידוש הבא{sub?.next_charge_at ? `, ב-${day(sub.next_charge_at)}` : ''}. עד אז לא משתנה דבר ולא יהיה חיוב נוסף.
+                  </p>
+                )}
+                {!sub && <p style={{ ...text, marginTop: 8 }}>אחרי שמירת כרטיס אפשר לבחור תשלום שנתי.</p>}
+                {periodAsk && sub && (
+                  <div style={{ marginTop: 10, background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
+                    <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                      <input type="checkbox" data-testid="billing-period-consent" checked={periodOk} onChange={(e) => setPeriodOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
+                      <span>{(periodAsk === 'annual' ? billingAnnualConsentTextHe(an.yearly, day(sub.next_charge_at)) : billingMonthlyConsentTextHe(an.monthly, day(sub.next_charge_at))).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                      <button type="button" data-testid="billing-period-confirm" style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none', opacity: periodOk ? 1 : 0.55 }} disabled={busy || !periodOk} onClick={() => choosePeriod(periodAsk)}>{periodAsk === 'annual' ? 'כן, לעבור לשנתי' : 'כן, לחזור לחודשי'}</button>
+                      <button type="button" style={ghost} disabled={busy} onClick={() => { setPeriodAsk(null); setPeriodOk(false); }}>ביטול</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {Array.isArray(s.addons) && s.addons.length > 0 && (
           <div id="billing-addons" data-testid="billing-addons" style={{ marginTop: 16, scrollMarginTop: 80 }}>
@@ -190,7 +260,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} data-testid="billing-history">
               {s.payments.map((p) => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : p.kind === 'addon' ? ' · תוספת' : ''}</span>
+                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : p.kind === 'addon' ? ' · תוספת' : an && p.period_start && p.period_end && Date.parse(p.period_end) - Date.parse(p.period_start) > 40 * 864e5 ? ' · שנתי' : ''}</span>
                   <span style={{ display: 'flex', gap: 8 }}>
                     <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--ink-3)' }}>{p.status === 'succeeded' ? 'שולם' : p.status === 'failed' ? 'נכשל' : 'בבדיקה מול Grow'}</b>
                     {p.status === 'succeeded' && !p.invoice_url && p.invoice_status === 'pending' && <span style={{ color: 'var(--ink-3)' }}>הקבלה בדרך</span>}

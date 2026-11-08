@@ -18,7 +18,7 @@
 //     hides and blocks, it never deletes anything.
 
 import type { PlanStatus } from './planState.ts'
-import { PLAN_PRICES, priceHe } from './pricing.ts'
+import { PLAN_PRICES, ANNUAL_MONTHS_PAID, annualPriceOf, priceHe } from './pricing.ts'
 
 /**
  * The intro price line. Owner's words (2026-10-21): "מחיר היכרות 349 לזמן מוגבל, לא לציין תאריך". So: always
@@ -106,6 +106,12 @@ export function upgradeCtaHe(price: number): string {
 export const UPGRADE_HINT_HE = 'החיוב הראשון רק כשתקופת ההתנסות מסתיימת.'
 
 /** The blocked card's button with the price on it, when the upgrade buttons are on. */
+/** The yearly option (NEXT_PUBLIC_ANNUAL_PLAN): "תשלום שנתי: 3490 ₪ לשנה, חודשיים מתנה". Prices from lib/pricing.ts. */
+export function annualOfferHe(monthly: number): string {
+  const free = 12 - ANNUAL_MONTHS_PAID
+  return `תשלום שנתי: ${priceHe(annualPriceOf(monthly))} לשנה, ${free === 2 ? 'חודשיים' : `${free} חודשים`} מתנה`
+}
+
 export function payToContinueHe(price: number): string {
   return `תשלום וחזרה לעבודה, ${priceHe(price)} לחודש`
 }
