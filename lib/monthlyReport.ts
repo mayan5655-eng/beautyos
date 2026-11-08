@@ -19,6 +19,11 @@ import { liveReceipts } from './till.ts';
 import { incomeTotals } from './incomePeriod.js';
 import { parseDb } from './dbTime.js';
 import { isVoucherSaleReceipt } from './giftVouchers.ts';
+import { isProductOnlyReceipt, productShares, PRODUCT_ITEM_KIND } from './products.ts';
+
+// Products (lib/products.ts) are income at sale, counted in the money once with everything else, and shown as their own line.
+// A product is never "the treatment that earned the most", and a products-only receipt is not a treatment.
+const notAVisit = (r: ReportReceipt) => isVoucherSaleReceipt(r) || isProductOnlyReceipt(r);
 
 const TZ = 'Asia/Jerusalem';
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -55,13 +60,13 @@ export type Treatment = { name: string; income: number };
 export function treatmentShares(r: ReportReceipt): Treatment[] {
   const amount = Number(r.amount) || 0;
   if (amount <= 0) return [];
-  let names: { name: string; weight: number }[] = [];
+  let names: { name: string; weight: number; product?: boolean }[] = [];
   try {
     const raw = typeof r.items === 'string' ? JSON.parse(r.items) : r.items;
     if (Array.isArray(raw)) {
       names = raw
         .filter((i) => i?.loyalty_reward !== true) // the loyalty card's 🎁 mark (lib/loyalty.js) is not a treatment
-        .map((i) => ({ name: String(i?.name ?? '').trim(), weight: Math.max(0, (Number(i?.price) || 0) * (Number(i?.qty) || 1)) }))
+        .map((i) => ({ name: String(i?.name ?? '').trim(), weight: Math.max(0, (Number(i?.price) || 0) * (Number(i?.qty) || 1)), product: String(i?.kind || '') === PRODUCT_ITEM_KIND }))
         .filter((i) => i.name);
     }
   } catch { /* fall back to the service text */ }
@@ -71,7 +76,8 @@ export function treatmentShares(r: ReportReceipt): Treatment[] {
   if (names.length === 0) return [];
   let total = names.reduce((s, i) => s + i.weight, 0);
   if (total <= 0) { names = names.map((i) => ({ ...i, weight: 1 })); total = names.length; }
-  return names.map((i) => ({ name: i.name, income: (amount * i.weight) / total }));
+  // A product line keeps its share of the amount (so a discount is spread over every line) but is not a treatment.
+  return names.filter((i) => !i.product).map((i) => ({ name: i.name, income: (amount * i.weight) / total }));
 }
 
 export function topTreatment(receipts: ReportReceipt[]): Treatment | null {
@@ -143,7 +149,9 @@ export type MonthlyReport = {
   elapsedDays: number;
   income: number;          // this month so far, rounded shekels
   prevIncome: number;      // last month over the same elapsed days
-  count: number;           // treatments this month so far (receipts that are not gift voucher sales)
+  count: number;           // treatments this month so far (receipts that are not gift voucher or products-only sales)
+  productIncome: number;   // the part of `income` that was product sales (lib/products.ts productShares), rounded shekels
+  productUnits: number;
   top: Treatment | null;
   observation: Observation | null;
   netOfVat: boolean;       // the figure is shown without VAT (a dealer who charges it)
@@ -177,6 +185,10 @@ export function monthlyReport(input: {
   }
   const money = (rs: ReportReceipt[]) => incomeTotals(rs.map((r) => r.amount as number), input.status, input.vatRate).net;
   const income = money(thisMonth);
+  // The product part, through the same VAT treatment as the whole, so it is a true part of the figure above it.
+  let productGross = 0, productUnits = 0;
+  for (const r of thisMonth) { const s = productShares(r); productGross += s.income; productUnits += s.units; }
+  const productIncome = productGross > 0 ? incomeTotals([productGross], input.status, input.vatRate).net : 0;
   const prevIncome = money(lastMonthSameDays);
   const netOfVat = input.status !== 'exempt';
   const monthName = MONTHS_HE[today.month];
@@ -184,13 +196,13 @@ export function monthlyReport(input: {
 
   // Nothing real to say: a month with no payment yet (or only payments that add up to nothing).
   if (thisMonth.length === 0 || income <= 0) {
-    return { ...base, hasData: false, income: 0, prevIncome: Math.round(prevIncome), count: 0, top: null, observation: null, sentences: [] };
+    return { ...base, hasData: false, income: 0, prevIncome: Math.round(prevIncome), count: 0, productIncome: 0, productUnits: 0, top: null, observation: null, sentences: [] };
   }
 
   const top = topTreatment(thisMonth);
   const lapsed = lapsedClientCount(input.appointments || [], today);
   // Visits only: a voucher sold on a quiet day does not make it a busy one.
-  const quiet = quietestWeekday(live.filter((r) => !isVoucherSaleReceipt(r)), today);
+  const quiet = quietestWeekday(live.filter((r) => !notAVisit(r)), today);
   let observation: Observation | null = null;
   if (lapsed >= 3) observation = { kind: 'lapsed', count: lapsed };
   else if (quiet) observation = { kind: 'quiet', dow: quiet.dow, count: quiet.count, total: quiet.total };
@@ -211,9 +223,13 @@ export function monthlyReport(input: {
   } else {
     sentences.push(`${sofar} הכנסת ${nis(inc)}${vatNote}. בחודש שעבר באותם ימים לא נרשמו תשלומים, אז אין עם מה להשוות עדיין.`);
   }
-  // Treatments, not receipts: a gift voucher sale is counted in the money above (it was paid) but it is not a treatment.
-  const n = thisMonth.filter((r) => !isVoucherSaleReceipt(r)).length;
-  sentences.push(n === 0 ? 'עוד לא נרשמו טיפולים החודש, רק מכירת שוברי מתנה.' : n === 1 ? 'עד עכשיו עשית טיפול אחד.' : `עד עכשיו עשית ${n} טיפולים.`);
+  const pInc = Math.round(productIncome);
+  if (pInc > 0) sentences.push(`מתוך זה ${nis(pInc)} ממכירת מוצרים (${productUnits === 1 ? 'מוצר אחד' : `${productUnits} מוצרים`}).`);
+  // Treatments, not receipts: a gift voucher or a products-only sale is counted in the money above (it was paid) but is not a treatment.
+  const n = thisMonth.filter((r) => !notAVisit(r)).length;
+  const onlyVouchers = thisMonth.every((r) => isVoucherSaleReceipt(r));
+  const onlyProducts = thisMonth.every((r) => isProductOnlyReceipt(r));
+  sentences.push(n === 0 ? (onlyVouchers ? 'עוד לא נרשמו טיפולים החודש, רק מכירת שוברי מתנה.' : onlyProducts ? 'עוד לא נרשמו טיפולים החודש, רק מכירת מוצרים.' : 'עוד לא נרשמו טיפולים החודש, רק מכירת מוצרים ושוברי מתנה.') : n === 1 ? 'עד עכשיו עשית טיפול אחד.' : `עד עכשיו עשית ${n} טיפולים.`);
   if (top) sentences.push(`הטיפול שהכניס לך הכי הרבה הוא ${top.name}, ${nis(top.income)}.`);
   if (observation?.kind === 'lapsed') {
     sentences.push(observation.count === 1
@@ -222,5 +238,5 @@ export function monthlyReport(input: {
   } else if (observation?.kind === 'quiet') {
     sentences.push(`יום ${WEEKDAY_HE[observation.dow]} הוא היום הכי שקט שלך: ${observation.count === 1 ? 'טיפול אחד' : `${observation.count} טיפולים`} מתוך ${observation.total} ב-8 השבועות האחרונות.`);
   }
-  return { ...base, hasData: true, income: inc, prevIncome: pinc, count: n, top, observation, sentences };
+  return { ...base, hasData: true, income: inc, prevIncome: pinc, count: n, productIncome: pInc, productUnits, top, observation, sentences };
 }
