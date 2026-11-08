@@ -72,7 +72,8 @@ export default function VoucherView({ token, initial, buyer, growResult }: { tok
 
   return (
     <PublicPage primary={brand?.primary || null}>
-      <BusinessHeader logoUrl={brand?.logoUrl} name={brand?.name} />
+      {/* Her logo is ON the gift card below (the hero of this page); the header carries her name only, so the logo is not shown twice. */}
+      <BusinessHeader logoUrl={null} name={brand?.name} />
 
       {buyer && (
         <div className="pub-card" data-testid="voucher-buyer-share" style={{ marginBottom: 14, padding: '18px 18px' }}>

@@ -94,7 +94,9 @@ export async function renderVoucherImage(origin: string, lookIn: VoucherLook, cI
   const card = kind === 'story' ? { w: 940, h: 1180, top: 330 } : { w: W, h: H, top: 0 };
   const k = card.w / 340;
   const titleSize = (isMoney(c.title) ? 46 : c.title.length > 16 ? 24 : 30) * k;
-  const titleLines = isMoney(c.title) ? [c.title] : rtlLines(c.title, 18, 2);
+  // The story's title is "שובר מתנה", which is also the default headline: drawn once, not twice (logo walk, 2026-11-08).
+  const sameAsHeadline = c.title.trim() === look.headline.trim();
+  const titleLines = sameAsHeadline ? [] : isMoney(c.title) ? [c.title] : rtlLines(c.title, 18, 2);
   const msgLines = c.message ? rtlLines(`״${c.message.replace(/\n/g, ' ')}״`, 30, 3) : [];
   const headlineLines = rtlLines(look.headline, 18, 2);
   const orn = ornaments(look, card.w, card.h);
@@ -111,8 +113,11 @@ export async function renderVoucherImage(origin: string, lookIn: VoucherLook, cI
       ))}
       <div style={{ position: 'absolute', top: 0, left: 0, width: card.w, height: card.h, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `${26 * k}px ${24 * k}px` }}>
         {c.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.logo} height={44 * k} style={{ maxWidth: 110 * k, objectFit: 'contain', marginBottom: 8 * k }} alt="" />
+          // The same box as the web card (app/VoucherArt.tsx LOGO_MAX_W / LOGO_MAX_H): 72 tall, at most 150 wide, contained.
+          <div style={{ display: 'flex', marginBottom: 10 * k, ...(look.logoPlate ? { background: look.logoPlate, borderRadius: 14 * k, padding: `${6 * k}px ${10 * k}px` } : {}) }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={c.logo} height={72 * k} style={{ maxWidth: 150 * k, objectFit: 'contain' }} alt="" />
+          </div>
         ) : c.businessName ? <HebLine text={c.businessName} size={14 * k} color={look.sub} family="Assistant" /> : null}
         {headlineLines.map((l, i) => <div key={i} style={{ display: 'flex', fontFamily: head.name, fontWeight: 700, fontSize: 30 * k, color: look.ink, lineHeight: 1.15 }}>{l}</div>)}
         <div style={{ display: 'flex', width: 44 * k, height: 3 * k, borderRadius: 3, background: look.accent, margin: `${8 * k}px 0` }} />
@@ -156,7 +161,7 @@ export async function renderVoucherImage(origin: string, lookIn: VoucherLook, cI
   return new ImageResponse(
     (
       <div style={{ width: W, height: H, display: 'flex', position: 'relative', background: look.bg }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex', background: 'rgba(255,255,255,0.35)' }} />
+        <div style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex', background: look.logoPlate ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.35)' }} />
         <div style={{ position: 'absolute', top: 120, left: 0, width: W, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {tagline.map((l, i) => <div key={i} style={{ display: 'flex', fontFamily: head.name, fontWeight: 700, fontSize: 64, color: look.ink, lineHeight: 1.15 }}>{l}</div>)}
         </div>
