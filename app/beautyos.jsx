@@ -151,7 +151,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
-import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE } from "@/lib/giftVouchers";
+import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -5568,13 +5568,22 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (data && data[0]) setReceiptVoids(prev => [...prev, data[0]]);
       // Products on the voided receipt go back to stock, once (the database refuses a second time).
       if (data && data[0]) productsApi.afterVoid(receipt);
+      // A gift voucher that paid this sale gets its amount back (app/api/vouchers reverse_receipt). It stayed spent before.
+      let voucherBack = 0;
+      if (data && data[0] && paidByVoucher(receipt)) {
+        try {
+          const vr = await fetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reverse_receipt", receiptId: receipt.id }) }).then((r) => r.json()).catch(() => null);
+          if (vr && vr.returned > 0) voucherBack = vr.returned;
+          else if (!vr || vr.success === false) toast("התשלום בוטל, אבל הסכום עוד לא חזר לשובר. אפשר לנסות שוב ממסך שוברי המתנה, או לכתוב לנו.", "error");
+        } catch { /* the void itself stands; the message above covers a refusal */ }
+      }
       setVoidOpen(false); setVoidReason("");
       if (legal && data && data[0]) {
         const d = await requestCredit(data[0]);
         if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים ✦");
         else toast(((d && d.error) || "מסמך הזיכוי עוד לא הונפק") + " התשלום ממשיך להיספר עד שהוא יונפק.", "error");
       } else {
-        toast("התשלום בוטל, המקור נשמר, והסכום ירד מהסיכומים");
+        toast("התשלום בוטל, המקור נשמר, והסכום ירד מהסיכומים" + (voucherBack > 0 ? `. ₪${voucherBack} חזרו לשובר המתנה` : ""));
       }
     } finally { setBusyKey("voidReceipt", false); }
   };
@@ -6507,7 +6516,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return `שלום ${receipt.client_name || "לקוחה"}! ✦\n` +
       `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
-      `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
+      `💳 אמצעי תשלום: ${receiptMethodLabel(receipt, "מזומן")}\n` +
       `📅 תאריך: ${fmtDateHe(localDayKey(receipt.created_at))}\n\n` +
       (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
@@ -12069,7 +12078,8 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowReceipt(null)} width={360} zIndex={1100} flush className="pop-in" ariaLabel={docLabelHe(showReceipt)}>
  <div className="receipt-print" style={{padding:24}}>
  <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
- <BrandImage src={BANNER_WIDE} alt="" width={BANNER_WIDE_W} height={BANNER_WIDE_H} sizes="240px" style={{width:"100%",maxWidth:240,height:"auto",margin:"0 auto 10px",display:"block"}}/>
+ {/* Her payment confirmation carries HER logo, or none: it used to print the Kalmea banner on every client's paper (2026-11-08 QA, brand rule). */}
+ {settings?.branding?.logo_url&&<img data-testid="receipt-logo" src={settings.branding.logo_url} alt={settings.business_name||""} style={{maxWidth:160,maxHeight:72,objectFit:"contain",margin:"0 auto 10px",display:"block"}}/>}
  <p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>{docLabelHe(showReceipt)}{showReceipt.legal_status==="issued"&&showReceipt.legal_doc_number?" מספר "+showReceipt.legal_doc_number:""}</p>
                 {settings.business_phone&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{settings.business_phone}</p>}
@@ -12078,7 +12088,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{fmtDateHe(localDayKey(showReceipt.created_at))}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{receiptMethodLabel(showReceipt)}</span></div>
                 {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
  <div key={i} style={{display:"flex",justifyContent:"space-between",paddingRight:12}}><span style={{color:"var(--ink-3)"}}>· {ln.method}</span><span>₪{ln.amount}</span></div>
                 ))}
@@ -12175,6 +12185,16 @@ ${MARKETING_FOOTER}`)}`;
                 const openRebookSheet = rbClient ? ()=>setRebookNext({client:rbClient,appt:rbAnchor,receiptId:showReceipt.id,service:rbService}) : null;
                 const sheetButton = openRebookSheet && (
  <button data-testid="rebook-receipt" onClick={openRebookSheet} style={{display:"block",width:"100%",minHeight:44,marginTop:8,background:"transparent",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>↻ קבעי לה שוב לפי הקצב שלה</button>
+                );
+                // She already has a next visit on the calendar: say so instead of offering a one-tap second booking, which
+                // put a duplicate on the calendar (2026-11-08 QA). The sheet stays one tap away for a real extra visit.
+                const rbFuture = rbClient ? appointments.filter(a=>String(a.client_id)===String(rbClient.id)&&a.confirmation_status!=="cancelled"&&a.kind!=="personal"&&String(a.date||"")>today).sort((a,b)=>String(a.date).localeCompare(String(b.date))) : [];
+                if (rbFuture.length>0) return (
+ <div data-testid="rebook-receipt-already" style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:pcTint,border:`1px solid ${pc}`}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0}}>התור הבא</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:"2px 0 0"}}>כבר יש לה תור ביום {DAYS_HE[new Date(rbFuture[0].date).getDay()]}, {formatDateHe(new Date(rbFuture[0].date))} בשעה {fmtApptTime(rbFuture[0])}.</p>
+ {sheetButton}
+ </div>
                 );
                 if (!rebookPlan) return openRebookSheet ? (
  <div style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:pcTint,border:`1px solid ${pc}`}}>

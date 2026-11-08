@@ -323,6 +323,17 @@ export function paidByVoucher(r: { note?: unknown } | null | undefined): boolean
   return !!r && REDEEM_NOTE_RE.test(String(r.note ?? ''));
 }
 
+/**
+ * The payment method to SHOW on a payment confirmation. A sale the gift voucher paid in full still stores the till's
+ * selected method (often "אשראי"), and the confirmation read "אמצעי תשלום: אשראי" over a total of ₪0 (2026-11-08 QA).
+ * Display only: the stored value is left alone, so reports and the loyalty count read exactly what they always did.
+ */
+export function receiptMethodLabel(r: { amount?: unknown; payment_method?: unknown; note?: unknown } | null | undefined, fallback = ''): string {
+  const method = String(r?.payment_method ?? '') || fallback;
+  if (r && Number(r.amount) === 0 && paidByVoucher(r) && method !== 'חבילה') return 'שובר מתנה';
+  return method;
+}
+
 // ── What a public page may show ───────────────────────────────────────────
 
 export type PublicVoucher = {
