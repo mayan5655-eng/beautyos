@@ -106,6 +106,7 @@ import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
 const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: false });
@@ -126,6 +127,7 @@ const ProductSettings = dynamic(() => import("./ProductSettings"), { ssr: false 
 import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
 import useProducts from "./useProducts";
 import { lowStockAttention, productsConfig } from "@/lib/products";
+import { tillTabsOf, activeTillTab } from "@/lib/tillTabs";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -1318,6 +1320,14 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [voucherAdj, setVoucherAdj] = useState(null);
   // Her products (app/useProducts.js): loads nothing when products are switched off. Stock only ever moves on the server.
   const productsApi = useProducts(settings);
+  // The till (קופה) in tabs: "pay" | "vouchers" | "products" (lib/tillTabs.ts). A tab for a feature that is off is not shown.
+  const [tillTab, setTillTab] = useState("pay");
+  // false once the vouchers panel says it has nothing to show (before its migration, or selling off with nothing sold).
+  const [vouchersAvail, setVouchersAvail] = useState(true);
+  // A request to open the voucher sale form, from "תשלום חדש" (a counter: each tap is a new request). The panel opens the SAME sale
+  // form as its own "מכירת שובר" button (app/GiftVouchersPanel.jsx), so no sale logic lives here.
+  const [voucherSellReq, setVoucherSellReq] = useState(0);
+  const openVoucherSale = () => { setShowCashier(false); setActiveTab("cashier"); setTillTab("vouchers"); setVoucherSellReq(n=>n+1); };
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -10210,12 +10220,30 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא לאקסל</button>
  </div>
  </div>
+ {(()=>{
+   // Tabs only when there is more than one thing to show (lib/tillTabs.ts). Every panel stays MOUNTED and is only hidden, so a
+   // voucher sale asked for from "תשלום חדש" finds its panel loaded, and switching tabs never loses a half-filled form.
+   const tabs=tillTabsOf({vouchers:giftVouchersVisible(settings)&&vouchersAvail,products:productsApi.visible&&(productsApi.status==="ready"||productsApi.status==="error")});
+   const cur=activeTillTab(tillTab,tabs);
+   return(<>
+ {tabs.length>1&&(
+ <div role="tablist" aria-label="אזורי הקופה" data-testid="till-tabs" style={{display:"flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
+   {tabs.map(t=>(
+ <button key={t.k} type="button" role="tab" aria-selected={cur===t.k} data-testid={`till-tab-${t.k}`} onClick={()=>setTillTab(t.k)} style={{flex:1,minHeight:44,padding:"8px 6px",border:"none",borderRadius:"var(--r-sm)",background:cur===t.k?pcGrad:"transparent",color:cur===t.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:cur===t.k?700:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
+   ))}
+ </div>
+ )}
+ {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="vouchers"}>
+ <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} voidedReceiptIds={voidedReceiptIdSet} sellRequest={voucherSellReq} onAvailable={setVouchersAvail} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
+ </div>
+ {/* Products and inventory: renders nothing when switched off or before the migration. */}
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="products"}>
+ <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
+ </div>
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="pay"}>
  {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
- {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
- <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} voidedReceiptIds={voidedReceiptIdSet} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
- {/* Products and inventory: renders nothing when switched off or before the migration. */}
- <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's
@@ -10321,6 +10349,8 @@ ${MARKETING_FOOTER}`)}`;
                 );
               })}
  </div>
+ </div>
+ </>);})()}
  </div>
  </>)}
 
@@ -10568,7 +10598,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
- {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");}}/>}
+ {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -11933,6 +11963,15 @@ ${MARKETING_FOOTER}`)}`;
  <button type="button" onClick={()=>{setShowCashier(false);openSetupTab("general");}} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--k-green)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>{settings.business_tax_status?"לאישור סוג העסק בהגדרות ←":"לבחירת סוג העסק בהגדרות ←"}</button>
  </div>
  )}
+ {/* Selling a gift voucher from here: opens the SAME sale form as the vouchers tab (app/GiftVouchersPanel.jsx, /api/vouchers 'sell'),
+     never a second sale path. Only on a fresh payment (no appointment, nothing added yet), so a half-built sale is never lost. */}
+ {giftVouchersSelling(settings)&&vouchersAvail&&!cashierAppt&&cashierItems.length===0&&(
+ <button type="button" data-testid="cashier-sell-voucher" onClick={openVoucherSale} style={{display:"flex",alignItems:"center",gap:10,width:"100%",minHeight:48,marginBottom:10,padding:"10px 12px",background:pcTint,border:`1px dashed ${pc}`,borderRadius:"var(--r-sm)",cursor:"pointer",fontFamily:"inherit",textAlign:"right",color:"var(--ink)"}}>
+ <span aria-hidden="true" style={{fontSize:"var(--t-lg)",flexShrink:0}}>🎁</span>
+ <span style={{flex:1,minWidth:0}}><span style={{display:"block",fontSize:"var(--t-sm)",fontWeight:700}}>מכירת שובר מתנה</span><span style={{display:"block",fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>לקוחה קונה שובר במקום טיפול? מכאן</span></span>
+ <span aria-hidden="true" style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--pc-deep)",flexShrink:0}}>←</span>
+ </button>
+ )}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"var(--success)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"var(--surface-2)":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
@@ -12639,7 +12678,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
  <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
-                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
+                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"payments",l:"תשלומים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -13506,7 +13545,15 @@ ${MARKETING_FOOTER}`)}`;
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} toast={toast} tenantId={settings?.tenant_id||null} brandPrimary={editSettings.primary_color||settings?.primary_color} businessName={editSettings.business_name||settings?.business_name||""} logoUrl={editSettings.branding?.logo_url||settings?.branding?.logo_url||null} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("business")&&(<ProductSettings api={productsApi} automations={editSettings.automations} pc={pc} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
-              {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
+              {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenPolicy={()=>setSettingsGroup("payments")}/>)}
+              {inG("payments")&&(()=>{
+   // Settings > תשלומים: every deposit in one place (app/PaymentsSettings.jsx). Writes the same branding.booking_rules fields the
+   // booking rules wrote before, and shows the Grow deposit policy when she is connected.
+   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+   const r=(b.booking_rules&&typeof b.booking_rules==="object")?b.booking_rules:{};
+   const setRule=(patch)=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};const cur=(pb.booking_rules&&typeof pb.booking_rules==="object")?pb.booking_rules:{};return {...prev,branding:{...pb,booking_rules:{...cur,...patch}}};});
+   return(<PaymentsSettings rules={r} setRule={setRule} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenServices={()=>setSettingsGroup("booking")}/>);
+ })()}
               {inG("clients")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
@@ -13637,13 +13684,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"-4px 0 0"}}>הזמן הזה נשאר פנוי אחרי כל תור, גם בדף וגם ביומן שלך. אפשר לקבוע זמן אחר לשירות מסוים ברשימת השירותים.</p>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>ביטול ללא חיוב עד</span>
  <select aria-label="חלון ביטול" value={Number(r.cancel_window_hours)||0} onChange={e=>setRule({cancel_window_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי מגבלה"],[12,"12 שעות לפני"],[24,"יום לפני"],[48,"יומיים לפני"],[72,"3 ימים לפני"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
- <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מקדמה בקביעת תור (₪)</span>
- <input type="number" min="0" max="5000" inputMode="numeric" aria-label="מקדמה" value={Number(r.deposit_amount)>0?Number(r.deposit_amount):""} placeholder="ללא" onChange={e=>setRule({deposit_amount:e.target.value===""?0:Math.max(0,Math.min(5000,Math.round(Number(e.target.value)||0)))})} style={{...sel,width:96}}/></label>
-              {Number(r.deposit_amount)>0&&(
- <div>
- <input aria-label="איך משלמים מקדמה" maxLength={200} value={typeof r.deposit_note==="string"?r.deposit_note:""} onChange={e=>setRule({deposit_note:e.target.value})} placeholder="איך משלמים: למשל, ביט ל-050-0000000" style={{...sel,width:"100%"}}/>
- </div>
-              )}
+ {/* The deposit moved to Settings > תשלומים (app/PaymentsSettings.jsx), the one place for deposits. Same field; here only a link. */}
+ <div data-testid="booking-deposit-link" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)",flexWrap:"wrap"}}><span>מקדמה בקביעת תור: {Number(r.deposit_amount)>0?`₪${Number(r.deposit_amount)}`:"ללא"}</span>
+ <button type="button" onClick={()=>setSettingsGroup("payments")} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--pc-deep)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>לשינוי בתשלומים ←</button></div>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>כשיש מקדמה או חלון ביטול, הלקוחה רואה את התנאים בדף ההזמנה ומאשרת אותם לפני שהתור נקבע. הקישור לביטול בהודעה לא יבטל תור שנמצא בתוך החלון. המקדמה משולמת אלייך ישירות, והמערכת לא גובה אותה.</p>
  </div>
  </div>
