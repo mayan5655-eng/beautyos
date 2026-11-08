@@ -7,10 +7,12 @@
 //   subscription             null until she adds a card; otherwise status, price, next charge, card last four, failed attempts, grace end
 //   payments                 her billing history with the invoice links
 //   tableReady               false while add_kalmea_billing.sql has not been run
+//   annual                   only with NEXT_PUBLIC_ANNUAL_PLAN=1: { ready, monthly, yearly, billingPeriod, pendingPeriod } (ready false
+//                            before add_referrals_annual_2026-11-08.sql). Absent while the flag is off, so the card is as before.
 import { NextResponse } from 'next/server';
 import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
 import { admin, billing, caller, tableMissing } from '../_shared';
-import { ADDON_PACKS, ADDON_PACK_KEYS, addonPacksEnabled, addonButtonHe } from '@/lib/pricing';
+import { ADDON_PACKS, ADDON_PACK_KEYS, addonPacksEnabled, addonButtonHe, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { getCallCapStatus } from '@/lib/ai/callCaps';
 import { purchasedAddons } from '@/lib/addonQuota';
 
@@ -49,6 +51,21 @@ export async function GET() {
     };
   }
 
+  // The yearly plan, read on its own so a missing column (migration not run) never hides the rest of the billing card.
+  let annual: Record<string, unknown> | null = null;
+  if (annualPlanEnabled()) {
+    const monthly = Number(out.plan.price);
+    annual = { ready: false, monthly, yearly: annualPriceOf(monthly), billingPeriod: 'monthly', pendingPeriod: null };
+    if (s.data) {
+      const ap = await admin().from('billing_subscriptions').select('billing_period, pending_period').eq('tenant_id', c.tenantId).maybeSingle();
+      if (!ap.error) annual = { ...annual, ready: true, billingPeriod: ap.data?.billing_period === 'annual' ? 'annual' : 'monthly', pendingPeriod: ap.data?.pending_period ?? null };
+    } else {
+      // No subscription yet: ready means the columns exist (a head read of the column), so the choice can be offered after the card.
+      const ap = await admin().from('billing_subscriptions').select('billing_period', { head: true, count: 'exact' }).eq('tenant_id', c.tenantId);
+      annual = { ...annual, ready: !ap.error };
+    }
+  }
+
   const p = await admin()
     .from('billing_payments')
     .select('id, kind, status, amount, currency, period_start, period_end, invoice_status, invoice_number, invoice_url, note, created_at')
@@ -64,7 +81,7 @@ export async function GET() {
       const st = await getCallCapStatus(c.tenantId, p.callSite, { purchased: bought });
       return { key: k, label: p.unitHe, used: st.unknown ? null : st.used, cap: st.cap, purchased: st.purchased || 0, units: p.units, price: p.price, button: addonButtonHe(p) };
     }));
-    return NextResponse.json({ ...out, addons });
+    return NextResponse.json({ ...out, addons, ...(annual ? { annual } : {}) });
   }
-  return NextResponse.json(out);
+  return NextResponse.json(annual ? { ...out, annual } : out);
 }

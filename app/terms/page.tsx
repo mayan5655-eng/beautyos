@@ -9,7 +9,8 @@ import PublicFooterLinks from "../PublicFooterLinks";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 import KalmeaLegalFooter from "../KalmeaLegalFooter";
 import { footerBusinessLine } from "@/lib/kalmeaBusiness";
-import { PLAN_PRICES, priceHe } from "@/lib/pricing";
+import { PLAN_PRICES, priceHe, annualPlanEnabled, annualPriceOf, ANNUAL_MONTHS_PAID } from "@/lib/pricing";
+import { referralsEnabled, REFERRAL_HOLD_DAYS } from "@/lib/referral";
 
 // Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
@@ -136,6 +137,34 @@ export default function TermsPage() {
             advance notice.
           </En>
         </Section>
+
+        {/* Both only with their flags on (lib/pricing.ts, lib/referral.ts); while off the terms read exactly as before. */}
+        {annualPlanEnabled() && (
+          <Section heHeading="תשלום שנתי" enHeading="Annual Plan">
+            <He>
+              אפשר לבחור תשלום שנתי: חיוב אחד של {priceHe(annualPriceOf(PLAN_PRICES.regular))} לשנה ({priceHe(annualPriceOf(PLAN_PRICES.launch))} במחיר ההיכרות), במקום {ANNUAL_MONTHS_PAID} חודשים.
+              המעבר נכנס לתוקף בחידוש הבא של המנוי, בלי חיוב כפול. ביטול באמצע שנה ששולמה משאיר את המנוי פעיל עד סוף אותה שנה.
+            </He>
+            <En>
+              You may choose to pay yearly: one charge of NIS {annualPriceOf(PLAN_PRICES.regular)} per year (NIS {annualPriceOf(PLAN_PRICES.launch)} at the
+              introductory price), the price of {ANNUAL_MONTHS_PAID} months. The switch takes effect at your next renewal, never as a double charge.
+              Cancelling during a paid year keeps the subscription active until the end of that year.
+            </En>
+          </Section>
+        )}
+        {referralsEnabled() && (
+          <Section heHeading="חברה מביאה חברה" enHeading="Referrals">
+            <He>
+              עסק שמצטרף דרך קישור ההזמנה האישי שלך ומשלם את התשלום הראשון שלו, מזכה את שני העסקים בחודש מנוי אחד במתנה, פעם אחת לכל עסק שמצטרף.
+              החודש נכנס לתוקף {REFERRAL_HOLD_DAYS} ימים אחרי התשלום, במקום החיוב הבא. תשלום שהוחזר או בוטל אינו מזכה בחודש. הזמנה של עצמך או של עסק של אותה בעלת עסק אינה מזכה.
+            </He>
+            <En>
+              When a business joins through your personal invite link and makes its first payment, both businesses receive one free month, once per
+              joining business. The month applies {REFERRAL_HOLD_DAYS} days after that payment, in place of the next charge. A refunded or voided
+              payment earns nothing, and neither does inviting yourself or another business of the same owner.
+            </En>
+          </Section>
+        )}
 
         <Section heHeading="ביטול" enHeading="Termination">
           <He>

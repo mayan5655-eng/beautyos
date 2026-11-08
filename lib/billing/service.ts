@@ -18,11 +18,26 @@
 //   canceled   she cancelled: no more charges, she keeps what she paid for (ends_at), then the gate closes. Adding a card again resumes it.
 //
 // Money never touches Kalmea's database beyond amounts and provider references: no card number is ever stored, only a token reference.
+//
+// Two growth features, each behind its own flag and OFF by default (2026-11-08). With both off this file behaves exactly as before:
+//   ANNUAL PLAN (NEXT_PUBLIC_ANNUAL_PLAN=1, lib/pricing.ts): billing_subscriptions.billing_period 'monthly' | 'annual'. An annual
+//     period is ONE charge of annualPriceOf(sub.price) that pays 12 calendar months (addMonths(start, 12)); its payment row carries
+//     period_months 12. She asks to switch (app/api/billing/period) and the switch waits in pending_period until her next renewal:
+//     it is applied only when a trialing / active subscription comes due, never as an extra charge and never in the middle of a period
+//     or of past-due retries. One success per period is the same unique index (subscription_id, period_start): a yearly period has one
+//     start date. A monthly charge is also refused while a paid annual period still covers its date (coveredByAnnual).
+//     With the flag off a pending switch is never applied; a subscription already annual keeps the year she agreed to.
+//   REFERRAL FREE MONTHS (NEXT_PUBLIC_REFERRALS=1, lib/referral.ts): when a due charge comes up and she has an available free month,
+//     the month is claimed (one compare-and-set update, plus a unique index of one month per subscription and period) and the charge
+//     is skipped: no payment row, no invoice, her paid period moves one calendar month forward. The month is granted in succeed()
+//     when a referred business's FIRST paid subscription charge goes through. Any referral error is logged and never stops a charge.
 import type { PaymentsAdapter, InvoicingAdapter } from './adapter.ts';
 import { CURRENCY } from './adapter.ts';
 import { subscriptionDoc } from '../kalmeaBusiness.ts';
 import { newUniqueIdentifier, groupIdentifierOf } from '../grow/tokenFlow.ts';
-import { PLAN_PRICES, defaultPlanPrice, type AddonPack } from '../pricing.ts';
+import { PLAN_PRICES, defaultPlanPrice, annualPriceOf, annualPlanEnabled, type AddonPack } from '../pricing.ts';
+import { referralsEnabled, REFERRAL_HOLD_DAYS, REFERRAL_MAX_PER_YEAR, type ReferralRow, type CreditCandidate } from '../referral.ts';
+import { isDemoTenantId } from '../demoTenants.ts';
 import { LAUNCH_PRICE_CUTOFF_ISO } from '../ownerControl.ts';
 import { periodMonth } from '../addonQuota.ts';
 import { moneyAlert } from '../moneyAlert.js';
@@ -38,6 +53,7 @@ export const INVITE_DAYS = 5;
 const DAY = 24 * 60 * 60 * 1000;
 
 export type SubStatus = 'trialing' | 'active' | 'past_due' | 'canceled';
+export type BillingPeriod = 'monthly' | 'annual';
 
 export type Subscription = {
   id: string;
@@ -53,6 +69,10 @@ export type Subscription = {
   last_attempt_at: string | null;
   canceled_at: string | null;
   ends_at: string | null;
+  /** add_referrals_annual_2026-11-08.sql. Absent before it runs = monthly. */
+  billing_period?: BillingPeriod | null;
+  /** A switch she asked for, applied at her next renewal (null = none). */
+  pending_period?: BillingPeriod | null;
 };
 
 export type TenantRow = { id: string; name: string | null; plan_status: string | null; trial_ends_at: string | null; plan_price: number | string | null;
@@ -84,6 +104,8 @@ export type PaymentRecord = {
   invoice_url: string | null;
   note: string | null;
   created_at: string;
+  /** 12 on an annual charge (add_referrals_annual_2026-11-08.sql); absent / 1 on every monthly one. */
+  period_months?: number | null;
 };
 
 export type BillingRepo = {
@@ -104,9 +126,43 @@ export type BillingRepo = {
   setPlanStatus(tenantId: string, status: 'active' | 'expired'): Promise<void>;
   /** Credits an add-on pack after its charge succeeded (add_billing_addons.sql). Optional: absent = packs cannot be bought. */
   insertAddon?(row: { tenant_id: string; pack: string; units: number; usd_allowance: number; price: number; period_month: string; payment_id: string }): Promise<void>;
+  /** A succeeded ANNUAL subscription charge whose year covers this date (period_start <= date < period_end). Optional. */
+  coveredByAnnual?(subId: string, periodStart: string): Promise<boolean>;
 };
 
-export type Deps = { repo: BillingRepo; payments: PaymentsAdapter; invoicing: InvoicingAdapter; now?: () => Date; /** Draws a charge identifier (tests pin it). */ newIdentifier?: () => number };
+/** The referral tables (lib/billing/referralRepo.ts). Every method degrades to "nothing" before the migration runs. */
+export type ReferralRepo = {
+  /** The referral that brought this business, if any. */
+  referralFor(referredTenantId: string): Promise<ReferralRow | null>;
+  /** Succeeded subscription charges of this business with real money (kind 'subscription', amount > 0). */
+  countPaidCharges(tenantId: string): Promise<number>;
+  /** The referrer's months granted since a time (not voided). */
+  countReferrerRewardsSince(referrerTenantId: string, sinceIso: string): Promise<number>;
+  /** Inserts one month. false when that side of that referral already has one (the unique index answered). */
+  insertReward(row: { referral_id: string; tenant_id: string; role: 'referrer' | 'referred'; trigger_payment_id: string; available_at: string }): Promise<boolean>;
+  markRewarded(referralId: string, atIso: string): Promise<void>;
+  /** Unused, unvoided months whose hold is over, oldest first, with the referral's status and the earning payment's status. */
+  availableCredits(tenantId: string, nowIso: string): Promise<CreditCandidate[]>;
+  /** Compare-and-set: true for exactly one caller, and only if no other month already covers this subscription and period. */
+  claimCredit(rewardId: string, subId: string, periodStart: string, periodEnd: string, nowIso: string): Promise<boolean>;
+  /** A month was already used for this subscription and period (a run that stopped between the claim and moving the date). */
+  creditForPeriod(subId: string, periodStart: string): Promise<boolean>;
+  voidReward(rewardId: string, reason: string, nowIso: string): Promise<void>;
+};
+
+export type BillingFlags = { referrals: boolean; annual: boolean };
+
+export type Deps = {
+  repo: BillingRepo; payments: PaymentsAdapter; invoicing: InvoicingAdapter; now?: () => Date; /** Draws a charge identifier (tests pin it). */ newIdentifier?: () => number;
+  /** The referral tables; absent = no referral rewards at all. */
+  referrals?: ReferralRepo;
+  /** The two feature switches; default from the environment (both off unless exactly "1"). */
+  flags?: Partial<BillingFlags>;
+};
+
+export function billingFlags(d: Pick<Deps, 'flags'>): BillingFlags {
+  return { referrals: d.flags?.referrals ?? referralsEnabled(), annual: d.flags?.annual ?? annualPlanEnabled() };
+}
 
 const clock = (d: Deps) => (d.now || (() => new Date()))();
 const iso = (d: Date) => d.toISOString();
@@ -128,6 +184,25 @@ export const priceOf = (tenant: Pick<TenantRow, 'plan_price' | 'created_at'> | n
   const p = Number(tenant?.plan_price);
   return Number.isFinite(p) && p > 0 ? p : defaultPlanPrice(tenant?.created_at, LAUNCH_PRICE_CUTOFF_ISO);
 };
+
+/**
+ * The period the NEXT charge attempt of this subscription is for. A pending switch (annual flag on) applies to the next attempt, which
+ * is never before the end of what she already paid: her renewal, or the retry of a period she has not paid. It becomes her plan at that
+ * attempt (whatever its outcome), so the retries after a failed renewal are for the same period and amount; she may switch back while
+ * past due, and the next retry follows. Without the flag (or before the migration) everything is monthly, except a subscription that is
+ * already annual: she keeps the year she agreed to.
+ */
+export function chargePeriodOf(sub: Pick<Subscription, 'status' | 'billing_period' | 'pending_period'>, flags: Pick<BillingFlags, 'annual'>): BillingPeriod {
+  const current: BillingPeriod = sub.billing_period === 'annual' ? 'annual' : 'monthly';
+  if (!flags.annual || sub.status === 'canceled') return current;
+  if (sub.pending_period === 'annual' || sub.pending_period === 'monthly') return sub.pending_period;
+  return current;
+}
+
+export const periodMonthsOf = (p: BillingPeriod) => (p === 'annual' ? 12 : 1);
+
+/** What one charge of this period costs: her monthly price, or ten of them for a year (lib/pricing.ts). */
+export const chargeAmountOf = (monthly: number, p: BillingPeriod) => (p === 'annual' ? annualPriceOf(monthly) : monthly);
 
 /** When the grace period ends for a past-due subscription (null when it is not past due). */
 export function graceEndsAt(sub: Subscription): Date | null {
@@ -156,11 +231,14 @@ async function blockTenant(d: Deps, tenantId: string) {
 
 // ── one charge ───────────────────────────────────────────────────────────────
 
-export type Outcome = 'charged' | 'failed' | 'skipped' | 'no-card';
+export type Outcome = 'charged' | 'failed' | 'skipped' | 'no-card' | 'credited';
 
 async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, periodStart: Date, now: Date): Promise<Outcome> {
+  const flags = billingFlags(d);
   const periodKey = iso(periodStart).slice(0, 10);
   if (await d.repo.hasSucceeded(sub.id, periodKey)) return 'skipped';
+  // A paid year still covers this date: nothing is due (only asked when a year can exist at all).
+  if ((flags.annual || sub.billing_period === 'annual') && d.repo.coveredByAnnual && (await d.repo.coveredByAnnual(sub.id, periodKey))) return 'skipped';
   // A charge for this period whose answer we never got (Grow did not reply, or answered "identifier already used"): ask Grow about THAT
   // identifier before anything else. Paid -> it counts; failed or never seen -> the next attempt may run; still unknown -> nothing is charged
   // again until it is settled, because a second identifier would be a second real charge.
@@ -170,9 +248,37 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
     if (settled !== 'cleared') return settled;
   }
   if (!(await d.repo.claimAttempt(sub.id, sub.last_attempt_at, iso(now)))) return 'skipped';
-  const periodEnd = addMonths(periodStart, 1);
+
+  // A free month she earned (lib/referral.ts) is used instead of this charge. Only after the claim above, so of two runs at the same
+  // moment exactly one gets here; the month itself is claimed with its own compare-and-set.
+  // FAIL CLOSED (PR #27 review): any error here, a read of her months or of a month already claimed for this period, or a failure
+  // after a claim, means NO charge for her this run. A read error is never "nothing there": a month may already cover this period
+  // (claimed by a run that stopped before moving the date), and charging then would be a free month and a real charge. The run
+  // skips her, raises a money alert, and the next run retries. (Before the migration the tables are missing, which the repo answers
+  // as "no months" on purpose: no month can exist then.)
+  if (flags.referrals && d.referrals) {
+    let freed = false;
+    try {
+      freed = await applyFreeMonth(d, sub, periodStart, periodKey, now);
+    } catch (e) {
+      const claimed = e instanceof MonthClaimedError;
+      console.error(`[billing] free month ${claimed ? 'claimed but the period did not move' : 'check failed'} for tenant`, sub.tenant_id, (e as Error)?.message);
+      await moneyAlert('billing:referral', claimed ? 'free month claimed, period not moved yet; nothing charged, the next run finishes it' : 'free month check failed; nothing charged this run, the next run retries', { tenantId: sub.tenant_id }, { key: `${sub.id}:${periodKey}`, severity: 'warning' }).catch(() => {});
+      return 'skipped';
+    }
+    if (freed) return 'credited';
+  }
+
+  const period = chargePeriodOf(sub, flags);
+  const months = periodMonthsOf(period);
+  const amount = chargeAmountOf(sub.price, period);
+  const periodEnd = addMonths(periodStart, months);
   const attemptNo = sub.failed_attempts + 1;
-  const base = { tenant_id: sub.tenant_id, subscription_id: sub.id, kind: 'subscription' as const, amount: sub.price, currency: CURRENCY, period_start: periodKey, period_end: iso(periodEnd).slice(0, 10), attempt: attemptNo, provider: 'card', note: null };
+  // period_months is written only on a yearly charge, so a monthly row is the same row as before the migration.
+  const base = { tenant_id: sub.tenant_id, subscription_id: sub.id, kind: 'subscription' as const, amount, currency: CURRENCY, period_start: periodKey, period_end: iso(periodEnd).slice(0, 10), attempt: attemptNo, provider: 'card', note: null, ...(months === 12 ? { period_months: 12 } : {}) };
+  // A pending switch this attempt applies becomes her plan now, so the retries of this period are for the same period. Written only
+  // when there is a switch: a plain monthly attempt writes exactly what it wrote before the migration.
+  if (flags.annual && sub.status !== 'canceled' && sub.pending_period) await d.repo.updateSub(sub.id, { billing_period: period, pending_period: null });
 
   if (!sub.token_ref) {
     await d.repo.insertPayment({ ...base, status: 'failed', provider_payment_id: null, error: 'no card on file', invoice_status: 'none', invoice_number: null, invoice_url: null });
@@ -194,7 +300,7 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   if (!pay) throw new Error('could not draw a free charge identifier');
 
   const res = await d.payments.charge({
-    tokenRef: sub.token_ref, amount: sub.price, currency: CURRENCY, description: 'מנוי קלמיה', idempotencyKey: `${sub.id}:${periodKey}`,
+    tokenRef: sub.token_ref, amount, currency: CURRENCY, description: period === 'annual' ? 'מנוי שנתי לקלמיה' : 'מנוי קלמיה', idempotencyKey: `${sub.id}:${periodKey}`,
     uniqueIdentifier: uid, groupIdentifier: groupIdentifierOf(sub.id), fullName: tenant?.name || undefined,
     // Found 2026-10-21: without the payer's phone every live charge was refused by chargeToken before reaching Grow, so a good card
     // failed four times and the business was blocked after the grace days.
@@ -233,14 +339,80 @@ async function keepWorkingInGrace(d: Deps, tenant: TenantRow | null, tenantId: s
   if (tenant?.plan_status === 'trial') await d.repo.setPlanStatus(tenantId, 'active');
 }
 
-async function succeed(d: Deps, sub: Subscription, tenant: TenantRow | null, pay: PaymentRecord, providerPaymentId: string, periodEnd: Date, now: Date, invoiceNumber?: string, invoiceUrl?: string): Promise<Outcome> {
+async function succeed(d: Deps, sub: Subscription, tenant: TenantRow | null, pay: PaymentRecord, providerPaymentId: string, periodEnd: Date, now: Date, invoiceNumber?: string, invoiceUrl?: string, periodPatch: Partial<Subscription> = {}): Promise<Outcome> {
   // The provider issued its own document with the charge (Grow): keep it, and skip our invoicing call.
   const hasDoc = !!invoiceUrl && /^https:\/\//i.test(invoiceUrl);
   await d.repo.updatePayment(pay.id, { status: 'succeeded', provider_payment_id: providerPaymentId, error: null, ...(hasDoc ? { invoice_status: 'issued', invoice_number: invoiceNumber || null, invoice_url: invoiceUrl } : { invoice_status: 'pending' }) });
-  await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(periodEnd), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
+  await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(periodEnd), last_attempt_at: iso(now), canceled_at: null, ends_at: null, ...periodPatch });
   await makeActive(d, sub.tenant_id);
   if (!hasDoc) await issueInvoice(d, { ...pay, status: 'succeeded', provider_payment_id: providerPaymentId }, tenant);
+  // A referred business's first paid charge earns both sides a free month. Never allowed to fail the charge that already succeeded.
+  if (billingFlags(d).referrals && d.referrals) {
+    await grantReferralMonths(d, sub.tenant_id, pay, now).catch(async (e) => {
+      console.error('[billing] referral reward failed for tenant', sub.tenant_id, (e as Error)?.message);
+      await moneyAlert('billing:referral', 'referral reward could not be granted after a successful charge', { tenantId: sub.tenant_id, paymentId: pay.id }, { key: String(pay.id), severity: 'warning' }).catch(() => {});
+    });
+  }
   return 'charged';
+}
+
+// ── referral free months ─────────────────────────────────────────────────────
+
+/**
+ * The referred business's charge `pay` just succeeded. If it is her FIRST paid subscription charge and she joined through an eligible
+ * referral, both sides get one month, held for REFERRAL_HOLD_DAYS. Idempotent by the database: one month per side per referral, ever
+ * (unique (referral_id, role)), so a retried or concurrent call can never grant twice. The referrer's cap is counted first; under a
+ * race of two of her friends paying at the same second she can end one over the cap, never more (documented, accepted).
+ */
+export async function grantReferralMonths(d: Deps, tenantId: string, pay: Pick<PaymentRecord, 'id' | 'kind' | 'amount' | 'status'>, now: Date): Promise<'granted' | 'none'> {
+  const r = d.referrals;
+  if (!r || pay.kind !== 'subscription' || !(Number(pay.amount) > 0)) return 'none';
+  const ref = await r.referralFor(tenantId);
+  if (!ref || ref.status !== 'joined') return 'none';
+  if (ref.referrer_tenant_id === tenantId || ref.referred_tenant_id !== tenantId) return 'none';
+  if (isDemoTenantId(ref.referrer_tenant_id) || isDemoTenantId(tenantId)) return 'none';
+  // Her FIRST paid charge only: this one must be the only one.
+  if ((await r.countPaidCharges(tenantId)) !== 1) return 'none';
+  const availableAt = iso(new Date(now.getTime() + REFERRAL_HOLD_DAYS * DAY));
+  const mine = await r.insertReward({ referral_id: ref.id, tenant_id: tenantId, role: 'referred', trigger_payment_id: pay.id, available_at: availableAt });
+  const given = await r.countReferrerRewardsSince(ref.referrer_tenant_id, iso(new Date(now.getTime() - 365 * DAY)));
+  const hers = given < REFERRAL_MAX_PER_YEAR
+    ? await r.insertReward({ referral_id: ref.id, tenant_id: ref.referrer_tenant_id, role: 'referrer', trigger_payment_id: pay.id, available_at: availableAt })
+    : false;
+  await r.markRewarded(ref.id, iso(now));
+  return mine || hers ? 'granted' : 'none';
+}
+
+/**
+ * Uses one free month for the charge due at periodStart, if she has one that still stands. true = the charge is skipped and her period
+ * moved one calendar month forward (whatever her plan). A month whose earning charge is no longer 'succeeded' (refunded, voided) or whose
+ * referral was voided is voided here, never used.
+ */
+class MonthClaimedError extends Error {}
+
+async function applyFreeMonth(d: Deps, sub: Subscription, periodStart: Date, periodKey: string, now: Date): Promise<boolean> {
+  const r = d.referrals!;
+  const end = addMonths(periodStart, 1);
+  const advance = async () => {
+    try {
+      await d.repo.updateSub(sub.id, { status: 'active', failed_attempts: 0, past_due_since: null, next_charge_at: iso(end), last_attempt_at: iso(now), canceled_at: null, ends_at: null });
+      await makeActive(d, sub.tenant_id);
+    } catch (e) {
+      throw new MonthClaimedError(String((e as Error)?.message || e));
+    }
+  };
+  // A month already taken for exactly this period (the run stopped before the date moved): finish moving it, never take a second one.
+  if (await r.creditForPeriod(sub.id, periodKey)) { await advance(); return true; }
+  for (const c of await r.availableCredits(sub.tenant_id, iso(now))) {
+    if (c.referral_status === 'voided' || c.payment_status !== 'succeeded') {
+      await r.voidReward(c.id, c.referral_status === 'voided' ? 'referral voided' : 'the charge that earned it no longer stands', iso(now));
+      continue;
+    }
+    if (await r.claimCredit(c.id, sub.id, periodKey, iso(end).slice(0, 10), iso(now))) { await advance(); return true; }
+    // Lost the claim: another run took this month, or another month already covers this period.
+    if (await r.creditForPeriod(sub.id, periodKey)) { await advance(); return true; }
+  }
+  return false;
 }
 
 /** An earlier attempt for this period with no settled answer. 'cleared' lets a new attempt run. */
@@ -248,7 +420,11 @@ async function settleOpen(d: Deps, sub: Subscription, tenant: TenantRow | null, 
   const uid = Number(open.unique_identifier);
   if (!sub.token_ref || !d.payments.lookup || !Number.isFinite(uid)) return 'skipped';
   const r = await d.payments.lookup(sub.token_ref, uid).catch(() => null);
-  if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, open, r.providerPaymentId || `uid:${uid}`, addMonths(periodStart, 1), now);
+  // The open charge keeps the period it was made for: a yearly one pays twelve months and its year is her plan. It never touches
+  // pending_period (PR #27 review): the switch that made it yearly was already consumed when the charge was made (attempt()), so any
+  // pending switch now is one she asked for AFTER it (say, back to monthly) and must wait for her next renewal.
+  const yearly = Number(open.period_months) === 12;
+  if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, open, r.providerPaymentId || `uid:${uid}`, addMonths(periodStart, yearly ? 12 : 1), now, undefined, undefined, yearly ? { billing_period: 'annual' } : {});
   if (r && r.ok && (r.status === 'failed' || !r.found)) {
     await d.repo.updatePayment(open.id, { status: 'failed', error: 'settled: the provider has no successful charge' });
     return 'cleared';
@@ -386,9 +562,31 @@ export async function saveCard(d: Deps, tenantId: string, card: { tokenRef: stri
   return { subscription: sub, charged: null };
 }
 
+// ── monthly / annual switch ──────────────────────────────────────────────────
+
+export type PeriodSwitchResult =
+  | { ok: true; billingPeriod: BillingPeriod; pendingPeriod: BillingPeriod | null; effectiveAt: string | null }
+  | { ok: false; reason: 'off' | 'no-subscription' | 'canceled' };
+
+/**
+ * She asks for monthly or yearly. Nothing is charged here and nothing changes in the period she already paid for: the choice is saved as
+ * pending_period and the daily run applies it at her next renewal (chargePeriodOf). Asking for the plan she already has clears a pending
+ * switch. No proration and no refund: a switch is never an immediate charge.
+ */
+export async function requestPeriodSwitch(d: Deps, tenantId: string, period: BillingPeriod): Promise<PeriodSwitchResult> {
+  if (!billingFlags(d).annual) return { ok: false, reason: 'off' };
+  const sub = await d.repo.getSub(tenantId);
+  if (!sub) return { ok: false, reason: 'no-subscription' };
+  if (sub.status === 'canceled') return { ok: false, reason: 'canceled' };
+  const current: BillingPeriod = sub.billing_period === 'annual' ? 'annual' : 'monthly';
+  const pending = period === current ? null : period;
+  await d.repo.updateSub(sub.id, { pending_period: pending });
+  return { ok: true, billingPeriod: current, pendingPeriod: pending, effectiveAt: sub.next_charge_at };
+}
+
 // ── the daily run ────────────────────────────────────────────────────────────
 
-export type RunSummary = { checked: number; charged: number; failed: number; blocked: number; invoices: number; skipped: number; notStarted?: number };
+export type RunSummary = { checked: number; charged: number; failed: number; blocked: number; invoices: number; skipped: number; notStarted?: number; /** Due charges a free month covered (only present when there were any). */ credited?: number };
 
 export async function runDue(d: Deps, opts: { budgetMs?: number } = {}): Promise<RunSummary> {
   const now = clock(d);
@@ -418,7 +616,7 @@ export async function runDue(d: Deps, opts: { budgetMs?: number } = {}): Promise
         if (retry && retry.getTime() <= now.getTime() && sub.token_ref) {
           // A retry for the period that failed: its key is the month that was due, so a charge that did go through is never repeated.
           const out = await attempt(d, sub, tenant, new Date(ms(sub.next_charge_at) || now.getTime()), now);
-          if (out === 'charged') sum.charged++; else if (out === 'failed') sum.failed++; else sum.skipped++;
+          if (out === 'charged') sum.charged++; else if (out === 'failed') sum.failed++; else if (out === 'credited') sum.credited = (sum.credited || 0) + 1; else sum.skipped++;
         }
         continue;
       }
@@ -428,7 +626,7 @@ export async function runDue(d: Deps, opts: { budgetMs?: number } = {}): Promise
       const horizon = now.getTime() + (sub.status === 'trialing' ? TRIAL_LOOKAHEAD_HOURS * 3600 * 1000 : 0);
       if (!Number.isFinite(due) || due > horizon) continue;
       const out = await attempt(d, sub, tenant, new Date(due), now);
-      if (out === 'charged') sum.charged++; else if (out === 'failed' || out === 'no-card') sum.failed++; else sum.skipped++;
+      if (out === 'charged') sum.charged++; else if (out === 'failed' || out === 'no-card') sum.failed++; else if (out === 'credited') sum.credited = (sum.credited || 0) + 1; else sum.skipped++;
     } catch (e) {
       console.error('[billing] run failed for tenant', sub.tenant_id, (e as Error)?.message); await moneyAlert('billing:run', 'daily billing failed for a business', { tenantId: sub.tenant_id }, { key: String(sub.tenant_id) });
     }

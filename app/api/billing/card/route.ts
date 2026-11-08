@@ -11,7 +11,8 @@ import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
 import { signCardSession } from '@/lib/billing/session';
 import { priceOf } from '@/lib/billing/service';
-import { billingConsentTextHe, BILLING_CONSENT_VERSION } from '@/lib/billing/consent';
+import { billingConsentTextHe, billingAnnualConsentTextHe, BILLING_CONSENT_VERSION } from '@/lib/billing/consent';
+import { annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { admin, billing, caller, tableMissing } from '../_shared';
 import { billingPayerPhone } from '@/lib/billing/payerPhone';
 
@@ -37,11 +38,18 @@ export async function POST(request: Request) {
     db.from('billing_subscriptions').select('price').eq('tenant_id', c.tenantId).maybeSingle(),
   ]);
   const price = sub?.price ? Number(sub.price) : priceOf(tenant || null);
+  // A yearly subscriber (NEXT_PUBLIC_ANNUAL_PLAN) agrees to the yearly words with her card; read on its own so a missing column
+  // (migration not run) leaves the monthly words, as before.
+  let yearly = false;
+  if (annualPlanEnabled() && sub) {
+    const ap = await db.from('billing_subscriptions').select('billing_period, pending_period').eq('tenant_id', c.tenantId).maybeSingle();
+    yearly = !ap.error && (ap.data?.pending_period ? ap.data.pending_period === 'annual' : ap.data?.billing_period === 'annual');
+  }
 
   // What she agreed to, stored before the card page opens.
   const { data: { user } } = await c.session.auth.getUser();
   const consent = await db.from('billing_card_consents').insert({
-    tenant_id: c.tenantId, user_id: user?.id || null, consent_text: billingConsentTextHe(price), consent_version: BILLING_CONSENT_VERSION, price,
+    tenant_id: c.tenantId, user_id: user?.id || null, consent_text: yearly ? billingAnnualConsentTextHe(annualPriceOf(price), '') : billingConsentTextHe(price), consent_version: BILLING_CONSENT_VERSION, price: yearly ? annualPriceOf(price) : price,
   });
   if (consent.error && !tableMissing(consent.error)) {
     console.error('[billing] consent not stored:', consent.error.message);
