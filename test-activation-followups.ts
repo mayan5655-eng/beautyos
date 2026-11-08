@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { tourMayStart, shortTourSteps, tourStepsFor, tourOnNavigate, tourResumeStep, SHORT_TOUR_IDS } from './lib/tourFlow.js';
 import { showAttentionOnToday, firstBookingScore, firstBookingView, firstBookingSteps } from './lib/firstBooking.js';
-import { parseVCards, pickPhone, vcardImportText, isVcardFile } from './lib/vcard.js';
+import { parseVCards, pickPhone, vcardImportText, isVcardFile, cleanTel, MAX_TEL_LENGTH } from './lib/vcard.js';
 import { parseImportGrid, detectHeaderRow, guessColumns, buildImportRows, importPhoneKey } from './lib/importMapping.js';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
@@ -198,6 +198,19 @@ await ok('a vCard with a huge folded photo parses fast, keeps the contact and dr
   assert.equal(cards[0].phones.length, 1, 'the TEL after the photo is still read');
   assert.ok(ms < 1500, `parsed in ${ms} ms`);
   assert.ok(!JSON.stringify(cards[0]).includes('AAAA'), 'the photo bytes are not kept');
+});
+
+await ok('vCard: a crafted TEL with a long run of spaces is dropped fast, and real extensions still clean', () => {
+  assert.equal(cleanTel('tel:+972-52-123-4567;ext=12'), '+972-52-123-4567');
+  assert.equal(cleanTel('052-1234567 x 9'), '052-1234567');
+  assert.equal(cleanTel('052-1234567   '), '052-1234567');
+  assert.equal(cleanTel('1' + ' '.repeat(MAX_TEL_LENGTH)), '', 'too long: not a phone');
+  const evil = 'BEGIN:VCARD\nVERSION:3.0\nFN:x\nTEL:1' + ' '.repeat(200_000) + 'a\nEND:VCARD\n';
+  const t0 = Date.now();
+  const cards = parseVCards(evil.repeat(20));
+  assert.ok(Date.now() - t0 < 2000, `parsed in ${Date.now() - t0}ms`);
+  assert.equal(cards.length, 20);
+  assert.ok(cards.every((c) => c.phones.length === 0), 'the crafted value is not taken as a phone');
 });
 
 console.log(`${n} passed`);
