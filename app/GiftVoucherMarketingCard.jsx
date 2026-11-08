@@ -19,11 +19,16 @@ const HOST = storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 /** Ready texts. {name} is her business, {link} her shop. Feminine, warm, her voice to her clients. No long dashes. */
 export const VOUCHER_COPY = [
-  { key: 'birthday', label: 'יום הולדת', text: 'מחפשת מתנה ליום הולדת? 🎂 שובר פינוק אצל {name} זו מתנה שתמיד שמחים לקבל. בוחרות סכום או טיפול, משלמות אונליין, והשובר נשלח בוואטסאפ תוך דקה:\n{link}' },
+  { key: 'birthday', label: 'יום הולדת', text: 'מחפשת מתנה ליום הולדת? 🎂 שובר פינוק אצל {name} זו מתנה שתמיד שמחים לקבל. בוחרות סכום או טיפול, משלמות אונליין, והשובר נשלח בוואטסאפ תוך דקה:\n{link}',
+    offline: 'מחפשת מתנה ליום הולדת? 🎂 שובר פינוק אצל {name} זו מתנה שתמיד שמחים לקבל. בוחרות סכום או טיפול, וכותבות לי לתאם:\n{link}' },
   { key: 'holiday', label: 'לחג', text: 'החג מתקרב ✨ במקום עוד מתנה שתעמוד על המדף, תני לה רגע של פינוק. שוברי מתנה של {name}, נשלחים בוואטסאפ:\n{link}' },
-  { key: 'mothers', label: 'יום האם', text: 'לאמא שעושה הכל 💐 שובר פינוק אצל {name}, בדיוק מה שמגיע לה. קונים אונליין ושולחים לה בוואטסאפ:\n{link}' },
+  { key: 'mothers', label: 'יום האם', text: 'לאמא שעושה הכל 💐 שובר פינוק אצל {name}, בדיוק מה שמגיע לה. קונים אונליין ושולחים לה בוואטסאפ:\n{link}',
+    offline: 'לאמא שעושה הכל 💐 שובר פינוק אצל {name}, בדיוק מה שמגיע לה. כל הפרטים כאן:\n{link}' },
   { key: 'friend', label: 'סתם כי בא לך', text: 'יש לך חברה שמגיע לה פינוק? 🌸 שובר מתנה אצל {name}, עם ברכה אישית ממך:\n{link}' },
 ];
+/** The text for her clients. Until online payment is connected the shop page says "buy it at the business", so the texts must not
+ *  promise paying online (2026-11-08 QA: the card said Grow is not connected while the birthday text said "משלמות אונליין"). */
+export const copyText = (c, online) => (online === false && c.offline ? c.offline : c.text);
 export const fillCopy = (t, name, link) => t.replace(/\{name\}/g, name || 'אצלי').replace(/\{link\}/g, link || '');
 
 export default function GiftVoucherMarketingCard(props) {
@@ -57,7 +62,7 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>🎁 שוברי מתנה</h3>
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, margin: '4px 0 0' }}>
-            לפני חג או יום הולדת, שובר מתנה הוא המכירה הכי קלה. שתפי את הקישור, והקונה משלמת ושולחת את השובר בעצמה.
+            לפני חג או יום הולדת, שובר מתנה הוא המכירה הכי קלה. {online === false ? 'שתפי את הקישור, והקונה תכתוב לך כדי לקנות.' : 'שתפי את הקישור, והקונה משלמת ושולחת את השובר בעצמה.'}
           </p>
         </div>
         <div style={{ flexShrink: 0 }}><VoucherArt look={look} width={92} content={{ title: `₪${cfg.amounts[1] || cfg.amounts[0] || 300}` }} /></div>
@@ -69,7 +74,7 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
           <p dir="ltr" data-testid="gv-shop-link" style={{ margin: '2px 0 8px', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{link.replace(/^https?:\/\//, '')}</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button type="button" style={btn} onClick={() => copy(link, 'הקישור הועתק')}>העתקה</button>
-            <a style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }} target="_blank" rel="noreferrer" href={waShareLink(fillCopy(VOUCHER_COPY[3].text, name, link))}>שליחה בוואטסאפ</a>
+            <a style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }} target="_blank" rel="noreferrer" href={waShareLink(fillCopy(copyText(VOUCHER_COPY[3], online), name, link))}>שליחה בוואטסאפ</a>
             <a style={btn} data-testid="gv-story" href={`/api/vouchers/image?shop=${encodeURIComponent(tenantId)}&f=story`} download="gift-voucher-story.png" target="_blank" rel="noreferrer">תמונה לסטורי</a>
           </div>
           {online === false && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.</p>}
@@ -79,7 +84,7 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
       <p style={{ margin: '14px 0 6px', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>טקסטים מוכנים</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {VOUCHER_COPY.map((c) => {
-          const text = fillCopy(c.text, name, link);
+          const text = fillCopy(copyText(c, online), name, link);
           return (
             <div key={c.key} style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>

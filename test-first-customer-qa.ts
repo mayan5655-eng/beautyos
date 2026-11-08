@@ -89,4 +89,40 @@ ok('receipt: a client who already has a next visit is told so, not offered a one
   assert.ok(app.indexOf('data-testid="rebook-receipt-already"') < app.indexOf('if (!rebookPlan) return openRebookSheet ? ('));
 });
 
+ok('a sheet opened from inside a tab is on screen: the tab wrapper keeps no transform after its entry animation', () => {
+  // fill-mode both kept transform:translateY(0) on .fade-in, which made every tab a containing block for position:fixed:
+  // "תבניות רילס" opened 1500px below the screen behind a dim backdrop.
+  assert.match(app, /\.fade-in\{animation:fade-in-up 0\.4s cubic-bezier\(\.2,\.7,\.3,1\) backwards\}/);
+  assert.doesNotMatch(app, /\.fade-in\{animation:[^}]*\bboth\}/);
+  // a sheet's own pop-in ends on no transform, so a sheet opened inside another is not trapped either
+  assert.match(app, /@keyframes pop-in\{0%\{opacity:0;transform:scale\(0\.96\)\}100%\{opacity:1;transform:none\}\}/);
+  assert.match(app, /<div key=\{activeTab\} className="fade-in">/);
+});
+
+ok('gift voucher marketing texts do not promise paying online while online payment is not connected', () => {
+  const src = readFileSync('app/GiftVoucherMarketingCard.jsx', 'utf8');
+  assert.match(src, /export const copyText = \(c, online\) => \(online === false && c\.offline \? c\.offline : c\.text\);/);
+  assert.match(src, /const text = fillCopy\(copyText\(c, online\), name, link\);/);
+  // every text that mentions paying or buying online has an offline twin without it
+  const block = src.slice(src.indexOf('export const VOUCHER_COPY'), src.indexOf('export const copyText'));
+  const entries = block.split(/\n  \{ key: /).slice(1);
+  for (const e of entries) {
+    if (!/אונליין/.test(e.match(/text: '([^']*)'/)?.[1] || '')) continue;
+    const off = e.match(/offline: '([^']*)'/)?.[1];
+    assert.ok(off, 'an offline text for ' + e.slice(0, 20));
+    assert.doesNotMatch(off, /אונליין|משלמות|[\u2013\u2014]/);
+    assert.match(off, /\{name\}/); assert.match(off, /\{link\}/);
+  }
+});
+
+ok('skin form: the allergy question reads "to which substances", not "why"', () => {
+  const f = readFileSync('lib/formTemplates.ts', 'utf8');
+  assert.doesNotMatch(f, /אלרגיות ידועות\? למה\?/);
+  assert.match(f, /יש לך אלרגיות ידועות\? לאילו חומרים\?/);
+});
+
+ok('logout question: her email is isolated so the dot and "?" stay in place in the RTL sentence', () => {
+  assert.match(app, /את מחוברת כ-\\u2068\$\{authEmail\}\\u2069\. להתנתק\?/);
+});
+
 console.log(`\n${n} checks passed`);

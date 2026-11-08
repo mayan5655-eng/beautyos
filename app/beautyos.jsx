@@ -1490,7 +1490,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleLogout = useCallback(() => {
     askConfirm({
       title: "התנתקות",
-      message: authEmail ? `את מחוברת כ-${authEmail}. להתנתק?` : "האם להתנתק מהמערכת?",
+      // The address is isolated (U+2068..U+2069): in the RTL sentence its dot and the "?" jumped to the wrong side (2026-11-08 QA).
+      message: authEmail ? `את מחוברת כ-\u2068${authEmail}\u2069. להתנתק?` : "האם להתנתק מהמערכת?",
       confirmText: "התנתקי",
       onConfirm: async () => {
         try {
@@ -8034,8 +8035,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         @keyframes shimmer{0%{background-position:-360px 0}100%{background-position:360px 0}}
         .skel{background:linear-gradient(90deg,#EFE7F3 25%,#F8F2FB 50%,#EFE7F3 75%);background-size:720px 100%;animation:shimmer 1.3s infinite linear;border-radius:10px}
         @keyframes fade-in-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .fade-in{animation:fade-in-up 0.4s cubic-bezier(.2,.7,.3,1) both}
-        @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:scale(1)}}
+        /* backwards, not both: a kept transform:translateY(0) made every tab a containing block for position:fixed, and a sheet opened
+           from inside a tab (תבניות רילס, רילס מהצילומים שלי) rendered far below the screen behind a dim backdrop (2026-11-08 QA). */
+        .fade-in{animation:fade-in-up 0.4s cubic-bezier(.2,.7,.3,1) backwards}
+        @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:none}}
         .pop-in{animation:pop-in 0.24s cubic-bezier(.2,.7,.3,1) both}
         @keyframes voice-pulse{0%{box-shadow:0 0 0 0 var(--pc-shadow)}70%{box-shadow:0 0 0 16px rgba(122,90,136,0)}100%{box-shadow:0 0 0 0 rgba(122,90,136,0)}}
         .voice-pulse{animation:voice-pulse 1.4s infinite}
