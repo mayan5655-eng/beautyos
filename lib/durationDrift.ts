@@ -44,7 +44,7 @@ export function durationOutcome(
 /** The one-line Hebrew toast for the moment "finished" is tapped. */
 export function durationOutcomeHe(outcome: DurationOutcome): string {
   const { actualMinutes, bookedMinutes, driftMinutes } = outcome;
-  if (Math.abs(driftMinutes) < NEGLIGIBLE_DRIFT_MINUTES) return `הטיפול ארך ${actualMinutes} דק׳ — כמעט בדיוק כמו שתוכנן`;
-  if (driftMinutes > 0) return `הטיפול ארך ${actualMinutes} דק׳ — ${driftMinutes} דק׳ יותר מהמתוכנן (${bookedMinutes} דק׳)`;
-  return `הטיפול ארך ${actualMinutes} דק׳ — ${Math.abs(driftMinutes)} דק׳ פחות מהמתוכנן (${bookedMinutes} דק׳)`;
+  if (Math.abs(driftMinutes) < NEGLIGIBLE_DRIFT_MINUTES) return `הטיפול ארך ${actualMinutes} דק׳, כמעט בדיוק כמו שתוכנן`;
+  if (driftMinutes > 0) return `הטיפול ארך ${actualMinutes} דק׳, ${driftMinutes} דק׳ יותר מהמתוכנן (${bookedMinutes} דק׳)`;
+  return `הטיפול ארך ${actualMinutes} דק׳, ${Math.abs(driftMinutes)} דק׳ פחות מהמתוכנן (${bookedMinutes} דק׳)`;
 }

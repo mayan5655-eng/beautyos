@@ -225,3 +225,23 @@ export function localDayKey(iso: string | null | undefined): string {
 export function paidWith(r: ReceiptLike, method: string): boolean {
   return paymentsOf(r).some((p) => p.method === method);
 }
+
+/**
+ * The payment method she uses most, counted over her receipts (each line of a split counts once). Only a method in
+ * `allowed` can win, so an old or unknown label never becomes the till's default. Ties keep the order of `allowed`.
+ * No receipts, or none with an allowed method: `fallback`.
+ */
+export function mostUsedMethod(receipts: ReceiptLike[], allowed: readonly string[], fallback: string): string {
+  const count = new Map<string, number>();
+  for (const r of receipts || []) {
+    for (const p of paymentsOf(r)) {
+      if (allowed.includes(p.method)) count.set(p.method, (count.get(p.method) || 0) + 1);
+    }
+  }
+  let best = fallback, bestN = 0;
+  for (const m of allowed) {
+    const n = count.get(m) || 0;
+    if (n > bestN) { best = m; bestN = n; }
+  }
+  return best;
+}

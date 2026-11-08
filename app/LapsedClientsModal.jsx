@@ -43,7 +43,7 @@ const PRESETS = [
 ];
 
 const DEFAULT_MESSAGE =
-  'שלום! 💗\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊\n\n' + MARKETING_FOOTER;
+  'שלום! 💗\nמזמן לא ראינו אותך, נשמח לפנק אותך בטיפול ✨\nרוצה לקבוע תור? פשוט כתבי לנו 😊\n\n' + MARKETING_FOOTER;
 
 function waLink(phone, text) {
   const digits = toWhatsAppNumber(phone);

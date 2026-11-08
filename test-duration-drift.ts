@@ -21,9 +21,9 @@ assert.equal(durationOutcome(null, null, 60), null);
 }
 
 // ── durationOutcomeHe ─────────────────────────────────────────────────────────
-assert.equal(durationOutcomeHe({ actualMinutes: 75, bookedMinutes: 60, driftMinutes: 15 }), 'הטיפול ארך 75 דק׳ — 15 דק׳ יותר מהמתוכנן (60 דק׳)');
-assert.equal(durationOutcomeHe({ actualMinutes: 45, bookedMinutes: 60, driftMinutes: -15 }), 'הטיפול ארך 45 דק׳ — 15 דק׳ פחות מהמתוכנן (60 דק׳)');
-assert.equal(durationOutcomeHe({ actualMinutes: 61, bookedMinutes: 60, driftMinutes: 1 }), 'הטיפול ארך 61 דק׳ — כמעט בדיוק כמו שתוכנן', 'under the negligible threshold');
-assert.equal(durationOutcomeHe({ actualMinutes: 55, bookedMinutes: 60, driftMinutes: -5 }), 'הטיפול ארך 55 דק׳ — 5 דק׳ פחות מהמתוכנן (60 דק׳)', 'exactly at the threshold counts as worth saying');
+assert.equal(durationOutcomeHe({ actualMinutes: 75, bookedMinutes: 60, driftMinutes: 15 }), 'הטיפול ארך 75 דק׳, 15 דק׳ יותר מהמתוכנן (60 דק׳)');
+assert.equal(durationOutcomeHe({ actualMinutes: 45, bookedMinutes: 60, driftMinutes: -15 }), 'הטיפול ארך 45 דק׳, 15 דק׳ פחות מהמתוכנן (60 דק׳)');
+assert.equal(durationOutcomeHe({ actualMinutes: 61, bookedMinutes: 60, driftMinutes: 1 }), 'הטיפול ארך 61 דק׳, כמעט בדיוק כמו שתוכנן', 'under the negligible threshold');
+assert.equal(durationOutcomeHe({ actualMinutes: 55, bookedMinutes: 60, driftMinutes: -5 }), 'הטיפול ארך 55 דק׳, 5 דק׳ פחות מהמתוכנן (60 דק׳)', 'exactly at the threshold counts as worth saying');
 
 console.log('duration drift: ok');

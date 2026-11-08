@@ -14,7 +14,7 @@ export function ProductTillPicker({ api, onAdd, pc, pcTint }) {
   if (!list.length) return null;
   return (
     <select data-testid="till-add-product" aria-label="הוספת מוצר" onChange={(e) => { const p = list.find((x) => String(x.id) === e.target.value); if (p) onAdd(productItem(p, 1)); e.target.value = ''; }}
-      style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '5px 9px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', outline: 'none', direction: 'rtl', background: pcTint, color: pc, maxWidth: '48%' }}>
+      style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '5px 9px', minHeight: 44, marginBottom: 8, fontSize: 'var(--t-sm)', fontFamily: 'inherit', outline: 'none', direction: 'rtl', background: pcTint, color: pc, maxWidth: '48%' }}>
       <option value="">+ הוסיפי מוצר</option>
       {list.map((p) => {
         const s = stockOf(p);
