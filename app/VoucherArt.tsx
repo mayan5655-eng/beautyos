@@ -31,7 +31,9 @@ export default function VoucherArt({ look, content, width = 340, testId }: { loo
   const s = width / 340; // type scales with the card
   const font = FONT_CSS[look.font];
   const box: CSSProperties = {
-    position: 'relative', width, height: h, borderRadius: 18 * s, overflow: 'hidden', background: look.bg, color: look.ink,
+    // A minimum, not a fixed height: a treatment voucher with a long dedication and her logo grows instead of cropping the logo and
+    // the code (Vercel review 2026-11-08). The ornaments still sit on the first h pixels.
+    position: 'relative', width, minHeight: h, borderRadius: 18 * s, overflow: 'hidden', background: look.bg, color: look.ink,
     boxShadow: '0 14px 30px -18px rgba(24,48,36,0.35)', direction: 'rtl', textAlign: 'center', fontFamily: "var(--font-assistant), 'Assistant', system-ui, sans-serif",
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', padding: `${26 * s}px ${24 * s}px`,
   };

@@ -767,4 +767,10 @@ await ok('her logo: a 72px-tall contained box on the card and in the image, on a
   assert.match(rd('app/v/[token]/VoucherView.tsx'), /<BusinessHeader logoUrl=\{null\} name=\{brand\?\.name\} \/>\s*\n\s*\{buyer &&/);
 });
 
+await ok('the voucher card grows with its content, so a long dedication never crops the logo or the code', () => {
+  const art = readFileSync('app/VoucherArt.tsx', 'utf8');
+  assert.ok(/position: 'relative', width, minHeight: h,/.test(art), 'minHeight, not a fixed height');
+  assert.ok(!/position: 'relative', width, height: h,/.test(art));
+});
+
 console.log(`\n${n} gift voucher checks passed`);
