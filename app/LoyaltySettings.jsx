@@ -5,9 +5,10 @@
 // Settings > לקוחות ופניות > כרטיסיית נאמנות. Off until she turns it on. Everything lives in settings.automations.loyalty (an existing
 // jsonb bag the settings save route already writes), so this screen works with no migration. The counting rules are lib/loyalty.js.
 
-import { loyaltyConfig, loyaltyStored, LOYALTY_MIN, LOYALTY_MAX } from '@/lib/loyalty';
+import { loyaltyConfig, loyaltyStored, freeVisitExample, LOYALTY_MIN, LOYALTY_MAX } from '@/lib/loyalty';
 
-const EXAMPLES = ['הטיפול העשירי במתנה', '50% הנחה על הטיפול הבא', 'מסכה מתנה בטיפול הבא'];
+// The first example follows her "every N" (lib/loyalty.js freeVisitExample): it used to say "העשירי" whatever N was.
+const OTHER_EXAMPLES = ['50% הנחה על הטיפול הבא', 'מסכה מתנה בטיפול הבא'];
 const KINDS = [
   { k: 'free', l: 'טיפול חינם', d: 'בקופה, הטיפול היקר ביותר בביקור יורד מהחשבון.' },
   { k: 'pct', l: 'אחוז הנחה', d: 'בקופה, ההנחה באחוזים נכנסת לביקור.' },
@@ -18,7 +19,11 @@ export default function LoyaltySettings({ settings, onChange, serviceNames = [],
   const cfg = loyaltyConfig(settings);
   // What she typed, untrimmed, so a space or an emptied field is not snapped back while she writes (the default applies when read).
   const typed = settings?.automations?.loyalty?.reward;
-  const set = (patch) => onChange(loyaltyStored({ ...cfg, ...patch }));
+  const examples = [freeVisitExample(cfg.every), ...OTHER_EXAMPLES];
+  // A reward text that is the numbered example for the old N (or the old fixed "העשירי") follows a change of N, so the card
+  // never says "השישי" on a ten-visit card. Anything she wrote herself is left alone.
+  const followsEvery = (text) => text === freeVisitExample(cfg.every) || text === 'הטיפול העשירי במתנה';
+  const set = (patch) => onChange(loyaltyStored({ ...cfg, ...patch, ...(patch.every && patch.every !== cfg.every && followsEvery(cfg.reward) ? { reward: freeVisitExample(patch.every) } : {}) }));
   const box = { border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)', padding: 14, background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 10 };
   const label = { fontSize: 'var(--t-sm)', color: 'var(--ink-2)', fontWeight: 600, margin: 0 };
   const hint = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: 0 };
@@ -62,9 +67,9 @@ export default function LoyaltySettings({ settings, onChange, serviceNames = [],
             </label>
           )}
           <p style={{ ...label, marginTop: 10 }}>מה כתוב ללקוחה</p>
-          <input value={typeof typed === 'string' ? typed : cfg.reward} maxLength={80} onChange={(e) => onChange({ ...loyaltyStored(cfg), reward: e.target.value })} placeholder="למשל: הטיפול העשירי במתנה" aria-label="נוסח המתנה" style={{ ...input, marginTop: 6 }} />
+          <input value={typeof typed === 'string' ? typed : cfg.reward} maxLength={80} onChange={(e) => onChange({ ...loyaltyStored(cfg), reward: e.target.value })} placeholder={`למשל: ${examples[0]}`} aria-label="נוסח המתנה" style={{ ...input, marginTop: 6 }} />
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-            {EXAMPLES.map((t) => <button key={t} type="button" onClick={() => set({ reward: t })} style={{ ...chip(false), minHeight: 32, fontSize: 'var(--t-xs)' }}>{t}</button>)}
+            {examples.map((t) => <button key={t} type="button" onClick={() => set({ reward: t })} style={{ ...chip(false), minHeight: 32, fontSize: 'var(--t-xs)' }}>{t}</button>)}
           </div>
         </div>
 

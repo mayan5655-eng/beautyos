@@ -56,7 +56,7 @@ import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
 import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
-import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
+import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, rewardGivenOn, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD, mostUsedMethod } from "@/lib/till";
@@ -151,7 +151,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
-import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher } from "@/lib/giftVouchers";
+import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -4346,7 +4346,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   );
   const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames))
                       : importTarget === "services" ? buildServiceRows
-                      : buildImportRows;
+                      : ((g,c,h)=>buildImportRows(g,c,h,knownServiceNames));
 
   // `text` is passed when the list did not come from the paste box (a .vcf file): the state update has not landed yet.
   const goToImportMapping = (text) => {
@@ -4406,7 +4406,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
 
       if (inserted.length) setServices(prev => [...prev, ...inserted]);
-      setImportResult({ added: inserted.length, dupes, noName, failed,
+      setImportResult({ added: inserted.length, dupes, noName, nameIsService: 0, failed,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -4549,7 +4549,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const { rows, noName } = buildImportRows(grid, importCols, importHasHeader);
+    const { rows, noName, nameIsService } = buildImportRows(grid, importCols, importHasHeader, knownServiceNames);
     if (rows.length === 0) { toast("לא נמצאו לקוחות להוספה", "error"); return; }
 
     setImporting(true);
@@ -4593,7 +4593,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Only rows the database actually returned go into local state, so the
       // list on screen always matches what was really written.
       if (inserted.length) setClients(prev => [...prev, ...inserted]);
-      setImportResult({ added: inserted.length, dupes, noName, failed,
+      setImportResult({ added: inserted.length, dupes, noName, nameIsService, failed,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -5580,12 +5580,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         } catch { /* the void itself stands; the message above covers a refusal */ }
       }
       setVoidOpen(false); setVoidReason("");
+      // A loyalty reward given on this sale comes back to her client's card by itself (lib/loyalty.js loyaltyState drops a
+      // voided receipt's redemption). Said out loud, so she does not think the gift is gone or re-add the stamps by hand.
+      const rewardBack = loyaltyCfg.enabled && rewardGivenOn(receipt, loyaltyDb.redemptions) ? ". המתנה חזרה לכרטיסיית הנאמנות של הלקוחה" : "";
       if (legal && data && data[0]) {
         const d = await requestCredit(data[0]);
-        if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים ✦");
+        if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים" + rewardBack + " ✦");
         else toast(((d && d.error) || "מסמך הזיכוי עוד לא הונפק") + " התשלום ממשיך להיספר עד שהוא יונפק.", "error");
       } else {
-        toast("התשלום בוטל, המקור נשמר, והסכום ירד מהסיכומים" + (voucherBack > 0 ? `. ₪${voucherBack} חזרו לשובר המתנה` : ""));
+        toast("התשלום בוטל, המקור נשמר, והסכום ירד מהסיכומים" + (voucherBack > 0 ? `. ₪${voucherBack} חזרו לשובר המתנה` : "") + rewardBack);
       }
     } finally { setBusyKey("voidReceipt", false); }
   };
@@ -6385,12 +6388,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
       ["תאריך", esc(fmtDateHe(localDayKey(receipt.created_at)))],
       ["שירות", esc(receipt.service || "")],
-      ["אמצעי תשלום", esc(receipt.payment_method || "")],
+      ["אמצעי תשלום", esc(receiptMethodLabel(receipt))],
     ];
     if (isSplit(receipt)) for (const ln of paymentsOf(receipt)) rows.push(["· " + esc(ln.method), "₪" + esc(ln.amount)]);
     if (Number(receipt.discount) > 0) rows.push(["הנחה" + (receipt.discount_pct ? ` (${esc(receipt.discount_pct)}%)` : ""), "−₪" + esc(receipt.discount)]);
     if (Number(receipt.tip) > 0) rows.push(["טיפ", "₪" + esc(receipt.tip)]);
-    if (receipt.note) rows.push(["הערה", esc(receipt.note)]);
+    // Voucher codes as LTR isolates that never wrap, as on the screen (lib/giftVouchers.ts splitVoucherCodes).
+    if (receipt.note) rows.push(["הערה", splitVoucherCodes(receipt.note).map((seg) => seg.code ? `<bdi dir="ltr" style="white-space:nowrap">${esc(seg.text)}</bdi>` : esc(seg.text)).join("")]);
     const vd = voidOf(receipt, receiptVoids);
     if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(localDayKey(vd.created_at))]);
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
@@ -12098,7 +12102,8 @@ ${MARKETING_FOOTER}`)}`;
                 ))}
                 {showReceipt.discount>0&&<div style={{display:"flex",justifyContent:"space-between",color:pc}}><span>הנחה{showReceipt.discount_pct?` (${showReceipt.discount_pct}%)`:""}:</span><span>−₪{showReceipt.discount}</span></div>}
                 {Number(showReceipt.tip)>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>טיפ:</span><span>₪{showReceipt.tip}</span></div>}
-                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>הערה:</span><span>{showReceipt.note}</span></div>}
+                {/* A voucher code (K7M4-X9Q2) inside the Hebrew note is an LTR isolate that never wraps: left to bidi it broke at the hyphen, halves in the wrong order. */}
+                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between",gap:10}}><span style={{color:"var(--ink-3)",flexShrink:0}}>הערה:</span><span data-testid="receipt-note">{splitVoucherCodes(showReceipt.note).map((seg,i)=>seg.code?<bdi key={i} dir="ltr" style={{whiteSpace:"nowrap"}}>{seg.text}</bdi>:<span key={i}>{seg.text}</span>)}</span></div>}
  </div>
  {(()=>{
    const st=legalStateHe(showReceipt);

@@ -334,6 +334,26 @@ export function receiptMethodLabel(r: { amount?: unknown; payment_method?: unkno
   return method;
 }
 
+const CODE_IN_TEXT_RE = /[0-9A-Z]{4}-[0-9A-Z]{4}/g;
+/**
+ * A note split around its voucher codes, so each code can be rendered inside an LTR isolate that never wraps. Left to the
+ * bidi algorithm in a Hebrew line, "K7M4-X9Q2" broke at the hyphen and its halves landed in the wrong order across two
+ * lines on the payment confirmation (2026-11-08 QA). Display only: the stored note is unchanged.
+ */
+export function splitVoucherCodes(text: unknown): { text: string; code: boolean }[] {
+  const s = String(text ?? '');
+  const out: { text: string; code: boolean }[] = [];
+  let last = 0;
+  for (const m of s.matchAll(CODE_IN_TEXT_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push({ text: s.slice(last, at), code: false });
+    out.push({ text: m[0], code: true });
+    last = at + m[0].length;
+  }
+  if (last < s.length) out.push({ text: s.slice(last), code: false });
+  return out;
+}
+
 // ── What a public page may show ───────────────────────────────────────────
 
 export type PublicVoucher = {

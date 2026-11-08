@@ -88,6 +88,8 @@ export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>)
         await sendBookingNotifications({
           settingsRow: st, tenantId: p.tenant_id, appointmentId: appt.id, name: appt.name, phone: appt.client_phone, service: appt.service, date: appt.date,
           startMinute: appt.start_minute != null ? Number(appt.start_minute) : Number(appt.hour) * 60, duration: appt.duration, isReturningClient: false,
+          // A deposit booking was made under her Grow cancellation policy: the link cancels under those terms, not a window.
+          underCancelPolicy: true,
         });
       } catch (e) {
         console.error('[grow] confirmation after the deposit failed:', (e as Error)?.message);

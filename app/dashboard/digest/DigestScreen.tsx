@@ -53,8 +53,8 @@ export default function DigestScreen() {
       {state.status === 'error' && <p role="alert" style={{ marginTop: 16, color: 'var(--danger)', fontSize: 'var(--t-sm)', fontWeight: 600 }}>{state.message}</p>}
       {state.status === 'ok' && !state.digest && (
         <div style={{ ...card, marginTop: 16, textAlign: 'center' }}>
-          <p style={{ fontSize: 'var(--t-md)', fontWeight: 700 }}>עוד אין מה לסכם 🌸</p>
-          <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', marginTop: 6, lineHeight: 1.6 }}>כשיהיו תורים ותשלומים ביומן, הסיכום יופיע כאן כל יום ראשון.</p>
+          <p style={{ fontSize: 'var(--t-md)', fontWeight: 700 }}>השבוע אין מה לסכם 🌸</p>
+          <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', marginTop: 6, lineHeight: 1.6 }}>בשבועיים האחרונים לא נרשמו ביקורים או תשלומים, אז אין מספרים להשוות. הסיכום מתעדכן כאן כל יום ראשון.</p>
         </div>
       )}
 

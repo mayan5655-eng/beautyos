@@ -6,6 +6,7 @@
 // looked up per-tenant from settings.
 
 import { ACTIVE_OR_NULL } from "../../../lib/serviceActive";
+import { bookedAppointmentColor } from "../../../lib/serviceColors";
 import { cleanSource, cleanRef } from "../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
@@ -201,7 +202,7 @@ export async function POST(request) {
         .limit(1),
       supabase
         .from("settings")
-        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding, automations")
+        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, primary_color, branding, automations")
         .eq("tenant_id", activeTenantId)
         .limit(1),
       // service, kind and buffer_minutes are read for the buffer after each treatment (lib/serviceBuffer.ts); kind
@@ -237,7 +238,8 @@ export async function POST(request) {
     // used only where the row is silent (a legacy row with null duration).
     const svcDuration = Number(svcRow.duration) > 0 ? Number(svcRow.duration) : Number(duration) > 0 ? Number(duration) : 60;
     const svcPrice = Number.isFinite(Number(svcRow.price)) ? Number(svcRow.price) : Number(price) || 0;
-    const svcColor = svcRow.color || color || "#E91E63";
+    // A real hex only (lib/serviceColors.ts): the page once sent "var(--pc)", which was stored as the appointment's colour.
+    const svcColor = bookedAppointmentColor(svcRow.color, color, settingsRows && settingsRows[0] ? settingsRows[0].primary_color : null);
 
     // Wire format, explicit on BOTH sides - never one field carrying two
     // meanings:
@@ -604,6 +606,7 @@ export async function POST(request) {
         startMinute: newStart,
         duration: svcDuration,
         isReturningClient,
+        underCancelPolicy: !!policy,
       }).catch((notifyErr) => {
         console.error("[book-appointment] notifications failed:", notifyErr?.message || String(notifyErr));
       })
