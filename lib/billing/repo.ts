@@ -51,8 +51,12 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       let q = db.from('billing_payments').select('*').eq('subscription_id', subId).eq('kind', 'subscription').in('status', ['pending', 'unknown']);
       if (periodStart) q = q.eq('period_start', periodStart);
       const { data, error } = await q.order('created_at', { ascending: false }).limit(1);
-      // Before add_kalmea_billing_grow.sql the statuses do not exist: nothing is open.
-      if (error) return null;
+      // Fail closed. attempt() reads null as "no earlier unanswered charge" and charges again, so a read error that returned null
+      // could become a second real Grow charge for a period whose first charge is still unsettled (2026-11-08). Throwing makes the
+      // daily run skip this business, raise 'billing:run', and retry next run. There is no "pre-migration = none" case left to carve
+      // out: before add_kalmea_billing_grow.sql the query still succeeds (the status check constrains writes, not reads, and kind /
+      // period_start come from add_kalmea_billing.sql, which hasSucceeded() already needs one line earlier), it just finds no rows.
+      if (error) fail(error, 'findOpenAttempt');
       return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;
     },
     async insertPayment(row) {
