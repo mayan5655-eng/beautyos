@@ -10468,7 +10468,7 @@ ${MARKETING_FOOTER}`)}`;
                   whatever this div sets. */}
               {aiPostsView==="studio"&&(
  <div style={accentStyle(herAccent)}>
- <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services} onOpenScript={()=>setAiPostsView("reels")}/>
+ <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services} onOpenScript={()=>setAiPostsView("reels")} bookingUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}/>
  </div>
               )}
 

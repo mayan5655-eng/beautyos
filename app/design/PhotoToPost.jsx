@@ -20,7 +20,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../Icon';
 import Sheet from '../Sheet';
 import Spinner from '../Spinner';
+import dynamic from 'next/dynamic';
 import SaveShare from './SaveShare';
+import { reelTemplatesVisible } from '@/lib/featureFlags';
 import { renderTemplateBlob } from './canvasRender';
 import { resizeImage, IMAGE_PRESETS, COULD_NOT_SHRINK_HE } from '@/lib/imageResize';
 import { getTemplate } from '@/lib/design/templates';
@@ -29,6 +31,9 @@ import { defaultCaption } from '@/lib/design/defaultCaption';
 import { accentStyle, DEFAULT_ACCENT } from '@/lib/theme';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { pickPhotoKeys, startIndex, photoUse, photoFileProblem, photoInputs, photoCaption } from '@/lib/design/photoPost';
+
+// "תבניות רילס": opened from here too, so the photo sheet's reel path offers it without a change in beautyos.jsx.
+const ReelTemplates = dynamic(() => import('./ReelTemplates'), { ssr: false });
 
 const btn = { padding: '12px 16px', fontSize: 'var(--t-sm)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 46 };
 const solid = { ...btn, background: 'var(--pc-grad)', color: 'var(--pc-contrast)' };
@@ -56,6 +61,7 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
   const [caption, setCaption] = useState(null); // null = the generated one; a string = her edit
   const [out, setOut] = useState(null); // { post: {blob, url}, story: {blob, url}, caption, headlineDefault }
   const [sharing, setSharing] = useState(null); // 'post' | 'story'
+  const [templates, setTemplates] = useState(false); // "תבניות רילס" open over this sheet
   const photoUrl = useRef('');
 
   const fields = useMemo(() => businessFieldsOf(settings), [settings]);
@@ -122,7 +128,7 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
 
   return (
     <div style={accentStyle((settings && settings.primary_color) || DEFAULT_ACCENT)}>
-      <Sheet open={open && !sharing} onClose={onClose} zIndex={1200} width={440} ariaLabel="photo-to-post" busy={busy}
+      <Sheet open={open && !sharing && !templates} onClose={onClose} zIndex={1200} width={440} ariaLabel="photo-to-post" busy={busy}
         title="צילום אחרי טיפול"
         subtitle="תמונה אחת, ופוסט וסטורי מוכנים בעיצוב שלך.">
         <div style={{ display: 'grid', gap: 12 }} data-testid="photo-to-post">
@@ -151,6 +157,11 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
               {!thumb && onReel && (
                 <button type="button" onClick={onReel} data-testid="photo-to-post-reel" className="primary-btn" style={quiet}>
                   <Icon name="film" size={15} /> יש לי כמה תמונות או סרטון: רילס
+                </button>
+              )}
+              {!thumb && reelTemplatesVisible(settings) && (
+                <button type="button" onClick={() => setTemplates(true)} data-testid="photo-to-post-reel-templates" className="primary-btn" style={quiet}>
+                  <Icon name="sparkle" size={15} /> תבניות רילס: רשימת צילומים, מוזיקה ואפקטים
                 </button>
               )}
             </>
@@ -201,6 +212,7 @@ export default function PhotoToPost({ open, onClose, settings, toast, readOnly =
           toast={toast}
         />
       )}
+      {templates && <ReelTemplates open={open} onClose={() => setTemplates(false)} settings={settings} toast={toast} readOnly={readOnly} clientName={clientName} />}
     </div>
   );
 }

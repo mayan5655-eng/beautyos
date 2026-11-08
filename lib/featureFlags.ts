@@ -200,6 +200,15 @@ export function contentPublishVisible(settings: SettingsLike): boolean {
   return f.content_plan === true && f.content_publish_meta === true;
 }
 
+/**
+ * "תבניות רילס" (app/design/ReelTemplates.jsx): reel templates with a shot list, generated music and effects, next to
+ * "רילס מהצילומים שלי". ON by default; an explicit stored `false` under automations.feature_flags.reel_templates
+ * (or screens, or the settings.feature_flags column) hides the entry points. Nothing is removed when it is off.
+ */
+export function reelTemplatesVisible(settings: SettingsLike): boolean {
+  return tenantFlags(settings).reel_templates !== false;
+}
+
 export function legacyCampaignTextsVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).legacy_campaign_texts === true;
 }
