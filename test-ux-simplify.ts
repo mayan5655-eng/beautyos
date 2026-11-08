@@ -72,6 +72,9 @@ ok('calendar: a "רשימת המתנה" chip next to "אירוע אישי", gate
 ok('phone header: logout moves to Settings › מתקדם; search stays reachable from "עוד"', () => {
   assert.match(app, /<button onClick=\{handleLogout\} disabled=\{isBusy\("logout"\)\} className="icon-btn desktop-only"/);
   assert.match(app, /data-testid="settings-logout"/);
+  // Logout from Settings asks first and never closes Settings: cancelling keeps her unsaved edits (Vercel review 2026-11-08).
+  assert.match(app, /data-testid="settings-logout" onClick=\{handleLogout\}/);
+  assert.doesNotMatch(app, /closeSettings\(true\);handleLogout\(\)/);
   assert.match(app, /data-testid="more-search"/);
 });
 
