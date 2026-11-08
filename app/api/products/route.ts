@@ -22,7 +22,7 @@ import { requireActiveTenant } from '@/lib/planGuard';
 import { isDemoTenantId } from '@/lib/demoTenants';
 import { checkTenantLimit } from '@/lib/rateLimit';
 import { notifyOwner } from '@/lib/ownerNotify';
-import { productsVisible, cleanProductInput, cleanAdjust, isMissingProductSchema, NEEDS_MIGRATION_HE, stockOf } from '@/lib/products';
+import { productsAllowed, productsConfig, cleanProductInput, cleanAdjust, isMissingProductSchema, NEEDS_MIGRATION_HE, stockOf } from '@/lib/products';
 import { createProduct, writeProduct, adjustStock, applyReceipt, restoreReceipt, lowStockNote } from '@/lib/productService';
 import { supabaseProductRepo } from '@/lib/productRepo';
 import { admin, DEMO_NOTE } from '../grow/_shared';
@@ -52,7 +52,10 @@ async function who() {
   // The whole settings row, like every other reader of the flags (a named optional column failed the read where it is missing).
   const { data: settings, error: settingsErr } = await db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle();
   if (settingsErr) return { error: oops('settings', settingsErr) } as const;
-  if (!productsVisible(settings as never)) return { error: json({ success: false, hidden: true, error: 'מוצרים ומלאי לא פעילים בחשבון' }, 404) } as const;
+  // The PLATFORM switch gates the route. Her own switch (automations.products.enabled) hides the screens, the till and the public
+  // card; the route stays readable so her settings can tell whether the feature is installed, and a sale made before she switched
+  // it off still moves stock.
+  if (!productsAllowed(settings as never)) return { error: json({ success: false, hidden: true, error: 'מוצרים ומלאי לא פעילים בחשבון' }, 404) } as const;
   return { user, tenantId, db, settings, repo: supabaseProductRepo(db) } as const;
 }
 
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
     if (action === 'create' || action === 'update') {
       const limited = checkTenantLimit(tenantId, 'product-write');
       if (limited) return limited;
-      const c = cleanProductInput((b.product || {}) as Record<string, unknown>);
+      const c = cleanProductInput((b.product || {}) as Record<string, unknown>, productsConfig(settings as never).lowStockThreshold);
       if (!c.ok) return json({ success: false, error: c.error }, 400);
       if (action === 'create') {
         const opening = Number(b.openingStock ?? 0);

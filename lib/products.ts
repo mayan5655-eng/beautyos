@@ -44,9 +44,37 @@ export const DEFAULT_LOW_THRESHOLD = 2;
 
 type SettingsLike = { automations?: unknown; feature_flags?: unknown } | null | undefined;
 
-/** On for every business unless the platform switched it off for her with an explicit false. */
-export function productsVisible(settings: SettingsLike): boolean {
+/** The platform's off switch: products exist for this business unless feature_flags.products is an explicit false. */
+export function productsAllowed(settings: SettingsLike): boolean {
   return tenantFlags(settings)[PRODUCTS_FLAG] !== false;
+}
+
+// ── Her own switch (Settings > העסק שלי > "מוצרים ומלאי בקופה") ───────────
+// automations.products = { enabled, low_stock_threshold }. A key the settings save IS allowed to write (unlike feature_flags), and
+// validated there (sanitizeProductAutomations). Nothing stored = on, with the default threshold.
+export type ProductsConfig = { enabled: boolean; lowStockThreshold: number };
+
+export function productsConfig(settings: SettingsLike): ProductsConfig {
+  const autos = settings && typeof settings.automations === 'object' && settings.automations && !Array.isArray(settings.automations) ? (settings.automations as Record<string, unknown>) : {};
+  const raw = autos.products && typeof autos.products === 'object' && !Array.isArray(autos.products) ? (autos.products as Record<string, unknown>) : {};
+  const t = Math.round(Number(raw.low_stock_threshold));
+  return { enabled: raw.enabled !== false, lowStockThreshold: Number.isFinite(t) && t >= 0 && t <= 1000 && raw.low_stock_threshold !== null && raw.low_stock_threshold !== '' ? t : DEFAULT_LOW_THRESHOLD };
+}
+
+/** The shape written into automations.products. */
+export const productsStored = (c: ProductsConfig) => { const v = productsConfig({ automations: { products: { enabled: c.enabled, low_stock_threshold: c.lowStockThreshold } } }); return { enabled: v.enabled, low_stock_threshold: v.lowStockThreshold }; };
+
+/** The settings save: whatever the browser sent under automations.products is replaced by its validated form. */
+export function sanitizeProductAutomations(payload: Record<string, unknown>): Record<string, unknown> {
+  const a = payload.automations;
+  if (!a || typeof a !== 'object' || Array.isArray(a) || !('products' in (a as object))) return payload;
+  const autos = a as Record<string, unknown>;
+  return { ...payload, automations: { ...autos, products: productsStored(productsConfig({ automations: { products: autos.products } })) } };
+}
+
+/** Visible: the platform did not switch it off AND she did not switch it off. On by default for every business. */
+export function productsVisible(settings: SettingsLike): boolean {
+  return productsAllowed(settings) && productsConfig(settings).enabled;
 }
 
 const cleanText = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -128,7 +156,7 @@ export type ProductInput = { name: string; brand: string | null; category: strin
  * What she typed, checked. Opening stock is NOT here: a stock number only ever moves through the ledger (a "received" row on
  * creation), so the catalog form cannot overwrite a count the till has been moving.
  */
-export function cleanProductInput(b: Record<string, unknown>): { ok: true; value: ProductInput } | { ok: false; error: string } {
+export function cleanProductInput(b: Record<string, unknown>, defaultThreshold = DEFAULT_LOW_THRESHOLD): { ok: true; value: ProductInput } | { ok: false; error: string } {
   const name = cleanText(b.name, MAX_NAME);
   if (!name) return { ok: false, error: 'כתבי את שם המוצר' };
   const price = money2(Number(b.price));
@@ -139,7 +167,7 @@ export function cleanProductInput(b: Record<string, unknown>): { ok: true; value
     if (!Number.isFinite(cost) || cost < 0 || cost > MAX_PRICE) return { ok: false, error: 'מחיר העלות צריך להיות מספר, או להישאר ריק' };
   }
   const thrRaw = b.low_stock_threshold;
-  const thr = thrRaw === undefined || thrRaw === null || String(thrRaw).trim() === '' ? DEFAULT_LOW_THRESHOLD : Math.round(Number(thrRaw));
+  const thr = thrRaw === undefined || thrRaw === null || String(thrRaw).trim() === '' ? defaultThreshold : Math.round(Number(thrRaw));
   if (!Number.isFinite(thr) || thr < 0 || thr > 100000) return { ok: false, error: 'סף המלאי הנמוך צריך להיות מספר שלם, 0 ומעלה' };
   const sku = cleanText(b.sku, MAX_SKU).replace(/\s+/g, '') || null;
   return {
@@ -304,6 +332,7 @@ export function isMissingProductSchema(e: { code?: string; message?: string } | 
   return /product/i.test(String(e.message || '')) && /does not exist|schema cache|could not find/i.test(String(e.message || ''));
 }
 
+/** Shown nowhere to businesses (owner decision: before the migration nothing shows); kept for the API answer and the logs. */
 export const NEEDS_MIGRATION_HE = 'מוצרים ומלאי עוד לא הופעלו אצלך: חסר עדכון אחד במסד הנתונים (kalmea-sql-products.txt). אחרי שירוץ, המסך הזה יעבוד. שום דבר אחר לא השתנה.';
 
 /** The low-stock line for her attention list: one grouped item, keyed so a change brings it back after she dismissed it. */

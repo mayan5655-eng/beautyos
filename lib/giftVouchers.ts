@@ -26,6 +26,7 @@
 //     row names the payment (unique), so a second callback cannot issue a second voucher.
 
 import { tenantFlags } from './featureFlags.ts';
+import { sanitizeDesign, type VoucherDesign } from './giftVoucherDesign.ts';
 
 export const GV_FLAG = 'gift_vouchers';
 export const DEFAULT_VALIDITY_MONTHS = 12;
@@ -52,39 +53,63 @@ export const cleanMessage = (v: unknown, max = MAX_MESSAGE) =>
   String(v ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 3).join('\n').slice(0, max);
 export const cleanName = (v: unknown) => cleanText(v, MAX_NAME);
 
-/** Is the feature switched on for this business by the platform? */
+/**
+ * Is the feature on for this business? ON BY DEFAULT for every business (owner decision, 2026-11-08): only an explicit stored
+ * `false` under automations.feature_flags.gift_vouchers (or the settings.feature_flags column) switches it off. That key is
+ * platform-owned: the settings save never takes feature_flags from the browser.
+ */
 export function giftVouchersVisible(settings: SettingsLike): boolean {
-  return tenantFlags(settings)[GV_FLAG] === true;
+  return tenantFlags(settings)[GV_FLAG] !== false;
 }
 
 export type VoucherConfig = {
+  /** Online selling on her public page when Grow is connected. On unless she stored an explicit false. */
   enabled: boolean;
   amounts: number[];
   /** Service ids she offers as "a treatment" voucher. The price is always read from her price list at the moment of sale. */
   services: string[];
   validityMonths: number;
   note: string;
+  design: VoucherDesign;
 };
 
-/** Her setup, read defensively from automations.gift_vouchers. Malformed parts fall back to the defaults. */
-export function voucherConfig(settings: SettingsLike): VoucherConfig {
+/**
+ * Her setup, read defensively from automations.gift_vouchers. Malformed parts fall back to the defaults, and with nothing stored
+ * at all it already works: ₪200 / ₪300 / ₪500, 12 months, online when Grow is connected, the elegant design in her colours.
+ * `design` is validated here (lib/giftVoucherDesign.ts sanitizeDesign); pass the tenant and storage host so her own uploaded
+ * background is kept, otherwise any image is dropped.
+ */
+export function voucherConfig(settings: SettingsLike, tenantId?: string | null, storageHost = ''): VoucherConfig {
   const raw = asObj(asObj(settings?.automations).gift_vouchers);
   const amounts = Array.isArray(raw.amounts) ? raw.amounts : [200, 300, 500];
   const clean = [...new Set(amounts.map((a) => Math.round(Number(a))).filter((a) => Number.isFinite(a) && a >= MIN_AMOUNT && a <= MAX_AMOUNT))].sort((a, b) => a - b).slice(0, 6);
   const services = Array.isArray(raw.services) ? [...new Set(raw.services.map((s) => String(s ?? '').trim()).filter((s) => s && s.length <= 64))].slice(0, 12) : [];
   return {
-    enabled: raw.enabled === true,
+    enabled: raw.enabled !== false,
     amounts: clean,
     services,
     validityMonths: clampInt(raw.validity_months, 1, 60, DEFAULT_VALIDITY_MONTHS),
     note: cleanText(raw.note, MAX_NOTE),
+    design: sanitizeDesign(raw.design, tenantId ?? (settings as { tenant_id?: string } | null | undefined)?.tenant_id ?? null, storageHost),
   };
 }
 
 /** The shape written back into automations.gift_vouchers. */
-export function voucherStored(cfg: VoucherConfig) {
-  const c = voucherConfig({ automations: { gift_vouchers: { enabled: cfg.enabled, amounts: cfg.amounts, services: cfg.services, validity_months: cfg.validityMonths, note: cfg.note } } });
-  return { enabled: c.enabled, amounts: c.amounts, services: c.services, validity_months: c.validityMonths, note: c.note };
+export function voucherStored(cfg: VoucherConfig, tenantId?: string | null, storageHost = '') {
+  const c = voucherConfig({ automations: { gift_vouchers: { enabled: cfg.enabled, amounts: cfg.amounts, services: cfg.services, validity_months: cfg.validityMonths, note: cfg.note, design: cfg.design } } }, tenantId, storageHost);
+  return { enabled: c.enabled, amounts: c.amounts, services: c.services, validity_months: c.validityMonths, note: c.note, design: c.design };
+}
+
+/**
+ * The settings save (app/api/settings/save): whatever the browser sent under automations.gift_vouchers is replaced by its
+ * validated form, so a crafted request can store neither markup, nor a foreign image, nor a malformed colour.
+ */
+export function sanitizeVoucherAutomations(payload: Record<string, unknown>, tenantId: string, storageHost: string): Record<string, unknown> {
+  const a = payload.automations;
+  if (!a || typeof a !== 'object' || Array.isArray(a) || !('gift_vouchers' in (a as object))) return payload;
+  const autos = a as Record<string, unknown>;
+  const cfg = voucherConfig({ automations: { gift_vouchers: autos.gift_vouchers } }, tenantId, storageHost);
+  return { ...payload, automations: { ...autos, gift_vouchers: voucherStored(cfg, tenantId, storageHost) } };
 }
 
 export type ServiceLike = { id?: unknown; name?: unknown; price?: unknown; active?: unknown };
@@ -369,4 +394,5 @@ export function isMissingVoucherSchema(e: { code?: string; message?: string } | 
   return /gift_voucher/i.test(String(e.message || '')) && /does not exist|schema cache|could not find/i.test(String(e.message || ''));
 }
 
+/** Shown nowhere to businesses (owner decision: before the migration nothing shows); kept for the server logs and the API. */
 export const NEEDS_MIGRATION_HE = 'שוברי המתנה עוד לא הופעלו אצלך: חסר עדכון אחד במסד הנתונים (kalmea-sql-gift-vouchers.txt). אחרי שירוץ, המסך הזה יעבוד.';

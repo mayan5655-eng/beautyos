@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  productsVisible, cleanProductInput, cleanAdjust, productItem, isProductItem, isProductOnlyReceipt, hasProductItems, productShares,
+  productsVisible, productsAllowed, productsConfig, productsStored, sanitizeProductAutomations, DEFAULT_LOW_THRESHOLD, cleanProductInput, cleanAdjust, productItem, isProductItem, isProductOnlyReceipt, hasProductItems, productShares,
   lineShares, stockWarning, saleOutcomeNote, unitsInCart, publicProductView, recommendProducts, routineTypesOf, orderText, isLowStock,
   lowStockAttention, isMissingProductSchema, NEEDS_MIGRATION_HE, PUBLIC_PRODUCT_COLS, PRODUCT_COLS, PRODUCT_ITEM_KIND, ROUTINE_TYPES,
   type ProductRow,
@@ -36,12 +36,45 @@ const ROUTE = rd('app/api/products/route.ts');
 const PUBLIC_ROUTE = rd('app/api/products/public/route.ts');
 
 // ── the flag ────────────────────────────────────────────────────────────────
-await ok('off by default: no flag, a false flag, a string flag', () => {
-  assert.equal(productsVisible(null), false);
-  assert.equal(productsVisible({ automations: {} }), false);
-  assert.equal(productsVisible({ automations: { feature_flags: { products: 'true' } } }), false);
-  assert.equal(productsVisible({ automations: { feature_flags: { products: false } } }), false);
+await ok('on by default for every business; only an explicit false (platform or hers) hides it', () => {
+  assert.equal(productsVisible(null), true, 'no settings at all: on');
+  assert.equal(productsVisible({ automations: {} }), true, 'nothing stored: on');
+  assert.equal(productsVisible({ automations: { feature_flags: { products: 'false' } } }), true, 'only a real false is an off switch');
   assert.equal(productsVisible(on), true);
+  assert.equal(productsVisible({ automations: { feature_flags: { products: false } } }), false, 'the platform switched it off');
+  assert.equal(productsAllowed({ automations: { feature_flags: { products: false } } }), false);
+  assert.equal(productsVisible({ feature_flags: { products: false } }), false, 'the dedicated column wins too');
+  // Her own switch: off hides the screens, but the platform still allows it (Settings can switch it back on).
+  const hersOff = { automations: { products: { enabled: false } } };
+  assert.equal(productsVisible(hersOff), false);
+  assert.equal(productsAllowed(hersOff), true);
+  assert.equal(productsVisible({ automations: { products: { enabled: true }, feature_flags: { products: false } } }), false, 'her on cannot override the platform off');
+});
+await ok('her settings: on by default, the default threshold, clamps and junk, and the save validates them', () => {
+  assert.deepEqual(productsConfig(null), { enabled: true, lowStockThreshold: DEFAULT_LOW_THRESHOLD });
+  assert.deepEqual(productsConfig({ automations: { products: { enabled: false, low_stock_threshold: '5' } } }), { enabled: false, lowStockThreshold: 5 });
+  assert.equal(productsConfig({ automations: { products: { low_stock_threshold: -3 } } }).lowStockThreshold, DEFAULT_LOW_THRESHOLD);
+  assert.equal(productsConfig({ automations: { products: { low_stock_threshold: 'x' } } }).lowStockThreshold, DEFAULT_LOW_THRESHOLD);
+  assert.equal(productsConfig({ automations: { products: { low_stock_threshold: 0 } } }).lowStockThreshold, 0, '0 is a real choice');
+  assert.deepEqual(productsStored({ enabled: false, lowStockThreshold: 4 }), { enabled: false, low_stock_threshold: 4 });
+  const saved = sanitizeProductAutomations({ business_name: 'x', automations: { other: 1, products: { enabled: 'nope', low_stock_threshold: 99999, evil: '<script>' } } });
+  assert.deepEqual((saved.automations as Record<string, unknown>).products, { enabled: true, low_stock_threshold: DEFAULT_LOW_THRESHOLD });
+  assert.equal((saved.automations as Record<string, unknown>).other, 1, 'other keys untouched');
+  const untouched = { automations: { x: 1 } };
+  assert.equal(sanitizeProductAutomations(untouched), untouched);
+  // Her switch is NOT a protected key: the settings save writes it, through the validator.
+  assert.ok(!(AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('products'));
+  const save = rd('app/api/settings/save/route.ts');
+  assert.match(save, /const productsClean = sanitizeProductAutomations\(vouchersClean\);/);
+  assert.match(save, /preserveProtectedAutomations\(productsClean/);
+  // A new product starts with her default threshold.
+  const c = cleanProductInput({ name: 'קרם', price: 10 }, 7);
+  assert.ok(c.ok && c.value.low_stock_threshold === 7);
+  const settingsUi = rd('app/ProductSettings.jsx');
+  assert.match(settingsUi, /מוצרים ומלאי בקופה/);
+  assert.match(settingsUi, /products: productsStored/);
+  assert.ok(!/feature_flags/.test(settingsUi.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), 'never writes the platform key');
+  assert.match(rd('app/beautyos.jsx'), /<ProductSettings api=\{productsApi\}/);
 });
 await ok('the flag lives under feature_flags, which the settings save never takes from the browser', () => {
   assert.ok((AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('feature_flags'));
@@ -211,7 +244,9 @@ await ok('the public loader selects only display columns, only active rows, only
   const pc = calls.find((c) => c.table === 'products')!;
   assert.equal(pc.select, PUBLIC_PRODUCT_COLS);
   assert.ok(pc.filters.includes(`tenant_id=${T}`) && pc.filters.includes('archived_at is null'));
-  assert.deepEqual(await loadPublicProducts(fake({ automations: {} }, rows), T), [], 'flag off: nothing');
+  assert.equal((await loadPublicProducts(fake({ automations: {} }, rows), T)).length, 1, 'nothing stored: on by default');
+  assert.deepEqual(await loadPublicProducts(fake({ automations: { feature_flags: { products: false } } }, rows), T), [], 'platform off: nothing');
+  assert.deepEqual(await loadPublicProducts(fake({ automations: { products: { enabled: false } } }, rows), T), [], 'her switch off: nothing');
   assert.deepEqual(await loadPublicProducts(fake(on, null, { code: 'PGRST205', message: "Could not find the table 'public.products'" }), T), [], 'before the migration: nothing, no error');
 });
 await ok('the public route: signed scan link only, rate limited, a closed business shows none, never writes', () => {
@@ -327,7 +362,7 @@ await ok('a missing optional column drops ONLY that column; a missing required o
 });
 
 // ── before the migration ────────────────────────────────────────────────────
-await ok('before the migration: every path says so in one sentence and changes nothing', async () => {
+await ok('before the migration: businesses see nothing at all, and every path changes nothing', async () => {
   const missing = { code: 'PGRST205', message: "Could not find the table 'public.products' in the schema cache" };
   assert.ok(isMissingProductSchema(missing));
   assert.ok(isMissingProductSchema({ code: 'PGRST202', message: 'Could not find the function public.product_stock_apply_receipt' }));
@@ -339,6 +374,18 @@ await ok('before the migration: every path says so in one sentence and changes n
   assert.equal((await createProduct(f.repo, { tenantId: T, userId: 'u', input: input(), openingStock: 2 })).status, 'missing');
   assert.match(NEEDS_MIGRATION_HE, /kalmea-sql-products\.txt/);
   assert.match(NEEDS_MIGRATION_HE, /שום דבר אחר לא השתנה/);
+  // No screen shows the migration sentence: the panel, the settings switch, the till and the attention line render nothing.
+  const panel = rd('app/ProductsPanel.jsx');
+  assert.match(panel, /api\.status === 'migration' \|\| api\.status === 'idle'\) return null;/);
+  assert.ok(!/NEEDS_MIGRATION_HE/.test(panel + rd('app/ProductsTill.jsx') + rd('app/ProductSettings.jsx') + rd('app/beautyos.jsx')));
+  assert.match(rd('app/ProductSettings.jsx'), /api\.status !== 'ready'\) return null;/);
+  // A business with no products: a friendly first-product invitation, and nothing in the till or on the scan page.
+  assert.match(panel, /products\.length === 0 && !form && \(/);
+  assert.match(panel, /הוסיפי את המוצר הראשון/);
+  assert.match(rd('app/ProductsTill.jsx'), /if \(!list\.length\) return null;/);
+  assert.match(rd('app/skin-scan/page.jsx'), /\{recs\.length > 0 && \(/);
+  assert.deepEqual(recommendProducts({ morning: ['סרום'] }, []), []);
+  assert.match(rd('app/beautyos.jsx'), /productsApi\.visible&&productsApi\.status==="ready"\?lowStockAttention/);
   assert.ok((ROUTE.match(/return needsMigration\(\)/g) || []).length >= 8, 'every action degrades the same way');
   const hook = rd('app/useProducts.js');
   assert.match(hook, /needsMigration\) \{ setState\(\{ status: 'migration'/);

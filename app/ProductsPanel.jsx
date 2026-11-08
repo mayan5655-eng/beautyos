@@ -15,7 +15,7 @@ const EMPTY = { name: '', brand: '', category: '', price: '', cost_price: '', sk
 const dateHe = (iso) => { try { return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }); } catch { return ''; } };
 const DROPPED_HE = { routine_types: 'שלבי השגרה', category: 'הקטגוריה', sku: 'הברקוד', cost_price: 'מחיר העלות' };
 
-export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint, toast, isDemo }) {
+export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint, toast, isDemo, defaultThreshold }) {
   const [filter, setFilter] = useState('active');
   const [form, setForm] = useState(null); // { id|null, ...fields }
   const [openId, setOpenId] = useState(null);
@@ -37,7 +37,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
   const header = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>🧴 מוצרים ומלאי</p>
-      {api.status === 'ready' && !form && <button type="button" data-testid="product-new" style={btn} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY })}>מוצר חדש</button>}
+      {api.status === 'ready' && !form && <button type="button" data-testid="product-new" style={btn} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY, low_stock_threshold: String(defaultThreshold ?? DEFAULT_LOW_THRESHOLD) })}>מוצר חדש</button>}
     </div>
   );
 
@@ -109,7 +109,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
         <div data-testid="products-empty" style={{ textAlign: 'center', padding: '14px 6px 6px' }}>
           <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>מוכרת גם מוצרים?</p>
           <p style={{ ...muted, marginBottom: 12 }}>הוסיפי את המוצר הראשון שלך, והוא יופיע בקופה ליד הטיפולים, עם מלאי שמתעדכן לבד בכל מכירה.</p>
-          <button type="button" data-testid="product-first" style={primary} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY })}>הוסיפי את המוצר הראשון</button>
+          <button type="button" data-testid="product-first" style={primary} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY, low_stock_threshold: String(defaultThreshold ?? DEFAULT_LOW_THRESHOLD) })}>הוסיפי את המוצר הראשון</button>
         </div>
       )}
 

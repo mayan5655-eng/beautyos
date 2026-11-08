@@ -12,15 +12,16 @@ import { resolveBranding } from './branding.js';
 import { publicVoucherView, voucherConfig, isVoucherToken, isMissingVoucherSchema, type PublicVoucher, type VoucherRow } from './giftVouchers.ts';
 import { ensureVoucherForPayment, paymentForToken } from './giftVoucherIssue.ts';
 import { VOUCHER_COLS } from './giftVoucherRepo.ts';
+import { storageHostOf, type VoucherDesign } from './giftVoucherDesign.ts';
 
 export type PublicBrand = { name: string; primary: string; deep: string; onPrimary: string; secondary: string; logoUrl: string; slug: string | null };
 
 export type PublicVoucherState =
-  | { state: 'ready'; voucher: PublicVoucher; brand: PublicBrand }
-  | { state: 'pending' | 'cancelled'; brand: PublicBrand | null }
+  | { state: 'ready'; voucher: PublicVoucher; brand: PublicBrand; design: VoucherDesign }
+  | { state: 'pending' | 'cancelled'; brand: PublicBrand | null; design: VoucherDesign | null }
   | { state: 'unknown' };
 
-async function brandOf(db: SupabaseClient, tenantId: string): Promise<{ brand: PublicBrand; note: string }> {
+async function brandOf(db: SupabaseClient, tenantId: string): Promise<{ brand: PublicBrand; note: string; design: VoucherDesign }> {
   const [{ data: st }, { data: tn }] = await Promise.all([
     db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle(),
     db.from('tenants').select('name, slug').eq('id', tenantId).maybeSingle(),
@@ -29,7 +30,8 @@ async function brandOf(db: SupabaseClient, tenantId: string): Promise<{ brand: P
   const t = (tn || {}) as { name?: string; slug?: string };
   return {
     brand: { name: b.businessName || String(t.name || ''), primary: b.primary, deep: b.deep, onPrimary: b.onPrimary, secondary: b.secondary, logoUrl: b.logoUrl, slug: t.slug || null },
-    note: voucherConfig(st as never).note,
+    // Her design, validated on the way out (lib/giftVoucherDesign.ts sanitizeDesign): only her own upload survives as an image.
+    ...(() => { const c = voucherConfig(st as never, tenantId, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL)); return { note: c.note, design: c.design }; })(),
   };
 }
 
@@ -51,11 +53,11 @@ export async function loadPublicVoucher(db: SupabaseClient, token: string, now: 
       r = await read();
     }
     if (!r.row) {
-      const { brand } = await brandOf(db, p.tenant_id);
-      return { state: p.status === 'failed' || p.status === 'cancelled' ? 'cancelled' : 'pending', brand };
+      const { brand, design } = await brandOf(db, p.tenant_id);
+      return { state: p.status === 'failed' || p.status === 'cancelled' ? 'cancelled' : 'pending', brand, design };
     }
   }
   const row = r.row as VoucherRow;
-  const { brand, note } = await brandOf(db, String(row.tenant_id));
-  return { state: 'ready', voucher: publicVoucherView(row, note, now), brand };
+  const { brand, note, design } = await brandOf(db, String(row.tenant_id));
+  return { state: 'ready', voucher: publicVoucherView(row, note, now), brand, design };
 }

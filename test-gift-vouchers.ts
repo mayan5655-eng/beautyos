@@ -10,7 +10,7 @@ import {
   giftVouchersVisible, voucherConfig, voucherStored, voucherOptions, resolveOption, newVoucherCode, normalizeCode, formatCode,
   newVoucherToken, isVoucherToken, voucherStatus, redeemProblem, usableAmount, expiryFrom, voucherItem, isVoucherSaleReceipt,
   publicVoucherView, voucherShareText, waShareLink, parseVoucherIntent, isMissingVoucherSchema, cleanMessage, CODE_ALPHABET,
-  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher, voucherOverUsed, VOUCHER_OVER_USED_HE,
+  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher, voucherOverUsed, VOUCHER_OVER_USED_HE, sanitizeVoucherAutomations,
 } from './lib/giftVouchers.ts';
 import { issueFromPayment, sellAtTill, readRpcOutcome, SALE_NOT_RECORDED_HE, SALE_IN_FLIGHT_HE, SALE_IN_FLIGHT_MS } from './lib/giftVoucherService.ts';
 import type { VoucherRepo } from './lib/giftVoucherService.ts';
@@ -22,6 +22,8 @@ import { monthlyReport } from './lib/monthlyReport.ts';
 import { totalsOf } from './lib/till.ts';
 import { tenantFlags } from './lib/featureFlags.ts';
 import { isStampReceipt, loyaltyConfig, loyaltyState } from './lib/loyalty.js';
+import { TEMPLATES, TEMPLATE_LABELS, BACKGROUNDS, DEFAULT_DESIGN, sanitizeDesign, voucherLook, templatePreset, ornaments, cleanHeadline, allowedDesignImage } from './lib/giftVoucherDesign.ts';
+import { contrastRatio, darken } from './lib/theme.ts';
 import { AUTOMATIONS_PROTECTED_KEYS } from './lib/settingsColumns.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
@@ -32,13 +34,23 @@ const T = '11111111-2222-4333-8444-555555555555';
 const on = (gv: Record<string, unknown> = {}) => ({ automations: { feature_flags: { gift_vouchers: true }, gift_vouchers: { enabled: true, amounts: [200, 300, 500], ...gv } } });
 
 // ── the flag and her setup ───────────────────────────────────────────────────
-await ok('off by default: no flag, a false flag, a string flag', () => {
-  assert.equal(giftVouchersVisible(null), false);
-  assert.equal(giftVouchersVisible({ automations: {} }), false);
+await ok('ON by default for every business; only an explicit false switches it off', () => {
+  assert.equal(giftVouchersVisible(null), true);
+  assert.equal(giftVouchersVisible({ automations: {} }), true);
+  assert.equal(giftVouchersVisible({ automations: { feature_flags: {} } }), true);
+  assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: 'false' } } }), true, 'only the boolean false is the off switch');
   assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: false } } }), false);
-  assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: 'true' } } }), false);
+  assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: true } }, feature_flags: { gift_vouchers: false } }), false, 'the column, when present, wins');
   assert.equal(giftVouchersVisible(on()), true);
-  assert.equal(voucherConfig({}).enabled, false, 'her selling switch is off until she turns it on');
+});
+await ok('zero configuration: ₪200/₪300/₪500, 12 months, online selling on, the elegant design', () => {
+  const c = voucherConfig({});
+  assert.deepEqual(c.amounts, [200, 300, 500]);
+  assert.equal(c.validityMonths, 12);
+  assert.equal(c.enabled, true);
+  assert.equal(c.design.template, 'elegant');
+  assert.equal(c.design.color, null, 'her brand colour');
+  assert.equal(voucherConfig({ automations: { gift_vouchers: { enabled: false } } }).enabled, false, 'an explicit false is kept');
 });
 await ok('the platform flag lives under feature_flags, which the settings save never takes from the browser', () => {
   assert.ok((AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('feature_flags'));
@@ -53,7 +65,9 @@ await ok('config: defaults, clamps and junk', () => {
   assert.equal(c.validityMonths, 12);
   assert.equal(c.note, 'שלום לך');
   assert.deepEqual(c.services, ['a']);
-  assert.deepEqual(voucherStored(c), { enabled: true, amounts: [200, 300], services: ['a'], validity_months: 12, note: 'שלום לך' });
+  const stored = voucherStored(c);
+  assert.deepEqual({ ...stored, design: undefined }, { enabled: true, amounts: [200, 300], services: ['a'], validity_months: 12, note: 'שלום לך', design: undefined });
+  assert.equal(stored.design.template, 'elegant');
 });
 await ok('options are priced from her settings and price list, never from the browser', () => {
   const cfg = voucherConfig(on({ services: ['s1', 's2', 's3', 'gone'] }));
@@ -506,7 +520,7 @@ await ok('pre-migration: a till sale answers "missing" and writes no receipt', a
   const r = await sellAtTill(sale(), { repo: { ...repo, async insertReceipt() { receiptWritten = true; return { id: 'x', row: {} }; } }, randomBytes: rnd });
   assert.equal(r.status, 'missing'); assert.equal(receiptWritten, false);
 });
-await ok('pre-migration: the public page does not offer online purchase, and says why', async () => {
+await ok('pre-migration: the public shop does not exist at all (nothing shows before the migration)', async () => {
   const db = fakeDb((table) => {
     if (table === 'settings') return { data: { tenant_id: T, ...on() }, error: null };
     if (table === 'service_prices') return { data: [], error: null };
@@ -515,7 +529,7 @@ await ok('pre-migration: the public page does not offer online purchase, and say
     return { data: null, error: null };
   });
   const s = await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
-  assert.equal(s.visible, true); assert.equal(s.online, false); assert.equal(s.reason, 'no-migration');
+  assert.equal(s.visible, false); assert.equal(s.online, false); assert.equal(s.reason, 'no-migration');
 });
 await ok('no Grow for her business: visible, but not offered online', async () => {
   const db = fakeDb((table) => {
@@ -528,22 +542,26 @@ await ok('no Grow for her business: visible, but not offered online', async () =
   });
   assert.equal((await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: '' }, 'http://localhost')).reason, 'no-grow');
   assert.equal((await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost')).reason, 'no-grow', 'switched on for the platform, not connected for her');
-  const off = fakeDb((table) => (table === 'settings' ? { data: { tenant_id: T, automations: {} }, error: null } : { data: null, error: null }));
+  const off = fakeDb((table) => (table === 'settings' ? { data: { tenant_id: T, automations: { feature_flags: { gift_vouchers: false } } }, error: null } : { data: null, error: null }));
   const s = await loadVoucherShop(off as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
   assert.equal(s.visible, false); assert.equal(s.reason, 'off');
 });
-await ok('pre-migration: the screens say so in a sentence; the till widget and the list render nothing that would fail', () => {
+await ok('pre-migration: nothing shows to her at all (no "missing update" sentence): the panel, till button, settings and marketing card render null', () => {
   const panel = rd('app/GiftVouchersPanel.jsx');
-  assert.match(panel, /data\?\.needsMigration && <p data-testid="voucher-needs-migration"/);
+  assert.match(panel, /if \(!visible \|\| data\?\.needsMigration\) return null;/);
+  assert.doesNotMatch(panel, /voucher-needs-migration/);
   assert.match(panel, /data\?\.ready && !selling && <button/);
-  assert.match(rd('app/VoucherRedeemTill.jsx'), /if \(j\.needsMigration\) \{ setErr\(j\.error\); return; \}/);
+  assert.match(rd('app/VoucherRedeemTill.jsx'), /if \(ready !== true && !applied\) return null;/);
+  assert.match(rd('app/GiftVoucherSettings.jsx'), /if \(ready !== true\) return null;/);
+  assert.match(rd('app/GiftVoucherMarketingCard.jsx'), /if \(ready !== true\) return null;/);
+  assert.match(rd('app/useVouchersReady.js'), /fetch\('\/api\/vouchers\?probe=1'\)/);
+  assert.match(rd('app/api/vouchers/route.ts'), /searchParams\.get\('probe'\) === '1'/);
   const route = rd('app/api/vouchers/route.ts');
   assert.ok((route.match(/isMissingVoucherSchema\(/g) || []).length >= 6, 'every action degrades');
   // everything is behind the flag in the dashboard
   const j = rd('app/beautyos.jsx');
   assert.match(j, /giftVouchersVisible\(settings\)&&\(<VoucherRedeemTill/);
   assert.match(j, /inG\("business"\)&&giftVouchersVisible\(settings\)&&\(<GiftVoucherSettings/);
-  assert.match(panel, /if \(!visible\) return null;/);
 });
 await ok('the migration is in the referenced-tables list (the nightly check tells her when it has not run)', async () => {
   const { REFERENCED_TABLES } = await import('./lib/referencedTables.js' as string);
@@ -555,6 +573,130 @@ await ok('product copy: Hebrew, no long dashes', () => {
     const strings = src.match(/(['"`])(?:(?!\1)[^\\\n]|\\.)*[֐-׿](?:(?!\1)[^\\\n]|\\.)*\1/g) || [];
     for (const s of strings) assert.ok(!/[–—]/.test(s), `${f}: long dash in ${s.slice(0, 60)}`);
   }
+});
+
+// ── design: templates, customization, validation, rendering ───────────────
+const HOST = 'abc.supabase.co';
+const MINE = `https://${HOST}/storage/v1/object/public/community-images/${T}/branding/voucher_bg_1.jpg`;
+await ok('design: every template has a label, a default headline, and renders with her colour by default', () => {
+  for (const t of TEMPLATES) {
+    assert.ok(TEMPLATE_LABELS[t] && /[\u0590-\u05FF]/.test(TEMPLATE_LABELS[t]));
+    const look = voucherLook(templatePreset(t), '#B5838D');
+    assert.equal(look.template, t);
+    assert.ok(look.headline.length > 0);
+    assert.ok(ornaments(look, 340, 425).every((o) => Number.isFinite(o.width) && Number.isFinite(o.height)));
+  }
+  assert.equal(voucherLook(DEFAULT_DESIGN, '#B5838D').accent.length, 7);
+  assert.notEqual(voucherLook(DEFAULT_DESIGN, '#B5838D').bg, voucherLook(DEFAULT_DESIGN, '#2E86AB').bg, 'her colour, not one fixed palette');
+});
+await ok('design: text stays readable on every template, background and a hostile colour choice', () => {
+  for (const t of TEMPLATES) for (const background of BACKGROUNDS.filter((b) => b !== 'image')) for (const color of [null, '#FFFFFF', '#000000', '#FFFF00', '#1F3A30']) {
+    const d = sanitizeDesign({ template: t, background, color });
+    const look = voucherLook(d, '#E9A9A1');
+    const base = (look.bg.match(/#[0-9A-Fa-f]{6}/) || [look.bg])[0];
+    assert.ok(contrastRatio(look.ink, base) >= 4.5, `${t}/${background}/${color}: ink ${look.ink} on ${base}`);
+  }
+});
+await ok('design validation: unknown keys, bad colours, markup and foreign images are all refused', () => {
+  const d = sanitizeDesign({ template: 'evil', color: 'red', accent: '#12345', background: 'disco', font: 'comic', headline: '<img src=x onerror=alert(1)>שובר\u202e<b>חג</b>', extra: 'x' }, T, HOST);
+  assert.deepEqual(Object.keys(d).sort(), ['accent', 'background', 'color', 'font', 'headline', 'image', 'template']);
+  assert.equal(d.template, 'elegant'); assert.equal(d.color, null); assert.equal(d.accent, null); assert.equal(d.background, 'template'); assert.equal(d.font, 'serif');
+  assert.ok(!/[<>]/.test(d.headline) && !d.headline.includes('\u202e'));
+  assert.equal(d.headline, 'שובר חג');
+  assert.equal(cleanHeadline('א'.repeat(80)).length, 40);
+  assert.equal(sanitizeDesign({ color: '#b5838d' }).color, '#B5838D');
+  // images: only HER folder, on OUR storage host, https, nothing that can break out of a CSS url()
+  assert.equal(sanitizeDesign({ background: 'image', image: MINE }, T, HOST).image, MINE);
+  for (const bad of [
+    MINE.replace('https:', 'http:'),
+    MINE.replace(HOST, 'evil.example.com'),
+    MINE.replace(T, '99999999-2222-4333-8444-555555555555'),
+    `https://${HOST}/storage/v1/object/public/client-images/${T}/x.jpg`,
+    `${MINE}")`, 'javascript:alert(1)', 'data:image/png;base64,AAAA',
+  ]) {
+    const x = sanitizeDesign({ background: 'image', image: bad }, T, HOST);
+    assert.equal(x.image, null, bad); assert.equal(x.background, 'template');
+  }
+  assert.equal(sanitizeDesign({ background: 'image', image: MINE }, null, HOST).image, null, 'no tenant, no image');
+  assert.equal(allowedDesignImage(MINE, T, ''), null);
+});
+await ok('design: stored and saved only in its validated form (the settings save sanitizes automations.gift_vouchers)', () => {
+  const out = sanitizeVoucherAutomations({ automations: { other: 1, gift_vouchers: { amounts: [300], design: { template: 'festive', headline: '<script>x</script>חג שמח', image: 'https://evil.example.com/a.jpg', background: 'image' } } } }, T, HOST);
+  const gv = (out.automations as any).gift_vouchers;
+  assert.equal((out.automations as any).other, 1);
+  assert.equal(gv.design.template, 'festive'); assert.equal(gv.design.headline, 'xחג שמח'.replace('x', 'x')); assert.equal(gv.design.image, null); assert.equal(gv.design.background, 'template');
+  assert.ok(!JSON.stringify(gv).includes('<'));
+  assert.deepEqual(sanitizeVoucherAutomations({ business_name: 'x' }, T, HOST), { business_name: 'x' }, 'untouched when there is nothing to clean');
+  const save = rd('app/api/settings/save/route.ts');
+  assert.match(save, /const vouchersClean = sanitizeVoucherAutomations\(payload, tenantId, storageHostOf\(process\.env\.NEXT_PUBLIC_SUPABASE_URL\)\);/);
+  assert.match(save, /preserveProtectedAutomations\(vouchersClean, existing\?\.automations\)/);
+});
+await ok('Grow connected: online selling is on automatically, with nothing configured', async () => {
+  const db = fakeDb((table) => {
+    if (table === 'settings') return { data: { tenant_id: T, automations: {} }, error: null };
+    if (table === 'service_prices') return { data: [], error: null };
+    if (table === 'tenants') return { data: { slug: 'studio-noa' }, error: null };
+    if (table === 'gift_vouchers') return { data: [], error: null };
+    if (table === 'grow_accounts') return { data: { user_id: 'u', enabled: true }, error: null };
+    return { data: null, error: null };
+  });
+  const s = await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
+  assert.equal(s.visible, true); assert.equal(s.online, true); assert.equal(s.reason, null);
+  assert.deepEqual(s.options.map((o) => o.label), ['₪200', '₪300', '₪500']);
+  const stored = fakeDb((table) => table === 'settings' ? { data: { tenant_id: T, automations: { gift_vouchers: { enabled: false } } }, error: null } : { data: null, error: null });
+  assert.equal((await loadVoucherShop(stored as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost')).online, false, 'her explicit "no online" is kept');
+});
+await ok('the voucher page and the shop render HER design (template, headline, colours), text as text', async () => {
+  const { importApp, renderApp } = await import('./testkit/render.mjs' as string);
+  const Art = (await importApp('app/VoucherArt.tsx')).default;
+  const look = voucherLook(sanitizeDesign({ template: 'festive', headline: 'חג שמח <b>x</b>', color: '#7A3E9D' }), '#E9A9A1');
+  const html = renderApp(Art, { look, content: { title: '₪300', recipientName: '<script>alert(1)</script>', message: 'מזל טוב', code: 'K7M4-X9Q2' } });
+  assert.match(html, /data-template="festive"/);
+  assert.ok(html.includes('חג שמח x'), 'her headline, tags removed');
+  assert.ok(!html.includes('<script>') && html.includes('&lt;script&gt;'), 'names are text, never HTML');
+  assert.ok(html.includes('dir="ltr"') && html.includes('₪300'), 'the amount in its own LTR run');
+  assert.ok(html.includes(look.bg) && look.bg.includes(darken('#7A3E9D', 0.55)), 'the background is mixed from her chosen colour');
+  const View = (await importApp('app/v/[token]/VoucherView.tsx')).default;
+  const st = { state: 'ready', brand: { name: 'סטודיו נועה', primary: '#B5838D', deep: '#000', onPrimary: '#fff', secondary: '#fff', logoUrl: '', slug: 'studio-noa' },
+    design: sanitizeDesign({ template: 'birthday', headline: 'מזל טוב!' }),
+    voucher: publicVoucherView(V({ recipient_name: 'דנה', buyer_name: 'מיכל לוי', buyer_phone: '972521111111' }) as never, '', now) };
+  const page = renderApp(View, { token: 'a'.repeat(48), initial: st, buyer: false, growResult: null });
+  assert.match(page, /data-template="birthday"/); assert.ok(page.includes('מזל טוב!')); assert.ok(page.includes('K7M4-X9Q2'));
+  assert.ok(!page.includes('972521111111') && !page.includes('לוי'));
+  assert.ok(page.includes(`/api/vouchers/image?k=${'a'.repeat(48)}`), 'the voucher as a downloadable image');
+  assert.match(rd('app/[slug]/gift/GiftPurchase.tsx'), /<VoucherArt testId="gift-shop-preview"/);
+  assert.match(rd('app/[slug]/gift/page.tsx'), /voucherConfig\(shop\.settings as never, tenant\.id, storageHostOf/);
+});
+await ok('the shareable image: next/og, Hebrew in visual order, amounts and code in their own LTR boxes, rate limited, her uploads only', () => {
+  const img = rd('lib/og/voucherImage.tsx');
+  assert.match(img, /import \{ ImageResponse \} from 'next\/og'/);
+  assert.match(img, /rtlLines\(look\.headline, 18, 2\)/);
+  assert.match(img, /isMoney\(c\.title\)\s*\? <LtrBox/);
+  assert.match(img, /<LtrBox text=\{c\.code/);
+  const route = rd('app/api/vouchers/image/route.tsx');
+  assert.match(route, /checkIpLimit\(request, 'voucher-view'\)/);
+  assert.match(route, /if \(st\.state !== 'ready'\) return nope\(404\)/);
+  assert.match(route, /allowedImageUrl\(brand\.logoUrl\)/);
+  assert.match(route, /if \(!s\.visible \|\| !s\.settings\) return nope\(404\)/);
+  assert.match(route, /voucherConfig\(s\.settings as never, shop, host\)/);
+});
+await ok('the marketing card: shop link, WhatsApp share with no number, a story image, holiday texts, sell at the till', async () => {
+  const { importApp, renderApp } = await import('./testkit/render.mjs' as string);
+  const mod = await importApp('app/GiftVoucherMarketingCard.jsx');
+  const html = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, business_name: 'סטודיו נועה', primary_color: '#B5838D', automations: {} }, pc: '#B5838D', pcTint: '#FBEDE9', slug: 'studio-noa', online: true, origin: 'https://kalmea.app', onSellAtTill: () => {} });
+  assert.ok(html.includes('kalmea.app/studio-noa/gift'));
+  assert.ok(html.includes('href="https://wa.me/?text='), 'wa.me with no number');
+  assert.ok(html.includes(`/api/vouchers/image?shop=${T}&amp;f=story`));
+  for (const c of mod.VOUCHER_COPY) { assert.ok(html.includes(c.label)); assert.ok(!/[\u2013\u2014]/.test(c.text), 'no long dashes'); assert.ok(c.text.includes('{link}') && c.text.includes('{name}')); }
+  assert.ok(html.includes('data-testid="gv-sell-at-till"'));
+  assert.equal(mod.fillCopy('{name}: {link}', 'נועה', 'x'), 'נועה: x');
+  const j = rd('app/beautyos.jsx');
+  assert.match(j, /\{giftVouchersVisible\(settings\)&&<GiftVoucherMarketingCard settings=\{settings\}/);
+  assert.match(j, /sessionStorage\.setItem\("kalmea:voucher-sell","1"\);\}catch\{\}setActiveTab\("cashier"\)/);
+  assert.match(rd('app/GiftVouchersPanel.jsx'), /sessionStorage\.getItem\('kalmea:voucher-sell'\) === '1'/);
+  // no Grow: the card says so, and the link still leads to the "buy at the business" page
+  const off = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, automations: {} }, pc: '#000', pcTint: '#eee', slug: 'studio-noa', online: false, origin: '' });
+  assert.ok(off.includes('Grow עוד לא מחובר'));
 });
 
 console.log(`\n${n} gift voucher checks passed`);

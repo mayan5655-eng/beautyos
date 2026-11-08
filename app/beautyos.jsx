@@ -117,12 +117,14 @@ const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: fa
 const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: false });
 const VoucherRedeemTill = dynamic(() => import("./VoucherRedeemTill"), { ssr: false });
 const GiftVoucherSettings = dynamic(() => import("./GiftVoucherSettings"), { ssr: false });
-// Products and inventory (lib/products.ts): the catalog screen in the till tab, the till picker and its stock warnings. Each renders
-// nothing unless the platform flag automations.feature_flags.products is on and the migration has run.
+const GiftVoucherMarketingCard = dynamic(() => import("./GiftVoucherMarketingCard"), { ssr: false });
+// Products and inventory (lib/products.ts): the catalog screen in the till tab, the till picker and its stock warnings. On by default;
+// each renders nothing when products are switched off (platform flag or her own switch) or before the migration has run.
 const ProductsPanel = dynamic(() => import("./ProductsPanel"), { ssr: false });
+const ProductSettings = dynamic(() => import("./ProductSettings"), { ssr: false });
 import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
 import useProducts from "./useProducts";
-import { lowStockAttention } from "@/lib/products";
+import { lowStockAttention, productsConfig } from "@/lib/products";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -1307,7 +1309,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
   // A gift voucher used on this sale (app/VoucherRedeemTill.jsx): { ledgerId, voucherId, code, amount, balanceAfter, receiptId? }.
   const [voucherAdj, setVoucherAdj] = useState(null);
-  // Her products (app/useProducts.js): loads nothing unless the products flag is on. Stock only ever moves on the server.
+  // Her products (app/useProducts.js): loads nothing when products are switched off. Stock only ever moves on the server.
   const productsApi = useProducts(settings);
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
@@ -9448,7 +9450,7 @@ ${MARKETING_FOOTER}`)}`;
                       // ── Low stock (lib/products.ts): one grouped line while anything is at or below its threshold. Its in-app
                       // notifications (kind low_stock) are this same fact, so they are not listed again and are marked read here.
                       {
-                        const ls=productsApi.status==="ready"?lowStockAttention(productsApi.products):null;
+                        const ls=productsApi.visible&&productsApi.status==="ready"?lowStockAttention(productsApi.products):null;
                         if(ls)q.push({key:ls.key,icon:"🧴",accent:"var(--warning)",source:"מלאי",what:"מלאי נמוך",who:ls.count===1?"מוצר אחד":`${ls.count} מוצרים`,why:ls.names,primaryLabel:"למוצרים ומלאי",run:()=>{const ids=ownerNotifs.filter(n=>n.kind==="low_stock").map(n=>n.id);if(ids.length){supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs(prev=>prev.filter(n=>n.kind!=="low_stock"));}setActiveTab("cashier");}});
                       }
                       const listedNotifs=ownerNotifs.filter(n=>n.kind!=="low_stock");
@@ -10141,8 +10143,8 @@ ${MARKETING_FOOTER}`)}`;
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
  <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
- {/* Products and inventory: renders nothing unless the products flag is on. */}
- <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>
+ {/* Products and inventory: renders nothing when switched off or before the migration. */}
+ <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's
@@ -10494,6 +10496,8 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
  </div>
 
+ {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
+ {giftVouchersVisible(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");}}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -13378,7 +13382,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               )}
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
-              {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} toast={toast} tenantId={settings?.tenant_id||null} brandPrimary={editSettings.primary_color||settings?.primary_color} businessName={editSettings.business_name||settings?.business_name||""} logoUrl={editSettings.branding?.logo_url||settings?.branding?.logo_url||null} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("business")&&(<ProductSettings api={productsApi} automations={editSettings.automations} pc={pc} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("clients")&&(
  <div>

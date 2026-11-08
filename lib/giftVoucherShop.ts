@@ -4,7 +4,7 @@
 // (app/[slug]/gift), the small link on her public page (app/api/vouchers/public?shop=) and the purchase route itself
 // (app/api/vouchers/buy), so the page never offers what the route would refuse.
 //
-// Online purchase needs ALL of: the platform flag, her own "selling on" switch, the voucher tables (the migration), her business not
+// Gift vouchers are ON by default. Online purchase needs ALL of: the flag not switched off, her online switch not stored as false, the voucher tables (the migration), her business not
 // closed, and Grow switched on, connected and enabled for her business. Without Grow the page says to buy at the business instead.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { growUiEnabled, resolveGrow } from './grow/adapter.ts';
@@ -42,7 +42,8 @@ export async function loadVoucherShop(db: SupabaseClient, tenantId: string, env:
   if (await tenantIsBlocked(db, tenantId).catch(() => false)) return { ...withOptions, visible: false, online: false, reason: 'closed' };
   // A plain one-row read, not a HEAD: PostgREST answers a HEAD for a missing table with a bare 404 and no error code to recognise.
   const probe = await db.from('gift_vouchers').select('id').eq('tenant_id', tenantId).limit(1);
-  if (probe.error) return { ...withOptions, online: false, reason: isMissingVoucherSchema(probe.error) ? 'no-migration' : 'off' };
+  // Before the migration runs nothing is shown at all (owner decision): not the shop, not the link, not a sentence about it.
+  if (probe.error) return { ...withOptions, visible: false, online: false, reason: isMissingVoucherSchema(probe.error) ? 'no-migration' : 'off' };
   if (!options.length) return { ...withOptions, online: false, reason: 'no-options' };
   // The demo businesses never take a real payment.
   if (isDemoTenantId(tenantId)) return { ...withOptions, online: false, reason: 'no-grow' };

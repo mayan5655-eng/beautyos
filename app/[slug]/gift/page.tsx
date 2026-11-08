@@ -12,6 +12,8 @@ import { APP_URL } from '@/lib/appUrl';
 import { loadVoucherShop } from '@/lib/giftVoucherShop';
 import { waLink } from '@/lib/whatsappLink';
 import GiftPurchase from './GiftPurchase';
+import { voucherConfig } from '@/lib/giftVouchers';
+import { storageHostOf } from '@/lib/giftVoucherDesign';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,8 @@ export default async function GiftShopPage({ params }: Props) {
   const shop = await loadVoucherShop(admin(), tenant.id, process.env, APP_URL);
   if (!shop.visible) notFound();
   const b = resolveBranding(shop.settings || {});
+  // Her design, validated (lib/giftVoucherDesign.ts): the preview at the top is the card her friend will get.
+  const design = voucherConfig(shop.settings as never, tenant.id, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL)).design;
   return (
     <GiftPurchase
       tenantId={tenant.id}
@@ -56,6 +60,7 @@ export default async function GiftShopPage({ params }: Props) {
       note={shop.cfg.note}
       online={shop.online}
       contact={waLink(b.whatsapp) || null}
+      design={design}
     />
   );
 }

@@ -65,11 +65,19 @@ async function who() {
   return { session, user, tenantId, db, settings } as const;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const w = await who();
     if ('error' in w) return w.error;
     const { db, tenantId } = w;
+    // ?probe=1: "is it installed?" for the till button, the settings card and the marketing card. Before the migration runs,
+    // nothing is shown to her at all (owner decision), so they ask this first and render nothing on { ready: false }.
+    if (new URL(request.url).searchParams.get('probe') === '1') {
+      const p = await db.from('gift_vouchers').select('id').eq('tenant_id', tenantId).limit(1);
+      if (p.error && !isMissingVoucherSchema(p.error)) return oops('probe', p.error);
+      const { data: tn } = await db.from('tenants').select('slug').eq('id', tenantId).maybeSingle();
+      return json({ success: true, ready: !p.error, slug: (tn as { slug?: string } | null)?.slug || null });
+    }
     const v = await db.from('gift_vouchers').select(VOUCHER_COLS).eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(500);
     if (v.error && isMissingVoucherSchema(v.error)) return needsMigration();
     if (v.error) return oops('list', v.error);
