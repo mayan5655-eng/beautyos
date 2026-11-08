@@ -82,7 +82,7 @@ export const SETTINGS_TOGGLE_ONLY_WHEN_ON = ['protocols'] as const;
  */
 export const SWITCHABLE_TABS = ['packages', 'advisor', 'leads', 'protocols', 'community'] as const;
 export const SWITCHABLE_LABELS: Record<(typeof SWITCHABLE_TABS)[number], string> = {
-  packages: 'מנויים וחבילות',
+  packages: 'חבילות',
   advisor: 'יועץ AI',
   leads: 'פניות',
   protocols: 'פרוטוקולים',

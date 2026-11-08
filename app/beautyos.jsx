@@ -58,7 +58,7 @@ import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
 import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD, mostUsedMethod } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
 import { monthlyReport } from "@/lib/monthlyReport";
@@ -905,6 +905,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [apptMoreOpen,      setApptMoreOpen]       = useState(false);
   // Services show as chips, most-used first. This opens the long tail.
   const [apptAllServices,   setApptAllServices]    = useState(false);
+  // The till (UX pass 2026-11-08): the same one-tap service chips, and discount, tip and note behind one line.
+  const [cashierAllServices, setCashierAllServices] = useState(false);
+  const [cashierExtrasOpen,  setCashierExtrasOpen]  = useState(false);
+  // New client form: name and phone first, the rest behind "פרטים נוספים" (UX pass 2026-11-08). Editing opens it.
+  const [clientMoreOpen,     setClientMoreOpen]     = useState(false);
   const [rebookDone,        setRebookDone]         = useState(null);
   // The receipt just recorded at the till, for which the one-time "did she agree to updates?" prompt may show. Opening an old receipt from the list never asks.
   const [consentAskFor,     setConsentAskFor]      = useState(null);
@@ -2277,7 +2282,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           no_tenant: "לא זוהה עסק לחשבון הזה",
           no_pages: "לא נמצאו דפי פייסבוק בחשבון",
           save_failed: "לא הצלחנו לשמור את הדף, אפשר לנסות שוב",
-          subscribe_failed: "הדף נשמר אך הרישום להתראות לידים נכשל — נסי להתחבר שוב ולאשר את כל ההרשאות",
+          subscribe_failed: "הדף נשמר, אבל ההתראות על פניות חדשות לא הופעלו. נסי להתחבר שוב ולאשר את כל ההרשאות",
           missing_parameters: "פייסבוק החזיר תשובה חסרה, נסי שוב",
         };
         const base = labels[code] || "החיבור לא הושלם, אפשר לנסות שוב";
@@ -2752,6 +2757,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const lastMonthRevenue = useMemo(() => monthSummary(liveRcpts, lastMonth, lastMonthYear).total, [liveRcpts, lastMonth, lastMonthYear]);
   // Today, for the till: what she took, by method, with tips beside it.
   const todayTotals = useMemo(() => totalsOf(receiptsOnDay(liveRcpts, today)), [liveRcpts, today]);
+  // The till opens on the method she uses most (UX pass 2026-11-08), counted from her own receipts. None yet: מזומן.
+  const favoritePaymentMethod = useMemo(() => mostUsedMethod(liveRcpts, SELECTABLE_PAYMENT_METHODS.map(m=>m.key), "מזומן"), [liveRcpts]);
   // Two lists per day, on purpose. *Entries are what she sees - her whole day,
   // her own commitments included. *Appts are what gets counted, because a count
   // labelled תורים that includes her accountant is a lie about her workload.
@@ -3201,6 +3208,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const entryTime = (a) => isAllDay(a) ? "כל היום" : fmtApptTime(a);
   // The second line. An appointment says what treatment; a personal event has
   // no service, so it says whatever she wrote, or names itself.
+  // "רשימת המתנה (N)" in the calendar (UX pass 2026-11-08): the list lives on the packages screen; when that screen is
+  // switched off, the chip opens "add to the waitlist" instead, so it never leads nowhere.
+  // Gated like every waitlist reader: no number until the list has loaded (a 0 would be a lie).
+  const waitingCount = deferred.waitlist==="ok" ? waitlist.filter(w=>w.status==="waiting").length : null;
+  const waitlistChipLabel = waitingCount===null ? "רשימת המתנה" : `רשימת המתנה (${waitingCount})`;
+  const openWaitlist = () => {
+    if (!isTabVisible(settings, "packages")) { setShowWaitlistModal(true); return; }
+    setActiveTab("packages");
+    setTimeout(() => { try { document.getElementById("waitlist-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch { /* old browser: the screen still opened */ } }, 250);
+  };
   const entrySubtitle = (a) => isPersonal(a) ? (String(a.note||"").trim() || "אירוע אישי") : a.service;
 
   // ============================================================
@@ -4146,6 +4163,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setLeads(prev=>prev.filter(l=>!same(l.client_id)));
   };
   const saveClientDupOk = useRef(false);
+  // Every new-client form opens short again (name and phone), whichever button opened it.
+  useEffect(() => { if (!showClientModal) setClientMoreOpen(false); }, [showClientModal]);
   const handleSaveClient = async () => {
     if (guardWrite()) return;
     if(!newClient.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
@@ -4175,7 +4194,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if(error){handleDbError(error, "create client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>[...prev,data[0]]);
-        toast("הלקוחה נוספה");
+        // The next step, one tap away (UX pass 2026-11-08): book her first visit with the client already filled in.
+        const nc=data[0];
+        toast("נוספה ✓ · לקבוע לה תור?", "success", { label:"קביעת תור", onClick:()=>{ openNewAppt(); setNewAppt(prev=>({...prev,clientId:nc.id,name:nc.name})); } });
       }
       setShowClientModal(false);setEditingClient(null);setNewClient(emptyClient);
     } finally {
@@ -4607,13 +4628,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if(error){handleDbError(error, "update lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
-        toast("הליד עודכן");
+        toast("הפנייה עודכנה");
       }else{
         const {data,error}=await supabase.from("leads").insert([{...newLead,source:newLead.source||null}]).select();
         if(error){handleDbError(error, "create lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>[...prev,data[0]]);
-        toast("הליד נוסף");
+        toast("הפנייה נוספה");
       }
       setShowLeadModal(false);setEditingLead(null);setNewLead(emptyLead);
     } finally {
@@ -4758,7 +4779,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleConvertLead = (lead) => {
     if (guardWrite()) return;
     askConfirm({
-      title: "המרת ליד ללקוחה",
+      title: "המרת פנייה ללקוחה",
       message: `להמיר את ${lead.name} ללקוחה רשומה?`,
       confirmText: "המרה",
       onConfirm: async () => {
@@ -4779,7 +4800,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const tid = rpcTenant || settings?.tenant_id || null;
         const tenantField = tid ? { tenant_id: tid } : {};
         console.log(`[convert-lead] TENANT FILTER: tenant_id = ${tid ?? "(omitted — DB default)"} | lead ${lead.id}`);
-        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
+        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הגיעה מפנייה. מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
         if(!cd||!cd[0]){toast(couldNotHe("להמיר את זה"),"error");return;}
         const {data:ld, error:le}=await supabase.from("leads").update({status:"closed",converted_at:new Date().toISOString(),client_id:cd[0].id}).eq("id",lead.id).select();
@@ -5304,7 +5325,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         ["appointments", "service",          "תורים"],
         ["receipts",     "service",          "תשלומים"],
         ["packages",     "service",          "חבילות"],
-        ["leads",        "service_interest", "לידים"],
+        ["leads",        "service_interest", "פניות"],
       ];
       const results = await Promise.all(
         checks.map(([table, col]) =>
@@ -5556,7 +5577,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
+    setPaymentMethod(favoritePaymentMethod);setCashierAllServices(false);setCashierExtrasOpen(false);setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
     // A loyalty ledger read that failed shows no card at the till (see loyaltyFor): opening the till tries it again.
     if (loyaltyCfg.enabled && loyaltyDb.ready === "error") loadLoyaltyRows();
   };
@@ -7271,7 +7292,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const d = await res.json().catch(() => null);
       if (!res.ok || !d || !d.success) { toast((d && d.error) || "לא הצלחנו לעדכן את הדף", "error"); return; }
       await loadFbConnection();
-      toast(active ? "קבלת לידים מהדף הופעלה" : "קבלת לידים מהדף הופסקה");
+      toast(active ? "קבלת פניות מהדף הופעלה" : "קבלת פניות מהדף הופסקה");
     } catch { toast("לא הצלחנו לעדכן את הדף. בדקי את החיבור.", "error"); }
     finally { setFbPageBusy(""); }
   };
@@ -7813,7 +7834,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"whatsapp", label:"הודעות"},
     {id:"campaigns",label:"תוכן"},
     {id:"community",label:"קהילה"},
-    {id:"packages", label:"מנויים"},
+    {id:"packages", label:"חבילות"},
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
     {id:"help",     label:"עזרה"},
@@ -8829,7 +8850,9 @@ ${MARKETING_FOOTER}`)}`;
                     the logo blends the same way it does on login. */}
  <header className="app-header" style={{background:"var(--pc-chrome)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",overflow:"visible"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
- <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט"><Icon name="menu" size={20}/></button>
+ {/* UX pass 2026-11-08: the phone header keeps the logo, the gear and one badge. The menu button is hidden there (kept,
+     not deleted); the same drawer, with search, opens from "עוד" › "חיפוש". Logout moved to Settings › מתקדם. */}
+ <button className="icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט"><Icon name="menu" size={20}/></button>
                 {/* Compact Kalmea lockup: florals + wordmark, no tagline.
                     Brand tier, so it never takes the tenant accent. Intrinsic
                     520x177 with the height capped, so the ratio holds. */}
@@ -8894,7 +8917,7 @@ ${MARKETING_FOOTER}`)}`;
                 {/* Same reason as the gear above: U+23FB renders as a colour
                     emoji on iOS. Fixing one and leaving its neighbour is worse
                     than leaving both. */}
- <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title={authEmail ? `התנתקות (מחוברת כ-${authEmail})` : "התנתקות"} aria-label="התנתקות מהמערכת">
+ <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn desktop-only" title={authEmail ? `התנתקות (מחוברת כ-${authEmail})` : "התנתקות"} aria-label="התנתקות מהמערכת">
  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
  <path d="M12 3.2v8.4"/>
  <path d="M17.4 6.1a7.5 7.5 0 1 1-10.8 0"/>
@@ -9098,8 +9121,9 @@ ${MARKETING_FOOTER}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- {/* Not while the 3-step card is on: a big ₪0 is the first thing a new business saw, before there was anything to count. */}
- {fbView!=="active"&&<div className="glass-card card-boxed" style={{order:2,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ {/* Not while the 3-step card is on, and not before today's first payment (UX pass 2026-11-08): a big ₪0 says nothing.
+     Order (UX pass): greeting, My Day, the freed-slot question, the next client, then this revenue line, then the rest. */}
+ {fbView!=="active"&&todayTotals.count>0&&<div className="glass-card card-boxed" style={{order:3,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
  <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
@@ -9142,7 +9166,7 @@ ${MARKETING_FOOTER}`)}`;
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
                 : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card card-boxed card-boxed-rose" style={{order:6,position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
+ <div className="glass-card card-boxed card-boxed-rose" style={{order:2,position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
                   {/* Ad-aligned pass: the new question line-icon is this
                       card's real header mark now, in place of the old faint
                       13%-opacity corner flower - large enough to actually
@@ -9209,7 +9233,7 @@ ${MARKETING_FOOTER}`)}`;
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"קופה",hint:"רישום תשלום",icon:"₪",onClick:()=>handleOpenCashier(null)},
                 {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
-                {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
+                {label:"הודעות",hint:"וואטסאפ ללקוחות",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
                 {/* TIER 1a's old greeting-bar card (pill + name + warm
@@ -9245,7 +9269,7 @@ ${MARKETING_FOOTER}`)}`;
                   if(!brief) return null;
                   const {appt,client,minutesUntil,lastVisit,allergies,note,isNew}=brief;
                   return(
- <div className="glass-card card-boxed card-boxed-accent" style={{order:3,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{order:2,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,margin:"0 0 2px"}}>{untilHe(minutesUntil)}</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>{appt.name}{appt.service?" · "+appt.service:""}</p>
  <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -9676,6 +9700,7 @@ ${MARKETING_FOOTER}`)}`;
  <button aria-label="שבוע הבא" onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>←</button>
  </div>
  <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}><Icon name="lock" size={14}/> אירוע אישי</button>
+ <button data-testid="cal-waitlist-chip" onClick={openWaitlist} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}>{waitlistChipLabel}</button>
  <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
  </div>
@@ -9807,6 +9832,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setCalDay(new Date())} style={{flex:1,background:"var(--pc-tint)",border:"none",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:pcDeep,cursor:"pointer",fontFamily:"inherit"}}>היום</button>
  <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}><Icon name="lock" size={14}/> אירוע אישי</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"var(--pc-contrast)",padding:"11px 0",fontSize:"var(--t-md)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
+ </div>
+ <div style={{display:"flex",justifyContent:"flex-start",marginTop:-6,marginBottom:12}}>
+ <button data-testid="cal-waitlist-chip-day" onClick={openWaitlist} style={{minHeight:44,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-full)",padding:"0 14px",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>{waitlistChipLabel}</button>
  </div>
                   {(() => {
                     // Rows are driven by the day's REAL appointments, not by a fixed
@@ -10125,10 +10153,10 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה ותשלומים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>תשלומים ואישורי תשלום</p>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_WALLET} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>קופה</h2>
  </div>
  <button onClick={()=>setActiveTab("tax")} style={{marginTop:0,background:"none",border:"none",padding:"13px 0",minHeight:44,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
@@ -10308,7 +10336,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_ENVELOPE} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>מרכז הודעות</h2>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>הודעות</h2>
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
 
@@ -10516,7 +10544,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  {fbCampaigns===null&&!fbLoading&&!fbError&&(
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",padding:"10px 0"}}>לחצי "טעני קמפיינים" כדי לראות את ביצועי המודעות שלך בפייסבוק ואינסטגרם — הוצאה, לידים, ומחיר לליד.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",padding:"10px 0"}}>לחצי "טעני קמפיינים" כדי לראות את ביצועי המודעות שלך בפייסבוק ואינסטגרם: הוצאה, פניות ומחיר לפנייה.</p>
  )}
 
  {fbError&&(
@@ -10533,11 +10561,11 @@ ${MARKETING_FOOTER}`)}`;
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pc}}>₪{Math.round(fbTotals.spend).toLocaleString()}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>לידים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>פניות</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)"}}>{fbTotals.leads}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לליד</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לפנייה</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pc}}>{fbTotals.cpl?`₪${fbTotals.cpl}`:"—"}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
@@ -10561,11 +10589,11 @@ ${MARKETING_FOOTER}`)}`;
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{Math.round(c.spend).toLocaleString()}</p>
  </div>
  <div style={{textAlign:"center",minWidth:45}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לידים</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>פניות</p>
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)"}}>{c.leads}</p>
  </div>
  <div style={{textAlign:"center",minWidth:55}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לליד</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לפנייה</p>
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>{c.cpl?`₪${c.cpl}`:"—"}</p>
  </div>
  </div>
@@ -10578,10 +10606,10 @@ ${MARKETING_FOOTER}`)}`;
 
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:16}}>
               {[
-                {label:"סה״כ לידים",value:leads.length,icon:"✉"},
+                {label:"סה״כ פניות",value:leads.length,icon:"✉"},
                 {label:"הומרו",value:convertedLeads.length,icon:"✓"},
                 {label:"המרה",value:`${conversionRate}%`,icon:"↗"},
-                {label:"הכנסות מלידים",value:`₪${Math.round(allSourcesReport.totals.revenue).toLocaleString()}`,icon:"₪"},
+                {label:"הכנסות מפניות",value:`₪${Math.round(allSourcesReport.totals.revenue).toLocaleString()}`,icon:"₪"},
               ].map((s,i)=>(
  <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"16px 16px",border:`1px solid var(--line)`}}>
  <span style={{display:"inline-flex",width:30,height:30,borderRadius:"var(--r-xs)",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",color:pc,background:"var(--pc-tint)",marginBottom:8}}>{s.icon}</span>
@@ -11005,7 +11033,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
  <BrandImage width={60} height={60} aria-hidden alt="" src={ICON_SPARKLE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ופניות — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
                     {["איך אחזיר לקוחות רדומות?","איך אעלה את ההכנסות החודש?","מה כדאי לתמחר מחדש?","רעיון לקמפיין לחודש חלש"].map(q=>(
  <button key={q} className="empty-cta" onClick={()=>setAdvisorInput(q)} style={{background:"var(--pc-tint)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"9px 15px",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>
@@ -11132,8 +11160,8 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מנויים וחבילות</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מנויי טיפולים</h2>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>חבילות טיפולים</p>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>חבילות</h2>
  </div>
  <div style={{display:"flex",gap:6}}>
  <button className="primary-btn" onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 16px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>+ מכירת חבילה ללקוחה</button>
@@ -11214,7 +11242,7 @@ ${MARKETING_FOOTER}`)}`;
                 ))}
  </div>
 
- <div className="glass-card" style={{padding:18}}>
+ <div id="waitlist-card" className="glass-card" style={{padding:18,scrollMarginTop:16}}>
  {deferred.waitlist!=="ok"?<DeferredGate status={deferred.waitlist} what="את רשימת ההמתנה" onRetry={loadDeferred}/>:(<>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_CALENDAR} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
@@ -11707,14 +11735,24 @@ ${MARKETING_FOOTER}`)}`;
       {showClientModal&&(
  <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
- <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ {/* UX pass 2026-11-08: name and phone first; everything else one tap away behind "פרטים נוספים" (open when editing). */}
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>שם מלא
+ <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></label>
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>טלפון (לתזכורות בוואטסאפ)
+ <input type="tel" inputMode="tel" dir="ltr" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="05X-XXXXXXX" style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/></label>
+ <button type="button" data-testid="client-more" aria-expanded={clientMoreOpen||!!editingClient} onClick={()=>setClientMoreOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"none",border:"none",borderTop:"1px solid var(--line)",padding:"4px 2px",cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>פרטים נוספים</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{(clientMoreOpen||editingClient)?"סגירה":"יום הולדת, אלרגיות, הערות"}</span>
+ </button>
+ {(clientMoreOpen||!!editingClient)&&(<>
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>יום הולדת (לברכה אוטומטית)
+ <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></label>
  {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="משהו שכדאי לזכור עליה. למשל: מתחתנת בנובמבר, לא אוהבת ריח חזק" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4}}>סטטוס</p><div style={{display:"flex",gap:4}}>{Object.entries(STATUS_LABELS).map(([key,label])=><button key={key} onClick={()=>setNewClient({...newClient,status:key})} style={{flex:1,padding:"7px 2px",border:"1px solid",borderColor:newClient.status===key?pc:"var(--line)",borderRadius:"var(--r-sm)",background:newClient.status===key?STATUS_COLORS[key]:pcTint,color:newClient.status===key?"var(--surface)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>)}</div></div>
+ </>)}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowClientModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
@@ -11833,7 +11871,7 @@ ${MARKETING_FOOTER}`)}`;
 
       {/* CASHIER MODAL */}
       {showCashier&&(
- <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="קופה — תשלום חדש">
+ <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="תשלום חדש">
  {/* No business type = no legal document from Morning (lib/legalReceipts/service.js, tax_status_missing). Said here, before she
      charges, with a way to fix it. Never blocks the payment itself (owner's decision, 2026-10-23). */}
  {(!settings.business_tax_status||taxStatusUnconfirmed(settings))&&(
@@ -11861,11 +11899,19 @@ ${MARKETING_FOOTER}`)}`;
               )}
  </div>
  <div style={{marginBottom:10}}>
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>פריטים</p>
- <select onChange={e=>{const svc=activeServices.find(s=>s.name===e.target.value);if(svc){setCashierItems(prev=>[...prev,{id:Date.now(),name:svc.name,price:svc.price,qty:1,color:svc.color}]);}e.target.value="";}} style={{border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"5px 9px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:pc}}><option value="">+ הוסיפי שירות</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price}</option>)}</select>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>טיפול</p>
+ {/* One-tap chips, most-used first: the same chips as the booking sheet (UX pass 2026-11-08). A tap adds the treatment. */}
+ {activeServices.length>0&&(
+ <div data-testid="cashier-service-chips" style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                  {(cashierAllServices?servicesByUse:servicesByUse.slice(0,6)).map(sv=>(
+ <button type="button" key={sv.name} onClick={()=>setCashierItems(prev=>[...prev,{id:Date.now(),name:sv.name,price:sv.price,qty:1,color:sv.color}])} style={{padding:"8px 12px",minHeight:44,borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink-2)",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>+ {sv.name} · ₪{sv.price}</button>
+                  ))}
+                  {servicesByUse.length>6&&(
+ <button type="button" onClick={()=>setCashierAllServices(v=>!v)} style={{padding:"8px 12px",minHeight:44,borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px dashed ${pc}`,background:"transparent",color:pcDeep}}>{cashierAllServices?"פחות":`עוד ${servicesByUse.length-6}`}</button>
+                  )}
  </div>
-              {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>)
+ )}
+              {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):null)
                 :cashierItems.map(item=>(
  <div key={item.id} style={{padding:"8px 9px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:4}}>
  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
@@ -11895,6 +11941,12 @@ ${MARKETING_FOOTER}`)}`;
  ):(
  <p data-testid="loyalty-till-progress" style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",margin:"0 0 10px"}}>🎁 כרטיסיית נאמנות: {cashierLoyalty.filled} מתוך {cashierLoyalty.every}. {afterSaveLine(cashierLoyalty)}</p>
  ))}
+ {/* Discount, tip and note: the exception, so behind one line that says what is set (UX pass 2026-11-08). */}
+ <button type="button" data-testid="cashier-extras" aria-expanded={cashierExtrasOpen} onClick={()=>setCashierExtrasOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"none",border:"none",borderTop:"1px solid var(--line)",padding:"4px 2px",marginBottom:8,cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>הנחה, טיפ והערה</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{cashierExtrasOpen?"סגירה":[Number(cashierDiscount)>0?(cashierDiscountMode==="pct"?`הנחה ${cashierDiscount}%`:`הנחה ₪${cashierDiscount}`):"",Number(cashierTip)>0?`טיפ ₪${cashierTip}`:"",cashierNote.trim()?"הערה":""].filter(Boolean).join(" · ")||"+"}</span>
+ </button>
+ {cashierExtrasOpen&&(<>
  {/* Discount: shekels or a percentage. The shekel figure is what is stored
      either way; the percentage is remembered beside it. */}
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -11911,6 +11963,8 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",flex:1}}>טיפ (₪)<span style={{color:"var(--ink-3)"}}> · לא נכלל בהכנסות</span></p>
  <input type="number" inputMode="decimal" min={0} value={cashierTip||""} onChange={e=>setCashierTip(e.target.value)} placeholder="0" aria-label="טיפ" style={{width:80,height:40,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"0 10px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
+ <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" aria-label="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
+ </>)}
             {cashierPackage&&(
  <div style={{background:drawFromPackage?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${drawFromPackage?pc:"var(--line-2)"}`,borderRadius:"var(--r-sm)",padding:"11px 12px",marginBottom:10}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
@@ -11962,7 +12016,6 @@ ${MARKETING_FOOTER}`)}`;
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
  {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} loyalty={loyaltyRewardLive?{reward:loyaltyCfg.reward,stampsUsed:loyaltyApplied.marker?.loyalty_every??loyaltyCfg.every}:null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
- <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
@@ -12411,6 +12464,13 @@ ${MARKETING_FOOTER}`)}`;
  </button>
                 );
               })}
+              <button data-testid="more-search" onClick={()=>{setShowMoreSheet(false);setShowMobileSidebar(true);}}
+        style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,
+                padding:"14px 6px",borderRadius:"var(--r-md)",cursor:"pointer",fontFamily:"inherit",
+                border:"1px solid var(--line)",background:"var(--surface-2)",color:"var(--ink-2)"}}>
+ <span aria-hidden style={{fontSize:20,lineHeight:1}}>⌕</span>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>חיפוש</span>
+ </button>
               {ownerEntry}
  </div>
  </div>
@@ -12528,17 +12588,17 @@ ${MARKETING_FOOTER}`)}`;
  {inG("connections")&&(<>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>פייסבוק ואינסטגרם</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>לידים ממודעות הלידים שלך מגיעים אוטומטית לרשימת הפניות. כאן רואים אילו דפים מחוברים, ואפשר להפסיק קבלת לידים מדף מסוים בלי למחוק כלום.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>פניות ממודעות הפניות שלך מגיעות לבד לרשימת הפניות. כאן רואים אילו דפים מחוברים, ואפשר להפסיק קבלת לידים מדף מסוים בלי למחוק כלום.</p>
  {fbPages===null?<Spinner inline label="בודקת חיבור"/>:fbPages.length===0?(
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:0}}>עוד לא חיברת דף פייסבוק.</p>
  ):fbPages.map(p=>(
  <div key={p.page_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.page_name}</p>
- <p style={{fontSize:"var(--t-xs)",color:p.is_active?"var(--success)":"var(--ink-3)",margin:0}}>{p.is_active?"✓ לידים מהדף מגיעים אלייך":"קבלת לידים מהדף מופסקת"}</p>
+ <p style={{fontSize:"var(--t-xs)",color:p.is_active?"var(--success)":"var(--ink-3)",margin:0}}>{p.is_active?"✓ פניות מהדף מגיעות אלייך":"קבלת פניות מהדף מופסקת"}</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:0}}>{p.instagram_business_id?"חשבון אינסטגרם עסקי מקושר לדף":"אין חשבון אינסטגרם עסקי מקושר לדף"}</p>
  </div>
- <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת לידים":"הפעלה מחדש"}</button>
+ <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת פניות":"הפעלה מחדש"}</button>
  </div>
  ))}
  {fbPages&&fbPages.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>חיבור מחדש מרענן את ההרשאות (למשל כדי לראות נתוני קמפיינים) ומאפשר להוסיף דף נוסף. הדפים שכבר מחוברים נשארים.</p>}
@@ -12559,6 +12619,9 @@ ${MARKETING_FOOTER}`)}`;
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  </>)}
+ {inG("advanced")&&(
+ <button type="button" data-testid="settings-logout" onClick={()=>{closeSettings(true);handleLogout();}} disabled={isBusy("logout")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"0 12px",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit"}}><span>התנתקות{authEmail?` (${authEmail})`:""}</span><span aria-hidden>⏻︎</span></button>
+ )}
  {inG("advanced")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{SETTINGS_SWATCHES.map(col=><button key={col} type="button" aria-label={swatchLabel(col)} title={swatchLabel(col)} aria-pressed={editSettings.primary_color===col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  </>)}
@@ -13128,16 +13191,16 @@ ${MARKETING_FOOTER}`)}`;
      server keeps only a hash. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>מפתח API לקליטת לידים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>מפתח לקליטת פניות מהאתר שלך</p>
  {leadKeyConfigured!==null&&<span style={{fontSize:"var(--t-sm)",fontWeight:700,borderRadius:"var(--r-lg)",padding:"5px 11px",...(leadKeyConfigured?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--ink-3)",background:"var(--surface-2)"})}}>{leadKeyConfigured?"פעיל ✓":"לא הופק"}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:8}}>מאפשר לדף נחיתה או לאתר חיצוני לשלוח לידים ישירות לרשימה שלך. המפתח מוצג פעם אחת בלבד — העתיקי ושמרי אותו אצל בונה האתר. הפקה מחדש מבטלת את המפתח הקודם מיד.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:8}}>מאפשר לדף נחיתה או לאתר חיצוני לשלוח פניות ישירות לרשימה שלך. המפתח מוצג פעם אחת בלבד — העתיקי ושמרי אותו אצל בונה האתר. הפקה מחדש מבטלת את המפתח הקודם מיד.</p>
  {leadKeyJustGenerated&&(
  <div style={{background:"var(--pc-tint)",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:8}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,marginBottom:4}}>המפתח שלך — מוצג פעם אחת בלבד:</p>
  <p style={{fontSize:"var(--t-sm)",fontFamily:"monospace",direction:"ltr",textAlign:"left",wordBreak:"break-all",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",userSelect:"all"}}>{leadKeyJustGenerated}</p>
  <button onClick={()=>{copyText(leadKeyJustGenerated).then(ok=>ok?toast("המפתח הועתק"):toast("ההעתקה נכשלה — סמני והעתיקי ידנית","error"));}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--pc-contrast)",padding:"7px 14px",fontSize:"var(--t-sm)"}}>העתקה</button>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר — שליחת ליד:</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר: שליחת פנייה</p>
  <pre style={{fontSize:"var(--t-xs)",fontFamily:"monospace",direction:"ltr",textAlign:"left",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",overflowX:"auto",whiteSpace:"pre",userSelect:"all"}}>{`curl -X POST ${typeof window!=="undefined"?window.location.origin:""}/api/leads/intake \
   -H "Content-Type: application/json" \
   -H "x-api-key: ${leadKeyJustGenerated}" \
@@ -13157,7 +13220,7 @@ ${MARKETING_FOOTER}`)}`;
      finally{setLeadKeyBusy(false);}
    };
    if(leadKeyConfigured){
-     askConfirm({title:"להפיק מפתח חדש?",message:"המפתח הקיים יפסיק לעבוד מיד, וכל טופס שמשתמש בו יפסיק לשלוח לידים עד שיעודכן.",confirmText:"הפיקי חדש",cancelText:"ביטול",danger:true,onConfirm:go});
+     askConfirm({title:"להפיק מפתח חדש?",message:"המפתח הקיים יפסיק לעבוד מיד, וכל טופס שמשתמש בו יפסיק לשלוח פניות עד שיעודכן.",confirmText:"הפיקי חדש",cancelText:"ביטול",danger:true,onConfirm:go});
    } else { go(); }
  }} disabled={leadKeyBusy} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"8px 16px",fontSize:"var(--t-sm)",opacity:leadKeyBusy?0.6:1}}>{leadKeyBusy?<Spinner inline label="מפיקה"/>:leadKeyConfigured?"הפקת מפתח חדש":"הפקת מפתח"}</button>
  </div>

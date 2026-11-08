@@ -6,7 +6,7 @@
 import {
   paymentsOf, isSplit, validateSplit, discountAmount, voidedIds, liveReceipts, voidOf,
   totalsOf, receiptsOnDay, localDayKey, paidWith, SPLIT_METHOD, receiptsInMonth, monthSummary,
-  bucketByMethod, OTHER_METHOD,
+  bucketByMethod, OTHER_METHOD, mostUsedMethod,
 } from './lib/till.ts';
 import {
   isLateCancellation, clientReliability, reliabilityLine, canMarkNoShow,
@@ -201,6 +201,16 @@ eq(shortDates(['2026-10-12', '2026-11-02']), '12.10, 2.11', 'short dates for a t
   const vac = applyPersonalPreset(draft, PERSONAL_PRESETS[2]);
   eq([vac.title, vac.allDay, vac.to], ['חופשה', true, '2026-09-28'], 'vacation: a week, all day');
   eq(draft.title, '', 'the draft passed in is not mutated');
+}
+
+// ── the till's default payment method: her most-used one ──────────────────
+{
+  const allowed = ['מזומן', 'אשראי', 'ביט', 'פייבוקס', 'העברה'];
+  eq(mostUsedMethod([], allowed, 'מזומן'), 'מזומן', 'no receipts: the fallback');
+  eq(mostUsedMethod([{ amount: 1, payment_method: 'ביט' }, { amount: 1, payment_method: 'ביט' }, { amount: 1, payment_method: 'מזומן' }], allowed, 'מזומן'), 'ביט', 'the most used wins');
+  eq(mostUsedMethod([{ amount: 1, payment_method: 'חבילה' }, { amount: 1, payment_method: 'חבילה' }], allowed, 'מזומן'), 'מזומן', 'a method she cannot pick at the till never wins');
+  eq(mostUsedMethod([{ amount: 2, payment_method: SPLIT_METHOD, payments: [{ method: 'אשראי', amount: 1 }, { method: 'ביט', amount: 1 }] }, { amount: 1, payment_method: 'אשראי' }], allowed, 'מזומן'), 'אשראי', 'split lines count');
+  eq(mostUsedMethod([{ amount: 1, payment_method: 'ביט' }, { amount: 1, payment_method: 'אשראי' }], allowed, 'מזומן'), 'אשראי', 'a tie keeps the order of the allowed list');
 }
 
 console.log(`test-till: ${passed} passed, ${failed} failed`);
