@@ -175,7 +175,14 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
       setAdding(-1);
     })();
   };
-  const onSlotFile = (i) => (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) put([i], [f]); };
+  // One file fills this shot. Several (an iPhone owner ticks 3 in the photo picker from any shot's button) fill this shot and then
+  // the EMPTY shots after it, in the order she picked, so she never has to find the "all together" button (2026-11-08, her test).
+  const onSlotFile = (i) => (e) => {
+    const files = Array.from(e.target.files || []); e.target.value = '';
+    if (!files.length || !tpl) return;
+    const later = tpl.slots.map((_, k) => k).filter((k) => k > i && !media[k]);
+    put([i, ...later], files);
+  };
   const onMany = (e) => {
     const files = Array.from(e.target.files || []); e.target.value = '';
     if (!files.length || !tpl) return;
@@ -379,7 +386,7 @@ export default function ReelTemplates({ open, onClose, settings, toast, readOnly
                       <div style={{ display: 'flex', gap: 8 }}>
                         <label className="primary-btn" style={{ ...(it ? quiet : solid), flex: 1, minHeight: 42, padding: '9px 12px', cursor: adding >= 0 ? 'not-allowed' : 'pointer', opacity: adding >= 0 && adding !== i ? 0.6 : 1 }} data-testid="reel-tpl-pick">
                           {adding === i ? <Spinner inline label="טוענת" /> : <><Icon name="camera" size={15} /> {it ? 'להחליף' : 'צילום או העלאה'}</>}
-                          <input type="file" accept="image/*,video/*" disabled={adding >= 0} onChange={onSlotFile(i)} data-testid="reel-tpl-input" style={{ display: 'none' }} />
+                          <input type="file" accept="image/*,video/*" multiple disabled={adding >= 0} onChange={onSlotFile(i)} data-testid="reel-tpl-input" style={{ display: 'none' }} />
                         </label>
                         {it && <button type="button" onClick={() => removeAt(i)} aria-label="להסיר" style={{ ...quiet, width: 46, flex: 'none', padding: 0, minHeight: 42 }}><Icon name="x" size={14} /></button>}
                       </div>

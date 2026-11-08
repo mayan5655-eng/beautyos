@@ -223,3 +223,12 @@ console.log(`reel templates: ok (${REEL_TEMPLATES.length} templates x ${MOODS.le
   if (!/buf\.duration < plan\.totalMs \/ 1000\) source\.loop = true/.test(draw)) throw new Error('a short own song must loop in preview and real-time recording');
   console.log('ok - music change drops the reel; a short song loops');
 }
+
+// 2026-11-08, her iPhone test: a shot's own picker takes several files too, filling this shot and the empty shots after it.
+{
+  const src = (await import('node:fs')).readFileSync('app/design/ReelTemplates.jsx', 'utf8');
+  const inputs = src.match(/<input type="file" accept="image\/\*,video\/\*"[^>]*>/g) || [];
+  if (!(inputs.length >= 2 && inputs.every((t) => t.includes(' multiple')))) throw new Error('every footage picker allows several files');
+  if (!/const later = tpl\.slots\.map\(\(_, k\) => k\)\.filter\(\(k\) => k > i && !media\[k\]\);\s*put\(\[i, \.\.\.later\], files\);/.test(src)) throw new Error('a shot picker fills this shot then the empty ones after it');
+  console.log('ok - a shot picker takes several files and fills the empty shots after it');
+}
