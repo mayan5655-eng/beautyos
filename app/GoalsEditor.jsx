@@ -37,9 +37,9 @@ export default function GoalsEditor({ automations, onChange, pc, pcTint }) {
       <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 14, cursor: 'pointer', background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
         <input type="checkbox" checked={weekly} onChange={(e) => onChange({ ...a, weekly_report: e.target.checked })} style={{ marginTop: 3, accentColor: pc }} />
         <span>
-          <span style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>דוח שבועי אליי</span>
+          <span style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>הסיכום השבועי שלי</span>
           <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            בימי ראשון אחר הצהריים: הכנסות השבוע, תורים, פניות חדשות והתקדמות ליעד. נשלח רק אלייך, בהתראה באפליקציה.
+            בימי ראשון אחר הצהריים: הכנסות, ביקורים, לקוחות חדשות ומי שלא הגיעה, לעומת השבוע שלפניו, ועד שלושה דברים שכדאי לעשות השבוע. נשלח רק אלייך, בהתראה באפליקציה. לא בשבת ולא בחג.
           </span>
         </span>
       </label>
