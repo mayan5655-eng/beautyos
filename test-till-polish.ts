@@ -167,4 +167,10 @@ await ok('Settings > תשלומים is the one place for deposits; booking rules
   for (const f of ['app/PaymentsSettings.jsx', 'app/GrowCard.jsx', 'app/ServiceDepositToggle.jsx', 'lib/tillTabs.ts']) assert.ok(!/—/.test(read(f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n')), `${f}: no em dash in copy`);
 });
 
+{
+  const ps = readFileSync('app/PaymentsSettings.jsx', 'utf8');
+  assert.match(ps, /useEffect\(\(\) => \{ growPolicyChanged\(\); \}, \[\]\);/, 'Settings > תשלומים re-reads the Grow state when it opens');
+  console.log('ok - payments settings refreshes the cached Grow state on open');
+}
+
 console.log(`\n${n} till-polish tests passed`);

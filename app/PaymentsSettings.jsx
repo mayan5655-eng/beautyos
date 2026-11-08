@@ -9,10 +9,14 @@
 // Now 1 and 2 are edited here, and the other screens link here. Same stored fields as before: no schema change. The per-service
 // switch stays on each service (it is a property of the treatment) and this screen points to it.
 import CancelPolicyCard from './CancelPolicyCard';
-import { useGrowPolicy } from './useGrowPolicy';
+import { useEffect } from 'react';
+import { useGrowPolicy, growPolicyChanged } from './useGrowPolicy';
 
 export default function PaymentsSettings({ rules, setRule, pc, pcTint, toast, isDemo, onOpenServices }) {
   const { loaded, connected, mode } = useGrowPolicy();
+  // The Grow state is cached for the session. She may have connected or re-enabled Grow since it was read, so read it fresh each time
+  // this screen opens; otherwise the Grow deposit editor stays hidden until a full reload.
+  useEffect(() => { growPolicyChanged(); }, []);
   const r = rules && typeof rules === 'object' ? rules : {};
   const amount = Number(r.deposit_amount) > 0 ? Number(r.deposit_amount) : 0;
   const box = { padding: '12px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface-2)', marginTop: 10 };
