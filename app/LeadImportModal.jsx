@@ -154,7 +154,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
       const res = await fetch('/api/leads/import/commit', { method: 'POST', body: form });
       const data = await res.json().catch(() => null);
       if (!data) {
-        setImportError('לא קיבלנו תשובה מהשרת. ייתכן שחלק מהפניות נשמרו — רענני ובדקי לפני ניסיון נוסף.');
+        setImportError('לא קיבלנו תשובה מהשרת. ייתכן שחלק מהפניות נשמרו. רענני ובדקי לפני ניסיון נוסף.');
         setStage('done');
         return;
       }
@@ -166,7 +166,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
     } catch {
       // The request may have reached the server and committed before the
       // connection dropped, so this must NOT claim nothing was written.
-      setImportError('החיבור נקטע. ייתכן שחלק מהפניות כבר נשמרו — רענני ובדקי לפני ניסיון נוסף.');
+      setImportError('החיבור נקטע. ייתכן שחלק מהפניות כבר נשמרו. רענני ובדקי לפני ניסיון נוסף.');
       setStage('done');
     }
   }, [file, mapping, sheet, onImported]);
@@ -185,7 +185,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
               {stage === 'done'
                 ? 'הייבוא הסתיים.'
                 : stage === 'importing'
-                  ? 'מייבאת — נא לא לסגור את החלון.'
+                  ? 'מייבאת, נא לא לסגור את החלון.'
                   : stage === 'confirming'
                     ? 'אישור אחרון לפני שמירה.'
                     : 'תצוגה מקדימה. שום דבר עדיין לא נשמר.'}
@@ -223,7 +223,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
           </summary>
           <div style={{ marginTop: 8, padding: '12px 14px', borderRadius:"var(--r-sm)", background: 'var(--surface-2)', border: '1px solid var(--line-2)', fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.85 }}>
             <p style={{ marginBottom: 9 }}>
-              <strong style={{ color: 'var(--ink)' }}>מה צריך:</strong> קובץ עם לפחות עמודת שם ועמודת טלפון. כל שאר העמודות — אופציונליות.
+              <strong style={{ color: 'var(--ink)' }}>מה צריך:</strong> קובץ עם לפחות עמודת שם ועמודת טלפון. כל שאר העמודות לא חובה.
             </p>
             <p style={{ marginBottom: 9 }}>
               <strong style={{ color: 'var(--ink)' }}>מאקסל:</strong> קובץ ← שמירה בשם ← <strong>חוברת עבודה של Excel‏ (.xlsx)</strong>.
@@ -233,13 +233,13 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
             <p style={{ marginBottom: 9 }}>
               <strong style={{ color: 'var(--ink)' }}>מגוגל שיטס:</strong> קובץ ← הורדה ← <strong>Microsoft Excel‏ (.xlsx)</strong>.
               <br />
-              שימי לב ש‑PDF נמצא ממש מתחתיו באותו תפריט — קל ללחוץ עליו בטעות.
+              שימי לב ש‑PDF נמצא ממש מתחתיו באותו תפריט, קל ללחוץ עליו בטעות.
             </p>
             <p style={{ marginBottom: 9 }}>
               <strong style={{ color: 'var(--ink)' }}>ממערכת אחרת:</strong> לחפש כפתור <strong>ייצוא</strong> / <strong>Export</strong> / <strong>הורדת לקוחות</strong>, ולבחור Excel או CSV.
             </p>
             <p style={{ marginBottom: 9 }}>
-              <strong style={{ color: 'var(--ink)' }}>מספרי טלפון ששמורים כמספר?</strong> זה בסדר גמור — המערכת יודעת להתמודד עם זה, כולל אפס מוביל שנעלם באקסל.
+              <strong style={{ color: 'var(--ink)' }}>מספרי טלפון ששמורים כמספר?</strong> זה בסדר גמור, המערכת יודעת להתמודד עם זה, כולל אפס מוביל שנעלם באקסל.
             </p>
             <p style={{ marginBottom: 0 }}>
               <strong style={{ color: 'var(--ink)' }}>אם כלום לא עובד:</strong> לפנות לתמיכה ונעשה את זה במקומך.
@@ -316,7 +316,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                       onChange={(e) => setMapping((m) => ({ ...m, [field]: e.target.value || null }))}
                       style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius:"var(--r-xs)", padding: '7px 9px', fontSize:"var(--t-sm)", fontFamily: 'inherit', background: 'var(--surface)', color: 'var(--ink)', outline: 'none' }}
                     >
-                      <option value="">— לא מיובא —</option>
+                      <option value="">לא מיובא</option>
                       {(result.headers || []).map((h) => <option key={h} value={h}>{h}</option>)}
                     </select>
                   </div>
@@ -453,7 +453,7 @@ export default function LeadImportModal({ open, onClose, onImported, pc, pcGrad,
                 </div>
                 {importResult.result.failedChunks > 0 && (
                   <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 9, lineHeight: 1.7 }}>
-                    {importResult.result.failedChunks} מקטעים נכשלו. אפשר לסגור ולהריץ את אותו קובץ שוב — מה שכבר נשמר לא ישוכפל.
+                    {importResult.result.failedChunks} מקטעים נכשלו. אפשר לסגור ולהריץ את אותו קובץ שוב, מה שכבר נשמר לא ישוכפל.
                   </p>
                 )}
               </>

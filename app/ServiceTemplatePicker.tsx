@@ -302,7 +302,7 @@ export default function ServiceTemplatePicker({
                             />
                           </label>
                           <span style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)' }}>
-                            הצעה בלבד — אפשר לשנות
+                            הצעה בלבד, אפשר לשנות
                           </span>
                         </div>
                       )}
