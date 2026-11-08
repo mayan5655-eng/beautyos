@@ -142,7 +142,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
-import { giftVouchersVisible, formatCode } from "@/lib/giftVouchers";
+import { giftVouchersVisible, voucherRedeemNote } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -5762,7 +5762,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         payments: useSplit ? splitResolved : null,
       };
       // A gift voucher used on this sale (its amount is already off the voucher, app/VoucherRedeemTill.jsx): named on the receipt.
-      if (voucherUsed > 0 && voucherAdj) receipt.note = [receipt.note, `שובר מתנה ${formatCode(voucherAdj.code)}: ₪${voucherUsed} נוכה`].filter(Boolean).join(" · ");
+      if (voucherUsed > 0 && voucherAdj) receipt.note = [receipt.note, voucherRedeemNote(voucherAdj.code, voucherUsed)].filter(Boolean).join(" · ");
       let {data,error}=await supabase.from("receipts").insert([receipt]).select();
       if (error && isMissingColumnError(error)) {
         // The migration has not run. Write the receipt without the three new

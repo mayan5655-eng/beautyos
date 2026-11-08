@@ -4,13 +4,13 @@
 // Postgres 16 while building it (see the PR notes). Covers: issuance idempotency, double redeem, expiry, partial balance, no loyalty
 // stamp on a voucher sale, income not double counted, and the honest degrade before the migration runs.
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import {
   giftVouchersVisible, voucherConfig, voucherStored, voucherOptions, resolveOption, newVoucherCode, normalizeCode, formatCode,
   newVoucherToken, isVoucherToken, voucherStatus, redeemProblem, usableAmount, expiryFrom, voucherItem, isVoucherSaleReceipt,
   publicVoucherView, voucherShareText, waShareLink, parseVoucherIntent, isMissingVoucherSchema, cleanMessage, CODE_ALPHABET,
-  VOUCHER_ITEM_KIND, REFUSAL_HE,
+  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher,
 } from './lib/giftVouchers.ts';
 import { issueFromPayment, sellAtTill, readRpcOutcome } from './lib/giftVoucherService.ts';
 import type { VoucherRepo } from './lib/giftVoucherService.ts';
@@ -21,6 +21,7 @@ import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
 import { monthlyReport } from './lib/monthlyReport.ts';
 import { totalsOf } from './lib/till.ts';
 import { tenantFlags } from './lib/featureFlags.ts';
+import { isStampReceipt, loyaltyConfig, loyaltyState } from './lib/loyalty.js';
 import { AUTOMATIONS_PROTECTED_KEYS } from './lib/settingsColumns.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
@@ -256,20 +257,30 @@ await ok('a till sale whose receipt cannot be written leaves no live voucher beh
 });
 
 // ── no loyalty stamp, no treatment, no double income ────────────────────────
-await ok('a voucher sale receipt is not a visit: the item kind the loyalty card skips', async () => {
+await ok('a voucher sale receipt is not a visit: the real loyalty rule gives it no stamp', () => {
   const r = { client_id: 'c1', amount: 300, service: 'שובר מתנה: ₪300', appointment_id: null, items: JSON.stringify([voucherItem({ title: '₪300', amount: 300, code: 'K7M4X9Q2' })]) };
   assert.ok(isVoucherSaleReceipt(r));
   assert.ok(!isVoucherSaleReceipt({ items: JSON.stringify([{ name: 'טיפול פנים', price: 280 }]) }));
   assert.ok(!isVoucherSaleReceipt({ items: JSON.stringify([voucherItem({ title: '₪300', amount: 300 }), { name: 'קרם', price: 80 }]) }), 'a mixed receipt is not only a voucher sale');
   assert.ok(isVoucherSaleReceipt({ items: '[]', service: 'שובר מתנה · ₪300' }), 'a Grow receipt before its items were marked');
-  // When the loyalty card (PR #20, lib/loyalty.js) is on this branch, prove it with the real rule; until then the kind is the contract.
-  if (existsSync('./lib/loyalty.js')) {
-    const L = await import('./lib/loyalty.js' as string);
-    assert.equal(L.isStampReceipt(r, { serviceNames: ['טיפול פנים'] }), false);
-    assert.equal(L.isStampReceipt(r, {}), false);
-  } else {
-    assert.match(rd('lib/giftVouchers.ts'), /VOUCHER_ITEM_KIND = 'voucher'/);
-  }
+  // The real loyalty rule (lib/loyalty.js, PR #20): a voucher sale earns no stamp, with or without her service list.
+  assert.equal(isStampReceipt(r, { serviceNames: ['טיפול פנים'] }), false);
+  assert.equal(isStampReceipt(r, {}), false);
+  assert.equal(isStampReceipt({ ...r, items: '[]', client_id: null, service: 'שובר מתנה · ₪300' }, {}), false, 'an online sale: no client, not a visit');
+  assert.equal(isStampReceipt({ ...r, items: '[]', service: 'שובר מתנה: ₪300' }, { serviceNames: ['טיפול פנים'] }), false);
+});
+await ok('loyalty: a visit paid with a voucher IS a visit and earns its stamp, even at ₪0; the stamp is counted once', () => {
+  const visit = (amount: number, note: string) => ({ id: `v${amount}`, client_id: 'c1', amount, appointment_id: 'ap1', service: 'טיפול פנים', payment_method: 'מזומן', note, items: JSON.stringify([{ name: 'טיפול פנים', price: 280, qty: 1 }]), created_at: '2026-11-05T09:00:00Z' });
+  assert.equal(voucherRedeemNote('K7M4X9Q2', 280), 'שובר מתנה K7M4-X9Q2: ₪280 נוכה');
+  assert.equal(isStampReceipt(visit(0, voucherRedeemNote('K7M4X9Q2', 280)), { serviceNames: ['טיפול פנים'] }), true, 'fully paid by the voucher');
+  assert.equal(isStampReceipt(visit(80, `הערה · ${voucherRedeemNote('K7M4X9Q2', 200)}`), { serviceNames: ['טיפול פנים'] }), true, 'partly');
+  assert.equal(isStampReceipt(visit(0, 'שובר מתנה בלי קוד'), { serviceNames: ['טיפול פנים'] }), false, 'free text is not a payment');
+  assert.ok(paidByVoucher({ note: voucherRedeemNote('K7M4X9Q2', 12.5) }));
+  // a sale and the visit it pays for: one stamp (the visit), never two
+  const cfg = loyaltyConfig({ automations: { loyalty: { enabled: true, every: 5, reward: 'מתנה' } } });
+  const sale = { id: 's1', client_id: 'c1', amount: 300, appointment_id: null, service: 'שובר מתנה: ₪300', items: JSON.stringify([voucherItem({ title: '₪300', amount: 300 })]), created_at: '2026-11-01T09:00:00Z' };
+  const st = loyaltyState({ config: cfg, clientId: 'c1', receipts: [sale, visit(0, voucherRedeemNote('K7M4X9Q2', 280))], serviceNames: ['טיפול פנים'] });
+  assert.equal(st.stamps, 1);
 });
 await ok('income: the sale counts once, the redemption is not new income, and the report does not call it a treatment', () => {
   const at = (d: string) => `2026-11-0${d}T09:00:00Z`;

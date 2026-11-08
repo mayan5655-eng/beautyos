@@ -259,6 +259,19 @@ export function isVoucherSaleReceipt(r: { items?: unknown; service?: unknown; ap
   return !r.appointment_id && String(r.service ?? '').trim().startsWith(VOUCHER_SERVICE_PREFIX);
 }
 
+/** The line the till adds to a visit's note when a gift voucher paid part or all of it (app/beautyos.jsx handleSaveReceipt). */
+export const voucherRedeemNote = (code: unknown, amount: number) => `${VOUCHER_SERVICE_PREFIX} ${formatCode(code)}: ₪${amount} נוכה`;
+const REDEEM_NOTE_RE = /שובר מתנה [0-9A-Z]{4}-[0-9A-Z]{4}: ₪\d+(?:\.\d+)? נוכה/;
+
+/**
+ * A visit paid (in part or in full) with a gift voucher. The money was taken when the voucher was sold, so such a visit can
+ * have a receipt of ₪0, yet it IS a paid visit: the loyalty card counts it (lib/loyalty.js isStampReceipt), exactly like a
+ * visit covered by a package.
+ */
+export function paidByVoucher(r: { note?: unknown } | null | undefined): boolean {
+  return !!r && REDEEM_NOTE_RE.test(String(r.note ?? ''));
+}
+
 // ── What a public page may show ───────────────────────────────────────────
 
 export type PublicVoucher = {
