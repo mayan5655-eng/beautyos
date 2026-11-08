@@ -233,6 +233,11 @@ async function blockTenant(d: Deps, tenantId: string) {
 
 export type Outcome = 'charged' | 'failed' | 'skipped' | 'no-card' | 'credited';
 
+/** The lookup of an in-flight charge failed: the charge was NOT started (fail closed). */
+export class OpenAttemptLookupError extends Error {
+  constructor(message: string) { super(`open-attempt lookup failed, nothing charged: ${message}`); this.name = 'OpenAttemptLookupError'; }
+}
+
 async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, periodStart: Date, now: Date): Promise<Outcome> {
   const flags = billingFlags(d);
   const periodKey = iso(periodStart).slice(0, 10);
@@ -242,7 +247,16 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   // A charge for this period whose answer we never got (Grow did not reply, or answered "identifier already used"): ask Grow about THAT
   // identifier before anything else. Paid -> it counts; failed or never seen -> the next attempt may run; still unknown -> nothing is charged
   // again until it is settled, because a second identifier would be a second real charge.
-  const open = d.repo.findOpenAttempt ? ((await d.repo.findOpenAttempt(sub.id, periodKey)) || (await d.repo.findOpenAttempt(sub.id, null))) : null;
+  // FAIL CLOSED: if this lookup errors we cannot know whether a charge is already in flight, so nothing is charged. The error goes up
+  // to the caller (runDue counts it as a failed run for this business and alerts; saveCard's routes answer an error), never 'cleared'.
+  let open: PaymentRecord | null = null;
+  try {
+    open = d.repo.findOpenAttempt ? ((await d.repo.findOpenAttempt(sub.id, periodKey)) || (await d.repo.findOpenAttempt(sub.id, null))) : null;
+  } catch (e) {
+    console.error('[billing] open-attempt lookup failed for tenant', sub.tenant_id, (e as Error)?.message);
+    await moneyAlert('billing:open-attempt', 'could not check for a charge in flight; nothing charged this run, the next run retries', { tenantId: sub.tenant_id }, { key: `${sub.id}:${periodKey}`, severity: 'warning' }).catch(() => {});
+    throw new OpenAttemptLookupError((e as Error)?.message || 'lookup failed');
+  }
   if (open) {
     const settled = await settleOpen(d, sub, tenant, open, periodStart, now);
     if (settled !== 'cleared') return settled;
