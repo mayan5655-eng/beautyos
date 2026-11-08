@@ -179,7 +179,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
               <>
                 <div role="radiogroup" aria-label="מסלול תשלום" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
-                    { k: 'monthly', title: 'חודשי', line: `${money(an.monthly)} לחודש` },
+                    { k: 'monthly', title: 'חודשי', line: `${priceHe(an.monthly)} לחודש` },
                     { k: 'annual', title: 'שנתי', line: annualOfferHe(an.monthly) },
                   ].map((o) => {
                     const on = nextPeriod === o.k;

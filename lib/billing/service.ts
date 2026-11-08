@@ -256,7 +256,7 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
   if (flags.referrals && d.referrals) {
     let freed = false;
     try {
-      freed = await useFreeMonth(d, sub, periodStart, periodKey, now);
+      freed = await applyFreeMonth(d, sub, periodStart, periodKey, now);
     } catch (e) {
       if (e instanceof MonthClaimedError) {
         console.error('[billing] free month claimed but the period did not move for tenant', sub.tenant_id, e.message);
@@ -389,7 +389,7 @@ export async function grantReferralMonths(d: Deps, tenantId: string, pay: Pick<P
  */
 class MonthClaimedError extends Error {}
 
-async function useFreeMonth(d: Deps, sub: Subscription, periodStart: Date, periodKey: string, now: Date): Promise<boolean> {
+async function applyFreeMonth(d: Deps, sub: Subscription, periodStart: Date, periodKey: string, now: Date): Promise<boolean> {
   const r = d.referrals!;
   const end = addMonths(periodStart, 1);
   const advance = async () => {

@@ -45,7 +45,7 @@ export default function BusinessReferralCard({ pc, pcTint, toast, isDemo }) {
   };
   const stat = (n, label, id) => (
     <div data-testid={id} style={{ flex: '1 1 0', minWidth: 0, background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 8px', textAlign: 'center' }}>
-      <div className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{n}</div>
+      <div className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, fontVariantNumeric: 'lining-nums tabular-nums' }}>{n}</div>
       <div style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.4 }}>{label}</div>
     </div>
   );
@@ -77,7 +77,7 @@ export default function BusinessReferralCard({ pc, pcTint, toast, isDemo }) {
         {stat(st.used, 'חודשים נוצלו', 'referral-used')}
       </div>
       {st.waiting > 0 && <p style={{ ...text, marginTop: 8 }}>{st.waiting === 1 ? 'חודש אחד במתנה ייכנס' : `${st.waiting} חודשים במתנה ייכנסו`} לתוקף {s.holdDays} ימים אחרי התשלום שזיכה בו.</p>}
-      {st.available > 0 && <p style={{ ...text, marginTop: 8 }}>{st.available === 1 ? 'חודש במתנה מחכה לך' : `${st.available} חודשים במתנה מחכים לך`}: החיוב הבא שלך ידלג עליו.</p>}
+      {st.available > 0 && <p style={{ ...text, marginTop: 8 }}>{st.available === 1 ? 'חודש במתנה מחכה לך' : `${st.available} חודשים במתנה מחכים לך`}: החיוב הבא שלך לא ייגבה, והמנוי ממשיך כרגיל.</p>}
       <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 10 }}>
         החודש במתנה נכנס במקום החיוב הבא, פעם אחת לכל עסק שמצטרף דרכך. תשלום שהוחזר לא מזכה בחודש.
       </p>

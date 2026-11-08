@@ -192,7 +192,7 @@ export default function SignupPage() {
           {/* Hairline with the actual flower mark, echoing the logo's own
               flower. Matches the same divider on /login. */}
           {refCode && (
-            <p data-testid="signup-referral" role="status" style={{ ...welcomeSubtitleStyle, margin: '12px 0 0', padding: '10px 12px', borderRadius: 12, background: 'var(--k-petal)', color: DEEP, fontWeight: 600 }}>
+            <p data-testid="signup-referral" role="status" style={{ ...welcomeSubtitleStyle, margin: '12px 0 0', padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--k-petal)', color: DEEP, fontWeight: 600 }}>
               הגעת בהזמנה של עסק חבר 🌸 אחרי התשלום הראשון שלך תקבלי חודש מנוי במתנה, וגם היא.
             </p>
           )}

@@ -26,7 +26,7 @@ export default function ReferralActions({ referralId }: { referralId: string }) 
   }
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button type="button" disabled={busy} onClick={voidIt} style={{ minHeight: 36, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer' }}>ביטול התגמול</button>
+      <button type="button" disabled={busy} onClick={voidIt} style={{ minHeight: 36, padding: '6px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink)', fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer' }}>ביטול התגמול</button>
       {msg && <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>{msg}</span>}
     </span>
   )
