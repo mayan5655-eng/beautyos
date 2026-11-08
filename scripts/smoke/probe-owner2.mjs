@@ -39,7 +39,7 @@ console.log('CARD:', await txt(page, 900));
 console.log('CARD BUTTONS:', await btns());
 console.log('privacy panel', await page.locator('[data-testid="client-privacy"]').count());
 await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-await page.click('button[aria-label="תשלום"]'); await page.waitForTimeout(800);
+await page.click('button[aria-label="קופה"]'); await page.waitForTimeout(800);
 await page.locator('button:has-text("תשלום חדש")').filter({ visible: true }).first().click(); await page.waitForTimeout(1200);
 console.log('CASHIER SHEET:', await txt(page, 900));
 console.log('CASHIER BUTTONS:', await btns());

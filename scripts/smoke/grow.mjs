@@ -111,7 +111,7 @@ try {
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
 
   // ── 3. charge 250 from the cashier ──
-  await visible('button[aria-label="תשלום"]').click(); await page.waitForTimeout(800);
+  await visible('button[aria-label="קופה"]').click(); await page.waitForTimeout(800);
   await visible('button:has-text("תשלום חדש")').click(); await page.waitForTimeout(1000);
   const sel = page.locator('.sheet select, [role=dialog] select').filter({ visible: true }).first();
   const opts = await sel.locator('option').allInnerTexts();
@@ -158,7 +158,7 @@ try {
   check(await page.locator('[data-testid="grow-receipt-link"]').filter({ visible: true }).count() >= 1, 'the Grow receipt link is on the client card');
   await shot('kalmea-grow-3-receipt.png');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-  await visible('button[aria-label="תשלום"]').click(); await page.waitForTimeout(1200);
+  await visible('button[aria-label="קופה"]').click(); await page.waitForTimeout(1200);
   check(await page.locator('[data-testid="grow-receipt-link"]').filter({ visible: true }).count() >= 1, 'the Grow receipt link is in the cashier history');
   await visible('button:has-text("סיכום הכנסות")').click(); await page.waitForTimeout(1500);
   const rep = await body();

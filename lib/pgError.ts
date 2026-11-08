@@ -22,3 +22,15 @@ export function isMissingColumnError(error: MaybePgError): boolean {
   if (error.code === 'PGRST204') return true; // PostgREST: not in the schema cache
   return /column .* does not exist|could not find the '.*' column/i.test(String(error.message || ''));
 }
+
+/**
+ * Which column a missing-column error names, or null when it does not say. A degrade-and-retry must drop ONLY that column:
+ * dropping a whole set (2026-11-08, a Vercel security finding) let a missing buffer_minutes silently drop requires_deposit too,
+ * so a service she marked "deposit required" was saved without it and public bookings skipped the deposit.
+ */
+export function missingColumnName(error: MaybePgError): string | null {
+  if (!error) return null;
+  const m = String(error.message || '');
+  const hit = m.match(/could not find the '([^']+)' column/i) || m.match(/column "?(?:[a-z_]+\.)?([a-z_]+)"? (?:of relation "?[a-z_]+"? )?does not exist/i);
+  return hit ? hit[1] : null;
+}

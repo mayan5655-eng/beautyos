@@ -582,9 +582,11 @@ await ok('per service: the booking route and the page apply the policy only to a
 
 await ok('per service: the toggle is in the services settings (default off, degrades without the column), and the migration adds the column', () => {
   const app = read('app/beautyos.jsx');
-  assert.ok(/SERVICE_FIELDS = \[[^\]]*"requires_deposit"\]/.test(app));
+  assert.ok(/SERVICE_FIELDS = \[[^\]]*"requires_deposit"[^\]]*\]/.test(app));
   assert.ok(/<ServiceDepositToggle checked=\{svc\.requires_deposit===true\}/.test(app), 'off unless true');
-  assert.ok(/const \{ field, requires_deposit, \.\.\.reduced \} = row;/.test(app) && /"requires_deposit" in patch/.test(app) && /const \{ field, requires_deposit, \.\.\.reduced \} = patch;/.test(app), 'a service save still works before the migration');
+  // Before the migration a save still works, dropping ONLY the missing column (2026-11-08: dropping the whole optional set lost
+  // requires_deposit when only buffer_minutes was missing). test-service-save-missing-column.ts covers the retry itself.
+  assert.ok(/const OPTIONAL_SERVICE_COLS = \["field", "requires_deposit", "buffer_minutes"\]/.test(app) && (app.match(/retryWithoutMissing\(/g) || []).length >= 2 && /patch\.requires_deposit === true/.test(app), 'a service save still works before the migration, without losing the deposit');
   assert.ok(/!state\.connected|!connected\) return null/.test(read('app/ServiceDepositToggle.jsx')), 'visible only when connected to Grow');
   assert.ok(/alter table public\.service_prices add column if not exists requires_deposit boolean not null default false/.test(read('supabase/migrations/add_grow_cancellation.sql')));
 });
