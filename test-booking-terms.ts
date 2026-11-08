@@ -11,7 +11,7 @@ const read = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
 ok('book-appointment refuses an unaccepted booking BEFORE the appointment insert', () => {
   const src = read('app/api/book-appointment/route.js');
   const gate = src.indexOf('bookingTermsRequired(rules) && acceptedTerms !== true');
-  const insert = src.indexOf('.from("appointments")\n      .insert(');
+  const insert = src.indexOf('const { data: appt, error } = await writeWithApptBuffer({'); // the insert, through lib/apptBuffer
   assert.ok(gate > -1, 'the terms gate exists');
   assert.ok(insert > -1 && gate < insert, 'and sits before the insert');
 });

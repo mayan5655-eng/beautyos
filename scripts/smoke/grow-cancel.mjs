@@ -175,7 +175,7 @@ try {
     await visible('button:has-text("תשלומים")').click(); await page.waitForTimeout(800);
     check(await page.locator('[data-testid="grow-receipt-link"]').filter({ visible: true }).count() >= 1, 'the receipt shows on the client card');
     await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-    await visible('button[aria-label="תשלום"]').click(); await page.waitForTimeout(1200);
+    await visible('button[aria-label="קופה"]').click(); await page.waitForTimeout(1200);
     check(await page.locator('[data-testid="grow-receipt-link"]').filter({ visible: true }).count() >= 1, 'and in the cashier history');
     await visible('button:has-text("סיכום הכנסות")').click(); await page.waitForTimeout(1500);
     check(/מספר עסקאות 1/.test(await body()), 'and in the revenue report');

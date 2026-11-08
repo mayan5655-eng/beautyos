@@ -96,7 +96,9 @@ eq(pickSettingsPayload({ automations: [1] }).payload, {}, 'an array automations 
   eq(out.automations.onboarding_tour_step, 7, 'the tour step is the stored one');
   eq(out.automations.lead_templates, { new: 'hi' }, 'a key written elsewhere survives');
   eq(out.automations.owner_phone, '0501', 'another stored key survives');
-  eq(out.branding, { logo_url: 'a.png', evening_summary: true, welcome_headline: 'new' }, 'branding merges, her edit wins');
+  // evening_summary moved to automations (lib/eveningSummarySetting.ts): carried across, gone from the public bag.
+  eq(out.branding, { logo_url: 'a.png', welcome_headline: 'new' }, 'branding merges, her edit wins');
+  eq(out.automations.evening_summary, true, 'the old evening-summary switch is carried into automations');
   eq(out.business_name, 'x', 'other columns pass through');
   // clearing sticks because the screen sends an explicit empty value
   eq((mergeStoredBags({ branding: { logo_url: '' } }, stored) as any).branding.logo_url, '', 'an explicit clear is kept');
