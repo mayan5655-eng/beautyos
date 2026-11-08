@@ -172,7 +172,7 @@ await ok('low stock: at or below the threshold, one attention line whose key cha
   assert.equal(isLowStock(prod({ stock: 3 })), false);
   assert.equal(isLowStock(prod({ stock: 0, low_stock_threshold: 0 })), true, 'a threshold of 0 still tells her when it runs out');
   const a = lowStockAttention([prod({ stock: 1 }), prod({ id: PID2, name: 'סרום', stock: -1 })]);
-  assert.ok(a && a.count === 2 && a.names.startsWith('סרום (-1)'));
+  assert.ok(a && a.count === 2 && a.names.startsWith('\u2068סרום\u2069 (-1)'), 'names are bidi-isolated so a Latin name keeps its number on the right side');
   const b = lowStockAttention([prod({ stock: 0 }), prod({ id: PID2, name: 'סרום', stock: -1 })]);
   assert.notEqual(a?.key, b?.key, 'a new sale brings a dismissed line back');
   assert.equal(lowStockAttention([prod({ stock: 9 })]), null);

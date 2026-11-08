@@ -8,7 +8,7 @@
 // locks the product row, checks the move's key and changes the stock in the same transaction.
 
 import { missingColumnName } from './pgError.ts';
-import { isMissingProductSchema, OPTIONAL_PRODUCT_COLUMNS, ADJUST_HE, type ProductInput, type ProductRow, type AdjustKind } from './products.ts';
+import { iso, isMissingProductSchema, OPTIONAL_PRODUCT_COLUMNS, ADJUST_HE, type ProductInput, type ProductRow, type AdjustKind } from './products.ts';
 
 export type DbError = { code?: string; message?: string } | null;
 export type ProductRepo = {
@@ -128,7 +128,7 @@ export async function restoreReceipt(repo: ProductRepo, o: { tenantId: string; u
 export function lowStockNote(p: { name: string; stock?: unknown }) {
   const s = Math.round(Number(p.stock) || 0);
   return {
-    title: s <= 0 ? `${p.name} אזל מהמלאי` : `מלאי נמוך: ${p.name}`,
+    title: s <= 0 ? `${iso(p.name)} אזל מהמלאי` : `מלאי נמוך: ${iso(p.name)}`,
     body: s <= 0 ? 'לפי הרישום לא נשארו יחידות. כשמגיע משלוח, עדכני אותו במוצרים ומלאי.' : `נשארו ${s === 1 ? 'יחידה אחת' : `${s} יחידות`}. אולי הזמן להזמין עוד.`,
   };
 }

@@ -111,14 +111,17 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
           <>
             <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink)', margin: '0 0 6px' }}>מכירת מוצרים הכניסה <b>{money(month.income)}</b> ({month.units === 1 ? 'מוצר אחד' : `${month.units} מוצרים`})</p>
             <p style={{ ...muted, marginBottom: 2 }}>הנמכרים ביותר:</p>
-            <ol style={{ margin: 0, paddingInlineStart: 20 }}>
-              {month.top.map((t) => <li key={t.name} style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>{t.name}: {t.units} יח׳, {money(t.income)}</li>)}
-            </ol>
+            {month.top.map((t, i) => (
+              <div key={t.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink)', padding: '2px 0' }}>
+                <span style={{ minWidth: 0 }}>{i + 1}. <bdi>{t.name}</bdi></span>
+                <span style={{ whiteSpace: 'nowrap' }}>{t.units} יח׳ · {money(t.income)}</span>
+              </div>
+            ))}
           </>
         )}
         {month.low.length > 0 && (
           <p data-testid="products-low" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', margin: '8px 0 0' }}>
-            ⚠ מלאי נמוך: {month.low.map((l) => `${l.name} (${l.stock})`).join(', ')}
+            ⚠ מלאי נמוך: {month.low.map((l, i) => <span key={l.id}>{i ? ', ' : ''}<bdi>{l.name}</bdi> ({l.stock})</span>)}
           </p>
         )}
       </div>
@@ -201,7 +204,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
                         <span style={{ minWidth: 38 }}>{dateHe(l.created_at)}</span>
                         <span style={{ flex: 1 }}>{LEDGER_HE[l.kind] || l.kind}{l.reason && l.kind !== 'sale' && l.kind !== 'void_restore' ? `: ${String(l.reason).replace(/^[^:]+: /, '')}` : ''}</span>
                         <bdi dir="ltr" style={{ fontWeight: 700, color: Number(l.delta) < 0 ? 'var(--danger)' : 'var(--success)' }}>{Number(l.delta) > 0 ? `+${l.delta}` : l.delta}</bdi>
-                        <span>→ {l.stock_after}</span>
+                        <span>← {l.stock_after}</span>
                       </p>
                     ))}
                   </div>

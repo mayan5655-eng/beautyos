@@ -18,7 +18,8 @@ export default function useProducts(settings) {
   const visible = productsVisible(settings);
   const [state, setState] = useState({ status: 'idle', products: [], ledger: [], error: '' });
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  // Set on every mount: React's development double-mount runs the cleanup once, and a ref left false would drop every answer.
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const reload = useCallback(async () => {
     try {

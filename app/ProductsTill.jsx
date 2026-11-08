@@ -6,7 +6,7 @@
 //   ProductTillWarnings  one line per product in the sale that has less on record than she is selling. A warning, never a block:
 //                        a real sale goes through and stock may go below zero (lib/products.ts explains why).
 // Both render nothing unless the products are loaded (the flag is on and the migration has run).
-import { productItem, isActiveProduct, stockOf, stockWarning, unitsInCart, isProductItem } from '@/lib/products';
+import { iso, productItem, isActiveProduct, stockOf, stockWarning, unitsInCart, isProductItem } from '@/lib/products';
 
 export function ProductTillPicker({ api, onAdd, pc, pcTint }) {
   if (!api?.visible || api.status !== 'ready') return null;
@@ -18,7 +18,7 @@ export function ProductTillPicker({ api, onAdd, pc, pcTint }) {
       <option value="">+ הוסיפי מוצר</option>
       {list.map((p) => {
         const s = stockOf(p);
-        return <option key={p.id} value={p.id}>{p.name}{p.brand ? ` (${p.brand})` : ''} · ₪{Number(p.price)} · {s <= 0 ? 'אין במלאי' : `במלאי ${s}`}</option>;
+        return <option key={p.id} value={p.id}>{`${iso(p.name)}${p.brand ? ` (${iso(p.brand)})` : ''} · ₪${Number(p.price)} · ${s <= 0 ? 'אין במלאי' : `במלאי ${s}`}`}</option>;
       })}
     </select>
   );

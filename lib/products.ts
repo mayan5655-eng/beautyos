@@ -50,6 +50,11 @@ export function productsVisible(settings: SettingsLike): boolean {
 
 const cleanText = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const money2 = (n: number) => Math.round(n * 100) / 100;
+/**
+ * A product name inside a Hebrew sentence, isolated (FSI ... PDI), so a Latin or digit-ending name ("סרום ויטמין C",
+ * "קרם הגנה SPF 50") cannot pull the number or the punctuation after it to the wrong side.
+ */
+export const iso = (name: unknown) => `\u2068${String(name ?? '')}\u2069`;
 
 // ── The home routine (lib/skinScanView.ts) ────────────────────────────────
 // The scan writes free text per routine step ("סרום niacinamide 5%"). She tags each of her products with the step types it fits;
@@ -173,7 +178,7 @@ export type TillItem = { id?: unknown; name?: unknown; price?: unknown; qty?: un
 
 /** The receipt item for a product. `kind` and `product_id` are what the stock function and every report read. */
 export function productItem(p: ProductRow, qty = 1) {
-  return { id: `product-${p.id}-${Date.now().toString(36)}`, name: p.name, brand: p.brand || null, price: money2(Number(p.price) || 0), qty: Math.max(1, Math.min(MAX_QTY_LINE, Math.round(qty))), kind: PRODUCT_ITEM_KIND, product_id: String(p.id) };
+  return { id: `product-${p.id}-${Date.now().toString(36)}`, name: p.name, brand: p.brand || null, price: money2(Number(p.price) || 0), qty: Math.max(1, Math.min(MAX_QTY_LINE, Math.round(qty))), kind: PRODUCT_ITEM_KIND, product_id: String(p.id), color: '#E9A9A1' };
 }
 
 export const isProductItem = (i: TillItem | null | undefined) => !!i && String(i.kind || '') === PRODUCT_ITEM_KIND;
@@ -192,8 +197,8 @@ export function unitsInCart(items: TillItem[] | null | undefined, productId: str
 export function stockWarning(p: ProductRow | null | undefined, units: number): string | null {
   if (!p) return null;
   const s = stockOf(p);
-  if (s <= 0) return `${p.name}: לפי הרישום אין במלאי. אפשר למכור, והמלאי ירד מתחת לאפס עד שתעדכני משלוח או ספירה.`;
-  if (units > s) return `${p.name}: לפי הרישום נשארו ${s === 1 ? 'יחידה אחת' : `${s} יחידות`}. אפשר למכור, והמלאי ירד מתחת לאפס עד שתעדכני.`;
+  if (s <= 0) return `${iso(p.name)}: לפי הרישום אין במלאי. אפשר למכור, והמלאי ירד מתחת לאפס עד שתעדכני משלוח או ספירה.`;
+  if (units > s) return `${iso(p.name)}: לפי הרישום נשארו ${s === 1 ? 'יחידה אחת' : `${s} יחידות`}. אפשר למכור, והמלאי ירד מתחת לאפס עד שתעדכני.`;
   return null;
 }
 
@@ -202,7 +207,7 @@ export function saleOutcomeNote(lines: { result?: unknown; stock_after?: unknown
   const neg = (lines || []).filter((l) => (l.result === 'ok' || l.result === 'already') && Number(l.stock_after) < 0);
   const missing = (lines || []).filter((l) => l.result === 'not_found' || l.result === 'bad_line');
   if (missing.length) return 'התשלום נרשם, אבל מוצר אחד או יותר לא נמצא בקטלוג, אז המלאי שלו לא עודכן.';
-  if (neg.length) return `התשלום נרשם. המלאי של ${neg.map((l) => l.name || 'מוצר').join(', ')} ירד מתחת לאפס, כדאי לעדכן משלוח או ספירה.`;
+  if (neg.length) return `התשלום נרשם. המלאי של ${neg.map((l) => iso(l.name || 'מוצר')).join(', ')} ירד מתחת לאפס, כדאי לעדכן משלוח או ספירה.`;
   return null;
 }
 
@@ -304,6 +309,6 @@ export const NEEDS_MIGRATION_HE = 'מוצרים ומלאי עוד לא הופע�
 export function lowStockAttention(products: ProductRow[] | null | undefined): { key: string; count: number; names: string } | null {
   const low = (products || []).filter(isLowStock).sort((a, b) => stockOf(a) - stockOf(b) || String(a.name).localeCompare(String(b.name), 'he'));
   if (!low.length) return null;
-  const names = low.slice(0, 3).map((p) => `${p.name} (${stockOf(p)})`).join(', ') + (low.length > 3 ? ` ועוד ${low.length - 3}` : '');
+  const names = low.slice(0, 3).map((p) => `${iso(p.name)} (${stockOf(p)})`).join(', ') + (low.length > 3 ? ` ועוד ${low.length - 3}` : '');
   return { key: `lowstock:${low.map((p) => `${p.id}=${stockOf(p)}`).join(',')}`, count: low.length, names };
 }
