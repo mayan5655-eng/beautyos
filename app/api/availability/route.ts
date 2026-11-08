@@ -20,16 +20,20 @@
 // on the service-role key, behind a whitelist.
 //
 // ── What leaves this endpoint ──────────────────────────────────────────────
-// TIMES ONLY: date, start_minute, hour, duration, and `buffer` (the minutes she keeps
-// free after that treatment, lib/serviceBuffer.ts). That is the complete list. The
-// service name is read to work out the buffer and is stripped before the response.
+// MERGED BUSY INTERVALS ONLY: { date, start, end } per day, each appointment's buffer
+// already included and overlapping or touching ranges unioned (lib/busyIntervals.ts),
+// her break folded in, plus `defaultBuffer`, the one business-wide number that is
+// already public in her branding. That is the complete list.
 //
 // NOT name, phone, service, price, client_id, notes, colour or confirmation
-// text. A stranger with a tenant id learns "14:00 to 15:00 is busy" - which is
-// exactly what the booking grid shows her anyway, and is the minimum needed to
-// stop her double-booking. She learns nothing about WHO is in that slot or
-// WHAT they are having done. The column list below is the enforcement; there is
-// no select('*') here and there must never be one.
+// text, and since 2026-11-08 (Vercel security review) not a per-appointment duration,
+// a per-appointment buffer or a service -> buffer map either: joined, those told a
+// stranger which treatment somebody had booked. A stranger with a tenant id learns
+// "14:00 to 15:20 is not available" - which is exactly what the booking grid shows
+// her anyway, and is the minimum needed to stop her double-booking. The page takes the
+// buffer of the treatment SHE is booking from the public services list it already
+// loads (get_public_services). The column list below is the enforcement; there is no
+// select('*') here and there must never be one.
 //
 // Cancelled appointments are filtered out server-side: a cancelled slot is free
 // again, matching lib/apptTime, the in-app calendar and the appointments_no_overlap
@@ -44,22 +48,24 @@ import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '@/app/api/grow/_cancel';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { resolveLunch, lunchBusy } from '@/lib/lunchBreak';
-import { bufferLookup, businessBufferDefault, serviceBufferMinutes } from '@/lib/serviceBuffer';
-import { isMissingColumnError } from '@/lib/pgError';
+import { bufferLookup, businessBufferDefault } from '@/lib/serviceBuffer';
+import { isMissingColumnError, missingColumnName } from '@/lib/pgError';
+import { publicBusyRanges } from '@/lib/busyIntervals';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-/** The ONLY columns that may leave this route. Times, and nothing else. */
+/** The times the merged intervals are built from. Read on the server; what leaves is { date, start, end } only. */
 const SAFE_FIELDS = 'date, start_minute, hour, duration';
 /**
- * Read on the server ONLY, to work out each appointment's buffer (lib/serviceBuffer.ts), and stripped before the
- * response: what leaves is SAFE_FIELDS plus `buffer`, a number of minutes. `kind` is retried without when
- * add_appointment_kind.sql has not run.
+ * Read on the server ONLY, to work out each appointment's buffer (lib/serviceBuffer.ts), and never sent. `kind`
+ * (add_appointment_kind.sql) and `buffer_minutes` (add_service_buffer_2026-11-05.sql) are dropped one at a time, only
+ * the one a missing-column error names, when their migration has not run.
  */
-const SERVER_ONLY_FIELDS = 'service, kind';
+const SERVER_ONLY_FIELDS = ['service', 'kind', 'buffer_minutes'];
+const SERVER_ONLY_OPTIONAL = ['kind', 'buffer_minutes'];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -115,8 +121,14 @@ export async function GET(request: Request) {
       .neq('confirmation_status', 'cancelled')
       .order('date', { ascending: true })
       .limit(2000);
-    let { data, error } = await readAppts(`${SAFE_FIELDS}, ${SERVER_ONLY_FIELDS}`);
-    if (error && isMissingColumnError(error)) ({ data, error } = await readAppts(`${SAFE_FIELDS}, service`));
+    let serverCols = [...SERVER_ONLY_FIELDS];
+    let { data, error } = await readAppts(`${SAFE_FIELDS}, ${serverCols.join(', ')}`);
+    for (let i = 0; i < SERVER_ONLY_OPTIONAL.length && error && isMissingColumnError(error); i++) {
+      const col = missingColumnName(error);
+      if (col && !(SERVER_ONLY_OPTIONAL.includes(col) && serverCols.includes(col))) break;
+      serverCols = col ? serverCols.filter((c) => c !== col) : serverCols.filter((c) => !SERVER_ONLY_OPTIONAL.includes(c));
+      ({ data, error } = await readAppts(`${SAFE_FIELDS}, ${serverCols.join(', ')}`));
+    }
 
     if (error) {
       console.error('[availability] read failed:', error.message);
@@ -129,8 +141,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Her protected break, as busy time. Same shape as an appointment, so the page
-    // needs nothing new and a visitor learns only that the time is not available.
+    // Her protected break, as busy time, merged into the same intervals: a visitor learns only that the time is not
+    // available.
     // A failed settings read leaves the break out rather than failing the page:
     // /api/book-appointment enforces it independently.
     let lunch: ReturnType<typeof lunchBusy> = [];
@@ -152,22 +164,13 @@ export async function GET(request: Request) {
       if (!sv.error) services = (sv.data || []) as typeof services;
     } catch { /* the default applies */ }
     const bufferOf = bufferLookup(services, bufferDefault);
-    // Only ACTIVE services (an archived name is not on her menu and does not leave this route) whose buffer differs
-    // from the default: the page applies the default to the rest.
-    const byService: Record<string, number> = {};
-    for (const s of services) {
-      if (s.active === false) continue;
-      const n = serviceBufferMinutes(s, bufferDefault);
-      if (typeof s.name === 'string' && n !== bufferDefault) byService[s.name.trim()] = n;
-    }
 
-    // Strip the server-only columns: times and a buffer in minutes, nothing else.
-    const rows = ((data || []) as unknown as Array<Record<string, unknown>>).map((a) => ({
-      date: a.date, start_minute: a.start_minute, hour: a.hour, duration: a.duration,
-      buffer: bufferOf(a as { service?: unknown; kind?: unknown }),
-    }));
+    // Each appointment busy until its end plus its buffer, her break as is, unioned per day. Only { date, start, end }
+    // leaves: no duration, no buffer, no service name (archived or not).
+    type Row = { date?: unknown; start_minute?: number | null; hour?: number | null; duration?: number | string | null; service?: unknown; kind?: unknown; buffer_minutes?: unknown };
+    const busy = publicBusyRanges((data || []) as unknown as Row[], bufferOf, lunch);
 
-    return Response.json({ success: true, busy: [...rows, ...lunch], buffers: { default: bufferDefault, byService } });
+    return Response.json({ success: true, busy, defaultBuffer: bufferDefault });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[availability] threw:', message);

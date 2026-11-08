@@ -16,7 +16,26 @@ import { dayHoursFrom } from "../../../lib/businessHours";
 import { resolveLunch, overlapsLunch } from "../../../lib/lunchBreak";
 import { bufferLookup, businessBufferDefault, serviceBufferMinutes, bufferedRange, clashesWithBuffer } from "../../../lib/serviceBuffer";
 import { startMinute as apptStart, endMinute as apptEnd } from "../../../lib/apptTime";
-import { isMissingColumnError } from "../../../lib/pgError";
+import { isMissingColumnError, missingColumnName } from "../../../lib/pgError";
+import { apptBufferField, writeWithApptBuffer } from "../../../lib/apptBuffer";
+
+// The same-day rows the clash check needs. Optional columns are dropped one at a time, and only the one a missing-column
+// error names: never a column the check cannot do without.
+const SAME_DAY_BASE = ["start_minute", "hour", "duration", "confirmation_status", "service"];
+const SAME_DAY_OPTIONAL = ["kind", "buffer_minutes"];
+async function readSameDayAppointments(supabase, tenantId, date) {
+  let optional = [...SAME_DAY_OPTIONAL];
+  const read = () => supabase.from("appointments").select([...SAME_DAY_BASE, ...optional].join(", ")).eq("tenant_id", tenantId).eq("date", date);
+  let res = await read();
+  for (let i = 0; i < SAME_DAY_OPTIONAL.length && res.error && isMissingColumnError(res.error); i++) {
+    const col = missingColumnName(res.error);
+    if (col && !optional.includes(col)) break; // a column the check needs: the error stands
+    // Unnamed: drop the optional ones together rather than lose the clash check over them.
+    optional = col ? optional.filter((c) => c !== col) : [];
+    res = await read();
+  }
+  return res;
+}
 
 
 
@@ -185,13 +204,10 @@ export async function POST(request) {
         .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding, automations")
         .eq("tenant_id", activeTenantId)
         .limit(1),
-      // service + kind are read for the buffer after each treatment (lib/serviceBuffer.ts); kind is retried
-      // without when add_appointment_kind.sql has not run, so a missing column can never switch the clash check off.
-      (async () => {
-        const read = (cols) => supabase.from("appointments").select(cols).eq("tenant_id", activeTenantId).eq("date", date);
-        const first = await read("start_minute, hour, duration, confirmation_status, service, kind");
-        return first.error && isMissingColumnError(first.error) ? read("start_minute, hour, duration, confirmation_status, service") : first;
-      })(),
+      // service, kind and buffer_minutes are read for the buffer after each treatment (lib/serviceBuffer.ts); kind
+      // (add_appointment_kind.sql) and buffer_minutes (add_service_buffer_2026-11-05.sql) are dropped one at a time, only
+      // the one the database names, when their migration has not run, so a missing column can never switch the clash check off.
+      readSameDayAppointments(supabase, activeTenantId, date),
       supabase
         .from("clients")
         .select("id, phone")
@@ -479,9 +495,10 @@ export async function POST(request) {
 
     // 1. Save the appointment to Supabase
     const heldForDeposit = !!(policy && policy.mode === "deposit" && feeAmount(policy.deposit, svcPrice) > 0);
-    const { data: appt, error } = await supabase
-      .from("appointments")
-      .insert({
+    // buffer_minutes is the buffer this booking was just checked with (svcBuffer), so appointments_no_overlap can refuse
+    // a concurrent booking that eats it (lib/apptBuffer.ts). Before add_service_buffer_2026-11-05.sql runs the insert is
+    // retried once without that one column.
+    const { data: appt, error } = await writeWithApptBuffer({
         tenant_id: activeTenantId,
         name: name,
         client_phone: phone,
@@ -501,9 +518,8 @@ export async function POST(request) {
         confirmation_status: heldForDeposit ? "pending" : "confirmed",
         // True only after the WhatsApp message really went out (lib/bookingNotify.js sets it).
         confirmation_sent: false,
-      })
-      .select()
-      .single();
+        ...apptBufferField(svcBuffer),
+      }, (row) => supabase.from("appointments").insert(row).select().single());
 
     if (error) {
       // A concurrent booking race → "slot taken", not a raw 500. Two codes,

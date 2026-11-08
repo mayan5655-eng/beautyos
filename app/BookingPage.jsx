@@ -28,8 +28,8 @@ import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHo
 import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, defaultHeroBenefits, defaultValueProps } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
-import { startMinute, endMinute, fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
-import { cleanBufferMinutes } from "@/lib/serviceBuffer";
+import { fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
+import { cleanBufferMinutes, serviceBufferMinutes, businessBufferDefault } from "@/lib/serviceBuffer";
 import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPolicy";
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
@@ -309,9 +309,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // True until /api/availability has answered (either way). The day and time pickers do not render before then: an unchecked grid must
   // never look like a checked one (the "every slot is free" bug), and the first screen no longer waits for it.
   const [availabilityPending, setAvailabilityPending] = useState(true);
-  // Her buffer after each treatment (lib/serviceBuffer.ts), from /api/availability: { default, byService }.
-  // Absent (an older deployment, a failed read) means 0, which is what the page did before buffers existed.
-  const [buffers, setBuffers] = useState(null);
+  // Her business-wide buffer default (lib/serviceBuffer.ts), from /api/availability's `defaultBuffer`. The buffer of the
+  // treatment being booked comes from that service's own row in the public services list; absent (an older deployment,
+  // a failed read) falls back to her public branding, then 0, which is what the page did before buffers existed.
+  const [defaultBuffer, setDefaultBuffer] = useState(null);
   const [brand, setBrand] = useState(() => (initialSettings ? resolveBranding(initialSettings) : null)); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   // Reviews written by clients. null until the read resolves, so "none yet" and
@@ -451,7 +452,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (!tenantId) return;
     try {
       const ap = await fetch(`/api/availability?t=${encodeURIComponent(tenantId)}`, { cache: "no-store" }).then((r) => r.json());
-      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setBuffers(ap.buffers || null); setAvailabilityError(false); }
+      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setDefaultBuffer(cleanBufferMinutes(ap.defaultBuffer)); setAvailabilityError(false); }
       else setAvailabilityError(true);
     } catch { setAvailabilityError(true); }
   };
@@ -534,7 +535,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const ap = await availabilityP;
       if (ap && ap.success && Array.isArray(ap.busy)) {
         setAppointments(ap.busy);
-        setBuffers(ap.buffers || null);
+        setDefaultBuffer(cleanBufferMinutes(ap.defaultBuffer));
         setAvailabilityError(false);
       } else {
         setAppointments([]);
@@ -584,15 +585,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // nothing else - so a day she has blocked out is busy to this page without it
   // needing to know what she blocked it for.
   //
-  // Each busy range ends after HER BUFFER for that treatment (`buffer`, minutes, worked out by /api/availability from
-  // the service, lib/serviceBuffer.ts), and the treatment being booked brings its own (svcBuffer). The treatment must
-  // end by closing; its buffer may run past it. Same rule as /api/book-appointment, which refuses what this offers.
+  // /api/availability sends MERGED busy intervals { date, start, end } with every buffer already included
+  // (lib/busyIntervals.ts), so nothing here says how long any one appointment is or what it is. The treatment being
+  // booked brings its own buffer (svcBuffer). The treatment must end by closing; its buffer may run past it. Same rule
+  // as /api/book-appointment, which refuses what this offers.
   const busyOn = (dateStr) => appointments
-    .filter((a) => a.date === dateStr && a.confirmation_status !== "cancelled")
-    .map((a) => { const s = startMinute(a), e = endMinute(a); return [s, e === null ? null : e + (cleanBufferMinutes(a.buffer) ?? 0)]; })
-    .filter(([bs, be]) => bs !== null && be !== null);
+    .filter((a) => a.date === dateStr)
+    .map((a) => [Number(a.start), Number(a.end)])
+    .filter(([bs, be]) => Number.isFinite(bs) && Number.isFinite(be));
   const svcBuffer = selectedService
-    ? (cleanBufferMinutes(buffers?.byService?.[String(selectedService.name || "").trim()]) ?? cleanBufferMinutes(buffers?.default) ?? 0)
+    ? serviceBufferMinutes(selectedService, defaultBuffer ?? businessBufferDefault(settings?.branding))
     : 0;
 
   // Could this treatment actually be booked on this day?

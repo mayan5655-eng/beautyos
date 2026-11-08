@@ -50,10 +50,11 @@ import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
 import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
 import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
-import { bufferLookup, businessBufferDefault, cleanBufferMinutes, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
+import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
+import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
 import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
@@ -1963,10 +1964,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // as a conflict (an appointment can't clash with its own current slot).
   // Each range ends after that treatment's buffer (lib/serviceBuffer.ts; 0 when she set none), and the one being
   // booked brings its own: a time inside a buffer is taken, the same rule the public page and /api/book-appointment use.
-  // An edit that keeps its own date, time and length is never refused over a buffer: it was booked before she set
-  // one (or by her on purpose), and opening it to fix a note must not turn it red. Moving it applies the buffers.
+  // An edit that keeps its own date, time, length and service is never refused over a buffer: it was booked before she
+  // set one (or by her on purpose), and opening it to fix a note must not turn it red. Moving it applies the buffers,
+  // and only then is appointments.buffer_minutes rewritten (lib/apptBuffer.ts), so the database agrees with this check.
   const apptEditOrig = editingAppointmentId ? appointments.find(a=>a.id===editingAppointmentId) : null;
-  const apptBuffersApply = !(apptEditOrig && apptEditOrig.date===newAppt.date && startMinute(apptEditOrig)===apptEffectiveStart && Number(apptEditOrig.duration||0)===Number(newAppt.duration||0));
+  const apptBuffersApply = !(apptEditOrig && apptEditOrig.date===newAppt.date && startMinute(apptEditOrig)===apptEffectiveStart && Number(apptEditOrig.duration||0)===Number(newAppt.duration||0) && String(apptEditOrig.service||"")===String(newAppt.service||""));
   const apptBusy = appointments
     .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId)
     .map(a=>{const s=startMinute(a),e=endMinute(a);return [s, e===null?null:e+(apptBuffersApply?apptBufferOf(a):0)];}).filter(([s,e])=>s!==null&&e!==null);
@@ -3228,6 +3230,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         date, ...startFields(start), duration: dur,
         name: String(d.title).trim(), service: "", price: 0, client_id: null,
         note: String(d.note||""), kind: PERSONAL, series_id: seriesId, ...tenantField,
+        // A personal block keeps no buffer of its own (lib/serviceBuffer.ts); a booking's buffer still cannot run into it.
+        ...apptBufferField(0),
       });
 
       const existing = (d.ids||[]).length ? appointments.filter(a => ownIds.has(String(a.id))) : [];
@@ -3243,7 +3247,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         for (const dd of dates) {
           const prevRow = byDate.get(dd);
           if (!prevRow) continue;
-          const { data, error } = await supabase.from("appointments").update(row(dd)).eq("id", prevRow.id).select();
+          const { data, error } = await writeWithApptBuffer(row(dd), (r) => supabase.from("appointments").update(r).eq("id", prevRow.id).select());
           if (error) { handleDbError(error, "update personal event"); return; }
           if (data && data[0]) setAppointments(prev => prev.map(a => a.id===prevRow.id ? data[0] : a));
         }
@@ -3253,7 +3257,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           if (delErr) { handleDbError(delErr, "replace personal event"); return; }
           setAppointments(prev => prev.filter(a => !ownIds.has(String(a.id))));
         }
-        const { data, error } = await supabase.from("appointments").insert(dates.map(row)).select();
+        const { data, error } = await writeWithApptBuffer(dates.map(row), (r) => supabase.from("appointments").insert(r).select());
         if (error) {
           // The old rows are already gone: put them back, or the block disappears and the time opens on her booking page
           // (2026-10-20 audit: an insert refused by a booking made meanwhile left nothing blocked).
@@ -3414,8 +3418,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // again (2026-10-20 audit). A note, price or name change keeps them.
         const orig=editOrigRef.current;
         const moved=!!orig && (orig.date!==newAppt.date || orig.start!==apptEffectiveStart);
-        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{})};
-        const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
+        // A move (date, time, length or service: apptBuffersApply) stores the buffer it was just checked with. An edit that
+        // does not move it leaves buffer_minutes alone, so it is never refused over a buffer.
+        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{}),...(apptBuffersApply?apptBufferField(newApptBuffer):{})};
+        const {data,error}=await writeWithApptBuffer(patch, (r) => supabase.from("appointments").update(r).eq("id",editingAppointmentId).select());
         if(error){handleDbError(error, "update appointment"); return;}
         // Zero rows back means nothing was saved (deleted on another device, or not hers): say so instead of "updated", and never put
         // an undefined row into the calendar.
@@ -3432,18 +3438,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the series can be found again.
         const dates = recurrenceDates(newAppt.date, apptRepeat.everyWeeks, apptRepeat.count);
         const seriesId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
-        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField};
-        const start = apptEffectiveStart, end = start + Number(newAppt.duration||0);
+        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField,...apptBufferField(newApptBuffer)};
+        // Buffers included, the same rule as a single booking: the database refuses the rest anyway (appointments_no_overlap).
+        const start = apptEffectiveStart, end = start + Number(newAppt.duration||0) + newApptBuffer;
         const clashed = [], saved = [];
         let seriesStopped = false;
         for (const date of dates) {
           const localClash = appointments.some(a=>{
             if(a.date!==date || a.confirmation_status==="cancelled") return false;
-            const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
-            return start < be && bs < end;
+            const bs=startMinute(a), rawEnd=endMinute(a); if(bs===null||rawEnd===null) return false;
+            return start < rawEnd + apptBufferOf(a) && bs < end;
           });
           if (localClash) { clashed.push(date); continue; }
-          const {data,error}=await supabase.from("appointments").insert([{...base,date}]).select();
+          const {data,error}=await writeWithApptBuffer([{...base,date}], (r) => supabase.from("appointments").insert(r).select());
           if (error) {
             // 23P01 is appointments_no_overlap, 23505 the active-slot index:
             // something landed there since the calendar loaded. Same answer.
@@ -3468,8 +3475,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
         }
       } else {
-        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
-        const {data,error}=await supabase.from("appointments").insert([appt]).select();
+        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField,...apptBufferField(newApptBuffer)};
+        const {data,error}=await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
         const wantDeposit = apptDeposit && data && data[0];
@@ -4310,6 +4317,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
         const sameDay = byDate.get(r.date) || [];
         if (clashesWith(r.startMinute, Number(r.duration||0), sameDay)) { overlapping++; continue; }
+        // Imported history is checked WITHOUT her buffers (a pasted diary is what already happened) and stored with 0. A
+        // row the database holds a buffer for still blocks it there (appointments_no_overlap), so that one is checked too,
+        // here, rather than failing a whole chunk of 100 at insert time.
+        const storedBusy = sameDay.flatMap(a => { const s0 = startMinute(a), e0 = endMinute(a); return s0===null||e0===null ? [] : [bufferedRange(s0, e0, a.buffer_minutes)]; });
+        if (clashesWithBuffer(r.startMinute, Number(r.duration||0), 0, storedBusy)) { overlapping++; continue; }
 
         seen.add(k);
         const svc = services.find(s => String(s.name||"").trim() === String(r.service||"").trim());
@@ -4323,6 +4335,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           note: r.note || "",
           confirmation_status: "pending", confirmation_sent: false,
           ...tenantField,
+          ...apptBufferField(0),
         });
         sameDay.push({ start_minute: r.startMinute, duration: Number(r.duration||0) });
         if (!byDate.has(r.date)) byDate.set(r.date, sameDay);
@@ -4333,7 +4346,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const inserted = [];
       for (let i = 0; i < fresh.length; i += CHUNK) {
         const chunk = fresh.slice(i, i + CHUNK);
-        const { data, error } = await supabase.from("appointments").insert(chunk).select();
+        const { data, error } = await writeWithApptBuffer(chunk, (r) => supabase.from("appointments").insert(r).select());
         if (error) { failed += chunk.length; if (!firstError) firstError = error; continue; }
         if (data) inserted.push(...data);
       }
@@ -5740,8 +5753,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       confirmation_status: "pending",
       confirmation_sent: false,
       ...tenantField,
+      // The buffer isFreeAt just checked with, so the database enforces the same rule (lib/apptBuffer.ts).
+      ...apptBufferField(newApptBufferFor(svc.name)),
     };
-    const { data, error } = await supabase.from("appointments").insert([appt]).select();
+    const { data, error } = await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
     if (error) { handleDbError(error, "rebook appointment"); return null; }
     if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return null; }
     setAppointments((prev) => [...prev, data[0]]);
@@ -6357,8 +6372,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         confirmation_status: "pending",
         confirmation_sent: false,
         ...tenantField,
+        // The buffer the clash check above used (lib/apptBuffer.ts).
+        ...apptBufferField(newApptBufferFor(svc?.name)),
       };
-      const {data,error} = await supabase.from("appointments").insert([appt]).select();
+      const {data,error} = await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
       if (error) { handleDbError(error, "create appointment (voice)"); return; }
       if (data) setAppointments(prev=>[...prev, data[0]]);
       closeVoice();

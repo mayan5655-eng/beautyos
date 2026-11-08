@@ -12,11 +12,14 @@
 //   uniq_appt_slot_active   (23505) — at most one ACTIVE appointment per
 //                                     (tenant_id, date, start_minute).
 //   appointments_no_overlap (23P01) — no ACTIVE appointment may overlap
-//                                     another's [start, start+duration) range.
+//                                     another's [start, start+duration+buffer)
+//                                     range (the buffer from
+//                                     add_service_buffer_2026-11-05.sql).
 //                                     See supabase/migrations/add_appointment_no_overlap.sql.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { startFields } from "./apptTime.ts";
+import { apptBufferField, writeWithApptBuffer } from "./apptBuffer.ts";
 
 export interface SlotBooking {
   tenant_id: string;
@@ -38,6 +41,11 @@ export interface SlotBooking {
   price?: number | null;
   confirmation_status?: string; // default "confirmed"
   confirmation_sent?: boolean; // default true
+  /**
+   * Minutes kept free after this treatment (lib/serviceBuffer.ts), stored as appointments.buffer_minutes so
+   * appointments_no_overlap refuses a booking that eats it, or that this one would eat (lib/apptBuffer.ts). Missing = 0.
+   */
+  buffer_minutes?: number | null;
 }
 
 export type BookResult =
@@ -52,7 +60,7 @@ export async function bookAppointmentSlot(
   admin: SupabaseClient,
   b: SlotBooking
 ): Promise<BookResult> {
-  const { data, error } = await admin.from("appointments").insert({
+  const { data, error } = await writeWithApptBuffer({
     tenant_id: b.tenant_id,
     date: b.date,
     // Both written during the transition: start_minute is the new truth, hour
@@ -72,7 +80,9 @@ export async function bookAppointmentSlot(
     client_phone: b.client_phone ?? null,
     confirmation_status: b.confirmation_status ?? "confirmed",
     confirmation_sent: b.confirmation_sent ?? true,
-  }).select("id").maybeSingle();
+    // Retried once without this one column before add_service_buffer_2026-11-05.sql runs.
+    ...apptBufferField(b.buffer_minutes),
+  }, (row) => admin.from("appointments").insert(row).select("id").maybeSingle());
 
   if (error) {
     // 23505 = uniq_appt_slot_active (same start minute).

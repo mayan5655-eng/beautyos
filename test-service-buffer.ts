@@ -104,14 +104,14 @@ ok(propNoBuffer && propNoBuffer.date === day && propNoBuffer.minute === 660, 'wi
 // ── Every path uses it (source checks: these are client/server files that need a browser or a database) ──
 const read = (p: string) => readFileSync(p, 'utf8');
 const avail = read('app/api/availability/route.ts');
-ok(avail.includes("const SAFE_FIELDS = 'date, start_minute, hour, duration';"), 'availability: the public column list is unchanged');
-ok(/date: a\.date, start_minute: a\.start_minute, hour: a\.hour, duration: a\.duration,\s*buffer:/.test(avail), 'availability: the service name is stripped, only times and a buffer leave');
-ok(avail.includes('buffers: { default: bufferDefault, byService }'), 'availability: sends the buffers the page needs');
-ok(avail.includes('if (s.active === false) continue;'), 'availability: an archived service name never leaves');
+ok(avail.includes("const SAFE_FIELDS = 'date, start_minute, hour, duration';"), 'availability: the times it reads are unchanged');
+ok(avail.includes('const busy = publicBusyRanges((data || []) as unknown as Row[], bufferOf, lunch);'), 'availability: merged intervals with each buffer included (test-availability-merged.ts)');
+ok(avail.includes("return Response.json({ success: true, busy, defaultBuffer: bufferDefault });"), 'availability: no per-service buffer map leaves');
 const page = read('app/BookingPage.jsx');
 ok(page.includes('overlaps(m, m + svcDuration + svcBuffer, bs, be)'), 'booking page: day strip applies the buffer');
 ok(page.includes('overlaps(start, start + svcDuration + svcBuffer, bs, be)'), 'booking page: time grid applies the buffer');
-ok(page.includes('e + (cleanBufferMinutes(a.buffer) ?? 0)'), 'booking page: busy ranges end after their buffer');
+ok(page.includes('.map((a) => [Number(a.start), Number(a.end)])'), 'booking page: busy ranges arrive with their buffer included');
+ok(page.includes('serviceBufferMinutes(selectedService, defaultBuffer ?? businessBufferDefault(settings?.branding))'), 'booking page: its own buffer comes from the service it is booking');
 const route = read('app/api/book-appointment/route.js');
 ok(route.includes('clashesWith(newStart, svcDuration, live) || clashesWithBuffer(newStart, svcDuration, svcBuffer, buffered)'), 'book-appointment: refuses a start inside a buffer');
 ok(route.includes('.select("name, buffer_minutes, active")'), 'book-appointment: reads active, so an archived namesake never hides the active buffer');

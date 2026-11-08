@@ -22,10 +22,15 @@
 // The one exception is CLOSING TIME. The treatment itself must end by closing; the buffer may run past it. Cleaning up
 // after the last client of the day is normal, and counting it would delete the last slot of every working day.
 //
-// ── What does NOT know about it ────────────────────────────────────────────
-// The database constraint appointments_no_overlap still guards only [start, start + duration). The buffer is enforced
-// by the app: the public page and /api/availability (offering), /api/book-appointment (refusing), and the in-app
-// new-appointment check. That keeps the migration to one nullable column, with no change to the exclusion constraint.
+// ── The database ───────────────────────────────────────────────────────────
+// The app checks above read a snapshot, so on their own two concurrent bookings could both pass (Vercel security
+// review, 2026-11-08). add_service_buffer_2026-11-05.sql therefore stores the buffer each appointment was checked with
+// (appointments.buffer_minutes, lib/apptBuffer.ts) and rebuilds appointments_no_overlap over
+// [start, start + duration + buffer): the same rule as clashesWithBuffer, atomically. Before that migration runs the
+// database guards [start, start + duration) only and the app checks are the whole guard.
+//
+// A STORED buffer is a floor: bufferLookup answers the larger of the stored one and today's, so after she lowers a
+// buffer the app never offers a time the database would still refuse over the old one.
 //
 // Pure: no database, no clock, plain numbers, so it is testable with node alone (test-service-buffer.ts).
 
@@ -56,11 +61,13 @@ export function serviceBufferMinutes(service: ServiceLike, businessDefault = 0):
   return cleanBufferMinutes(service?.buffer_minutes) ?? (cleanBufferMinutes(businessDefault) ?? 0);
 }
 
-type ApptLike = { service?: unknown; kind?: unknown } | null | undefined;
+type ApptLike = { service?: unknown; kind?: unknown; buffer_minutes?: unknown } | null | undefined;
 
 /**
  * A lookup from an appointment to its buffer, built once per list of services.
  * Personal blocks: 0. A service that is no longer on her menu (renamed, deleted, the generic "תור"): the default.
+ * A row that carries the buffer it was booked with (appointments.buffer_minutes) is busy for at least that long,
+ * because that is what the database enforces for it.
  */
 export function bufferLookup(services: ServiceLike[] | null | undefined, businessDefault = 0): (appt: ApptLike) => number {
   const byName = new Map<string, number>();
@@ -76,7 +83,9 @@ export function bufferLookup(services: ServiceLike[] | null | undefined, busines
   return (appt) => {
     if (!appt || appt.kind === 'personal') return 0;
     const name = typeof appt.service === 'string' ? appt.service.trim() : '';
-    return byName.has(name) ? (byName.get(name) as number) : fallback;
+    const current = byName.has(name) ? (byName.get(name) as number) : fallback;
+    const stored = cleanBufferMinutes(appt.buffer_minutes);
+    return stored === null ? current : Math.max(stored, current);
   };
 }
 

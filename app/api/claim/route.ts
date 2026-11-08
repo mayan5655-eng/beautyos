@@ -11,6 +11,7 @@ import { minutesUntilIsrael } from "@/lib/ownerQuestions";
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { bookAppointmentSlot } from "@/lib/booking";
+import { bufferLookup, businessBufferDefault } from "@/lib/serviceBuffer";
 import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
 import { publicAccent } from "@/lib/branding";
@@ -158,14 +159,24 @@ export async function POST(request: NextRequest) {
   // one, and the client controls nothing here. Best-effort: an unfindable
   // service books at 0 rather than failing the claim.
   let claimPrice = 0;
+  // Her buffer after this treatment (lib/serviceBuffer.ts), stored on the row so appointments_no_overlap keeps it free
+  // (lib/apptBuffer.ts). select("*") so the read works before and after add_service_buffer_2026-11-05.sql; a failed
+  // read means the business default, and a failed settings read means 0, which is today's behaviour.
+  let claimBufferDefault = 0;
+  try {
+    const { data: st } = await supabase.from("settings").select("branding").eq("tenant_id", claimed.tenant_id).maybeSingle();
+    claimBufferDefault = businessBufferDefault(st?.branding);
+  } catch { /* 0: the booking is not refused over a buffer it could not read */ }
+  let claimBuffer = claimBufferDefault;
   if (claimed.service) {
     const { data: svc } = await supabase
       .from("service_prices")
-      .select("price")
+      .select("*")
       .eq("tenant_id", claimed.tenant_id)
       .eq("name", claimed.service)
       .maybeSingle();
     if (svc && Number.isFinite(Number(svc.price))) claimPrice = Number(svc.price);
+    claimBuffer = bufferLookup(svc ? [svc] : [], claimBufferDefault)({ service: claimed.service });
   }
 
   const booked = await bookAppointmentSlot(supabase, {
@@ -178,6 +189,7 @@ export async function POST(request: NextRequest) {
     name: claimed.client_name,
     client_phone: claimed.phone,
     price: claimPrice,
+    buffer_minutes: claimBuffer,
   });
 
   if (!booked.ok) {
