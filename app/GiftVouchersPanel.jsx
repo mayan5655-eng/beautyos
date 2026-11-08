@@ -16,7 +16,9 @@ const METHODS = ['מזומן', 'אשראי', 'ביט', 'פייבוקס', 'העב
 const newKey = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
 const EMPTY = { option: '', amount: '', method: 'מזומן', buyerName: '', buyerPhone: '', recipientName: '', message: '' };
 
-export default function GiftVouchersPanel({ settings, services, pc, pcTint, toast, isDemo, onReceipt }) {
+export default function GiftVouchersPanel({ settings, services, pc, pcTint, toast, isDemo, onReceipt, voidedReceiptIds }) {
+  // A redemption whose sale she voided can be given back here too: the retry for when the automatic return failed at void time.
+  const voided = voidedReceiptIds instanceof Set ? voidedReceiptIds : new Set();
   const visible = giftVouchersVisible(settings);
   // Her switch (Settings > שוברי מתנה): off hides SELLING only. The list, voiding and redemption stay for vouchers already sold.
   const sellingOn = giftVouchersSelling(settings);
@@ -214,8 +216,8 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
                       {v.status === 'void' && <p style={{ margin: '4px 0 0', color: 'var(--danger)' }}>בוטל ב-{dateHe(v.voided_at)}: {v.void_reason}</p>}
                       {led.filter((l) => l.kind === 'redeem' || l.kind === 'reverse').map((l) => (
                         <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', marginTop: 4 }}>
-                          <span>{dateHe(l.created_at)} · {l.kind === 'redeem' ? `מומש ${money(-Number(l.amount))}` : `הוחזר ${money(l.amount)}`}{l.kind === 'redeem' && !l.receipt_id && !reversed.has(String(l.id)) ? ' · בלי תשלום רשום' : ''}</span>
-                          {l.kind === 'redeem' && !l.receipt_id && !reversed.has(String(l.id)) && !isDemo && <button type="button" disabled={busy} style={{ ...btn, minHeight: 32, padding: '4px 10px' }} onClick={() => reverse(l)}>החזרה לשובר</button>}
+                          <span>{dateHe(l.created_at)} · {l.kind === 'redeem' ? `מומש ${money(-Number(l.amount))}` : `הוחזר ${money(l.amount)}`}{l.kind === 'redeem' && !reversed.has(String(l.id)) ? (!l.receipt_id ? ' · בלי תשלום רשום' : voided.has(String(l.receipt_id)) ? ' · התשלום בוטל' : '') : ''}</span>
+                          {l.kind === 'redeem' && (!l.receipt_id || voided.has(String(l.receipt_id))) && !reversed.has(String(l.id)) && !isDemo && <button type="button" disabled={busy} style={{ ...btn, minHeight: 32, padding: '4px 10px' }} onClick={() => reverse(l)}>החזרה לשובר</button>}
                         </div>
                       ))}
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>

@@ -807,6 +807,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [showWaQueue, setShowWaQueue] = useState(false);
   const [waQueueDone, setWaQueueDone] = useState({}); // {[row.id]: true} - optimistic, mirrors composeDone
   const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
+  const voidedReceiptIdSet = useMemo(() => new Set((receiptVoids || []).map((v) => String(v.receipt_id))), [receiptVoids]);
   // The payment already recorded for this visit, by the same test the till's quick-pay list uses ("✓ שולם"), or null.
   const receiptForAppt = (a) => (a ? liveRcpts.find(r => String(r.appointment_id) === String(a.id)) || null : null);
   const [expenses,     setExpenses]     = useState([]);
@@ -10208,7 +10209,7 @@ ${MARKETING_FOOTER}`)}`;
  {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
- <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
+ <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} voidedReceiptIds={voidedReceiptIdSet} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
  {/* Products and inventory: renders nothing when switched off or before the migration. */}
  <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
