@@ -90,6 +90,22 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `יש כרגע עומס. אפשר לנסות שוב ${m}.`,
   },
 
+  // Her own catalog saves (app/api/products create/update, signed in). Generous: this only stops a runaway loop from her browser.
+  'product-write': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשמרו הרבה שינויים ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשמרו הרבה שינויים ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
+  // The products she recommends, on the public skin-scan result (app/api/products/public). Read only, display fields only.
+  'products-view': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 300, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `יש כרגע עומס. אפשר לנסות שוב ${m}.`,
+  },
+
   // Looking a voucher up by its code at HER till (app/api/vouchers, signed in). A code is 8 characters (~40 bits) and only ever
   // searched inside her own business; this caps guessing even from her own account: a real till types a handful of codes a day.
   'voucher-lookup': {

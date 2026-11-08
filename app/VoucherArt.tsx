@@ -22,13 +22,18 @@ export type ArtContent = {
 /** A string with digits only (an amount like ₪300) is set left-to-right on its own, so the ₪ stays glued to its number. */
 const Ltr = ({ children }: { children: ReactNode }) => <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{children}</span>;
 const isMoney = (s: string) => /^₪[\d,.]+$/.test(s);
+/** Her logo's box on a 340px-wide card; both renderers scale it with the card (lib/og/voucherImage.tsx uses the same numbers). */
+export const LOGO_MAX_W = 150;
+export const LOGO_MAX_H = 72;
 
 export default function VoucherArt({ look, content, width = 340, testId }: { look: VoucherLook; content: ArtContent; width?: number; testId?: string }) {
   const h = Math.round(width * 1.25);
   const s = width / 340; // type scales with the card
   const font = FONT_CSS[look.font];
   const box: CSSProperties = {
-    position: 'relative', width, height: h, borderRadius: 18 * s, overflow: 'hidden', background: look.bg, color: look.ink,
+    // A minimum, not a fixed height: a treatment voucher with a long dedication and her logo grows instead of cropping the logo and
+    // the code (Vercel review 2026-11-08). The ornaments still sit on the first h pixels.
+    position: 'relative', width, minHeight: h, borderRadius: 18 * s, overflow: 'hidden', background: look.bg, color: look.ink,
     boxShadow: '0 14px 30px -18px rgba(24,48,36,0.35)', direction: 'rtl', textAlign: 'center', fontFamily: "var(--font-assistant), 'Assistant', system-ui, sans-serif",
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', padding: `${26 * s}px ${24 * s}px`,
   };
@@ -42,8 +47,12 @@ export default function VoucherArt({ look, content, width = 340, testId }: { loo
       ))}
       <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 * s, width: '100%' }}>
         {content.logoUrl
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={content.logoUrl} alt={content.businessName || ''} style={{ maxWidth: 110 * s, maxHeight: 44 * s, objectFit: 'contain', marginBottom: 2 * s }} />
+          // Her logo is the brand mark of the gift: 72px tall on a 340px card (a round logo at 44px was unreadable on the 2026-11-08
+          // logo walk), a wordmark up to 150px wide. Never cropped: contain.
+          ? <span style={{ display: 'inline-flex', marginBottom: 4 * s, ...(look.logoPlate ? { background: look.logoPlate, borderRadius: 14 * s, padding: `${6 * s}px ${10 * s}px` } : {}) }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={content.logoUrl} alt={content.businessName || ''} style={{ display: 'block', maxWidth: LOGO_MAX_W * s, maxHeight: LOGO_MAX_H * s, objectFit: 'contain' }} />
+            </span>
           : content.businessName ? <p style={{ margin: 0, fontSize: 14 * s, fontWeight: 700, letterSpacing: '0.03em', color: look.sub }}>{content.businessName}</p> : null}
         <p style={{ margin: 0, fontFamily: font, fontWeight: 700, fontSize: 30 * s, lineHeight: 1.15, color: look.ink }}>{look.headline}</p>
         <span aria-hidden style={{ width: 44 * s, height: 3 * s, borderRadius: 3, background: look.accent, margin: `${2 * s}px 0` }} />

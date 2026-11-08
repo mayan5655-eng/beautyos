@@ -747,4 +747,30 @@ await ok('her switch off: no selling anywhere (till, online shop, marketing card
   assert.doesNotMatch(rd('supabase/migrations/add_gift_vouchers_2026-11-08.sql'), /automations/);
 });
 
+// The logo walk (2026-11-08): her logo on the card is large enough to read, never cropped, never lost on a dark card, and the
+// story does not print "שובר מתנה" twice.
+await ok('her logo: a 72px-tall contained box on the card and in the image, on a light plate when the card is dark', async () => {
+  const { importApp, renderApp } = await import('./testkit/render.mjs' as string);
+  const mod = await importApp('app/VoucherArt.tsx');
+  assert.equal(mod.LOGO_MAX_H, 72); assert.equal(mod.LOGO_MAX_W, 150);
+  const dark = voucherLook(sanitizeDesign({ template: 'festive' }), '#B5838D');
+  const light = voucherLook(sanitizeDesign({ template: 'elegant' }), '#B5838D');
+  assert.ok(dark.logoPlate && !light.logoPlate);
+  const html = renderApp(mod.default, { look: dark, content: { title: '₪300', logoUrl: 'https://x.test/logo.png', businessName: 'סטודיו נועה' } });
+  assert.match(html, /max-width:150px;max-height:72px;object-fit:contain/);
+  assert.ok(html.includes(dark.logoPlate as string));
+  const img = rd('lib/og/voucherImage.tsx');
+  assert.match(img, /height=\{72 \* k\} style=\{\{ maxWidth: 150 \* k, objectFit: 'contain' \}\}/);
+  assert.match(img, /look\.logoPlate \? \{ background: look\.logoPlate/);
+  assert.match(img, /const sameAsHeadline = c\.title\.trim\(\) === look\.headline\.trim\(\);/);
+  // the voucher page shows the logo once: on the card, not again in the header
+  assert.match(rd('app/v/[token]/VoucherView.tsx'), /<BusinessHeader logoUrl=\{null\} name=\{brand\?\.name\} \/>\s*\n\s*\{buyer &&/);
+});
+
+await ok('the voucher card grows with its content, so a long dedication never crops the logo or the code', () => {
+  const art = readFileSync('app/VoucherArt.tsx', 'utf8');
+  assert.ok(/position: 'relative', width, minHeight: h,/.test(art), 'minHeight, not a fixed height');
+  assert.ok(!/position: 'relative', width, height: h,/.test(art));
+});
+
 console.log(`\n${n} gift voucher checks passed`);
