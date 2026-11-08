@@ -153,3 +153,30 @@ export function isInsideCancelWindow(dateStr: string, startMinute: number, windo
   if (mins === null) return false;
   return mins < windowHours * 60;
 }
+
+/** "24 שעות", "שעתיים", "שעה": Hebrew for a whole number of hours. */
+export function hoursHe(h: number): string {
+  if (h === 1) return 'שעה';
+  if (h === 2) return 'שעתיים';
+  return `${h} שעות`;
+}
+
+/**
+ * The cancel lines of the booking confirmation (lib/bookingNotify.js): the sentence before the cancel link, and an
+ * optional one after it. They must say what the link will actually do. "אפשר לבטל בלחיצה אחת" was promised to every
+ * client, while a client inside her cancellation window got "אי אפשר לבטל מהקישור" (app/api/confirm) on that same tap.
+ *  - no window: the one-tap promise is true, so it stays.
+ *  - a window: the link works up to N hours before, and after that only directly with her.
+ *  - a Grow cancellation policy the client agreed to: the link always cancels, under the terms she accepted (a late
+ *    cancel has a fee, it is not refused), so no window sentence and no "no questions" promise either.
+ */
+export function cancelLinesHe(rules: Pick<BookingRules, 'cancelWindowHours'>, opts: { underPolicy?: boolean; businessName?: string } = {}): { before: string; after: string | null } {
+  if (opts.underPolicy) return { before: 'מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בקישור, לפי תנאי הביטול שאישרת בהזמנה:', after: null };
+  const h = rules.cancelWindowHours;
+  if (!(h > 0)) return { before: 'מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בלחיצה אחת, בלי להתחייב להסביר למה:', after: null };
+  const who = String(opts.businessName || '').trim() || 'העסק';
+  return {
+    before: `מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בקישור עד ${hoursHe(h)} לפני התור:`,
+    after: `פחות מ${h > 2 ? '-' : ''}${hoursHe(h)} לפני התור, ביטול רק ישירות מול ${who}.`,
+  };
+}

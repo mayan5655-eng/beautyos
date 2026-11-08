@@ -32,3 +32,20 @@ export function serviceColorAt(index: number): string {
   const n = SERVICE_COLOR_CYCLE.length;
   return SERVICE_COLOR_CYCLE[((index % n) + n) % n];
 }
+
+const HEX = /^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+/** A real stored colour, or null. "var(--pc)" and other CSS expressions are not colours a calendar row can keep. */
+export function hexOrNull(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  return HEX.test(s) ? s : null;
+}
+
+/**
+ * The colour an appointment booked from her public page is stored with: the service's own colour, else what the page sent
+ * (only if it is a real hex), else her primary colour (settings.primary_color), else the default service colour. The booking
+ * page used to send the literal "var(--pc)" for a service with no colour, and that string was written to appointments.color,
+ * where it means nothing outside her public page (the calendar, exports and the app all read it as a colour).
+ */
+export function bookedAppointmentColor(serviceColor: unknown, sentColor: unknown, primaryColor: unknown): string {
+  return hexOrNull(serviceColor) || hexOrNull(sentColor) || hexOrNull(primaryColor) || DEFAULT_SERVICE_COLOR;
+}

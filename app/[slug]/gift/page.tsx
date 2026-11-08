@@ -14,6 +14,8 @@ import { waLink } from '@/lib/whatsappLink';
 import GiftPurchase from './GiftPurchase';
 import { voucherConfig } from '@/lib/giftVouchers';
 import { storageHostOf } from '@/lib/giftVoucherDesign';
+import { PublicPage, BusinessHeader, LineIcon } from '@/app/PublicChrome';
+import { ICON_HEART } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +48,10 @@ export default async function GiftShopPage({ params }: Props) {
   const tenant = await tenantOf(slug);
   if (!tenant) notFound();
   const shop = await loadVoucherShop(admin(), tenant.id, process.env, APP_URL);
+  // The business exists but the voucher tables do not yet (the migration has not run). A direct visit used to land on
+  // "לא מצאנו עסק", which is false and sends her client away thinking the business is gone. Still no shop, no link and no
+  // button (owner decision), only the true sentence and the way back to her page.
+  if (!shop.visible && shop.reason === 'no-migration') return <VouchersNotYet slug={slug} tenantName={tenant.name} settings={shop.settings} />;
   if (!shop.visible) notFound();
   const b = resolveBranding(shop.settings || {});
   // Her design, validated (lib/giftVoucherDesign.ts): the preview at the top is the card her friend will get.
@@ -62,5 +68,21 @@ export default async function GiftShopPage({ params }: Props) {
       contact={waLink(b.whatsapp) || null}
       design={design}
     />
+  );
+}
+
+function VouchersNotYet({ slug, tenantName, settings }: { slug: string; tenantName: string; settings: Record<string, unknown> | null }) {
+  const b = resolveBranding(settings || {});
+  const name = b.businessName || tenantName;
+  return (
+    <PublicPage primary={b.primary} maxWidth={440}>
+      <BusinessHeader logoUrl={b.logoUrl} name={name} />
+      <div className="pub-card" data-testid="gift-not-yet" style={{ padding: '28px 24px 26px', textAlign: 'center' }}>
+        <LineIcon src={ICON_HEART} />
+        <h1 className="pub-h1">שוברי מתנה עדיין לא זמינים כאן</h1>
+        <p className="pub-p">אפשר לחזור לעמוד של {name} ולקבוע תור, או לשאול אותה ישירות על שובר מתנה.</p>
+        <a href={`/${encodeURIComponent(slug)}`} style={{ display: 'inline-block', marginTop: 14, color: 'var(--pc-text, var(--pc))', fontWeight: 700 }}>לעמוד של {name}</a>
+      </div>
+    </PublicPage>
   );
 }

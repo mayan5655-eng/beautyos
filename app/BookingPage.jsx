@@ -687,7 +687,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           startMinute: selectedStart,
           duration: selectedService.duration || 60,
           price: selectedService.price || 0,
-          color: selectedService.color || pc,
+          // Her real colour, never the CSS variable: this is stored on the appointment (the server checks it is a hex).
+          color: selectedService.color || accent,
           tenantId: tenantId,
           ...(() => { const r = recalledSource(tenantId, typeof window !== "undefined" ? window.location.search : ""); return { src: r.src || undefined, ref: r.ref || undefined }; })(),
           marketingConsent: marketingOk === true,
