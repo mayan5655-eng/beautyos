@@ -5751,6 +5751,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Anything ambiguous stays unlinked, as before.
       const linkedApptId = cashierAppt?.id || (() => {
         if (!cashierClient?.id) return null;
+        // A products-only sale is not that visit's payment: never auto-link it, or her treatment would show as paid with only a
+        // cream bought (Vercel review 2026-11-08). Only a sale that has at least one treatment line is matched to today's visit.
+        if (!cashierItems.some(i => i && i.kind !== "product")) return null;
         const c = appointments.filter(a => String(a.client_id) === String(cashierClient.id) && a.date === today
           && a.confirmation_status !== "cancelled" && a.kind !== "personal"
           && !receipts.some(r => String(r.appointment_id) === String(a.id)));

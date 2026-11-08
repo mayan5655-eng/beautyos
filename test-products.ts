@@ -451,4 +451,12 @@ await ok('the clean copy instructions: no em dashes or long dashes in product co
   }
 });
 
+await ok('a products-only sale is never auto-linked to her unpaid visit today (the treatment would show as paid)', () => {
+  const app = readFileSync('app/beautyos.jsx', 'utf8');
+  const i = app.indexOf('const linkedApptId = cashierAppt?.id || (() => {');
+  assert.ok(i > 0);
+  const block = app.slice(i, app.indexOf('})();', i));
+  assert.ok(block.includes('if (!cashierItems.some(i => i && i.kind !== "product")) return null;'), 'products-only: no auto-link');
+});
+
 console.log(`\n${n} products checks passed`);
