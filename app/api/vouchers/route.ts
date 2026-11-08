@@ -7,6 +7,8 @@
 //   POST { action: 'lookup', code }                         one voucher by the code she typed or scanned (rate limited).
 //   POST { action: 'redeem', voucherId, amount, key }       spend part of a voucher at the till: gift_voucher_redeem, atomic in the database.
 //   POST { action: 'reverse', ledgerId }                    give a redemption back (the sale it was for did not happen).
+//   POST { action: 'reverse_receipt', receiptId }           after she voided a sale the voucher paid: give every redemption of
+//                                                           that sale back (the database refuses while the sale stands).
 //   POST { action: 'attach', ledgerId, receiptId }          name the receipt a redemption paid, once.
 //   POST { action: 'void', voucherId, reason }              void a voucher. Recorded, never deleted.
 //   POST { action: 'sell', saleKey, option | amount, paymentMethod, buyerName, buyerPhone?, recipientName, message?, clientId? }
@@ -153,6 +155,27 @@ export async function POST(request: Request) {
       if (o.result === 'ok') return json({ success: true, balance: o.balance });
       const msg = o.result === 'has_receipt' ? 'הניצול הזה שילם תשלום שנרשם. בטלי קודם את התשלום, ואז אפשר להחזיר את הסכום לשובר.' : REFUSAL_HE[o.result] || 'לא מצאנו את הניצול הזה';
       return json({ success: false, refusal: o.result, error: msg }, 409);
+    }
+
+    // Voiding a sale paid by a voucher used to leave the voucher spent, with no way back in the app: the per-line "החזרה
+    // לשובר" is shown only for a redemption with no sale, and the database refuses while the sale stands (2026-11-08 QA).
+    // Called by the till right after the void. gift_voucher_reverse itself checks the sale is voided and is idempotent.
+    if (action === 'reverse_receipt') {
+      const receiptId = String(b.receiptId || '');
+      if (!UUID_RE.test(receiptId)) return json({ success: false, error: 'בקשה לא תקינה' }, 400);
+      const led = await db.from('gift_voucher_ledger').select('id, amount').eq('tenant_id', tenantId).eq('receipt_id', receiptId).eq('kind', 'redeem');
+      if (led.error && isMissingVoucherSchema(led.error)) return needsMigration();
+      if (led.error) return oops('reverse_receipt', led.error);
+      let returned = 0;
+      const refused: string[] = [];
+      for (const l of (led.data || []) as Array<{ id: string; amount: unknown }>) {
+        const { data, error } = await db.rpc('gift_voucher_reverse', { p_tenant: tenantId, p_ledger: l.id, p_by: user.id, p_note: 'התשלום בוטל בקופה' });
+        if (error) return oops('reverse_receipt', error);
+        const o = readRpcOutcome(data);
+        if (o.result === 'ok') returned += -Number(l.amount) || 0;
+        else if (o.result !== 'already_reversed') refused.push(o.result);
+      }
+      return json({ success: refused.length === 0, returned: Math.round(returned * 100) / 100, refused });
     }
 
     if (action === 'attach') {

@@ -25,12 +25,15 @@ function ConfirmContent() {
     !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
   );
   const [message, setMessage] = useState(() =>
-    !id ? 'הלינק לא תקין — חסר מזהה תור' : ''
+    !id ? 'הקישור לא תקין, חסר בו מזהה התור.' : ''
   );
   // Public branding from the API's success path; optional - no logo, no space.
   const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '', primaryColor: '' });
   // Her booking page and WhatsApp (lib/publicContact.ts), sent only on a signed answer: where to go after a cancel or a refusal.
   const [contact, setContact] = useState({ bookUrl: '', whatsapp: '' });
+  // A business rule said no (409: inside her cancellation window, already past, already changed). Not a glitch: no
+  // "אופס!" and no "נסי שוב", which could never succeed (2026-11-08 QA).
+  const [refused, setRefused] = useState(false);
 
   // Does not set 'working' itself. On mount that is already the status for a
   // confirm link, and setting state synchronously from an effect is a
@@ -41,7 +44,7 @@ function ConfirmContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, token }),
     })
-      .then(res => res.json())
+      .then(res => res.json().then(data => { setRefused(res.status === 409 && !data.success); return data; }))
       .then(data => {
         if (data.success) {
           setStatus(data.alreadyDone ? 'already' : 'success');
@@ -104,6 +107,7 @@ function ConfirmContent() {
     if (status === 'working') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
     if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
     if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--pc-deep)' };
+    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? 'אי אפשר לבטל מהקישור' : 'אי אפשר לשנות מהקישור', color: 'var(--ink)' };
     if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
     if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--pc-deep)' };
     if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--ink-2)' };
@@ -128,7 +132,7 @@ function ConfirmContent() {
   const markKind =
     status === 'ready' ? 'ask'
     : status === 'declined' ? 'tick'
-    : status === 'error' ? 'cross'
+    : status === 'error' ? (refused ? 'info' : 'cross')
     : status === 'already' ? 'info'
     : status === 'success' ? (action === 'cancel' ? 'info' : 'tick')
     : null;
@@ -160,7 +164,7 @@ function ConfirmContent() {
           </div>
         )}
 
-        {status === 'error' && id && (
+        {status === 'error' && id && !refused && (
           <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
             נסי שוב
           </button>

@@ -28,7 +28,7 @@ ok(/const rbAnchor = rbLinked \|\| \(showReceipt\.client_id \? \{client_id:showR
 ok(/startMinute\(anchor\) !== null/.test(sheet), 'a time-less anchor never claims her usual time is taken');
 ok(/split\(","\)\.map\(x=>x\.trim\(\)\)\.find\(n=>activeServices\.some\(sv=>sv\.name===n\)\)/.test(receipt), 'prefilled with the first paid line that is still on her menu');
 ok(/if \(!rebookPlan\) return openRebookSheet \?/.test(receipt), 'offered even when the inline strip has no proposal (a walk-in sale, an unknown service)');
-ok((receipt.match(/\{sheetButton\}/g) || []).length === 2, 'and under the inline strip when it has one');
+ok((receipt.match(/\{sheetButton\}/g) || []).length === 3, 'and under the inline strip when it has one, and under "she already has a next visit" (2026-11-08 QA)');
 ok(!/consentAskFor/.test(receipt.slice(receipt.indexOf('const rbClient'))), 'the change stays inside the next-appointment block');
 
 // One sheet, one render: the checkout entry only adds props.
