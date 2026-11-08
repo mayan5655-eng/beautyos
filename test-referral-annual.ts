@@ -409,12 +409,98 @@ await ok('a yearly subscriber\'s free month moves her renewal one month, and her
   assert.equal(subPays(w, A)[0].period_end, '2028-02-01');
 });
 
-await ok('a referral error never stops or undoes a charge', async () => {
+/** console.error lines while fn runs (moneyAlert logs there when there is no database, as in tests). */
+async function captureErrors(fn: () => Promise<void>): Promise<string[]> {
+  const lines: string[] = [];
+  const orig = console.error;
+  console.error = (...a: unknown[]) => { lines.push(a.map(String).join(' ')); };
+  try { await fn(); } finally { console.error = orig; }
+  return lines;
+}
+
+await ok('a referral error AFTER a successful charge never undoes it (granting the months is after the money)', async () => {
   const w = referralWorld();
-  const broken: ReferralRepo = { ...w.refRepo, async referralFor() { throw new Error('db down'); }, async availableCredits() { throw new Error('db down'); } };
+  const broken: ReferralRepo = { ...w.refRepo, async referralFor() { throw new Error('db down'); } };
   const s = await runDue(w.deps({ referrals: broken }));
   assert.equal(s.charged, 1);
   assert.equal(subPays(w, B)[0].status, 'succeeded');
+});
+
+await ok('FAIL CLOSED: a month claimed, the renewal update failed, and the next run cannot read the claim: no Grow charge, a money alert', async () => {
+  const w = referralWorld();
+  await runDue(w.deps());                                         // B's first paid charge earns the months
+  w.at('2027-02-02T08:00:00Z');
+  const stuck = { ...w.repo, async updateSub() { throw new Error('crash after the claim'); } };
+  await runDue(w.deps({ repo: stuck }));                          // B's month is claimed, the date does not move
+  assert.equal(w.rewards.filter((r) => r.consumed_at && r.tenant_id === B).length, 1);
+  const chargesBefore = w.charges.length;
+  const unreadable: ReferralRepo = { ...w.refRepo, async creditForPeriod() { throw new Error('db read failed'); }, async availableCredits() { throw new Error('db read failed'); } };
+  const errs = await captureErrors(async () => { await runDue(w.deps({ referrals: unreadable })); });
+  assert.equal(w.charges.length, chargesBefore, 'Grow is never called for the period the month already covers');
+  assert.equal(subPays(w, B).length, 1, 'no payment row either');
+  // Logged, and the money alert is raised (moneyAlert throttles per business and period, so here the claim run's alert already went).
+  assert.ok(errs.some((l) => /\[billing\] free month check failed for tenant/.test(l) && /db read failed/.test(l)), 'reported');
+  assert.ok(/'free month check failed; nothing charged this run, the next run retries'/.test(read('lib/billing/service.ts')), 'with its money alert');
+  // Healthy again: the next run finishes moving the date with that same month. Still no charge, no second month.
+  await runDue(w.deps());
+  assert.equal(w.charges.length, chargesBefore);
+  assert.equal(w.rewards.filter((r) => r.consumed_at && r.tenant_id === B).length, 1);
+  assert.equal(w.sub(B).next_charge_at, '2027-03-02T06:00:00.000Z');
+});
+
+await ok('FAIL CLOSED: an unreadable list of months charges nobody this run; the next healthy run charges once', async () => {
+  const w = referralWorld();
+  const broken: ReferralRepo = { ...w.refRepo, async availableCredits() { throw new Error('db down'); } };
+  const errs = await captureErrors(async () => { await runDue(w.deps({ referrals: broken })); });
+  assert.equal(w.charges.length, 0);
+  assert.ok(errs.some((l) => /money-alert/.test(l)));
+  await runDue(w.deps());
+  assert.equal(w.charges.length, 1);
+  assert.equal(subPays(w, B).filter((p) => p.status === 'succeeded').length, 1);
+});
+
+await ok('FAIL CLOSED: an unreadable "is this date inside a paid year" charges nothing (the run reports it)', async () => {
+  const w = world('2027-03-01T08:00:00Z');
+  w.addTenant(A);
+  w.addSub(A, '2027-03-01T06:00:00Z', { billing_period: 'annual' });
+  const repo = { ...w.repo, async coveredByAnnual(): Promise<boolean> { throw new Error('coveredByAnnual: db down'); } };
+  const errs = await captureErrors(async () => { await runDue(w.deps({ repo })); });
+  assert.equal(w.charges.length, 0);
+  // runDue's own catch reports it (and raises its money alert, throttled per business, so it may already have fired in this file).
+  assert.ok(errs.some((l) => /\[billing\] run failed for tenant/.test(l) && /coveredByAnnual/.test(l)));
+  // The real repo: only a missing period_months column (migration not run) reads as "not covered"; anything else throws.
+  const src = read('lib/billing/repo.ts');
+  const fn = src.slice(src.indexOf('async coveredByAnnual'), src.indexOf('async setPlanStatus'));
+  assert.ok(/42703/.test(fn) && /fail\(error, 'coveredByAnnual'\)/.test(fn) && !/if \(error\) return false;/.test(fn));
+});
+
+await ok('an unknown yearly charge that settles later keeps a switch back to monthly she asked for meanwhile', async () => {
+  const w = world('2027-01-01T08:00:00Z');
+  w.addTenant(A);
+  w.addSub(A, '2027-01-01T06:00:00Z', { pending_period: 'annual' });
+  const d0 = w.deps();
+  let settled = false;
+  const flaky = {
+    ...d0.payments,
+    async charge(i: Parameters<typeof d0.payments.charge>[0]) { await d0.payments.charge(i); return { ok: false as const, code: 'unreachable' as const, error: 'timeout' }; },
+    async lookup(t: string, u: number) { return settled ? d0.payments.lookup!(t, u) : { ok: false as const, error: 'down' }; },
+  };
+  await runDue(w.deps({ payments: flaky }));                      // the yearly charge goes out, the answer never comes
+  assert.equal(subPays(w, A)[0].status, 'unknown'); assert.equal(subPays(w, A)[0].period_months, 12);
+  assert.equal(w.sub(A).billing_period, 'annual'); assert.equal(w.sub(A).pending_period, null);
+  // Meanwhile she asks to go back to monthly.
+  assert.equal((await requestPeriodSwitch(w.deps(), A, 'monthly') as { pendingPeriod: string }).pendingPeriod, 'monthly');
+  settled = true;
+  w.plus(1); await runDue(w.deps({ payments: flaky }));          // Grow now says the yearly charge was paid
+  assert.equal(subPays(w, A)[0].status, 'succeeded');
+  assert.equal(w.sub(A).billing_period, 'annual', 'the paid year stands');
+  assert.equal(w.sub(A).pending_period, 'monthly', 'her later request is kept');
+  assert.equal(w.sub(A).next_charge_at, '2028-01-01T06:00:00.000Z');
+  w.at('2028-01-01T08:00:00Z'); await runDue(w.deps());           // the next renewal is monthly
+  const pays = subPays(w, A);
+  assert.equal(pays.length, 2);
+  assert.equal(pays[1].amount, PLAN_PRICES.launch); assert.equal(pays[1].period_months, undefined); assert.equal(pays[1].period_end, '2028-02-01');
+  assert.equal(w.sub(A).billing_period, 'monthly'); assert.equal(w.sub(A).pending_period, null);
 });
 
 await ok('Settings counts only: joined, paid, months earned / used / waiting, no names', () => {

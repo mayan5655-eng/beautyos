@@ -90,7 +90,12 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       // add_referrals_annual_2026-11-08.sql adds period_months; before it runs there is no yearly charge to find.
       const { data, error } = await db.from('billing_payments').select('id').eq('subscription_id', subId).eq('kind', 'subscription').eq('status', 'succeeded')
         .eq('period_months', 12).lte('period_start', periodStart).gt('period_end', periodStart).limit(1);
-      if (error) return false;
+      // Fail closed: only a MISSING column (the migration has not run, so no yearly charge can exist) means "not covered". Any other
+      // read error throws, and the run charges nothing for her this time (a paid year may cover this date).
+      if (error) {
+        if (error.code === '42703' || /period_months.*does not exist|does not exist.*period_months|schema cache/i.test(error.message || '')) return false;
+        fail(error, 'coveredByAnnual');
+      }
       return !!(data && data.length);
     },
     async setPlanStatus(tenantId, status) {

@@ -251,19 +251,20 @@ async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, per
 
   // A free month she earned (lib/referral.ts) is used instead of this charge. Only after the claim above, so of two runs at the same
   // moment exactly one gets here; the month itself is claimed with its own compare-and-set.
-  // A referral read that fails lets the charge go on as usual; a failure AFTER a month was claimed for this period never does (that
-  // would be a free month and a charge): the run stops for her, and the next one finishes moving the date (creditForPeriod).
+  // FAIL CLOSED (PR #27 review): any error here, a read of her months or of a month already claimed for this period, or a failure
+  // after a claim, means NO charge for her this run. A read error is never "nothing there": a month may already cover this period
+  // (claimed by a run that stopped before moving the date), and charging then would be a free month and a real charge. The run
+  // skips her, raises a money alert, and the next run retries. (Before the migration the tables are missing, which the repo answers
+  // as "no months" on purpose: no month can exist then.)
   if (flags.referrals && d.referrals) {
     let freed = false;
     try {
       freed = await applyFreeMonth(d, sub, periodStart, periodKey, now);
     } catch (e) {
-      if (e instanceof MonthClaimedError) {
-        console.error('[billing] free month claimed but the period did not move for tenant', sub.tenant_id, e.message);
-        await moneyAlert('billing:referral', 'free month claimed, period not moved yet; the next run finishes it', { tenantId: sub.tenant_id }, { key: `${sub.id}:${periodKey}`, severity: 'warning' }).catch(() => {});
-        return 'skipped';
-      }
-      console.error('[billing] free month check failed for tenant', sub.tenant_id, (e as Error)?.message);
+      const claimed = e instanceof MonthClaimedError;
+      console.error(`[billing] free month ${claimed ? 'claimed but the period did not move' : 'check failed'} for tenant`, sub.tenant_id, (e as Error)?.message);
+      await moneyAlert('billing:referral', claimed ? 'free month claimed, period not moved yet; nothing charged, the next run finishes it' : 'free month check failed; nothing charged this run, the next run retries', { tenantId: sub.tenant_id }, { key: `${sub.id}:${periodKey}`, severity: 'warning' }).catch(() => {});
+      return 'skipped';
     }
     if (freed) return 'credited';
   }
@@ -419,9 +420,11 @@ async function settleOpen(d: Deps, sub: Subscription, tenant: TenantRow | null, 
   const uid = Number(open.unique_identifier);
   if (!sub.token_ref || !d.payments.lookup || !Number.isFinite(uid)) return 'skipped';
   const r = await d.payments.lookup(sub.token_ref, uid).catch(() => null);
-  // The open charge keeps the period it was made for: a yearly one pays twelve months and makes the subscription yearly.
+  // The open charge keeps the period it was made for: a yearly one pays twelve months and its year is her plan. It never touches
+  // pending_period (PR #27 review): the switch that made it yearly was already consumed when the charge was made (attempt()), so any
+  // pending switch now is one she asked for AFTER it (say, back to monthly) and must wait for her next renewal.
   const yearly = Number(open.period_months) === 12;
-  if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, open, r.providerPaymentId || `uid:${uid}`, addMonths(periodStart, yearly ? 12 : 1), now, undefined, undefined, yearly ? { billing_period: 'annual', pending_period: null } : {});
+  if (r && r.ok && r.found && r.status === 'paid') return succeed(d, sub, tenant, open, r.providerPaymentId || `uid:${uid}`, addMonths(periodStart, yearly ? 12 : 1), now, undefined, undefined, yearly ? { billing_period: 'annual' } : {});
   if (r && r.ok && (r.status === 'failed' || !r.found)) {
     await d.repo.updatePayment(open.id, { status: 'failed', error: 'settled: the provider has no successful charge' });
     return 'cleared';
