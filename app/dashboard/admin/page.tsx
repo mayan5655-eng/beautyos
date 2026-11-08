@@ -29,6 +29,7 @@ import GrowRequests from './GrowRequests'
 import BillingAdmin from './BillingAdmin'
 import WaCloudCosts from './WaCloudCosts'
 import ShareEvents from './ShareEvents'
+import { firstBookingScore } from '@/lib/firstBooking'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
 // must reflect the database as it is right now.
@@ -41,6 +42,31 @@ export const revalidate = 0
 // only as an input), so that one column still comes from the plain table.
 const TENANT_FALLBACK_FIELDS =
   'id, name, plan_status, trial_started_at, trial_ends_at, plan_price, signup_source'
+
+// "צעדים": how many of the 3 first-booking steps each business has done (lib/firstBooking.js firstBookingScore). The client and
+// appointment counts already come from platform_tenant_metrics(); this adds the two things it does not carry, in two narrow reads:
+// which tenants have an active treatment (tenant_id only, paged), and each settings row's automations->>link_shared_at (one
+// timestamp, not the automations bag). Never a client row. Any read that fails leaves the column as "—", not as 0.
+type AdminDb = ReturnType<typeof createAdminClient>
+async function loadFirstSteps(db: AdminDb): Promise<{ withService: Set<string>; linkAt: Map<string, string | null> } | null> {
+  try {
+    const withService = new Set<string>()
+    const PAGE = 1000
+    for (let from = 0; from < 50 * PAGE; from += PAGE) {
+      const { data, error } = await db.from('service_prices').select('tenant_id').or('active.is.null,active.eq.true').order('tenant_id').range(from, from + PAGE - 1)
+      if (error) return null
+      for (const r of data || []) if ((r as { tenant_id: string | null }).tenant_id) withService.add((r as { tenant_id: string }).tenant_id)
+      if (!data || data.length < PAGE) break
+    }
+    const linkAt = new Map<string, string | null>()
+    const s = await db.from('settings').select('tenant_id, link_shared_at:automations->>link_shared_at')
+    if (s.error) return null
+    for (const r of (s.data || []) as unknown as { tenant_id: string | null; link_shared_at: string | null }[]) if (r.tenant_id) linkAt.set(r.tenant_id, r.link_shared_at || null)
+    return { withService, linkAt }
+  } catch {
+    return null
+  }
+}
 
 export default async function AdminPage() {
   const admin = await requirePlatformAdmin()
@@ -67,9 +93,13 @@ export default async function AdminPage() {
     for (const row of started.data || []) {
       trialStartById.set((row as { id: string }).id, (row as { trial_started_at: string | null }).trial_started_at)
     }
+    const steps = await loadFirstSteps(db)
     rows = (rich.data as AdminTenantRow[]).map((r) => ({
       ...r,
       trial_started_at: trialStartById.get(r.id) ?? null,
+      first_steps: steps
+        ? firstBookingScore({ hasActiveService: steps.withService.has(r.id), clientCount: r.client_count ?? null, appointmentCount: r.appointment_count ?? null, linkSharedAt: steps.linkAt.get(r.id) ?? null })
+        : null,
     }))
   } else {
     if (rich.error) {

@@ -76,7 +76,8 @@ assert.equal(withSource('https://kalmea.app/x', ''), 'https://kalmea.app/x');
 {
   const r = src('app/api/book-appointment/route.js');
   const tagAt = r.indexOf('const bookingSrc = cleanSource(rawSrc);');
-  const insertAt = r.indexOf('.from("appointments")\n      .insert({') >= 0 ? r.indexOf('.from("appointments")\n      .insert({') : r.indexOf('.from("appointments")\r\n      .insert({');
+  // The insert goes through lib/apptBuffer writeWithApptBuffer (the row first, then the call that inserts it).
+  const insertAt = r.indexOf('const { data: appt, error } = await writeWithApptBuffer({');
   assert.ok(insertAt > 0 && tagAt > insertAt, 'the tag is written only after the appointment exists');
   assert.ok(r.includes('after(async () => {') && r.includes('source tagging threw'), 'best-effort, after the response');
   assert.ok(r.includes('.eq("tenant_id", activeTenantId).eq("id", bookingRef)'), 'the referrer must be a client of the same business');
@@ -89,7 +90,7 @@ assert.ok(src('lib/reminders/smartReminders.js').includes("withSource(`${APP_URL
 assert.ok(src('app/api/clients/comeback/route.js').includes("withSource(`${APP_URL}/book?t=${tenantId}`, 'whatsapp')"));
 assert.ok(src('lib/ai/loadBusinessProfile.ts').includes("'post')"));
 const app = src('app/beautyos.jsx');
-assert.ok(app.includes('copyPublicLink = async (kind, channel = "link")'));
+assert.ok(app.includes('copyPublicLink = async (kind, channel = "link"'), 'the copy takes the channel, "link" by default (a third argument, the toast, was added for the booking buttons card)');
 assert.ok(app.includes('data-testid="tagged-links"'));
 assert.ok(app.includes('<ClientReferral ') && app.includes('<BookingSourceReport '));
 assert.ok(src('app/BookingPage.jsx').includes('recalledSource(tenantId'));

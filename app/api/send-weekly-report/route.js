@@ -6,6 +6,13 @@
 //
 // One isolated job per tenant through lib/cronFanout.js, bounded in time; a tenant whose week was empty gets
 // nothing. Authorised with CRON_SECRET like every cron that fans out.
+//
+// 2026-11-05: the note is now the smart digest, "הסיכום השבועי שלך" (lib/weeklyDigest.ts): last week against the week
+// before, up to three actions with one-tap links, one positive line. In-app notification and web push ONLY: no WhatsApp
+// copy, even for an owner who turned on WhatsApp owner alerts, because automatic WhatsApp is hidden. It keeps the
+// Shabbat and yom tov rule of the client crons (digestCronSlot: vercel.json has an early, a regular and a night entry),
+// and a tenant who already got this week's digest is skipped, so no slot sends twice.
+// The plain report below (reportFor, lib/weeklyReport.ts) is kept, not deleted: WEEKLY_DIGEST_OFF=1 brings it back.
 import { createClient } from "@supabase/supabase-js";
 import { notifyOwner } from "../../../lib/ownerNotify.js";
 import { isAuthorizedCron, cronUnauthorized } from "../../../lib/cronAuth";
@@ -17,6 +24,9 @@ import { resolveGoals, goalProgress } from "../../../lib/goals";
 import { buildWeeklyReport } from "../../../lib/weeklyReport";
 import { sourceLabelHe } from "../../../lib/leadSources";
 import { isPersonal } from "../../../lib/calendarKind";
+import { buildDigest, digestCronSlot, DIGEST_TITLE } from "../../../lib/weeklyDigest";
+import { loadDigestInput } from "../../../lib/weeklyDigestLoad";
+import { isYomTov } from "../../../lib/greetings/calendar.ts";
 
 export const maxDuration = 120;
 
@@ -92,11 +102,35 @@ async function reportFor(row, now) {
   });
 }
 
+const digestOff = () => process.env.WEEKLY_DIGEST_OFF === "1";
+
+// Already sent in the last four days: the slots are exclusive, this is the belt to their braces. A failed read is not
+// proof of anything, so it lets the run go ahead (the slot rule alone already allows one run a week).
+async function alreadySent(tenantId, now) {
+  const { data, error } = await supabase.from("owner_notifications").select("id").eq("tenant_id", tenantId).eq("kind", "weekly_report")
+    .gte("created_at", new Date(now.getTime() - 4 * 864e5).toISOString()).limit(1);
+  return !error && (data || []).length > 0;
+}
+
+async function digestFor(row, now) {
+  if (await alreadySent(row.tenant_id, now)) return "duplicate";
+  const input = await loadDigestInput(supabase, row.tenant_id, row, now, isYomTov);
+  const d = buildDigest(input);
+  if (!d) return "empty";
+  // whatsapp: false, the digest never goes out as a WhatsApp, whatever owner_alert_whatsapp says.
+  await notifyOwner({ tenantId: row.tenant_id, kind: "weekly_report", title: DIGEST_TITLE, body: d.body, settingsRow: row, url: "/dashboard/digest", whatsapp: false });
+  return "sent";
+}
+
 export async function POST(request) {
   if (!isAuthorizedCron(request)) return cronUnauthorized();
   await markCronRun('send-weekly-report');
   try {
-    const s = await readAllRows(supabase, "settings", { columns: "tenant_id, business_phone, branding, automations", order: "tenant_id" });
+    // Shabbat and yom tov first, before anything is read (lib/weeklyDigest.ts digestCronSlot). ?retry=1 is a manual rerun.
+    const retry = new URL(request.url).searchParams.get("retry") === "1";
+    const slot = digestCronSlot(new Date(), { isYomTov, retry });
+    if (!slot.run) return Response.json({ success: true, sent: 0, skipped: slot.reason });
+    const s = await readAllRows(supabase, "settings", { columns: "tenant_id, business_phone, branding, automations, business_hours, working_days, working_hours_start, working_hours_end", order: "tenant_id" });
     if (s.error) throw new Error(`settings read failed: ${s.error.message}`);
     if (!s.complete) throw new Error(`settings could not be read completely (${s.fetched}/${s.total})`);
     const wanted = (s.data || []).filter((r) => {
@@ -107,6 +141,7 @@ export async function POST(request) {
 
     const now = new Date();
     const { outcomes, summary } = await fanOut(wanted, async (r) => {
+      if (!digestOff()) return digestFor(r, now);
       const body = await reportFor(r, now);
       if (!body) return "empty";
       await notifyOwner({ tenantId: r.tenant_id, kind: "weekly_report", title: "השבוע שעבר בקצרה", body, settingsRow: r });

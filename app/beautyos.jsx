@@ -23,7 +23,7 @@ import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER
 import BrandImage from "@/app/BrandImage";
 import TrialNudge from "./TrialNudge";
 import FirstBookingCard from "./FirstBookingCard";
-import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
+import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, showAttentionOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
 import FeedbackBanner from "./FeedbackBanner";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import BillingNotices from "./BillingNotices";
@@ -48,9 +48,13 @@ import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
 import Icon from "./Icon";
 import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
+import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
+import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
+import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
-import { isMissingColumnError } from "@/lib/pgError";
+import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
+import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
 import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
@@ -58,7 +62,7 @@ import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidO
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
 import { monthlyReport } from "@/lib/monthlyReport";
-import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from "@/lib/tourFlow";
+import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings, tourMayStart, tourStepsFor } from "@/lib/tourFlow";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
@@ -99,6 +103,7 @@ const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: fa
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
@@ -131,7 +136,7 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
-import { isTabVisible, visibleTabIds, SWITCHABLE_TABS, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -219,7 +224,7 @@ const VOICE_COMMANDS = [
 const SEARCH_GROUPS = [
   { type: "client",  label: "לקוחות",  icon: "♥" },
   { type: "appt",    label: "תורים",   icon: "◴" },
-  { type: "lead",    label: "לידים",   icon: "✦" },
+  { type: "lead",    label: "פניות",   icon: "✦" },
   { type: "service", label: "שירותים", icon: "✂" },
   { type: "receipt", label: PAYMENT_NOTICES_HE,   icon: "🧾" },
 ];
@@ -297,8 +302,8 @@ const TOUR_STEPS = [
     title:"היומן", text:"הלוח שלך. תורים נקבעים כאן, ואת רואה את כל השבוע בלחיצה." },
   { id:"clients", tab:"clients", selector:'button[aria-label="לקוחות"]', icon: ICON_PERSON,
     title:"הלקוחות שלך", text:"כל לקוחה שלך, עם ההיסטוריה שלה, במקום אחד שתמיד זמין." },
-  { id:"cashier", tab:"cashier", selector:'button[aria-label="תשלום"]', icon: ICON_WALLET,
-    title:"תשלומים", text:"כשתור מסתיים, התשלום נרשם כאן, פשוט ומסודר." },
+  { id:"cashier", tab:"cashier", selector:'button[aria-label="קופה"]', icon: ICON_WALLET,
+    title:"הקופה", text:"כשתור מסתיים, התשלום נרשם כאן, פשוט ומסודר." },
   { id:"content", tab:"campaigns", selector:'button[aria-label="תוכן"]', icon: ICON_FRAME,
     title:"תוכן", text:"פוסטים ורילסים מוכנים, כבר בצבעים ובלוגו שלך." },
   // requiresSettings: the tour's advance handler opens Settings at settingsTab before switching to this step. The booking-link
@@ -737,6 +742,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
 import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
+import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -1347,6 +1353,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
   }, [toast]);
 
+  // One-tap links from the weekly digest (lib/weeklyDigest.ts DIGEST_GO, /dashboard/digest): ?go=queue|leads|winback|week|birthdays
+  // opens the screen the action is about. Anything else is ignored. A screen is handed to the screen link (?tab=, lib/screenLink.ts),
+  // which opens it once loading ends; a sheet opens by its own state. "go" is stripped so a refresh does not reopen the sheet.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const go = p.get("go");
+    if (!go) return;
+    const tabFor = { leads: "leads", week: "calendar", birthdays: "insights" };
+    if (go === "queue") setShowWaQueue(true);
+    else if (go === "winback") setShowLapsed(true);
+    if (tabFor[go]) p.set("tab", tabFor[go]);
+    if (go === "leads") setLeadFilter("new");
+    if (go === "week") setCalView("week");
+    p.delete("go");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, []);
+
   // Keyboard activation for clickable elements that aren't native buttons:
   // Enter/Space triggers the element's own onClick (via .click()).
   const onKbdActivate = (e) => {
@@ -1620,19 +1645,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // than always restarting at 0.
   const [tourStep, setTourStep] = useState(null);
   const tourTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (tourTriggeredRef.current) return;
-    if (!settings?.tenant_id) return; // settings row not loaded yet
-    // Not on top of the import screen onboarding opened: the tour points at buttons hidden behind it. It starts once she closes the
-    // import (2026-11-02 audit).
-    if (showImportModal || showImportHub) return;
-    tourTriggeredRef.current = true;
-    const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
-    if (autos.onboarding_tour_seen === true) return;
-    const resumeAt = tourResumeStep(autos.onboarding_tour_step, TOUR_STEPS); // never a step whose card cannot be drawn (the Settings one)
-    if (resumeAt == null) return;
-    setTourStep(resumeAt);
-  }, [settings?.tenant_id, settings?.automations, showImportModal, showImportHub]);
+  // The trigger effect itself sits after the "3 צעדים לתור הראשון" block below: it waits for that card (lib/tourFlow.js tourMayStart).
 
   // Fire-and-forget: merges into the existing automations bag (the save
   // route replaces the WHOLE column, not a per-key patch - sending just
@@ -1654,18 +1667,37 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }).catch(() => {});
   }, [settings.automations]);
 
+  // One automations key saved on its own, AND said when it did not save (unlike the tour's fire-and-forget above): the
+  // booking buttons card's "סימנתי שעשיתי" (app/BookingButtonsCard.jsx). Written into editSettings too, so saving the Settings
+  // panel afterwards carries the same value instead of an older copy.
+  const saveAutomationsKey = useCallback(async (key, value) => {
+    const base = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    try {
+      const r = await fetch("/api/settings/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: { automations: { ...base, [key]: value } } }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || String(r.status));
+    } catch {
+      toast("הסימון לא נשמר. אפשר לנסות שוב בעוד רגע", "error");
+      return false;
+    }
+    const put = (prev) => prev ? ({ ...prev, automations: { ...((prev.automations && typeof prev.automations === "object") ? prev.automations : {}), [key]: value } }) : prev;
+    setSettings(put);
+    setEditSettings(put);
+    return true;
+  }, [settings.automations, toast]);
+
   // The tour follows her (lib/tourFlow.js). It used to stay on step 1 ("היום שלך 1/6") over every screen until she pressed דלגי.
   // Going to the screen a step describes jumps to that step; going anywhere the tour has no step for ends it; closing Settings while the
   // tour is on its Settings step ends it too (nothing is left to point at).
   const prevTabRef = useRef(activeTab);
   useEffect(() => {
     const prevTab = prevTabRef.current; prevTabRef.current = activeTab;
-    const move = tourOnNavigate({ steps: TOUR_STEPS, stepIndex: tourStep, prevTab, tab: activeTab, showSettings });
+    const move = tourOnNavigate({ steps: tourSteps, stepIndex: tourStep, prevTab, tab: activeTab, showSettings });
     if (move.type === "jump") { setTourStep(move.step); persistTourPatch({ onboarding_tour_step: move.step }); }
     else if (move.type === "end") { setTourStep(null); persistTourPatch({ onboarding_tour_seen: true }); }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!tourStrandedOutsideSettings({ steps: TOUR_STEPS, stepIndex: tourStep, showSettings })) return;
+    if (!tourStrandedOutsideSettings({ steps: tourSteps, stepIndex: tourStep, showSettings })) return;
     setTourStep(null); persistTourPatch({ onboarding_tour_seen: true });
   }, [showSettings, tourStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1794,6 +1826,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const origin = typeof window!=="undefined"?window.location.origin:"";
 
   const activeServices = useMemo(() => services.filter(s=>s.active!==false), [services]);
+  // Her buffer after each treatment (lib/serviceBuffer.ts): per service (service_prices.buffer_minutes, once
+  // add_service_buffer_2026-11-05.sql runs), else the business default in branding.booking_rules. 0 until she sets one.
+  // Every in-app "is this time free" test reads it, so the calendar and the public page agree about what is taken.
+  const apptBufferOf = useMemo(() => bufferLookup(services, businessBufferDefault(settings?.branding)), [services, settings]);
+  const newApptBufferFor = useCallback((serviceName) => apptBufferOf({ service: serviceName }), [apptBufferOf]);
 
   // ── "3 צעדים לתור הראשון" (lib/firstBooking.js, app/FirstBookingCard.jsx) ──
   // Pending until her settings, the full appointment history and this phone's record are all in: before that the
@@ -1832,6 +1869,29 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The 8-step "הגדרת המערכת" card is never on Today next to the 3-step one (and not while the answer is pending).
   const setupOnToday = fbView !== "pending" && showSetupOnToday(fbView, setupDone, setupTotal);
   const fbShowing = fbView === "active" || fbView === "celebrate" || fbView === "pending";
+  // "דורש תשומת לב" steps aside while the 3-step card is on Today (it only said "הכל מטופל" on an empty account).
+  const attentionOnToday = showAttentionOnToday(fbView);
+
+  // The tour she gets: the short one (היום, תשלומים, יומן) once she has used the 3-step card, the full six otherwise (lib/tourFlow.js).
+  const tourSteps = useMemo(() => tourStepsFor(TOUR_STEPS, fbRecord), [fbRecord.shown_at, fbRecord.done_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // When the tour starts: once, the first time settings has loaded for a tenant that hasn't seen it, resuming at whatever step she
+  // last reached rather than always restarting at 0.
+  useEffect(() => {
+    if (tourTriggeredRef.current) return;
+    if (!settings?.tenant_id) return; // settings row not loaded yet
+    // Not on top of the import screen onboarding opened: the tour points at buttons hidden behind it. It starts once she closes the
+    // import (2026-11-02 audit).
+    if (showImportModal || showImportHub) return;
+    // Not over the "3 צעדים לתור הראשון" card either, nor while it is still being decided: on day 1 the tour opened on top of it
+    // (2026-11 activation follow-up). It starts once the card is finished or switched off.
+    if (!tourMayStart(fbView)) return;
+    tourTriggeredRef.current = true;
+    const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    if (autos.onboarding_tour_seen === true) return;
+    const resumeAt = tourResumeStep(autos.onboarding_tour_step, tourSteps); // never a step whose card cannot be drawn (the Settings one)
+    if (resumeAt == null) return;
+    setTourStep(resumeAt);
+  }, [settings?.tenant_id, settings?.automations, showImportModal, showImportHub, fbView, tourSteps]);
 
   // Her menu, ordered by how often she actually books each treatment.
   //
@@ -1994,12 +2054,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // they are excluded here.
   // In EDIT mode, exclude the appointment being edited so it never flags itself
   // as a conflict (an appointment can't clash with its own current slot).
+  // Each range ends after that treatment's buffer (lib/serviceBuffer.ts; 0 when she set none), and the one being
+  // booked brings its own: a time inside a buffer is taken, the same rule the public page and /api/book-appointment use.
+  // An edit that keeps its own date, time, length and service is never refused over a buffer: it was booked before she
+  // set one (or by her on purpose), and opening it to fix a note must not turn it red. Moving it applies the buffers,
+  // and only then is appointments.buffer_minutes rewritten (lib/apptBuffer.ts), so the database agrees with this check.
+  const apptEditOrig = editingAppointmentId ? appointments.find(a=>a.id===editingAppointmentId) : null;
+  const apptBuffersApply = !(apptEditOrig && apptEditOrig.date===newAppt.date && startMinute(apptEditOrig)===apptEffectiveStart && Number(apptEditOrig.duration||0)===Number(newAppt.duration||0) && String(apptEditOrig.service||"")===String(newAppt.service||""));
   const apptBusy = appointments
     .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId)
-    .map(a=>[startMinute(a), endMinute(a)]).filter(([s,e])=>s!==null&&e!==null);
+    .map(a=>{const s=startMinute(a),e=endMinute(a);return [s, e===null?null:e+(apptBuffersApply?apptBufferOf(a):0)];}).filter(([s,e])=>s!==null&&e!==null);
+  const newApptBuffer = apptBuffersApply ? newApptBufferFor(newAppt.service) : 0;
   // Is a candidate start hour taken, given the currently selected duration?
   // Recomputes every render, so changing the duration re-evaluates the picker.
-  const slotIsTaken = (m)=>{ const s=m, e=s+Number(newAppt.duration||0); return apptBusy.some(([bs,be])=>s<be&&bs<e); };
+  const slotIsTaken = (m)=>{ const s=m, e=s+Number(newAppt.duration||0)+newApptBuffer; return apptBusy.some(([bs,be])=>s<be&&bs<e); };
   // Is the START hour currently shown in the picker itself taken? Drives the
   // persistent inline warning + the disabled Save button (derived, so it stays
   // visible until the therapist picks a free time — no toast to disappear).
@@ -2140,7 +2208,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if(has("קמפיין","מבצע","שיווק","פוסט","סושיאל","אינסטגרם","פייסבוק"))
       return { label:"צרי קמפיין", run:()=>{ setMarketingView("campaigns"); setActiveTab("campaigns"); } };
     if(has("ליד","פנייה","פניות","לידים"))
-      return { label:"פתחי לידים", run:()=>setActiveTab("leads") };
+      return { label:"פתחי פניות", run:()=>setActiveTab("leads") };
     if(has("יומן","תור פנוי","תורים פנויים","למלא את היומן","זמינות"))
       return { label:"פתחי יומן", run:()=>setActiveTab("calendar") };
     if(has("תמחור","העלאת מחיר","המחיר","חבילת","חבילות"))
@@ -3254,6 +3322,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         date, ...startFields(start), duration: dur,
         name: String(d.title).trim(), service: "", price: 0, client_id: null,
         note: String(d.note||""), kind: PERSONAL, series_id: seriesId, ...tenantField,
+        // A personal block keeps no buffer of its own (lib/serviceBuffer.ts); a booking's buffer still cannot run into it.
+        ...apptBufferField(0),
       });
 
       const existing = (d.ids||[]).length ? appointments.filter(a => ownIds.has(String(a.id))) : [];
@@ -3269,7 +3339,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         for (const dd of dates) {
           const prevRow = byDate.get(dd);
           if (!prevRow) continue;
-          const { data, error } = await supabase.from("appointments").update(row(dd)).eq("id", prevRow.id).select();
+          const { data, error } = await writeWithApptBuffer(row(dd), (r) => supabase.from("appointments").update(r).eq("id", prevRow.id).select());
           if (error) { handleDbError(error, "update personal event"); return; }
           if (data && data[0]) setAppointments(prev => prev.map(a => a.id===prevRow.id ? data[0] : a));
         }
@@ -3279,7 +3349,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           if (delErr) { handleDbError(delErr, "replace personal event"); return; }
           setAppointments(prev => prev.filter(a => !ownIds.has(String(a.id))));
         }
-        const { data, error } = await supabase.from("appointments").insert(dates.map(row)).select();
+        const { data, error } = await writeWithApptBuffer(dates.map(row), (r) => supabase.from("appointments").insert(r).select());
         if (error) {
           // The old rows are already gone: put them back, or the block disappears and the time opens on her booking page
           // (2026-10-20 audit: an insert refused by a booking made meanwhile left nothing blocked).
@@ -3404,11 +3474,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // appointment already on that date. (Runs before the busy flag is set.)
     {
       const newStart = apptEffectiveStart;
-      const newEnd = newStart + Number(newAppt.duration||0);
+      // Buffers included (lib/serviceBuffer.ts): same test as slotIsTaken above.
+      const newEnd = newStart + Number(newAppt.duration||0) + newApptBuffer;
       const clash = appointments.some(a=>{
         if(a.id===editingAppointmentId) return false; // don't clash with self when editing
         if(a.date!==newAppt.date || a.confirmation_status==="cancelled") return false;
-        const bs = startMinute(a), be = endMinute(a); if(bs===null||be===null) return false;
+        const bs = startMinute(a), rawEnd = endMinute(a); if(bs===null||rawEnd===null) return false;
+        const be = rawEnd + (apptBuffersApply ? apptBufferOf(a) : 0);
         return newStart < be && bs < newEnd;
       });
       if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
@@ -3438,8 +3510,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // again (2026-10-20 audit). A note, price or name change keeps them.
         const orig=editOrigRef.current;
         const moved=!!orig && (orig.date!==newAppt.date || orig.start!==apptEffectiveStart);
-        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{})};
-        const {data,error}=await supabase.from("appointments").update(patch).eq("id",editingAppointmentId).select();
+        // A move (date, time, length or service: apptBuffersApply) stores the buffer it was just checked with. An edit that
+        // does not move it leaves buffer_minutes alone, so it is never refused over a buffer.
+        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{}),...(apptBuffersApply?apptBufferField(newApptBuffer):{})};
+        const {data,error}=await writeWithApptBuffer(patch, (r) => supabase.from("appointments").update(r).eq("id",editingAppointmentId).select());
         if(error){handleDbError(error, "update appointment"); return;}
         // Zero rows back means nothing was saved (deleted on another device, or not hers): say so instead of "updated", and never put
         // an undefined row into the calendar.
@@ -3456,18 +3530,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the series can be found again.
         const dates = recurrenceDates(newAppt.date, apptRepeat.everyWeeks, apptRepeat.count);
         const seriesId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
-        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField};
-        const start = apptEffectiveStart, end = start + Number(newAppt.duration||0);
+        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField,...apptBufferField(newApptBuffer)};
+        // Buffers included, the same rule as a single booking: the database refuses the rest anyway (appointments_no_overlap).
+        const start = apptEffectiveStart, end = start + Number(newAppt.duration||0) + newApptBuffer;
         const clashed = [], saved = [];
         let seriesStopped = false;
         for (const date of dates) {
           const localClash = appointments.some(a=>{
             if(a.date!==date || a.confirmation_status==="cancelled") return false;
-            const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
-            return start < be && bs < end;
+            const bs=startMinute(a), rawEnd=endMinute(a); if(bs===null||rawEnd===null) return false;
+            return start < rawEnd + apptBufferOf(a) && bs < end;
           });
           if (localClash) { clashed.push(date); continue; }
-          const {data,error}=await supabase.from("appointments").insert([{...base,date}]).select();
+          const {data,error}=await writeWithApptBuffer([{...base,date}], (r) => supabase.from("appointments").insert(r).select());
           if (error) {
             // 23P01 is appointments_no_overlap, 23505 the active-slot index:
             // something landed there since the calendar loaded. Same answer.
@@ -3492,8 +3567,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
         }
       } else {
-        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField};
-        const {data,error}=await supabase.from("appointments").insert([appt]).select();
+        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField,...apptBufferField(newApptBuffer)};
+        const {data,error}=await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
         const wantDeposit = apptDeposit && data && data[0];
@@ -4142,6 +4217,26 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   };
 
+  // A .vcf (vCard) file of contacts: on an iPhone there is no contact picker, but the Contacts app can share contacts as a vCard
+  // file (lib/vcard.js). The file becomes the same text a paste makes and goes on to the same mapping, preview and import, so the
+  // dedupe against her clients by phone is the existing one.
+  const importVcardFile = async (e) => {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = ""; // the same file can be picked again after a "חזרה"
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast("הקובץ גדול מדי. אפשר לשתף פחות אנשי קשר בכל פעם.", "error"); return; }
+    let text = "";
+    try { text = await file.text(); } catch { toast("לא הצלחנו לקרוא את הקובץ. אפשר לנסות שוב, או להדביק רשימה.", "error"); return; }
+    const r = vcardImportText(text);
+    if (!r.count) {
+      toast(isVcardFile(file) || /BEGIN:VCARD/i.test(text) ? "לא מצאנו אנשי קשר עם שם או טלפון בקובץ הזה." : "זה לא נראה כמו קובץ אנשי קשר (vcf). אפשר לבחור קובץ אחר, או להדביק רשימה.", "error");
+      return;
+    }
+    setImportText(r.text);
+    goToImportMapping(r.text);
+  };
+
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
@@ -4185,8 +4280,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                       : importTarget === "services" ? buildServiceRows
                       : buildImportRows;
 
-  const goToImportMapping = () => {
-    const grid = parseImportGrid(importText);
+  // `text` is passed when the list did not come from the paste box (a .vcf file): the state update has not landed yet.
+  const goToImportMapping = (text) => {
+    const grid = parseImportGrid(typeof text === "string" ? text : importText);
     if (!grid.rows.length) { toast("לא נמצאו שורות", "error"); return; }
     const hasHeader = detectHeaderRow(grid.rows);
     setImportHasHeader(hasHeader);
@@ -4334,6 +4430,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
         const sameDay = byDate.get(r.date) || [];
         if (clashesWith(r.startMinute, Number(r.duration||0), sameDay)) { overlapping++; continue; }
+        // Imported history is checked WITHOUT her buffers (a pasted diary is what already happened) and stored with 0. A
+        // row the database holds a buffer for still blocks it there (appointments_no_overlap), so that one is checked too,
+        // here, rather than failing a whole chunk of 100 at insert time.
+        const storedBusy = sameDay.flatMap(a => { const s0 = startMinute(a), e0 = endMinute(a); return s0===null||e0===null ? [] : [bufferedRange(s0, e0, a.buffer_minutes)]; });
+        if (clashesWithBuffer(r.startMinute, Number(r.duration||0), 0, storedBusy)) { overlapping++; continue; }
 
         seen.add(k);
         const svc = services.find(s => String(s.name||"").trim() === String(r.service||"").trim());
@@ -4347,6 +4448,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           note: r.note || "",
           confirmation_status: "pending", confirmation_sent: false,
           ...tenantField,
+          ...apptBufferField(0),
         });
         sameDay.push({ start_minute: r.startMinute, duration: Number(r.duration||0) });
         if (!byDate.has(r.date)) byDate.set(r.date, sameDay);
@@ -4357,7 +4459,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const inserted = [];
       for (let i = 0; i < fresh.length; i += CHUNK) {
         const chunk = fresh.slice(i, i + CHUNK);
-        const { data, error } = await supabase.from("appointments").insert(chunk).select();
+        const { data, error } = await writeWithApptBuffer(chunk, (r) => supabase.from("appointments").insert(r).select());
         if (error) { failed += chunk.length; if (!firstError) firstError = error; continue; }
         if (data) inserted.push(...data);
       }
@@ -4915,13 +5017,34 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // meant it also sent id, tenant_id and created_at back to the server on
   // every keystroke-driven save.
   // requires_deposit comes from add_grow_cancellation.sql (hand-run): like `field`, a missing column degrades the save instead of breaking it.
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit"];
+  // buffer_minutes comes from add_service_buffer_2026-11-05.sql (hand-run): same degrade, and she is TOLD it was not kept
+  // (bufferPending) rather than shown a save that silently dropped it.
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes"];
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
-    if (!draft) return { changed: 0, errors: [] };
+    if (!draft) return { changed: 0, errors: [], bufferPending: false };
+    // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
+    // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
+    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes"];
+    const retryWithoutMissing = async (row, firstError, run) => {
+      if (!firstError || !isMissingColumnError(firstError)) return null;
+      let cur = { ...row }, err = firstError, result = null;
+      const cols = [];
+      for (let i = 0; i < OPTIONAL_SERVICE_COLS.length && err && isMissingColumnError(err); i++) {
+        const col = missingColumnName(err);
+        if (!col || !OPTIONAL_SERVICE_COLS.includes(col) || !(col in cur)) break;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
+        const { [col]: _gone, ...rest } = cur;
+        cur = rest; cols.push(col);
+        result = await run(cur);
+        err = result.error;
+      }
+      return result ? { result, cols } : null;
+    };
     const baseline = new Map(services.map(s => [s.id, s]));
     const errors = [];
     let changed = 0;
+    let bufferPending = false;
 
     for (const s of draft) {
       // 1. Deleted — only rows that exist server-side; a _new row that was
@@ -4948,11 +5071,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // field is added by supabase/migrations/add_business_fields.sql,
         // applied by hand and possibly not yet run — degrade rather than
         // break a plain service save for every tenant over one new column.
-        if (error && isMissingColumnError(error)) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-          const { field, requires_deposit, ...reduced } = row;
-          ({ data, error } = await supabase.from("service_prices").insert([reduced]).select());
-        }
+        // Drop ONLY the column the database says is missing, one at a time, and only from the optional ones; a dropped
+        // requires_deposit that she turned on is an error, never a silent save without the deposit.
+        const dropped = await retryWithoutMissing(row, error, (r) => supabase.from("service_prices").insert([r]).select());
+        if (dropped) ({ data, error } = dropped.result);
+        if (dropped?.cols.includes("buffer_minutes") && Number(row.buffer_minutes) > 0) bufferPending = true;
+        if (dropped?.cols.includes("requires_deposit") && row.requires_deposit === true) { errors.push(`הפיקדון של ${s.name} לא נשמר`); }
         if (error || !data || !data[0]) { errors.push(`הוספת ${s.name}`); continue; }
         changed++;
         continue;
@@ -4970,17 +5094,17 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (Object.keys(patch).length === 0) continue;
       let { data, error } = await supabase
         .from("service_prices").update(patch).eq("id", s.id).select();
-      if (error && isMissingColumnError(error) && ("field" in patch || "requires_deposit" in patch)) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it
-        const { field, requires_deposit, ...reduced } = patch;
-        ({ data, error } = await supabase
-          .from("service_prices").update(reduced).eq("id", s.id).select());
+      {
+        const dropped = await retryWithoutMissing(patch, error, (r) => supabase.from("service_prices").update(r).eq("id", s.id).select());
+        if (dropped) ({ data, error } = dropped.result);
+        if (dropped?.cols.includes("buffer_minutes")) bufferPending = true;
+        if (dropped?.cols.includes("requires_deposit") && patch.requires_deposit === true) { errors.push(`הפיקדון של ${s.name} לא נשמר`); }
       }
       if (error || !data || !data[0]) { errors.push(`עדכון ${s.name}`); continue; }
       changed++;
     }
 
-    return { changed, errors };
+    return { changed, errors, bufferPending };
   };
 
   // The bar's "שמירה": first the cards with their own save, then the settings draft (only when it changed, so a policy-only change does
@@ -5054,7 +5178,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         toast(`ההגדרות נשמרו, אבל את השירותים אי אפשר לשנות כרגע. ${WRITE_BLOCKED_TOAST_HE}`, "error");
         return;
       }
-      const { changed, errors } = await commitServiceDraft(tenantId);
+      const { changed, errors, bufferPending } = await commitServiceDraft(tenantId);
 
       // Re-read rather than patching state from the responses: the draft may
       // have inserted, updated and deleted in one pass, and one query is the
@@ -5082,7 +5206,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       setShowNewService(false);
       setShowTemplatePicker(false);
       setTemplatePicks([]);
-      toast(changed > 0 ? `ההגדרות נשמרו · ${changed} שינויים בשירותים` : "ההגדרות נשמרו");
+      toast((changed > 0 ? `ההגדרות נשמרו · ${changed} שינויים בשירותים` : "ההגדרות נשמרו") + (bufferPending ? `. ${SERVICE_BUFFER_PENDING_HE}` : ""), bufferPending ? "info" : undefined);
     } finally {
       setBusyKey("saveSettings", false);
     }
@@ -5424,12 +5548,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // trigger effect live earlier, right after closeSettings.
   const handleTourNext = useCallback(() => {
     const next = tourStep + 1;
-    const nextStep = TOUR_STEPS[next];
+    const nextStep = tourSteps[next];
     if (!nextStep) return; // the last step's button is onFinish, not onNext
     if (nextStep.requiresSettings) openSettings(nextStep.settingsTab || "general");
     setTourStep(next);
     persistTourPatch({ onboarding_tour_step: next });
-  }, [tourStep, openSettings, persistTourPatch]);
+  }, [tourStep, tourSteps, openSettings, persistTourPatch]);
 
   const handleTourSkip = useCallback(() => {
     if (showSettings) closeSettings(true);
@@ -5665,19 +5789,23 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Is this exact window free? The one clash test everything else is built on:
   // the proposal, the free-slot list she picks from, and the re-check on the
   // way in all call this, so they cannot disagree about what "free" means.
-  const isFreeAt = useCallback((dateStr, minute, durationMin) => {
-    const dur = Number(durationMin) || 60;
+  // `ownBuffer` is the buffer of the treatment being booked; every existing one is busy until its end plus its own
+  // buffer (lib/serviceBuffer.ts). Closing time is checked by the callers on the treatment alone.
+  const isFreeAt = useCallback((dateStr, minute, durationMin, ownBuffer = 0) => {
+    const dur = (Number(durationMin) || 60) + (cleanBufferMinutes(ownBuffer) ?? 0);
     return !appointments.some((a) => {
       if (a.date !== dateStr || a.confirmation_status === "cancelled") return false;
-      const bs = startMinute(a), be = endMinute(a);
-      if (bs === null || be === null) return false;
+      const bs = startMinute(a), rawEnd = endMinute(a);
+      if (bs === null || rawEnd === null) return false;
+      const be = rawEnd + apptBufferOf(a);
       return minute < be && bs < minute + dur;
     });
-  }, [appointments]);
+  }, [appointments, apptBufferOf]);
 
   // Every bookable start on one day, on a half-hour grid inside her hours for
   // that weekday. Empty when the day is closed.
-  const freeSlotsOn = useCallback((dateStr, durationMin) => {
+  // `ownBuffer`: the buffer of the treatment being booked (lib/serviceBuffer.ts). It may run past closing.
+  const freeSlotsOn = useCallback((dateStr, durationMin, ownBuffer = 0) => {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return [];
     const dh = dayHoursFrom(settings, d.getDay());
@@ -5685,7 +5813,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const dur = Number(durationMin) || 60;
     const out = [];
     for (let m = dh.open * 60; m + dur <= dh.close * 60; m += 30) {
-      if (isFreeAt(dateStr, m, dur)) out.push(m);
+      if (isFreeAt(dateStr, m, dur, ownBuffer)) out.push(m);
     }
     return out;
   }, [settings, isFreeAt]);
@@ -5697,7 +5825,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // refusing: the day may be closed, the exact hour may be taken, and the whole
   // day may be full. Proposing a slot that cannot be booked would be worse than
   // proposing nothing, because she would tap it in front of the client.
-  const proposeRebookSlot = useCallback((fromDateStr, fromMinute, durationMin, weeks) => {
+  const proposeRebookSlot = useCallback((fromDateStr, fromMinute, durationMin, weeks, ownBuffer = 0) => {
     const base = new Date(fromDateStr || today);
     if (Number.isNaN(base.getTime())) return null;
     base.setDate(base.getDate() + weeks * 7);
@@ -5713,7 +5841,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const dateStr = formatDate(d);
       if (dateStr <= today) continue;
 
-      const slots = freeSlotsOn(dateStr, dur);
+      const slots = freeSlotsOn(dateStr, dur, ownBuffer);
       if (slots.length === 0) continue;
 
       if (dayOffset === 0) {
@@ -5722,7 +5850,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // grid is only the fallback, and the only thing the picker offers.
         const dh = dayHoursFrom(settings, d.getDay());
         const insideHours = wanted >= dh.open * 60 && wanted + dur <= dh.close * 60;
-        if (insideHours && isFreeAt(dateStr, wanted, dur)) {
+        if (insideHours && isFreeAt(dateStr, wanted, dur, ownBuffer)) {
           return { date: dateStr, minute: wanted, sameTime: true };
         }
         const after = slots.find((m) => m >= wanted);
@@ -5769,17 +5897,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       anchor?.date || today,
       anchor ? startMinute(anchor) : null,
       svc.duration,
-      rebookWeeks
+      rebookWeeks,
+      newApptBufferFor(svc.name)
     );
     if (!slot) return null;
     return { client, svc, slot };
-  }, [showReceipt, clients, appointments, activeServices, rebookWeeks, today, proposeRebookSlot]);
+  }, [showReceipt, clients, appointments, activeServices, rebookWeeks, today, proposeRebookSlot, newApptBufferFor]);
 
   // The day's free starts, for the picker. Same freeSlotsOn the proposal used,
   // so she can only ever choose something that was already bookable.
   const rebookSlots = useMemo(
-    () => (rebookPlan ? freeSlotsOn(rebookPlan.slot.date, rebookPlan.svc.duration) : []),
-    [rebookPlan, freeSlotsOn]
+    () => (rebookPlan ? freeSlotsOn(rebookPlan.slot.date, rebookPlan.svc.duration, newApptBufferFor(rebookPlan.svc.name)) : []),
+    [rebookPlan, freeSlotsOn, newApptBufferFor]
   );
 
   // What will actually be booked: her pick when it is still free on this date,
@@ -5801,7 +5930,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // Re-check on the way in, through the same isFreeAt the proposal and the picker use. The plan was computed from state
     // that may be a few minutes old, and the exclusion constraint would reject it anyway - this just turns that into a
     // sentence she can act on.
-    if (!isFreeAt(date, minute, svc.duration)) {
+    if (!isFreeAt(date, minute, svc.duration, newApptBufferFor(svc.name))) {
       toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
       return null;
     }
@@ -5822,8 +5951,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       confirmation_status: "pending",
       confirmation_sent: false,
       ...tenantField,
+      // The buffer isFreeAt just checked with, so the database enforces the same rule (lib/apptBuffer.ts).
+      ...apptBufferField(newApptBufferFor(svc.name)),
     };
-    const { data, error } = await supabase.from("appointments").insert([appt]).select();
+    const { data, error } = await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
     if (error) { handleDbError(error, "rebook appointment"); return null; }
     if (!data || !data[0]) { toast(couldNotHe("לקבוע את התור"), "error"); return null; }
     setAppointments((prev) => [...prev, data[0]]);
@@ -5871,7 +6002,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // picker use. The plan was computed from state that may be a few minutes
       // old, and the exclusion constraint would reject it anyway — this just
       // turns that into a sentence she can act on.
-      if (!isFreeAt(slot.date, minute, svc.duration)) {
+      if (!isFreeAt(slot.date, minute, svc.duration, newApptBufferFor(svc.name))) {
         toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
         return;
       }
@@ -6394,11 +6525,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // Guard against double-booking, mirroring handleSave: reject if the new
     // [start,end) overlaps any non-cancelled appointment on that date.
     {
-      const newStart = startMin, newEnd = newStart + duration;
+      // Buffers included (lib/serviceBuffer.ts), same test as handleSave.
+      const newStart = startMin, newEnd = newStart + duration + newApptBufferFor(svc?.name);
       const clash = appointments.some(a=>{
         if(a.date!==b.date || a.confirmation_status==="cancelled") return false;
-        const bs=startMinute(a), be=endMinute(a); if(bs===null||be===null) return false;
-        return newStart<be && bs<newEnd;
+        const bs=startMinute(a), rawEnd=endMinute(a); if(bs===null||rawEnd===null) return false;
+        return newStart<rawEnd+apptBufferOf(a) && bs<newEnd;
       });
       if(clash){ toast("השעה הזו כבר תפוסה","error"); return; }
     }
@@ -6438,8 +6570,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         confirmation_status: "pending",
         confirmation_sent: false,
         ...tenantField,
+        // The buffer the clash check above used (lib/apptBuffer.ts).
+        ...apptBufferField(newApptBufferFor(svc?.name)),
       };
-      const {data,error} = await supabase.from("appointments").insert([appt]).select();
+      const {data,error} = await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
       if (error) { handleDbError(error, "create appointment (voice)"); return; }
       if (data) setAppointments(prev=>[...prev, data[0]]);
       closeVoice();
@@ -7173,7 +7307,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   // channel: where she is about to paste it (lib/bookingSource.ts), so a booking from it is counted under that channel.
-  const copyPublicLink = async (kind, channel = "link") => {
+  // okMsg: the toast after a copy, when the caller knows better where it is going (the booking buttons card names the platform).
+  const copyPublicLink = async (kind, channel = "link", okMsg = "") => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
@@ -7208,7 +7343,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
+      toast(okMsg ? okMsg : kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
       if (kind === "book") {
         setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
         // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
@@ -7607,17 +7742,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"dashboard", label:"היום"},
     {id:"calendar",  label:"יומן"},
     {id:"clients",   label:"לקוחות"},
-    {id:"cashier",   label:"תשלום"},
+    {id:"cashier",   label:"קופה"},
     {id:"campaigns", label:"תוכן"},
   ].filter(item => isTabVisible(settings, item.id));
   // Screens that highlight לקוחות in the bar: people, however they arrived.
   const PEOPLE_TABS = ["clients","leads","whatsapp"];
-  // The three one-insert stubs (community, packages, protocols) are filtered
-  // out of BOTH nav lists unless this tenant has opted back in. Hidden, not
-  // deleted: every loader, render block and table below is untouched, so the
-  // flag brings a tab back with its data intact. campaigns and insights are
-  // never filtered - see lib/featureFlags.ts for why that is a deliberate
-  // exception and not an oversight.
+  // The two stubs (community, protocols; lib/featureFlags.ts STUB_TABS) are
+  // filtered out of BOTH nav lists unless this tenant has opted back in, and
+  // packages, advisor and leads only when she switched them off herself
+  // (packages stopped being a stub on 2026-09-22). Hidden, not deleted: every
+  // loader, render block and table below is untouched, so the flag brings a
+  // tab back with its data intact. campaigns and insights are never filtered -
+  // see lib/featureFlags.ts for why that is a deliberate exception and not an
+  // oversight.
   const MORE_NAV = visibleTabIds(settings, ["insights","tax","packages","protocols","advisor","community","help"]);
 
   const NAV_ITEMS = [
@@ -7625,7 +7762,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"insights", label:"תובנות"},
     {id:"calendar", label:"יומן"},
     {id:"clients",  label:"לקוחות"},
-    {id:"leads",    label:"לידים"},
+    {id:"leads",    label:"פניות"},
     {id:"cashier",  label:"קופה"},
     {id:"tax",      label:"סיכום הכנסות"},
     {id:"whatsapp", label:"הודעות"},
@@ -8116,7 +8253,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (
       <OnboardingTour
-        steps={TOUR_STEPS}
+        steps={tourSteps}
         stepIndex={tourStep}
         onNext={handleTourNext}
         onSkip={handleTourSkip}
@@ -9024,7 +9161,7 @@ ${MARKETING_FOOTER}`)}`;
               // this closure - see its own comment for why).
               const quickActions=[
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
-                {label:"תשלום",hint:"פתיחת קופה",icon:"₪",onClick:()=>handleOpenCashier(null)},
+                {label:"קופה",hint:"רישום תשלום",icon:"₪",onClick:()=>handleOpenCashier(null)},
                 {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
                 {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
@@ -9184,8 +9321,8 @@ ${MARKETING_FOOTER}`)}`;
                     })()}
  </div>}
 
- {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
- <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
+ {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action). Not while the 3-step card is on Today: on an empty account it only said "הכל מטופל" (lib/firstBooking.js showAttentionOnToday). */}
+ {attentionOnToday&&<div className="fm-in glass-card card-boxed" data-testid="needs-attention" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"rgba(242,184,75,0.14)",color:"var(--warning)"}}>✷</span>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
@@ -9196,7 +9333,7 @@ ${MARKETING_FOOTER}`)}`;
                       // Each item carries its own primary action; nothing is sent — actions
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
-                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"לידים",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
+                      leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"פניות",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
                       // Lapsed clients, capped at three.
                       //
                       // This used to be `coldClients.forEach`, one card each,
@@ -9213,7 +9350,7 @@ ${MARKETING_FOOTER}`)}`;
                       const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
                       coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
-                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"לידים",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי לידים",run:()=>setActiveTab("leads")});
+                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
                       if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
@@ -9265,10 +9402,11 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
+                        if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -9329,7 +9467,7 @@ ${MARKETING_FOOTER}`)}`;
                         ))}
                       </>);
                     })()}
- </div>
+ </div>}
  </div>
 
  </>);
@@ -10590,6 +10728,9 @@ ${MARKETING_FOOTER}`)}`;
             const rangeLabel = periodLabel({mode, idx:taxPeriodIdx, year:taxYear, monthNames:MONTHS_HE});
             const { gross, net, vatDue, count } = incomeTotals(periodReceipts.map(r=>r.amount), status, vatRate);
             const yearGross = incomeTotals(inYear.map(r=>r.amount), status, vatRate).gross;
+            // תקרת עוסק פטור (lib/vatExemptCeiling.ts): this year so far, an exempt dealer only, from about 80%. An
+            // estimate from the payments recorded here; the ceiling is one constant there, checked every year.
+            const ceilingWarning = taxYear===new Date().getFullYear() ? exemptCeilingWarning({ status, yearToDate: yearGross }) : null;
             // Expenses filtered to the SAME period (by expense_date) — used for the
             // list below and for input VAT (step C). expense_date is "YYYY-MM-DD".
             const exYear=(e)=>Number((e.expense_date||"").slice(0,4));
@@ -10646,6 +10787,12 @@ ${MARKETING_FOOTER}`)}`;
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>סיכום הכנסות</h2>
  </div>
  <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>סטטוס העסק: <b style={{color:pcDeep}}>{statusLabel}</b> · ניתן לשנות בהגדרות</p>
+ {ceilingWarning&&(
+ <div role="status" data-testid="exempt-ceiling" data-level={ceilingWarning.level} style={{margin:"0 0 16px",padding:"12px 14px",borderRadius:"var(--r-md)",background:ceilingWarning.level==="over"?"rgba(242,184,75,0.16)":"var(--surface-2)",border:"1px solid var(--warning)"}}>
+ <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:"0 0 3px"}}>{ceilingWarning.title}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,margin:0}}>{ceilingWarning.text}</p>
+ </div>
+ )}
 
                 {/* CONTROLS */}
  <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
@@ -11104,8 +11251,11 @@ ${MARKETING_FOOTER}`)}`;
       {/* APPT MODAL */}
       {rebookNext&&(<RebookNextSheet
         client={rebookNext.client} anchorAppt={rebookNext.appt} appointments={appointments} services={activeServices} settings={settings}
-        today={today} historyReady={historyReady} createAppointment={insertRebookAppointment} onManual={openRebookForm}
-        onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast}
+        initialService={rebookNext.service||""}
+        today={today} historyReady={historyReady}
+        onManual={rebookNext.receiptId ? (args)=>{ setShowReceipt(null); openRebookForm(args); } : openRebookForm}
+        createAppointment={rebookNext.receiptId ? async (args)=>{ const row = await insertRebookAppointment(args); if (row) setRebookDone({ receiptId: rebookNext.receiptId, appt: row }); return row; } : insertRebookAppointment}
+        onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast} bufferOf={apptBufferOf}
         pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
       {formAnswersFor&&(<FormAnswersSheet form={formAnswersFor} tenantId={settings?.tenant_id} label={FORM_TYPES.find(ft=>ft.key===formAnswersFor.form_type)?.label} onClose={()=>setFormAnswersFor(null)} pcTint={pcTint}/>)}
       {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
@@ -11336,7 +11486,23 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
  {importTarget==="clients"&&(<>{/* The contact picker exists only on Chrome for Android: on an iPhone the button could never work, so it is not shown there (2026-10-24 phone review). */}{typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>}
- {typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(או הדביקי רשימה למטה, שורה לכל לקוחה)</p>}</>)}
+ 
+ {/* A contacts file (.vcf), for every phone: the iPhone way in, since it has no contact picker (lib/vcard.js). */}
+ <label data-testid="import-vcf" style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:6,width:"100%",minHeight:44,padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}>
+ <Icon name="upload" size={14}/> בחירת קובץ אנשי קשר (vcf)
+ <input type="file" accept={VCARD_ACCEPT} onChange={importVcardFile} style={{position:"absolute",width:1,height:1,opacity:0,overflow:"hidden"}}/>
+ </label>
+ <details data-testid="import-vcf-howto" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,lineHeight:1.6}}>
+ <summary style={{cursor:"pointer",fontWeight:600,color:"var(--ink)",padding:"6px 0",textDecoration:"underline",textUnderlineOffset:3}}>איך שולחים אנשי קשר מהאייפון?</summary>
+ <ol style={{margin:"6px 0 0",paddingInlineStart:22,listStyle:"decimal"}}>
+ <li>פתחי את אנשי הקשר בטלפון.</li>
+ <li>לקוחה אחת: פתחי את הכרטיס שלה ולחצי על שיתוף איש קשר.</li>
+ <li>כמה לקוחות יחד: בגרסאות חדשות של האייפון אפשר לסמן כמה אנשי קשר ברשימה, ללחוץ לחיצה ארוכה ולבחור שיתוף. אם זה לא מופיע אצלך, אפשר לשתף אחת אחת.</li>
+ <li>במסך השיתוף בחרי שמירה בקבצים.</li>
+ <li>חזרי לכאן, לחצי על בחירת קובץ אנשי קשר ובחרי את הקובץ ששמרת.</li>
+ </ol>
+ </details>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(או הדביקי רשימה למטה, שורה לכל לקוחה)</p></>)}
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
  <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={importSpec.placeholder} style={{width:"100%",padding:"11px 13px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
@@ -11378,7 +11544,7 @@ ${MARKETING_FOOTER}`)}`;
      return n;
    })();
    return (<>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך, ואפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
@@ -11404,7 +11570,7 @@ ${MARKETING_FOOTER}`)}`;
    {preview.map((r,ri)=>(
  <tr key={ri} style={{background:ri%2?"var(--surface-2)":"var(--surface)"}}>
      {r.map((cell,ci)=>(
- <td key={ci} style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
+ <td key={ci} dir="auto" style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",unicodeBidi:"plaintext",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
      ))}
  </tr>
    ))}
@@ -11852,7 +12018,27 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>יום {DAYS_HE[new Date(booked.date).getDay()]}, {formatDateHe(new Date(booked.date))} בשעה {fmtApptTime(booked)}</p>
  </div>
                 );
-                if (!rebookPlan) return null;
+                // "קבעי לה שוב" (RebookNextSheet, the same sheet as the calendar and client card): her own rhythm, the
+                // message offered afterwards. Prefilled with what she just paid for and anchored on this visit. Booking
+                // there marks this receipt's "התור הבא נקבע" line through the same rebookDone the strip uses.
+                const rbClient = showReceipt.client_id ? clients.find(c=>String(c.id)===String(showReceipt.client_id)) : null;
+                const rbLinked = showReceipt.appointment_id ? appointments.find(a=>String(a.id)===String(showReceipt.appointment_id))||null : null;
+                const rbService = String(showReceipt.service||"").split(",").map(x=>x.trim()).find(n=>activeServices.some(sv=>sv.name===n))||"";
+                // A walk-in sale has no appointment: anchor on the visit she just paid for (the receipt's own day), not on
+                // her previous calendar visit, so the next one is not proposed too soon. No time of day, so no anchor minute.
+                const rbDay = (()=>{ const t=new Date(showReceipt.created_at||Date.now()); return isNaN(t)?today:`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`; })();
+                const rbAnchor = rbLinked || (showReceipt.client_id ? {client_id:showReceipt.client_id,date:rbDay,service:rbService} : null);
+                const openRebookSheet = rbClient ? ()=>setRebookNext({client:rbClient,appt:rbAnchor,receiptId:showReceipt.id,service:rbService}) : null;
+                const sheetButton = openRebookSheet && (
+ <button data-testid="rebook-receipt" onClick={openRebookSheet} style={{display:"block",width:"100%",minHeight:44,marginTop:8,background:"transparent",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>↻ קבעי לה שוב לפי הקצב שלה</button>
+                );
+                if (!rebookPlan) return openRebookSheet ? (
+ <div style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:pcTint,border:`1px solid ${pc}`}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0}}>התור הבא</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:"2px 0 0"}}>היא עוד כאן. זה הרגע הכי טוב לקבוע לה את הפעם הבאה.</p>
+ {sheetButton}
+ </div>
+                ) : null;
                 const {slot,svc} = rebookPlan;
                 const d = new Date(slot.date);
                 return (
@@ -11893,6 +12079,7 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={confirmRebook} disabled={isBusy("rebook")} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700}}>{isBusy("rebook")?<Spinner inline label="קובעת"/>:"קביעת התור"}</button>
  <button onClick={editRebook} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)"}}>שינוי</button>
  </div>
+ {sheetButton}
  </div>
                 );
               })()}
@@ -12520,6 +12707,15 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
  </div>
                     )}
+                    {/* Her booking link into Instagram, Google, Facebook and WhatsApp Business: guided steps, tagged links, ticks (lib/bookingButtons.ts). */}
+                    {settings?.tenant_id&&(
+ <BookingButtonsCard
+   bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`}
+   automations={settings.automations}
+   onCopy={(src,msg)=>copyPublicLink("book",src,msg)}
+   onSaveDone={(next)=>saveAutomationsKey("booking_buttons",next)}
+   pcDeep={pcDeep}/>
+                    )}
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>מוצגת בחלק &quot;נעים להכיר&quot; בעמוד העסק שלך, וגם כתמונת התצוגה כששולחים את הקישור בוואטסאפ. עד שתעלי תמונה, החלק הזה לא מוצג בעמוד.</p>
@@ -12799,7 +12995,8 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{marginTop:22}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:2}}>מסכים נוספים</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:8}}>מה שכבוי כאן יוצא מהתפריט; הנתונים נשארים, ואפשר להחזיר בכל רגע.</p>
-                    {SWITCHABLE_TABS.map((id)=>{
+                    {/* settingsToggleTabs: protocols is offered only to a tenant who already has it on (lib/featureFlags.ts). */}
+                    {settingsToggleTabs(settings).map((id)=>{
                       const on = isTabVisible(editSettings, id);
                       return <AutoToggleRow key={id} pc={pc} label={SWITCHABLE_LABELS[id]} on={on} onChange={()=>{
                         const screens = (autos.screens&&typeof autos.screens==="object")?autos.screens:{};
@@ -12981,6 +13178,10 @@ ${MARKETING_FOOTER}`)}`;
                   // booking page before she had finished the word.
                   const draft = editServices || [];
                   const live = draft.map((s,i)=>({s,i})).filter(x=>!x.s._deleted);
+                  // Buffer after the treatment (lib/serviceBuffer.ts). The column comes from add_service_buffer_2026-11-05.sql;
+                  // a loaded row without the key means it has not run, and the field says so instead of pretending to save.
+                  const bufferColumnReady = services.length===0 || services.some(sv=>Object.prototype.hasOwnProperty.call(sv,"buffer_minutes"));
+                  const bufferDefaultHere = businessBufferDefault(editSettings?.branding);
                   const gone = draft.map((s,i)=>({s,i})).filter(x=>x.s._deleted);
                   return (<>
                   {/* Shown whenever the list is empty and the picker is closed.
@@ -13062,6 +13263,13 @@ ${MARKETING_FOOTER}`)}`;
  {/* Permanent delete. Refuses, with a count, when anything references it. */}
  <button onClick={()=>handleDeleteService(svc,idx)} disabled={isBusy("deleteService")} className="icon-btn sm" style={{color:"var(--danger)"}} title="מחיקה לצמיתות: רק אם השירות לא מופיע בשום תור, תשלום, חבילה או ליד" aria-label="מחיקה">✕</button>
  </div>
+ {/* Minutes kept free after this treatment: the public page and the calendar treat them as taken. Empty = the
+     business default from "כללי קביעת תור". */}
+ <label data-testid="service-buffer" style={{display:"flex",alignItems:"center",gap:6,marginTop:7,fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>
+ <span style={{flex:1,minWidth:0}}>{SERVICE_BUFFER_LABEL_HE}</span>
+ <input type="number" inputMode="numeric" min={0} max={120} disabled={!bufferColumnReady} aria-label={SERVICE_BUFFER_LABEL_HE} value={svc.buffer_minutes==null?"":svc.buffer_minutes} placeholder={String(bufferDefaultHere)} onChange={e=>patchDraftService(idx,{buffer_minutes:e.target.value===""?null:cleanBufferMinutes(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:bufferColumnReady?"var(--surface)":"var(--surface-2)"}}/>
+ </label>
+ {!bufferColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז חל זמן ההפסקה הכללי מ״כללי קביעת תור״.</p>}
  </div>
                   );})}
                   </>);})()}
@@ -13238,6 +13446,9 @@ ${MARKETING_FOOTER}`)}`;
  <select aria-label="הודעה מראש לפחות" value={notice} onChange={e=>setRule({min_notice_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי הגבלה"],[1,"שעה"],[2,"שעתיים"],[4,"4 שעות"],[12,"12 שעות"],[24,"יום"],[48,"יומיים"],[72,"3 ימים"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>עד כמה זמן קדימה</span>
  <select aria-label="עד כמה זמן קדימה" value={ahead} onChange={e=>setRule({max_days_ahead:Number(e.target.value)})} style={sel}>{[[7,"שבוע"],[14,"שבועיים"],[21,"3 שבועות"],[30,"30 יום"],[45,"45 יום"],[60,"60 יום"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>זמן הפסקה אחרי כל טיפול</span>
+ <select aria-label="זמן הפסקה אחרי כל טיפול" data-testid="business-buffer" value={businessBufferDefault(b)} onChange={e=>setRule({buffer_minutes:Number(e.target.value)})} style={sel}>{(BUFFER_OPTIONS.includes(businessBufferDefault(b))?BUFFER_OPTIONS:[...BUFFER_OPTIONS,businessBufferDefault(b)]).map(v=><option key={v} value={v}>{v===0?"בלי":`${v} דקות`}</option>)}</select></label>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"-4px 0 0"}}>הזמן הזה נשאר פנוי אחרי כל תור, גם בדף וגם ביומן שלך. אפשר לקבוע זמן אחר לשירות מסוים ברשימת השירותים.</p>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>ביטול ללא חיוב עד</span>
  <select aria-label="חלון ביטול" value={Number(r.cancel_window_hours)||0} onChange={e=>setRule({cancel_window_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי מגבלה"],[12,"12 שעות לפני"],[24,"יום לפני"],[48,"יומיים לפני"],[72,"3 ימים לפני"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מקדמה בקביעת תור (₪)</span>
@@ -13254,16 +13465,16 @@ ${MARKETING_FOOTER}`)}`;
  })()}
  {inG("messages")&&(()=>{
    // A message to HER the evening before: how many clients tomorrow, who is first,
-   // who has not confirmed. Off unless she turns it on (branding.evening_summary).
-   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
-   const on=b.evening_summary===true;
+   // who has not confirmed. Off unless she turns it on. Stored in automations.evening_summary; the old
+   // branding.evening_summary is still read (lib/eveningSummarySetting.ts) and never written again.
+   const on=eveningSummaryOn(editSettings);
    return(
  <div style={{marginTop:10,padding:"12px 14px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:on?"var(--surface-2)":"var(--surface)",display:"flex",alignItems:"center",gap:10}}>
  <div style={{flex:1}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)",margin:0}}>סיכום ערב</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>התראה אליך בערב (באפליקציה, ובדפדפן אם הפעלת התראות דפדפן (בקבוצה &quot;חיבורים&quot;)): כמה לקוחות מחר, מי הראשונה ומי עוד לא אישרה. לא נשלח בימי שישי ושבת, ולא ביום בלי תורים.</p>
  </div>
- <Toggle on={on} onChange={()=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};return {...prev,branding:{...pb,evening_summary:!on}};})} pc={pc} label="סיכום ערב" />
+ <Toggle on={on} onChange={()=>setEditSettings(prev=>withEveningSummary(prev,!on))} pc={pc} label="סיכום ערב" />
  </div>
    );
  })()}

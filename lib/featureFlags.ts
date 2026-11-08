@@ -13,8 +13,12 @@ import { businessFieldsOf } from './businessFields.ts';
 // gained a catalogue (package_offerings), a ledger (package_entries) with a
 // trigger that derives used_sessions, a receipt written at the moment of sale,
 // and a draw at checkout. The chain was traced end to end on 2026-09-22 -
-// offering, sale plus receipt, draw, counter - and unhidden. `community`
-// stays hidden until there is more than one cosmetician to talk to.
+// offering, sale plus receipt, draw, counter - and unhidden.
+//
+// `community` is not a network of cosmeticians: it is HER announcements feed
+// to her own clients (app/community/page.tsx, /api/community), with one write
+// path. It stays an opt-in stub until it is worth showing on its own, or is
+// folded into the client's personal page (2026-11-05 product review, 2.9).
 //
 // `protocols`, re-confirmed still a stub on 2026-09-30 (the field-separation
 // audit): CREATE and LIST only (app/beautyos.jsx's handleSaveProtocol /
@@ -62,6 +66,14 @@ import { businessFieldsOf } from './businessFields.ts';
 
 /** Tabs that are hidden unless a tenant explicitly opts back in. */
 export const STUB_TABS = ['protocols', 'community'] as const;
+
+/**
+ * Switchable tabs whose Settings toggle is NOT offered to a tenant who has not turned them on.
+ * `protocols` is create-and-list only (see above), so a toggle for it in Settings -> מתקדם -> מסכים נוספים was a
+ * one-tap door to a dead-end screen for every new tenant (2026-11-05 review, "broken or inconsistent" 2).
+ * HIDDEN, NOT DELETED: a tenant who already turned it on keeps the tab AND the toggle, so she can turn it off again.
+ */
+export const SETTINGS_TOGGLE_ONLY_WHEN_ON = ['protocols'] as const;
 /**
  * Tabs she can switch off herself (Settings -> אוטומציות -> מסכים נוספים).
  * On by default; only an explicit false hides one. Stored under
@@ -72,7 +84,7 @@ export const SWITCHABLE_TABS = ['packages', 'advisor', 'leads', 'protocols', 'co
 export const SWITCHABLE_LABELS: Record<(typeof SWITCHABLE_TABS)[number], string> = {
   packages: 'מנויים וחבילות',
   advisor: 'יועץ AI',
-  leads: 'פניות (לידים)',
+  leads: 'פניות',
   protocols: 'פרוטוקולים',
   community: 'קהילה',
 };
@@ -126,6 +138,15 @@ export function isTabVisible(settings: SettingsLike, tabId: string): boolean {
   if ((STUB_TABS as readonly string[]).includes(tabId)) return flags[tabId] === true;
   if ((SWITCHABLE_TABS as readonly string[]).includes(tabId)) return flags[tabId] !== false;
   return true;
+}
+
+/**
+ * The tabs Settings offers a switch for, in order. Pass the SAVED settings row (not the draft being edited), so a toggle
+ * she just switched off does not vanish under her finger before she saves.
+ */
+export function settingsToggleTabs(settings: SettingsLike): string[] {
+  return SWITCHABLE_TABS.filter((id) =>
+    !(SETTINGS_TOGGLE_ONLY_WHEN_ON as readonly string[]).includes(id) || isTabVisible(settings, id));
 }
 
 /** Filter a list of tab ids. Order is preserved. */

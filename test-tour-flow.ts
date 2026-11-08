@@ -59,7 +59,7 @@ assert.equal(tourStrandedOutsideSettings({ steps: STEPS, stepIndex: 2, showSetti
 assert.equal(tourStrandedOutsideSettings({ steps: STEPS, stepIndex: null, showSettings: false }), false);
 
 // wired in the app
-assert.ok(/tourOnNavigate\(\{ steps: TOUR_STEPS/.test(src) && /tourResumeStep\(autos\.onboarding_tour_step, TOUR_STEPS\)/.test(src) && /tourStrandedOutsideSettings\(\{ steps: TOUR_STEPS/.test(src), 'the app uses all three');
+assert.ok(/tourOnNavigate\(\{ steps: tourSteps/.test(src) && /tourResumeStep\(autos\.onboarding_tour_step, tourSteps\)/.test(src) && /tourStrandedOutsideSettings\(\{ steps: tourSteps/.test(src), "the app uses all three, on the tour she gets (tourSteps: the full or the short one)");
 
 // the "seen" flag survives leaving the page right after the tour ends: the save is a keepalive request
 const persist = src.slice(src.indexOf('const persistTourPatch = useCallback'), src.indexOf('}, [settings.automations]);', src.indexOf('const persistTourPatch = useCallback')));

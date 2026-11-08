@@ -115,7 +115,8 @@ assertDeferred('app/api/confirm/route.ts', 'confirm', 'notifyOwnerOfCancellation
 {
   // Line endings normalised: a Windows checkout is CRLF and the anchor below spans a line break.
   const src = readFileSync('app/api/book-appointment/route.js', 'utf8').split('\r\n').join('\n');
-  const insertIdx = src.indexOf('.from("appointments")\n      .insert(');
+  // The insert goes through lib/apptBuffer writeWithApptBuffer (the row first, then the call that inserts it).
+  const insertIdx = src.indexOf('const { data: appt, error } = await writeWithApptBuffer({');
   const notifyIdx = src.indexOf('sendBookingNotifications(');
   ok(insertIdx !== -1 && notifyIdx !== -1 && insertIdx < notifyIdx,
     'book-appointment: the appointment INSERT appears before the deferred notification call, in source order');
