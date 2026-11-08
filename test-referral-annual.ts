@@ -451,7 +451,12 @@ await ok('FAIL CLOSED: a month claimed, the renewal update failed, and the next 
 await ok('FAIL CLOSED: an unreadable list of months charges nobody this run; the next healthy run charges once', async () => {
   const w = referralWorld();
   const broken: ReferralRepo = { ...w.refRepo, async availableCredits() { throw new Error('db down'); } };
-  const errs = await captureErrors(async () => { await runDue(w.deps({ referrals: broken })); });
+  // moneyAlert only logs "money-alert" off Vercel (on Vercel it writes to ops_events), and Vercel's build runs npm test with VERCEL=1:
+  // pin the off-Vercel path here, as test-money-hardening does, so the test means the same on a laptop and on Vercel.
+  const prevVercel = process.env.VERCEL; delete process.env.VERCEL;
+  let errs: string[];
+  try { errs = await captureErrors(async () => { await runDue(w.deps({ referrals: broken })); }); }
+  finally { if (prevVercel !== undefined) process.env.VERCEL = prevVercel; }
   assert.equal(w.charges.length, 0);
   assert.ok(errs.some((l) => /money-alert/.test(l)));
   await runDue(w.deps());
