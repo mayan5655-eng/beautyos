@@ -40,8 +40,9 @@ export async function loadVoucherShop(db: SupabaseClient, tenantId: string, env:
   const options = voucherOptions(cfg, (sv.data || []) as never);
   const withOptions = { ...base, options, visible: true };
   if (await tenantIsBlocked(db, tenantId).catch(() => false)) return { ...withOptions, visible: false, online: false, reason: 'closed' };
-  const probe = await db.from('gift_vouchers').select('id', { head: true, count: 'exact' }).eq('tenant_id', tenantId).limit(1);
-  if (probe.error && isMissingVoucherSchema(probe.error)) return { ...withOptions, online: false, reason: 'no-migration' };
+  // A plain one-row read, not a HEAD: PostgREST answers a HEAD for a missing table with a bare 404 and no error code to recognise.
+  const probe = await db.from('gift_vouchers').select('id').eq('tenant_id', tenantId).limit(1);
+  if (probe.error) return { ...withOptions, online: false, reason: isMissingVoucherSchema(probe.error) ? 'no-migration' : 'off' };
   if (!options.length) return { ...withOptions, online: false, reason: 'no-options' };
   // The demo businesses never take a real payment.
   if (isDemoTenantId(tenantId)) return { ...withOptions, online: false, reason: 'no-grow' };
