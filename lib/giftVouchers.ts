@@ -62,9 +62,24 @@ export function giftVouchersVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings)[GV_FLAG] !== false;
 }
 
+/**
+ * Can she SELL vouchers (at the till, online, from the marketing card)? The platform flag not switched off AND her own switch
+ * (automations.gift_vouchers.enabled, which the settings save lets her write) not false. Redeeming needs only giftVouchersVisible:
+ * turning selling off never strands a voucher a client already paid for.
+ */
+export function giftVouchersSelling(settings: SettingsLike): boolean {
+  return giftVouchersVisible(settings) && voucherConfig(settings).enabled;
+}
+
 export type VoucherConfig = {
-  /** Online selling on her public page when Grow is connected. On unless she stored an explicit false. */
+  /**
+   * HER switch, Settings > העסק שלי > שוברי מתנה. On unless she stored an explicit false. Off stops SELLING (online and at the
+   * till) and hides the marketing card; vouchers already sold keep working at the till (giftVouchersVisible), so a client's paid
+   * voucher is never stranded.
+   */
   enabled: boolean;
+  /** Online selling on her public page when Grow is connected. On unless she stored an explicit false. */
+  online: boolean;
   amounts: number[];
   /** Service ids she offers as "a treatment" voucher. The price is always read from her price list at the moment of sale. */
   services: string[];
@@ -86,6 +101,7 @@ export function voucherConfig(settings: SettingsLike, tenantId?: string | null, 
   const services = Array.isArray(raw.services) ? [...new Set(raw.services.map((s) => String(s ?? '').trim()).filter((s) => s && s.length <= 64))].slice(0, 12) : [];
   return {
     enabled: raw.enabled !== false,
+    online: raw.online !== false,
     amounts: clean,
     services,
     validityMonths: clampInt(raw.validity_months, 1, 60, DEFAULT_VALIDITY_MONTHS),
@@ -96,8 +112,8 @@ export function voucherConfig(settings: SettingsLike, tenantId?: string | null, 
 
 /** The shape written back into automations.gift_vouchers. */
 export function voucherStored(cfg: VoucherConfig, tenantId?: string | null, storageHost = '') {
-  const c = voucherConfig({ automations: { gift_vouchers: { enabled: cfg.enabled, amounts: cfg.amounts, services: cfg.services, validity_months: cfg.validityMonths, note: cfg.note, design: cfg.design } } }, tenantId, storageHost);
-  return { enabled: c.enabled, amounts: c.amounts, services: c.services, validity_months: c.validityMonths, note: c.note, design: c.design };
+  const c = voucherConfig({ automations: { gift_vouchers: { enabled: cfg.enabled, online: cfg.online, amounts: cfg.amounts, services: cfg.services, validity_months: cfg.validityMonths, note: cfg.note, design: cfg.design } } }, tenantId, storageHost);
+  return { enabled: c.enabled, online: c.online, amounts: c.amounts, services: c.services, validity_months: c.validityMonths, note: c.note, design: c.design };
 }
 
 /**

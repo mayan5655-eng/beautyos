@@ -7,7 +7,7 @@
 // Before the migration runs it renders nothing at all (owner decision, 2026-11-08).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  giftVouchersVisible, voucherConfig, voucherStatus, STATUS_HE, formatCode, voucherTitle, dateHe, voucherShareText, waShareLink,
+  giftVouchersVisible, giftVouchersSelling, voucherConfig, voucherStatus, STATUS_HE, formatCode, voucherTitle, dateHe, voucherShareText, waShareLink,
   MIN_AMOUNT, MAX_AMOUNT,
 } from '@/lib/giftVouchers';
 
@@ -18,6 +18,8 @@ const EMPTY = { option: '', amount: '', method: 'מזומן', buyerName: '', buy
 
 export default function GiftVouchersPanel({ settings, services, pc, pcTint, toast, isDemo, onReceipt }) {
   const visible = giftVouchersVisible(settings);
+  // Her switch (Settings > שוברי מתנה): off hides SELLING only. The list, voiding and redemption stay for vouchers already sold.
+  const sellingOn = giftVouchersSelling(settings);
   const cfg = useMemo(() => voucherConfig(settings), [settings]);
   const [data, setData] = useState(null); // { ready, vouchers, ledger } | { needsMigration, error }
   const [filter, setFilter] = useState('active');
@@ -41,12 +43,14 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
   useEffect(() => { if (visible) load(); }, [visible, load]);
   // "מכירה בקופה" from the marketing card (app/GiftVoucherMarketingCard.jsx) lands here with the sale form open.
   useEffect(() => {
-    if (!data?.ready) return;
+    if (!data?.ready || !sellingOn) return;
     try { if (sessionStorage.getItem('kalmea:voucher-sell') === '1') { sessionStorage.removeItem('kalmea:voucher-sell'); setSelling(true); setSold(null); setTimeout(() => document.querySelector('[data-testid="gift-vouchers"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300); } } catch { /* private mode: she taps "מכירת שובר" */ }
-  }, [data?.ready]);
+  }, [data?.ready, sellingOn]);
 
   // Before the migration runs nothing shows at all (owner decision, 2026-11-08): no sentence about a missing update.
   if (!visible || data?.needsMigration) return null;
+  // Selling switched off and nothing ever sold: nothing to manage, nothing to show.
+  if (!sellingOn && data?.ready && !(data.vouchers || []).length) return null;
 
   const options = (() => {
     const out = cfg.amounts.map((a) => ({ key: `a:${a}`, label: money(a) }));
@@ -123,7 +127,7 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
     <div data-testid="gift-vouchers" style={box}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>🎁 שוברי מתנה</p>
-        {data?.ready && !selling && <button type="button" data-testid="voucher-sell-open" style={btn} onClick={() => { setSelling(true); setSold(null); }}>מכירת שובר</button>}
+        {data?.ready && sellingOn && !selling && <button type="button" data-testid="voucher-sell-open" style={btn} onClick={() => { setSelling(true); setSold(null); }}>מכירת שובר</button>}
       </div>
 
       {!data && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 6 }}>טוענת…</p>}
@@ -136,7 +140,8 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
             כסף על שובר נספר בהכנסות ביום שנמכר. כשמממשים אותו בקופה הוא יורד מהתשלום, ולא נספר שוב.
           </p>
 
-          {selling && (
+          {!sellingOn && <p data-testid="voucher-selling-off" style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6, margin: '6px 0 0' }}>מכירת שוברים כבויה בהגדרות. שוברים שכבר נמכרו ממשיכים לעבוד: מממשים אותם בקופה כרגיל.</p>}
+          {selling && sellingOn && (
             <div data-testid="voucher-sell-form" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10, background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: 12 }}>
               <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>על מה השובר?</p>
               <div role="radiogroup" aria-label="סוג השובר" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

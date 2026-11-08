@@ -22,10 +22,13 @@ const PUBLIC = [
   '/community?t=11111111-2222-3333-4444-555555555555',
   '/form?t=x',
   '/logo/abc', '/og/abc', '/demo/cosmetics',
+  '/v/' + 'a'.repeat(48),                      // a gift voucher (app/v/[token])
+  '/some-business-slug/gift',                  // her gift voucher shop (app/[slug]/gift)
+  '/api/vouchers/image?shop=x&f=story',        // the shareable voucher image
 ];
 for (const p of PUBLIC) assert.equal(await where(p), '', `${p} loads with no session`);
 
-const PRIVATE = ['/dashboard', '/dashboard/anything', '/claimant/x', '/no-such/deep/path'];
+const PRIVATE = ['/dashboard', '/dashboard/anything', '/claimant/x', '/no-such/deep/path', '/dashboard/gift', '/some-slug/gift/extra'];
 for (const p of PRIVATE) assert.match(await where(p), /\/login$/, `${p} still needs a session`);
 
 console.log('public access: ok');
