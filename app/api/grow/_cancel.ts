@@ -18,6 +18,8 @@ import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { admin } from './_shared';
 import { isDepositRequest } from '@/lib/grow/paymentRequest';
 import { moneyAlert } from '@/lib/moneyAlert.js';
+import { ensureVoucherForPayment } from '@/lib/giftVoucherIssue';
+import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
@@ -42,6 +44,19 @@ export function cancelDeps(): Deps | null {
  */
 export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void> {
   return async (p, raw) => {
+    // A gift voucher bought online (grow_payments.gift_voucher, add_gift_vouchers_2026-11-08.sql): Grow's verified callback has just
+    // marked it paid, so the voucher is issued now, once (lib/giftVoucherIssue.ts). Nothing is sent: the buyer shares it herself.
+    // Only payments the voucher purchase route opened carry that description, so no other payment pays for an extra read.
+    if (String(p.description || '').startsWith(VOUCHER_SERVICE_PREFIX)) try {
+      const v = await ensureVoucherForPayment(admin(), p.id);
+      if (v) {
+        if (v.status !== 'issued' && v.status !== 'already') { console.error('[grow] gift voucher not issued for payment', p.id, v.status); await moneyAlert('grow:voucher', 'a paid gift voucher purchase has no voucher yet (it is retried when the buyer or the owner opens it)', { paymentId: p.id, tenantId: p.tenant_id, status: v.status }, { key: String(p.id) }); }
+        return;
+      }
+    } catch (e) {
+      console.error('[grow] gift voucher issue failed for payment', p.id, (e as Error)?.message); await moneyAlert('grow:voucher', 'issuing a paid gift voucher failed (it is retried when the buyer or the owner opens it)', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
+      return;
+    }
     // A deposit she asked for with a payment link (lib/grow/paymentRequest.ts): no booking to confirm. The money becomes the
     // client's credit, which the cashier deducts at the visit, so the visit is never counted twice.
     if (isDepositRequest(p.description) && p.client_id) {

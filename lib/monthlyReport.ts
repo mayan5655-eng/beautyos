@@ -18,6 +18,7 @@
 import { liveReceipts } from './till.ts';
 import { incomeTotals } from './incomePeriod.js';
 import { parseDb } from './dbTime.js';
+import { isVoucherSaleReceipt } from './giftVouchers.ts';
 
 const TZ = 'Asia/Jerusalem';
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -75,7 +76,8 @@ export function treatmentShares(r: ReportReceipt): Treatment[] {
 
 export function topTreatment(receipts: ReportReceipt[]): Treatment | null {
   const by = new Map<string, number>();
-  for (const r of receipts) for (const t of treatmentShares(r)) by.set(t.name, (by.get(t.name) || 0) + t.income);
+  // A gift voucher sale is money in advance, not a treatment (lib/giftVouchers.ts): it never wins "the treatment that earned the most".
+  for (const r of receipts) if (!isVoucherSaleReceipt(r)) for (const t of treatmentShares(r)) by.set(t.name, (by.get(t.name) || 0) + t.income);
   let best: Treatment | null = null;
   for (const [name, income] of by) {
     if (income <= 0) continue;
@@ -141,7 +143,7 @@ export type MonthlyReport = {
   elapsedDays: number;
   income: number;          // this month so far, rounded shekels
   prevIncome: number;      // last month over the same elapsed days
-  count: number;           // receipts this month so far
+  count: number;           // treatments this month so far (receipts that are not gift voucher sales)
   top: Treatment | null;
   observation: Observation | null;
   netOfVat: boolean;       // the figure is shown without VAT (a dealer who charges it)
@@ -187,7 +189,8 @@ export function monthlyReport(input: {
 
   const top = topTreatment(thisMonth);
   const lapsed = lapsedClientCount(input.appointments || [], today);
-  const quiet = quietestWeekday(live, today);
+  // Visits only: a voucher sold on a quiet day does not make it a busy one.
+  const quiet = quietestWeekday(live.filter((r) => !isVoucherSaleReceipt(r)), today);
   let observation: Observation | null = null;
   if (lapsed >= 3) observation = { kind: 'lapsed', count: lapsed };
   else if (quiet) observation = { kind: 'quiet', dow: quiet.dow, count: quiet.count, total: quiet.total };
@@ -208,8 +211,9 @@ export function monthlyReport(input: {
   } else {
     sentences.push(`${sofar} הכנסת ${nis(inc)}${vatNote}. בחודש שעבר באותם ימים לא נרשמו תשלומים, אז אין עם מה להשוות עדיין.`);
   }
-  const n = thisMonth.length;
-  sentences.push(n === 1 ? 'עד עכשיו עשית טיפול אחד.' : `עד עכשיו עשית ${n} טיפולים.`);
+  // Treatments, not receipts: a gift voucher sale is counted in the money above (it was paid) but it is not a treatment.
+  const n = thisMonth.filter((r) => !isVoucherSaleReceipt(r)).length;
+  sentences.push(n === 0 ? 'עוד לא נרשמו טיפולים החודש, רק מכירת שוברי מתנה.' : n === 1 ? 'עד עכשיו עשית טיפול אחד.' : `עד עכשיו עשית ${n} טיפולים.`);
   if (top) sentences.push(`הטיפול שהכניס לך הכי הרבה הוא ${top.name}, ${nis(top.income)}.`);
   if (observation?.kind === 'lapsed') {
     sentences.push(observation.count === 1

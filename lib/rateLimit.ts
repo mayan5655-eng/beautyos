@@ -74,6 +74,31 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `יש כרגע עומס בבקשות תשלום לעסק. אפשר לנסות שוב ${m}, או לשלם בעסק.`,
   },
 
+  // Buying a gift voucher on her public page (app/api/vouchers/buy): each press opens a Grow payment page. A buyer retrying is fine.
+  'voucher-buy': {
+    perIp: { limit: 6, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}, או לפנות לעסק ישירות.`,
+    tenantMessage: (m: string) => `יש כרגע עומס בבקשות לעסק. אפשר לנסות שוב ${m}, או לפנות לעסק ישירות.`,
+  },
+
+  // The public voucher page and its polling (app/api/vouchers/public). Read only, by a 192-bit token: this only stops a scanner.
+  'voucher-view': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 600, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `יש כרגע עומס. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Looking a voucher up by its code at HER till (app/api/vouchers, signed in). A code is 8 characters (~40 bits) and only ever
+  // searched inside her own business; this caps guessing even from her own account: a real till types a handful of codes a day.
+  'voucher-lookup': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 40, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נבדקו הרבה קודים ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נבדקו הרבה קודים ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
   // Voice in the PUBLIC DEMO (lib/ai/demoPolicy.ts): every visitor is the same signed-in demo user, so the caller's address is the only way to
   // tell one visitor from another, and the tenant cap bounds them all. The daily dollar cap is the real wall; this keeps one visitor from
   // using the whole day's allowance in a minute.
