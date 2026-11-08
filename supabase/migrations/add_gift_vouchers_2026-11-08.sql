@@ -147,6 +147,10 @@ begin
      where g.id = p_voucher and g.tenant_id = p_tenant and g.status = 'active' and g.expires_at > now() and g.balance >= round(p_amount, 2)
      returning g.balance into v_balance;
     if not found then
+      -- The same key may have been committed by a request this one waited behind: that is the same redemption, not a refusal.
+      select l.id, l.balance_after into v_led, v_balance from public.gift_voucher_ledger l
+       where l.voucher_id = p_voucher and l.idem_key = p_key and l.tenant_id = p_tenant;
+      if found then return query select 'already'::text, v_led, v_balance; return; end if;
       select * into v_row from public.gift_vouchers g where g.id = p_voucher and g.tenant_id = p_tenant;
       if not found then return query select 'not_found'::text, null::uuid, null::numeric; return; end if;
       if v_row.status = 'void' then return query select 'void'::text, null::uuid, v_row.balance; return; end if;

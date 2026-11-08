@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     if (shop) {
       if (!UUID_RE.test(shop)) return json({ online: false });
       const s = await loadVoucherShop(admin(), shop, process.env, APP_URL);
-      return json({ online: s.online, href: s.online && s.slug ? `/${encodeURIComponent(s.slug)}/gift` : null });
+      // The same answer for every visitor of this business: a minute at the edge spares her page a database read per view.
+      return NextResponse.json({ online: s.online, href: s.online && s.slug ? `/${encodeURIComponent(s.slug)}/gift` : null }, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } });
     }
     const st = await loadPublicVoucher(admin(), u.searchParams.get('k') || '');
     return json(st, st.state === 'unknown' ? 404 : 200);

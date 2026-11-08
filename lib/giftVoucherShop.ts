@@ -27,15 +27,16 @@ export type VoucherShop = {
 };
 
 export async function loadVoucherShop(db: SupabaseClient, tenantId: string, env: Record<string, string | undefined> = process.env, appUrl = ''): Promise<VoucherShop> {
-  const [st, sv, tn] = await Promise.all([
-    db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle(),
+  // Settings first and alone: for almost every business the flag is off, and that answer needs nothing else.
+  const st = await db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle();
+  const settings = (st.data || null) as Record<string, unknown> | null;
+  const cfg = voucherConfig(settings as never);
+  if (!settings || !giftVouchersVisible(settings as never) || !cfg.enabled) return { cfg, options: [], slug: null, settings, visible: false, online: false, reason: 'off' };
+  const [sv, tn] = await Promise.all([
     db.from('service_prices').select('id, name, price, active').eq('tenant_id', tenantId).or(ACTIVE_OR_NULL),
     db.from('tenants').select('slug').eq('id', tenantId).maybeSingle(),
   ]);
-  const settings = (st.data || null) as Record<string, unknown> | null;
-  const cfg = voucherConfig(settings as never);
   const base = { cfg, options: [] as VoucherOption[], slug: ((tn.data as { slug?: string } | null)?.slug) || null, settings };
-  if (!settings || !giftVouchersVisible(settings as never) || !cfg.enabled) return { ...base, visible: false, online: false, reason: 'off' };
   const options = voucherOptions(cfg, (sv.data || []) as never);
   const withOptions = { ...base, options, visible: true };
   if (await tenantIsBlocked(db, tenantId).catch(() => false)) return { ...withOptions, visible: false, online: false, reason: 'closed' };

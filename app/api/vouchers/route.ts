@@ -203,7 +203,7 @@ export async function POST(request: Request) {
         buyerName, buyerPhone, recipientName, message: cleanMessage(b.message), clientId,
       }, { repo: supabaseVoucherRepo(db), randomBytes: rnd });
       if (r.status === 'missing') return needsMigration();
-      if (r.status !== 'sold' && r.status !== 'already') return oops('sell', r.error || 'failed');
+      if (r.status !== 'sold' && r.status !== 'already') return oops('sell', ('error' in r && r.error) || 'failed');
       return json({ success: true, already: r.status === 'already', voucher: r.voucher, receipt: r.receipt });
     }
 

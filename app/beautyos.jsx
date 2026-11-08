@@ -109,6 +109,11 @@ const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const GrowChargePanel = dynamic(() => import("./GrowChargePanel"), { ssr: false });
 const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: false });
+// Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
+// platform flag automations.feature_flags.gift_vouchers is on.
+const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: false });
+const VoucherRedeemTill = dynamic(() => import("./VoucherRedeemTill"), { ssr: false });
+const GiftVoucherSettings = dynamic(() => import("./GiftVoucherSettings"), { ssr: false });
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -134,6 +139,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { giftVouchersVisible, formatCode } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -1290,6 +1296,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [drawFromPackage, setDrawFromPackage] = useState(false);
   // Grow cancellation policy in the cashier: a deposit already paid for this appointment and client credit (app/GrowCashierCredit.jsx).
   const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
+  // A gift voucher used on this sale (app/VoucherRedeemTill.jsx): { ledgerId, voucherId, code, amount, balanceAfter, receiptId? }.
+  const [voucherAdj, setVoucherAdj] = useState(null);
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -1956,7 +1964,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const growBase = Math.max(0, cashierSubtotal - cashierDiscountIls - packageCredit);
   const growDepositUsed = Math.min(Number(growAdj.deposit) || 0, growBase);
   const growCreditUsed = growAdj.creditOn ? Math.min(Number(growAdj.creditAvail) || 0, Math.max(0, growBase - growDepositUsed)) : 0;
-  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed) * 100) / 100);
+  // A gift voucher comes off last, like credit: it was paid for (and counted as income) the day it was sold.
+  const voucherDue = Math.max(0, Math.round((growBase - growDepositUsed - growCreditUsed) * 100) / 100);
+  const voucherUsed = voucherAdj ? Math.min(Number(voucherAdj.amount) || 0, voucherDue) : 0;
+  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed - voucherUsed) * 100) / 100);
+  // The voucher belongs to one sale: a till that opens starts without it. A till closed after the voucher was used but before the
+  // payment was recorded says so (the amount is already off the voucher; the vouchers list can give it back).
+  const voucherOpenRef = useRef(false);
+  useEffect(() => {
+    if (showCashier) { if (!voucherOpenRef.current) { voucherOpenRef.current = true; setVoucherAdj(null); } return; }
+    if (!voucherOpenRef.current) return;
+    voucherOpenRef.current = false;
+    if (voucherAdj && !voucherAdj.receiptId) toast("השובר מומש אבל התשלום לא נרשם. אפשר להחזיר את הסכום לשובר מרשימת שוברי המתנה בקופה.", "error");
+    setVoucherAdj(null);
+  }, [showCashier, voucherAdj, toast]);
   // Two lines: the first is what she types, the second is whatever is left.
   const splitResolved = useMemo(() => {
     const first = { method: splitLines[0]?.method || "ביט", amount: Number(splitLines[0]?.amount) || 0 };
@@ -5537,6 +5558,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||"");})
       .catch(()=>toast(`אישור התשלום נשמר, אבל לא הצלחנו לסמן ש${what} נוצל. בדקי לפני שמנכים אותו שוב בתור הבא.`,"error"));
+    // A gift voucher used on this sale: its redemption names this receipt (once; the route refuses a second link).
+    if (voucherAdj?.ledgerId && !voucherAdj.receiptId) {
+      setVoucherAdj((v) => (v && v.ledgerId === voucherAdj.ledgerId ? { ...v, receiptId } : v));
+      growMark("/api/vouchers", { action: "attach", ledgerId: voucherAdj.ledgerId, receiptId }, "השובר");
+    }
     // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used.
     if (snap.depositUsed > 0 && snap.appt?.id) growMark("/api/grow/deposit",{appointmentId:String(snap.appt.id),receiptId,used:snap.depositUsed},"המקדמה");
     if (snap.creditUsed > 0 && snap.client?.id) growMark("/api/grow/credit",{clientId:String(snap.client.id),amount:snap.creditUsed,receiptId},"הקרדיט");
@@ -5611,6 +5637,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         discount_pct: cashierDiscountMode==="pct" ? Math.min(100, Math.max(0, Number(cashierDiscount)||0)) : null,
         payments: useSplit ? splitResolved : null,
       };
+      // A gift voucher used on this sale (its amount is already off the voucher, app/VoucherRedeemTill.jsx): named on the receipt.
+      if (voucherUsed > 0 && voucherAdj) receipt.note = [receipt.note, `שובר מתנה ${formatCode(voucherAdj.code)}: ₪${voucherUsed} נוכה`].filter(Boolean).join(" · ");
       let {data,error}=await supabase.from("receipts").insert([receipt]).select();
       if (error && isMissingColumnError(error)) {
         // The migration has not run. Write the receipt without the three new
@@ -9963,6 +9991,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
+ {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
+ <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
      phone. Each is ONE computation (lib/till totalsOf over one set of
      receipts), and the method rows under a total are that same computation's
@@ -11740,6 +11770,7 @@ ${MARKETING_FOOTER}`)}`;
               ))}
  </div>
  )}
+ {giftVouchersVisible(settings)&&(<VoucherRedeemTill due={voucherDue} applied={voucherAdj} onApplied={setVoucherAdj} onCleared={()=>setVoucherAdj(null)} toast={toast} pc={pc} pcTint={pcTint} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {/* Split: two lines. She types the first amount; the second is what is
      left, so the two can only ever add up to the total. */}
  {splitOn&&(
@@ -13159,6 +13190,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               )}
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
               {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("clients")&&(
  <div>
