@@ -11977,7 +11977,7 @@ ${MARKETING_FOOTER}`)}`;
  {/* Discount, tip and note: the exception, so behind one line that says what is set (UX pass 2026-11-08). */}
  <button type="button" data-testid="cashier-extras" aria-expanded={cashierExtrasOpen} onClick={()=>setCashierExtrasOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"none",border:"none",borderTop:"1px solid var(--line)",padding:"4px 2px",marginBottom:8,cursor:"pointer",fontFamily:"inherit"}}>
  <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>הנחה, טיפ והערה</span>
- <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{cashierExtrasOpen?"סגירה":[Number(cashierDiscount)>0?(cashierDiscountMode==="pct"?`הנחה ${cashierDiscount}%`:`הנחה ₪${cashierDiscount}`):"",Number(cashierTip)>0?`טיפ ₪${cashierTip}`:"",cashierNote.trim()?"הערה":""].filter(Boolean).join(" · ")||"+"}</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{cashierExtrasOpen?"סגירה":[Number(cashierDiscount)>0?(cashierDiscountMode==="pct"?`הנחה ${cashierDiscount}%`:`הנחה ₪${cashierDiscount}`):"",Number(cashierTip)>0?`טיפ ₪${cashierTip}`:"",cashierNote.trim()?"הערה":""].filter(Boolean).join(" · ")||"לא חובה"}</span>
  </button>
  {cashierExtrasOpen&&(<>
  {/* Discount: shekels or a percentage. The shekel figure is what is stored
