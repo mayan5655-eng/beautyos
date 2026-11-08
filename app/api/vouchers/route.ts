@@ -183,6 +183,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'sell') {
+      // Her switch off: no new sales. (Redeeming, lookup, void and the list stay: sold vouchers keep working.)
+      if (!voucherConfig(w.settings as never).enabled) return json({ success: false, error: 'מכירת שוברים כבויה בהגדרות. אפשר להפעיל אותה בהגדרות > העסק שלי.' }, 403);
       const saleKey = String(b.saleKey || '');
       if (!/^[A-Za-z0-9_-]{8,64}$/.test(saleKey)) return json({ success: false, error: 'בקשה לא תקינה' }, 400);
       const method = String(b.paymentMethod || '');

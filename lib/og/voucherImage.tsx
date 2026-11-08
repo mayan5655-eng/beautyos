@@ -42,6 +42,16 @@ export async function loadImageData(u: string | null | undefined): Promise<strin
   }
 }
 
+/**
+ * Text the renderer can draw with the fonts we ship. satori fetches an emoji's picture from a public CDN at render time; that is a
+ * third party in the path of her image, and where it cannot be reached the whole response fails ("failed to pipe response", found
+ * on the walk 2026-11-08). Emoji and the joiners and variation selectors around them are dropped from the IMAGE only (the web page
+ * keeps them).
+ */
+export function ogText(s: string | undefined | null): string {
+  return String(s ?? '').replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u200d\uFE0E\uFE0F]/gu, '').replace(/\s+/g, ' ').trim();
+}
+
 export type ImageContent = {
   businessName: string;
   logo: string | null;          // a data URI, already loaded
@@ -65,7 +75,13 @@ const HebLine = ({ text, size, color, family, weight = 700 }: { text: string; si
 );
 const isMoney = (s: string) => /^₪[\d,.]+$/.test(s);
 
-export async function renderVoucherImage(origin: string, look: VoucherLook, c: ImageContent, kind: 'voucher' | 'story', headers: Record<string, string>) {
+export async function renderVoucherImage(origin: string, lookIn: VoucherLook, cIn: ImageContent, kind: 'voucher' | 'story', headers: Record<string, string>) {
+  const look = { ...lookIn, headline: ogText(lookIn.headline) || 'שובר מתנה' };
+  const c: ImageContent = {
+    ...cIn,
+    businessName: ogText(cIn.businessName), recipientName: ogText(cIn.recipientName), title: ogText(cIn.title), sub: ogText(cIn.sub) || undefined,
+    message: ogText(cIn.message) || undefined, fromName: ogText(cIn.fromName) || undefined, tagline: ogText(cIn.tagline) || undefined,
+  };
   const size = kind === 'story' ? STORY_IMG : VOUCHER_IMG;
   const head = FONT_TTF[look.font];
   const [headFont, body, mono] = await Promise.all([asset(origin, head.path), asset(origin, '/design-fonts/Assistant-700.ttf'), asset(origin, '/design-fonts/Heebo-700.ttf')]);

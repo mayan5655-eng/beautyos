@@ -10,7 +10,7 @@ import {
   giftVouchersVisible, voucherConfig, voucherStored, voucherOptions, resolveOption, newVoucherCode, normalizeCode, formatCode,
   newVoucherToken, isVoucherToken, voucherStatus, redeemProblem, usableAmount, expiryFrom, voucherItem, isVoucherSaleReceipt,
   publicVoucherView, voucherShareText, waShareLink, parseVoucherIntent, isMissingVoucherSchema, cleanMessage, CODE_ALPHABET,
-  VOUCHER_ITEM_KIND, REFUSAL_HE, voucherRedeemNote, paidByVoucher, voucherOverUsed, VOUCHER_OVER_USED_HE, sanitizeVoucherAutomations,
+  VOUCHER_ITEM_KIND, REFUSAL_HE, giftVouchersSelling, voucherRedeemNote, paidByVoucher, voucherOverUsed, VOUCHER_OVER_USED_HE, sanitizeVoucherAutomations,
 } from './lib/giftVouchers.ts';
 import { issueFromPayment, sellAtTill, readRpcOutcome, SALE_NOT_RECORDED_HE, SALE_IN_FLIGHT_HE, SALE_IN_FLIGHT_MS } from './lib/giftVoucherService.ts';
 import type { VoucherRepo } from './lib/giftVoucherService.ts';
@@ -66,7 +66,7 @@ await ok('config: defaults, clamps and junk', () => {
   assert.equal(c.note, 'שלום לך');
   assert.deepEqual(c.services, ['a']);
   const stored = voucherStored(c);
-  assert.deepEqual({ ...stored, design: undefined }, { enabled: true, amounts: [200, 300], services: ['a'], validity_months: 12, note: 'שלום לך', design: undefined });
+  assert.deepEqual({ ...stored, design: undefined }, { enabled: true, online: true, amounts: [200, 300], services: ['a'], validity_months: 12, note: 'שלום לך', design: undefined });
   assert.equal(stored.design.template, 'elegant');
 });
 await ok('options are priced from her settings and price list, never from the browser', () => {
@@ -550,7 +550,7 @@ await ok('pre-migration: nothing shows to her at all (no "missing update" senten
   const panel = rd('app/GiftVouchersPanel.jsx');
   assert.match(panel, /if \(!visible \|\| data\?\.needsMigration\) return null;/);
   assert.doesNotMatch(panel, /voucher-needs-migration/);
-  assert.match(panel, /data\?\.ready && !selling && <button/);
+  assert.match(panel, /data\?\.ready && sellingOn && !selling && <button/);
   assert.match(rd('app/VoucherRedeemTill.jsx'), /if \(ready !== true && !applied\) return null;/);
   assert.match(rd('app/GiftVoucherSettings.jsx'), /if \(ready !== true\) return null;/);
   assert.match(rd('app/GiftVoucherMarketingCard.jsx'), /if \(ready !== true\) return null;/);
@@ -643,8 +643,14 @@ await ok('Grow connected: online selling is on automatically, with nothing confi
   const s = await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
   assert.equal(s.visible, true); assert.equal(s.online, true); assert.equal(s.reason, null);
   assert.deepEqual(s.options.map((o) => o.label), ['₪200', '₪300', '₪500']);
-  const stored = fakeDb((table) => table === 'settings' ? { data: { tenant_id: T, automations: { gift_vouchers: { enabled: false } } }, error: null } : { data: null, error: null });
-  assert.equal((await loadVoucherShop(stored as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost')).online, false, 'her explicit "no online" is kept');
+  const noOnline = fakeDb((table) => {
+    if (table === 'settings') return { data: { tenant_id: T, automations: { gift_vouchers: { online: false } } }, error: null };
+    if (table === 'gift_vouchers') return { data: [], error: null };
+    if (table === 'grow_accounts') return { data: { user_id: 'u', enabled: true }, error: null };
+    return { data: table === 'tenants' ? { slug: 'studio-noa' } : [], error: null };
+  });
+  const s2 = await loadVoucherShop(noOnline as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
+  assert.equal(s2.visible, true); assert.equal(s2.online, false, 'her "no online selling" is kept: the page says buy at the business');
 });
 await ok('the voucher page and the shop render HER design (template, headline, colours), text as text', async () => {
   const { importApp, renderApp } = await import('./testkit/render.mjs' as string);
@@ -691,12 +697,54 @@ await ok('the marketing card: shop link, WhatsApp share with no number, a story 
   assert.ok(html.includes('data-testid="gv-sell-at-till"'));
   assert.equal(mod.fillCopy('{name}: {link}', 'נועה', 'x'), 'נועה: x');
   const j = rd('app/beautyos.jsx');
-  assert.match(j, /\{giftVouchersVisible\(settings\)&&<GiftVoucherMarketingCard settings=\{settings\}/);
+  assert.match(j, /\{giftVouchersSelling\(settings\)&&<GiftVoucherMarketingCard settings=\{settings\}/);
   assert.match(j, /sessionStorage\.setItem\("kalmea:voucher-sell","1"\);\}catch\{\}setActiveTab\("cashier"\)/);
   assert.match(rd('app/GiftVouchersPanel.jsx'), /sessionStorage\.getItem\('kalmea:voucher-sell'\) === '1'/);
   // no Grow: the card says so, and the link still leads to the "buy at the business" page
   const off = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, automations: {} }, pc: '#000', pcTint: '#eee', slug: 'studio-noa', online: false, origin: '' });
   assert.ok(off.includes('Grow עוד לא מחובר'));
+});
+
+// ── her own switch (owner request 2026-11-08): on by default, off stops selling, never redeeming ──────────
+await ok('her switch: on by default, stored under automations.gift_vouchers.enabled (a key the settings save writes)', () => {
+  assert.equal(giftVouchersSelling({}), true);
+  assert.equal(giftVouchersSelling({ automations: { gift_vouchers: { enabled: false } } }), false);
+  assert.equal(giftVouchersSelling({ automations: { feature_flags: { gift_vouchers: false } } }), false, 'the platform flag off also stops selling');
+  assert.equal(giftVouchersSelling({ automations: { gift_vouchers: { enabled: 'no' } } }), true, 'only the boolean false');
+  assert.equal(voucherStored(voucherConfig({ automations: { gift_vouchers: { enabled: false } } })).enabled, false, 'it survives the save');
+  assert.ok(!(AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('gift_vouchers'), 'not a protected key: she can write it');
+  const out = sanitizeVoucherAutomations({ automations: { gift_vouchers: { enabled: false, online: false } } }, T, HOST);
+  assert.equal((out.automations as any).gift_vouchers.enabled, false); assert.equal((out.automations as any).gift_vouchers.online, false);
+  const card = rd('app/GiftVoucherSettings.jsx');
+  assert.match(card, /data-testid="gv-enabled" aria-label="שוברי מתנה" checked=\{cfg\.enabled\} onChange=\{\(\) => set\(\{ enabled: !cfg\.enabled \}\)\}/);
+  assert.match(card, /data-testid="gv-online"[^>]*checked=\{cfg\.online\}/);
+});
+await ok('her switch off: no selling anywhere (till, online shop, marketing card), and sold vouchers STILL redeem', async () => {
+  const off = { automations: { gift_vouchers: { enabled: false } } };
+  assert.equal(giftVouchersVisible(off), true, 'redeeming stays');
+  // the shop is closed
+  const db = fakeDb((table) => (table === 'settings' ? { data: { tenant_id: T, ...off }, error: null } : { data: [], error: null }));
+  const s = await loadVoucherShop(db as never, T, { GROW_UI_ENABLED: 'true' }, 'http://localhost');
+  assert.equal(s.visible, false); assert.equal(s.online, false);
+  // the till sale is refused on the server; redeem/lookup/reverse/void are not
+  const route = rd('app/api/vouchers/route.ts');
+  const sellAt = route.indexOf("if (action === 'sell') {");
+  assert.match(route.slice(sellAt, sellAt + 400), /if \(!voucherConfig\(w\.settings as never\)\.enabled\) return json\(/);
+  for (const a of ['lookup', 'redeem', 'reverse', 'attach', 'void']) {
+    const at = route.indexOf(`if (action === '${a}') {`);
+    assert.ok(at > 0 && !/\.enabled\)/.test(route.slice(at, route.indexOf('if (action ===', at + 10))), `${a} does not depend on her switch`);
+  }
+  // the dashboard: the till's redeem button and the list follow the PLATFORM flag; selling and marketing follow her switch
+  const j = rd('app/beautyos.jsx');
+  assert.match(j, /\{giftVouchersVisible\(settings\)&&\(<VoucherRedeemTill/);
+  assert.match(j, /\{giftVouchersSelling\(settings\)&&<GiftVoucherMarketingCard/);
+  const panel = rd('app/GiftVouchersPanel.jsx');
+  assert.match(panel, /const sellingOn = giftVouchersSelling\(settings\);/);
+  assert.match(panel, /\{data\?\.ready && sellingOn && !selling && <button type="button" data-testid="voucher-sell-open"/);
+  assert.match(panel, /\{selling && sellingOn && \(/);
+  assert.match(panel, /data-testid="voucher-selling-off"/);
+  // a sold voucher is redeemed with the switch off: the database function knows nothing of the switch
+  assert.doesNotMatch(rd('supabase/migrations/add_gift_vouchers_2026-11-08.sql'), /automations/);
 });
 
 console.log(`\n${n} gift voucher checks passed`);

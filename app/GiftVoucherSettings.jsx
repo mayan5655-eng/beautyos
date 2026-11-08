@@ -68,14 +68,26 @@ export default function GiftVoucherSettings({ automations, services, pc, pcTint,
 
   return (
     <div className="glass-card" data-testid="gift-voucher-settings" style={{ padding: '14px 16px', marginBottom: 14 }}>
-      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>🎁 שוברי מתנה</p>
+      {/* HER switch (automations.gift_vouchers.enabled, a key the settings save lets her write; the platform flag is separate). */}
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 44, cursor: 'pointer' }}>
+        <span style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>🎁 שוברי מתנה</span>
+        <input type="checkbox" role="switch" data-testid="gv-enabled" aria-label="שוברי מתנה" checked={cfg.enabled} onChange={() => set({ enabled: !cfg.enabled })} style={{ width: 22, height: 22, accentColor: pc }} />
+      </label>
       <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.65, margin: 0 }}>
-        השוברים כבר פועלים אצלך: את מוכרת ומממשת בקופה, ואם Grow מחובר אפשר לקנות גם אונליין מהדף שלך. כאן אפשר לשנות סכומים, טיפולים, תוקף ועיצוב, אם רוצים.
+        {cfg.enabled
+          ? 'השוברים פועלים אצלך: את מוכרת ומממשת בקופה, ואם Grow מחובר אפשר לקנות גם אונליין מהדף שלך. כאן אפשר לשנות סכומים, טיפולים, תוקף ועיצוב, אם רוצים.'
+          : 'מכירת שוברים כבויה: אין מכירה בקופה, אין כפתור בדף שלך ואין כרטיס בתוכן. שוברים שכבר נמכרו ממשיכים לעבוד, ומממשים אותם בקופה כרגיל.'}
       </p>
       {!open ? (
         <button type="button" data-testid="gv-edit" style={{ ...chip(false), marginTop: 10 }} onClick={() => setOpen(true)}>עריכת השוברים והעיצוב</button>
       ) : (
         <>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 44, marginTop: 10, cursor: 'pointer' }}>
+            <span style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>מכירה אונליין בדף העסק</span>
+            <input type="checkbox" role="switch" data-testid="gv-online" aria-label="מכירה אונליין בדף העסק" checked={cfg.online} onChange={() => set({ online: !cfg.online })} style={{ width: 22, height: 22, accentColor: pc }} />
+          </label>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: 0 }}>כשזה פועל ו-Grow מחובר, קונים ומשלמים בדף שלך, והשובר נוצר רק אחרי ש-Grow מאשר את התשלום. כבוי: הדף מציע לקנות שובר אצלך בעסק.</p>
+
           {/* ── Design ─────────────────────────────────────────── */}
           <p style={label}>עיצוב השובר</p>
           <div data-testid="gv-templates" role="radiogroup" aria-label="תבנית" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>

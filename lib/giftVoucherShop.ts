@@ -31,6 +31,7 @@ export async function loadVoucherShop(db: SupabaseClient, tenantId: string, env:
   const st = await db.from('settings').select('*').eq('tenant_id', tenantId).maybeSingle();
   const settings = (st.data || null) as Record<string, unknown> | null;
   const cfg = voucherConfig(settings as never);
+  // Her own switch off (cfg.enabled false) closes the shop; vouchers already sold still redeem at her till.
   if (!settings || !giftVouchersVisible(settings as never) || !cfg.enabled) return { cfg, options: [], slug: null, settings, visible: false, online: false, reason: 'off' };
   const [sv, tn] = await Promise.all([
     db.from('service_prices').select('id, name, price, active').eq('tenant_id', tenantId).or(ACTIVE_OR_NULL),
@@ -47,6 +48,8 @@ export async function loadVoucherShop(db: SupabaseClient, tenantId: string, env:
   if (!options.length) return { ...withOptions, online: false, reason: 'no-options' };
   // The demo businesses never take a real payment.
   if (isDemoTenantId(tenantId)) return { ...withOptions, online: false, reason: 'no-grow' };
+  // Her "online selling" switch off: the page offers buying at the business, like a business without Grow.
+  if (!cfg.online) return { ...withOptions, online: false, reason: 'no-grow' };
   if (!growUiEnabled(env) || !growUiEnabled(env, tenantId)) return { ...withOptions, online: false, reason: 'no-grow' };
   const grow = resolveGrow(env, appUrl);
   if (!grow.configured || !(grow.creds || grow.wallet)) return { ...withOptions, online: false, reason: 'no-grow' };

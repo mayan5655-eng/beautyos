@@ -150,7 +150,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
-import { giftVouchersVisible, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE } from "@/lib/giftVouchers";
+import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -10497,7 +10497,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
- {giftVouchersVisible(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");}}/>}
+ {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");}}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
