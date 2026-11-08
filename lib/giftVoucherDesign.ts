@@ -129,6 +129,8 @@ export type VoucherLook = {
   panelInk: string;
   font: FontKey;
   headline: string;
+  /** A light plate behind her logo on a dark card (festive, night, her photo): a dark logo on a dark card disappeared on the logo walk. */
+  logoPlate: string | null;
 };
 
 const PRESET_BG: Record<Exclude<BackgroundKey, 'template' | 'image'>, string> = {
@@ -171,6 +173,7 @@ export function voucherLook(d: VoucherDesign, brandPrimary: string): VoucherLook
     panelInk: dark || bgKey === 'image' ? '#FFFFFF' : darken(main, 0.6),
     font: d.font,
     headline: d.headline || TEMPLATE_HEADLINES[t],
+    logoPlate: dark || bgKey === 'image' ? 'rgba(255,255,255,0.92)' : null,
   };
 }
 
