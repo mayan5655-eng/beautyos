@@ -51,14 +51,15 @@ export async function writeProduct(repo: ProductRepo, tenantId: string, id: stri
       if (!res.row) return { status: 'not_found' };
       return { status: 'ok', row: res.row, dropped };
     }
-    if (isMissingProductSchema(res.error)) return { status: 'missing' };
     if (res.error.code === '23505') return { status: 'duplicate-sku' };
+    // The named column first: "could not find the 'routine_types' column of 'products'" also reads as a missing products schema.
     const col = missingColumnName(res.error);
     if (col && (OPTIONAL_PRODUCT_COLUMNS as readonly string[]).includes(col) && col in row) {
       delete row[col];
       dropped.push(col);
       continue;
     }
+    if (isMissingProductSchema(res.error)) return { status: 'missing' };
     // A required column (name, price, stock...) is missing, or the error does not say which: the table is not what this code
     // expects, so nothing is written rather than a product missing a field she typed.
     if (res.error.code === '42703' || res.error.code === 'PGRST204') return { status: 'missing' };
