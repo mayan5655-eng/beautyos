@@ -21,7 +21,7 @@
 // wherever a person sees it.
 
 import { findInvoiceUrl, readNotification, USER_ID_RE } from './payload.ts';
-import { GROW_IPS } from './growIps.ts';
+import { GROW_IPS, GROW_ONBOARDING_IPS } from './growIps.ts';
 import { registrationStatusOf } from './registration.ts';
 import type { RegistrationStatus } from './registration.ts';
 
@@ -48,7 +48,7 @@ export function clientIp(headers: { get(name: string): string | null }): string 
  */
 export function allowedIps(env: Env = process.env): Set<string> {
   const custom = (env.GROW_WEBHOOK_IPS || '').split(/[,\s]+/).map(normalizeIp).filter(Boolean);
-  return new Set([...GROW_IPS, ...custom]);
+  return new Set([...GROW_IPS, ...GROW_ONBOARDING_IPS, ...custom]);
 }
 
 /**

@@ -6,7 +6,7 @@ import {
   GROW_IPS, clientIp, ipAllowed, ipCheckEnforced, allowedIps, classifyWebhook, readOnboarding, readOnboardingApiKey, applyOnboarding, parseWebhookBody,
 } from './lib/grow/webhook.ts';
 import type { OnboardingRepo, MatchState } from './lib/grow/webhook.ts';
-import { GROW_IPS as GROW_IPS_CFG, GROW_IPS_SOURCE } from './lib/grow/growIps.ts';
+import { GROW_IPS as GROW_IPS_CFG, GROW_IPS_SOURCE, GROW_ONBOARDING_IPS } from './lib/grow/growIps.ts';
 import { buildProcessFields, tenantRefOf, findCustomField } from './lib/grow/payload.ts';
 import { applyNotification, applyNotificationByProcess, applyInvoiceByProcess, findProcessId } from './lib/grow/service.ts';
 import type { GrowRepo, GrowPayment } from './lib/grow/service.ts';
@@ -336,6 +336,10 @@ await ok('the address list lives in its config file with its source, and the web
   assert.equal(GROW_IPS_CFG.length, 29);
   assert.equal(new Set(GROW_IPS_CFG).size, 29);
   assert.deepEqual([...GROW_IPS], [...GROW_IPS_CFG]);
+  // Grow's onboarding (new-customer registration) addresses, confirmed by Grow support on 2026-11-05, are let in with no env setting
+  assert.deepEqual([...GROW_ONBOARDING_IPS].sort(), ['18.193.24.45', '3.125.27.86', '3.68.125.41']);
+  for (const ip of GROW_ONBOARDING_IPS) assert.ok(allowedIps({}).has(ip), `${ip} allowed without GROW_WEBHOOK_IPS`);
+  assert.ok(!allowedIps({}).has('1.2.3.4'), 'anything else is still refused');
   assert.match(GROW_IPS_SOURCE, /developers\.grow\.business\/reference\/ip-address/);
   assert.doesNotMatch(rd('lib/grow/webhook.ts'), /'3\.123\.194\.128'/); // not duplicated there
 });
