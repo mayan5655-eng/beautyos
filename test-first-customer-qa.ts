@@ -133,4 +133,11 @@ ok('cancel link inside her window: a calm refusal with no "אופס!" and no "נ
   assert.doesNotMatch(c, /'[^']*—[^']*'/, 'no em dash in its strings');
 });
 
+ok('voided sale: if the automatic return to the voucher failed, the voucher screen offers "החזרה לשובר" for that line', () => {
+  const panel = readFileSync('app/GiftVouchersPanel.jsx', 'utf8');
+  assert.match(panel, /l\.kind === 'redeem' && \(!l\.receipt_id \|\| voided\.has\(String\(l\.receipt_id\)\)\) && !reversed\.has/);
+  assert.match(app, /voidedReceiptIds=\{voidedReceiptIdSet\}/);
+  assert.match(app, /const voidedReceiptIdSet = useMemo\(\(\) => new Set\(\(receiptVoids \|\| \[\]\)\.map\(\(v\) => String\(v\.receipt_id\)\)\)/);
+});
+
 console.log(`\n${n} checks passed`);
