@@ -4,10 +4,11 @@
 // test-products.ts.
 //
 // ── Where things live ──────────────────────────────────────────────────────
-//   automations.feature_flags.products   the platform switch (set by SQL; the settings save never takes feature_flags from the
-//                                        browser). Off: no screen, no till picker, no public list, every route answers hidden.
-//   products / product_stock_ledger      add_products_inventory_2026-11-08.sql (hand run). Until it runs the screen says so in one
-//                                        sentence and the till offers no products.
+//   automations.feature_flags.products   ON BY DEFAULT for every business. Only an explicit false (set by SQL; the settings save
+//                                        never takes feature_flags from the browser) hides it: no screen, no till picker, no
+//                                        public list, every route answers hidden.
+//   products / product_stock_ledger      add_products_inventory_2026-11-08.sql (hand run). Until it runs, businesses see NOTHING:
+//                                        no card, no till picker, no scan card (the routes still answer needsMigration).
 //
 // ── Money ──────────────────────────────────────────────────────────────────
 // A product is income AT SALE: it rides on the same receipt as the treatment (or alone), its item marked kind: 'product', and the
@@ -43,9 +44,9 @@ export const DEFAULT_LOW_THRESHOLD = 2;
 
 type SettingsLike = { automations?: unknown; feature_flags?: unknown } | null | undefined;
 
-/** Is the feature switched on for this business by the platform? Only a literal true counts. */
+/** On for every business unless the platform switched it off for her with an explicit false. */
 export function productsVisible(settings: SettingsLike): boolean {
-  return tenantFlags(settings)[PRODUCTS_FLAG] === true;
+  return tenantFlags(settings)[PRODUCTS_FLAG] !== false;
 }
 
 const cleanText = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);

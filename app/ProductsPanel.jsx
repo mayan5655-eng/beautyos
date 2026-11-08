@@ -3,8 +3,8 @@
 //
 // Cashier screen: "מוצרים ומלאי". Her catalog (add, edit, archive, never delete), stock with a reason for every manual move
 // (a delivery, damage, a count), the stock ledger per product, the home-routine tags the skin scan reads, and a short month view:
-// product revenue, top sellers, what is low. Renders NOTHING unless the platform flag is on. Before the migration runs it says so
-// in one sentence and offers nothing that would fail. Every write goes to /api/products; no stock number is written from here.
+// product revenue, top sellers, what is low. On by default; renders NOTHING when the platform switched it off, while it loads, and
+// before the migration runs (a business never sees a sentence about a database update). Every write goes to /api/products; no stock number is written from here.
 import { useMemo, useState } from 'react';
 import { ROUTINE_TYPES, ADJUST_KINDS, ADJUST_HE, LEDGER_HE, DEFAULT_LOW_THRESHOLD, isActiveProduct, isLowStock, stockOf, thresholdOf } from '@/lib/products';
 import { productsMonth } from '@/lib/productReport';
@@ -24,7 +24,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
   const products = api?.products || [];
   const month = useMemo(() => productsMonth({ receipts: receipts || [], voids: receiptVoids || [], products }), [receipts, receiptVoids, products]);
 
-  if (!api?.visible || api.status === 'hidden') return null;
+  if (!api?.visible || api.status === 'hidden' || api.status === 'migration' || api.status === 'idle') return null;
 
   const box = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 14 };
   const chip = (on) => ({ padding: '8px 12px', minHeight: 40, borderRadius: 'var(--r-full)', border: `1px solid ${on ? pc : 'var(--line-2)'}`, background: on ? pcTint : 'transparent', color: 'var(--ink)', fontWeight: on ? 700 : 500, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' });
@@ -41,12 +41,12 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
     </div>
   );
 
-  if (api.status === 'migration' || api.status === 'error' || api.status === 'idle') {
+  if (api.status === 'error') {
     return (
       <div data-testid="products-panel" style={box}>
         {header}
-        <p style={muted}>{api.status === 'idle' ? 'טוענת את המוצרים…' : api.error}</p>
-        {api.status === 'error' && <button type="button" style={{ ...btn, marginTop: 8 }} onClick={api.reload}>לנסות שוב</button>}
+        <p style={muted}>{api.error}</p>
+        <button type="button" style={{ ...btn, marginTop: 8 }} onClick={api.reload}>לנסות שוב</button>
       </div>
     );
   }
@@ -104,8 +104,17 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
     <div data-testid="products-panel" style={box}>
       {header}
 
+      {/* No products yet: one warm invitation instead of an empty report. */}
+      {products.length === 0 && !form && (
+        <div data-testid="products-empty" style={{ textAlign: 'center', padding: '14px 6px 6px' }}>
+          <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>מוכרת גם מוצרים?</p>
+          <p style={{ ...muted, marginBottom: 12 }}>הוסיפי את המוצר הראשון שלך, והוא יופיע בקופה ליד הטיפולים, עם מלאי שמתעדכן לבד בכל מכירה.</p>
+          <button type="button" data-testid="product-first" style={primary} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY })}>הוסיפי את המוצר הראשון</button>
+        </div>
+      )}
+
       {/* The month, from her receipts (the same money as the income screen). */}
-      <div data-testid="products-report" style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', margin: '8px 0 12px' }}>
+      {products.length > 0 && <div data-testid="products-report" style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', margin: '8px 0 12px' }}>
         <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>החודש</p>
         {month.units === 0 ? <p style={muted}>עוד לא נמכרו מוצרים החודש.</p> : (
           <>
@@ -124,7 +133,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
             ⚠ מלאי נמוך: {month.low.map((l, i) => <span key={l.id}>{i ? ', ' : ''}<bdi>{l.name}</bdi> ({l.stock})</span>)}
           </p>
         )}
-      </div>
+      </div>}
 
       {form && (
         <div data-testid="product-form" style={{ borderTop: '1px solid var(--line)', paddingTop: 8, marginBottom: 12 }}>
@@ -153,11 +162,11 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+      {products.length > 0 && <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <button type="button" style={chip(filter === 'active')} onClick={() => setFilter('active')}>פעילים</button>
         {archivedCount > 0 && <button type="button" style={chip(filter === 'archived')} onClick={() => setFilter('archived')}>ארכיון ({archivedCount})</button>}
-      </div>
-      {shown.length === 0 && <p style={muted}>{filter === 'archived' ? 'אין מוצרים בארכיון.' : 'עוד אין מוצרים בקטלוג. הוסיפי את המוצרים שאת מוכרת, והם יופיעו בקופה ליד הטיפולים.'}</p>}
+      </div>}
+      {products.length > 0 && shown.length === 0 && <p style={muted}>{filter === 'archived' ? 'אין מוצרים בארכיון.' : 'עוד אין מוצרים בקטלוג. הוסיפי את המוצרים שאת מוכרת, והם יופיעו בקופה ליד הטיפולים.'}</p>}
       {shown.map((p) => {
         const open = openId === p.id;
         return (
