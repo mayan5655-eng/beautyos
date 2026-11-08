@@ -113,10 +113,11 @@ export async function POST(request: Request) {
 
   // Merge into the stored bags so a save from an older copy of the row cannot erase what another screen wrote since.
   // Gift voucher setup and design (lib/giftVouchers.ts): validated here, so only clean values are ever stored.
+  // Her products switch and default threshold (lib/products.ts automations.products) are validated first, the same way: the
+  // payload's automations bag is replaced by its cleaned copy before the voucher validation reads it.
+  Object.assign(payload, sanitizeProductAutomations(payload));
   const vouchersClean = sanitizeVoucherAutomations(payload, tenantId, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL));
-  // Her products switch and default threshold (lib/products.ts automations.products): validated the same way.
-  const productsClean = sanitizeProductAutomations(vouchersClean);
-  const toWrite = mergeStoredBags(preserveProtectedAutomations(productsClean, existing?.automations), existing);
+  const toWrite = mergeStoredBags(preserveProtectedAutomations(vouchersClean, existing?.automations), existing);
 
   if (existing) {
     let { data, error } = await db

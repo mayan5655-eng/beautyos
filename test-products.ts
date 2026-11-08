@@ -65,8 +65,8 @@ await ok('her settings: on by default, the default threshold, clamps and junk, a
   // Her switch is NOT a protected key: the settings save writes it, through the validator.
   assert.ok(!(AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('products'));
   const save = rd('app/api/settings/save/route.ts');
-  assert.match(save, /const productsClean = sanitizeProductAutomations\(vouchersClean\);/);
-  assert.match(save, /preserveProtectedAutomations\(productsClean/);
+  const i = save.indexOf('Object.assign(payload, sanitizeProductAutomations(payload));');
+  assert.ok(i > 0 && i < save.indexOf('sanitizeVoucherAutomations(payload'), 'products are cleaned in the payload before the voucher validation and the write');
   // A new product starts with her default threshold.
   const c = cleanProductInput({ name: 'קרם', price: 10 }, 7);
   assert.ok(c.ok && c.value.low_stock_threshold === 7);

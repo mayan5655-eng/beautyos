@@ -37,7 +37,7 @@ export default function ProductsPanel({ api, receipts, receiptVoids, pc, pcTint,
   const header = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>🧴 מוצרים ומלאי</p>
-      {api.status === 'ready' && !form && <button type="button" data-testid="product-new" style={btn} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY, low_stock_threshold: String(defaultThreshold ?? DEFAULT_LOW_THRESHOLD) })}>מוצר חדש</button>}
+      {api.status === 'ready' && !form && products.length > 0 && <button type="button" data-testid="product-new" style={btn} disabled={isDemo} onClick={() => setForm({ id: null, ...EMPTY, low_stock_threshold: String(defaultThreshold ?? DEFAULT_LOW_THRESHOLD) })}>מוצר חדש</button>}
     </div>
   );
 
