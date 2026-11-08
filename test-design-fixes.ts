@@ -49,7 +49,7 @@ ok('phone gutter: .app-main keeps 12px sides and room above the floating buttons
 ok('agenda card: calm surface with a status stripe, one main action, the rest behind "עוד", rows that wrap', () => {
   const i = app.indexOf('2026-10-20 design pass: a calm card');
   assert.ok(i > 0);
-  const card = app.slice(i - 900, i + 6000);
+  const card = app.slice(i - 900, i + 7000);
   assert.match(card, /borderInlineStart:`5px solid \$\{apptColor\}`/);
   assert.match(card, /setApptMenuId\(open\?null:appt\.id\)/);
   assert.match(card, /flexWrap:"wrap"/);

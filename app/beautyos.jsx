@@ -142,7 +142,7 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
-import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
 import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -1722,9 +1722,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
     { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", cta:"העתקת הקישור", onClick:()=>copyPublicLink("book") },
-    { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
-    { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
-    { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
     // Was: settings.green_api_token, which the browser no longer receives.
   ];
   // Guided, one step at a time - deliberately NOT an accordion. Only the next
@@ -1732,7 +1732,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // and the ones beyond the next are visible but not yet actionable. Everything
   // starts collapsed, so the card is a short list of single lines instead of
   // seven expanded blocks.
-  const nextSetupKey = (setupSteps.find(s=>!s.done)||{}).key || null;
+  // UX pass 2026-11-08: five core steps count; branding, gallery and social are "לא חובה, אבל עוזר" and live only
+  // in the Settings checklist, so "הגדרת המערכת" leaves Today once the core five are done.
+  const coreSetupSteps = setupSteps.filter(s=>!s.optional);
+  const extraSetupSteps = setupSteps.filter(s=>s.optional);
+  const nextSetupKey = (coreSetupSteps.find(s=>!s.done)||extraSetupSteps.find(s=>!s.done)||{}).key || null;
   // Holds the key she expanded, not a boolean. Once that step is completed the
   // key stops matching nextSetupKey on its own, so the following step arrives
   // collapsed and no effect is needed to reset anything.
@@ -1740,10 +1744,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Help page accordion: the key she opened; null = the first section.
   const [expandedHelpKey, setExpandedHelpKey] = useState(null);
 
-  const setupDone = setupSteps.filter(s=>s.done).length;
-  const setupTotal = setupSteps.length;
+  const setupDone = coreSetupSteps.filter(s=>s.done).length;
+  const setupTotal = coreSetupSteps.length;
   const setupPct = Math.round((setupDone/setupTotal)*100);
-  const renderSetupBody = () => (
+  const renderSetupBody = (withExtras = false) => (
     <>
       <div style={{marginBottom:10}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
@@ -1757,9 +1761,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {setupDone===setupTotal && (
         <div style={{textAlign:"center",padding:"6px 0 14px"}}>
           <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pcDeep,marginBottom:3}}>הכל מוכן! ✨</p>
-          <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
+          <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
         </div>
       )}
+      {renderSetupRows(coreSetupSteps)}
+      {withExtras && extraSetupSteps.length>0 && (<>
+        <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink-2)",margin:"16px 2px 6px"}}>לא חובה, אבל עוזר</p>
+        {renderSetupRows(extraSetupSteps)}
+      </>)}
+    </>
+  );
+  const renderSetupRows = (list) => (
+    <>
       {/* ONE bordered box with hairline-separated rows, not seven cards each
           with its own border, radius and 8px gap - that per-card chrome was
           most of the height. A row is now a single ~34px line: small ring,
@@ -1770,7 +1783,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           (accent ring, bold label) but every incomplete step is tappable, so
           the arrow on each line does what it looks like it does. */}
       <div style={{border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden"}}>
-        {setupSteps.map((s,i)=>{
+        {list.map((s,i)=>{
           const isNext = !s.done && s.key===nextSetupKey;
           const open   = !s.done && expandedSetupKey===s.key;
           return (
@@ -8543,11 +8556,12 @@ ${MARKETING_FOOTER}`)}`;
  </Sheet>
       )}
 
-      {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
- <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
+      {/* BEAUTY VOICE: floating mic button. Hidden unless automations.feature_flags.voice_booking is true
+          (UX pass 2026-11-08): it cannot book yet, so it only confused her. Hidden, not deleted. */}
+ {voiceBookingVisible(settings)&&<button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
         style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"var(--pc-contrast)",boxShadow:"var(--shadow-accent)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
  <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
- </button>
+ </button>}
 
       {/* BEAUTY VOICE — modal */}
       {showVoice&&(
@@ -8595,7 +8609,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,textAlign:"center",padding:"8px 0"}}>לא זיהיתי פעולה נתמכת. כרגע נתמכת קביעת תור — נסי לומר "קבעי תור ל...".</p>
                 )}
                 {voiceIntent.clarification&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:10}}><Icon name="info" size={14}/> {voiceIntent.clarification}</p>}
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>שלב 2 — הצגת ההבנה בלבד. יצירת התור בפועל תיווסף בשלב הבא.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>התור עוד לא נקבע. כדי לקבוע אותו, פתחי "תור חדש" ביומן.</p>
  <div style={{display:"flex",gap:8,marginTop:14}}>
  <button onClick={startVoice} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)"}}><Icon name="mic" size={14}/> נסי שוב</button>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>סגירה</button>
@@ -9861,11 +9875,14 @@ ${MARKETING_FOOTER}`)}`;
                                   const ghost={...agBtn,background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:600,width:"auto",padding:"0 12px",gap:6};
                                   const main={...ghost,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))",fontWeight:700};
                                   const stop=fn=>e=>{e.stopPropagation();setApptMenuId(null);fn();};
+                                  // UX pass 2026-11-08: payment is the main action on a live unpaid card. The timer
+                                  // only takes the main slot while it is running ("⏹ סיימתי"); "▶ התחלתי" lives in "עוד".
+                                  const running=canTime&&!!appt.actual_start_at;
                                   return (<>
  <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
                                     {paidRcpt&&<span data-testid="agenda-paid" className="pill" style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px",whiteSpace:"nowrap"}}>✓ שולם</span>}
-                                    {canTime&&!paidRcpt?(
- <button onClick={stop(()=>appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt))} style={main}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+                                    {running&&!paidRcpt?(
+ <button onClick={stop(()=>handleFinishTreatment(appt))} style={main}>⏹ סיימתי</button>
                                     ):paidRcpt?(
  <button data-testid="agenda-open-receipt" onClick={stop(()=>setShowReceipt(paidRcpt))} style={main}>🧾 אישור התשלום</button>
                                     ):live?(
@@ -9878,8 +9895,9 @@ ${MARKETING_FOOTER}`)}`;
  <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
                                     {!isPersonal(appt)&&appt.client_id&&<button onClick={stop(()=>{setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");})} style={ghost}>כרטיס לקוחה</button>}
                                     {!isPersonal(appt)&&hasPhone&&<button onClick={stop(()=>sendReminderToClient(appt))} disabled={isBusy("sendReminder")} style={ghost}>תזכורת</button>}
-                                    {canTime&&!paidRcpt&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
-                                    {canTime&&paidRcpt&&<button onClick={stop(()=>appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt))} style={ghost}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>}
+                                    {running&&!paidRcpt&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
+                                    {canTime&&!running&&<button onClick={stop(()=>handleStartTreatment(appt))} style={ghost}>▶ התחלתי</button>}
+                                    {running&&paidRcpt&&<button onClick={stop(()=>handleFinishTreatment(appt))} style={ghost}>⏹ סיימתי</button>}
                                     {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button onClick={stop(()=>markNoShow(appt))} style={ghost}>לא הגיעה</button>}
  <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"ביטול התור"}</button>
  </div>
@@ -11310,9 +11328,11 @@ ${MARKETING_FOOTER}`)}`;
    const b={display:"inline-flex",alignItems:"center",justifyContent:"center",minHeight:44,padding:"0 12px",borderRadius:"var(--r-full)",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"};
    return (
  <div data-testid="appt-edit-actions" style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+   {/* A running timer takes the main slot ("⏹ סיימתי"); otherwise payment does. "▶ התחלתי" sits quietly at the bottom. */}
+   {curLive&&cur.actual_start_at&&!cur.actual_end_at&&<button type="button" onClick={()=>handleFinishTreatment(cur)} style={{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>⏹ סיימתי</button>}
    {paidRcpt
      ?<button type="button" onClick={()=>{closeApptModal();setShowReceipt(paidRcpt);}} style={{...b,color:"var(--success)",borderColor:"var(--success)"}}>✓ שולם</button>
-     :curLive&&<button type="button" onClick={()=>{closeApptModal();handleOpenCashier(cur);}} style={{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>₪ לתשלום</button>}
+     :curLive&&<button type="button" onClick={()=>{closeApptModal();handleOpenCashier(cur);}} style={(cur.actual_start_at&&!cur.actual_end_at)?b:{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>₪ לתשלום</button>}
    {curLive&&(cl?.phone||cur.client_phone)&&<button type="button" onClick={()=>{closeApptModal();sendReminderToClient(cur);}} disabled={isBusy("sendReminder")} style={b}>תזכורת</button>}
    {cl&&<button type="button" onClick={()=>{closeApptModal();setSelectedClient(cl);setClientTab("info");}} style={b}>כרטיס לקוחה</button>}
    {cur.confirmation_status!=="cancelled"&&<button type="button" onClick={()=>{closeApptModal();handleDelete(cur);}} style={{...b,color:"var(--danger)"}}>ביטול התור</button>}
@@ -11479,9 +11499,9 @@ ${MARKETING_FOOTER}`)}`;
                   agenda card offers, for the appointment she has open here. */}
               {editingAppointmentId&&(()=>{
                 const cur=appointments.find(a=>a.id===editingAppointmentId);
-                if(!cur||isPersonal(cur)||cur.confirmation_status==="cancelled"||cur.confirmation_status===NO_SHOW||cur.date>today||cur.actual_end_at) return null;
+                if(!cur||isPersonal(cur)||cur.confirmation_status==="cancelled"||cur.confirmation_status===NO_SHOW||cur.date>today||cur.actual_end_at||cur.actual_start_at) return null;
                 return (
- <button onClick={()=>{cur.actual_start_at?handleFinishTreatment(cur):handleStartTreatment(cur);}} style={{width:"100%",marginTop:8,background:"none",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>{cur.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+ <button onClick={()=>handleStartTreatment(cur)} style={{width:"100%",marginTop:8,background:"none",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",color:"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>▶ התחלתי</button>
                 );
               })()}
               {/* Edit mode, past or today: mark the client as not having come.
@@ -12478,7 +12498,7 @@ ${MARKETING_FOOTER}`)}`;
               <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</h3>
               <button onClick={()=>setShowSetup(false)} className="icon-btn" aria-label="סגירה">✕</button>
             </div>
-            {renderSetupBody()}
+            {renderSetupBody(true)}
           </Sheet>
       )}
 

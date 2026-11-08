@@ -209,6 +209,15 @@ export function reelTemplatesVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).reel_templates !== false;
 }
 
+/**
+ * The floating microphone ("שליטה קולית"). It only shows what it understood and cannot book yet, so it is OFF by
+ * default: an explicit stored `true` under automations.feature_flags.voice_booking (or screens, or the
+ * settings.feature_flags column) shows it. Hidden, not deleted: the button, the sheet and /api/voice-intent stay.
+ */
+export function voiceBookingVisible(settings: SettingsLike): boolean {
+  return tenantFlags(settings).voice_booking === true;
+}
+
 export function legacyCampaignTextsVisible(settings: SettingsLike): boolean {
   return tenantFlags(settings).legacy_campaign_texts === true;
 }
