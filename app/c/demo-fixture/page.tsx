@@ -28,6 +28,7 @@ export default function Fixture() {
         bookPath: '/demo',
         bookHref: '/demo?name=%D7%A8%D7%95%D7%A0%D7%99%D7%AA+%D7%9B%D7%94%D7%9F',
         pageId: 'fixture',
+        loyalty: { every: 10, filled: 7, remaining: 3, ready: false, reward: 'הטיפול העשירי במתנה', line: 'עוד 3 ביקורים למתנה' },
       }}
     />
   );

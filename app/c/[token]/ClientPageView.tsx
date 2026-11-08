@@ -23,6 +23,25 @@ export default function ClientPageView({ page, children }: { page: PublicClientP
           <p className={s.sub}>הדף האישי שלך: התוצאות, מה עשינו, ואיך שומרות על זה יפה.</p>
         </div>
 
+        {page.loyalty && (
+          <section className={`${s.card} ${s.stampCard}`} aria-labelledby="cp-loyalty" data-testid="loyalty-card">
+            <h2 className={s.h2} id="cp-loyalty">כרטיסיית הנאמנות שלך</h2>
+            <ol className={s.stamps} aria-label={`${page.loyalty.filled} מתוך ${page.loyalty.every} ביקורים`}>
+              {Array.from({ length: page.loyalty.every }, (_, i) => {
+                const on = i < page.loyalty!.filled;
+                const last = i === page.loyalty!.every - 1;
+                return (
+                  <li key={i} className={`${s.stamp} ${on ? s.stampOn : ''} ${last ? s.stampGift : ''}`} aria-hidden>
+                    {last ? '🎁' : on ? '✦' : i + 1}
+                  </li>
+                );
+              })}
+            </ol>
+            <p className={s.stampLine} data-testid="loyalty-line">{page.loyalty.line}</p>
+            <p className={s.stampReward}>המתנה: {page.loyalty.reward}</p>
+          </section>
+        )}
+
         {page.results.length > 0 && (
           <section className={s.card} aria-labelledby="cp-results">
             <h2 className={s.h2} id="cp-results">התוצאות שלך</h2>
