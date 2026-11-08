@@ -61,6 +61,14 @@
       "schedule": "0 15 * * 0"
     },
     {
+      "path": "/api/send-weekly-report",
+      "schedule": "0 10 * * 0"
+    },
+    {
+      "path": "/api/send-weekly-report",
+      "schedule": "0 17,18 * * 0,1,2"
+    },
+    {
       "path": "/api/grow/release-holds",
       "schedule": "*/5 * * * *"
     },

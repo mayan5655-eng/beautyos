@@ -37,6 +37,8 @@ export interface AdminTenantRow {
   ai_cost_usd_30d?: number | string | null
   whatsapp_sent_30d?: number | null
   whatsapp_failed_30d?: number | null
+  // "3 צעדים לתור הראשון" done, 0 to 3 (page.tsx loadFirstSteps); null when unknown.
+  first_steps?: number | null
 }
 
 type Action = 'extend' | 'activate' | 'pause'
@@ -331,7 +333,7 @@ export default function AdminClient({
           overflowX: 'auto', background: surface, borderRadius:"var(--r-lg)",
           border: `1px solid ${line}`,
         }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: metricsAvailable ? 1300 : 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: metricsAvailable ? 1380 : 900 }}>
             <thead>
               <tr style={{ background: cream }}>
                 <th style={th}>עסק</th>
@@ -346,6 +348,7 @@ export default function AdminClient({
                   <th style={th}>תורים</th>
                   <th style={th}>פעילות אחרונה</th>
                   <th style={th}>הגדרה</th>
+                  <th style={th} title="3 צעדים לתור הראשון: טיפול פעיל, לקוחה אחת, קישור ששותף או תור">צעדים</th>
                   <th style={th} title="עלות Claude ותמונות AI, 30 יום אחרונים">AI (30 יום)</th>
                   <th style={th} title="הודעות וואטסאפ שנשלחו/נכשלו, 30 יום אחרונים">וואטסאפ (30 יום)</th>
                 </>)}
@@ -393,6 +396,13 @@ export default function AdminClient({
                         {tenant.setup_score == null || tenant.setup_total == null ? '—' : (
                           <span style={{ color: tenant.setup_score < tenant.setup_total ? '#8A6A2F' : '#4E7A55', fontWeight: 600 }}>
                             {tenant.setup_score}/{tenant.setup_total}
+                          </span>
+                        )}
+                      </td>
+                      <td style={td} data-testid="admin-first-steps">
+                        {tenant.first_steps == null ? '—' : (
+                          <span style={{ color: tenant.first_steps < 3 ? '#8A6A2F' : '#4E7A55', fontWeight: 600 }}>
+                            {tenant.first_steps}/3
                           </span>
                         )}
                       </td>

@@ -23,7 +23,7 @@ import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER
 import BrandImage from "@/app/BrandImage";
 import TrialNudge from "./TrialNudge";
 import FirstBookingCard from "./FirstBookingCard";
-import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
+import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, showAttentionOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
 import FeedbackBanner from "./FeedbackBanner";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import BillingNotices from "./BillingNotices";
@@ -59,7 +59,7 @@ import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidO
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
 import { monthlyReport } from "@/lib/monthlyReport";
-import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings } from "@/lib/tourFlow";
+import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings, tourMayStart, tourStepsFor } from "@/lib/tourFlow";
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
@@ -100,6 +100,7 @@ const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: fa
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
@@ -738,6 +739,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
 import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
+import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -1348,6 +1350,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
   }, [toast]);
 
+  // One-tap links from the weekly digest (lib/weeklyDigest.ts DIGEST_GO, /dashboard/digest): ?go=queue|leads|winback|week|birthdays
+  // opens the screen the action is about. Anything else is ignored. A screen is handed to the screen link (?tab=, lib/screenLink.ts),
+  // which opens it once loading ends; a sheet opens by its own state. "go" is stripped so a refresh does not reopen the sheet.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const go = p.get("go");
+    if (!go) return;
+    const tabFor = { leads: "leads", week: "calendar", birthdays: "insights" };
+    if (go === "queue") setShowWaQueue(true);
+    else if (go === "winback") setShowLapsed(true);
+    if (tabFor[go]) p.set("tab", tabFor[go]);
+    if (go === "leads") setLeadFilter("new");
+    if (go === "week") setCalView("week");
+    p.delete("go");
+    const qs = p.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, []);
+
   // Keyboard activation for clickable elements that aren't native buttons:
   // Enter/Space triggers the element's own onClick (via .click()).
   const onKbdActivate = (e) => {
@@ -1621,19 +1642,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // than always restarting at 0.
   const [tourStep, setTourStep] = useState(null);
   const tourTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (tourTriggeredRef.current) return;
-    if (!settings?.tenant_id) return; // settings row not loaded yet
-    // Not on top of the import screen onboarding opened: the tour points at buttons hidden behind it. It starts once she closes the
-    // import (2026-11-02 audit).
-    if (showImportModal || showImportHub) return;
-    tourTriggeredRef.current = true;
-    const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
-    if (autos.onboarding_tour_seen === true) return;
-    const resumeAt = tourResumeStep(autos.onboarding_tour_step, TOUR_STEPS); // never a step whose card cannot be drawn (the Settings one)
-    if (resumeAt == null) return;
-    setTourStep(resumeAt);
-  }, [settings?.tenant_id, settings?.automations, showImportModal, showImportHub]);
+  // The trigger effect itself sits after the "3 צעדים לתור הראשון" block below: it waits for that card (lib/tourFlow.js tourMayStart).
 
   // Fire-and-forget: merges into the existing automations bag (the save
   // route replaces the WHOLE column, not a per-key patch - sending just
@@ -1655,18 +1664,37 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }).catch(() => {});
   }, [settings.automations]);
 
+  // One automations key saved on its own, AND said when it did not save (unlike the tour's fire-and-forget above): the
+  // booking buttons card's "סימנתי שעשיתי" (app/BookingButtonsCard.jsx). Written into editSettings too, so saving the Settings
+  // panel afterwards carries the same value instead of an older copy.
+  const saveAutomationsKey = useCallback(async (key, value) => {
+    const base = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    try {
+      const r = await fetch("/api/settings/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: { automations: { ...base, [key]: value } } }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || String(r.status));
+    } catch {
+      toast("הסימון לא נשמר. אפשר לנסות שוב בעוד רגע", "error");
+      return false;
+    }
+    const put = (prev) => prev ? ({ ...prev, automations: { ...((prev.automations && typeof prev.automations === "object") ? prev.automations : {}), [key]: value } }) : prev;
+    setSettings(put);
+    setEditSettings(put);
+    return true;
+  }, [settings.automations, toast]);
+
   // The tour follows her (lib/tourFlow.js). It used to stay on step 1 ("היום שלך 1/6") over every screen until she pressed דלגי.
   // Going to the screen a step describes jumps to that step; going anywhere the tour has no step for ends it; closing Settings while the
   // tour is on its Settings step ends it too (nothing is left to point at).
   const prevTabRef = useRef(activeTab);
   useEffect(() => {
     const prevTab = prevTabRef.current; prevTabRef.current = activeTab;
-    const move = tourOnNavigate({ steps: TOUR_STEPS, stepIndex: tourStep, prevTab, tab: activeTab, showSettings });
+    const move = tourOnNavigate({ steps: tourSteps, stepIndex: tourStep, prevTab, tab: activeTab, showSettings });
     if (move.type === "jump") { setTourStep(move.step); persistTourPatch({ onboarding_tour_step: move.step }); }
     else if (move.type === "end") { setTourStep(null); persistTourPatch({ onboarding_tour_seen: true }); }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!tourStrandedOutsideSettings({ steps: TOUR_STEPS, stepIndex: tourStep, showSettings })) return;
+    if (!tourStrandedOutsideSettings({ steps: tourSteps, stepIndex: tourStep, showSettings })) return;
     setTourStep(null); persistTourPatch({ onboarding_tour_seen: true });
   }, [showSettings, tourStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1838,6 +1866,29 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The 8-step "הגדרת המערכת" card is never on Today next to the 3-step one (and not while the answer is pending).
   const setupOnToday = fbView !== "pending" && showSetupOnToday(fbView, setupDone, setupTotal);
   const fbShowing = fbView === "active" || fbView === "celebrate" || fbView === "pending";
+  // "דורש תשומת לב" steps aside while the 3-step card is on Today (it only said "הכל מטופל" on an empty account).
+  const attentionOnToday = showAttentionOnToday(fbView);
+
+  // The tour she gets: the short one (היום, תשלומים, יומן) once she has used the 3-step card, the full six otherwise (lib/tourFlow.js).
+  const tourSteps = useMemo(() => tourStepsFor(TOUR_STEPS, fbRecord), [fbRecord.shown_at, fbRecord.done_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  // When the tour starts: once, the first time settings has loaded for a tenant that hasn't seen it, resuming at whatever step she
+  // last reached rather than always restarting at 0.
+  useEffect(() => {
+    if (tourTriggeredRef.current) return;
+    if (!settings?.tenant_id) return; // settings row not loaded yet
+    // Not on top of the import screen onboarding opened: the tour points at buttons hidden behind it. It starts once she closes the
+    // import (2026-11-02 audit).
+    if (showImportModal || showImportHub) return;
+    // Not over the "3 צעדים לתור הראשון" card either, nor while it is still being decided: on day 1 the tour opened on top of it
+    // (2026-11 activation follow-up). It starts once the card is finished or switched off.
+    if (!tourMayStart(fbView)) return;
+    tourTriggeredRef.current = true;
+    const autos = (settings.automations && typeof settings.automations === "object") ? settings.automations : {};
+    if (autos.onboarding_tour_seen === true) return;
+    const resumeAt = tourResumeStep(autos.onboarding_tour_step, tourSteps); // never a step whose card cannot be drawn (the Settings one)
+    if (resumeAt == null) return;
+    setTourStep(resumeAt);
+  }, [settings?.tenant_id, settings?.automations, showImportModal, showImportHub, fbView, tourSteps]);
 
   // Her menu, ordered by how often she actually books each treatment.
   //
@@ -4125,6 +4176,26 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     }
   };
 
+  // A .vcf (vCard) file of contacts: on an iPhone there is no contact picker, but the Contacts app can share contacts as a vCard
+  // file (lib/vcard.js). The file becomes the same text a paste makes and goes on to the same mapping, preview and import, so the
+  // dedupe against her clients by phone is the existing one.
+  const importVcardFile = async (e) => {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = ""; // the same file can be picked again after a "חזרה"
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast("הקובץ גדול מדי. אפשר לשתף פחות אנשי קשר בכל פעם.", "error"); return; }
+    let text = "";
+    try { text = await file.text(); } catch { toast("לא הצלחנו לקרוא את הקובץ. אפשר לנסות שוב, או להדביק רשימה.", "error"); return; }
+    const r = vcardImportText(text);
+    if (!r.count) {
+      toast(isVcardFile(file) || /BEGIN:VCARD/i.test(text) ? "לא מצאנו אנשי קשר עם שם או טלפון בקובץ הזה." : "זה לא נראה כמו קובץ אנשי קשר (vcf). אפשר לבחור קובץ אחר, או להדביק רשימה.", "error");
+      return;
+    }
+    setImportText(r.text);
+    goToImportMapping(r.text);
+  };
+
   // Save all parsed contacts as new clients
   // Move from paste to mapping: parse the grid, detect a header row, pre-guess
   // each column. She corrects the guesses rather than starting from scratch.
@@ -4168,8 +4239,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                       : importTarget === "services" ? buildServiceRows
                       : buildImportRows;
 
-  const goToImportMapping = () => {
-    const grid = parseImportGrid(importText);
+  // `text` is passed when the list did not come from the paste box (a .vcf file): the state update has not landed yet.
+  const goToImportMapping = (text) => {
+    const grid = parseImportGrid(typeof text === "string" ? text : importText);
     if (!grid.rows.length) { toast("לא נמצאו שורות", "error"); return; }
     const hasHeader = detectHeaderRow(grid.rows);
     setImportHasHeader(hasHeader);
@@ -5433,12 +5505,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // trigger effect live earlier, right after closeSettings.
   const handleTourNext = useCallback(() => {
     const next = tourStep + 1;
-    const nextStep = TOUR_STEPS[next];
+    const nextStep = tourSteps[next];
     if (!nextStep) return; // the last step's button is onFinish, not onNext
     if (nextStep.requiresSettings) openSettings(nextStep.settingsTab || "general");
     setTourStep(next);
     persistTourPatch({ onboarding_tour_step: next });
-  }, [tourStep, openSettings, persistTourPatch]);
+  }, [tourStep, tourSteps, openSettings, persistTourPatch]);
 
   const handleTourSkip = useCallback(() => {
     if (showSettings) closeSettings(true);
@@ -7109,7 +7181,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   };
 
   // channel: where she is about to paste it (lib/bookingSource.ts), so a booking from it is counted under that channel.
-  const copyPublicLink = async (kind, channel = "link") => {
+  // okMsg: the toast after a copy, when the caller knows better where it is going (the booking buttons card names the platform).
+  const copyPublicLink = async (kind, channel = "link", okMsg = "") => {
     const t = settings.tenant_id;
     if (!t) { toast("חסר מזהה עסק, אפשר לרענן את הדף", "error"); return false; }
     // The origin the app is served on, so the copied link points at THIS
@@ -7144,7 +7217,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       : withSource(mySlug ? `${base}/${encodeURIComponent(mySlug)}` : `${base}/book?t=${t}`, channel);
     try {
       await navigator.clipboard.writeText(url);
-      toast(kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
+      toast(okMsg ? okMsg : kind === "scan" ? "קישור הסורק הועתק" : kind === "community" ? "קישור הקהילה הועתק" : "הקישור לקביעת תור הועתק. עכשיו הדביקי אותו בוואטסאפ ללקוחה");
       if (kind === "book") {
         setLinkShared(true); try { localStorage.setItem(`kl_link_shared_${t}`, "1"); } catch { /* private mode: the tick lasts this visit */ }
         // Also on her account, once: the tick was per device, so copying on the phone left the step open on the computer.
@@ -8054,7 +8127,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (
       <OnboardingTour
-        steps={TOUR_STEPS}
+        steps={tourSteps}
         stepIndex={tourStep}
         onNext={handleTourNext}
         onSkip={handleTourSkip}
@@ -9122,8 +9195,8 @@ ${MARKETING_FOOTER}`)}`;
                     })()}
  </div>}
 
- {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action) */}
- <div className="fm-in glass-card card-boxed" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
+ {/* NEEDS ATTENTION — secondary (today's birthdays folded in as an action). Not while the 3-step card is on Today: on an empty account it only said "הכל מטופל" (lib/firstBooking.js showAttentionOnToday). */}
+ {attentionOnToday&&<div className="fm-in glass-card card-boxed" data-testid="needs-attention" style={{animationDelay:"0.06s",padding:"24px 26px",flex:"1 1 280px",minWidth:0}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"rgba(242,184,75,0.14)",color:"var(--warning)"}}>✷</span>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>דורש תשומת לב</h3>
@@ -9203,10 +9276,11 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
+                        if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -9267,7 +9341,7 @@ ${MARKETING_FOOTER}`)}`;
                         ))}
                       </>);
                     })()}
- </div>
+ </div>}
  </div>
 
  </>);
@@ -11286,7 +11360,23 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:14,lineHeight:1.6}}>{importSpec.blurb}</p>
 
  {importTarget==="clients"&&(<>{/* The contact picker exists only on Chrome for Android: on an iPhone the button could never work, so it is not shown there (2026-10-24 phone review). */}{typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<button onClick={pickFromContacts} style={{width:"100%",padding:"11px 0",background:"var(--pc-tint)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}><Icon name="contacts" size={14}/> בחירה מאנשי הקשר בטלפון</button>}
- {typeof navigator!=="undefined"&&navigator.contacts&&typeof navigator.contacts.select==="function"&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(או הדביקי רשימה למטה, שורה לכל לקוחה)</p>}</>)}
+ 
+ {/* A contacts file (.vcf), for every phone: the iPhone way in, since it has no contact picker (lib/vcard.js). */}
+ <label data-testid="import-vcf" style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:6,width:"100%",minHeight:44,padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px dashed var(--pc)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}>
+ <Icon name="upload" size={14}/> בחירת קובץ אנשי קשר (vcf)
+ <input type="file" accept={VCARD_ACCEPT} onChange={importVcardFile} style={{position:"absolute",width:1,height:1,opacity:0,overflow:"hidden"}}/>
+ </label>
+ <details data-testid="import-vcf-howto" style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,lineHeight:1.6}}>
+ <summary style={{cursor:"pointer",fontWeight:600,color:"var(--ink)",padding:"6px 0",textDecoration:"underline",textUnderlineOffset:3}}>איך שולחים אנשי קשר מהאייפון?</summary>
+ <ol style={{margin:"6px 0 0",paddingInlineStart:22,listStyle:"decimal"}}>
+ <li>פתחי את אנשי הקשר בטלפון.</li>
+ <li>לקוחה אחת: פתחי את הכרטיס שלה ולחצי על שיתוף איש קשר.</li>
+ <li>כמה לקוחות יחד: בגרסאות חדשות של האייפון אפשר לסמן כמה אנשי קשר ברשימה, ללחוץ לחיצה ארוכה ולבחור שיתוף. אם זה לא מופיע אצלך, אפשר לשתף אחת אחת.</li>
+ <li>במסך השיתוף בחרי שמירה בקבצים.</li>
+ <li>חזרי לכאן, לחצי על בחירת קובץ אנשי קשר ובחרי את הקובץ ששמרת.</li>
+ </ol>
+ </details>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,textAlign:"center"}}>(או הדביקי רשימה למטה, שורה לכל לקוחה)</p></>)}
 
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{importSpec.rowLabel}</p>
  <textarea value={importText} onChange={e=>setImportText(e.target.value)} rows={7} placeholder={importSpec.placeholder} style={{width:"100%",padding:"11px 13px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2)",background:"var(--surface-2)",fontSize:"var(--t-sm)",fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical",direction:"rtl",outline:"none"}}/>
@@ -11328,7 +11418,7 @@ ${MARKETING_FOOTER}`)}`;
      return n;
    })();
    return (<>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך — אפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>בחרי מה כל עמודה מייצגת. ניחשנו עבורך, ואפשר לשנות.{importTarget==="appts"&&<> תאריכים נקראים כ<strong>יום/חודש/שנה</strong>.</>}</p>
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
@@ -11354,7 +11444,7 @@ ${MARKETING_FOOTER}`)}`;
    {preview.map((r,ri)=>(
  <tr key={ri} style={{background:ri%2?"var(--surface-2)":"var(--surface)"}}>
      {r.map((cell,ci)=>(
- <td key={ci} style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
+ <td key={ci} dir="auto" style={{padding:"7px 8px",fontSize:"var(--t-xs)",color:importCols[ci]&&importCols[ci]!=="ignore"?"var(--ink)":"var(--ink-3)",borderTop:"1px solid var(--line)",unicodeBidi:"plaintext",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:150}}>{cell||"—"}</td>
      ))}
  </tr>
    ))}
@@ -12455,6 +12545,15 @@ ${MARKETING_FOOTER}`)}`;
  </a>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
  </div>
+                    )}
+                    {/* Her booking link into Instagram, Google, Facebook and WhatsApp Business: guided steps, tagged links, ticks (lib/bookingButtons.ts). */}
+                    {settings?.tenant_id&&(
+ <BookingButtonsCard
+   bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`}
+   automations={settings.automations}
+   onCopy={(src,msg)=>copyPublicLink("book",src,msg)}
+   onSaveDone={(next)=>saveAutomationsKey("booking_buttons",next)}
+   pcDeep={pcDeep}/>
                     )}
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:2}}>תמונה שלך</p>

@@ -90,7 +90,7 @@ assert.ok(src('lib/reminders/smartReminders.js').includes("withSource(`${APP_URL
 assert.ok(src('app/api/clients/comeback/route.js').includes("withSource(`${APP_URL}/book?t=${tenantId}`, 'whatsapp')"));
 assert.ok(src('lib/ai/loadBusinessProfile.ts').includes("'post')"));
 const app = src('app/beautyos.jsx');
-assert.ok(app.includes('copyPublicLink = async (kind, channel = "link")'));
+assert.ok(app.includes('copyPublicLink = async (kind, channel = "link"'), 'the copy takes the channel, "link" by default (a third argument, the toast, was added for the booking buttons card)');
 assert.ok(app.includes('data-testid="tagged-links"'));
 assert.ok(app.includes('<ClientReferral ') && app.includes('<BookingSourceReport '));
 assert.ok(src('app/BookingPage.jsx').includes('recalledSource(tenantId'));

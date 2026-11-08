@@ -1,0 +1,13 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:יעל אברהם
+N:אברהם;יעל;;;
+TEL;VALUE=uri;PREF=1;TYPE="voice,cell":tel:+972-55-999-9999
+TEL;VALUE=uri;TYPE="voice,home":tel:+972-3-555-0000;ext=12
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:אורית שמש
+TEL;TYPE=home:tel:+972-2-555-1111
+TEL;TYPE=work:tel:+972-4-555-2222
+END:VCARD
