@@ -61,6 +61,8 @@ export async function POST(request: Request) {
     // The card was NOT stored. Answer 503 and skip the approve, so Grow sends the callback again: a 200 here lost the card for
     // good (she saw it accepted, the first charge then failed with no card on file). A retry is safe: saveCard re-writes the
     // token on the existing row and attempt() checks the ledger before charging.
+    // The same 503 when the card WAS stored but the check for a charge already in flight failed (lib/billing/service.ts
+    // OpenAttemptLookupError): nothing was charged, and Grow's retry runs the check again.
     console.error('[billing] saveCard after Grow token failed:', (e as Error)?.message);
     await moneyAlert('billing:grow-notify', 'saveCard failed after a Grow card token; answered 503 so Grow retries', { tenantId });
     return done(503);

@@ -5,7 +5,7 @@
 // (a till sale with its own receipt, app/api/vouchers action 'sell'); voiding one (recorded, never deleted); and the wa.me link to
 // hand a voucher over. On for every business by default (lib/giftVouchers.ts giftVouchersVisible: only an explicit false hides it).
 // Before the migration runs it renders nothing at all (owner decision, 2026-11-08).
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   giftVouchersVisible, giftVouchersSelling, voucherConfig, voucherStatus, STATUS_HE, formatCode, voucherTitle, dateHe, voucherShareText, waShareLink,
   MIN_AMOUNT, MAX_AMOUNT,
@@ -16,7 +16,10 @@ const METHODS = ['מזומן', 'אשראי', 'ביט', 'פייבוקס', 'העב
 const newKey = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
 const EMPTY = { option: '', amount: '', method: 'מזומן', buyerName: '', buyerPhone: '', recipientName: '', message: '' };
 
-export default function GiftVouchersPanel({ settings, services, pc, pcTint, toast, isDemo, onReceipt, voidedReceiptIds }) {
+// sellRequest: a counter from the till's "תשלום חדש" sheet (app/beautyos.jsx). Each new value opens THIS panel's sale form, the same one
+// "מכירת שובר" opens, so the sale itself has one implementation. onAvailable(false) tells the till there is nothing to show here, so it
+// hides the vouchers tab instead of showing an empty one.
+export default function GiftVouchersPanel({ settings, services, pc, pcTint, toast, isDemo, onReceipt, voidedReceiptIds, sellRequest, onAvailable }) {
   // A redemption whose sale she voided can be given back here too: the retry for when the automatic return failed at void time.
   const voided = voidedReceiptIds instanceof Set ? voidedReceiptIds : new Set();
   const visible = giftVouchersVisible(settings);
@@ -48,6 +51,18 @@ export default function GiftVouchersPanel({ settings, services, pc, pcTint, toas
     if (!data?.ready || !sellingOn) return;
     try { if (sessionStorage.getItem('kalmea:voucher-sell') === '1') { sessionStorage.removeItem('kalmea:voucher-sell'); setSelling(true); setSold(null); setTimeout(() => document.querySelector('[data-testid="gift-vouchers"]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300); } } catch { /* private mode: she taps "מכירת שובר" */ }
   }, [data?.ready, sellingOn]);
+
+  // A sale asked for from "תשלום חדש": open the form once per request, after the vouchers have loaded.
+  const handledSell = useRef(0);
+  useEffect(() => {
+    if (!sellRequest || sellRequest === handledSell.current || !data?.ready || !sellingOn) return;
+    handledSell.current = sellRequest;
+    setSelling(true); setSold(null);
+    setTimeout(() => { try { document.querySelector('[data-testid="voucher-sell-form"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { /* not rendered */ } }, 150);
+  }, [sellRequest, data?.ready, sellingOn]);
+
+  const hidden = !visible || !!data?.needsMigration || (!sellingOn && !!data?.ready && !(data.vouchers || []).length);
+  useEffect(() => { onAvailable?.(!hidden); }, [hidden, onAvailable]);
 
   // Before the migration runs nothing shows at all (owner decision, 2026-11-08): no sentence about a missing update.
   if (!visible || data?.needsMigration) return null;

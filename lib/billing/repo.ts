@@ -51,8 +51,11 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       let q = db.from('billing_payments').select('*').eq('subscription_id', subId).eq('kind', 'subscription').in('status', ['pending', 'unknown']);
       if (periodStart) q = q.eq('period_start', periodStart);
       const { data, error } = await q.order('created_at', { ascending: false }).limit(1);
-      // Before add_kalmea_billing_grow.sql the statuses do not exist: nothing is open.
-      if (error) return null;
+      // FAIL CLOSED: a read error is never "nothing open". An open attempt may be a charge Grow already took, and answering null here
+      // let attempt() draw a NEW identifier, which is a second real charge. Throwing stops this business's charge for this run
+      // (attempt() raises a money alert); the next run retries. Before add_kalmea_billing_grow.sql this read cannot fail on the
+      // statuses (they are plain text under a check constraint), and the pending ledger row would be refused anyway.
+      if (error) fail(error, 'findOpenAttempt');
       return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;
     },
     async insertPayment(row) {

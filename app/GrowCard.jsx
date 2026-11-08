@@ -23,7 +23,9 @@ import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
-export default function GrowCard({ pc, pcTint, toast, isDemo }) {
+// onOpenPolicy: the cancellation and deposit policy lives in Settings > תשלומים (app/PaymentsSettings.jsx), the one place for deposits;
+// with it the card links there instead of showing the policy a second time. Without it (any other caller) the policy shows here as before.
+export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
   const [s, setS] = useState(null);
   const [userId, setUserId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,7 +134,14 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         ) : (
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>עוד לא היו חיובים. בקופה יופיע כפתור &quot;חיוב בכרטיס אשראי&quot;.</p>
         )}
-        <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+        {onOpenPolicy ? (
+          <div data-testid="grow-policy-link" style={{ marginTop: 12, padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', background: 'var(--surface-2)' }}>
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>מדיניות ביטולים ומקדמה באשראי נמצאות עכשיו בהגדרות, בלשונית תשלומים.</p>
+            <button type="button" onClick={onOpenPolicy} style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: 40, color: 'var(--pc-deep, var(--ink))', fontWeight: 700, fontSize: 'var(--t-sm)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>לתשלומים ←</button>
+          </div>
+        ) : (
+          <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+        )}
         {!isDemo && (
           <div style={{ marginTop: 12 }}>
             {!confirmOff ? (
