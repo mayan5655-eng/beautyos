@@ -169,14 +169,18 @@ export async function POST(request: NextRequest) {
   } catch { /* 0: the booking is not refused over a buffer it could not read */ }
   let claimBuffer = claimBufferDefault;
   if (claimed.service) {
-    const { data: svc } = await supabase
+    // Every row of that name, not maybeSingle(): an archived namesake next to the active service made maybeSingle() error and
+    // return null, so the claim stored the business default instead of the active service's buffer (Vercel review 2026-11-08).
+    // The active row wins for the price, and bufferLookup already prefers active rows for the buffer.
+    const { data: svcRows } = await supabase
       .from("service_prices")
       .select("*")
       .eq("tenant_id", claimed.tenant_id)
-      .eq("name", claimed.service)
-      .maybeSingle();
+      .eq("name", claimed.service);
+    const rows = Array.isArray(svcRows) ? svcRows : [];
+    const svc = rows.find((r) => r && r.active !== false) || rows[0] || null;
     if (svc && Number.isFinite(Number(svc.price))) claimPrice = Number(svc.price);
-    claimBuffer = bufferLookup(svc ? [svc] : [], claimBufferDefault)({ service: claimed.service });
+    claimBuffer = bufferLookup(rows, claimBufferDefault)({ service: claimed.service });
   }
 
   const booked = await bookAppointmentSlot(supabase, {

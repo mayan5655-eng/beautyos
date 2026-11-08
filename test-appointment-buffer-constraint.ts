@@ -164,6 +164,7 @@ ok(app.includes('...apptBufferField(newApptBufferFor(svc?.name)),'), 'voice book
 ok((app.match(/\.\.\.apptBufferField\(0\),/g) || []).length === 2, 'personal blocks and imported history: 0');
 ok(booking.includes('...apptBufferField(b.buffer_minutes),') && booking.includes('if (code === "23505" || code === "23P01") return { ok: false, taken: true };'), 'slot claim (waitlist / gap offers): stores the buffer, 23P01 is still "taken"');
 ok(claim.includes('buffer_minutes: claimBuffer,'), 'the claim route passes the service buffer');
+ok(!/from("service_prices")[sS]{0,160}.eq("name", claimed.service)s*.maybeSingle()/.test(claim) && claim.includes('claimBuffer = bufferLookup(rows, claimBufferDefault)'), 'an archived namesake never hides the active service buffer on a claim');
 ok(app.includes('if (code === "23505" || code === "23P01") {'), 'in-app writers: 23P01 is still "this time is taken"');
 
 // Every insert into appointments in app/ and lib/ goes through writeWithApptBuffer. Allowed exceptions, each with a
