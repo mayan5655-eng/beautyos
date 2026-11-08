@@ -21,6 +21,7 @@ const PUBLIC_PREFIXES = [
   '/skin-scan',
   '/form',
   '/confirm',
+  '/v', // /v/<token>: a gift voucher's page (app/v/[token]), opened by the friend who received it; the 192-bit token is the authorisation
   '/c', // /c/<token>: a client's personal results page, opened from a link her cosmetician sent her (app/c/[token]); the signed, revocable token is the authorisation
   '/claim', // /claim/<token>: the gap-fill offer a client opens from a WhatsApp link. It was missing, so every such link answered 307 -> /login (found 2026-10-06)
   '/data-deletion', // Meta's data deletion status page (app/data-deletion/status), opened from a Facebook link with no session
@@ -44,6 +45,8 @@ function isPublicPath(pathname: string): boolean {
   if (segments.length === 1 && segments[0] !== 'dashboard') {
     return true;
   }
+  // Her gift voucher shop: /<slug>/gift (app/[slug]/gift), the buyer has no session. Exactly that second segment, nothing deeper.
+  if (segments.length === 2 && segments[1] === 'gift' && segments[0] !== 'dashboard') return true;
   // The home app ("/") renders the SPA and runs its own session guard.
   if (pathname === '/') return true;
   return false;

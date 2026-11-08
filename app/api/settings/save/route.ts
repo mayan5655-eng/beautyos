@@ -32,6 +32,8 @@ import { SEEDED_SETTINGS_KEYS } from '@/lib/tenantTemplate';
 import { isMissingColumnError } from '@/lib/pgError';
 import { notifyOwnerOfSignup } from '@/lib/ownerSignupAlert';
 import { sendOwnerWelcome } from '@/lib/ownerWelcome';
+import { sanitizeVoucherAutomations } from '@/lib/giftVouchers';
+import { storageHostOf } from '@/lib/giftVoucherDesign';
 
 function admin() {
   return createClient(
@@ -109,7 +111,9 @@ export async function POST(request: Request) {
   }
 
   // Merge into the stored bags so a save from an older copy of the row cannot erase what another screen wrote since.
-  const toWrite = mergeStoredBags(preserveProtectedAutomations(payload, existing?.automations), existing);
+  // Gift voucher setup and design (lib/giftVouchers.ts): validated here, so only clean values are ever stored.
+  const vouchersClean = sanitizeVoucherAutomations(payload, tenantId, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL));
+  const toWrite = mergeStoredBags(preserveProtectedAutomations(vouchersClean, existing?.automations), existing);
 
   if (existing) {
     let { data, error } = await db
