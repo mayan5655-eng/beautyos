@@ -32,14 +32,14 @@ export function defaultPlanPrice(signedUpAt: string | null | undefined, cutoffIs
 }
 
 // ── The annual plan (2026-11-08) ─────────────────────────────────────────────────────────────────────────────────────────────────
-// PENDING THE OWNER'S CONFIRMATION: annual = 10 times the monthly price, i.e. two months free (regular 4,990, launch 3,490). Nothing
+// CONFIRMED by the owner 2026-11-09 (monthly 349 launch / 499 regular too): annual = 10 times the monthly price, i.e. two months free (regular 4,990, launch 3,490). Nothing
 // is offered or charged yearly until NEXT_PUBLIC_ANNUAL_PLAN=1 is set in Vercel (read by the server for billing and by the app for the
 // choice; a redeploy is needed). A business's own agreed monthly price (tenants.plan_price) still wins: her yearly price is 10 times it.
 
-/** How many monthly prices one year costs. PENDING the owner's confirmation. */
+/** How many monthly prices one year costs. Confirmed by the owner 2026-11-09. */
 export const ANNUAL_MONTHS_PAID = 10
 
-/** The yearly prices that follow from the monthly ones (shekels). PENDING the owner's confirmation. */
+/** The yearly prices that follow from the monthly ones (shekels). Confirmed by the owner 2026-11-09. */
 export const ANNUAL_PLAN_PRICES = {
   regular: PLAN_PRICES.regular * ANNUAL_MONTHS_PAID,
   launch: PLAN_PRICES.launch * ANNUAL_MONTHS_PAID,
